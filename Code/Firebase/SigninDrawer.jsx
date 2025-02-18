@@ -7,7 +7,6 @@ import {
     TextInput,
     TouchableOpacity,
     Pressable,
-    useColorScheme,
     ActivityIndicator,
     Alert,
     Platform,

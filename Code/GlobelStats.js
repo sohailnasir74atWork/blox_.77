@@ -7,7 +7,7 @@ import { createNewUser, firebaseConfig, registerForNotifications } from './Globe
 import { useLocalState } from './LocalGlobelStats';
 import { requestPermission } from './Helper/PermissionCheck';
 import { getAnalytics, logEvent, setAnalyticsCollectionEnabled } from '@react-native-firebase/analytics';
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import config from './Helper/Environment';
 import { MMKV } from 'react-native-mmkv';
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
@@ -162,24 +162,30 @@ export const GlobalStateProvider = ({ children }) => {
   
 
 
-  
- const checkInternetConnection = async () => {
-  try {
-    const response = await fetch('https://www.google.com/favicon.ico', { method: 'HEAD', cache: 'no-store' });
-    if (!response.ok) {
-      throw new Error('Unable to reach the internet. Please check your connection.');
+
+
+  const checkInternetConnection = async () => {
+    try {
+      const response = await fetch('https://www.google.com/favicon.ico', { method: 'HEAD', cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error('Unable to reach the internet.');
+      }
+    } catch {
+      // ✅ Show a friendly alert message
+      Alert.alert(
+        "⚠️ No Internet Connection",
+        "Some features may not work properly. Please check your network and try again.",
+        [{ text: "OK" }]
+      );
     }
-  } catch {
-    throw new Error('No internet connection. Please check your network.');
-  }
-};
-
-useEffect(() => {
-  const now = new Date().toISOString(); 
-  updateLocalStateAndDatabase('lastactivity', now); 
-  checkInternetConnection()
-}, []);
-
+  };
+  
+  useEffect(() => {
+    const now = new Date().toISOString();
+    updateLocalStateAndDatabase('lastactivity', now);
+    checkInternetConnection(); // 🔍 Check internet on app load
+  }, []);
+  
 
 
 
