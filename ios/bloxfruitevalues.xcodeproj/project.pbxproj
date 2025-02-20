@@ -10,6 +10,8 @@
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		18119D592D5CF50800B22C3A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18119D582D5CF50800B22C3A /* AppDelegate.swift */; };
 		18210E3A2D5CBE7900113462 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 18210E392D5CBE7900113462 /* StoreKit.framework */; };
+		183231FB2D66329F00278B1F /* testing.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 183231FA2D66329F00278B1F /* testing.storekit */; };
+		183231FD2D66334300278B1F /* StoreKitTestCertificate.cer in Resources */ = {isa = PBXBuildFile; fileRef = 183231FC2D66334300278B1F /* StoreKitTestCertificate.cer */; };
 		187146CE2D5CB1B5003890D6 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 187146CD2D5CB1B5003890D6 /* GoogleService-Info.plist */; };
 		3CB3B02363450A64CDC9063D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		3DD773292011487396EB3CB0 /* Lato-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7C9634A738C64C4B9FFE6234 /* Lato-Regular.ttf */; };
@@ -27,6 +29,8 @@
 		18119D5A2D5CF50A00B22C3A /* bloxfruitevalues-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "bloxfruitevalues-Bridging-Header.h"; sourceTree = "<group>"; };
 		18210E382D5CBE3C00113462 /* bloxfruitevalues.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = bloxfruitevalues.entitlements; path = bloxfruitevalues/bloxfruitevalues.entitlements; sourceTree = "<group>"; };
 		18210E392D5CBE7900113462 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
+		183231FA2D66329F00278B1F /* testing.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; name = testing.storekit; path = bloxfruitevalues/testing.storekit; sourceTree = "<group>"; };
+		183231FC2D66334300278B1F /* StoreKitTestCertificate.cer */ = {isa = PBXFileReference; lastKnownFileType = file; name = StoreKitTestCertificate.cer; path = ../../../../../Documents/StoreKitTestCertificate.cer; sourceTree = "<group>"; };
 		187146CD2D5CB1B5003890D6 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		7C9634A738C64C4B9FFE6234 /* Lato-Regular.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = "Lato-Regular.ttf"; path = "../assets/fonts/Lato-Regular.ttf"; sourceTree = "<group>"; };
 		7F5A461FA3FD426E82335FB7 /* Lato-Bold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = "Lato-Bold.ttf"; path = "../assets/fonts/Lato-Bold.ttf"; sourceTree = "<group>"; };
@@ -84,6 +88,8 @@
 		83CBB9F61A601CBA00E9B192 = {
 			isa = PBXGroup;
 			children = (
+				183231FA2D66329F00278B1F /* testing.storekit */,
+				183231FC2D66334300278B1F /* StoreKitTestCertificate.cer */,
 				187146CD2D5CB1B5003890D6 /* GoogleService-Info.plist */,
 				13B07FAE1A68108700A75B9A /* bloxfruitevalues */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
@@ -188,7 +194,9 @@
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3CB3B02363450A64CDC9063D /* PrivacyInfo.xcprivacy in Resources */,
+				183231FD2D66334300278B1F /* StoreKitTestCertificate.cer in Resources */,
 				AE30EFB988CB49C7A0CA6153 /* Lato-Bold.ttf in Resources */,
+				183231FB2D66329F00278B1F /* testing.storekit in Resources */,
 				3DD773292011487396EB3CB0 /* Lato-Regular.ttf in Resources */,
 				187146CE2D5CB1B5003890D6 /* GoogleService-Info.plist in Resources */,
 			);
@@ -316,7 +324,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = bloxfruitevalues/bloxfruitevalues.entitlements;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 22;
 				DEVELOPMENT_TEAM = P32FX5FC6Z;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = bloxfruitevalues/Info.plist;
@@ -326,7 +334,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.0.110;
+				MARKETING_VERSION = 4.0.200;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -334,9 +342,14 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.bloxfruitevalues;
 				PRODUCT_NAME = bloxfruitevalues;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "bloxfruitevalues-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Debug;
@@ -348,7 +361,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = bloxfruitevalues/bloxfruitevalues.entitlements;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 22;
 				DEVELOPMENT_TEAM = P32FX5FC6Z;
 				INFOPLIST_FILE = bloxfruitevalues/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Fruit Values";
@@ -357,7 +370,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.0.110;
+				MARKETING_VERSION = 4.0.200;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -365,8 +378,13 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.bloxfruitevalues;
 				PRODUCT_NAME = bloxfruitevalues;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "bloxfruitevalues-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;
@@ -451,10 +469,7 @@
 					"-DFOLLY_CFG_NO_COROUTINES=1",
 					"-DFOLLY_HAVE_CLOCK_GETTIME=1",
 				);
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					" ",
-				);
+				OTHER_LDFLAGS = "$(inherited)  ";
 				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
@@ -534,10 +549,7 @@
 					"-DFOLLY_CFG_NO_COROUTINES=1",
 					"-DFOLLY_HAVE_CLOCK_GETTIME=1",
 				);
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					" ",
-				);
+				OTHER_LDFLAGS = "$(inherited)  ";
 				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
 				USE_HERMES = true;

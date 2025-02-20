@@ -3,6 +3,7 @@ import messaging from '@react-native-firebase/messaging'; // React Native Fireba
 import { Platform } from 'react-native'; // Platform detection (iOS/Android)
 import { generateOnePieceUsername } from './Helper/RendomNamegen';
 import { getDatabase, ref, get, set } from '@react-native-firebase/database';
+import { developmentMode } from './Ads/ads';
 
 export const firebaseConfig = {
     apiKey: "AIzaSyDUXkQcecnhrNmeagvtRsKmDBmwz4AsRC0",
@@ -33,6 +34,10 @@ export const firebaseConfig = {
           // console.log('📡 Checking existing FCM token...');
           const currentTokenSnapshot = await get(tokenRef);
           const currentToken = currentTokenSnapshot.exists() ? currentTokenSnapshot.val() : null;
+          const currentTokenSize = JSON.stringify(currentToken).length / 1024;
+                if (developmentMode) {
+                    console.log(`🚀 toekn size data: ${currentTokenSize.toFixed(2)} KB`);
+                }
   
           if (currentToken === token) {
               // console.log('✅ Token already up-to-date. No action needed.');
@@ -136,30 +141,3 @@ export const resetUserState = (setUser) => {
       lastactivity:null
     });
   };
-  // Call the function to update all usernames
-
-  export const fetchBannedUsersByCurrentUser = async (currentUserId) => {
-      if (!currentUserId) return [];
-  
-      try {
-          // Reference to the current user's banned users
-          const bannedRef = database().ref(`bannedUsers/${currentUserId}`);
-          
-          // Fetch banned users
-          const bannedSnapshot = await bannedRef.once('value');
-          const bannedData = bannedSnapshot.val() || {};
-  
-          // Format data into an array
-          const bannedUsers = Object.entries(bannedData).map(([bannedUserId, details]) => ({
-              id: bannedUserId,
-              avatar: details.avatar || null,
-              displayName: details.displayName || "Unknown",
-          }));
-  
-          return bannedUsers;
-      } catch (error) {
-          console.error("Error fetching banned users:", error);
-          return [];
-      }
-  };
-  

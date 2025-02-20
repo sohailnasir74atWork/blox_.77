@@ -424,7 +424,7 @@ const TradeList = ({ route }) => {
           <Icon
             name="chatbox-outline"
             size={18}
-            color={'grey'}
+            color={config.colors.secondary}
             onPress={handleChatNavigation}
           />
           </View>

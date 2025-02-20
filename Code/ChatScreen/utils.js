@@ -1,5 +1,6 @@
 import { getDatabase, ref, update, get, query, orderByChild, remove, set, orderByKey, onDisconnect } from '@react-native-firebase/database';
 import { Alert } from 'react-native';
+import { developmentMode } from '../Ads/ads';
 
 // Initialize the database reference
 const database = getDatabase();
@@ -166,44 +167,6 @@ export const unbanUserInChat = async (currentUserId, selectedUserId) => {
 
 
 
-export const deleteOldest500Messages = async () => {
-  try {
-    const database = getDatabase(); // Initialize Firebase Realtime Database
-    const chatsRef = ref(database, 'chat'); // Reference to the 'chat' node
-
-    // Fetch all messages
-    const snapshot = await get(query(chatsRef, orderByKey()));
-    const messages = snapshot.val();
-
-    if (!messages) {
-      // console.log('No messages to delete.');
-      return;
-    }
-
-    // Convert the messages to an array and sort by keys (oldest to newest)
-    const messageKeys = Object.keys(messages);
-    const oldestMessageKeys = messageKeys.slice(0, 500); // Get the first 500 keys
-
-    if (oldestMessageKeys.length === 0) {
-      // console.log('No messages to delete.');
-      return;
-    }
-
-    // Delete the oldest 500 messages
-    const deletePromises = oldestMessageKeys.map((messageKey) =>
-      remove(ref(database, `chat/${messageKey}`))
-    );
-
-    await Promise.all(deletePromises);
-
-    // console.log('Oldest 500 messages deleted successfully.');
-  } catch (error) {
-    console.error('Error deleting messages:', error);
-  }
-};
-
-
-
 
 
 
@@ -233,29 +196,36 @@ export const setActiveChat = async (userId, chatId) => {
   const database = getDatabase();
   const activeChatRef = ref(database, `/activeChats/${userId}`);
   const unreadRef = ref(database, `/private_chat/${chatId}/unread/${userId}`);
+  const chatDataRef = ref(database, `/private_chat/${chatId}`);
 
   try {
-    // Set the active chat for the user
+    // 🔍 Fetch chat data before setting active chat
+    const chatSnapshot = await get(chatDataRef);
+    const chatData = chatSnapshot.exists() ? chatSnapshot.val() : {};
+
+    // 🔹 Calculate the size of downloaded data in KB
+    const chatDataSize = JSON.stringify(chatData).length / 1024;
+    
+    if (developmentMode) {
+      console.log(`🚀 Downloaded chat data: ${chatDataSize.toFixed(2)} KB`);
+    }
+
+    // ✅ Set the active chat for the user
     await set(activeChatRef, chatId);
-    // console.log(`Active chat set for user ${userId}: ${chatId}`);
+    console.log(`✅ Active chat set for user ${userId}: ${chatId}`);
 
-    // Reset unread count for this user in the active chat
+    // ✅ Reset unread count for this user in the active chat
     await set(unreadRef, 0);
-    // console.log(`Unread count reset to 0 for user ${userId} in chat ${chatId}`);
+    console.log(`✅ Unread count reset to 0 for user ${userId} in chat ${chatId}`);
 
-    // Ensure active chat is cleared on disconnect
-    onDisconnect(activeChatRef)
-      .remove()
-      .then(() => {
-        // console.log(`Active chat for user ${userId} will be removed on disconnect.`);
-      })
-      .catch((error) => {
-        console.error(`Failed to set onDisconnect handler for user ${userId}:`, error);
-      });
+    // ✅ Ensure active chat is cleared on disconnect
+    await onDisconnect(activeChatRef).remove();
+    console.log(`ℹ️ Active chat for user ${userId} will be removed on disconnect.`);
   } catch (error) {
-    console.error(`Failed to set active chat for user ${userId}:`, error);
+    console.error(`❌ Failed to set active chat for user ${userId}:`, error);
   }
 };
+
 
 
 
@@ -264,9 +234,22 @@ export const clearActiveChat = async (userId) => {
   const activeChatRef = ref(database, `/activeChats/${userId}`);
 
   try {
-    await set(activeChatRef, null); // Setting the value to null removes the entry
-    // console.log(`Active chat cleared for user ${userId}`);
+    // 🔍 Fetch current active chat before deleting
+    const snapshot = await get(activeChatRef);
+    const activeChatData = snapshot.exists() ? snapshot.val() : null;
+
+    // 🔹 Calculate data size before deletion
+    const dataSize = activeChatData ? JSON.stringify(activeChatData).length / 1024 : 0;
+
+    if (developmentMode && activeChatData) {
+      console.log(`🚀 Active chat data (${dataSize.toFixed(2)} KB) will be cleared for user ${userId}.`);
+    }
+
+    // ✅ Remove the active chat by setting it to null
+    await set(activeChatRef, null);
+    // console.log(`✅ Active chat cleared for user ${userId}.`);
+
   } catch (error) {
-    console.error(`Failed to clear active chat for user ${userId}:`, error);
+    // console.error(`❌ Failed to clear active chat for user ${userId}:`, error);
   }
 };

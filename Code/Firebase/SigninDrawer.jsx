@@ -51,7 +51,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message }) => {
                 requestedScopes: [appleAuth.Scope.FULL_NAME, appleAuth.Scope.EMAIL],
             });
     
-            const { identityToken, nonce, fullName, email } = appleAuthRequestResponse;
+            const { identityToken, nonce } = appleAuthRequestResponse;
     
             if (!identityToken) {
                 throw new Error('Apple Sign-In failed - no identity token returned');

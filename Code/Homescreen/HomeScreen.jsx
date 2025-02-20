@@ -103,6 +103,11 @@ const HomeScreen = ({ selectedTheme }) => {
       // 🔍 Check if user has used the free trade
       const snapshot = await get(freeTradeRef);
       const hasUsedFreeTrade = snapshot.exists() && snapshot.val();
+      const hasUsedFreeTradeSize = JSON.stringify(hasUsedFreeTrade).length / 1024;
+                if (developmentMode) {
+                    console.log(`🚀 free trade data data: ${hasUsedFreeTradeSize.toFixed(2)} KB`);
+                }
+  
   
       // ✅ Prepare trade object
       let newTrade = {

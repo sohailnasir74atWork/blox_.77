@@ -18,18 +18,49 @@ import config from '../Helper/Environment';
 const SubscriptionScreen = ({ visible, onClose }) => {
   const [activePlan, setActivePlan] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [loadingRestore, setLoadingReStore] = useState(false);
+  const [showCloseButton, setShowCloseButton] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const radius = 20;
+  const strokeWidth = 4;
+  const circumference = 2 * Math.PI * radius;
+  const animatedValue = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(500)).current; // Starts off-screen
   const { theme } = useGlobalState();
   const { packages, purchaseProduct, restorePurchases } = useLocalState();
   const isDarkMode = theme === 'dark';
-
   useEffect(() => {
     Animated.timing(slideAnim, {
-      toValue: visible ? 0 : 500,
-      duration: 300,
-      useNativeDriver: true,
+        toValue: visible ? 0 : 500, 
+        
+        duration: 300,
+        useNativeDriver: true,
     }).start();
+}, [visible]);
+
+
+  useEffect(() => {
+    if (visible) {
+      setShowCloseButton(false);
+      setProgress(0);
+      animatedValue.setValue(0);
+
+      Animated.timing(animatedValue, {
+        toValue: 100,
+        duration: 5000, // 10 seconds
+        useNativeDriver: false,
+      }).start(() => {
+        setShowCloseButton(true);
+      });
+
+      animatedValue.addListener(({ value }) => {
+        setProgress(value);
+      });
+
+      return () => animatedValue.removeAllListeners();
+    }
   }, [visible]);
+
 
   useEffect(() => {
     if (visible && !activePlan && packages?.length) {
@@ -44,6 +75,9 @@ const SubscriptionScreen = ({ visible, onClose }) => {
       setLoading(true); // Start loading before calling the function
       purchaseProduct(activePlan, setLoading);
     }
+  };
+  const handleRestorePur = () => {
+      restorePurchases(setLoadingReStore);
   };
   
 
@@ -81,9 +115,15 @@ const SubscriptionScreen = ({ visible, onClose }) => {
   return (
     <Modal transparent visible={visible} animationType="fade">
         <Animated.View style={[styles.container, { transform: [{ translateY: slideAnim }] }]}>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Ionicons name="close" size={24} color={"lightgrey"} />
-          </TouchableOpacity>
+        <TouchableOpacity onPress={onClose} disabled={!showCloseButton} style={styles.closeButton}>
+          {showCloseButton ? (
+            <Ionicons name="close" size={24} color="white" />
+          ) : (
+            <View style={[styles.circularProgress, { backgroundColor: `rgba(0, 255, 0, ${progress / 100})` }]}>
+              <Ionicons name="time-outline" size={24} color="white" />
+            </View>
+          )}
+        </TouchableOpacity>
           
           <Text style={styles.title}>GET AHEAD IN THE GAME <Ionicons name="checkmark-done-circle" size={26} color={config.colors.hasBlockGreen}  style={styles.icon}/></Text>
           <Text style={styles.subtitle}>Access exclusive features and trade smarter!</Text>
@@ -147,8 +187,12 @@ const SubscriptionScreen = ({ visible, onClose }) => {
   )}
 </TouchableOpacity>
 
-          <TouchableOpacity onPress={restorePurchases} style={styles.restorePurchases}>
-            <Text style={styles.restoreText}>Restore Purchase</Text>
+          <TouchableOpacity onPress={handleRestorePur} style={styles.restorePurchases}>
+          {loadingRestore ? (
+    <ActivityIndicator size="small" color="white" />
+  ) : (
+    <Text style={[styles.subscribeButtonText, {color:config.colors.hasBlockGreen}]}>Restore Purchase</Text>
+  )}
           </TouchableOpacity>
 
           <View style={styles.containerfooter}>
@@ -180,11 +224,11 @@ StyleSheet.create({
       flex: 1,
       paddingTop:40,
     },
-    closeButton: {
-      alignSelf: 'flex-end',
-      padding: 10,
-      // marginBottom:20
-    },
+    // closeButton: {
+    //   alignSelf: 'flex-end',
+    //   padding: 10,
+    //   // marginBottom:20
+    // },
     title: {
       fontSize: 22,
       textAlign: 'center',
@@ -274,6 +318,8 @@ StyleSheet.create({
       borderRadius:8,
       alignItems: 'center',
       width: '100%',
+      borderColor:config.colors.hasBlockGreen,
+      borderWidth:1,
     },
     subscribeButtonText: {
       color: 'white',
@@ -288,7 +334,7 @@ StyleSheet.create({
       alignItems: 'center',
       width: '100%',
       marginVertical:10,
-      borderColor:config.colors.secondary,
+      borderColor:config.colors.hasBlockGreen,
       borderWidth:1,
     },
     restoreText: {
@@ -332,6 +378,23 @@ StyleSheet.create({
       fontSize: 20,
       color: '#555',
       marginHorizontal: 1,
+    },
+    closeButton: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      backgroundColor: "#333",
+      justifyContent: "center",
+      alignItems: "center",
+      alignSelf:'flex-end'
+    },
+    circularProgress: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      justifyContent: "center",
+      alignItems: "center",
+      alignSelf:'flex-end'
     },
   });
   

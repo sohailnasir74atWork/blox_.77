@@ -14,7 +14,7 @@ import MessagesList from './MessagesList';
 import MessageInput from './MessageInput';
 import { getStyles } from '../Style';
 import { AdEventType, BannerAd, BannerAdSize, InterstitialAd } from 'react-native-google-mobile-ads';
-import getAdUnitId from '../../Ads/ads';
+import getAdUnitId, { developmentMode } from '../../Ads/ads';
 import { banUser, makeAdmin,  removeAdmin, unbanUser } from '../utils';
 import { useNavigation } from '@react-navigation/native';
 import ProfileBottomDrawer from './BottomDrawer';
@@ -112,6 +112,11 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   
         const snapshot = await messageQuery.once('value');
         const data = snapshot.val() || {};
+        const dataSize = JSON.stringify(data).length / 1024; 
+
+if (developmentMode) {
+  console.log(`🚀 Downloaded group chat data: ${dataSize.toFixed(2)} KB from some_node`);
+}
   
         // console.log(`Fetched ${Object.keys(data).length} messages from Firebase.`);
   
@@ -164,6 +169,11 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     useEffect(() => {
       const listener = chatRef.limitToLast(1).on('child_added', (snapshot) => {
         const newMessage = validateMessage({ id: snapshot.key, ...snapshot.val() });
+        const newMessageSize = JSON.stringify(newMessage).length / 1024; 
+
+if (developmentMode) {
+  console.log(`🚀 Downloaded data: ${newMessageSize.toFixed(2)} KB from NEW MESSAGE`);
+}
     
         setMessages((prev) => {
           const seenKeys = new Set(prev.map((msg) => msg.id));

@@ -36,6 +36,7 @@ export const LocalStateProvider = ({ children }) => {
       premirageStock: JSON.parse(storage.getString('premirageStock') || '[]'),
       isAppReady: storage.getBoolean('isAppReady') ?? false,
       lastActivity: storage.getString('lastActivity') || null,
+      showOnBoardingScreen: storage.getBoolean('showOnBoardingScreen') ?? true,
     };
   });
 
@@ -124,7 +125,8 @@ export const LocalStateProvider = ({ children }) => {
 
 
 
-  const restorePurchases = async () => {
+  const restorePurchases = async (setLoadingReStore) => {
+    setLoadingReStore(true)
     try {
       const customerInfo = await Purchases.restorePurchases();
   
@@ -141,10 +143,13 @@ export const LocalStateProvider = ({ children }) => {
         console.warn('⚠️ No active subscriptions found.');
         // setsPro(false);
         updateLocalState('isPro', false);
+        setLoadingReStore(false)
 
       }
     } catch (error) {
       console.error('❌ Error restoring purchases:', error);
+      setLoadingReStore(false)
+
     }
   };
   
@@ -183,7 +188,7 @@ export const LocalStateProvider = ({ children }) => {
       // console.log("💰 Attempting to purchase:", packageToPurchase.product.title);
   
       // ✅ Attempt the purchase
-      const { customerInfo, productIdentifier } = await Purchases.purchasePackage(packageToPurchase);
+      const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
   
       // console.log("✅ Apple purchase dialog completed! Checking purchase status...");
       // console.log("🛒 Purchased productIdentifier:", productIdentifier);
@@ -201,7 +206,7 @@ export const LocalStateProvider = ({ children }) => {
 
     } catch (error) {
       console.error("❌ Error during purchase:", error);
-      Alert.alert(`Error during purchase:", ${error}`)
+      // Alert.alert(`Error during purchase:", ${error}`)
       setLoading(false)
   
       if (error.userCancelled) {

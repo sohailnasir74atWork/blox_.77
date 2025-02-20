@@ -9,6 +9,7 @@ import PrivateChatHeader from './PrivateChat/PrivateChatHeader';
 import BlockedUsersScreen from './PrivateChat/BlockUserList';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { useLocalState } from '../LocalGlobelStats';
+import { developmentMode } from '../Ads/ads';
 // import { isUserOnline } from './utils';
 
 const Stack = createNativeStackNavigator();
@@ -63,33 +64,37 @@ setBannedUsers(localState.bannedUsers)
     headerTitleStyle: { fontFamily: 'Lato-Bold', fontSize: 24 },
   }), [selectedTheme]);
 
-  // console.log('nav', chats)
-
+  
+  
   const fetchChats = useCallback(async () => {
     if (!user?.id) return;
   
     setLoading(true);
   
     try {
-      const privateChatsRef =  ref(appdatabase, 'private_chat');
-      // const bannedRef = database().ref(`bannedUsers/${user.id}`);
-  
-      // Step 1: Fetch banned users
-      // const bannedSnapshot = await bannedRef.once('value');
-      // const bannedUsers = bannedSnapshot.val() || {};
-      // const bannedUserIds = Object.keys(bannedUsers);
-  
-      // Step 2: Query chats where the current user is a participant
+      const privateChatsRef = ref(appdatabase, 'private_chat');
       const queryRef = privateChatsRef.orderByChild(`participants/${user.id}`).equalTo(true);
+  
+      // 🔍 Fetch data from Firebase
       const snapshot = await queryRef.once('value');
   
       if (!snapshot.exists()) {
         setChats([]);
         return;
       }
-      let totalUnread = 0; 
-      // Step 3: Process only `lastMessage`, `metadata`, and `unread`
-      const userChats = Object.entries(snapshot.val())
+  
+      // 🔹 Calculate the size of downloaded data in KB
+      const fetchedData = snapshot.val();
+      const dataSize = JSON.stringify(fetchedData).length / 1024; 
+  
+      if (developmentMode) {
+        console.log(`🚀 Downloaded chat data: ${dataSize.toFixed(2)} KB`);
+      }
+  
+      let totalUnread = 0;
+  
+      // 🔍 Process only necessary fields
+      const userChats = Object.entries(fetchedData)
         .filter(([chatId, chatData]) => {
           const otherUserId = Object.keys(chatData.participants).find((id) => id !== user.id);
           return otherUserId && !bannedUsers.includes(otherUserId);
@@ -104,7 +109,6 @@ setBannedUsers(localState.bannedUsers)
           return {
             chatId,
             otherUserId,
-            // isOnline: false, 
             lastMessage: lastMessage?.text || 'No messages yet',
             lastMessageTimestamp: lastMessage?.timestamp || null,
             unreadCount,
@@ -119,29 +123,19 @@ setBannedUsers(localState.bannedUsers)
           };
         });
   
-      // Step 4: Batch check for online status
-      // const onlineStatuses = await Promise.all(
-      //   userChats.map((chat) => isUserOnline(chat.otherUserId))
-      // );
-  
-      // const updatedChats = userChats.map((chat, index) => ({
-      //   ...chat,
-      //   isOnline: onlineStatuses[index],
-      // }));
-  
-      // Step 5: Sort chats by the timestamp of the last message (most recent first)
       const sortedChats = userChats.sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp);
   
-      // Update state with the fetched chats
+      // ✅ Update state with the fetched chats
       setChats(sortedChats);
-      setunreadcount(totalUnread); 
+      setunreadcount(totalUnread);
     } catch (error) {
-      console.error('Error fetching chats:', error);
+      console.error('❌ Error fetching chats:', error);
       Alert.alert('Error', 'Unable to fetch chats. Please try again later.');
     } finally {
       setLoading(false);
     }
   }, [user]);
+  
   useEffect(() => {
     fetchChats();
   }, [fetchChats]);

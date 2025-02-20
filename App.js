@@ -10,7 +10,6 @@ import {
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import SettingsScreen from './Code/SettingScreen/Setting';
-import NotificationHandler from './Code/Firebase/FrontendNotificationHandling';
 import { GlobalStateProvider, useGlobalState } from './Code/GlobelStats';
 import { LocalStateProvider, useLocalState } from './Code/LocalGlobelStats';
 import { MenuProvider } from 'react-native-popup-menu';
@@ -24,6 +23,7 @@ import {
   requestReview,
 } from './Code/AppHelper/AppHelperFunction';
 import getAdUnitId from './Code/Ads/ads';
+import OnboardingScreen from './Code/AppHelper/OnBoardingScreen';
 
 const Stack = createNativeStackNavigator();
 const adUnitId = getAdUnitId('openapp');
@@ -43,7 +43,7 @@ function App() {
   const { localState, updateLocalState } = useLocalState();
   const [chatFocused,setChatFocused] = useState(true);
   const [modalVisibleChatinfo, setModalVisibleChatinfo ] = useState(false)
-  const adCooldown = 120000; // 2 minutes in milliseconds
+  const adCooldown = 90000; // 2 minutes in milliseconds
   const [lastAdShownTime, setLastAdShownTime] = useState(0);
 
   // useEffect(() => {
@@ -210,15 +210,23 @@ function App() {
   );
 }
 
-const AppWrapper = () => (
-  <LocalStateProvider>
-    <GlobalStateProvider>
-      <MenuProvider>
-        <App />
-      </MenuProvider>
-      <NotificationHandler />
-    </GlobalStateProvider>
-  </LocalStateProvider>
-);
+export default function AppWrapper() {
+  const { localState, updateLocalState } = useLocalState();
+  const { theme } = useGlobalState();
+  const selectedTheme = useMemo(() => {
+    if (!theme) {
+      console.warn("⚠️ Theme not found! Falling back to Light Theme.");
+    }
+    return theme === 'dark' ? MyDarkTheme : MyLightTheme;
+  }, [theme]);
 
-export default AppWrapper;
+  const handleSplashFinish = () => {
+    updateLocalState('showOnBoardingScreen', false); // ✅ Set onboarding as finished
+  };
+
+  if (localState.showOnBoardingScreen) {
+    return <OnboardingScreen onFinish={handleSplashFinish} selectedTheme={selectedTheme}/>;
+  }
+
+  return <App />;
+}

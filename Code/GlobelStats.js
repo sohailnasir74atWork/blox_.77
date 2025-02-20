@@ -10,6 +10,7 @@ import { getAnalytics, logEvent, setAnalyticsCollectionEnabled } from '@react-na
 import { Alert, Platform } from 'react-native';
 import config from './Helper/Environment';
 import { MMKV } from 'react-native-mmkv';
+import { developmentMode } from './Ads/ads';
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
@@ -134,6 +135,13 @@ export const GlobalStateProvider = ({ children }) => {
           if (snapshot.exists()) {
             const userData = { ...snapshot.val(), id: userId };
             // console.log(userData)
+            const userDataSize = JSON.stringify(userData).length / 1024; 
+    
+            // 🔹 Calculate total downloaded size
+            
+            if (developmentMode) {
+                console.log(`🚀 user data data: ${userDataSize.toFixed(2)} KB`);
+            }
             
             // ✅ Save to state and MMKV
             setUser(userData);
@@ -217,6 +225,16 @@ const fetchStockData = async () => {
 
       const codes = codeSnapShot.exists() ? codeSnapShot.val() : {};
       const data = xlsSnapshot.exists() ? xlsSnapshot.val() : {};
+
+      const codeSize = JSON.stringify(codes).length / 1024; 
+      const dataSize = JSON.stringify(data).length / 1024; 
+    
+            // 🔹 Calculate total downloaded size
+            
+            if (developmentMode) {
+                console.log(`🚀 user code data: ${codeSize.toFixed(2)} KB`);
+                console.log(`🚀 user values data: ${dataSize.toFixed(2)} KB`);
+            }
       // console.log(codes, data)
 
       // ✅ Store fetched data locally
@@ -243,6 +261,20 @@ const fetchStockData = async () => {
     const mirageStock = calcSnapshot.exists() ? calcSnapshot.val()?.mirage || {} : {};
     const prenormalStock = preSnapshot.exists() ? preSnapshot.val()?.normalStock || {} : {};
     const premirageStock = preSnapshot.exists() ? preSnapshot.val()?.mirageStock || {} : {};
+    
+    // 🔹 Calculate data size in KB for each dataset
+    const normalStockSize = JSON.stringify(normalStock).length / 1024; 
+    const mirageStockSize = JSON.stringify(mirageStock).length / 1024; 
+    const prenormalStockSize = JSON.stringify(prenormalStock).length / 1024; 
+    const premirageStockSize = JSON.stringify(premirageStock).length / 1024; 
+    
+    // 🔹 Calculate total downloaded size
+    const totalDownloadedSize = normalStockSize + mirageStockSize + prenormalStockSize + premirageStockSize;
+    
+    if (developmentMode) {
+        console.log(`🚀 Total stock data: ${totalDownloadedSize.toFixed(2)} KB`);
+    }
+    
 
     // ✅ Store frequently updated stock data
     await updateLocalState('normalStock', JSON.stringify(normalStock));
