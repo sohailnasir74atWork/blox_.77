@@ -111,31 +111,35 @@ const thirdSliderImages = images.slice(12, 18); // Remaining images (ensure at l
         return (
           <View style={styles.slide}>
              <Image source={icon} style={styles.iconmain} />
+             <View>
              <View style={styles.sliderContainer}>{renderSlider(translateX1, firstSliderImages)}</View>
 <View style={styles.sliderContainer}>{renderSlider(translateX2, secondSliderImages)}</View>
-<View style={styles.sliderContainer}>{renderSlider(translateX3, thirdSliderImages)}</View>
-
-            <View style={styles.spacer}></View>
+<View style={styles.sliderContainer}>{renderSlider(translateX3, thirdSliderImages)}</View></View>
+<View>
+            {/* <View style={styles.spacer}></View> */}
             <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>Welcome to Fruit Values</Text>
-            <Text style={[styles.text, { color: isDarkMode ? '#ccc' : '#666' }]}>Track fruit values & optimize your trades.</Text>
+            <Text style={[styles.text, { color: isDarkMode ? '#ccc' : '#666' }]}>Track fruit values & optimize your trades.</Text></View>
           </View>
         );
       case 1:
         return (
           <View style={styles.slide}>
              <Image source={icon} style={styles.iconmain} />
+             <View>
              <View style={styles.sliderContainer}>{renderSlider(translateX1, firstSliderImages)}</View>
 <View style={styles.sliderContainer}>{renderSlider(translateX2, secondSliderImages)}</View>
-<View style={styles.sliderContainer}>{renderSlider(translateX3, thirdSliderImages)}</View>
-            <View style={styles.spacer}></View>
+<View style={styles.sliderContainer}>{renderSlider(translateX3, thirdSliderImages)}</View></View>
+            {/* <View style={styles.spacer}></View> */}
+            <View>
             {!user.id &&<Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>Signin or Continue as Guest</Text>}
             {user?.id && (
   <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>
-    {`Welcome ${user.displayName || user.displayname || 'Anonymous'}`}
+   {`Welcome ${user?.displayName || user?.displayname || 'Anonymous'}`}
+
   </Text>
 )}
 
-            <Text style={[styles.text, { color: isDarkMode ? '#ccc' : '#666' }]}>Get notified, create and bid on trades, chat with traders, and join group discussions.</Text>
+            <Text style={[styles.text, { color: isDarkMode ? '#ccc' : '#666' }]}>Get notified, create and bid on trades, chat with traders, and join group discussions.</Text></View>
         </View>
         
         );
@@ -168,8 +172,8 @@ const thirdSliderImages = images.slice(12, 18); // Remaining images (ensure at l
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  slide: { width: width, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, flex: 1 },
-  title: { fontSize: 22, fontFamily: 'Lato-Bold', marginBottom: 10, textAlign: 'center', lineHeight:30 },
+  slide: { width: width, alignItems: 'center', justifyContent: 'space-evenly', paddingHorizontal: 20,  paddingBottom:120, flex:1 },
+  title: { fontSize: 22, fontFamily: 'Lato-Bold', marginBottom: 10, textAlign: 'center', lineHeight:30, paddingTop:20 },
   text: { fontSize: 12, textAlign: 'center', paddingHorizontal: 20, fontFamily: 'Lato-Regular' },
   welcomeText: { fontSize: 18, fontFamily: 'Lato-Bold', marginBottom: 10, textAlign: 'center' },
   button: { backgroundColor: config.colors.hasBlockGreen, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12, marginBottom: 10, width: '90%', alignItems: 'center', borderColor: config.colors.hasBlockGreen, borderWidth: 2, },
@@ -222,7 +226,8 @@ iconmain:{
   borderRadius:10,
   width: 150,
   alignItems: 'center',
-  height:150
+  height:150,
+  paddingTop:50
 }
 
 });
