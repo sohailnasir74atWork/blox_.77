@@ -39,7 +39,7 @@ const images = [
 
 
 ];
-const icon = require('../../assets/icon.webp');
+const icon = config.isNoman ?  require('../../assets/icon.webp') : require('../../assets/logo.webp');
 
 
 const OnboardingScreen = ({ onFinish, selectedTheme }) => {
@@ -116,7 +116,7 @@ const thirdSliderImages = images.slice(12, 18); // Remaining images (ensure at l
 <View style={styles.sliderContainer}>{renderSlider(translateX3, thirdSliderImages)}</View>
 
             <View style={styles.spacer}></View>
-            <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>🔥Welcome to Fruit Values🔥</Text>
+            <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>Welcome to Fruit Values</Text>
             <Text style={[styles.text, { color: isDarkMode ? '#ccc' : '#666' }]}>Track fruit values & optimize your trades.</Text>
           </View>
         );
@@ -128,7 +128,7 @@ const thirdSliderImages = images.slice(12, 18); // Remaining images (ensure at l
 <View style={styles.sliderContainer}>{renderSlider(translateX2, secondSliderImages)}</View>
 <View style={styles.sliderContainer}>{renderSlider(translateX3, thirdSliderImages)}</View>
             <View style={styles.spacer}></View>
-            {!user.id &&<Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>🔑 Signin or Continue as Guest 🔑</Text>}
+            {!user.id &&<Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>Signin or Continue as Guest</Text>}
             {user?.id && (
   <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>
     {`Welcome ${user.displayName || user.displayname || 'Anonymous'}`}
@@ -217,8 +217,8 @@ sliderContainer:{
   paddingVertical:5
 },
 iconmain:{
-  position: 'absolute',
-  top: 100,
+  // position: 'absolute',
+  // top: 100,
   borderRadius:10,
   width: 150,
   alignItems: 'center',
