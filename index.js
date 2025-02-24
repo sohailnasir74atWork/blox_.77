@@ -7,19 +7,18 @@ import { name as appName } from './app.json';
 import { GlobalStateProvider } from './Code/GlobelStats';
 import { LocalStateProvider } from './Code/LocalGlobelStats';
 import { MenuProvider } from 'react-native-popup-menu';
-import { I18nextProvider } from 'react-i18next';
-import i18n from './i18n';
+import { LanguageProvider } from './Code/Translation/LanguageProvider';
 
 const App = () => (
-  <I18nextProvider i18n={i18n}>
     <LocalStateProvider>
         <GlobalStateProvider>
             <MenuProvider>
+              <LanguageProvider>
                 <AppWrapper />
+                </LanguageProvider>
             </MenuProvider>
         </GlobalStateProvider>
     </LocalStateProvider>
-    </I18nextProvider>
 );
 
 AppRegistry.registerComponent(appName, () => App);

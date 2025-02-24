@@ -16,13 +16,17 @@ import { useLocalState } from '../LocalGlobelStats';
 import SignInDrawer from '../Firebase/SigninDrawer';
 import { useNavigation } from '@react-navigation/native';
 import firestore from '@react-native-firebase/firestore';
+import { useTranslation } from 'react-i18next';
+import { useLanguage } from '../Translation/LanguageProvider';
+import i18n from '../../i18n';
+import { logEvent } from '@react-native-firebase/analytics';
 
 const bannerAdUnitId = getAdUnitId('banner');
 const interstitialAdUnitId = getAdUnitId('interstitial');
 const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId);
 
 const HomeScreen = ({ selectedTheme }) => {
-  const {  theme, user, updateLocalStateAndDatabase, firestoreDB } = useGlobalState();
+  const { theme, user, updateLocalStateAndDatabase, analytics } = useGlobalState();
   const tradesCollection = useMemo(() => firestore().collection('trades'), []);
   const initialItems = [null, null];
   const [hasItems, setHasItems] = useState(initialItems);
@@ -43,6 +47,16 @@ const HomeScreen = ({ selectedTheme }) => {
   const [description, setDescription] = useState('');
   const [isSigninDrawerVisible, setIsSigninDrawerVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { language, changeLanguage } = useLanguage();
+  const platform = Platform.OS.toLowerCase();
+
+  const { t } = useTranslation();
+  // console.log(t, language)
+
+
+  useEffect(()=>{
+    logEvent(analytics, `${platform}_${language}`);
+  })
 
   const isDarkMode = theme === 'dark'
   const viewRef = useRef();
@@ -54,11 +68,11 @@ const HomeScreen = ({ selectedTheme }) => {
     setWantsTotal({ price: 0, value: 0 });
     setIsAdLoaded(false);
     setIsShowingAd(false);
-    setHasItems([null, null]); 
+    setHasItems([null, null]);
     setWantsItems([null, null]);
   };
   const resetTradeState = () => {
-    setHasItems([null, null]); 
+    setHasItems([null, null]);
     setWantsItems([null, null]);
     setHasTotal({ price: 0, value: 0 });
     setWantsTotal({ price: 0, value: 0 });
@@ -66,10 +80,15 @@ const HomeScreen = ({ selectedTheme }) => {
     setSelectedSection(null);
     setModalVisible(false); // ✅ Close modal after successful trade
   };
-  
+
   const navigation = useNavigation()
 
+  useEffect(() => {
+    console.log("Language changed:", i18n.language);
+  }, [i18n.language]);
+
   const handleCreateTradePress = async () => {
+    logEvent(analytics, `${platform}_submit_trade`);
 
 
     if (!user.id) {
@@ -78,7 +97,7 @@ const HomeScreen = ({ selectedTheme }) => {
     }
 
     if (hasItems.filter(Boolean).length === 0 || wantsItems.filter(Boolean).length === 0) {
-      Alert.alert('Error', 'Please add at least one item to both "You" and "Them" sections.');
+      Alert.alert(t("home.alert.error"), t("home.alert.missing_items_error"));
       return;
     }
     setModalVisible(true)
@@ -89,26 +108,28 @@ const HomeScreen = ({ selectedTheme }) => {
 
 
 
-  
+
   const handleCreateTrade = async () => {
     if (isSubmitting) return; // Prevent duplicate submissions
     setIsSubmitting(true);
-  
+    logEvent(analytics, `${platform}_create_trade`);
+
     const userPoints = user?.points || 0;
     const userId = user?.id;
     const database = getDatabase();
     const freeTradeRef = ref(database, `freeTradeUsed/${userId}`);
-  
+
     try {
       // 🔍 Check if user has used the free trade
       const snapshot = await get(freeTradeRef);
       const hasUsedFreeTrade = snapshot.exists() && snapshot.val();
-      const hasUsedFreeTradeSize = JSON.stringify(hasUsedFreeTrade).length / 1024;
-                if (developmentMode) {
-                    console.log(`🚀 free trade data data: ${hasUsedFreeTradeSize.toFixed(2)} KB`);
-                }
-  
-  
+     
+      if (developmentMode) {
+        const hasUsedFreeTradeSize = JSON.stringify(hasUsedFreeTrade).length / 1024;
+        console.log(`🚀 free trade data data: ${hasUsedFreeTradeSize.toFixed(2)} KB`);
+      }
+
+
       // ✅ Prepare trade object
       let newTrade = {
         userId: user?.id || "Unknown",
@@ -122,7 +143,7 @@ const HomeScreen = ({ selectedTheme }) => {
         description: description || "",
         timestamp: firestore.FieldValue.serverTimestamp(),
       };
-  
+
       // 🔥 Default Empty Trade Object
       const resetNewTrade = {
         userId: null,
@@ -136,14 +157,14 @@ const HomeScreen = ({ selectedTheme }) => {
         description: null,
         timestamp: null,
       };
-  
+
       // ❌ Prevent Empty Trades from Being Submitted
       if (JSON.stringify(newTrade) === JSON.stringify(resetNewTrade)) {
-        Alert.alert("Error", "Trade cannot be empty.");
+        Alert.alert("Error", t("home.alert.trade_empty_error"));
         setIsSubmitting(false);
         return;
       }
-  
+
       // ✅ Trade Submission Logic
       const submitTrade = async () => {
         await tradesCollection.add(newTrade);
@@ -151,44 +172,44 @@ const HomeScreen = ({ selectedTheme }) => {
         setModalVisible(false); // Close modal
         // Alert.alert("Success", "Trade submitted successfully!");
       };
-  
+
       // 🔹 If user is Pro → Direct submission
       if (localState.isPro) {
         await submitTrade();
-        Alert.alert('Success', 'Your trade has been posted!');
-      } 
+        Alert.alert(t("home.alert.success"), t("home.alert.trade_posted"));
+      }
       // 🔹 If user has a free trade → Use it
       else if (!hasUsedFreeTrade) {
         await set(freeTradeRef, true); // Mark free trade as used
         showInterstitialAd(async () => await submitTrade());
-        Alert.alert('Success', 'Your free trade has been posted!');
-      } 
+        Alert.alert(t("home.alert.success"), t("home.alert.free_trade_used"));
+      }
       // 🔹 If user has enough points → Deduct and submit
       else if (userPoints >= 200) {
         const updatedPoints = userPoints - 200;
         await updateLocalStateAndDatabase('points', updatedPoints); // Deduct points
         showInterstitialAd(async () => await submitTrade());
-        Alert.alert("Success", `Trade posted successfully! 200 points deducted. Your remaining points: ${updatedPoints}.`);
-      } 
+        Alert.alert("Success", `${t("home.trade_posted_points")} ${updatedPoints}.`);
+      }
       // 🔹 If user lacks points → Show error message
       else {
         Alert.alert(
-          'Insufficient Points',
-          `You need 200 points to create a trade, but you only have ${userPoints}. Earn or purchase more points to continue.`,
+          t("home.alert.insufficient_points"),
+          t("home.alert.insufficient_points_message"),
           [
-            { text: 'Get Points', onPress: () => { setModalVisible(false); navigation.navigate('Setting'); } },
-            { text: 'Cancel', style: 'cancel' },
+            { text: t("settings.get_points"), onPress: () => { setModalVisible(false); navigation.navigate('Setting'); } },
+            { text: t("home.cancel"), style: 'cancel' },
           ]
         );
       }
     } catch (error) {
       console.error("🔥 Error creating trade:", error);
-      Alert.alert('Error', 'Unable to create trade. Please reload app & try again later.');
+      Alert.alert(t("home.alert.error"), t("home.alert.unable_to_create_trade"));
     } finally {
       setIsSubmitting(false); // Reset submission state
     }
   };
-  
+
 
   const adjustedData = (fruitRecords) => {
     let transformedData = [];
@@ -211,7 +232,7 @@ const HomeScreen = ({ selectedTheme }) => {
   useEffect(() => {
     if (localState.data) {
       let parsedData = localState.data;
-  
+
       // ✅ Ensure `localState.data` is always an object
       if (typeof localState.data === 'string') {
         try {
@@ -224,7 +245,7 @@ const HomeScreen = ({ selectedTheme }) => {
       } else {
         // console.log("🛠️ localState.data is already an object:", parsedData);
       }
-  
+
       // ✅ Ensure `parsedData` is a valid object before using it
       if (parsedData && typeof parsedData === 'object' && Object.keys(parsedData).length > 0) {
         const formattedData = adjustedData(Object.values(parsedData));
@@ -236,7 +257,7 @@ const HomeScreen = ({ selectedTheme }) => {
       }
     }
   }, [localState.data]);
-  
+
   useEffect(() => {
     interstitial.load();
 
@@ -404,7 +425,7 @@ const HomeScreen = ({ selectedTheme }) => {
       return downloadDest;
     } catch (error) {
       console.error('Error capturing screenshot:', error);
-      Alert.alert('Error', 'Failed to capture and save the screenshot. Please try again.');
+      Alert.alert(t("home.alert.error"), t("home.screenshot_error"));
     }
   };
 
@@ -412,8 +433,9 @@ const HomeScreen = ({ selectedTheme }) => {
 
   const proceedWithScreenshotShare = async () => {
     triggerHapticFeedback('impactLight');
+    logEvent(analytics, `${platform}_screenshot_share`);
     if (hasItems.filter(Boolean).length === 0 || wantsItems.filter(Boolean).length === 0) {
-      Alert.alert('Error', 'Please add at least one item to both "You" and "Them" sections.');
+      Alert.alert(t("home.alert.error"), t("home.alert.missing_items_error"));
       return;
     }
     try {
@@ -421,7 +443,7 @@ const HomeScreen = ({ selectedTheme }) => {
 
       if (filePath) {
         const shareOptions = {
-          title: 'Share Screenshot',
+          title: t("home.screenshot_title"),
           url: `file://${filePath}`,
           type: 'image/png',
         };
@@ -440,26 +462,26 @@ const HomeScreen = ({ selectedTheme }) => {
   return (
     <>
       <GestureHandlerRootView>
-        <View style={styles.container}>
+        <View style={styles.container} key={language}>
           <ScrollView showsVerticalScrollIndicator={false}>
             <ViewShot ref={viewRef} style={styles.screenshotView}>
               <View style={styles.summaryContainer}>
                 <View style={[styles.summaryBox, styles.hasBox]}>
-                  <Text style={[styles.summaryText]}>You</Text>
+                  <Text style={[styles.summaryText]}>{t('home.you')}</Text>
                   <View style={{ width: '90%', backgroundColor: '#e0e0e0', height: 1, alignSelf: 'center' }} />
-                  <Text style={styles.priceValue}>Price: ${hasTotal.price.toLocaleString()}</Text>
-                  <Text style={styles.priceValue}>Value: {hasTotal.value.toLocaleString()}</Text>
+                  <Text style={styles.priceValue}>{t('home.price')}: ${hasTotal.price.toLocaleString()}</Text>
+                  <Text style={styles.priceValue}>{t('home.value')}: {hasTotal.value.toLocaleString()}</Text>
                 </View>
                 <View style={[styles.summaryBox, styles.wantsBox]}>
-                  <Text style={styles.summaryText}>Them</Text>
+                  <Text style={styles.summaryText}>{t('home.them')}</Text>
                   <View style={{ width: '90%', backgroundColor: '#e0e0e0', height: 1, alignSelf: 'center' }} />
-                  <Text style={styles.priceValue}>Price: ${wantsTotal.price.toLocaleString()}</Text>
-                  <Text style={styles.priceValue}>Value: {wantsTotal.value.toLocaleString()}</Text>
+                  <Text style={styles.priceValue}>{t('home.price')}: ${wantsTotal.price.toLocaleString()}</Text>
+                  <Text style={styles.priceValue}>{t('home.value')}: {wantsTotal.value.toLocaleString()}</Text>
                 </View>
               </View>
               <View style={styles.profitLossBox}>
                 <Text style={[styles.profitLossText, { color: selectedTheme.colors.text }]}>
-                  {isProfit ? 'Profit' : 'Loss'}:
+                  {isProfit ? t('home.profit') : t('home.loss')}:
                 </Text>
                 <Text style={[styles.profitLossValue, { color: isProfit ? config.colors.hasBlockGreen : config.colors.wantBlockRed }]}>
                   ${Math.abs(profitLoss).toLocaleString()}
@@ -472,11 +494,11 @@ const HomeScreen = ({ selectedTheme }) => {
                 />}
               </View>
 
-              <Text style={[styles.sectionTitle, { color: selectedTheme.colors.text }]}>You</Text>
+              <Text style={[styles.sectionTitle, { color: selectedTheme.colors.text }]}>{t('home.you')}</Text>
               <View style={styles.itemRow}>
                 <TouchableOpacity onPress={() => { openDrawer('has') }} style={styles.addItemBlock}>
                   <Icon name="add-circle" size={40} color="white" />
-                  <Text style={styles.itemText}>Add Item</Text>
+                  <Text style={styles.itemText}>{t('home.add_item')}</Text>
                 </TouchableOpacity>
                 {hasItems?.map((item, index) => (
                   <View key={index} style={[styles.itemBlock, { backgroundColor: item?.Type === 'p' ? '#FFCC00' : config.colors.primary }]}>
@@ -496,7 +518,7 @@ const HomeScreen = ({ selectedTheme }) => {
                         </TouchableOpacity>
                       </>
                     ) : (
-                      <Text style={styles.itemPlaceholder}>Empty</Text>
+                      <Text style={styles.itemPlaceholder}>{t('home.empty')}</Text>
                     )}
                   </View>
                 ))}
@@ -510,11 +532,11 @@ const HomeScreen = ({ selectedTheme }) => {
                 />
               </View>
 
-              <Text style={[styles.sectionTitle, { color: selectedTheme.colors.text }]}>Them</Text>
+              <Text style={[styles.sectionTitle, { color: selectedTheme.colors.text }]}>{t('home.them')}</Text>
               <View style={styles.itemRow}>
                 <TouchableOpacity onPress={() => { openDrawer('wants'); }} style={styles.addItemBlock}>
                   <Icon name="add-circle" size={40} color="white" />
-                  <Text style={styles.itemText}>Add Item</Text>
+                  <Text style={styles.itemText}>{t('home.add_item')}</Text>
                 </TouchableOpacity>
                 {wantsItems?.map((item, index) => (
                   <View key={index} style={[styles.itemBlock, { backgroundColor: item?.Type === 'p' ? '#FFCC00' : config.colors.primary }]}>
@@ -533,15 +555,15 @@ const HomeScreen = ({ selectedTheme }) => {
                       </>
 
                     ) : (
-                      <Text style={styles.itemPlaceholder}>Empty</Text>
+                      <Text style={styles.itemPlaceholder}>{t('home.empty')}</Text>
                     )}
                   </View>
                 ))}
               </View>
             </ViewShot>
             <View style={styles.createtrade} >
-              <TouchableOpacity style={styles.createtradeButton} onPress={handleCreateTradePress}><Text style={{ color: 'white' }}>Create Trade</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.shareTradeButton} onPress={proceedWithScreenshotShare}><Text style={{ color: 'white' }}>Share Trade</Text></TouchableOpacity></View>
+              <TouchableOpacity style={styles.createtradeButton} onPress={handleCreateTradePress}><Text style={{ color: 'white' }}>{t('home.create_trade')}</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.shareTradeButton} onPress={proceedWithScreenshotShare}><Text style={{ color: 'white' }}>{t('home.share_trade')}</Text></TouchableOpacity></View>
           </ScrollView>
           <Modal
             visible={isDrawerVisible}
@@ -556,7 +578,7 @@ const HomeScreen = ({ selectedTheme }) => {
               <View>
 
                 <View style={[styles.drawerContainer, { backgroundColor: isDarkMode ? '#3B404C' : 'white' }]}>
-                 
+
                   <View style={{
                     flexDirection: 'row', justifyContent: 'space-between', marginVertical: 10,
                   }}
@@ -572,7 +594,7 @@ const HomeScreen = ({ selectedTheme }) => {
 
                     />
                     <TouchableOpacity onPress={closeDrawer} style={styles.closeButton}>
-                      <Text style={styles.closeButtonText}>CLOSE</Text>
+                      <Text style={styles.closeButtonText}>{t('home.close')}</Text>
                     </TouchableOpacity></View>
                   <FlatList
                     onScroll={() => Keyboard.dismiss()}
@@ -614,14 +636,14 @@ const HomeScreen = ({ selectedTheme }) => {
               <View>
                 <View style={[styles.drawerContainer, { backgroundColor: isDarkMode ? '#3B404C' : 'white' }]}>
                   <Text style={styles.modalMessage}>
-                    Do you want to add a short description (optional)?
+                    {t("home.trade_description")}
                   </Text>
                   <Text style={styles.modalMessagefooter}>
-                    You can write username like @username? (It cab be copied)
+                    {t("home.trade_description_hint")}
                   </Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="Write a description"
+                    placeholder={t("home.write_description")}
                     maxLength={40}
                     value={description}
                     onChangeText={setDescription}
@@ -631,14 +653,14 @@ const HomeScreen = ({ selectedTheme }) => {
                       style={[styles.button, styles.cancelButton]}
                       onPress={() => setModalVisible(false)}
                     >
-                      <Text style={styles.buttonText}>Cancel</Text>
+                      <Text style={styles.buttonText}>{t('home.cancel')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.button, styles.confirmButton]}
                       onPress={handleCreateTrade}
                       disabled={isSubmitting}
                     >
-                      <Text style={styles.buttonText}>{isSubmitting ? 'Submitting' : 'Confirm'}</Text>
+                      <Text style={styles.buttonText}>{isSubmitting ? t('home.submit') : t('home.confirm')}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -650,7 +672,7 @@ const HomeScreen = ({ selectedTheme }) => {
             visible={isSigninDrawerVisible}
             onClose={() => setIsSigninDrawerVisible(false)}
             selectedTheme={selectedTheme}
-            message='To create trade, you need to sign in'
+            message={t("home.alert.sign_in_required")}
 
           />
         </View>
@@ -816,7 +838,8 @@ const getStyles = (isDarkMode) =>
     closeButtonText: {
       color: 'white',
       textAlign: 'center',
-      fontFamily: 'Lato-Regular'
+      fontFamily: 'Lato-Regular',
+      fontSize:12
     },
     flatListContainer: {
       justifyContent: 'space-between',
@@ -923,7 +946,7 @@ const getStyles = (isDarkMode) =>
       color: isDarkMode ? 'white' : 'black',
       fontFamily: 'Lato-Regular'
     },
-    modalMessagefooter:{
+    modalMessagefooter: {
       fontSize: 10,
       marginBottom: 10,
       color: isDarkMode ? 'grey' : 'grey',

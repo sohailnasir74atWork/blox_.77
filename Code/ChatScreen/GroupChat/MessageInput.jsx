@@ -6,6 +6,7 @@ import config from '../../Helper/Environment';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import getAdUnitId from '../../Ads/ads';
 import { AdEventType, InterstitialAd } from 'react-native-google-mobile-ads';
+import { useTranslation } from 'react-i18next';
 
 const interstitialAdUnitId = getAdUnitId('interstitial');
 const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId);
@@ -24,6 +25,7 @@ const MessageInput = ({
   const [messageCount, setMessageCount] = useState(0);
   const [isAdLoaded, setIsAdLoaded] = useState(false);
   const [isShowingAd, setIsShowingAd] = useState(false);
+  const { t } = useTranslation();
 
   useEffect(() => {
     interstitial.load();
@@ -101,7 +103,7 @@ const MessageInput = ({
       {replyTo && (
         <View style={styles.replyContainer}>
           <Text style={styles.replyText}>
-            Replying to: {replyTo.text}
+          {t("chat.replying_to")}: {replyTo.text}
           </Text>
           <TouchableOpacity onPress={onCancelReply} style={styles.cancelReplyButton}>
             <Icon name="close-circle" size={24} color="#e74c3c" />
@@ -112,7 +114,7 @@ const MessageInput = ({
       <View style={styles.inputContainer}>
         <TextInput
           style={[styles.input, { color: selectedTheme.colors.text }]}
-          placeholder="Type a message..."
+          placeholder={t("chat.type_message")}
           placeholderTextColor="#888"
           value={input}
           onChangeText={setInput}
@@ -126,11 +128,11 @@ const MessageInput = ({
           onPress={handleSend}
           disabled={!input.trim() || isSending}
         >
-          <Text style={styles.sendButtonText}>{isSending ? 'Sending...' : 'Send'}</Text>
+          <Text style={styles.sendButtonText}>{isSending ? t("chat.sending") : t("chat.send")}</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
-};
+}
 
 export default MessageInput;

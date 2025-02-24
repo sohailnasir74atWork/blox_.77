@@ -14,10 +14,14 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
 import { useLocalState } from '../../LocalGlobelStats';
 import { useGlobalState } from '../../GlobelStats';
+import { useTranslation } from 'react-i18next';
+import { developmentMode } from '../../Ads/ads';
 
 const BlockedUsersScreen = () => {
   const { user, theme, appdatabase } = useGlobalState();
   const { localState, updateLocalState } = useLocalState();
+  const { t } = useTranslation();
+
 
   const isDarkMode = theme === 'dark';
   const styles = getStyles(isDarkMode);
@@ -43,6 +47,11 @@ const BlockedUsersScreen = () => {
 
           if (userSnapshot.exists()) {
             const userData = userSnapshot.val();
+            if (developmentMode) {
+              const userdata = JSON.stringify(userData).length / 1024; 
+              console.log(`🚀 Downloaded data: ${userData.toFixed(2)} KB from blockuser file`);
+            }
+            
             return {
               id,
               displayName: userData?.displayName || userData?.displayName || 'Unknown',
@@ -57,7 +66,7 @@ const BlockedUsersScreen = () => {
         const validUsers = resolvedUsers.filter(user => user !== null);
         setBlockedUsers(validUsers);
       } catch (error) {
-        console.error("❌ Error fetching blocked users:", error);
+        // console.error("❌ Error fetching blocked users:", error);
       }
     };
 
@@ -77,10 +86,10 @@ const BlockedUsersScreen = () => {
       );
 
       // ✅ Show Alert
-      Alert.alert('Success', 'User has been unblocked.');
+      Alert.alert(t("home.success"), t("chat.user_unblocked"));
     } catch (error) {
       console.error('❌ Error unblocking user:', error);
-      Alert.alert('Error', 'Failed to unblock the user.');
+      // Alert.alert('Error', 'Failed to unblock the user.');
     }
   };
 
@@ -94,7 +103,7 @@ const BlockedUsersScreen = () => {
           onPress={() => handleUnblockUser(item.id)}
         >
           <Icon name="person-remove-outline" size={20} color={isDarkMode ? 'white' : 'black'} />
-          <Text style={styles.unblockText}>Unblock</Text>
+          <Text style={styles.unblockText}>{t("chat.unblock")}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -104,7 +113,7 @@ const BlockedUsersScreen = () => {
     <View style={styles.container}>
       {blockedUsers.length === 0 ? (
         <View style={styles.centerContainer}>
-          <Text style={styles.emptyText}>No users blocked.</Text>
+          <Text style={styles.emptyText}>{t("chat.no_user_blocked")}</Text>
         </View>
       ) : (
         <FlatList

@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Pressable,
   Image,
+  Platform,
 } from 'react-native';
 import { useGlobalState } from '../../GlobelStats';
 import config from '../../Helper/Environment';
@@ -14,16 +15,22 @@ import { banUserInChat, unbanUserInChat } from './../utils';
 import { getStyles } from '../../SettingScreen/settingstyle';
 import { useLocalState } from '../../LocalGlobelStats';
 import { Alert } from 'react-native';  // ✅ Ensure Alert is imported
+import { useTranslation } from 'react-i18next';
+import { logEvent } from '@react-native-firebase/analytics';
 
 
 const ProfileBottomDrawer = ({ isVisible, toggleModal, startChat, selectedUser, 
   // isOnline, 
   bannedUsers }) => {
-  const { theme, user } = useGlobalState();
+  const { theme, analytics } = useGlobalState();
   const {updateLocalState} = useLocalState()
   // console.log(isVisible)
   const userName = selectedUser?.sender || null;
   const avatar = selectedUser?.avatar || null;
+  const { t } = useTranslation();
+  const platform = Platform.OS.toLowerCase();
+
+
   // console.log(selectedUser)
 
   const isDarkMode = theme === 'dark';
@@ -34,48 +41,51 @@ const ProfileBottomDrawer = ({ isVisible, toggleModal, startChat, selectedUser,
 
   // Handle Ban/Unban Toggle
 
-const handleBanToggle = async () => {
-  const action = isBlock ? 'Unblock' : 'Block';
-
-  Alert.alert(
-    `${action} User`,
-    `Are you sure you want to ${action.toLowerCase()} ${userName}?`,
-    [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: action,
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            let updatedBannedUsers;
-            
-            if (isBlock) {
-              // ✅ Remove from bannedUsers (Unban)
-              updatedBannedUsers = bannedUsers.filter(id => id !== selectedUser?.senderId);
-            } else {
-              // ✅ Add to bannedUsers (Ban)
-              updatedBannedUsers = [...bannedUsers, selectedUser?.senderId];
+  const handleBanToggle = async () => {
+    const action = isBlock ? t("chat.unblock") : t("chat.block");
+  
+    Alert.alert(
+      `${action} ${t("chat.user")}`,
+      `${t("chat.are_you_sure")} ${action.toLowerCase()} ${userName}?`,
+      [
+        { text: t("chat.cancel"), style: 'cancel' },
+        {
+          text: action,
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              let updatedBannedUsers;
+              
+              if (isBlock) {
+                // ✅ Remove from bannedUsers (Unban)
+                updatedBannedUsers = bannedUsers.filter(id => id !== selectedUser?.senderId);
+              } else {
+                // ✅ Add to bannedUsers (Ban)
+                updatedBannedUsers = [...bannedUsers, selectedUser?.senderId];
+              }
+  
+              // ✅ Update local storage & state
+              await updateLocalState('bannedUsers', updatedBannedUsers);
+  
+              // ✅ Wait a bit before showing the confirmation (Fix MMKV Delay)
+              setTimeout(() => {
+                Alert.alert(
+                  t("chat.success"),
+                  isBlock
+                    ? `${userName} ${t("chat.user_unblocked")}`
+                    : `${userName} ${t("chat.user_blocked")}`,
+                  [{ text: t("chat.ok") }]
+                );
+              }, 100); // Small delay to ensure UI updates correctly
+            } catch (error) {
+              console.error('❌ Error toggling ban status:', error);
             }
-
-            // ✅ Update local storage & state
-            await updateLocalState('bannedUsers', updatedBannedUsers);
-
-            // ✅ Wait a bit before showing the confirmation (Fix MMKV Delay)
-            setTimeout(() => {
-              Alert.alert(
-                'Success',
-                isBlock ? `${userName} has been unbanned.` : `${userName} has been banned.`,
-                [{ text: 'OK' }]
-              );
-            }, 100); // Small delay to ensure UI updates correctly
-          } catch (error) {
-            console.error('❌ Error toggling ban status:', error);
-          }
+          },
         },
-      },
-    ]
-  );
-};
+      ]
+    );
+  };
+  
 
   
 
@@ -83,6 +93,7 @@ const handleBanToggle = async () => {
   const handleStartChat = () => {
     if (startChat) {
       startChat(); // Call the function passed as a prop
+      logEvent(analytics, `${platform}_nav_to_chat_from_group_chat`);
     }
   };
 
@@ -155,7 +166,7 @@ const handleBanToggle = async () => {
 
           {/* Start Chat Button */}
           <TouchableOpacity style={styles.saveButton} onPress={handleStartChat}>
-            <Text style={styles.saveButtonText}>Start Chat</Text>
+            <Text style={styles.saveButtonText}>${t("chat.start_chat")}</Text>
           </TouchableOpacity>
         </View>
       </View>

@@ -29,14 +29,14 @@ export const useGlobalState = () => useContext(GlobalStateContext);
 export const GlobalStateProvider = ({ children }) => {
   const {localState, updateLocalState} = useLocalState()
   const [theme, setTheme] = useState(localState.theme || 'light');
+
+
   useEffect(() => {
     const appOwner = config.isNoman ? "Noman" : "Waqas";
-    logEvent(analytics, 'myappopen', { 
-      platform: Platform.OS.toLowerCase(),
-      app_owner: appOwner  
-    });
-  }, []); 
-  
+    const platform = Platform.OS.toLowerCase(); 
+    logEvent(analytics, `${appOwner}_app_open`);
+    logEvent(analytics, `platform_${platform}`);
+  }, []);
 
 
   const [user, setUser] = useState({
@@ -135,11 +135,12 @@ export const GlobalStateProvider = ({ children }) => {
           if (snapshot.exists()) {
             const userData = { ...snapshot.val(), id: userId };
             // console.log(userData)
-            const userDataSize = JSON.stringify(userData).length / 1024; 
+            
     
             // 🔹 Calculate total downloaded size
             
             if (developmentMode) {
+                const userDataSize = JSON.stringify(userData).length / 1024; 
                 console.log(`🚀 user data data: ${userDataSize.toFixed(2)} KB`);
             }
             
@@ -189,12 +190,19 @@ export const GlobalStateProvider = ({ children }) => {
   };
   
   useEffect(() => {
-    const now = new Date().toISOString();
-    updateLocalStateAndDatabase('lastactivity', now);
-    checkInternetConnection(); // 🔍 Check internet on app load
+
+    const lastActivity = localState.lastactivity ? new Date(localState.lastactivity).getTime() : 0;
+    const now = Date.now();
+    const THREE_HOURS = 36 * 60 * 60 * 1000; // 3 hours in milliseconds
+  
+    if (now - lastActivity > THREE_HOURS) {
+      updateLocalStateAndDatabase('lastactivity', new Date().toISOString());
+
+    }
   }, []);
   
-
+  
+// console.log(user)
 
 
 const fetchStockData = async () => {
@@ -226,12 +234,13 @@ const fetchStockData = async () => {
       const codes = codeSnapShot.exists() ? codeSnapShot.val() : {};
       const data = xlsSnapshot.exists() ? xlsSnapshot.val() : {};
 
-      const codeSize = JSON.stringify(codes).length / 1024; 
-      const dataSize = JSON.stringify(data).length / 1024; 
+     
     
             // 🔹 Calculate total downloaded size
             
             if (developmentMode) {
+                const codeSize = JSON.stringify(codes).length / 1024; 
+                const dataSize = JSON.stringify(data).length / 1024; 
                 console.log(`🚀 user code data: ${codeSize.toFixed(2)} KB`);
                 console.log(`🚀 user values data: ${dataSize.toFixed(2)} KB`);
             }
@@ -263,15 +272,17 @@ const fetchStockData = async () => {
     const premirageStock = preSnapshot.exists() ? preSnapshot.val()?.mirageStock || {} : {};
     
     // 🔹 Calculate data size in KB for each dataset
-    const normalStockSize = JSON.stringify(normalStock).length / 1024; 
-    const mirageStockSize = JSON.stringify(mirageStock).length / 1024; 
-    const prenormalStockSize = JSON.stringify(prenormalStock).length / 1024; 
-    const premirageStockSize = JSON.stringify(premirageStock).length / 1024; 
+   
     
     // 🔹 Calculate total downloaded size
-    const totalDownloadedSize = normalStockSize + mirageStockSize + prenormalStockSize + premirageStockSize;
+   
     
     if (developmentMode) {
+      const normalStockSize = JSON.stringify(normalStock).length / 1024; 
+      const mirageStockSize = JSON.stringify(mirageStock).length / 1024; 
+      const prenormalStockSize = JSON.stringify(prenormalStock).length / 1024; 
+      const premirageStockSize = JSON.stringify(premirageStock).length / 1024; 
+      const totalDownloadedSize = normalStockSize + mirageStockSize + prenormalStockSize + premirageStockSize;
         console.log(`🚀 Total stock data: ${totalDownloadedSize.toFixed(2)} KB`);
     }
     
@@ -308,7 +319,7 @@ useEffect(() => {
       theme,
       setUser,
       setOnlineMembersCount,
-      updateLocalStateAndDatabase, fetchStockData, loading,
+      updateLocalStateAndDatabase, fetchStockData, loading, analytics
       
     }),
     [user, onlineMembersCount, theme, fetchStockData, loading]

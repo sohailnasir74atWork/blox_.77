@@ -13,11 +13,14 @@ import {
 } from 'react-native';
 import config from '../Helper/Environment';
 import { useGlobalState } from '../GlobelStats';
+import { useTranslation } from 'react-i18next';
 const FruitSelectionDrawer = ({ visible, onClose, onSelect, data, selectedTheme }) => {
   const [searchText, setSearchText] = useState('');
   const [selectedItems, setSelectedItems] = useState([]);
   const { theme } = useGlobalState()
   const isDarkMode = theme === 'dark';
+  const { t } = useTranslation();
+
 
   // Clear search text and reset selected items when the modal opens
   useEffect(() => {
@@ -49,7 +52,7 @@ const FruitSelectionDrawer = ({ visible, onClose, onSelect, data, selectedTheme 
       <Pressable style={styles.modalOverlay} onPress={onClose} />
       <Pressable style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
         <View style={[styles.drawer, { backgroundColor: isDarkMode ? '#3B404C' : 'white' }]}>
-          <Text style={[styles.title, { color: selectedTheme.colors.text }]}>Select Fruits</Text>
+          <Text style={[styles.title, { color: selectedTheme.colors.text }]}>{t("stock.select_fruit")}</Text>
           <View style={styles.header}>
             <TextInput
               style={styles.searchInput}
@@ -60,7 +63,7 @@ const FruitSelectionDrawer = ({ visible, onClose, onSelect, data, selectedTheme 
               onSubmitEditing={Keyboard.dismiss}
             />
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Text style={styles.closetext}>Close</Text>
+              <Text style={styles.closetext}>{t("home.close")}</Text>
             </TouchableOpacity>
           </View>
           <FlatList

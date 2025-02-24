@@ -3,13 +3,31 @@ import React from 'react';
 import { Text, View, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../Helper/Environment';
+import { useTranslation } from 'react-i18next';
+import { logEvent } from '@react-native-firebase/analytics';
 
-export const FilterMenu = ({ selectedFilters, setSelectedFilters }) => {
-  const toggleFilter = (filter) => {
+export const FilterMenu = ({ selectedFilters, setSelectedFilters, analytics, platform }) => {
+  const { t } = useTranslation(); // 🔹 Import translation function
+
+  const toggleFilter = (filterKey) => {
+    logEvent(analytics, `${platform}_selected_trade_filter_${filterKey}`);
     setSelectedFilters((prevFilters) =>
-      prevFilters.includes(filter) ? prevFilters.filter((f) => f !== filter) : [...prevFilters, filter]
+      prevFilters.includes(filterKey) ? prevFilters.filter((f) => f !== filterKey) : [...prevFilters, filterKey]
     );
   };
+
+  // 🔹 Define filter keys and their translation keys
+  const filterOptions = [
+    { key: "has", label: t("trade.filter_has") },
+    { key: "wants", label: t("trade.filter_wants") },
+    { key: "myTrades", label: t("trade.filter_my_trades") },
+    { key: "fairDeal", label: t("trade.filter_fair_deal") },
+    { key: "riskyDeal", label: t("trade.filter_risky_deal") },
+    { key: "bestDeal", label: t("trade.filter_best_deal") },
+    { key: "decentDeal", label: t("trade.filter_decent_deal") },
+    { key: "weakDeal", label: t("trade.filter_weak_deal") },
+    { key: "greatDeal", label: t("trade.filter_great_deal") }
+  ];
 
   return (
     <View style={styles.container}>
@@ -18,23 +36,13 @@ export const FilterMenu = ({ selectedFilters, setSelectedFilters }) => {
           <Icon name="filter" size={24} color={styles.icon.color} />
         </MenuTrigger>
         <MenuOptions customStyles={{ optionsContainer: styles.menuOptions }}>
-          {[
-            "Has",
-            "Wants",
-            "My Trades",
-            "Fair Deal",
-            "Risky Deal",
-            "Best Deal",
-            "Decent Deal",
-            "Weak Deal",
-            "Great Deal"
-          ].map((filter) => (
-            <MenuOption key={filter} onSelect={() => toggleFilter(filter)} closeOnSelect={false}>
+          {filterOptions.map(({ key, label }) => (
+            <MenuOption key={key} onSelect={() => toggleFilter(key)} closeOnSelect={false}>
               <View style={styles.menuRow}>
-                <Text style={[styles.menuOptionText, selectedFilters.includes(filter) && styles.selectedText]}>
-                  {filter}
+                <Text style={[styles.menuOptionText, selectedFilters.includes(key) && styles.selectedText]}>
+                  {label} {/* 🔹 Translated text */}
                 </Text>
-                {selectedFilters.includes(filter) && <Icon name="checkmark" size={16} color={config.colors.hasBlockGreen} />}
+                {selectedFilters.includes(key) && <Icon name="checkmark" size={16} color={config.colors.hasBlockGreen} />}
               </View>
             </MenuOption>
           ))}

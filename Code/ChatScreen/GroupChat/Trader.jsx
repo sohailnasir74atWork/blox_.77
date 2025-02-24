@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Text,
+  Platform,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useGlobalState } from '../../GlobelStats';
@@ -23,6 +24,8 @@ import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import { useLocalState } from '../../LocalGlobelStats';
 import { ref } from '@react-native-firebase/database';
+import { useTranslation } from 'react-i18next';
+import { logEvent } from '@react-native-firebase/analytics';
 leoProfanity.add(['hell', 'shit']);
 leoProfanity.loadDictionary('en');
 
@@ -33,7 +36,7 @@ const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId);
 
 const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatFocused,
   setModalVisibleChatinfo, unreadMessagesCount, fetchChats, unreadcount, setunreadcount  }) => {
-  const { user, theme, onlineMembersCount, appdatabase } = useGlobalState();
+  const { user, theme, onlineMembersCount, appdatabase, analytics } = useGlobalState();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [replyTo, setReplyTo] = useState(null);
@@ -52,6 +55,9 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   const [isAdLoaded, setIsAdLoaded] = useState(false);
   const [isShowingAd, setIsShowingAd] = useState(false);
     const {localState} = useLocalState()
+    const { t } = useTranslation();
+    const platform = Platform.OS.toLowerCase();
+
 
 
   
@@ -112,10 +118,10 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   
         const snapshot = await messageQuery.once('value');
         const data = snapshot.val() || {};
-        const dataSize = JSON.stringify(data).length / 1024; 
 
 if (developmentMode) {
-  console.log(`🚀 Downloaded group chat data: ${dataSize.toFixed(2)} KB from some_node`);
+  const dataSize = JSON.stringify(data).length / 1024; 
+  console.log(`🚀 Downloaded group chat data: ${dataSize.toFixed(2)} KB from load messages`);
 }
   
         // console.log(`Fetched ${Object.keys(data).length} messages from Firebase.`);
@@ -168,10 +174,9 @@ if (developmentMode) {
 
     useEffect(() => {
       const listener = chatRef.limitToLast(1).on('child_added', (snapshot) => {
-        const newMessage = validateMessage({ id: snapshot.key, ...snapshot.val() });
-        const newMessageSize = JSON.stringify(newMessage).length / 1024; 
-
+        const newMessage = validateMessage({ id: snapshot.key, ...snapshot.val() })
 if (developmentMode) {
+  const newMessageSize = JSON.stringify(newMessage).length / 1024; 
   console.log(`🚀 Downloaded data: ${newMessageSize.toFixed(2)} KB from NEW MESSAGE`);
 }
     
@@ -196,8 +201,8 @@ if (developmentMode) {
   const handleLoadMore = async () => {
     if (!user.id & !signinMessage) {
       Alert.alert(
-        'Login Required',
-        'Please log in to load previous messages.',
+        t('misc.loginToStartChat'),
+        t('misc.loginRequired'),
         [{ text: 'OK', onPress: () => setIsSigninDrawerVisible(true) }]
       );
       setSigninMessage(true)
@@ -219,6 +224,10 @@ if (developmentMode) {
         const snapshot = await pinnedMessagesRef.once('value');
         if (snapshot.exists()) {
           const data = snapshot.val();
+          if (developmentMode) {
+            const dataSize = JSON.stringify(data).length / 1024; 
+            console.log(`🚀 Downloaded group chat data: ${dataSize.toFixed(2)} KB from pin messages`);
+          }
           const parsedPinnedMessages = Object.entries(data).map(([key, value]) => ({
             firebaseKey: key, // Use the actual Firebase key here
             ...value,
@@ -229,7 +238,7 @@ if (developmentMode) {
         }
       } catch (error) {
         console.error('Error loading pinned messages:', error);
-        Alert.alert('Error', 'Could not load pinned messages. Please try again.');
+        Alert.alert(t('home.alert.error'), 'Could not load pinned messages. Please try again.');
       }
     };
   
@@ -253,7 +262,7 @@ if (developmentMode) {
       // console.log('Pinned message added with firebaseKey:', newRef.key);
     } catch (error) {
       console.error('Error pinning message:', error);
-      Alert.alert('Error', 'Could not pin the message. Please try again.');
+      Alert.alert(t('home.alert.error'), 'Could not pin the message. Please try again.');
     }
   };
   
@@ -277,7 +286,7 @@ if (developmentMode) {
       });
     } catch (error) {
       console.error('Error unpinning message:', error);
-      Alert.alert('Error', 'Could not unpin the message. Please try again.');
+      Alert.alert(t('home.alert.error'), 'Could not unpin the message. Please try again.');
     }
   };
   
@@ -290,7 +299,7 @@ if (developmentMode) {
       setPinnedMessages([]);
     } catch (error) {
       console.error('Error clearing pinned messages:', error);
-      Alert.alert('Error', 'Could not clear pinned messages. Please try again.');
+      Alert.alert(t('home.alert.error'), 'Could not clear pinned messages. Please try again.');
     }
   };
 
@@ -351,7 +360,7 @@ if (developmentMode) {
     // console.log("handleSendMessage triggered", input);
   
     if (!user?.id) {
-      Alert.alert('Error', 'You must be logged in to send messages.');
+      // Alert.alert(t('home.alert.error'), 'You must be logged in to send messages.');
       return;
     }
   
@@ -362,13 +371,13 @@ if (developmentMode) {
     const trimmedInput = input.trim();
     
     if (!trimmedInput) {
-      Alert.alert('Error', 'Message cannot be empty.');
+      Alert.alert(t('home.alert.error'), 'Message cannot be empty.');
       return;
     }
   
     // Check for profane content
     if (leoProfanity.check(trimmedInput)) {
-      Alert.alert('Error', 'Your message contains inappropriate language.');
+      Alert.alert(t('home.alert.error'), t('misc.inappropriateLanguage'));
       return;
     }
   
@@ -378,14 +387,14 @@ if (developmentMode) {
   
     if (wordCount > MAX_WORDS) {
       Alert.alert(
-        'Error',
-        `Message cannot exceed ${MAX_WORDS} words. Your message contains ${wordCount} words.`
+        t('home.alert.error'),
+        t('misc.messageTooLong')
       );
       return;
     }
   
     if (isCooldown) {
-      Alert.alert('Error', 'You are sending messages too quickly. Please wait a moment.');
+      Alert.alert(t('home.alert.error'),  t('misc.sendingTooQuickly'));
       return;
     }
   
@@ -393,7 +402,7 @@ if (developmentMode) {
     const containsLink = LINK_REGEX.test(trimmedInput);
   
     if (containsLink && !localState?.isPro) {
-      Alert.alert('Error', 'Only Pro users can send links.');
+      Alert.alert(t('home.alert.error'),  t('misc.proUsersOnlyLinks'));
       return;
     }
   
@@ -423,7 +432,7 @@ if (developmentMode) {
       setTimeout(() => setIsCooldown(false), MESSAGE_COOLDOWN);
     } catch (error) {
       console.error('Error sending message:', error);
-      Alert.alert('Error', 'Could not send your message. Please try again.');
+      Alert.alert(t('home.alert.error'), 'Could not send your message. Please try again.');
     }
   };
 // console.log(isPro)
@@ -485,9 +494,10 @@ if (developmentMode) {
           ) : (
             <TouchableOpacity
               style={styles.login}
-              onPress={() => {setIsSigninDrawerVisible(true); triggerHapticFeedback('impactLight');}}
+              onPress={() => {setIsSigninDrawerVisible(true); triggerHapticFeedback('impactLight');     logEvent(analytics, `${platform}_signin_from_group_chat`);
+            }}
             >
-              <Text style={styles.loginText}>Login to Start Chat</Text>
+              <Text style={styles.loginText}>{t('misc.loginToStartChat')}</Text>
             </TouchableOpacity>
           )}
                </ConditionalKeyboardWrapper>  
@@ -496,7 +506,7 @@ if (developmentMode) {
             visible={isSigninDrawerVisible}
             onClose={() => setIsSigninDrawerVisible(false)}
             selectedTheme={selectedTheme}
-            message='To activite chat, you need to sign in'
+            message={t('misc.loginRequired')}
 
           />
         </View>

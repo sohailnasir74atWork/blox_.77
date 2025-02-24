@@ -18,6 +18,7 @@ import appleAuth, { AppleButton } from '@invertase/react-native-apple-authentica
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { useGlobalState } from '../GlobelStats';
 import ConditionalKeyboardWrapper from '../Helper/keyboardAvoidingContainer';
+import { useTranslation } from 'react-i18next';
 
 
 
@@ -29,6 +30,8 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message }) => {
     const [isLoadingSecondary, setIsLoadingSecondary] = useState(false);
     const { triggerHapticFeedback } = useHaptic();
     const { theme } = useGlobalState()
+    const { t } = useTranslation();
+
 
     // const appdatabase = getDatabase(app);
     const isDarkMode = theme === 'dark';
@@ -54,30 +57,33 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message }) => {
             const { identityToken, nonce } = appleAuthRequestResponse;
     
             if (!identityToken) {
-                throw new Error('Apple Sign-In failed - no identity token returned');
+                throw new Error(t("signin.error_apple_token"));
             }
     
             const appleCredential = auth.AppleAuthProvider.credential(identityToken, nonce);
             await auth().signInWithCredential(appleCredential);
     
-            Alert.alert('Welcome Back!', 'You have logged in successfully!');
+            Alert.alert(t("home.alert.success"), t("signin.success_signin"));
             onClose(); // Close the modal on success
         } catch (error) {
-            console.error('Apple Sign-In Error:', error);
-            Alert.alert('Sign-In Error', error?.message || 'An unexpected error occurred. Please try again later.');
+            // console.error(t("signin.error_apple_signin"), error);
+            Alert.alert(t("home.alert.error"), error?.message || t("signin.error_signin_message"));
         }
     }
     
+    
     const handleSignInOrRegister = async () => {
         triggerHapticFeedback('impactLight');
+    
         if (!email || !password) {
-            Alert.alert('Input Error', 'Please enter both email and password.');
+            Alert.alert(t("home.alert.error"), t("signin.error_input_message"));
             return;
         }
+    
         const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
     
         if (!isValidEmail(email)) {
-            Alert.alert('Input Error', 'Please enter a valid email address.');
+            Alert.alert(t("home.alert.error"), t("signin.error_input_message"));
             return;
         }
     
@@ -87,34 +93,34 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message }) => {
             if (isRegisterMode) {
                 // Handle user registration
                 await auth().createUserWithEmailAndPassword(email, password);
-                Alert.alert('Success', 'Your account has been created successfully!');
+                Alert.alert(t("signin.alert_success"), t("signin.alert_account_created"));
             } else {
                 // Handle user login
                 await auth().signInWithEmailAndPassword(email, password);
-                Alert.alert('Welcome Back!', 'You have logged in successfully!');
+                Alert.alert(t("signin.alert_welcome_back"), t("signin.success_signin"));
             }
     
             onClose(); // Close modal after successful operation
         } catch (error) {
-            console.error('Authentication Error:', error);
+            console.error(t("signin.auth_error"), error);
     
-            let errorMessage = 'User does not exist or the credentials are invalid. Please try again.';
+            let errorMessage = t("signin.error_signin_message");
     
             if (error?.code === 'auth/invalid-email') {
-                errorMessage = 'The email address is not valid.';
+                errorMessage = t("signin.error_invalid_email_format");
             } else if (error?.code === 'auth/user-disabled') {
-                errorMessage = 'This user account has been disabled.';
+                errorMessage = t("signin.error_user_disabled");
             } else if (error?.code === 'auth/user-not-found') {
-                errorMessage = 'No user found with this email.';
+                errorMessage = t("signin.error_user_not_found");
             } else if (error?.code === 'auth/wrong-password') {
-                errorMessage = 'Incorrect password. Please try again.';
+                errorMessage = t("signin.error_wrong_password");
             } else if (error?.code === 'auth/email-already-in-use') {
-                errorMessage = 'This email is already in use.';
+                errorMessage = t("signin.error_wrong_password");
             } else if (error?.code === 'auth/weak-password') {
-                errorMessage = 'The password is too weak. Please use a stronger password.';
+                errorMessage = t("signin.error_weak_password");
             }
     
-            Alert.alert('Authentication Error', errorMessage);
+            Alert.alert(t("signin.error_signin_message"), errorMessage);
         } finally {
             setIsLoadingSecondary(false); // Hide loading indicator
         }
@@ -128,17 +134,17 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message }) => {
             
             const idToken = signInResult?.idToken || signInResult?.data?.idToken;
             if (!idToken) {
-                throw new Error('No ID token found in the Google Sign-In result.');
+                throw new Error(t("signin.error_signin_message"));
             }
             
             const googleCredential = auth.GoogleAuthProvider.credential(idToken);
             await auth().signInWithCredential(googleCredential);
     
-            Alert.alert('Welcome Back!', 'You have logged in successfully!');
+            Alert.alert(t("signin.alert_welcome_back"), t("signin.success_signin"));
             onClose(); // Close the modal on success
         } catch (error) {
-            console.error('Google Sign-In Error:', error);
-            Alert.alert('Sign-In Error', error?.message || 'An unexpected error occurred. Please try again later.');
+            console.error(t("signin.error_signin_message"), error);
+            Alert.alert(t("home.alert.error"), error?.message || t("signin.error_signin_message"));
         } finally {
             setIsLoading(false); // Reset loading state
         }
@@ -146,103 +152,98 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message }) => {
     
 
     return (
-        <Modal visible={visible} animationType="slide" transparent             onRequestClose={onClose}
->
-            <Pressable style={styles.modalOverlay} onPress={onClose} />
-            <ConditionalKeyboardWrapper>
-
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+        <Pressable style={styles.modalOverlay} onPress={onClose} />
+        <ConditionalKeyboardWrapper>
             <Pressable onPress={() => { }}>
-                {/* <View> */}
                 <View style={[styles.drawer, { backgroundColor: isDarkMode ? '#3B404C' : 'white' }]}>
-                    <Text style={[styles.title, { color: selectedTheme.colors.text }]}>{isRegisterMode ? 'Register' : 'Sign In'}</Text>
+                    <Text style={[styles.title, { color: selectedTheme.colors.text }]}>
+                        {isRegisterMode ? t("signin.title_register") : t("signin.title_signin")}
+                    </Text>
                     <View>
                         <Text style={[styles.text, { color: selectedTheme.colors.text }]}>
                             {message}
                         </Text>
                     </View>
-
+    
                     <TextInput
                         style={[styles.input, { color: selectedTheme.colors.text }]}
-                        placeholder="Email"
+                        placeholder={t("signin.placeholder_email")}
                         value={email}
                         onChangeText={setEmail}
                         keyboardType="email-address"
                         autoCapitalize="none"
                         placeholderTextColor={selectedTheme.colors.text}
                     />
-
+    
                     <TextInput
                         style={[styles.input, { color: selectedTheme.colors.text }]}
-                        placeholder="Password"
+                        placeholder={t("signin.placeholder_password")}
                         value={password}
                         onChangeText={setPassword}
                         secureTextEntry
                         placeholderTextColor={selectedTheme.colors.text}
-
                     />
-
+    
                     <TouchableOpacity
                         style={styles.primaryButton}
                         onPress={handleSignInOrRegister}
                         disabled={isLoadingSecondary}
                     >
-
-
                         {isLoadingSecondary ? (
                             <ActivityIndicator size="small" color="white" />
                         ) : (
-                            <>
-                                <Text style={styles.primaryButtonText}>
-                                    {isRegisterMode ? 'Register' : 'Sign In'}
-                                </Text>
-                            </>
+                            <Text style={styles.primaryButtonText}>
+                                {isRegisterMode ? t("signin.title_register") : t("signin.title_signin")}
+                            </Text>
                         )}
-
                     </TouchableOpacity>
+    
                     <View style={styles.container}>
                         <View style={styles.line} />
-                        <Text style={[styles.textoR, { color: selectedTheme.colors.text }]}>OR</Text>
+                        <Text style={[styles.textoR, { color: selectedTheme.colors.text }]}>
+                            {t("signin.or")}
+                        </Text>
                         <View style={styles.line} />
                     </View>
-
+    
                     <TouchableOpacity
                         style={styles.googleButton}
                         onPress={handleGoogleSignIn}
-                        disabled={isLoading} // Disable button while loading
+                        disabled={isLoading}
                     >
                         {isLoading ? (
                             <ActivityIndicator size="small" color="white" />
                         ) : (
                             <>
                                 <Icon name="google" size={24} color="white" style={styles.googleIcon} />
-                                <Text style={styles.googleButtonText}>Sign in with Google</Text>
+                                <Text style={styles.googleButtonText}>{t("signin.google_signin")}</Text>
                             </>
                         )}
                     </TouchableOpacity>
-                    {Platform.OS === 'ios' &&
-
+    
+                    {Platform.OS === 'ios' && (
                         <AppleButton
                             buttonStyle={isDarkMode ? AppleButton.Style.WHITE : AppleButton.Style.BLACK}
                             buttonType={AppleButton.Type.SIGN_IN}
                             style={styles.applebUUTON}
                             onPress={() => onAppleButtonPress().then(() => console.log('Apple sign-in complete!'))}
-                        />}
-
-
-
+                        />
+                    )}
+    
                     <TouchableOpacity
                         style={styles.secondaryButton}
                         onPress={() => setIsRegisterMode(!isRegisterMode)}
-
                     >
                         <Text style={styles.secondaryButtonText}>
-                            {isRegisterMode ? 'Switch to Sign In' : 'Switch to Register'}
+                            {isRegisterMode ? t("signin.button_switch_signin") : t("signin.button_switch_register")}
                         </Text>
                     </TouchableOpacity>
                 </View>
             </Pressable>
-            </ConditionalKeyboardWrapper>
-        </Modal>
+        </ConditionalKeyboardWrapper>
+    </Modal>
+    
     );
 };
 

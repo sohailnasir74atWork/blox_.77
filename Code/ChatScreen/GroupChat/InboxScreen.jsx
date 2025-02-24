@@ -14,13 +14,16 @@ import { useGlobalState } from '../../GlobelStats';
 import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
 import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
-import { isUserOnline } from '../utils';
+// import { isUserOnline } from '../utils';
 import { ref } from '@react-native-firebase/database';
+import { useTranslation } from 'react-i18next';
 
 const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
   const navigation = useNavigation();
   // const { chats = [], setChats } = route.params || {}; // ✅ Prevents errors if `params` is missing  
   const { user, theme, appdatabase } = useGlobalState();
+  const { t } = useTranslation();
+
   // console.log('inbox', chats)
   const filteredChats = useMemo(() => {
     return chats.filter(chat => !bannedUsers.includes(chat.otherUserId));
@@ -31,31 +34,32 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
 
   const handleDelete = (chatId) => {
     Alert.alert(
-      'Delete Chat',
-      'Are you sure you want to delete this chat?',
+      t("chat.delete_chat"),
+      t("chat.delete_chat_confirmation"),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t("chat.cancel"), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t("chat.delete"),
           style: 'destructive',
           onPress: async () => {
             try {
               // Remove chat from Firebase
-              const chatRef = ref(appdatabase, `private_chat/${chatId}`);
+              const chatRef = ref(appdatabase, `private_chat_new/${chatId}`);
               await chatRef.remove();
 
               // Update the local state to remove the chat
               setChats((prevChats) => prevChats.filter((chat) => chat.chatId !== chatId));
             } catch (error) {
               console.error('Error deleting chat:', error);
-              Alert.alert('Error', 'Failed to delete the chat. Please try again.');
+              Alert.alert(t("chat.error"), t("chat.delete_chat_error"));
             }
           },
         },
       ],
       { cancelable: true }
     );
-  };
+};
+
 // console.log(chats)
   const handleOpenChat = (chatId, otherUserId, otherUserName, otherUserAvatar, 
     // isOnline, 
@@ -128,7 +132,7 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
         </MenuTrigger>
         <MenuOptions>
           <MenuOption onSelect={() => handleDelete(item.chatId)}>
-            <Text style={{ color: 'red', fontSize: 16, padding: 10 }}>Delete</Text>
+            <Text style={{ color: 'red', fontSize: 16, padding: 10 }}> {t("chat.delete")}</Text>
           </MenuOption>
         </MenuOptions>
       </Menu>
@@ -140,7 +144,7 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
       <ActivityIndicator size="large" color="#1E88E5" style={{ flex: 1 }} />
     ) : filteredChats.length === 0 ? (
       <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>Currently, there are no chats available. To start a chat, select a user's profile picture and initiate a conversation.</Text>
+        <Text style={styles.emptyText}> {t("chat.no_chats_available")}</Text>
       </View>
     ) : (
       <FlatList

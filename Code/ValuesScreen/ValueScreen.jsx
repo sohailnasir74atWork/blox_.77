@@ -18,6 +18,8 @@ import { useGlobalState } from '../GlobelStats';
 import CodesDrawer from './Code';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { useLocalState } from '../LocalGlobelStats';
+import { useTranslation } from 'react-i18next';
+import { logEvent } from '@react-native-firebase/analytics';
 
 const bannerAdUnitId = getAdUnitId('banner');
 const interstitialAdUnitId = getAdUnitId('interstitial');
@@ -28,10 +30,13 @@ const ValueScreen = ({ selectedTheme }) => {
   const [searchText, setSearchText] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [filterDropdownVisible, setFilterDropdownVisible] = useState(false);
+  const {analytics} = useGlobalState()
   const [filteredData, setFilteredData] = useState([]);
   const { localState } = useLocalState()
   const [valuesData, setValuesData] = useState([]);
 const [codesData, setCodesData] = useState([]);
+const { t } = useTranslation();
+
 
 
 
@@ -51,6 +56,7 @@ const [codesData, setCodesData] = useState([]);
 
   const toggleDrawer = () => {
     triggerHapticFeedback('impactLight');
+    logEvent(analytics, `${platform}_code_drawer_open`);
     if (!hasAdBeenShown) {
       showInterstitialAd(() => {
         setHasAdBeenShown(true); // Mark the ad as shown
@@ -149,13 +155,13 @@ const [codesData, setCodesData] = useState([]);
 
         <View>
           <Text style={styles.name}>{item.Name}</Text>
-          <Text style={styles.value}>Value: ${item.Value.toLocaleString()}</Text></View>
+          <Text style={styles.value}> { t("value.value")}: ${item.Value.toLocaleString()}</Text></View>
       </View>
       <View style={styles.devider}></View>
       <View style={styles.infoContainer}>
-        <Text style={styles.permanentValue}>Permanent: ${item.Permanent.toLocaleString()}</Text>
-        <Text style={styles.beliPrice}>Beli Price: ${item.Biliprice.toLocaleString()}</Text>
-        <Text style={styles.robuxPrice}>Robux Price: ${item.Robuxprice}</Text>
+        <Text style={styles.permanentValue}>{t("value.permanent_value")}: ${item.Permanent.toLocaleString()}</Text>
+        <Text style={styles.beliPrice}>{t("value.beli_price")}: ${item.Biliprice.toLocaleString()}</Text>
+        <Text style={styles.robuxPrice}>{t("value.robux_price")}: ${item.Robuxprice}</Text>
       </View>
       {/* <View style={styles.statusContainer}>
         <Text style={[styles.status, { backgroundColor: item.Stability === 'Stable' ? config.colors.hasBlockGreen : config.colors.wantBlockRed }]}>
@@ -217,7 +223,7 @@ const [codesData, setCodesData] = useState([]);
 
         <View style={styles.container}>
           <Text style={[styles.description, { color: selectedTheme.colors.text }]}>
-            Live Blox Fruits values updated hourly. Find accurate item values here and visit the trade feed for fruits or game passes.
+         { t("value.description")}
           </Text>
           <View style={styles.searchFilterContainer}>
             <TextInput
@@ -238,7 +244,7 @@ const [codesData, setCodesData] = useState([]);
               style={[styles.filterDropdown, { backgroundColor: config.colors.hasBlockGreen }]}
               onPress={toggleDrawer}
             >
-              <Text style={[styles.filterText, { color: selectedTheme.colors.text }]}>Codes</Text>
+              <Text style={[styles.filterText, { color: selectedTheme.colors.text }]}> { t("value.codes")}</Text>
             </TouchableOpacity>
           </View>
 
@@ -280,7 +286,7 @@ const [codesData, setCodesData] = useState([]);
             />
           ) : (
             <Text style={[styles.description, { textAlign: 'center', marginTop: 20, color: 'gray' }]}>
-              No items match your search criteria.
+              { t("value.no_results")}
             </Text>
           )
           }
@@ -319,19 +325,19 @@ const styles = StyleSheet.create({
   icon: { width: 50, height: 50, borderRadius: 5, marginRight: 10 },
   infoContainer: { flex: 1 },
   name: {
-    fontSize: 16, fontFamily: 'Lato-Bold', color: 'white'
+    fontSize: 16, fontFamily: 'Lato-Bold', color: 'white', lineHeight: 18,
   },
   value: {
-    fontSize: 12, fontFamily: 'Lato-Regular', color: 'white'
+    fontSize: 10, fontFamily: 'Lato-Regular', color: 'white',lineHeight: 14,
   },
   permanentValue: {
-    fontSize: 12, fontFamily: 'Lato-Regular', color: 'white'
+    fontSize: 10, fontFamily: 'Lato-Regular', color: 'white',lineHeight: 14,
   },
   beliPrice: {
-    fontSize: 12, fontFamily: 'Lato-Regular', color: 'white'
+    fontSize: 10, fontFamily: 'Lato-Regular', color: 'white',lineHeight: 14,
   },
   robuxPrice: {
-    fontSize: 12, fontFamily: 'Lato-Regular', color: 'white'
+    fontSize: 10, fontFamily: 'Lato-Regular', color: 'white', lineHeight: 14,
   },
   // statusContainer: { alignItems: 'left', alignSelf: 'flex-end', position: 'absolute', bottom: 0 },
   status: {

@@ -34,8 +34,9 @@ export const firebaseConfig = {
           // console.log('📡 Checking existing FCM token...');
           const currentTokenSnapshot = await get(tokenRef);
           const currentToken = currentTokenSnapshot.exists() ? currentTokenSnapshot.val() : null;
-          const currentTokenSize = JSON.stringify(currentToken).length / 1024;
+          
                 if (developmentMode) {
+                    const currentTokenSize = JSON.stringify(currentToken).length / 1024;
                     console.log(`🚀 toekn size data: ${currentTokenSize.toFixed(2)} KB`);
                 }
   

@@ -72,7 +72,7 @@ setBannedUsers(localState.bannedUsers)
     setLoading(true);
   
     try {
-      const privateChatsRef = ref(appdatabase, 'private_chat');
+      const privateChatsRef = ref(appdatabase, 'private_chat_new');
       const queryRef = privateChatsRef.orderByChild(`participants/${user.id}`).equalTo(true);
   
       // 🔍 Fetch data from Firebase
@@ -85,10 +85,9 @@ setBannedUsers(localState.bannedUsers)
   
       // 🔹 Calculate the size of downloaded data in KB
       const fetchedData = snapshot.val();
-      const dataSize = JSON.stringify(fetchedData).length / 1024; 
-  
       if (developmentMode) {
-        console.log(`🚀 Downloaded chat data: ${dataSize.toFixed(2)} KB`);
+        const dataSize = JSON.stringify(fetchedData).length / 1024; 
+        console.log(`Downloaded private chat data: ${dataSize.toFixed(2)} KB`);
       }
   
       let totalUnread = 0;
@@ -145,7 +144,7 @@ setBannedUsers(localState.bannedUsers)
     <Stack.Navigator screenOptions={headerOptions}>
   <Stack.Screen 
     name="GroupChat" 
-    options={{ headerTitleAlign: 'left', headerTitle: 'Community Chat', headerShown: false }}
+    options={{ headerTitleAlign: 'left', headerShown: false }}
   >
     {() => (
       <ChatScreen

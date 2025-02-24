@@ -18,6 +18,7 @@ import { parseMessageText } from '../ChatHelper';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
+import { useTranslation } from 'react-i18next';
 
 
 
@@ -44,6 +45,8 @@ const MessagesList = ({
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [showReportPopup, setShowReportPopup] = useState(false);
   const { triggerHapticFeedback } = useHaptic();
+  const { t } = useTranslation();
+
 
   const handleLongPress = (item) => {
     if (!user?.id) return;
@@ -154,7 +157,7 @@ const MessagesList = ({
                  
           {(!!item.isAdmin) && 
                   <View style={styles.adminContainer}>
-                  <Text style={styles.admin}>Admin</Text>
+                  <Text style={styles.admin}>{t("chat.admin")}</Text>
                   </View> }
                   {'\n'}
                  {parseMessageText(item?.text)}
@@ -168,7 +171,7 @@ const MessagesList = ({
               }}>
                {user.id && <MenuOption
                   onSelect={() => onReply(item)}
-                  text="Reply"
+                  text={t("chat.reply")}
                   customStyles={{
                     optionWrapper: styles.menuOption,
                     optionText: styles.menuOptionText,
@@ -176,7 +179,7 @@ const MessagesList = ({
                 />}
                 <MenuOption
                   onSelect={() => handleReport(item)}
-                  text="Report"
+                  text={t("chat.report")}
                   customStyles={{
                     optionWrapper: styles.menuOption,
                     optionText: styles.menuOptionText,

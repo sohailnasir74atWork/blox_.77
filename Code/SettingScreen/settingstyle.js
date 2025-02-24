@@ -230,5 +230,16 @@ export const getStyles = (isDarkMode) =>
         fontSize: 14,
         fontFamily: 'Lato-Bold',
       },
+      menuTrigger:{
+        paddingRight:10
+      },
+      options:{
+        padding:5,
+        // maxWidth:100,
+        borderRadius:10
+      },
+      option_menu:{
+        padding:10
+      }
     });
   

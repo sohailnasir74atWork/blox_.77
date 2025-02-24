@@ -4,12 +4,15 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { getStyles } from '../Style';
 import config from '../../Helper/Environment';
 import { useGlobalState } from '../../GlobelStats';
+import { useTranslation } from 'react-i18next';
 
 const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned }) => {
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const { theme } = useGlobalState();
   const isDark = theme === 'dark';
+  const { t } = useTranslation();
+
 
   const styles = getStyles(isDark);
   const handleSend = async () => {
@@ -45,7 +48,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned }) => {
       <View style={styles.inputContainer}>
         <TextInput
           style={[styles.input, { color: isDark ? '#FFF' : '#000' }]}
-          placeholder="Type a message..."
+          placeholder={t("chat.type_message")}
           placeholderTextColor="#888"
           value={input}
           onChangeText={setInput}
@@ -65,7 +68,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned }) => {
           disabled={!input.trim() || isSending}
         >
           <Text style={styles.sendButtonText}>
-            {isSending ? 'Sending...' : 'Send'}
+            {isSending ? t("chat.sending") : t("chat.send")}
           </Text>
         </TouchableOpacity>
       </View>

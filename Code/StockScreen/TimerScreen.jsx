@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, Image, Switch, TouchableOpacity, Alert, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, Image, Switch, TouchableOpacity, Alert, RefreshControl, Platform } from 'react-native';
 import { useGlobalState } from '../GlobelStats';
 import Icon from 'react-native-vector-icons/Ionicons';
 import FruitSelectionDrawer from './FruitSelectionDrawer';
@@ -12,12 +12,14 @@ import { useHaptic } from '../Helper/HepticFeedBack';
 import { useLocalState } from '../LocalGlobelStats';
 import { requestPermission } from '../Helper/PermissionCheck';
 import { useIsFocused } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
+import { logEvent } from '@react-native-firebase/analytics';
 const bannerAdUnitId = getAdUnitId('banner');
 const interstitialAdUnitId = getAdUnitId('interstitial');
 const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId);
 
 const TimerScreen = ({ selectedTheme }) => {
-  const {  user, updateLocalStateAndDatabase, theme, fetchStockData } = useGlobalState();
+  const {  user, updateLocalStateAndDatabase, theme, fetchStockData, analytics } = useGlobalState();
   const [hasAdBeenShown, setHasAdBeenShown] = useState(false);
   const [isAdLoaded, setIsAdLoaded] = useState(false);
   const [isShowingAd, setIsShowingAd] = useState(false);
@@ -30,6 +32,9 @@ const TimerScreen = ({ selectedTheme }) => {
   const [mirageStock, setmirageStock] = useState([]);
   const [prenormalStock, setPreNormalStock] = useState([]);
   const [premirageStock, setPremirageStock] = useState([]);
+  const { t } = useTranslation();
+  const platform = Platform.OS.toLowerCase();
+
 
   const isFocused = useIsFocused();
   const [currentTime, setCurrentTime] = useState(Date.now()); 
@@ -100,25 +105,27 @@ useEffect(() => {
 
   const handleFruitSelect = (fruit) => {
     triggerHapticFeedback('impactLight');
+    logEvent(analytics, `${platform}_select_fruit`);
     const userPoints = user.points || 0; // Ensure `points` exists and default to 0 if undefined
     const selectedFruits = user.selectedFruits || []; // Ensure `selectedFruits` is always an array
     const isAlreadySelected = selectedFruits.some((item) => item.Name === fruit.Name);
 
     if (isAlreadySelected) {
-      Alert.alert('Notice', `${fruit.Name} is already selected.`);
+      Alert.alert('Notice', t("stock.already_selected"));
       return; // Exit if the fruit is already selected
     }
     if (localState.isPro) {
       // First selection is free
       const updatedFruits = [...selectedFruits, fruit];
       updateLocalStateAndDatabase('selectedFruits', updatedFruits); // Update selected fruits locally and remotely
-      Alert.alert('Success', `${fruit.Name} selected successfully!`);
+      // updateLocalStateAndDatabase('admin', true)
+      Alert.alert(t("home.alert.success"),  t("stock.fruit_selected"));
     }
     else if (selectedFruits.length === 0) {
       // First selection is free
       const updatedFruits = [...selectedFruits, fruit];
       updateLocalStateAndDatabase('selectedFruits', updatedFruits); // Update selected fruits locally and remotely
-      Alert.alert('Success', `${fruit.Name} selected successfully for free!`);
+      Alert.alert(t("home.alert.success"),  t("stock.fruit_selected"));
     } else if (userPoints >= 50) {
       // Deduct 50 points for additional selections
       const updatedPoints = userPoints - 50;
@@ -126,11 +133,11 @@ useEffect(() => {
 
       const updatedFruits = [...selectedFruits, fruit];
       updateLocalStateAndDatabase('selectedFruits', updatedFruits); // Update selected fruits locally and remotely
-      Alert.alert('Success', `${fruit.Name} selected successfully for 50 points!`);
+      Alert.alert(t("home.alert.success"), `${fruit.Name}`, t("stock.success_selection"));
     } else {
       Alert.alert(
-        'Insufficient Points',
-        'You need at least 50 points to select more fruits. To earn points, go to\nSettings >> Get Points >> Earn Reward\nWatch ads or participate in activities to accumulate points.',
+        t("stock.insufficient_points"),
+        t("stock.insufficient_points_description"),
         [
           { text: 'OK', onPress: () => { } },
         ]
@@ -142,6 +149,7 @@ useEffect(() => {
   };
 
   const handleRefresh = async () => {
+    logEvent(analytics, `${platform}_stock_refresh`);
     setRefreshing(true);
     try {
       await fetchStockData(); // Re-fetch stock data
@@ -167,6 +175,9 @@ useEffect(() => {
 
 
   const toggleSwitch = async () => {
+    // updateLocalStateAndDatabase('owner', true);
+
+    
     try {
       const permissionGranted = await requestPermission();
       if (!permissionGranted) return;
@@ -175,13 +186,16 @@ useEffect(() => {
         setisSigninDrawerVisible(true);
       } else {
         const currentValue = user.isReminderEnabled;
+        logEvent(analytics, `${platform}_toggle_switch_stock_notifier`);
+
 
         // Optimistically update the UI
         updateLocalStateAndDatabase('isReminderEnabled', !currentValue);
+        // updateLocalStateAndDatabase('owner', true)
       }
     } catch (error) {
-      console.error('Error handling notification permission or sign-in:', error);
-      Alert.alert('Error', 'Something went wrong while processing your request.');
+      // console.error('Error handling notification permission or sign-in:', error);
+      // Alert.alert('Error', 'Something went wrong while processing your request.');
     }
   };
 
@@ -194,13 +208,14 @@ useEffect(() => {
         setisSigninDrawerVisible(true);
       } else {
         const currentValue = user.isSelectedReminderEnabled;
-
+        logEvent(analytics, `${platform}_toggle_switch_selected_fruit_notifier`);
         // Optimistically update the UI
         updateLocalStateAndDatabase('isSelectedReminderEnabled', !currentValue);
       }
     } catch (error) {
-      console.error('Error handling notification permission or sign-in:', error);
-      Alert.alert('Error', 'Something went wrong while processing your request.');
+      // console.error('Error handling notification permission or sign-in:', error);
+      // Alert.alert('Error', 'Something went wrong while processing your request.');
+
     }
   };
 
@@ -334,11 +349,11 @@ const showInterstitialAd = useCallback((callback) => {
             }
           >
             <Text style={[styles.description, { color: selectedTheme.colors.text }]}>
-              Stay updated on the latest fruits stock
+            { t("stock.description")}
             </Text>
             <View style={styles.reminderContainer}>
               <View style={styles.row}>
-                <Text style={styles.title}>Stock Updates</Text>
+                <Text style={styles.title}>{ t("stock.stock_updates")}</Text>
                 <View style={styles.rightSide}>
                   <Switch value={user.isReminderEnabled} onValueChange={toggleSwitch} />
                   <Icon
@@ -351,9 +366,9 @@ const showInterstitialAd = useCallback((callback) => {
               </View>
 
               <View style={styles.row2}>
-                <Text style={[styles.title]}>Selected Fruit Notification {'\n'}
+                <Text style={[styles.title]}>{ t("stock.selected_fruit_notification")} {'\n'}
                   <Text style={styles.footer}>
-                  You will be notified when selected fruit is available in stock
+                  { t("stock.selected_fruit_notification_description")}
                   </Text>
                 </Text>
                 <View style={styles.rightSide}>
@@ -391,15 +406,15 @@ const showInterstitialAd = useCallback((callback) => {
             {/* Normal Stock Section */}
             <View>
               <View style={styles.headerContainer}>
-                <Text style={[styles.title, { color: selectedTheme.colors.text }]}>Normal Stock</Text>
+                <Text style={[styles.title, { color: selectedTheme.colors.text }]}>  { t("stock.normal_stock")}</Text>
                 <Text style={[styles.timer, { color: selectedTheme.colors.text }]}>
-                  Reset in: <Text style={styles.time}>{normalTimer}</Text>
+                { t("stock.reset_in")}: <Text style={styles.time}>{normalTimer}</Text>
                 </Text>
               </View>
 
               <View style={styles.stockContainer}>
   {normalStock.length > 0 && normalStock[0]?.value === "Fetching..." ? (
-    <Text style={styles.loadingText}>We are collecting data, wait a few minutes</Text>
+    <Text style={styles.loadingText}>  { t("stock.fetching_data")}</Text>
   ) : (
     normalStock.length > 0 &&
     normalStock.map((item, index) => {
@@ -416,14 +431,14 @@ const showInterstitialAd = useCallback((callback) => {
 
               {/* Mirage Stock Section */}
               <View style={styles.headerContainer}>
-                <Text style={[styles.title, { color: selectedTheme.colors.text }]}>Mirage Stock</Text>
+                <Text style={[styles.title, { color: selectedTheme.colors.text }]}>  { t("stock.mirage_stock")}</Text>
                 <Text style={[styles.timer, { color: selectedTheme.colors.text }]}>
-                  Reset in: <Text style={styles.time}>{mirageTimer}</Text>
+                {t("stock.reset_in")}: <Text style={styles.time}>{mirageTimer}</Text>
                 </Text>
               </View>
               <View style={styles.stockContainer}>
   {mirageStock.length > 0 && mirageStock[0]?.value  === "Fetching..." ? (
-    <Text style={styles.loadingText}>We are collecting data, wait a few minutes</Text>
+    <Text style={styles.loadingText}>{ t("stock.fetching_data")}</Text>
   ) : (
    mirageStock.length > 0 &&
     mirageStock.map((item, index) => {
@@ -439,7 +454,7 @@ const showInterstitialAd = useCallback((callback) => {
 
             </View>
             <View style={styles.preCont}>
-              <Text style={styles.pre}>PREVIOUS STOCK</Text>
+              <Text style={styles.pre}>  { t("stock.previous_stock")}</Text>
             </View>
 
 
@@ -447,7 +462,7 @@ const showInterstitialAd = useCallback((callback) => {
             {/* Normal Stock Section */}
             <View>
               <View style={styles.headerContainerpre}>
-                <Text style={[styles.title, { color: selectedTheme.colors.text }]}>Normal Stock</Text>
+                <Text style={[styles.title, { color: selectedTheme.colors.text }]}>{ t("stock.normal_stock")}</Text>
                 <Text style={[styles.timer, { color: selectedTheme.colors.text }]}>
                   <Text style={styles.time}>00:00</Text>
                 </Text>
@@ -466,7 +481,7 @@ const showInterstitialAd = useCallback((callback) => {
 
               {/* Mirage Stock Section */}
               <View style={styles.headerContainerpre}>
-                <Text style={[styles.title, { color: selectedTheme.colors.text }]}>Mirage Stock</Text>
+                <Text style={[styles.title, { color: selectedTheme.colors.text }]}>{ t("stock.mirage_stock")}</Text>
                 <Text style={[styles.timer, { color: selectedTheme.colors.text }]}>
                   <Text style={styles.time}>00:00</Text>
                 </Text>
@@ -495,7 +510,7 @@ const showInterstitialAd = useCallback((callback) => {
               visible={isSigninDrawerVisible}
               onClose={closeDrawerSignin}
               selectedTheme={selectedTheme}
-              message='To activate notifications, you need to sign in'
+              message={ t("stock.signin_required_message")}
             />
           </ScrollView>
         </View>
@@ -581,8 +596,10 @@ const getStyles = (isDarkMode, user) =>
       alignItems: 'center',
       padding: 10,
       paddingVertical: 10,
+      overflow: 'hidden', // Prevents text from overflowing outside the container
+      flexWrap: 'wrap', // This ensures the text wraps when it exceeds maxWidth
     },
-    title: { fontSize: 16, fontFamily: 'Lato-Bold', color: isDarkMode ? 'white' : 'black' },
+    title: { fontSize: 14, fontFamily: 'Lato-Bold', color: isDarkMode ? 'white' : 'black' },
     rightSide: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -648,11 +665,16 @@ const getStyles = (isDarkMode, user) =>
       alignSelf: 'center',
       fontFamily: 'Lato-Bold'
     },
-    footer:{
-      fontFamily:'Lato-Regular',
-      fontSize:8,
-      lineHeight:12
-    },
+    footer: {
+      fontFamily: 'Lato-Regular',
+      fontSize: 8,
+      lineHeight: 12,
+      // width: 100, // Ensures the text stays within this width
+      overflow: 'hidden', // Prevents text from overflowing outside the container
+      flexWrap: 'wrap', // This ensures the text wraps when it exceeds maxWidth
+      textAlign: 'left', // Adjust alignment as needed
+    }
+,    
     loadingText:{
       fontFamily:'Lato-Bold',
       fontSize:14,

@@ -3144,6 +3144,27 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
+  - RNLocalize (3.4.1):
+    - DoubleConversion
+    - glog
+    - hermes-engine
+    - RCT-Folly (= 2024.11.18.00)
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - Yoga
   - RNNotifee (9.1.8):
     - React-Core
     - RNNotifee/NotifeeCore (= 9.1.8)
@@ -3435,6 +3456,7 @@ DEPENDENCIES:
   - RNGestureHandler (from `../node_modules/react-native-gesture-handler`)
   - RNGoogleMobileAds (from `../node_modules/react-native-google-mobile-ads`)
   - "RNGoogleSignin (from `../node_modules/@react-native-google-signin/google-signin`)"
+  - RNLocalize (from `../node_modules/react-native-localize`)
   - "RNNotifee (from `../node_modules/@notifee/react-native`)"
   - RNPurchases (from `../node_modules/react-native-purchases`)
   - RNReactNativeHapticFeedback (from `../node_modules/react-native-haptic-feedback`)
@@ -3647,6 +3669,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-google-mobile-ads"
   RNGoogleSignin:
     :path: "../node_modules/@react-native-google-signin/google-signin"
+  RNLocalize:
+    :path: "../node_modules/react-native-localize"
   RNNotifee:
     :path: "../node_modules/@notifee/react-native"
   RNPurchases:
@@ -3780,6 +3804,7 @@ SPEC CHECKSUMS:
   RNGestureHandler: a5c5e76f0056a7115b839686934740b6639c7cec
   RNGoogleMobileAds: 4877076715c541f59db3fdda9298f006cd9eb4eb
   RNGoogleSignin: e548e9a67bb94980df514f71e107a13d6ebe40d3
+  RNLocalize: 530c85d94ac53e0ce316f6fdf5d47545a687fca9
   RNNotifee: 4a6ee5c7deaf00e005050052d73ee6315dff7ec9
   RNPurchases: f9f9d1428e317e19e8bf5927a220fabfe0e98c43
   RNReactNativeHapticFeedback: a49e613d48d721c99cad9689a490554104c22154

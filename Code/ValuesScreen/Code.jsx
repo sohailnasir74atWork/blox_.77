@@ -8,17 +8,22 @@ import {
   Pressable,
   Alert,
   FlatList,
+  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../GlobelStats';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useHaptic } from '../Helper/HepticFeedBack';
+import { t } from 'i18next';
+import { logEvent } from '@react-native-firebase/analytics';
 
 const CodesDrawer = ({ isVisible, toggleModal, codes }) => {
   // Flatten codes if necessary
-  const { theme } = useGlobalState();
+  const { theme, analytics } = useGlobalState();
   const isDarkMode = theme === 'dark';
   const { triggerHapticFeedback } = useHaptic();
+  const platform = Platform.OS.toLowerCase();
+
 
   const normalizedCodes =
     Array.isArray(codes) && codes.length === 1 && Array.isArray(codes[0])
@@ -28,8 +33,9 @@ const CodesDrawer = ({ isVisible, toggleModal, codes }) => {
   // Function to copy the code to the clipboard
   const copyToClipboard = (code) => {
     triggerHapticFeedback('impactLight');
+    logEvent(analytics, `${platform}_code_copy_${code}`);
     Clipboard.setString(code); // Copies the code to the clipboard
-    Alert.alert('Copied', `Code "${code}" has been copied to your clipboard.`);
+    Alert.alert(t("value.copy"), t("value.copy_success"));
   };
 
   const renderCodeItem = ({ item }) => (

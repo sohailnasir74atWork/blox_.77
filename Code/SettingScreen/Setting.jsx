@@ -13,19 +13,18 @@ import {
   ScrollView,
   Switch,
   Linking,
+  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../GlobelStats';
 import { getStyles } from './settingstyle';
-import { handleGetSuggestions, handleOpenFacebook, handleOpenWebsite, handleRateApp, handleShareApp, imageOptions,  } from './settinghelper';
+import { handleGetSuggestions, handleOpenFacebook, handleOpenWebsite, handleRateApp, handleShareApp, imageOptions, } from './settinghelper';
 import { logoutUser } from '../Firebase/UserLogics';
 import SignInDrawer from '../Firebase/SigninDrawer';
 import auth from '@react-native-firebase/auth';
 
 import { RewardedAd, RewardedAdEventType } from 'react-native-google-mobile-ads';
 import getAdUnitId from '../Ads/ads';
-import { appleAuth } from '@invertase/react-native-apple-authentication';
-import { deleteUser } from '@react-native-firebase/auth';
 import { resetUserState } from '../Globelhelper';
 import ConditionalKeyboardWrapper from '../Helper/keyboardAvoidingContainer';
 import { useHaptic } from '../Helper/HepticFeedBack';
@@ -33,7 +32,11 @@ import { useLocalState } from '../LocalGlobelStats';
 import config from '../Helper/Environment';
 import notifee, { AuthorizationStatus } from '@notifee/react-native';
 import SubscriptionScreen from './OfferWall';
-import { ref, get, update } from '@react-native-firebase/database';
+import { ref, get, update, remove } from '@react-native-firebase/database';
+import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
+import { useLanguage } from '../Translation/LanguageProvider';
+import { useTranslation } from 'react-i18next';
+import { logEvent } from '@react-native-firebase/analytics';
 
 const adUnitId = getAdUnitId('rewarded')
 
@@ -49,16 +52,40 @@ export default function SettingsScreen({ selectedTheme }) {
   const [selectedImage, setSelectedImage] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [openSingnin, setOpenSignin] = useState(false);
-  const { user, theme, updateLocalStateAndDatabase, setUser, appdatabase } = useGlobalState()
-  const {updateLocalState, localState, mySubscriptions} = useLocalState()
+  const { user, theme, updateLocalStateAndDatabase, setUser, appdatabase, analytics } = useGlobalState()
+  const { updateLocalState, localState, mySubscriptions } = useLocalState()
   const [isPermissionGranted, setIsPermissionGranted] = useState(false);
   const [showOfferWall, setShowofferWall] = useState(false);
+  const { language, changeLanguage } = useLanguage();
+  const { t } = useTranslation();
+  const platform = Platform.OS.toLowerCase();
+  console.log(analytics)
+
+
 
   const { triggerHapticFeedback } = useHaptic();
-  const themes = ['system', 'light', 'dark'];
+  const themes = [t('settings.theme_system'), t('settings.theme_light'), t('settings.theme_dark')];
+    // const themes = ['System', 'Light','Dark'];
+
   const handleToggle = (value) => {
     updateLocalState('isHaptic', value); // Update isHaptic state globally
   };
+
+
+
+  const languageOptions = [
+    { code: "en", label: t("settings.languages.en"), flag: "🇺🇸" },
+    { code: "fil", label: t("settings.languages.fil"), flag: "🇵🇭" },
+    { code: "vi", label: t("settings.languages.vi"), flag: "🇻🇳" },
+    { code: "pt", label: t("settings.languages.pt"), flag: "🇵🇹" },
+    { code: "id", label: t("settings.languages.id"), flag: "🇮🇩" },
+    { code: "es", label: t("settings.languages.es"), flag: "🇪🇸" },
+    { code: "fr", label: t("settings.languages.fr"), flag: "🇫🇷" },
+    { code: "de", label: t("settings.languages.de"), flag: "🇩🇪" },
+    { code: "ru", label: t("settings.languages.ru"), flag: "🇷🇺" }
+  ];
+
+
   const isDarkMode = theme === 'dark';
   useEffect(() => {
     if (user && user?.id) {
@@ -70,7 +97,7 @@ export default function SettingsScreen({ selectedTheme }) {
     }
 
   }, [user]);
-  useEffect(()=>{},[mySubscriptions])
+  useEffect(() => { }, [mySubscriptions])
 
   useEffect(() => {
     const checkPermission = async () => {
@@ -87,12 +114,12 @@ export default function SettingsScreen({ selectedTheme }) {
       const settings = await notifee.requestPermission();
       if (settings.authorizationStatus === 0) {
         Alert.alert(
-          'Permission Required',
-          'Notification permissions are disabled. Please enable them in the app settings.',
+          t("settings.permission_required"),
+          t("settings.notification_permissions_disabled"),
           [
-            { text: 'Cancel', style: 'cancel' },
+            { text:  t("home.cancel"), style: 'cancel' },
             {
-              text: 'Go to Settings',
+              text:  t("settings.go_to_settings"),
               onPress: () => Linking.openSettings(), // Redirect to app settings
             },
           ]
@@ -105,8 +132,8 @@ export default function SettingsScreen({ selectedTheme }) {
         return true;
       }
     } catch (error) {
-      console.error('Error requesting notification permission:', error);
-      Alert.alert('Error', 'An error occurred while requesting notification permissions.');
+      // console.error('Error requesting notification permission:', error);
+      // Alert.alert(t("home.error"), 'An error occurred while requesting notification permissions.');
       return false;
     }
   };
@@ -124,15 +151,17 @@ export default function SettingsScreen({ selectedTheme }) {
   };
 
   const handleSaveChanges = async () => {
+
     triggerHapticFeedback('impactLight');
+    logEvent(analytics, `${platform}_profile_edit`);
     const MAX_NAME_LENGTH = 20;
 
     if (!user?.id) return;
 
     if (newDisplayName.length > MAX_NAME_LENGTH) {
       Alert.alert(
-        'Error',
-        `Display name cannot exceed ${MAX_NAME_LENGTH} characters.`
+        t("home.alert.error"),
+        t("settings.display_name_length_error")
       );
       return;
     }
@@ -145,10 +174,10 @@ export default function SettingsScreen({ selectedTheme }) {
       });
 
       setDrawerVisible(false);
-      // Alert.alert('Success', 'Profile updated successfully!');
+      Alert.alert(t("home.alert.success"), t("settings.profile_success"));
     } catch (error) {
-      console.error('Error updating profile:', error);
-      Alert.alert('Error', 'Failed to update profile. Please try again.');
+      // console.error('Error updating profile:', error);
+      // Alert.alert(t("home.error"), 'Failed to update profile. Please try again.');
     }
   };
 
@@ -163,76 +192,96 @@ export default function SettingsScreen({ selectedTheme }) {
 
   const handleLogout = async () => {
     triggerHapticFeedback('impactLight');
+    logEvent(analytics, `${platform}_logout_user`);
     try {
       await logoutUser(setUser); // Await the logout process
       // setSelectedImage('https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png');
       // setNewDisplayName('Guest User');
-      Alert.alert('Success', 'You have been logged out successfully.');
+      Alert.alert(t("home.alert.success"), t("settings.logout_success"));
     } catch (error) {
       console.error('Error during logout:', error);
-      Alert.alert('Error', 'Failed to log out. Please try again.');
+      Alert.alert(t("home.alert.error"), t("settings.logout_error"));
     }
   };
+  
   const handleDeleteUser = async () => {
     triggerHapticFeedback('impactLight');
     try {
-      if (!user || !user?.id) {
-        Alert.alert('Error', 'No user is currently logged in.');
+      if (!user || !user.id) {
+        Alert.alert(t("home.alert.error"), t("settings.logout_error"));
         return;
       }
-
+  
+      const userId = user?.id;
+  
       // Step 1: Acknowledge the irreversible action
       const showAcknowledgment = () =>
         new Promise((resolve, reject) => {
           Alert.alert(
-            'Delete Account',
-            'Deleting your account will permanently erase all your data, including chat history, points, and profile details. This action is irreversible.',
+            t("settings.delete_account"),
+            t("settings.delete_account_warning"),
             [
-              { text: 'Cancel', style: 'cancel', onPress: reject },
-              { text: 'Proceed', style: 'destructive', onPress: resolve },
+              { text: t("home.cancel"), style: 'cancel', onPress: reject },
+              { text:  t("settings.proceed"), style: 'destructive', onPress: resolve },
             ]
           );
         });
-
+  
       // Step 2: Confirm the action again
       const showFinalConfirmation = () =>
         new Promise((resolve, reject) => {
           Alert.alert(
-            'Confirm Deletion',
-            'Are you sure you want to delete your account? This action cannot be undone.',
+            t("settings.confirm_deletion"),
+            t("settings.confirm_deletion_warning"),
             [
-              { text: 'Cancel', style: 'cancel', onPress: reject },
-              { text: 'Delete', style: 'destructive', onPress: resolve },
+              { text: t("home.cancel"), style: 'cancel', onPress: reject },
+              { text: t("trade.delete"), style: 'destructive', onPress: resolve },
             ]
           );
         });
-
+  
       // Await acknowledgment and confirmation
       await showAcknowledgment();
       await showFinalConfirmation();
+  
+      // Step 3: Remove user data from Firebase Realtime Database
+      const userRef = ref(appdatabase, `users/${userId}`);
 
-      // Proceed to delete the user account
+  
+      await Promise.all([
+        remove(userRef), // ✅ Delete user profile
+      ]);
+  
+      // Step 4: Delete user from Firebase Authentication
       const currentUser = auth().currentUser;
       if (currentUser) {
-        await currentUser.delete(); // Delete the user account
-        await resetUserState(setUser); // Reset the user state
-        Alert.alert('Success', 'Your account and all associated data have been permanently deleted.');
+        await currentUser.delete();
+        logEvent(analytics, `${platform}_delete_user`);
+
       } else {
-        Alert.alert('Error', 'User not found. Please log in again.');
+        Alert.alert(t(".alerthome.error"), t("settings.user_not_found"));
+        return;
       }
+  
+      // Step 5: Reset local state
+      await resetUserState(setUser);
+  
+      Alert.alert(t("home.alert.success"), t("home.alert.success"));
     } catch (error) {
-      console.error('Error deleting user:', error.message);
+      // console.error('Error deleting user:', error.message);
+  
       if (error.code === 'auth/requires-recent-login') {
         Alert.alert(
-          'Session Expired',
-          'Please log in again to delete your account.',
+          t("settings.session_expired"),
+          t("settings.session_expired_message"),
           [{ text: 'OK' }]
         );
       } else {
-        Alert.alert('Error', 'Failed to delete account. Please try again.');
+        Alert.alert(t("home.alert.error"), t("settings.delete_error"));
       }
     }
   };
+  
   const manageSubscription = () => {
     const url = 'https://play.google.com/store/account/subscriptions';
     Linking.openURL(url).catch((err) => console.error('Error opening subscription manager:', err));
@@ -243,101 +292,107 @@ export default function SettingsScreen({ selectedTheme }) {
     if (user?.id) {
       setDrawerVisible(true); // Open the profile drawer if the user is logged in
     } else {
-      Alert.alert('Notice', 'Please log in to customize your profile.'); // Show alert if user is not logged in
+      Alert.alert(t("settings.notice"), t("settings.login_to_customize_profile")); // Show alert if user is not logged in
     }
   };
 
 
-// 🔥 Completely delete the `points` field from the database
-// 🔥 Update user points safely
-const updateUserPoints = async (userId, pointsToAdd, updateLocalStateAndDatabase) => {
-  if (!userId) {
-    console.error("updateUserPoints: User ID is undefined");
-    return;
-  }
+  // 🔥 Completely delete the `points` field from the database
+  // 🔥 Update user points safely
+  const updateUserPoints = async (userId, pointsToAdd, updateLocalStateAndDatabase) => {
+    if (!userId) {
+      // console.error("updateUserPoints: User ID is undefined");
+      return;
+    }
 
-  try {
-    const userPointsRef = ref(appdatabase, `/users/${userId}`);
+    try {
+      const userPointsRef = ref(appdatabase, `/users/${userId}`);
 
-    // Fetch latest points first
-    const latestPoints = await getUserPoints(user?.id);
-    const newPoints = latestPoints + pointsToAdd;
+      // Fetch latest points first
+      const latestPoints = await getUserPoints(user?.id);
+      const newPoints = latestPoints + pointsToAdd;
 
-    // 🔥 Correcting the .update() call by using an object
-    await update(userPointsRef, { points: newPoints });
-    // console.log(`✅ User points updated in Firebase: ${newPoints}`);
+      // 🔥 Correcting the .update() call by using an object
+      await update(userPointsRef, { points: newPoints });
+      // console.log(`✅ User points updated in Firebase: ${newPoints}`);
 
-    // Update local & global state after Firebase update
-    updateLocalStateAndDatabase('points', newPoints);
-  } catch (error) {
-    console.error("❌ Error updating user points:", error);
-  }
-};
+      // Update local & global state after Firebase update
+      updateLocalStateAndDatabase('points', newPoints);
+    } catch (error) {
+      // console.error("❌ Error updating user points:", error);
+    }
+  };
 
-// 🔥 Fetch latest user points from Firebase
-const getUserPoints = async (userId) => {
-  if (!userId) {
-    // console.error("getUserPoints: User ID is undefined");
-    return 0;
-  }
-
-  try {
-    
-    const snapshot = await get(ref(appdatabase, `/users/${userId}/points`));
-
-    if (snapshot.exists()) {
-      // console.log(`Fetched user points: ${snapshot.val()}`);
-      return snapshot.val(); // Returns the points
-    } else {
-      console.warn("User points not found, defaulting to 0");
+  // 🔥 Fetch latest user points from Firebase
+  const getUserPoints = async (userId) => {
+    if (!userId) {
+      // console.error("getUserPoints: User ID is undefined");
       return 0;
     }
-  } catch (error) {
-    console.error("Error fetching user points:", error);
-    return 0;
-  }
-};
 
+    try {
 
+      const snapshot = await get(ref(appdatabase, `/users/${userId}/points`));
 
-useEffect(() => {
-  const fetchUserPoints = async () => {
-    const latestPoints = await getUserPoints(user?.id);
-    // console.log("Setting user points in state:", latestPoints);
-    updateLocalStateAndDatabase('points', latestPoints); // Store latest points
-  };
-
-  fetchUserPoints(); // Fetch points when component mounts
-
-  const unsubscribeLoaded = rewarded.addAdEventListener(RewardedAdEventType.LOADED, () => {
-    setLoaded(true);
-  });
-
-  const unsubscribeEarned = rewarded.addAdEventListener(
-    RewardedAdEventType.EARNED_REWARD,
-    async (reward) => {
-      // console.log("Ad shown, User earned reward:", reward.amount);
-
-      // 🔥 Fetch latest points, add reward, update Firebase
-      await updateUserPoints(user?.id, 100, updateLocalStateAndDatabase);
-
-      updateLocalStateAndDatabase('lastRewardtime', new Date().getTime());
-      Alert.alert('Reward Granted', `You earned ${100} points!`);
-    }
-  );
-
-  return () => {
-    unsubscribeLoaded();
-    unsubscribeEarned();
-  };
-}, [user?.id]);
-
-
-
-
-
-
+      if (snapshot.exists()) {
+        // console.log(`Fetched user points: ${snapshot.val()}`);
+        if (developmentMode) {
+          const hasUsedFreeTradeSize = JSON.stringify(snapshot.val()).length / 1024;
+          console.log(`🚀 get points in setting data: ${hasUsedFreeTradeSize.toFixed(2)} KB`);
+        }
   
+        return snapshot.val(); // Returns the points
+
+      } else {
+        // console.warn("User points not found, defaulting to 0");
+        return 0;
+      }
+    } catch (error) {
+      // console.error("Error fetching user points:", error);
+      return 0;
+    }
+  };
+
+
+
+  useEffect(() => {
+    const fetchUserPoints = async () => {
+      const latestPoints = await getUserPoints(user?.id);
+      // console.log("Setting user points in state:", latestPoints);
+      updateLocalStateAndDatabase('points', latestPoints); // Store latest points
+    };
+
+    fetchUserPoints(); // Fetch points when component mounts
+
+    const unsubscribeLoaded = rewarded.addAdEventListener(RewardedAdEventType.LOADED, () => {
+      setLoaded(true);
+    });
+
+    const unsubscribeEarned = rewarded.addAdEventListener(
+      RewardedAdEventType.EARNED_REWARD,
+      async (reward) => {
+        // console.log("Ad shown, User earned reward:", reward.amount);
+
+        // 🔥 Fetch latest points, add reward, update Firebase
+        await updateUserPoints(user?.id, 100, updateLocalStateAndDatabase);
+
+        updateLocalStateAndDatabase('lastRewardtime', new Date().getTime());
+        Alert.alert(t("settings.reward_granted"), t("settings.reward_granted_message"));
+      }
+    );
+
+    return () => {
+      unsubscribeLoaded();
+      unsubscribeEarned();
+    };
+  }, [user?.id]);
+
+
+
+
+
+
+
   const canClaimReward = () => {
     const now = new Date().getTime();
     const lastRewardTime = user?.lastRewardtime;
@@ -345,7 +400,7 @@ useEffect(() => {
     if (!lastRewardTime) return true;
 
     const timeDifference = now - lastRewardTime;
-    return timeDifference >=   10 * 1000; 
+    return timeDifference >= 10 * 1000;
   };
   // console.log(user)
   const showAd = async () => {
@@ -353,27 +408,27 @@ useEffect(() => {
     try {
       if (!canClaimReward()) {
         const remainingTime = 1 - Math.floor((new Date().getTime() - user?.lastRewardtime) / 60000);
-        Alert.alert('Not Eligible', `Please wait at least 10 seconds to claim the next reward.`);
+        Alert.alert(t("settings.not_eligible_for_reward"), t("settings.reward_wait_time"));
         return;
       }
-  
+
       if (loaded) {
         await rewarded.show();
         setLoaded(false);
       } else {
         // console.log("No ad available, granting fallback reward...");
-  
+
         // 🔥 Fetch latest points, add fallback reward (50 points)
         await updateUserPoints(user?.id, 50, updateLocalStateAndDatabase);
-  
+
         updateLocalStateAndDatabase('lastRewardtime', new Date().getTime());
-        Alert.alert('Ad not ready', 'However, you got 50 points.');
+        Alert.alert(t("settings.ad_not_ready"), t("settings.ad_not_ready_message"));
       }
     } catch (error) {
       console.error('Error displaying ad:', error);
     }
   };
-  
+
 
 
   const handleGetPoints = () => {
@@ -381,6 +436,7 @@ useEffect(() => {
     if (!user?.id) {
       setOpenSignin(true);
     } else {
+      logEvent(analytics, `${platform}_get_points_click`);
       setIsAdsDrawerVisible(true)
       rewarded.load()
     }
@@ -408,10 +464,10 @@ useEffect(() => {
             />
             <TouchableOpacity onPress={user?.id ? () => { } : () => { setOpenSignin(true) }} disabled={user?.id !== null}>
               <Text style={!user.id ? styles.userNameLogout : styles.userName}>
-                {!user?.id ? 'Login / Register' : displayName}
+                {!user?.id ? t("settings.login_register") : displayName}
               </Text>
-              {!user?.id && <Text style={styles.rewardLogout}>Login to access notification, trading, chat and much more</Text>}
-              {user.id && <Text style={styles.reward}>My Points: {user?.points || 0}</Text>}
+              {!user?.id && <Text style={styles.rewardLogout}>{t('settings.login_description')}</Text>}
+              {user.id && <Text style={styles.reward}>{t("settings.my_points")}: {user?.points || 0}</Text>}
             </TouchableOpacity>
           </View>
           <TouchableOpacity onPress={handleProfileUpdate}>
@@ -422,136 +478,172 @@ useEffect(() => {
 
       {/* Options Section */}
       <ScrollView showsVerticalScrollIndicator={false}>
-        <Text style={styles.subtitle}>APP SETTINGS</Text>
-      <View style={styles.cardContainer}>
-        <View style={styles.option} onPress={()=>{handleShareApp(); triggerHapticFeedback('impactLight');
-}}>
-  <View style={{flexDirection:'row', justifyContent:'space-between', width:'100%'}}>
-    <TouchableOpacity style={{flexDirection:'row', alignItems:'center'}}>
-          <Icon name="radio-outline" size={24} color={'#B76E79'} />
-          <Text style={styles.optionText}>Heptic Feedback</Text></TouchableOpacity>
-          <Switch value={localState.isHaptic} onValueChange={handleToggle} />
-          </View>
-          
-        </View>
-        <View style={styles.option} onPress={()=>{handleShareApp(); triggerHapticFeedback('impactLight');
-}}>
-  <View style={{flexDirection:'row', justifyContent:'space-between', width:'100%'}}>
-    <TouchableOpacity style={{flexDirection:'row', alignItems:'center'}}>
-          <Icon name="notifications" size={24} color={config.colors.hasBlockGreen} />
-          <Text style={styles.optionText}>Chat Notifications</Text></TouchableOpacity>
-          <Switch
-        value={isPermissionGranted}
-        onValueChange={handleToggleNotification}
-      />
-          </View>
-          
-        </View>
-        
-        <View style={styles.optionLast} onPress={()=>{handleShareApp(); triggerHapticFeedback('impactLight');
-}}>
-  <View style={{flexDirection:'row', justifyContent:'space-between', width:'100%'}}>
-    <TouchableOpacity style={{flexDirection:'row', alignItems:'center'}}>
-          <Icon name="contrast-outline" size={24} color={'#4A90E2'} />
-          <Text style={styles.optionText}>Theme</Text></TouchableOpacity>
-          <View style={styles.containertheme}>
-      {themes.map((theme) => (
-        <TouchableOpacity
-          key={theme}
-          style={[
-            styles.box,
-            localState.theme === theme.toLowerCase() && styles.selectedBox, // Highlight selected box
-          ]}
-          onPress={() => updateLocalState('theme', theme.toLowerCase())}
-        >
-          <Text
-            style={[
-              styles.text,
-              localState.theme === theme.toLowerCase() && styles.selectedText, // Highlight selected text
-            ]}
-          >
-                       {theme.toUpperCase()}
+        <Text style={styles.subtitle}>{t('settings.settings')}</Text>
+        <View style={styles.cardContainer}>
+          <View style={styles.option} onPress={() => {
+            handleShareApp(); triggerHapticFeedback('impactLight');
+          }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Icon name="radio-outline" size={24} color={'#B76E79'} />
+                <Text style={styles.optionText}>{t('settings.haptic_feedback')}</Text></TouchableOpacity>
+              <Switch value={localState.isHaptic} onValueChange={handleToggle} />
+            </View>
 
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View>
+          </View>
+          <View style={styles.option} onPress={() => {
+            handleShareApp(); triggerHapticFeedback('impactLight');
+          }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Icon name="notifications" size={24} color={config.colors.hasBlockGreen} />
+                <Text style={styles.optionText}>{t('settings.chat_notifications')}</Text></TouchableOpacity>
+              <Switch
+                value={isPermissionGranted}
+                onValueChange={handleToggleNotification}
+              />
+            </View>
+
+          </View>
+
+          <View style={styles.optionLast} onPress={() => {
+            handleShareApp(); triggerHapticFeedback('impactLight');
+          }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Icon name="contrast-outline" size={24} color={'#4A90E2'} />
+                <Text style={styles.optionText}>{t('settings.theme')}</Text></TouchableOpacity>
+              <View style={styles.containertheme}>
+                {themes.map((theme, index) => (
+                  <TouchableOpacity
+                    key={theme}
+                    style={[
+                      styles.box,
+                      localState.theme === ['system', 'light', 'dark'][index].toLowerCase() && styles.selectedBox, // Highlight selected box
+                    ]}
+                    onPress={() => updateLocalState('theme', ['system', 'light', 'dark'][index])}
+                  >
+                    
+                    <Text
+                    style={[
+                      styles.text,
+                      localState.theme === ['system', 'light', 'dark'][index] && styles.selectedText, // Highlight selected text
+                    ]}
+                  >
+                    {theme}
+                  </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
           </View>
         </View>
-      </View>
-      <Text style={styles.subtitle}>REWARD SETTINGS</Text>
-      <View style={styles.cardContainer}>
-        
-        <TouchableOpacity style={styles.optionLast} onPress={handleGetPoints}>
-          <Icon name="trophy-outline" size={24} color={'#4B4453'} />
-          <Text style={styles.optionText}>Get Points</Text>
-        </TouchableOpacity>
-      </View>
-      <Text style={styles.subtitle}>Pro Subscription</Text>
-      <View style={styles.cardContainer}>
-        
-        <TouchableOpacity style={styles.optionLast} onPress={()=>{setShowofferWall(true)}}>
-          <Icon name="prism-outline" size={24} color={config.colors.hasBlockGreen} />
-          <Text style={[styles.optionText]}>
-  Active Plan: {localState.isPro ? 'PRO' : 'FREE'}
-        </Text>
-        </TouchableOpacity>
-        {localState.isPro && (
-  <View style={styles.subscriptionContainer}>
-    <Text style={styles.subscriptionText}>
-      Plan Name:  
-      {mySubscriptions.length === 0 
-        ? 'Pro' 
-        : mySubscriptions.map(sub => formatPlanName(sub.plan)).join(', ')}
-    </Text>
-    
-      <TouchableOpacity onPress={manageSubscription} style={styles.manageButton}>
-        <Text style={styles.manageButtonText}>Manage</Text>
-      </TouchableOpacity>
-  
-  </View>
-)}
-      </View>
-      <Text style={styles.subtitle}>OTHER SETTINGS</Text>
 
-      <View style={styles.cardContainer}>
-  
-     
-        <TouchableOpacity style={styles.option} onPress={()=>{handleShareApp(); triggerHapticFeedback('impactLight');
-}}>
-          <Icon name="share-social-outline" size={24} color={'#B76E79'} />
-          <Text style={styles.optionText}>Share App</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.option} onPress={()=>{handleGetSuggestions(user);        triggerHapticFeedback('impactLight');
-}}>
-          <Icon name="mail-outline" size={24} color={'#566D5D'} />
-          <Text style={styles.optionText}>Give Suggestions</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.option} onPress={()=>{handleRateApp(); triggerHapticFeedback('impactLight');}
-}>
-          <Icon name="star-outline" size={24} color={'#A2B38B'} />
-          <Text style={styles.optionText}>Rate Us</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.option} onPress={()=>{handleOpenFacebook();         triggerHapticFeedback('impactLight');
-}}>
-          <Icon name="logo-facebook" size={24} color={'#566D5D'} />
-          <Text style={styles.optionText}>Visit Facebook Group</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={user?.id ? styles.option : styles.optionLast} onPress={()=>{handleOpenWebsite();         triggerHapticFeedback('impactLight');
-}}>
-          <Icon name="link-outline" size={24} color={'#4B4453'} />
-          <Text style={styles.optionText}>Visit Website</Text>
-        </TouchableOpacity>
-        {user?.id && <TouchableOpacity style={styles.option} onPress={handleLogout} >
-          <Icon name="person-outline" size={24} color={'#4B4453'} />
-          <Text style={styles.optionTextLogout}>Logout</Text>
-        </TouchableOpacity>}
-        {user?.id && <TouchableOpacity style={styles.optionDelete} onPress={handleDeleteUser} >
-          <Icon name="warning-outline" size={24} color={'#4B4453'} />
-          <Text style={styles.optionTextDelete}>Delete My Account</Text>
-        </TouchableOpacity>}
+        <Text style={styles.subtitle}>{t('settings.language_settings')}</Text>
+        <View style={styles.cardContainer}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Text style={styles.optionText}>{t('settings.select_language')}</Text>
 
-      </View>
+            <Menu>
+              <MenuTrigger style={styles.menuTrigger}>
+                <Text style={styles.optionText}>
+                  {languageOptions.find(l => l.code === language)?.flag} {language.toUpperCase()} ▼
+                </Text>
+              </MenuTrigger>
+
+              <MenuOptions style={styles.options}>
+                {languageOptions.map((lang) => (
+                  <MenuOption key={lang.code} onSelect={() => changeLanguage(lang.code)} style={styles.option_menu}>
+                    <Text>
+                      {lang.flag} {lang.label}
+                    </Text>
+                  </MenuOption>
+                ))}
+              </MenuOptions>
+            </Menu>
+          </View>
+        </View>
+
+
+
+        <Text style={styles.subtitle}>{t('reward_settings')}</Text>
+        <View style={styles.cardContainer}>
+
+          <TouchableOpacity style={styles.optionLast} onPress={handleGetPoints}>
+            <Icon name="trophy-outline" size={24} color={'#4B4453'} />
+            <Text style={styles.optionText}>{t('settings.get_points')}</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.subtitle}>{t('settings.pro_subscription')}</Text>
+        <View style={styles.cardContainer}>
+
+          <TouchableOpacity style={styles.optionLast} onPress={() => { setShowofferWall(true);     logEvent(analytics, `${platform}_check_offer_wall`);
+ }}>
+            <Icon name="prism-outline" size={24} color={config.colors.hasBlockGreen} />
+            <Text style={[styles.optionText]}>
+            {t('settings.active_plan')} : {localState.isPro ? t('settings.pro') : t('settings.free')}
+            </Text>
+          </TouchableOpacity>
+          {localState.isPro && (
+            <View style={styles.subscriptionContainer}>
+              <Text style={styles.subscriptionText}>
+              {t('settings.active_plan')}
+                {mySubscriptions.length === 0
+                  ? t('settings.pro')
+                  : mySubscriptions.map(sub => formatPlanName(sub.plan)).join(', ')}
+              </Text>
+
+              <TouchableOpacity onPress={manageSubscription} style={styles.manageButton}>
+                <Text style={styles.manageButtonText}>{t('settings.manage')}</Text>
+              </TouchableOpacity>
+
+            </View>
+          )}
+        </View>
+        <Text style={styles.subtitle}>{t('settings.other_settings')}</Text>
+
+        <View style={styles.cardContainer}>
+
+
+          <TouchableOpacity style={styles.option} onPress={() => {
+            handleShareApp(); triggerHapticFeedback('impactLight');
+          }}>
+            <Icon name="share-social-outline" size={24} color={'#B76E79'} />
+            <Text style={styles.optionText}>{t('settings.share_app')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.option} onPress={() => {
+            handleGetSuggestions(user); triggerHapticFeedback('impactLight');
+          }}>
+            <Icon name="mail-outline" size={24} color={'#566D5D'} />
+            <Text style={styles.optionText}>{t('settings.give_suggestions')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.option} onPress={() => { handleRateApp(); triggerHapticFeedback('impactLight'); }
+          }>
+            <Icon name="star-outline" size={24} color={'#A2B38B'} />
+            <Text style={styles.optionText}>{t('settings.rate_us')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.option} onPress={() => {
+            handleOpenFacebook(); triggerHapticFeedback('impactLight');
+          }}>
+            <Icon name="logo-facebook" size={24} color={'#566D5D'} />
+            <Text style={styles.optionText}>{t('settings.visit_facebook_group')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={user?.id ? styles.option : styles.optionLast} onPress={() => {
+            handleOpenWebsite(); triggerHapticFeedback('impactLight');
+          }}>
+            <Icon name="link-outline" size={24} color={'#4B4453'} />
+            <Text style={styles.optionText}>{t('settings.visit_website')}</Text>
+          </TouchableOpacity>
+          {user?.id && <TouchableOpacity style={styles.option} onPress={handleLogout} >
+            <Icon name="person-outline" size={24} color={'#4B4453'} />
+            <Text style={styles.optionTextLogout}>{t('settings.logout')}</Text>
+          </TouchableOpacity>}
+          {user?.id && <TouchableOpacity style={styles.optionDelete} onPress={handleDeleteUser} >
+            <Icon name="warning-outline" size={24} color={'#4B4453'} />
+            <Text style={styles.optionTextDelete}>{t('settings.delete_my_account')}</Text>
+          </TouchableOpacity>}
+
+        </View>
       </ScrollView>
 
       {/* Bottom Drawer */}
@@ -566,12 +658,12 @@ useEffect(() => {
           style={styles.overlay}
           onPress={() => setDrawerVisible(false)}
         />
-      <ConditionalKeyboardWrapper>
+        <ConditionalKeyboardWrapper>
           <View style={{ backgroundColor: 'rgba(0,0,0,0.5)', }}>
             <View style={styles.drawer}>
 
               {/* Name Input */}
-              <Text style={styles.drawerSubtitle}>Change Display Name</Text>
+              <Text style={styles.drawerSubtitle}>{t('settings.change_display_name')}</Text>
               <TextInput
                 style={styles.input}
                 placeholder="Enter new display name"
@@ -580,7 +672,7 @@ useEffect(() => {
               />
 
               {/* Profile Image Selection */}
-              <Text style={styles.drawerSubtitle}>Select Profile Icon</Text>
+              <Text style={styles.drawerSubtitle}>{t('settings.select_profile_icon')}</Text>
               <FlatList
                 data={imageOptions}
                 keyExtractor={(item, index) => item.toString()}
@@ -602,11 +694,11 @@ useEffect(() => {
                 style={styles.saveButton}
                 onPress={handleSaveChanges}
               >
-                <Text style={styles.saveButtonText}>Save Changes</Text>
+                <Text style={styles.saveButtonText}>{t('settings.save_changes')}</Text>
               </TouchableOpacity>
             </View>
           </View>
-          </ConditionalKeyboardWrapper>
+        </ConditionalKeyboardWrapper>
       </Modal>
       <Modal
         animationType="slide"
@@ -622,10 +714,12 @@ useEffect(() => {
           <View style={styles.drawer}>
             {/* Explanation of Rewards */}
             <Text style={styles.drawerSubtitle}>
-              Watch an ad to earn rewards!
+            {t('settings.watch_ad')}
+              
             </Text>
             <Text style={styles.rewardDescription}>
-              Earn points by watching ads. These points can be used to participate in app contests and unlock special features.
+            {t('settings.watch_ad_message')}
+              
             </Text>
 
             {/* Button to Show Ad */}
@@ -633,7 +727,7 @@ useEffect(() => {
               style={styles.saveButton}
               onPress={showAd}
             >
-              <Text style={styles.saveButtonText}>Earn Reward</Text>
+              <Text style={styles.saveButtonText}>{t('settings.earn_reward')}</Text>
             </TouchableOpacity>
           </View>
         </View>

@@ -5,7 +5,7 @@ import moment from 'moment';
 import { useGlobalState } from '../GlobelStats';
 import config from '../Helper/Environment';
 import { useNavigation } from '@react-navigation/native';
-import { isUserOnline } from '../ChatScreen/utils';
+// import { isUserOnline } from '../ChatScreen/utils';
 import { AdEventType, BannerAd, BannerAdSize, InterstitialAd } from 'react-native-google-mobile-ads';
 import getAdUnitId from '../Ads/ads';
 import { FilterMenu } from './tradeHelpers';
@@ -14,6 +14,7 @@ import SignInDrawer from '../Firebase/SigninDrawer';
 import { useLocalState } from '../LocalGlobelStats';
 import firestore from '@react-native-firebase/firestore';
 import Clipboard from '@react-native-clipboard/clipboard';
+import { useTranslation } from 'react-i18next';
 
 
 const bannerAdUnitId = getAdUnitId('banner');
@@ -23,7 +24,7 @@ const TradeList = ({ route }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAdVisible, setIsAdVisible] = useState(true);
   const { selectedTheme } = route.params
-  const { user } = useGlobalState()
+  const { user, analytics } = useGlobalState()
   const [trades, setTrades] = useState([]);
   const [filteredTrades, setFilteredTrades] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -40,77 +41,80 @@ const TradeList = ({ route }) => {
   const {localState} = useLocalState()
   const navigation = useNavigation()
   const { theme } = useGlobalState()
+  const { t } = useTranslation();
+  const platform = Platform.OS.toLowerCase();
   const isDarkMode = theme === 'dark'
   const formatName = (name) => {
     let formattedName = name.replace(/^\+/, '');
     formattedName = formattedName.replace(/\s+/g, '-');
     return formattedName;
   };
-  const handleReportTrade = (trade) => {
-    setSelectedTrade(trade);
-    setReportPopupVisible(true);
-  };
+  // const handleReportTrade = (trade) => {
+  //   setSelectedTrade(trade);
+  //   setReportPopupVisible(true);
+  // };
   const [selectedFilters, setSelectedFilters] = useState([]);
   useEffect(() => {
     const lowerCaseQuery = searchQuery.trim().toLowerCase();
-
+  
     setFilteredTrades(
       trades.filter((trade) => {
         // If no filters selected, show all trades
         if (selectedFilters.length === 0) return true;
-
+  
         let matchesAnyFilter = false;
-
-        if (selectedFilters.includes("Has")) {
+  
+        if (selectedFilters.includes("has")) {
           matchesAnyFilter =
             matchesAnyFilter ||
             trade.hasItems?.some((item) =>
               item.name.toLowerCase().includes(lowerCaseQuery)
             );
         }
-
-        if (selectedFilters.includes("Wants")) {
+  
+        if (selectedFilters.includes("wants")) {
           matchesAnyFilter =
             matchesAnyFilter ||
             trade.wantsItems?.some((item) =>
               item.name.toLowerCase().includes(lowerCaseQuery)
             );
         }
-
-        if (selectedFilters.includes("My Trades")) {
+  
+        if (selectedFilters.includes("myTrades")) {
           matchesAnyFilter = matchesAnyFilter || trade.userId === user.id;
         }
-
+  
         const tradeLabel = getTradeDeal(trade.hasTotal, trade.wantsTotal).label;
-
-        if (selectedFilters.includes("Fair Deal")) {
-          matchesAnyFilter = matchesAnyFilter || tradeLabel === "Fair Deal";
+  
+        if (selectedFilters.includes("fairDeal")) {
+          matchesAnyFilter = matchesAnyFilter || tradeLabel === "trade.fair_deal";
         }
-
-        if (selectedFilters.includes("Risky Deal")) {
-          matchesAnyFilter = matchesAnyFilter || tradeLabel === "Risky Deal";
+  
+        if (selectedFilters.includes("riskyDeal")) {
+          matchesAnyFilter = matchesAnyFilter || tradeLabel === "trade.risky_deal";
         }
-
-        if (selectedFilters.includes("Best Deal")) {
-          matchesAnyFilter = matchesAnyFilter || tradeLabel === "Best Deal";
+  
+        if (selectedFilters.includes("bestDeal")) {
+          matchesAnyFilter = matchesAnyFilter || tradeLabel === "trade.best_deal";
         }
-
-        if (selectedFilters.includes("Decent Deal")) {
-          matchesAnyFilter = matchesAnyFilter || tradeLabel === "Decent Deal";
+  
+        if (selectedFilters.includes("decentDeal")) {
+          matchesAnyFilter = matchesAnyFilter || tradeLabel === "trade.decent_deal";
         }
-
-        if (selectedFilters.includes("Weak Deal")) {
-          matchesAnyFilter = matchesAnyFilter || tradeLabel === "Weak Deal";
+  
+        if (selectedFilters.includes("weakDeal")) {
+          matchesAnyFilter = matchesAnyFilter || tradeLabel === "trade.weak_deal";
         }
-
-        if (selectedFilters.includes("Great Deal")) {
-          matchesAnyFilter = matchesAnyFilter || tradeLabel === "Great Deal";
+  
+        if (selectedFilters.includes("greatDeal")) {
+          matchesAnyFilter = matchesAnyFilter || tradeLabel === "trade.great_deal";
         }
-
+  
         return matchesAnyFilter; // Show if it matches at least one selected filter
       })
     );
   }, [searchQuery, trades, selectedFilters]);
+  
 
 
 
@@ -157,44 +161,64 @@ const TradeList = ({ route }) => {
     }
   };
   const getTradeDeal = (hasTotal, wantsTotal) => {
-    if (!hasTotal || !wantsTotal || hasTotal.price <= 0) return { label: "Unknown Deal", color: "#8E8E93" }; // Gray (iOS system gray)
-
-    const tradeRatio = wantsTotal.price / hasTotal.price; // Calculate trade value ratio
+    if (!hasTotal || !wantsTotal || hasTotal.price <= 0) 
+      return { label: "trade.unknown_deal", color: "#8E8E93" };
+  
+    const tradeRatio = wantsTotal.price / hasTotal.price;
     let deal;
-
+  
     if (tradeRatio <= 0.5) {
-      deal = { label: "Best Deal", color: "#34C759" }; // Green (iOS success)
+      deal = { label: "trade.best_deal", color: "#34C759" };
     } else if (tradeRatio <= 0.8) {
-      deal = { label: "Great Deal", color: "#32D74B" }; // Light Green
+      deal = { label: "trade.great_deal", color: "#32D74B" };
     } else if (tradeRatio <= 1.2) {
-      deal = { label: "Fair Deal", color: "#FFCC00" }; // Darker Yellow
+      deal = { label: "trade.fair_deal", color: "#FFCC00" };
     } else if (tradeRatio <= 1.5) {
-      deal = { label: "Decent Deal", color: "#FF9F0A" }; // Orange
+      deal = { label: "trade.decent_deal", color: "#FF9F0A" };
     } else if (tradeRatio <= 2) {
-      deal = { label: "Weak Deal", color: "#D65A31" }; // Red
+      deal = { label: "trade.weak_deal", color: "#D65A31" };
     } else {
-      deal = { label: "Risky Deal", color: "#7D1128" }; // Mehndi Green
+      deal = { label: "trade.risky_deal", color: "#7D1128" };
     }
-
+  
     return deal;
   };
+  
 
-  const handleDelete = useCallback(async (item) => {
-    try {
-      // Delete the trade from Firestore
-      await firestore().collection('trades').doc(item.id).delete();
-
-      // Update local state to remove the deleted trade
-      setTrades((prev) => prev.filter((trade) => trade.id !== item.id));
-      setFilteredTrades((prev) => prev.filter((trade) => trade.id !== item.id));
-
-      Alert.alert('Success', 'Trade deleted successfully!');
-    } catch (error) {
-      console.error('🔥 Error deleting trade:', error);
-      Alert.alert('Error', 'Failed to delete the trade. Please try again.');
-    }
-  }, []);
-
+  const handleDelete = useCallback((item) => {
+    Alert.alert(
+      t("trade.delete_confirmation_title"), // "Confirm Deletion"
+      t("trade.delete_confirmation_message"), // "Are you sure you want to delete this trade? This action cannot be undone."
+      [
+        {
+          text: t("trade.cancel"), // "Cancel"
+          style: "cancel",
+        },
+        {
+          text: t("trade.delete"), // "Delete"
+          onPress: async () => {
+            try {
+              // Delete the trade from Firestore
+              await firestore().collection('trades').doc(item.id).delete();
+  
+              // Update local state to remove the deleted trade
+              setTrades((prev) => prev.filter((trade) => trade.id !== item.id));
+              setFilteredTrades((prev) => prev.filter((trade) => trade.id !== item.id));
+  
+              Alert.alert(t("trade.delete_success"), t("trade.delete_success_message")); 
+              // "Success", "Trade deleted successfully!"
+            } catch (error) {
+              console.error('🔥 Error deleting trade:', error);
+              Alert.alert(t("trade.delete_error"), t("trade.delete_error_message")); 
+              // "Error", "Failed to delete the trade. Please try again."
+            }
+          },
+          style: "destructive", // Red color for destructive action
+        },
+      ]
+    );
+  }, [t]);
+  
 
   const formatValue = (value) => {
     if (value >= 1_000_000_000) {
@@ -318,7 +342,7 @@ const TradeList = ({ route }) => {
             key={index}
             onPress={() => {
               Clipboard.setString(username); 
-              Alert.alert("Copied!", `Username "${username}" copied.`);
+              // Alert.alert("Copied!", `Username "${username}" copied.`);
             }}
           >
             <Text style={styles.descriptionclick}>{part}</Text> 
@@ -377,9 +401,10 @@ const TradeList = ({ route }) => {
     const groupedWantsItems = groupItems(item.wantsItems || []);
 
     const handleChatNavigation = async () => {
+      
       try {
-        const isOnline = await isUserOnline(item.userId);
-
+        // const isOnline = await isUserOnline(item.userId);
+        logEvent(analytics, `${platform}_trade_screen_nav_to_chat`);
         showInterstitialAd(() => {
           if (!user?.id) {
             setIsSigninDrawerVisible(true);
@@ -391,7 +416,7 @@ const TradeList = ({ route }) => {
               sender: item.traderName,
               avatar: item.avatar,
             },
-            isOnline,
+            // isOnline,
           });
         });
 
@@ -418,7 +443,10 @@ const TradeList = ({ route }) => {
           </TouchableOpacity>
           <View style={{flexDirection:'row'}}>
           <View style={[styles.dealContainer, { backgroundColor: getTradeDeal(item.hasTotal, item.wantsTotal).color }]}>
-            <Text style={styles.dealText}>{getTradeDeal(item.hasTotal, item.wantsTotal).label}</Text>
+          <Text style={styles.dealText}>
+  {t(getTradeDeal(item.hasTotal, item.wantsTotal).label)}
+</Text>
+
           </View>
           
           <Icon
@@ -495,7 +523,7 @@ const TradeList = ({ route }) => {
         </View>
         <View style={styles.tradeTotals}>
           <Text style={[styles.priceText, styles.hasBackground]}>
-            Has: {formatValue(item.hasTotal.price)}
+          { t("trade.price_has")} {formatValue(item.hasTotal.price)}
           </Text>
           <View style={styles.transfer}>
             {item.userId === user.id && (
@@ -508,7 +536,7 @@ const TradeList = ({ route }) => {
             )}
           </View>
           <Text style={[styles.priceText, styles.wantBackground]}>
-            Want: {formatValue(item.wantsTotal.price)}
+          { t("trade.price_want")} {formatValue(item.wantsTotal.price)}
           </Text>
         </View>
 
@@ -544,12 +572,12 @@ const TradeList = ({ route }) => {
 
         <TextInput
           style={styles.searchInput}
-          placeholder={'Search'}
+          placeholder={ t("trade.search_placeholder")}
           value={searchQuery}
           onChangeText={setSearchQuery}
           placeholderTextColor={isDarkMode ? 'white' : '#aaa'}
         />
-        <FilterMenu selectedFilters={selectedFilters} setSelectedFilters={setSelectedFilters} />
+        <FilterMenu selectedFilters={selectedFilters} setSelectedFilters={setSelectedFilters} analytics={analytics} platform={platform}/>
       </View>
       <FlatList
         data={filteredTrades}
@@ -581,7 +609,7 @@ const TradeList = ({ route }) => {
         visible={isSigninDrawerVisible}
         onClose={() => setIsSigninDrawerVisible(false)}
         selectedTheme={selectedTheme}
-        message='To load all trades/ send messages, you need to sign in'
+        message={ t("trade.signin_required_message")}
 
       />
 

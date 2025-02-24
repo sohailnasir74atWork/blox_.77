@@ -12,6 +12,8 @@ import {
 import { useGlobalState } from "../GlobelStats";
 import config from "../Helper/Environment";
 import { ref, get, update } from "@react-native-firebase/database";
+import { useTranslation } from "react-i18next";
+import { developmentMode } from "../Ads/ads";
 
 const ReportPopup = ({ visible, message, onClose }) => {
   const [selectedReason, setSelectedReason] = useState("Spam");
@@ -20,6 +22,8 @@ const ReportPopup = ({ visible, message, onClose }) => {
   const [loading, setLoading] = useState(false);
   const { theme, appdatabase } = useGlobalState();
   const isDarkMode = theme === "dark";
+  const { t } = useTranslation();
+
   const handleSubmit = () => {
     const sanitizedId = message.id.startsWith("chat-") ? message.id.replace("chat-", "") : message.id;
   
@@ -36,6 +40,10 @@ const ReportPopup = ({ visible, message, onClose }) => {
         let updatedReportCount = 1;
         if (snapshot.exists()) {
           const messageData = snapshot.val();
+          if (developmentMode) {
+            const dataSize = JSON.stringify(messageData).length / 1024; 
+            console.log(`🚀 Downloaded chat data: ${dataSize.toFixed(2)} KB from report messages`);
+          }
           updatedReportCount = (messageData?.reportCount || 0) + 1;
         }
   
@@ -44,15 +52,15 @@ const ReportPopup = ({ visible, message, onClose }) => {
       .then(() => {
         setLoading(false); // Stop loader
         Alert.alert(
-          "Report Submitted",
-          `Reason: ${showCustomInput ? customReason : selectedReason}\nMessage: "${message.text}"\nThank you for reporting this message.`
+          t("chat.report_submitted"),
+          t("chat.report_submitted_message")
         );
         onClose(true); // Pass `true` to indicate success
       })
       .catch((error) => {
         console.error("Error reporting message:", error);
         setLoading(false); // Stop loader
-        Alert.alert("Error", "Failed to submit the report. Please try again.");
+        // Alert.alert("Error", "Failed to submit the report. Please try again.");
       });
   };
   
@@ -70,7 +78,7 @@ const ReportPopup = ({ visible, message, onClose }) => {
 
           {/* Standard Reasons */}
           <View style={styles.optionsContainer}>
-            {["Spam", "Religious", "Hate Speech"].map((reason) => (
+            {[ t("chat.spam"),  t("chat.religious"),  t("chat.hate_speech")].map((reason) => (
               <TouchableOpacity
                 key={reason}
                 style={[
@@ -107,7 +115,7 @@ const ReportPopup = ({ visible, message, onClose }) => {
                   showCustomInput && styles.selectedOptionText,
                 ]}
               >
-                Other
+                { t("chat.other")}
               </Text>
             </TouchableOpacity>
           </View>
@@ -126,7 +134,7 @@ const ReportPopup = ({ visible, message, onClose }) => {
           {/* Action Buttons */}
           <View style={styles.actions}>
             <TouchableOpacity style={styles.button} onPress={onClose}>
-              <Text style={styles.buttonText}>Cancel</Text>
+              <Text style={styles.buttonText}>{t("home.cancel")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
@@ -139,7 +147,7 @@ const ReportPopup = ({ visible, message, onClose }) => {
               {loading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.buttonText}>Submit</Text>
+                <Text style={styles.buttonText}> {t("chat.submit")}</Text>
               )}
             </TouchableOpacity>
           </View>

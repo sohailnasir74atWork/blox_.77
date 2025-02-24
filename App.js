@@ -24,6 +24,7 @@ import {
 } from './Code/AppHelper/AppHelperFunction';
 import getAdUnitId from './Code/Ads/ads';
 import OnboardingScreen from './Code/AppHelper/OnBoardingScreen';
+import { useTranslation } from 'react-i18next';
 
 const Stack = createNativeStackNavigator();
 const adUnitId = getAdUnitId('openapp');
@@ -31,6 +32,8 @@ const adUnitId = getAdUnitId('openapp');
 
 function App() {
   const { theme } = useGlobalState();
+  const { t } = useTranslation();
+
   const selectedTheme = useMemo(() => {
     if (!theme) {
       console.warn("⚠️ Theme not found! Falling back to Light Theme.");
@@ -196,7 +199,7 @@ function App() {
             <Stack.Screen
               name="Setting"
               options={{
-                title: 'Settings',
+                title: t('tabs.settings'),
                 headerStyle: { backgroundColor: selectedTheme.colors.background },
                 headerTintColor: selectedTheme.colors.text,
               }}

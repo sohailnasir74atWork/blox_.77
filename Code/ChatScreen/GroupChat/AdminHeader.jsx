@@ -6,16 +6,20 @@ import {
   StyleSheet,
   Animated,
   PanResponder, Modal,
-  Linking
+  Linking,
+  Platform
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../../GlobelStats';
 import { ScrollView } from 'react-native-gesture-handler';
 import config from '../../Helper/Environment';
-import {  rules } from '../utils';
 import { parseMessageText } from '../ChatHelper';
 import { Menu, MenuOption, MenuOptions, MenuTrigger, renderers } from 'react-native-popup-menu';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
+import { rulesde, rulesen, rulesfil, rulesfr, rulesid, rulespt, rulesru, rulesvi } from '../utils';
+import i18n from '../../../i18n';
+import { logEvent } from '@react-native-firebase/analytics';
 
 const AdminHeader = ({
   pinnedMessages = [], // Array of pinned messages
@@ -32,14 +36,35 @@ const AdminHeader = ({
   const [randomBase, setRandomBase] = useState(0); // Random base for online count
   const animatedHeight = useRef(new Animated.Value(60)).current;
   const [contentHeight, setContentHeight] = useState(0);
-  const { theme } = useGlobalState();
+  const { theme, analytics } = useGlobalState();
   const isDarkMode = theme === 'dark';
   const {user} = useGlobalState()
   const navigation = useNavigation()
   const [onlineUsers, setOnlineUsers] = useState(0);
+  const { t } = useTranslation();
+  const platform = Platform.OS.toLowerCase();
 
-
-
+  const getLocalizedRules = (lang) => {
+    switch (lang) {
+      case 'de':
+        return rulesde;
+      case 'vi':
+        return rulesvi;
+      case 'id':
+        return rulesid;
+      case 'fr':
+        return rulesfr;
+      case 'fil':
+        return rulesfil;
+      case 'ru':
+        return rulesru;
+      case 'pt':
+        return rulespt;
+      default:
+        return rulesen; // Default to English
+    }
+  };
+  const rules = getLocalizedRules(i18n.language);
   useEffect(() => {
     // Generate a random number between 30 and 50
     const randomOnlineCount = Math.floor(Math.random() * (50 - 30 + 1)) + 30;
@@ -86,7 +111,7 @@ const AdminHeader = ({
     <View>
      <View style={{height:50}}>
         <View style={styles.stackContainer}>
-        <View><Text style={styles.stackHeader}>Community Chat</Text></View>
+        <View><Text style={styles.stackHeader}>{t("chat.community_chat")}</Text></View>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
     {user?.id && <View style={styles.iconContainer}>
       <Icon
@@ -94,7 +119,8 @@ const AdminHeader = ({
         size={24}
         color={selectedTheme.colors.text}
         style={styles.icon2}
-        onPress={() => {navigation.navigate('Inbox');  triggerHapticFeedback('impactLight'); setunreadcount(0);}}
+        onPress={() => {navigation.navigate('Inbox');  triggerHapticFeedback('impactLight'); setunreadcount(0);       logEvent(analytics, `${platform}_nav_to_inbox_from_group_chat`);
+      }}
       />
       {unreadcount > 0 && (
         <View style={styles.badge}>
@@ -133,7 +159,7 @@ const AdminHeader = ({
           style={{ marginRight: 10 }}
         />
         <Text style={{ fontSize: 16, color: config.colors.text || '#000' }}>
-          Chat Rules
+        {t("chat.chat_rules")}
         </Text>
       </View>
     </MenuOption>
@@ -153,7 +179,7 @@ const AdminHeader = ({
           style={{ marginRight: 10 }}
         />
         <Text style={{ fontSize: 16, color: config.colors.text || '#000' }}>
-          Blocked Users
+        {t("chat.blocked_users")}
         </Text>
       </View>
     </MenuOption>
@@ -285,7 +311,7 @@ const AdminHeader = ({
           style={styles.closeButton}
           onPress={() => setModalVisibleChatinfo(false)}
         >
-          <Text style={styles.closeButtonText}>Got it</Text>
+          <Text style={styles.closeButtonText}>{t("chat.got_it")}</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>

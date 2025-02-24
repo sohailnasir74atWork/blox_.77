@@ -6,6 +6,7 @@ import { useGlobalState } from '../GlobelStats'; // Adjust import path
 import { useHaptic } from '../Helper/HepticFeedBack'; // Adjust import path
 import PrivateChatScreen from '../ChatScreen/PrivateChat/PrivateChat';
 import PrivateChatHeader from '../ChatScreen/PrivateChat/PrivateChatHeader';
+import { useTranslation } from 'react-i18next';
 
 const Stack = createNativeStackNavigator();
 
@@ -13,6 +14,7 @@ export const TradeStack = ({ selectedTheme }) => {
   // const { user, appdatabase } = useGlobalState();
   const [bannedUsers, setBannedUsers] = useState([]);
   const { triggerHapticFeedback } = useHaptic();
+  const {t} = useTranslation()
 
   // useEffect(() => {
   //   if (!user?.id) return;
@@ -54,7 +56,7 @@ export const TradeStack = ({ selectedTheme }) => {
         component={TradeList}
         initialParams={{ bannedUsers, selectedTheme }}
 
-        options={{ title: 'Trades' }}
+        options={{ title: t("tabs.trade") }}
       />
 
       {/* Private Chat Screen */}

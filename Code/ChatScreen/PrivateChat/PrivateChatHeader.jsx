@@ -4,10 +4,12 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
 import { useGlobalState } from '../../GlobelStats';
 import { useLocalState } from '../../LocalGlobelStats';
+import { useTranslation } from 'react-i18next';
 
 const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers }) => {
-  const { user } = useGlobalState();
   const { updateLocalState } = useLocalState();
+  const { t } = useTranslation();
+
 
   const avatarUri = selectedUser?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png';
   const userName = selectedUser?.sender || 'User';
@@ -20,10 +22,10 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
   const handleBanToggle = async () => {
     const action = !isBanned ? 'Block' : 'Unblock';
     Alert.alert(
-      `${action} User`,
-      `Are you sure you want to ${action.toLowerCase()} ${userName}?`,
+      `${action}`,
+      `${t("chat.are_you_sure")} ${action.toLowerCase()} ${userName}?`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t("chat.cancel"), style: 'cancel' },
         {
           text: action,
           style: 'destructive',

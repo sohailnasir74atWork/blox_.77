@@ -14,6 +14,7 @@ import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-m
 import { useGlobalState } from '../../GlobelStats';
 import { getStyles } from '../Style';
 import ReportPopup from '../ReportPopUp';
+import { useTranslation } from 'react-i18next';
 
 const PrivateMessageList = ({
   messages,
@@ -32,6 +33,8 @@ const PrivateMessageList = ({
   const { theme } = useGlobalState();
   const isDarkMode = theme === 'dark';
   const styles = getStyles(isDarkMode);
+  const { t } = useTranslation();
+
 
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [showReportPopup, setShowReportPopup] = useState(false);
@@ -89,8 +92,8 @@ const PrivateMessageList = ({
             </Text>
           </MenuTrigger>
           <MenuOptions style={styles.menuoptions}>
-            <MenuOption onSelect={() => onReply(item)} text="Reply" />
-            <MenuOption onSelect={() => handleReport(item)} text="Report" />
+            <MenuOption onSelect={() => onReply(item)} text={t("chat.reply")}/>
+            <MenuOption onSelect={() => handleReport(item)} text={t("chat.report")} />
           </MenuOptions>
         </Menu>
         <Text style={styles.timestamp}>
