@@ -16,6 +16,7 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { t } from 'i18next';
 import { logEvent } from '@react-native-firebase/analytics';
+import FlashMessage, { showMessage } from 'react-native-flash-message';
 
 const CodesDrawer = ({ isVisible, toggleModal, codes }) => {
   // Flatten codes if necessary
@@ -35,7 +36,12 @@ const CodesDrawer = ({ isVisible, toggleModal, codes }) => {
     triggerHapticFeedback('impactLight');
     logEvent(analytics, `${platform}_code_copy_${code}`);
     Clipboard.setString(code); // Copies the code to the clipboard
-    Alert.alert(t("value.copy"), t("value.copy_success"));
+    showMessage({
+      message:t("value.copy"),
+      description:t("value.copy_success"),
+      type: "success",
+    });
+    // Alert.alert(t("value.copy"), t("value.copy_success"));
   };
 
   const renderCodeItem = ({ item }) => (
@@ -74,6 +80,7 @@ const CodesDrawer = ({ isVisible, toggleModal, codes }) => {
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
         />
+                {/* <FlashMessage position="top" /> */}
       </View>
     </Modal>
   );

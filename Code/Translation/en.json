@@ -18,7 +18,8 @@
             "es": "Spanish",
             "fr": "French",
             "de": "German",
-            "ru": "Russian"
+            "ru": "Russian",
+            "ar": "Arabic"
         },
         "language_settings": "LANGUAGE SETTINGS",
         "select_language": "Select Language",
@@ -96,6 +97,10 @@
         "free": "Free",
         "paid": "Pro",
         "manage": "Manage",
+        "unfair_trade": "Unfair Trade",
+        "unfair_trade_description": "You're offering too much and receiving too little! Adjust your trade to get a fair exchange.",
+        "invalid_trade": "Invalid Trade",
+        "invalid_trade_description": "You're receiving way more than you're giving. Please adjust your offer to keep the trade fair.",
         "trade_description": "Do you want to add a short description (optional)?",
         "trade_description_hint": "You can write username like @username (It can be copied)",
         "screenshot_title": "Share Screenshot",
@@ -176,7 +181,7 @@
         "price_has": "Has:",
         "price_want": "Want:",
         "signin_required_message": "You need to sign in to view full trade listings and send messages.",
-        "unknown_deal": "Unknown Deal",
+        "unknown_deal": "Anonymous Deal",
         "best_deal": "Best Deal",
         "great_deal": "Great Deal",
         "fair_deal": "Fair Deal",
@@ -247,7 +252,7 @@
         "delete": "Delete",
         "are_you_sure": "Are you sure you want to",
         "user_unblocked": "has been unblocked.",
-        "unblock": "Unblocked",
+        "unblocked": "Unblocked",
         "user_blocked": "has been blocked.",
         "start_chat": "Start Chat",
         "replying_to": "Replying to:",
@@ -263,18 +268,22 @@
         "cannot_empty": "Message cannot be empty",
         "submit": "Submit",
         "other": "other",
-        "got_it": "Got It"
+        "got_it": "Got It",
+        "chat_success_message": "Chat deleted successfully!",
+        "unblock": "Unblock User",
+        "block": "Block User"
+        
     },
-    "first":{
+    "first": {
         "welcome_title": "Welcome to Fruit Values",
         "welcome_text": "Track fruit values & optimize your trades.",
         "signin_or_guest": "Signin or Continue as Guest",
         "guest_user": "Guest User",
         "signin": "Signin",
         "continue": "Continue",
-        "get_notified_text": "Get notified, create and bid on trades, chat with traders, and join group discussions."  
-      },
-      "offer":{
+        "get_notified_text": "Get notified, create and bid on trades, chat with traders, and join group discussions."
+    },
+    "offer": {
         "title": "GET AHEAD IN THE GAME",
         "subtitle": "Access exclusive features and trade smarter!",
         "adsFree": "Ads-Free Experience",
@@ -292,8 +301,8 @@
         "recurring": "Recurring billing, cancel anytime",
         "termsOfService": "Terms of Service",
         "privacyPolicy": "Privacy Policy"
-      },
-      "misc" : {
+    },
+    "misc": {
         "loginRequired": "Login required, please login to load previous messages.",
         "loginToActivate": "To activate chats you need to login.",
         "loginToStartChat": "Login to start chat.",
@@ -303,8 +312,5 @@
         "messageTooLong": "Message cannot exceed 100 words.",
         "sendingTooQuickly": "You are sending messages too quickly. Please wait a moment.",
         "proUsersOnlyLinks": "Only Pro users can send links."
-      }
-      
-      
-      
+    }
 }

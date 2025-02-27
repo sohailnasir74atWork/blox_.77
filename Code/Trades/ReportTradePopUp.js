@@ -67,8 +67,8 @@ const ReportTradePopup = ({ visible, trade, onClose }) => {
       <View style={styles.overlay}>
         <View style={styles.popup}>
           <Text style={styles.title}>Report Trade</Text>
-          <Text style={styles.messageText}>{`Trade ID: ${trade?.id || "Unknown"}`}</Text>
-          <Text style={styles.messageText}>{`Trader: ${trade?.traderName || "Unknown"}`}</Text>
+          <Text style={styles.messageText}>{`Trade ID: ${trade?.id || "Anonymous"}`}</Text>
+          <Text style={styles.messageText}>{`Trader: ${trade?.traderName || "Anonymous"}`}</Text>
 
           <View style={styles.optionsContainer}>
             {["Inappropriate", "Fraud"].map((reason) => (

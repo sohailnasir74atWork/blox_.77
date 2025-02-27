@@ -17,7 +17,10 @@ import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import { clearActiveChat, setActiveChat } from '../utils';
 import { useLocalState } from '../../LocalGlobelStats';
 import { ref } from '@react-native-firebase/database';
+import database from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
+import FlashMessage, { showMessage } from 'react-native-flash-message';
+
 
 const PAGE_SIZE = 30;
 const bannerAdUnitId = getAdUnitId('banner');
@@ -71,8 +74,11 @@ const PrivateChatScreen = () => {
     }, [user?.id])
   );
 
-  const metadataRef = useMemo(() => ref(appdatabase, `private_chat_new/${chatKey}/messages`), [chatKey]);
-  const messagesRef = useMemo(() => ref(appdatabase, `private_chat_new/${chatKey}/messages`), [chatKey]);
+
+
+  // const messageRef = useMemo(() => ref(appdatabase, `private_chat_new/${chatKey}/messages`), [chatKey]);
+
+  const messagesRef = useMemo(() => database().ref(`private_messages/${chatKey}/messages`), [chatKey]);
   // console.log(selecte÷dUser)
 
   // Load messages with pagination
@@ -81,22 +87,19 @@ const PrivateChatScreen = () => {
       setLoading(reset);
 
       try {
-        const query = reset
-          ? messagesRef.orderByKey().limitToLast(PAGE_SIZE)
-          : messagesRef.orderByKey().endAt(lastLoadedKey).limitToLast(PAGE_SIZE);
+        let query = messagesRef.orderByKey().limitToLast(PAGE_SIZE);
+        if (!reset && lastLoadedKey) {
+          query = query.endAt(lastLoadedKey);
+        }
 
         const snapshot = await query.once('value');
         const data = snapshot.val() || {};
-        if (developmentMode) {
-          const privatechat = JSON.stringify(data).length / 1024; 
-          console.log(`🚀 Downloaded data: ${privatechat.toFixed(2)} KB from private chat node`);
-        }
+
         const parsedMessages = Object.entries(data)
           .map(([key, value]) => ({ id: key, ...value }))
           .sort((a, b) => b.timestamp - a.timestamp);
 
         if (parsedMessages.length > 0) {
-
           setMessages((prev) => (reset ? parsedMessages : [...parsedMessages, ...prev]));
           setLastLoadedKey(Object.keys(data)[0]);
         } else if (reset) {
@@ -110,70 +113,89 @@ const PrivateChatScreen = () => {
     },
     [messagesRef, lastLoadedKey]
   );
+
   // console.log(selectedUser.sender)
 
 
   // Send message
-  const sendMessage = useCallback(
-    async (text) => {
-      const trimmedText = text.trim();
-      if (!trimmedText) {
-        Alert.alert(t("home.error"), t("chat.cannot_empty"));
-        return;
-      }
 
-      const timestamp = Date.now();
+  const sendMessage = async (text) => {
+    const trimmedText = text.trim();
+    if (!trimmedText) {
+      // Alert.alert("Error", "Message cannot be empty!");
+      showMessage({
+        message: t("home.alert.error"),
+        description:t("chat.cannot_empty"),
+        type: "success",
+      });
+      return;
+    }
 
-      const newMessage = {
-        text: trimmedText,
-        senderId: myUserId,
+    const timestamp = Date.now();
+    const chatId = [myUserId, selectedUserId].sort().join('_');
+
+    // References
+    const messageRef = database().ref(`private_messages/${chatId}/messages/${timestamp}`);
+    const senderChatRef = database().ref(`chat_meta_data/${myUserId}/${selectedUserId}`);
+    const receiverChatRef = database().ref(`chat_meta_data/${selectedUserId}/${myUserId}`);
+    const receiverStatusRef = database().ref(`users/${selectedUserId}/activeChat`);
+
+    try {
+      // Send the message
+      await messageRef.set({ text: trimmedText, senderId: myUserId, timestamp });
+
+      // Check if receiver is currently in the chat
+      const snapshot = await receiverStatusRef.once('value');
+      const isReceiverInChat = snapshot.val() === chatId;
+      // console.log(selectedUser)
+
+      // Update sender's chat metadata (unread count always 0 for sender)
+      await senderChatRef.update({
+        chatId,
+        receiverId: selectedUserId,
+        receiverName: selectedUser?.sender ||  "Anonymous",
+        receiverAvatar: selectedUser?.avatar || "https://example.com/default-avatar.jpg",
+        lastMessage: trimmedText,
         timestamp,
+        unreadCount: 0
+      });
+
+      // Update receiver's chat metadata (increase unread count if not in chat)
+      await receiverChatRef.update({
+        chatId,
+        receiverId: myUserId,
+        receiverName: user?.displayName || "Anonymous",
+        receiverAvatar: user?.avatar || "https://example.com/default-avatar.jpg",
+        lastMessage: trimmedText,
+        timestamp,
+        unreadCount: isReceiverInChat ? 0 : database.ServerValue.increment(1)
+      });
+
+      setInput('');
+      setReplyTo(null);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      Alert.alert("Error", "Could not send your message. Please try again.");
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.id || !selectedUserId) return;
+  
+      const chatMetaRef = database().ref(`chat_meta_data/${user.id}/${selectedUserId}`);
+  
+      // ✅ Reset unreadCount when entering chat
+      chatMetaRef.update({ unreadCount: 0 });
+  
+      setActiveChat(user.id, chatKey);
+  
+      return () => {
+        clearActiveChat(user.id);
       };
-
-      try {
-        // Generate deterministic chatId based on participants
-        const chatId = [myUserId, selectedUserId].sort().join('_');
-        const chatRef = ref(appdatabase, `private_chat_new/${chatId}`);
-
-        // Push the new message to the `messages` node
-        await chatRef.child(`messages/${timestamp}`).set(newMessage);
-
-        // Update the `participants` node using `true` for IDs
-        const participantsUpdate = {
-          [`participants/${myUserId}`]: true,
-          [`participants/${selectedUserId}`]: true,
-        };
-        // console.log()
-        await chatRef.update(participantsUpdate);
-        const chatMetadata = {
-          receiverName: selectedUser?.sender || 'Unknown Sender',
-          receiverAvatar: selectedUser?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
-          receiverId: selectedUserId,
-          senderName: user?.displayname || user?.displayName || 'Unknown Receiver',
-          senderAvatar: user?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
-          senderId: user.id,
-        };
-        await chatRef.child('metadata').update(chatMetadata);
-
-        // Update the `lastMessage` metadata
-        await chatRef.child('lastMessage').set({
-          text: trimmedText,
-          timestamp,
-          senderId: myUserId,
-          senderName: user.displayname || 'Unknown',
-        });
-
-        // Clear input and reply context
-        setInput('');
-        setReplyTo(null);
-      } catch (error) {
-        console.error('Error sending message:', error);
-        Alert.alert('Error', 'Could not send your message. Please try again.');
-      }
-    },
-    [myUserId, selectedUserId, user]
+    }, [user?.id, selectedUserId, chatKey])
   );
-
+  
 
   // Handle refresh
   const handleRefresh = useCallback(async () => {
@@ -182,23 +204,6 @@ const PrivateChatScreen = () => {
     setRefreshing(false);
   }, [loadMessages]);
 
-
-
-  //  const updateLastRead = useCallback(() => {
-  //   const lastReadRef = database().ref(`lastseen/${myUserId}/${chatKey}`);
-  //   lastReadRef
-  //     .set(Date.now())
-  //     .then(() => {
-  //       // console.log('Last read updated successfully for:', chatKey);
-  //     })
-  //     .catch((error) => {
-  //       // console.error('Error updating last read:', error);
-  //     });
-  // }, [chatKey, myUserId]);
-
-
-
-
   useEffect(() => {
     setActiveChat(user.id, chatKey)
   }, [user.id, chatKey]);
@@ -206,8 +211,8 @@ const PrivateChatScreen = () => {
     const listener = messagesRef.on('child_added', (snapshot) => {
       const newMessage = { id: snapshot.key, ...snapshot.val() };
       if (developmentMode) {
-        const privatechat_new_message = JSON.stringify(newMessage).length / 1024; 
-        console.log(`🚀 Downloaded data: ${privatechat_new_message.toFixed(2)} KB from private chat new messages node`);
+        const privatechat_new_message = JSON.stringify(newMessage).length / 1024;
+        // console.log(`🚀 Downloaded data: ${privatechat_new_message.toFixed(2)} KB from private chat new messages node`);
       }
       setMessages((prevMessages) =>
         prevMessages.some((msg) => msg.id === newMessage.id)

@@ -14,10 +14,12 @@ const config = {
   andriodIntestial: isNoman ? 'ca-app-pub-5740215782746766/1206026687' : 'ca-app-pub-3701208411582706/2820664136',
   andriodRewarded: isNoman ? 'ca-app-pub-5740215782746766/6313459657' : 'ca-app-pub-3701208411582706/5175818984',
   andriodOpenApp: isNoman ? 'ca-app-pub-5740215782746766/9015676434' : 'ca-app-pub-3701208411582706/2295931822',
+  andriodNative: isNoman ? 'ca-app-pub-5740215782746766/2941106105' : 'ca-app-pub-3701208411582706/2295931822',
   IOsIntestial: isNoman ? 'ca-app-pub-5740215782746766/3209373499' : '',
   IOsBanner: isNoman ? 'ca-app-pub-5740215782746766/4522455164' : '',
   IOsRewarded: isNoman ? 'ca-app-pub-5740215782746766/9755679519' : '',
   IOsOpenApp: isNoman ? 'ca-app-pub-5740215782746766/1499878996' : '',
+  IOsNative: isNoman ? 'ca-app-pub-5740215782746766/8838394066' : '',
 
   apiKey: isNoman ? rev_cat_id : 'goog_hNbzYuzixIbRtuJzgHltVeZzYos',
 

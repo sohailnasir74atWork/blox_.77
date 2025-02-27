@@ -103,7 +103,7 @@ const MessageInput = ({
       {replyTo && (
         <View style={styles.replyContainer}>
           <Text style={styles.replyText}>
-          {t("chat.replying_to")}: {replyTo.text}
+            {t("chat.replying_to")}: {replyTo.text}
           </Text>
           <TouchableOpacity onPress={onCancelReply} style={styles.cancelReplyButton}>
             <Icon name="close-circle" size={24} color="#e74c3c" />

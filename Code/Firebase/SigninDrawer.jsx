@@ -19,6 +19,7 @@ import { useHaptic } from '../Helper/HepticFeedBack';
 import { useGlobalState } from '../GlobelStats';
 import ConditionalKeyboardWrapper from '../Helper/keyboardAvoidingContainer';
 import { useTranslation } from 'react-i18next';
+import { showMessage } from 'react-native-flash-message';
 
 
 
@@ -63,11 +64,21 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message }) => {
             const appleCredential = auth.AppleAuthProvider.credential(identityToken, nonce);
             await auth().signInWithCredential(appleCredential);
     
-            Alert.alert(t("home.alert.success"), t("signin.success_signin"));
+            // Alert.alert(t("home.alert.success"), t("signin.success_signin"));
+            showMessage({
+                message: t("home.alert.success"),
+                description:t("signin.success_signin"),
+                type: "success",
+              });
             onClose(); // Close the modal on success
         } catch (error) {
             // console.error(t("signin.error_apple_signin"), error);
-            Alert.alert(t("home.alert.error"), error?.message || t("signin.error_signin_message"));
+            // Alert.alert(t("home.alert.error"), error?.message || t("signin.error_signin_message"));
+            showMessage({
+                message: t("home.alert.error"),
+                description:error?.message || t("signin.error_signin_message"),
+                type: "danger",
+              });
         }
     }
     
@@ -76,14 +87,24 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message }) => {
         triggerHapticFeedback('impactLight');
     
         if (!email || !password) {
-            Alert.alert(t("home.alert.error"), t("signin.error_input_message"));
+            // Alert.alert(t("home.alert.error"), t("signin.error_input_message"));
+            showMessage({
+                message: t("home.alert.error"),
+                description:t("signin.error_input_message"),
+                type: "danger",
+              });
             return;
         }
     
         const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
     
         if (!isValidEmail(email)) {
-            Alert.alert(t("home.alert.error"), t("signin.error_input_message"));
+            // Alert.alert(t("home.alert.error"), t("signin.error_input_message"));
+            showMessage({
+                message: t("home.alert.error"),
+                description:t("signin.error_input_message"),
+                type: "danger",
+              });
             return;
         }
     
@@ -93,11 +114,21 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message }) => {
             if (isRegisterMode) {
                 // Handle user registration
                 await auth().createUserWithEmailAndPassword(email, password);
-                Alert.alert(t("signin.alert_success"), t("signin.alert_account_created"));
+                // Alert.alert(t("signin.alert_success"), t("signin.alert_account_created"));
+                showMessage({
+                    message: t("home.alert.success"),
+                    description:t("signin.alert_account_created"),
+                    type: "success",
+                  });
             } else {
                 // Handle user login
                 await auth().signInWithEmailAndPassword(email, password);
-                Alert.alert(t("signin.alert_welcome_back"), t("signin.success_signin"));
+                // Alert.alert(t("signin.alert_welcome_back"), t("signin.success_signin"));
+                showMessage({
+                    message: t("signin.alert_welcome_back"),
+                    description:t("signin.success_signin"),
+                    type: "success",
+                  });
             }
     
             onClose(); // Close modal after successful operation
@@ -120,7 +151,12 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message }) => {
                 errorMessage = t("signin.error_weak_password");
             }
     
-            Alert.alert(t("signin.error_signin_message"), errorMessage);
+            // Alert.alert(t("signin.error_signin_message"), errorMessage);
+            showMessage({
+                message: t("signin.error_signin_message"),
+                description:errorMessage,
+                type: "danger",
+              });
         } finally {
             setIsLoadingSecondary(false); // Hide loading indicator
         }
@@ -140,11 +176,21 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message }) => {
             const googleCredential = auth.GoogleAuthProvider.credential(idToken);
             await auth().signInWithCredential(googleCredential);
     
-            Alert.alert(t("signin.alert_welcome_back"), t("signin.success_signin"));
+            // Alert.alert(t("signin.alert_welcome_back"), t("signin.success_signin"));
+            showMessage({
+                message: t("signin.alert_welcome_back"),
+                description:t("signin.success_signin"),
+                type: "success",
+              });
             onClose(); // Close the modal on success
         } catch (error) {
             console.error(t("signin.error_signin_message"), error);
-            Alert.alert(t("home.alert.error"), error?.message || t("signin.error_signin_message"));
+            // Alert.alert(t("home.alert.error"), error?.message || t("signin.error_signin_message"));
+            showMessage({
+                message: t("home.alert.error"),
+                description:error?.message || t("signin.error_signin_message"),
+                type: "danger",
+              });
         } finally {
             setIsLoading(false); // Reset loading state
         }

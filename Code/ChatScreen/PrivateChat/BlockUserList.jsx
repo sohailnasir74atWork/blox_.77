@@ -16,6 +16,8 @@ import { useLocalState } from '../../LocalGlobelStats';
 import { useGlobalState } from '../../GlobelStats';
 import { useTranslation } from 'react-i18next';
 import { developmentMode } from '../../Ads/ads';
+import { showMessage } from 'react-native-flash-message';
+
 
 const BlockedUsersScreen = () => {
   const { user, theme, appdatabase } = useGlobalState();
@@ -47,14 +49,14 @@ const BlockedUsersScreen = () => {
 
           if (userSnapshot.exists()) {
             const userData = userSnapshot.val();
-            if (developmentMode) {
-              const userdata = JSON.stringify(userData).length / 1024; 
-              console.log(`🚀 Downloaded data: ${userData.toFixed(2)} KB from blockuser file`);
-            }
-            
+            // if (developmentMode) {
+            //   const userdata = JSON.stringify(userData).length / 1024; 
+            //   // console.log(`🚀 Downloaded data: ${userData.toFixed(2)} KB from blockuser file`);
+            // }
+            // console.log(userData)
             return {
               id,
-              displayName: userData?.displayName || userData?.displayName || 'Unknown',
+              displayName: userData?.displayName || userData?.displayname || 'Anonymous',
               avatar: userData?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
             };
           } else {
@@ -72,7 +74,7 @@ const BlockedUsersScreen = () => {
 
     fetchBlockedUsers();
   }, [user?.id, localState?.bannedUsers]);
-
+console.log(blockedUsers)
   const handleUnblockUser = async (selectedUserId) => {
     try {
       const updatedBannedUsers = (localState.bannedUsers || []).filter(id => id !== selectedUserId);
@@ -86,7 +88,12 @@ const BlockedUsersScreen = () => {
       );
 
       // ✅ Show Alert
-      Alert.alert(t("home.success"), t("chat.user_unblocked"));
+      // Alert.alert(t("home.success"), t("chat.user_unblocked"));
+      showMessage({
+        message: t("home.alert.success"),
+        description:t("chat.user_unblocked"),
+        type: "success",
+      });
     } catch (error) {
       console.error('❌ Error unblocking user:', error);
       // Alert.alert('Error', 'Failed to unblock the user.');

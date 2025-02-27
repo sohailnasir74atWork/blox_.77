@@ -25,6 +25,7 @@ import {
 import getAdUnitId from './Code/Ads/ads';
 import OnboardingScreen from './Code/AppHelper/OnBoardingScreen';
 import { useTranslation } from 'react-i18next';
+import FlashMessage from 'react-native-flash-message';
 
 const Stack = createNativeStackNavigator();
 const adUnitId = getAdUnitId('openapp');
@@ -67,7 +68,7 @@ function App() {
     mobileAds()
       .initialize()
       .then(adapterStatuses => {
-        // console.log('AdMob initialized', adapterStatuses);
+        console.log('AdMob initialized', adapterStatuses);
       })
       .catch(error => {
         console.error('AdMob failed to initialize:', error);
@@ -209,6 +210,7 @@ function App() {
           </Stack.Navigator>
         </NavigationContainer>
       </Animated.View>
+      <FlashMessage position="top" />
     </SafeAreaView>
   );
 }

@@ -14,15 +14,18 @@ import { useGlobalState } from '../../GlobelStats';
 import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
 import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
-// import { isUserOnline } from '../utils';
-import { ref } from '@react-native-firebase/database';
+import { isUserOnline } from '../utils';
 import { useTranslation } from 'react-i18next';
+import database from '@react-native-firebase/database';
+import FlashMessage, { showMessage } from 'react-native-flash-message';
 
 const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
   const navigation = useNavigation();
   // const { chats = [], setChats } = route.params || {}; // ✅ Prevents errors if `params` is missing  
-  const { user, theme, appdatabase } = useGlobalState();
+  const { user, theme } = useGlobalState();
   const { t } = useTranslation();
+
+
 
   // console.log('inbox', chats)
   const filteredChats = useMemo(() => {
@@ -43,37 +46,70 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Remove chat from Firebase
-              const chatRef = ref(appdatabase, `private_chat_new/${chatId}`);
-              await chatRef.remove();
+              // Find chat data based on chatId
+              const chatToDelete = chats.find(chat => chat.chatId === chatId);
+              if (!chatToDelete) {
+                // console.log("⚠️ Chat not found in local state.");
+                return;
+              }
 
-              // Update the local state to remove the chat
+              const otherUserId = chatToDelete.otherUserId; // Get the chat partner's ID
+              if (!otherUserId) {
+                // console.log("⚠️ No valid otherUserId found.");
+                return;
+              }
+
+              // **1️⃣ Reference to delete only the current user's chat metadata**
+              const senderChatRef = database().ref(`chat_meta_data/${user.id}/${otherUserId}`);
+
+              // console.log("🛠 Attempting to delete chat metadata from:", `chat_meta_data/${user.id}/${otherUserId}`);
+
+              // **2️⃣ Fetch and log the metadata before deleting**
+              const snapshot = await senderChatRef.once('value');
+              if (snapshot.exists()) {
+                // console.log("🔥 Chat metadata found and being deleted:", snapshot.val());
+                await senderChatRef.remove(); // ✅ Deletes only the metadata for the current user
+              } else {
+                // console.log("⚠️ No metadata found at path:", `chat_meta_data/${user.id}/${otherUserId}`);
+                return; // Stop execution if nothing is found
+              }
+
+              // **3️⃣ Update local state to remove the chat from UI**
               setChats((prevChats) => prevChats.filter((chat) => chat.chatId !== chatId));
+
+              // Alert.alert(t("home.alert.success"), t("chat.chat_success_message"));
+              showMessage({
+                message: t("home.alert.success"),
+                description:t("chat.chat_success_message"),
+                type: "success",
+              });
             } catch (error) {
-              console.error('Error deleting chat:', error);
-              Alert.alert(t("chat.error"), t("chat.delete_chat_error"));
+              console.error('❌ Error deleting chat metadata:', error);
+              // Alert.alert(t("home.alert.error"), t("chat.delete_chat_error"));
             }
           },
         },
       ],
       { cancelable: true }
     );
-};
+  };
 
-// console.log(chats)
-  const handleOpenChat = (chatId, otherUserId, otherUserName, otherUserAvatar, 
+
+
+  // console.log(chats)
+  const handleOpenChat = (chatId, otherUserId, otherUserName, otherUserAvatar,
     // isOnline, 
     // isBanned
   ) => {
     if (!user?.id) return;
-  
+
     // ✅ Update local state to reset unread count
     setChats((prevChats) =>
       prevChats.map((chat) =>
         chat.chatId === chatId ? { ...chat, unreadCount: 0 } : chat
       )
     );
-  
+
     // ✅ Navigate to PrivateChat
     navigation.navigate('PrivateChat', {
       selectedUser: {
@@ -86,7 +122,7 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
     });
   };
 
- 
+
 
 
 
@@ -96,8 +132,8 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
       <TouchableOpacity
         style={styles.chatItem}
         onPress={() =>
-          handleOpenChat(item.chatId, item.otherUserId, item.otherUserName, item.otherUserAvatar, 
-            // item.isOnline, 
+          handleOpenChat(item.chatId, item.otherUserId, item.otherUserName, item.otherUserAvatar,
+            item.isOnline, 
             // item.isBanned
           )
         }
@@ -106,7 +142,7 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
         <View style={styles.textContainer}>
           <Text style={styles.userName}>
             {item.otherUserName}
-            {/* {item.isOnline && !item.isBanned && <Text style={{ color: config.colors.hasBlockGreen }}> - Online</Text>} */}
+            {item.isOnline && !item.isBanned && <Text style={{ color: config.colors.hasBlockGreen }}> - Online</Text>}
             {/* {item.isBanned && <Text style={{ color: config.colors.wantBlockRed }}> - Banned</Text>} */}
           </Text>
           <Text style={styles.lastMessage} numberOfLines={1}>
@@ -127,7 +163,7 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
             name="ellipsis-vertical-outline"
             size={20}
             color={config.colors.primary}
-            style={{paddingLeft:10}}
+            style={{ paddingLeft: 10 }}
           />
         </MenuTrigger>
         <MenuOptions>
@@ -140,20 +176,20 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
   );
   return (
     <View style={styles.container}>
-    {loading ? (
-      <ActivityIndicator size="large" color="#1E88E5" style={{ flex: 1 }} />
-    ) : filteredChats.length === 0 ? (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}> {t("chat.no_chats_available")}</Text>
-      </View>
-    ) : (
-      <FlatList
-        data={filteredChats}
-        keyExtractor={(item) => item.chatId}
-        renderItem={renderChatItem}
-      />
-    )}
-  </View>
+      {loading ? (
+        <ActivityIndicator size="large" color="#1E88E5" style={{ flex: 1 }} />
+      ) : filteredChats.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}> {t("chat.no_chats_available")}</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredChats}
+          keyExtractor={(item, index) => item.chatId || index.toString()} // ✅ Ensure a unique key
+          renderItem={renderChatItem}
+        />
+      )}
+    </View>
   );
 };
 
@@ -186,7 +222,7 @@ const getStyles = (isDarkMode) =>
       height: 50,
       borderRadius: 25,
       marginRight: 10,
-      backgroundColor:'white'
+      backgroundColor: 'white'
     },
     textContainer: {
       flex: 1,
@@ -217,9 +253,9 @@ const getStyles = (isDarkMode) =>
       justifyContent: 'center',
       alignItems: 'center',
     },
-    emptyText:{
+    emptyText: {
       color: isDarkMode ? 'white' : 'black',
-      textAlign:'center'
+      textAlign: 'center'
     }
   });
 

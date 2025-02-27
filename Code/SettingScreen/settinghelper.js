@@ -36,7 +36,7 @@ export const handleGetSuggestions = async (user) => {
     // ✅ Get User & RevenueCat ID
     const userId = user?.id || 'Guest'; // Default to Guest if not logged in
     const revenueCatInfo = await Purchases.getCustomerInfo();
-    const revenueCatUserId = revenueCatInfo?.originalAppUserId || 'Unknown';
+    const revenueCatUserId = revenueCatInfo?.originalAppUserId || 'Anonymous';
 
     // ✅ Construct Email Body
     const email = config.supportEmail;

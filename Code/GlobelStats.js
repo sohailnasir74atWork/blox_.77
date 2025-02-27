@@ -45,12 +45,13 @@ export const GlobalStateProvider = ({ children }) => {
       admin: false,
       isReminderEnabled: false,
       isSelectedReminderEnabled: false,
-      displayname: '',
+      displayName: '',
       avatar: null,
       points: 0, 
       isBlock:false,
       fcmToken:null,
-      lastactivity:null
+      lastactivity:null,
+      online:false
   });
 
   const [onlineMembersCount, setOnlineMembersCount] = useState(0);
@@ -102,12 +103,13 @@ export const GlobalStateProvider = ({ children }) => {
       admin: false,
       isReminderEnabled: false,
       isSelectedReminderEnabled: false,
-      displayname: '',
+      displayName: '',
       avatar: null,
       points: 0, 
       isBlock:false,
       fcmToken:null,
-      lastactivity:null
+      lastactivity:null,
+      online:false
     });
   };
 
@@ -117,57 +119,48 @@ export const GlobalStateProvider = ({ children }) => {
         if (!loggedInUser) {
           resetUserState();
           storage_user_data.delete('userData'); // Clear MMKV user data on logout
+          // console.log("🔴 User logged out. MMKV cleared.");
           return;
         }
-  
+
         const userId = loggedInUser.uid;
         const storedUser = storage_user_data.getString(`userData_${userId}`);
-  
+
         if (storedUser) {
-          // ✅ If user data exists in MMKV, parse and use it
+          // console.log("✅ User data found in MMKV. Using cached data.");
           setUser(JSON.parse(storedUser));
-          return;
-        }
-  
-        // 🔹 Fetch from Firebase only if MMKV data is not available
-        const userRef = ref(appdatabase, `users/${userId}`);
-        get(userRef).then(async (snapshot) => {
+        } else {
+          // console.log("⚠️ No cached data. Fetching from Firebase...");
+          const userRef = ref(appdatabase, `users/${userId}`);
+          const snapshot = await get(userRef);
+
           if (snapshot.exists()) {
             const userData = { ...snapshot.val(), id: userId };
-            // console.log(userData)
-            
-    
-            // 🔹 Calculate total downloaded size
-            
-            if (developmentMode) {
-                const userDataSize = JSON.stringify(userData).length / 1024; 
-                console.log(`🚀 user data data: ${userDataSize.toFixed(2)} KB`);
-            }
-            
-            // ✅ Save to state and MMKV
+            // console.log("✅ User data loaded from Firebase.");
             setUser(userData);
             storage_user_data.set(`userData_${userId}`, JSON.stringify(userData));
           } else {
+            // console.log("🆕 New user detected. Creating in Firebase...");
             const newUser = createNewUser(userId, loggedInUser);
             await set(userRef, newUser);
-            
             setUser(newUser);
             storage_user_data.set(`userData_${userId}`, JSON.stringify(newUser));
           }
-  
-          // Notifications & Permissions
-          await registerForNotifications(userId);
-          await requestPermission();
-        }).catch((error) => console.error("Firebase fetch error:", error));
-  
+        }
+
+        // 🔥 Always refresh and update the FCM token
+        // console.log("🔄 Registering for notifications...");
+        await registerForNotifications(userId);
+        await requestPermission();
+        
       } catch (error) {
-        console.error("Auth state change error:", error);
+        console.error("❌ Auth state change error:", error);
       }
     });
-  
+
     return () => unsubscribe();
   }, []);
-  
+
   
 
 
@@ -238,12 +231,12 @@ const fetchStockData = async () => {
     
             // 🔹 Calculate total downloaded size
             
-            if (developmentMode) {
-                const codeSize = JSON.stringify(codes).length / 1024; 
-                const dataSize = JSON.stringify(data).length / 1024; 
-                console.log(`🚀 user code data: ${codeSize.toFixed(2)} KB`);
-                console.log(`🚀 user values data: ${dataSize.toFixed(2)} KB`);
-            }
+            // if (developmentMode) {
+            //     const codeSize = JSON.stringify(codes).length / 1024; 
+            //     const dataSize = JSON.stringify(data).length / 1024; 
+            //     console.log(`🚀 user code data: ${codeSize.toFixed(2)} KB`);
+            //     // console.log(`🚀 user values data: ${dataSize.toFixed(2)} KB`);
+            // }
       // console.log(codes, data)
 
       // ✅ Store fetched data locally
@@ -277,14 +270,14 @@ const fetchStockData = async () => {
     // 🔹 Calculate total downloaded size
    
     
-    if (developmentMode) {
-      const normalStockSize = JSON.stringify(normalStock).length / 1024; 
-      const mirageStockSize = JSON.stringify(mirageStock).length / 1024; 
-      const prenormalStockSize = JSON.stringify(prenormalStock).length / 1024; 
-      const premirageStockSize = JSON.stringify(premirageStock).length / 1024; 
-      const totalDownloadedSize = normalStockSize + mirageStockSize + prenormalStockSize + premirageStockSize;
-        console.log(`🚀 Total stock data: ${totalDownloadedSize.toFixed(2)} KB`);
-    }
+    // if (developmentMode) {
+    //   const normalStockSize = JSON.stringify(normalStock).length / 1024; 
+    //   const mirageStockSize = JSON.stringify(mirageStock).length / 1024; 
+    //   const prenormalStockSize = JSON.stringify(prenormalStock).length / 1024; 
+    //   const premirageStockSize = JSON.stringify(premirageStock).length / 1024; 
+    //   const totalDownloadedSize = normalStockSize + mirageStockSize + prenormalStockSize + premirageStockSize;
+    //     console.log(`🚀 Total stock data: ${totalDownloadedSize.toFixed(2)} KB`);
+    // }
     
 
     // ✅ Store frequently updated stock data
@@ -308,6 +301,27 @@ useEffect(() => {
   fetchStockData();
 }, []);
 
+
+useEffect(() => {
+  if (!user?.id) return;
+
+  // ✅ Mark user as online in local state & database
+  updateLocalStateAndDatabase('online', true);
+
+  // ✅ Ensure user is marked offline upon disconnection (only applies to Firebase)
+  const userOnlineRef = ref(appdatabase, `/users/${user.id}/online`);
+
+  onDisconnect(userOnlineRef)
+    .set(false)
+    .catch((error) => console.error("🔥 Error setting onDisconnect:", error));
+
+  return () => {
+    // ✅ Cleanup: Mark user offline when the app is closed
+    updateLocalStateAndDatabase('online', false);
+  };
+}, [user?.id]);
+
+// console.log(user.online)
 
 
   const contextValue = useMemo(

@@ -17,13 +17,14 @@ import { useLocalState } from '../../LocalGlobelStats';
 import { Alert } from 'react-native';  // ✅ Ensure Alert is imported
 import { useTranslation } from 'react-i18next';
 import { logEvent } from '@react-native-firebase/analytics';
+import FlashMessage, { showMessage } from 'react-native-flash-message';
 
 
-const ProfileBottomDrawer = ({ isVisible, toggleModal, startChat, selectedUser, 
-  // isOnline, 
+const ProfileBottomDrawer = ({ isVisible, toggleModal, startChat, selectedUser,
+  isOnline, 
   bannedUsers }) => {
   const { theme, analytics } = useGlobalState();
-  const {updateLocalState} = useLocalState()
+  const { updateLocalState } = useLocalState()
   // console.log(isVisible)
   const userName = selectedUser?.sender || null;
   const avatar = selectedUser?.avatar || null;
@@ -43,9 +44,9 @@ const ProfileBottomDrawer = ({ isVisible, toggleModal, startChat, selectedUser,
 
   const handleBanToggle = async () => {
     const action = isBlock ? t("chat.unblock") : t("chat.block");
-  
+
     Alert.alert(
-      `${action} ${t("chat.user")}`,
+      `${action}`,
       `${t("chat.are_you_sure")} ${action.toLowerCase()} ${userName}?`,
       [
         { text: t("chat.cancel"), style: 'cancel' },
@@ -55,7 +56,7 @@ const ProfileBottomDrawer = ({ isVisible, toggleModal, startChat, selectedUser,
           onPress: async () => {
             try {
               let updatedBannedUsers;
-              
+
               if (isBlock) {
                 // ✅ Remove from bannedUsers (Unban)
                 updatedBannedUsers = bannedUsers.filter(id => id !== selectedUser?.senderId);
@@ -63,19 +64,24 @@ const ProfileBottomDrawer = ({ isVisible, toggleModal, startChat, selectedUser,
                 // ✅ Add to bannedUsers (Ban)
                 updatedBannedUsers = [...bannedUsers, selectedUser?.senderId];
               }
-  
+
               // ✅ Update local storage & state
               await updateLocalState('bannedUsers', updatedBannedUsers);
-  
+
               // ✅ Wait a bit before showing the confirmation (Fix MMKV Delay)
               setTimeout(() => {
-                Alert.alert(
-                  t("chat.success"),
-                  isBlock
-                    ? `${userName} ${t("chat.user_unblocked")}`
-                    : `${userName} ${t("chat.user_blocked")}`,
-                  [{ text: t("chat.ok") }]
-                );
+                // Alert.alert(
+                //   t("chat.success"),
+                //   isBlock
+                //     ? `${userName} ${t("chat.user_unblocked")}`
+                //     : `${userName} ${t("chat.user_blocked")}`,
+                //   [{ text: t("chat.ok") }]
+                // );
+                showMessage({
+                  message: t("home.alert.success"),
+                  description: isBlock ? `${userName} ${t("chat.user_unblocked")}` : `${userName} ${t("chat.user_blocked")}`,
+                  type: "success",
+                });
               }, 100); // Small delay to ensure UI updates correctly
             } catch (error) {
               console.error('❌ Error toggling ban status:', error);
@@ -85,9 +91,9 @@ const ProfileBottomDrawer = ({ isVisible, toggleModal, startChat, selectedUser,
       ]
     );
   };
-  
 
-  
+
+
 
   // Handle Start Chat
   const handleStartChat = () => {
@@ -128,12 +134,12 @@ const ProfileBottomDrawer = ({ isVisible, toggleModal, startChat, selectedUser,
                 style={styles.profileImage2}
               />
               <View style={{ justifyContent: 'center' }}>
-                <Text style={styles.drawerSubtitleUser}>{userName} {selectedUser?.isPro &&  <Icon
-            name="checkmark-done-circle"
-            size={16}
-            color={config.colors.hasBlockGreen}
-          />}</Text>
-                {/* <Text
+                <Text style={styles.drawerSubtitleUser}>{userName} {selectedUser?.isPro && <Icon
+                  name="checkmark-done-circle"
+                  size={16}
+                  color={config.colors.hasBlockGreen}
+                />}</Text>
+                <Text
                   style={[
                     styles.drawerSubtitleUser,
                     {
@@ -146,7 +152,7 @@ const ProfileBottomDrawer = ({ isVisible, toggleModal, startChat, selectedUser,
                   ]}
                 >
                   {isOnline ? 'Online' : 'Offline'}
-                </Text> */}
+                </Text>
               </View>
             </View>
 
@@ -166,7 +172,7 @@ const ProfileBottomDrawer = ({ isVisible, toggleModal, startChat, selectedUser,
 
           {/* Start Chat Button */}
           <TouchableOpacity style={styles.saveButton} onPress={handleStartChat}>
-            <Text style={styles.saveButtonText}>${t("chat.start_chat")}</Text>
+            <Text style={styles.saveButtonText}>{t("chat.start_chat")}</Text>
           </TouchableOpacity>
         </View>
       </View>

@@ -116,13 +116,9 @@ import { useTranslation } from 'react-i18next';
       <Modal transparent visible={visible} animationType="fade">
           <Animated.View style={[styles.container, { transform: [{ translateY: slideAnim }] }]}>
           <TouchableOpacity onPress={onClose} disabled={!showCloseButton} style={styles.closeButton}>
-            {showCloseButton ? (
-              <Ionicons name="close" size={24} color="white" />
-            ) : (
-              <View style={[styles.circularProgress, { backgroundColor: `rgba(0, 255, 0, ${progress / 100})` }]}>
-                <Ionicons name="time-outline" size={24} color="white" />
-              </View>
-            )}
+            {showCloseButton &&
+              <Ionicons name="close" size={24} color="grey" />
+           }
           </TouchableOpacity>
             
             <Text style={styles.title}>{t('offer.title')} <Ionicons name="checkmark-done-circle" size={26} color={config.colors.hasBlockGreen}  style={styles.icon}/></Text>
@@ -210,6 +206,8 @@ import { useTranslation } from 'react-i18next';
           </TouchableOpacity>
         </View>
       </View>
+      {/* <FlashMessage position="top" /> */}
+
           </Animated.View>
       </Modal>
     );
@@ -383,7 +381,7 @@ import { useTranslation } from 'react-i18next';
         width: 30,
         height: 30,
         borderRadius: 15,
-        backgroundColor: "#333",
+        // backgroundColor: "#333",
         justifyContent: "center",
         alignItems: "center",
         alignSelf:'flex-end'

@@ -7,6 +7,7 @@ import {
   TextInput,
   Image,
   FlatList,
+  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import debounce from 'lodash.debounce';
@@ -36,6 +37,8 @@ const ValueScreen = ({ selectedTheme }) => {
   const [valuesData, setValuesData] = useState([]);
 const [codesData, setCodesData] = useState([]);
 const { t } = useTranslation();
+const platform = Platform.OS.toLowerCase();
+
 
 
 

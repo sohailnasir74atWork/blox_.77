@@ -8,6 +8,14 @@ import { GlobalStateProvider } from './Code/GlobelStats';
 import { LocalStateProvider } from './Code/LocalGlobelStats';
 import { MenuProvider } from 'react-native-popup-menu';
 import { LanguageProvider } from './Code/Translation/LanguageProvider';
+import messaging from '@react-native-firebase/messaging';
+import NotificationHandler from './Code/Firebase/FrontendNotificationHandling';
+
+messaging().setBackgroundMessageHandler(async remoteMessage => {
+//   console.log('📩 Silent notification received in background:', remoteMessage);
+});
+
+
 
 const App = () => (
     <LocalStateProvider>
@@ -15,6 +23,7 @@ const App = () => (
             <MenuProvider>
               <LanguageProvider>
                 <AppWrapper />
+                <NotificationHandler />
                 </LanguageProvider>
             </MenuProvider>
         </GlobalStateProvider>

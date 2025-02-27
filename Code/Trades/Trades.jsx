@@ -15,6 +15,9 @@ import { useLocalState } from '../LocalGlobelStats';
 import firestore from '@react-native-firebase/firestore';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useTranslation } from 'react-i18next';
+import FlashMessage, { showMessage } from 'react-native-flash-message';
+import { logEvent } from '@react-native-firebase/analytics';
+import MyNativeAdComponent from '../Ads/NativAds';
 
 
 const bannerAdUnitId = getAdUnitId('banner');
@@ -38,7 +41,7 @@ const TradeList = ({ route }) => {
   const PAGE_SIZE = 20;
   const [isSigninDrawerVisible, setIsSigninDrawerVisible] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState(null);
-  const {localState} = useLocalState()
+  const { localState } = useLocalState()
   const navigation = useNavigation()
   const { theme } = useGlobalState()
   const { t } = useTranslation();
@@ -49,6 +52,10 @@ const TradeList = ({ route }) => {
     formattedName = formattedName.replace(/\s+/g, '-');
     return formattedName;
   };
+
+
+ 
+  
   // const handleReportTrade = (trade) => {
   //   setSelectedTrade(trade);
   //   setReportPopupVisible(true);
@@ -56,14 +63,14 @@ const TradeList = ({ route }) => {
   const [selectedFilters, setSelectedFilters] = useState([]);
   useEffect(() => {
     const lowerCaseQuery = searchQuery.trim().toLowerCase();
-  
+
     setFilteredTrades(
       trades.filter((trade) => {
         // If no filters selected, show all trades
         if (selectedFilters.length === 0) return true;
-  
+
         let matchesAnyFilter = false;
-  
+
         if (selectedFilters.includes("has")) {
           matchesAnyFilter =
             matchesAnyFilter ||
@@ -71,7 +78,7 @@ const TradeList = ({ route }) => {
               item.name.toLowerCase().includes(lowerCaseQuery)
             );
         }
-  
+
         if (selectedFilters.includes("wants")) {
           matchesAnyFilter =
             matchesAnyFilter ||
@@ -79,42 +86,42 @@ const TradeList = ({ route }) => {
               item.name.toLowerCase().includes(lowerCaseQuery)
             );
         }
-  
+
         if (selectedFilters.includes("myTrades")) {
           matchesAnyFilter = matchesAnyFilter || trade.userId === user.id;
         }
-  
+
         const tradeLabel = getTradeDeal(trade.hasTotal, trade.wantsTotal).label;
-  
+
         if (selectedFilters.includes("fairDeal")) {
           matchesAnyFilter = matchesAnyFilter || tradeLabel === "trade.fair_deal";
         }
-  
+
         if (selectedFilters.includes("riskyDeal")) {
           matchesAnyFilter = matchesAnyFilter || tradeLabel === "trade.risky_deal";
         }
-  
+
         if (selectedFilters.includes("bestDeal")) {
           matchesAnyFilter = matchesAnyFilter || tradeLabel === "trade.best_deal";
         }
-  
+
         if (selectedFilters.includes("decentDeal")) {
           matchesAnyFilter = matchesAnyFilter || tradeLabel === "trade.decent_deal";
         }
-  
+
         if (selectedFilters.includes("weakDeal")) {
           matchesAnyFilter = matchesAnyFilter || tradeLabel === "trade.weak_deal";
         }
-  
+
         if (selectedFilters.includes("greatDeal")) {
           matchesAnyFilter = matchesAnyFilter || tradeLabel === "trade.great_deal";
         }
-  
+
         return matchesAnyFilter; // Show if it matches at least one selected filter
       })
     );
   }, [searchQuery, trades, selectedFilters]);
-  
+
 
 
 
@@ -161,29 +168,30 @@ const TradeList = ({ route }) => {
     }
   };
   const getTradeDeal = (hasTotal, wantsTotal) => {
-    if (!hasTotal || !wantsTotal || hasTotal.price <= 0) 
-      return { label: "trade.unknown_deal", color: "#8E8E93" };
-  
+    if (!hasTotal?.price || !wantsTotal?.price || hasTotal.price <= 0) {
+      return { label: "trade.unknown_deal", color: "#8E8E93" }; // ⚠️ Unknown deal (invalid input)
+    }
+
     const tradeRatio = wantsTotal.price / hasTotal.price;
     let deal;
-  
-    if (tradeRatio <= 0.5) {
-      deal = { label: "trade.best_deal", color: "#34C759" };
-    } else if (tradeRatio <= 0.8) {
-      deal = { label: "trade.great_deal", color: "#32D74B" };
-    } else if (tradeRatio <= 1.2) {
-      deal = { label: "trade.fair_deal", color: "#FFCC00" };
-    } else if (tradeRatio <= 1.5) {
-      deal = { label: "trade.decent_deal", color: "#FF9F0A" };
-    } else if (tradeRatio <= 2) {
-      deal = { label: "trade.weak_deal", color: "#D65A31" };
+
+    if (tradeRatio >= 0.05 && tradeRatio <= 0.6) {
+      deal = { label: "trade.best_deal", color: "#34C759" }; // ✅ Best Deal
+    } else if (tradeRatio > 0.6 && tradeRatio <= 0.75) {
+      deal = { label: "trade.great_deal", color: "#32D74B" }; // 🟢 Great Deal
+    } else if (tradeRatio > 0.75 && tradeRatio <= 1.25) {
+      deal = { label: "trade.fair_deal", color: "#FFCC00" }; // ⚖️ Fair Deal
+    } else if (tradeRatio > 1.25 && tradeRatio <= 1.4) {
+      deal = { label: "trade.decent_deal", color: "#FF9F0A" }; // 🟠 Decent Deal
+    } else if (tradeRatio > 1.4 && tradeRatio <= 1.55) {
+      deal = { label: "trade.weak_deal", color: "#D65A31" }; // 🔴 Weak Deal
     } else {
-      deal = { label: "trade.risky_deal", color: "#7D1128" };
+      deal = { label: "trade.risky_deal", color: "#7D1128" }; // ❌ Risky Deal (Missing in your original code)
     }
-  
+
     return deal;
   };
-  
+
 
   const handleDelete = useCallback((item) => {
     Alert.alert(
@@ -200,16 +208,26 @@ const TradeList = ({ route }) => {
             try {
               // Delete the trade from Firestore
               await firestore().collection('trades').doc(item.id).delete();
-  
+
               // Update local state to remove the deleted trade
               setTrades((prev) => prev.filter((trade) => trade.id !== item.id));
               setFilteredTrades((prev) => prev.filter((trade) => trade.id !== item.id));
-  
-              Alert.alert(t("trade.delete_success"), t("trade.delete_success_message")); 
+
+              // Alert.alert(t("trade.delete_success"), t("trade.delete_success_message")); 
+              showMessage({
+                message: t("trade.delete_success"),
+                description: t("trade.delete_success_message"),
+                type: "success",
+              });
               // "Success", "Trade deleted successfully!"
             } catch (error) {
               console.error('🔥 Error deleting trade:', error);
-              Alert.alert(t("trade.delete_error"), t("trade.delete_error_message")); 
+              Alert.alert(t("trade.delete_error"), t("trade.delete_error_message"));
+              showMessage({
+                message: t("trade.delete_error"),
+                description: t("trade.delete_error_message"),
+                type: "danger",
+              });
               // "Error", "Failed to delete the trade. Please try again."
             }
           },
@@ -218,7 +236,7 @@ const TradeList = ({ route }) => {
       ]
     );
   }, [t]);
-  
+
 
   const formatValue = (value) => {
     if (value >= 1_000_000_000) {
@@ -232,27 +250,6 @@ const TradeList = ({ route }) => {
     }
   };
 
-  useEffect(() => {
-    const lowerCaseQuery = searchQuery.trim().toLowerCase();
-
-    if (filterType === 'hasItems') {
-      setFilteredTrades(
-        trades.filter((trade) =>
-          trade.hasItems?.some((item) => item.name.toLowerCase().includes(lowerCaseQuery))
-        )
-      );
-    } else if (filterType === 'wantsItems') {
-      setFilteredTrades(
-        trades.filter((trade) =>
-          trade.wantsItems?.some((item) => item.name.toLowerCase().includes(lowerCaseQuery))
-        )
-      );
-    } else if (filterType === 'myTrades') {
-      setFilteredTrades(trades.filter((trade) => trade.userId === user.id));
-    } else {
-      setFilteredTrades(trades);
-    }
-  }, [searchQuery, trades, filterType]);
   const fetchMoreTrades = useCallback(async () => {
     if (!hasMore || !lastDoc) return;
 
@@ -332,20 +329,20 @@ const TradeList = ({ route }) => {
 
   const renderTextWithUsername = (description) => {
     const parts = description.split(/(@\w+)/g); // Split text by @username pattern
-  
+
     return parts.map((part, index) => {
       if (part.startsWith('@')) {
         const username = part.slice(1); // Remove @
         return (
           <TouchableOpacity
-          style={styles.descriptionclick}
+            style={styles.descriptionclick}
             key={index}
             onPress={() => {
-              Clipboard.setString(username); 
+              Clipboard.setString(username);
               // Alert.alert("Copied!", `Username "${username}" copied.`);
             }}
           >
-            <Text style={styles.descriptionclick}>{part}</Text> 
+            <Text style={styles.descriptionclick}>{part}</Text>
           </TouchableOpacity>
         );
       } else {
@@ -356,18 +353,7 @@ const TradeList = ({ route }) => {
 
 
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
-  // const searchText = useMemo(() => {
-  //   switch (filterType) {
-  //     case 'wantsItems':
-  //       return 'Search by Wants Item';
-  //     case 'hasItems':
-  //       return 'Search by Has Item';
-  //     case 'myTrades':
-  //       return 'My Trades';
-  //     default:
-  //       return 'Search by Wants Item';
-  //   }
-  // }, [filterType]);
+
 
 
 
@@ -379,9 +365,11 @@ const TradeList = ({ route }) => {
 
 
 
-  const renderTrade = ({ item }) => {
-    const formattedTime = item.timestamp ? moment(item.timestamp.toDate()).fromNow() : "Unknown";
-
+  const renderTrade = ({ item, index }) => {
+    const formattedTime = item.timestamp ? moment(item.timestamp.toDate()).fromNow() : "Anonymous";
+    if ((index + 1) % 10 === 0) {
+      return <MyNativeAdComponent />;
+    }
     // Function to group items and count duplicates
     const groupItems = (items) => {
       const grouped = {};
@@ -401,10 +389,9 @@ const TradeList = ({ route }) => {
     const groupedWantsItems = groupItems(item.wantsItems || []);
 
     const handleChatNavigation = async () => {
-      
+
       try {
         // const isOnline = await isUserOnline(item.userId);
-        logEvent(analytics, `${platform}_trade_screen_nav_to_chat`);
         showInterstitialAd(() => {
           if (!user?.id) {
             setIsSigninDrawerVisible(true);
@@ -419,6 +406,8 @@ const TradeList = ({ route }) => {
             // isOnline,
           });
         });
+        logEvent(analytics, `${platform}_trade_screen_nav_to_chat`);
+
 
       } catch (error) {
         console.error('Error navigating to PrivateChat:', error);
@@ -433,50 +422,32 @@ const TradeList = ({ route }) => {
           <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={handleChatNavigation}>
             <Image source={{ uri: item.avatar }} style={styles.itemImageUser} />
             <View style={{ justifyContent: 'center' }}>
-              <Text style={styles.traderName}>{item.traderName} {item.isPro &&  <Icon
-            name="checkmark-done-circle"
-            size={16}
-            color={config.colors.hasBlockGreen}
-          />}</Text>
+              <Text style={styles.traderName}>{item.traderName} {item.isPro && <Icon
+                name="checkmark-done-circle"
+                size={16}
+                color={config.colors.hasBlockGreen}
+              />}</Text>
               <Text style={styles.tradeTime}>{formattedTime}</Text>
             </View>
           </TouchableOpacity>
-          <View style={{flexDirection:'row'}}>
-          <View style={[styles.dealContainer, { backgroundColor: getTradeDeal(item.hasTotal, item.wantsTotal).color }]}>
-          <Text style={styles.dealText}>
-  {t(getTradeDeal(item.hasTotal, item.wantsTotal).label)}
-</Text>
+          <View style={{ flexDirection: 'row' }}>
+            <View style={[styles.dealContainer, { backgroundColor: getTradeDeal(item.hasTotal, item.wantsTotal).color }]}>
+              <Text style={styles.dealText}>
+                {t(getTradeDeal(item.hasTotal, item.wantsTotal).label)}
+              </Text>
 
-          </View>
-          
-          <Icon
-            name="chatbox-outline"
-            size={18}
-            color={config.colors.secondary}
-            onPress={handleChatNavigation}
-          />
+            </View>
+
+            <Icon
+              name="chatbox-outline"
+              size={18}
+              color={config.colors.secondary}
+              onPress={handleChatNavigation}
+            />
           </View>
         </View>
 
-        {/* Trade Totals */}
-        {/* <View style={styles.tradeTotals}>
-          <Text style={[styles.priceText, styles.hasBackground]}>
-            Has: {formatValue(item.hasTotal.price)}
-          </Text>
-          <View style={styles.transfer}>
-            {item.userId === user.id && (
-              <Icon
-                name="trash-outline"
-                size={18}
-                color={config.colors.wantBlockRed}
-                onPress={() => handleDelete(item)}
-              />
-            )}
-          </View>
-          <Text style={[styles.priceText, styles.wantBackground]}>
-            Want: {formatValue(item.wantsTotal.price)}
-          </Text>
-        </View> */}
+
 
         {/* Trade Items */}
         <View style={styles.tradeDetails}>
@@ -513,7 +484,7 @@ const TradeList = ({ route }) => {
                   }}
                   style={[styles.itemImage, { backgroundColor: wantsItem.type === 'p' ? '#FFCC00' : '' }]}
                 />
-               <Text style={styles.names}>
+                <Text style={styles.names}>
                   {wantsItem.name}{wantsItem.type === 'p' && " (P)"}
                 </Text>
                 {wantsItem.count > 1 && <View style={styles.tagcount}><Text style={styles.tagcounttext}>{wantsItem.count}</Text></View>}
@@ -523,7 +494,7 @@ const TradeList = ({ route }) => {
         </View>
         <View style={styles.tradeTotals}>
           <Text style={[styles.priceText, styles.hasBackground]}>
-          { t("trade.price_has")} {formatValue(item.hasTotal.price)}
+            {t("trade.price_has")} {formatValue(item.hasTotal.price)}
           </Text>
           <View style={styles.transfer}>
             {item.userId === user.id && (
@@ -536,7 +507,7 @@ const TradeList = ({ route }) => {
             )}
           </View>
           <Text style={[styles.priceText, styles.wantBackground]}>
-          { t("trade.price_want")} {formatValue(item.wantsTotal.price)}
+            {t("trade.price_want")} {formatValue(item.wantsTotal.price)}
           </Text>
         </View>
 
@@ -544,19 +515,7 @@ const TradeList = ({ route }) => {
         {item.description && <Text style={styles.description}>{renderTextWithUsername(item.description)}
         </Text>}
 
-        {/* Action Buttons */}
-        {/* <View style={styles.actionButtons}>
-          <TouchableOpacity onPress={handleChatNavigation}>
-            <View style={styles.tradeActions}>
-              <Icon name="chatbox-outline" size={14} color={config.colors.hasBlockGreen} style={{
-                textShadowColor: isDarkMode ? '#000000AA' : '#FFFFFFAA',
-                textShadowOffset: { width: 1, height: 1 },
-                textShadowRadius: 3
-              }} />
-              <Text style={[styles.actionText]}>Send Message</Text>
-            </View>
-          </TouchableOpacity>
-        </View> */}
+
       </View>
     );
   };
@@ -572,12 +531,12 @@ const TradeList = ({ route }) => {
 
         <TextInput
           style={styles.searchInput}
-          placeholder={ t("trade.search_placeholder")}
+          placeholder={t("trade.search_placeholder")}
           value={searchQuery}
           onChangeText={setSearchQuery}
           placeholderTextColor={isDarkMode ? 'white' : '#aaa'}
         />
-        <FilterMenu selectedFilters={selectedFilters} setSelectedFilters={setSelectedFilters} analytics={analytics} platform={platform}/>
+        <FilterMenu selectedFilters={selectedFilters} setSelectedFilters={setSelectedFilters} analytics={analytics} platform={platform} />
       </View>
       <FlatList
         data={filteredTrades}
@@ -609,9 +568,10 @@ const TradeList = ({ route }) => {
         visible={isSigninDrawerVisible}
         onClose={() => setIsSigninDrawerVisible(false)}
         selectedTheme={selectedTheme}
-        message={ t("trade.signin_required_message")}
+        message={t("trade.signin_required_message")}
 
       />
+      {/* <FlashMessage position="top" /> */}
 
       {!localState.isPro && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (
@@ -640,7 +600,7 @@ const getStyles = (isDarkMode) =>
       backgroundColor: isDarkMode ? config.colors.primary : 'white',
       borderRadius: 10, // Smooth rounded corners
       borderWidth: !config.isNoman ? 3 : 0,
-      borderColor:  config.colors.hasBlockGreen,      
+      borderColor: config.colors.hasBlockGreen,
     },
 
     searchInput: {
@@ -772,14 +732,14 @@ const getStyles = (isDarkMode) =>
       color: isDarkMode ? 'lightgrey' : "grey",
       fontFamily: 'Lato-Regular',
       fontSize: 10,
-      marginTop:5,
-      lineHeight:12
+      marginTop: 5,
+      lineHeight: 12
     },
     descriptionclick: {
       color: config.colors.secondary,
       fontFamily: 'Lato-Regular',
       fontSize: 10,
-      marginTop:5,
+      marginTop: 5,
       // lineHeight:12
 
     },
@@ -791,7 +751,7 @@ const getStyles = (isDarkMode) =>
       paddingHorizontal: 6,
       borderRadius: 6,
       alignSelf: 'center',
-      marginRight:10
+      marginRight: 10
     },
     dealText: {
       color: 'white',
@@ -819,7 +779,7 @@ const getStyles = (isDarkMode) =>
       color: 'white',
       fontFamily: 'Lato-Bold',
       fontSize: 10
-    }
+    },
   });
 
 export default TradeList;

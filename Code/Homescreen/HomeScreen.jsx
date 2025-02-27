@@ -20,13 +20,19 @@ import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../Translation/LanguageProvider';
 import i18n from '../../i18n';
 import { logEvent } from '@react-native-firebase/analytics';
+import { Notifier, NotifierComponents } from 'react-native-notifier';
+import FlashMessage, { showMessage } from 'react-native-flash-message';
+import DeviceInfo from 'react-native-device-info';
+
+
+
 
 const bannerAdUnitId = getAdUnitId('banner');
 const interstitialAdUnitId = getAdUnitId('interstitial');
 const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId);
 
 const HomeScreen = ({ selectedTheme }) => {
-  const { theme, user, updateLocalStateAndDatabase, analytics } = useGlobalState();
+  const { theme, user, updateLocalStateAndDatabase, analytics, appdatabase } = useGlobalState();
   const tradesCollection = useMemo(() => firestore().collection('trades'), []);
   const initialItems = [null, null];
   const [hasItems, setHasItems] = useState(initialItems);
@@ -48,17 +54,68 @@ const HomeScreen = ({ selectedTheme }) => {
   const [isSigninDrawerVisible, setIsSigninDrawerVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { language, changeLanguage } = useLanguage();
+  const [showNotification, setShowNotification] = useState(false);
+  const [pinnedMessages, setPinnedMessages] = useState([]);
+
+
   const platform = Platform.OS.toLowerCase();
 
   const { t } = useTranslation();
-  // console.log(t, language)
+  const CURRENT_APP_VERSION = DeviceInfo.getVersion(); 
 
+  useEffect(() => {
+    const checkForUpdate = async () => {
+        try {
+            const database = getDatabase();
+            const platformKey = Platform.OS === "ios" ? "ios_app_version" : (config.isNoman ? "noman_app_version" : 'waqas_app_version');
+            const versionRef = ref(database, platformKey);
+            const snapshot = await get(versionRef);
+            // console.log(snapshot.val(), CURRENT_APP_VERSION)
 
+            if (snapshot.exists() && snapshot.val().app_version !== CURRENT_APP_VERSION) {
+                setShowNotification(true);
+            } else {
+                setShowNotification(false);
+            }
+        } catch (error) {
+            console.error("🔥 Error checking for updates:", error);
+        }
+    };
+    checkForUpdate();
+}, []);
+const pinnedMessagesRef = useMemo(() => ref(appdatabase, 'pin_messages'), []);
+
+useEffect(() => {
+  const loadPinnedMessages = async () => {
+    try {
+      const snapshot = await pinnedMessagesRef.once('value');
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const parsedPinnedMessages = Object.entries(data).map(([key, value]) => ({
+          firebaseKey: key, // Use the actual Firebase key here
+          ...value,
+        }));
+        setPinnedMessages(parsedPinnedMessages); // Store the parsed messages with the Firebase key
+      } else {
+        setPinnedMessages([]); // No pinned messages
+      }
+    } catch (error) {
+      console.error('Error loading pinned messages:', error);
+      Alert.alert(t('home.alert.error'), 'Could not load pinned messages. Please try again.');
+    }
+  };
+
+  loadPinnedMessages();
+}, [pinnedMessagesRef]);
+// Run this once when the app starts
   useEffect(()=>{
     logEvent(analytics, `${platform}_${language}`);
   })
-
-  const isDarkMode = theme === 'dark'
+const onClose = ()=>{setShowNotification(false)}
+const onClosePinMessage = (index) => {
+  setPinnedMessages((prevMessages) => prevMessages.filter((_, i) => i !== index));
+};
+const isDarkMode = theme === 'dark'
   const viewRef = useRef();
 
   const resetState = () => {
@@ -83,9 +140,9 @@ const HomeScreen = ({ selectedTheme }) => {
 
   const navigation = useNavigation()
 
-  useEffect(() => {
-    console.log("Language changed:", i18n.language);
-  }, [i18n.language]);
+  // useEffect(() => {
+  //   // console.log("Language changed:", i18n.language);
+  // }, [i18n.language]);
 
   const handleCreateTradePress = async () => {
     logEvent(analytics, `${platform}_submit_trade`);
@@ -97,9 +154,53 @@ const HomeScreen = ({ selectedTheme }) => {
     }
 
     if (hasItems.filter(Boolean).length === 0 || wantsItems.filter(Boolean).length === 0) {
-      Alert.alert(t("home.alert.error"), t("home.alert.missing_items_error"));
+      // Alert.alert(t("home.alert.error"), t("home.alert.missing_items_error"));
+
+
+
+      showMessage({
+        message: t("home.alert.error"),
+        description: t("home.alert.missing_items_error"),
+        type: "danger",
+      });
+
+
+      
+      // Notifier.showNotification({
+      //   title: 'The request was failed',
+      //   description: 'Check your internet connection, please',
+      //   Component: NotifierComponents.Alert,
+      //   componentProps: {
+      //     alertType: 'error',
+      //   },
+      // });
+      return;
+
+
+      
+    }
+    const tradeRatio = wantsTotal.price / hasTotal.price;
+
+    if (tradeRatio < 0.05) {
+      showMessage({
+        message: t("home.unfair_trade"),
+        description: t('home.unfair_trade_description'),
+        type: "danger",
+      });
+    
       return;
     }
+    
+    if (tradeRatio > 1.95) {
+      showMessage({
+        message: t('home.invalid_trade'),
+        description: t('home.invalid_trade_description'),
+        type: "danger",
+      });
+    
+      return;
+    }
+    
     setModalVisible(true)
   };
 
@@ -124,16 +225,16 @@ const HomeScreen = ({ selectedTheme }) => {
       const snapshot = await get(freeTradeRef);
       const hasUsedFreeTrade = snapshot.exists() && snapshot.val();
      
-      if (developmentMode) {
-        const hasUsedFreeTradeSize = JSON.stringify(hasUsedFreeTrade).length / 1024;
-        console.log(`🚀 free trade data data: ${hasUsedFreeTradeSize.toFixed(2)} KB`);
-      }
+      // if (developmentMode) {
+      //   const hasUsedFreeTradeSize = JSON.stringify(hasUsedFreeTrade).length / 1024;
+      //   // console.log(`🚀 free trade data data: ${hasUsedFreeTradeSize.toFixed(2)} KB`);
+      // }
 
 
       // ✅ Prepare trade object
       let newTrade = {
-        userId: user?.id || "Unknown",
-        traderName: user?.displayname || user?.displayName || "Unknown",
+        userId: user?.id || "Anonymous",
+        traderName: user?.displayName || "Anonymous",
         avatar: user?.avatar || null,
         isPro: localState.isPro,
         hasItems: hasItems.filter(item => item && item.Name).map(item => ({ name: item.Name, type: item.Type })),
@@ -160,7 +261,12 @@ const HomeScreen = ({ selectedTheme }) => {
 
       // ❌ Prevent Empty Trades from Being Submitted
       if (JSON.stringify(newTrade) === JSON.stringify(resetNewTrade)) {
-        Alert.alert("Error", t("home.alert.trade_empty_error"));
+        // Alert.alert("Error", t("home.alert.trade_empty_error"));
+        showMessage({
+          message: t("home.alert.error"),
+          description: t("home.alert.trade_empty_error"),
+          type: "danger",
+        });
         setIsSubmitting(false);
         return;
       }
@@ -176,20 +282,35 @@ const HomeScreen = ({ selectedTheme }) => {
       // 🔹 If user is Pro → Direct submission
       if (localState.isPro) {
         await submitTrade();
-        Alert.alert(t("home.alert.success"), t("home.alert.trade_posted"));
+        // Alert.alert(t("home.alert.success"), t("home.alert.trade_posted"));
+        showMessage({
+          message: t("home.alert.success"),
+          description: t("home.alert.trade_posted"),
+          type: "success",
+        });
       }
       // 🔹 If user has a free trade → Use it
       else if (!hasUsedFreeTrade) {
         await set(freeTradeRef, true); // Mark free trade as used
         showInterstitialAd(async () => await submitTrade());
-        Alert.alert(t("home.alert.success"), t("home.alert.free_trade_used"));
+        // Alert.alert(t("home.alert.success"), t("home.alert.free_trade_used"));
+        showMessage({
+          message: t("home.alert.success"),
+          description:  t("home.alert.free_trade_used"),
+          type: "success",
+        });
       }
       // 🔹 If user has enough points → Deduct and submit
       else if (userPoints >= 200) {
         const updatedPoints = userPoints - 200;
         await updateLocalStateAndDatabase('points', updatedPoints); // Deduct points
         showInterstitialAd(async () => await submitTrade());
-        Alert.alert("Success", `${t("home.trade_posted_points")} ${updatedPoints}.`);
+        // Alert.alert("Success", `${t("home.trade_posted_points")} ${updatedPoints}.`);
+        showMessage({
+          message: t("home.alert.success"),
+          description: `${t("home.trade_posted_points")} ${updatedPoints}.`,
+          type: "success",
+        });
       }
       // 🔹 If user lacks points → Show error message
       else {
@@ -204,7 +325,12 @@ const HomeScreen = ({ selectedTheme }) => {
       }
     } catch (error) {
       console.error("🔥 Error creating trade:", error);
-      Alert.alert(t("home.alert.error"), t("home.alert.unable_to_create_trade"));
+      // Alert.alert(t("home.alert.error"), t("home.alert.unable_to_create_trade"));
+      showMessage({
+        message: t("home.alert.error"),
+        description: t("home.alert.unable_to_create_trade"),
+        type: "danger",
+      });
     } finally {
       setIsSubmitting(false); // Reset submission state
     }
@@ -425,7 +551,12 @@ const HomeScreen = ({ selectedTheme }) => {
       return downloadDest;
     } catch (error) {
       console.error('Error capturing screenshot:', error);
-      Alert.alert(t("home.alert.error"), t("home.screenshot_error"));
+      // Alert.alert(t("home.alert.error"), t("home.screenshot_error"));
+      showMessage({
+        message: t("home.alert.error"),
+        description: t("home.screenshot_error"),
+        type: "danger",
+      });
     }
   };
 
@@ -435,7 +566,12 @@ const HomeScreen = ({ selectedTheme }) => {
     triggerHapticFeedback('impactLight');
     logEvent(analytics, `${platform}_screenshot_share`);
     if (hasItems.filter(Boolean).length === 0 || wantsItems.filter(Boolean).length === 0) {
-      Alert.alert(t("home.alert.error"), t("home.alert.missing_items_error"));
+      // Alert.alert(t("home.alert.error"), t("home.alert.missing_items_error"));
+      showMessage({
+        message: t("home.alert.error"),
+        description: t("home.alert.missing_items_error"),
+        type: "danger",
+      });
       return;
     }
     try {
@@ -462,8 +598,27 @@ const HomeScreen = ({ selectedTheme }) => {
   return (
     <>
       <GestureHandlerRootView>
+    
         <View style={styles.container} key={language}>
           <ScrollView showsVerticalScrollIndicator={false}>
+          {showNotification && <View style={[styles.notification]}>
+            <Text style={styles.text}>A new update is available! Please update your app.</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeButtonNotification}>
+                <Icon name="close-outline" size={18} color="white" />
+                {/* <Text>ssssefrrevrvtvtvrvrvrvervrvervrevrmrelxjferofmerihxoerghorgorhforxmzhrzgroh,gmrhzrhzgmrmhmzrhmzirhmmirmhzizrhzmizrzmzrhohhg</Text> */}
+            </TouchableOpacity>
+        </View>        }
+        {pinnedMessages.length > 0 && pinnedMessages.map((message, index) => (
+    <View key={index} style={styles.notification}>
+        <Text style={styles.text}>{message.text}</Text>  
+        <TouchableOpacity onPress={()=>onClosePinMessage(index)} style={styles.closeButtonNotification}>
+            <Icon name="close-outline" size={18} color="white" />
+        </TouchableOpacity>
+    </View>
+))}
+
+
+     
             <ViewShot ref={viewRef} style={styles.screenshotView}>
               <View style={styles.summaryContainer}>
                 <View style={[styles.summaryBox, styles.hasBox]}>
@@ -587,7 +742,7 @@ const HomeScreen = ({ selectedTheme }) => {
 
                     <TextInput
                       style={styles.searchInput}
-                      placeholder="Search..."
+                      placeholder={t('home.search_placeholder')}
                       value={searchText}
                       onChangeText={setSearchText}
                       placeholderTextColor={selectedTheme.colors.text}
@@ -696,6 +851,7 @@ const getStyles = (isDarkMode) =>
     container: {
       flex: 1,
       backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
+      paddingBottom:20
     },
 
     summaryContainer: {
@@ -995,7 +1151,29 @@ const getStyles = (isDarkMode) =>
       color: 'lightgrey',
       fontFamily: 'Lato-Bold',
       color: config.colors.primary,
-    }
+    },
+    notification: {
+      justifyContent: "space-between",
+      padding: 12,
+      paddingTop:20,
+      backgroundColor:config.colors.secondary,
+      marginHorizontal:10,
+      marginTop:10,
+      borderRadius:8
+  },
+  text: {
+      color: "white",
+      fontSize: 12,
+      fontFamily: "Lato-Regular",
+      lineHeight:14
+  },
+  closeButtonNotification: {
+      marginLeft: 10,
+      padding: 5,
+      position:'absolute',
+      top:0,
+      right:0
+  },
 
   });
 

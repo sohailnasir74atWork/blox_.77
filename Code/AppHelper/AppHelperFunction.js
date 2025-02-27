@@ -3,10 +3,6 @@ import { DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { AppOpenAd, AdEventType } from 'react-native-google-mobile-ads';
 import InAppReview from 'react-native-in-app-review';
 import { AdsConsent, AdsConsentStatus } from 'react-native-google-mobile-ads';
-import { getDatabase } from '@react-native-firebase/database';
-import DeviceInfo from 'react-native-device-info';
-import { Alert } from 'react-native';
-import { Platform } from 'react-native';
 
 
 export const MyLightTheme = {
@@ -103,55 +99,3 @@ export const handleUserConsent = async (setConsentStatus, setLoading) => {
     setLoading(false);
   }
 };
-
-
-// export const checkForUpdate = async (updateLocalState, updateCount, lastVersion) => {
-//   try {
-//     const versionPath = `appVersions/${Platform.OS}`;
-//     const snapshot = await getDatabase().ref(versionPath).once("value");
-
-//     if (snapshot.exists()) {
-//       const latestVersion = snapshot.val();
-//       const currentVersion = DeviceInfo.getVersion();
-
-//       if (latestVersion !== currentVersion) {
-//         if (lastVersion !== latestVersion) {
-//           updateLocalState("updateCount", 0); // Reset count
-//           updateLocalState("lastVersion", latestVersion);
-//         }
-
-//         if (updateCount < 2) {
-//           showUpdateAlert();
-//           updateLocalState("updateCount", updateCount + 1);
-//         }
-//       }
-//     }
-//   } catch (error) {
-//     console.error("Error checking for updates:", error);
-//   }
-// };
-
-// Function to Show Update Alert
-// const showUpdateAlert = () => {
-//   Alert.alert(
-//     "🚀 Update Available!",
-//     "A new version is available! Update now for the best experience. 🌟",
-//     [
-//       { text: "Remind Me Later", style: "cancel" },
-//       { text: "Update Now 🚀", onPress: openStore },
-//     ],
-//     { cancelable: false }
-//   );
-// };
-
-// Function to Open App Store
-// const openStore = () => {
-//   const storeUrl =
-//     Platform.OS === "ios"
-//       ? "https://apps.apple.com/us/app/app-name/id6737775801"
-//       : `https://play.google.com/store/apps/details?id=${DeviceInfo.getBundleId()}`;
-
-//   Linking.openURL(storeUrl).catch((err) =>
-//     console.error("Failed to open store:", err)
-//   );
-// };

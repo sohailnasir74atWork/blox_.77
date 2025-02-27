@@ -27,7 +27,7 @@ export const TradeStack = ({ selectedTheme }) => {
   //       const data = snapshot.val() || {};
   //       const bannedUsersList = Object.entries(data).map(([id, details]) => ({
   //         id,
-  //         displayName: details?.displayName || 'Unknown',
+  //         displayName: details?.displayName || 'Anonymous',
   //         avatar: details?.avatar || '',
   //       }));
   //       setBannedUsers(bannedUsersList);

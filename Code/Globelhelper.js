@@ -30,16 +30,15 @@ export const firebaseConfig = {
           const db = getDatabase();
           const tokenRef = ref(db, `users/${currentUserId}/fcmToken`);
           const invalidTokenRef = ref(db, `users/${currentUserId}/isTokenInvalid`);
-  
-          // console.log('📡 Checking existing FCM token...');
+        //   console.log('📡 Checking existing FCM token...');
           const currentTokenSnapshot = await get(tokenRef);
           const currentToken = currentTokenSnapshot.exists() ? currentTokenSnapshot.val() : null;
           
-                if (developmentMode) {
-                    const currentTokenSize = JSON.stringify(currentToken).length / 1024;
-                    console.log(`🚀 toekn size data: ${currentTokenSize.toFixed(2)} KB`);
-                }
-  
+                // if (developmentMode) {
+                //     const currentTokenSize = JSON.stringify(currentToken).length / 1024;
+                //     console.log(`🚀 toekn size data: ${currentTokenSize.toFixed(2)} KB`);
+                // }
+//   console.log(token)
           if (currentToken === token) {
               // console.log('✅ Token already up-to-date. No action needed.');
               return;
@@ -91,8 +90,9 @@ export const firebaseConfig = {
               }
           }
   
-          // console.log('📡 Fetching FCM Token...');
+        //   console.log('📡 Fetching FCM Token...');
           fcmToken = await messaging().getToken();
+        //   console.log(fcmToken)
   
           if (!fcmToken) {
               console.error('❌ Failed to fetch FCM token. Token is null or undefined.');
@@ -117,12 +117,13 @@ export const firebaseConfig = {
       admin: false,
       isReminderEnabled: false,
       isSelectedReminderEnabled: false,
-      displayname: loggedInUser.displayName || generateOnePieceUsername() || 'Anonymous',
+      displayName: loggedInUser.displayName || generateOnePieceUsername() || 'Anonymous',
       avatar: loggedInUser.photoURL || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
       points: 0, 
       isBlock:false,
       fcmToken:null,
-      lastactivity:null
+      lastactivity:null,
+      online:false
   });
   
 
@@ -134,11 +135,11 @@ export const resetUserState = (setUser) => {
       admin: false,
       isReminderEnabled: false,
       isSelectedReminderEnabled: false,
-      displayname: '',
       avatar: null,
       points: 0, 
       isBlock:false,
       fcmToken:null,
-      lastactivity:null
+      lastactivity:null,
+      online:false
     });
   };

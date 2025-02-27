@@ -75,7 +75,7 @@ const MessagesList = ({
     else return
 
   };
-// console.log(user)
+  // console.log(user)
   const renderMessage = useCallback(({ item, index }) => {
     const previousMessage = messages[index + 1];
     const currentDate = new Date(item.timestamp).toDateString();
@@ -147,20 +147,20 @@ const MessagesList = ({
                       : styles.otherMessageText
                   }
                 >
-                  <Text style={styles.userName}>{item.sender} 
-                   {item?.isPro &&  <Icon
-            name="checkmark-done-circle"
-            size={16}
-            color={config.colors.hasBlockGreen}
-          />}{'    '}
-          </Text>
-                 
-          {(!!item.isAdmin) && 
-                  <View style={styles.adminContainer}>
-                  <Text style={styles.admin}>{t("chat.admin")}</Text>
-                  </View> }
+                  <Text style={styles.userName}>{item.sender}
+                    {item?.isPro && <Icon
+                      name="checkmark-done-circle"
+                      size={16}
+                      color={config.colors.hasBlockGreen}
+                    />}{'    '}
+                  </Text>
+
+                  {(!!item.isAdmin) &&
+                    <View style={styles.adminContainer}>
+                      <Text style={styles.admin}>{t("chat.admin")}</Text>
+                    </View>}
                   {'\n'}
-                 {parseMessageText(item?.text)}
+                  {parseMessageText(item?.text)}
 
 
 
@@ -169,7 +169,7 @@ const MessagesList = ({
               <MenuOptions customStyles={{
                 optionsContainer: styles.menuoptions,
               }}>
-               {user.id && <MenuOption
+                {user.id && <MenuOption
                   onSelect={() => onReply(item)}
                   text={t("chat.reply")}
                   customStyles={{
@@ -189,65 +189,65 @@ const MessagesList = ({
             </Menu>
 
             {(item.reportCount > 0 || item.isReportedByUser) && (
-  <Text style={styles.reportIcon}>Reported</Text>
-)}
+              <Text style={styles.reportIcon}>Reported</Text>
+            )}
 
           </View>
 
 
           {/* Admin Actions or Timestamp */}
 
-          
-            <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-              <Text style={styles.timestamp}>
-                {new Date(item.timestamp).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </Text>
-              
-            </View>
-            {(isOwner || isAdmin) && (
-  <Menu>
-    <MenuTrigger>
-      <Icon
-        name="ellipsis-vertical-outline"
-        size={16}
-        color={config.colors.hasBlockGreen}
-      />
-    </MenuTrigger>
-    <MenuOptions>
-      <View style={styles.adminActions}>
-        <MenuOption onSelect={() => onPinMessage(item)} style={styles.pinButton}>
-          <Text style={styles.adminTextAction}>Pin</Text>
-        </MenuOption>
-        <MenuOption onSelect={() => onDeleteMessage(item.id)} style={styles.deleteButton}>
-          <Text style={styles.adminTextAction}>Delete</Text>
-        </MenuOption>
-        <MenuOption onSelect={() => banUser(item.senderId)} style={styles.deleteButton}>
-          <Text style={styles.adminTextAction}>Block</Text>
-        </MenuOption>
-        <MenuOption onSelect={() => unbanUser(item.senderId)} style={styles.deleteButton}>
-          <Text style={styles.adminTextAction}>Unblock</Text>
-        </MenuOption>
-        {isOwner && (
-          <MenuOption onSelect={() => makeadmin(item.senderId)} style={styles.deleteButton}>
-            <Text style={styles.adminTextAction}>Make Admin</Text>
-          </MenuOption>
-        )}
-        {isOwner && (
-          <MenuOption onSelect={() => removeAdmin(item.senderId)} style={styles.deleteButton}>
-            <Text style={styles.adminTextAction}>Remove Admin</Text>
-          </MenuOption>
-        )}
-      </View>
-    </MenuOptions>
-  </Menu>
-)}
 
-          
+          <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+            <Text style={styles.timestamp}>
+              {new Date(item.timestamp).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </Text>
+
+          </View>
+          {(isOwner || isAdmin) && (
+            <Menu>
+              <MenuTrigger>
+                <Icon
+                  name="ellipsis-vertical-outline"
+                  size={16}
+                  color={config.colors.hasBlockGreen}
+                />
+              </MenuTrigger>
+              <MenuOptions>
+                <View style={styles.adminActions}>
+                  <MenuOption onSelect={() => onPinMessage(item)} style={styles.pinButton}>
+                    <Text style={styles.adminTextAction}>Pin</Text>
+                  </MenuOption>
+                  <MenuOption onSelect={() => onDeleteMessage(item.id)} style={styles.deleteButton}>
+                    <Text style={styles.adminTextAction}>Delete</Text>
+                  </MenuOption>
+                  <MenuOption onSelect={() => banUser(item.senderId)} style={styles.deleteButton}>
+                    <Text style={styles.adminTextAction}>Block</Text>
+                  </MenuOption>
+                  <MenuOption onSelect={() => unbanUser(item.senderId)} style={styles.deleteButton}>
+                    <Text style={styles.adminTextAction}>Unblock</Text>
+                  </MenuOption>
+                  {isOwner && (
+                    <MenuOption onSelect={() => makeadmin(item.senderId)} style={styles.deleteButton}>
+                      <Text style={styles.adminTextAction}>Make Admin</Text>
+                    </MenuOption>
+                  )}
+                  {isOwner && (
+                    <MenuOption onSelect={() => removeAdmin(item.senderId)} style={styles.deleteButton}>
+                      <Text style={styles.adminTextAction}>Remove Admin</Text>
+                    </MenuOption>
+                  )}
+                </View>
+              </MenuOptions>
+            </Menu>
+          )}
+
+
         </View>
-       
+
       </View>
     );
   }, [messages]);
@@ -276,7 +276,7 @@ const MessagesList = ({
         onTouchStart={() => Keyboard.dismiss()}
         keyboardShouldPersistTaps="handled" // Ensures taps o
       />
-     <ReportPopup
+      <ReportPopup
         visible={showReportPopup}
         message={selectedMessage}
         onClose={(success) => {

@@ -37,6 +37,7 @@ import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-m
 import { useLanguage } from '../Translation/LanguageProvider';
 import { useTranslation } from 'react-i18next';
 import { logEvent } from '@react-native-firebase/analytics';
+import FlashMessage, { showMessage } from 'react-native-flash-message';
 
 const adUnitId = getAdUnitId('rewarded')
 
@@ -59,7 +60,7 @@ export default function SettingsScreen({ selectedTheme }) {
   const { language, changeLanguage } = useLanguage();
   const { t } = useTranslation();
   const platform = Platform.OS.toLowerCase();
-  console.log(analytics)
+  // console.log(analytics)
 
 
 
@@ -82,14 +83,15 @@ export default function SettingsScreen({ selectedTheme }) {
     { code: "es", label: t("settings.languages.es"), flag: "🇪🇸" },
     { code: "fr", label: t("settings.languages.fr"), flag: "🇫🇷" },
     { code: "de", label: t("settings.languages.de"), flag: "🇩🇪" },
-    { code: "ru", label: t("settings.languages.ru"), flag: "🇷🇺" }
+    { code: "ru", label: t("settings.languages.ru"), flag: "🇷🇺" },
+    { code: "ar", label: t("settings.languages.ar"), flag: "🇸🇦" }
   ];
 
 
   const isDarkMode = theme === 'dark';
   useEffect(() => {
     if (user && user?.id) {
-      setNewDisplayName(user?.displayName?.trim() || user?.displayname?.trim() || 'Anonymous');
+      setNewDisplayName(user?.displayName?.trim() || 'Anonymous');
       setSelectedImage(user?.avatar?.trim() || 'https://bloxfruitscalc.com/wp-content/uploads/2025/placeholder.png');
     } else {
       setNewDisplayName('Guest User');
@@ -159,22 +161,31 @@ export default function SettingsScreen({ selectedTheme }) {
     if (!user?.id) return;
 
     if (newDisplayName.length > MAX_NAME_LENGTH) {
-      Alert.alert(
-        t("home.alert.error"),
-        t("settings.display_name_length_error")
-      );
+      showMessage({
+        message: t("home.alert.error"),
+        description:t("settings.display_name_length_error"),
+        type: "danger",
+      });
+      // Alert.alert(
+      //   t("home.alert.error"),
+      //   t("settings.display_name_length_error")
+      // );
       return;
     }
 
     try {
       await updateLocalStateAndDatabase({
         displayName: newDisplayName.trim(),
-        displayname: newDisplayName.trim(), // Sync both properties
         avatar: selectedImage.trim(),
       });
 
       setDrawerVisible(false);
-      Alert.alert(t("home.alert.success"), t("settings.profile_success"));
+      // Alert.alert(t("home.alert.success"), t("settings.profile_success"));
+      showMessage({
+        message: t("home.alert.success"),
+        description:t("settings.profile_success"),
+        type: "success",
+      });
     } catch (error) {
       // console.error('Error updating profile:', error);
       // Alert.alert(t("home.error"), 'Failed to update profile. Please try again.');
@@ -184,7 +195,7 @@ export default function SettingsScreen({ selectedTheme }) {
 
 
   const displayName = user?.id
-    ? newDisplayName?.trim() || user?.displayName?.trim() || user?.displayname?.trim() || 'Anonymous'
+    ? newDisplayName?.trim() || user?.displayName?.trim() || 'Anonymous'
     : 'Guest User';
 
 
@@ -197,10 +208,20 @@ export default function SettingsScreen({ selectedTheme }) {
       await logoutUser(setUser); // Await the logout process
       // setSelectedImage('https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png');
       // setNewDisplayName('Guest User');
-      Alert.alert(t("home.alert.success"), t("settings.logout_success"));
+      // Alert.alert(t("home.alert.success"), t("settings.logout_success"));
+      showMessage({
+        message: t("home.alert.success"),
+        description:t("settings.logout_success"),
+        type: "success",
+      });
     } catch (error) {
       console.error('Error during logout:', error);
-      Alert.alert(t("home.alert.error"), t("settings.logout_error"));
+      // Alert.alert(t("home.alert.error"), t("settings.logout_error"));
+      showMessage({
+        message: t("home.alert.error"),
+        description:t("settings.logout_error"),
+        type: "danger",
+      });
     }
   };
   
@@ -208,7 +229,12 @@ export default function SettingsScreen({ selectedTheme }) {
     triggerHapticFeedback('impactLight');
     try {
       if (!user || !user.id) {
-        Alert.alert(t("home.alert.error"), t("settings.logout_error"));
+        // Alert.alert(t("home.alert.error"), t("settings.logout_error"));
+        showMessage({
+          message: t("home.alert.error"),
+          description:t("settings.delete_error"),
+          type: "danger",
+        });
         return;
       }
   
@@ -259,25 +285,45 @@ export default function SettingsScreen({ selectedTheme }) {
         logEvent(analytics, `${platform}_delete_user`);
 
       } else {
-        Alert.alert(t(".alerthome.error"), t("settings.user_not_found"));
+        // Alert.alert(t(".alerthome.error"), t("settings.user_not_found"));
+        showMessage({
+          message: t("home.alert.error"),
+          description:t("settings.user_not_found"),
+          type: "danger",
+        });
         return;
       }
   
       // Step 5: Reset local state
       await resetUserState(setUser);
   
-      Alert.alert(t("home.alert.success"), t("home.alert.success"));
+      // Alert.alert(t("home.alert.success"), t("home.alert.success"));
+      showMessage({
+        message: t("home.alert.success"),
+        description:t("home.alert.success"),
+        type: "success",
+      });
     } catch (error) {
       // console.error('Error deleting user:', error.message);
   
       if (error.code === 'auth/requires-recent-login') {
-        Alert.alert(
-          t("settings.session_expired"),
-          t("settings.session_expired_message"),
-          [{ text: 'OK' }]
-        );
+        // Alert.alert(
+        //   t("settings.session_expired"),
+        //   t("settings.session_expired_message"),
+        //   [{ text: 'OK' }]
+        // );
+        showMessage({
+          message: t("settings.session_expired"),
+          description:t("settings.session_expired_message"),
+          type: "danger",
+        });
       } else {
-        Alert.alert(t("home.alert.error"), t("settings.delete_error"));
+        // Alert.alert(t("home.alert.error"), t("settings.delete_error"));
+        showMessage({
+          message:t("home.alert.error"),
+          description: t("settings.delete_error"),
+          type: "danger",
+        });
       }
     }
   };
@@ -292,7 +338,12 @@ export default function SettingsScreen({ selectedTheme }) {
     if (user?.id) {
       setDrawerVisible(true); // Open the profile drawer if the user is logged in
     } else {
-      Alert.alert(t("settings.notice"), t("settings.login_to_customize_profile")); // Show alert if user is not logged in
+      // Alert.alert(t("settings.notice"), t("settings.login_to_customize_profile")); // Show alert if user is not logged in
+      showMessage({
+        message:t("settings.notice"),
+        description: t("settings.login_to_customize_profile"),
+        type: "warning",
+      });
     }
   };
 
@@ -336,10 +387,10 @@ export default function SettingsScreen({ selectedTheme }) {
 
       if (snapshot.exists()) {
         // console.log(`Fetched user points: ${snapshot.val()}`);
-        if (developmentMode) {
-          const hasUsedFreeTradeSize = JSON.stringify(snapshot.val()).length / 1024;
-          console.log(`🚀 get points in setting data: ${hasUsedFreeTradeSize.toFixed(2)} KB`);
-        }
+        // if (developmentMode) {
+        //   const hasUsedFreeTradeSize = JSON.stringify(snapshot.val()).length / 1024;
+        //   console.log(`🚀 get points in setting data: ${hasUsedFreeTradeSize.toFixed(2)} KB`);
+        // }
   
         return snapshot.val(); // Returns the points
 
@@ -408,7 +459,12 @@ export default function SettingsScreen({ selectedTheme }) {
     try {
       if (!canClaimReward()) {
         const remainingTime = 1 - Math.floor((new Date().getTime() - user?.lastRewardtime) / 60000);
-        Alert.alert(t("settings.not_eligible_for_reward"), t("settings.reward_wait_time"));
+        // Alert.alert(t("settings.not_eligible_for_reward"), t("settings.reward_wait_time"));
+        showMessage({
+          message:t("settings.not_eligible_for_reward"),
+          description: t("settings.reward_wait_time"),
+          type: "warning",
+        });
         return;
       }
 
@@ -422,7 +478,12 @@ export default function SettingsScreen({ selectedTheme }) {
         await updateUserPoints(user?.id, 50, updateLocalStateAndDatabase);
 
         updateLocalStateAndDatabase('lastRewardtime', new Date().getTime());
-        Alert.alert(t("settings.ad_not_ready"), t("settings.ad_not_ready_message"));
+        // Alert.alert(t("settings.ad_not_ready"), t("settings.ad_not_ready_message"));
+        showMessage({
+          message:t("settings.ad_not_ready"),
+          description:  t("settings.ad_not_ready_message"),
+          type: "success",
+        });
       }
     } catch (error) {
       console.error('Error displaying ad:', error);
@@ -445,7 +506,7 @@ export default function SettingsScreen({ selectedTheme }) {
     if (plan.includes('monthly')) return '1 MONTH';
     if (plan.includes('quarterly')) return '3 MONTHS';
     if (plan.includes('yearly')) return '1 YEAR';
-    return 'Unknown Plan';
+    return 'Anonymous Plan';
   };
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
   return (
@@ -478,7 +539,7 @@ export default function SettingsScreen({ selectedTheme }) {
 
       {/* Options Section */}
       <ScrollView showsVerticalScrollIndicator={false}>
-        <Text style={styles.subtitle}>{t('settings.settings')}</Text>
+        <Text style={styles.subtitle}>{t('settings.app_settings')}</Text>
         <View style={styles.cardContainer}>
           <View style={styles.option} onPress={() => {
             handleShareApp(); triggerHapticFeedback('impactLight');
@@ -541,8 +602,11 @@ export default function SettingsScreen({ selectedTheme }) {
 
         <Text style={styles.subtitle}>{t('settings.language_settings')}</Text>
         <View style={styles.cardContainer}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={styles.optionText}>{t('settings.select_language')}</Text>
+          <View style={[styles.optionLast, { flexDirection: 'row', justifyContent: 'space-between' }]}>
+            <View style={{ flexDirection: 'row', }}>
+          <Icon name="language-outline" size={24} color={'purple'} />
+
+            <Text style={styles.optionText}>{t('settings.select_language')}</Text></View>
 
             <Menu>
               <MenuTrigger style={styles.menuTrigger}>
@@ -566,7 +630,7 @@ export default function SettingsScreen({ selectedTheme }) {
 
 
 
-        <Text style={styles.subtitle}>{t('reward_settings')}</Text>
+        <Text style={styles.subtitle}>{t('settings.reward_settings')}</Text>
         <View style={styles.cardContainer}>
 
           <TouchableOpacity style={styles.optionLast} onPress={handleGetPoints}>
@@ -644,6 +708,8 @@ export default function SettingsScreen({ selectedTheme }) {
           </TouchableOpacity>}
 
         </View>
+        {/* <FlashMessage position="top" /> */}
+
       </ScrollView>
 
       {/* Bottom Drawer */}
@@ -739,6 +805,7 @@ export default function SettingsScreen({ selectedTheme }) {
         selectedTheme={selectedTheme}
         message='To collect points, you need to sign in'
       />
+
     </View>
   );
 }

@@ -26,6 +26,7 @@ const ReportPopup = ({ visible, message, onClose }) => {
 
   const handleSubmit = () => {
     const sanitizedId = message.id.startsWith("chat-") ? message.id.replace("chat-", "") : message.id;
+
   
     if (!sanitizedId) {
       Alert.alert("Error", "Invalid message. Unable to report.");
@@ -33,17 +34,18 @@ const ReportPopup = ({ visible, message, onClose }) => {
     }
   
     setLoading(true); // Start loader
-    const messageRef = ref(appdatabase, `chat/${sanitizedId}`);
+// console.log(sanitizedId)
+    const messageRef = ref(appdatabase, `chat_new/${sanitizedId}`);
   
     get(messageRef)
       .then((snapshot) => {
         let updatedReportCount = 1;
         if (snapshot.exists()) {
           const messageData = snapshot.val();
-          if (developmentMode) {
-            const dataSize = JSON.stringify(messageData).length / 1024; 
-            console.log(`🚀 Downloaded chat data: ${dataSize.toFixed(2)} KB from report messages`);
-          }
+          // if (developmentMode) {
+          //   const dataSize = JSON.stringify(messageData).length / 1024; 
+          //   console.log(`🚀 Downloaded chat data: ${dataSize.toFixed(2)} KB from report messages`);
+          // }
           updatedReportCount = (messageData?.reportCount || 0) + 1;
         }
   
@@ -74,7 +76,7 @@ const ReportPopup = ({ visible, message, onClose }) => {
         <View style={styles.popup}>
           <Text style={styles.title}>Report Message</Text>
           <Text style={styles.messageText}>{`Message: "${message?.text}"`}</Text>
-          <Text style={styles.messageText}>{`Sender: ${message?.sender || "Unknown"}`}</Text>
+          <Text style={styles.messageText}>{`Sender: ${message?.sender || "Anonymous"}`}</Text>
 
           {/* Standard Reasons */}
           <View style={styles.optionsContainer}>

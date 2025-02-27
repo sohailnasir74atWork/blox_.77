@@ -1,27 +1,33 @@
 import { Alert } from "react-native";
 import firestore from '@react-native-firebase/firestore';
+import { showMessage } from "react-native-flash-message";
 
 const tradesCollection = firestore().collection('trades');
 
 // Debug Mode (Enable verbose logging if true)
-const debugMode = false;
+// const debugMode = false;
 
 export const submitTrade = async (user, hasItems, wantsItems, hasTotal, wantsTotal, description, ) => {
-  if (debugMode) console.log("🔥 submitTrade() called");
+  // if (debugMode) console.log("🔥 submitTrade() called");
 
   // 🔍 Filter out invalid items
   const filteredHasItems = hasItems.filter(item => item && item.Name);
   const filteredWantsItems = wantsItems.filter(item => item && item.Name);
 
   if (filteredHasItems.length === 0 || filteredWantsItems.length === 0) {
-    Alert.alert("Error", "Please add at least one valid item to both 'You' and 'Them' sections.");
+    // Alert.alert("Error", "Please add at least one valid item to both 'You' and 'Them' sections.");
+    showMessage({
+      message: t("home.alert.error"),
+      description: t("home.alert.missing_items_error"),
+      type: "danger",
+    });
     return;
   }
 
   // ✅ Prepare trade object for Firestore
   let newTrade = {
-    userId: user?.id || "Unknown",
-    traderName: user?.displayname || user?.displayName || "Unknown",
+    userId: user?.id || "Anonymous",
+    traderName: user?.displayName || "Anonymous",
     avatar: user?.avatar || null,
     isPro: user.isPro,
     hasItems: filteredHasItems.map(item => ({ name: item.Name, type: item.Type })), 

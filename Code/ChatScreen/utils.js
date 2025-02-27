@@ -275,26 +275,20 @@ export const rulesde  = [
 
 
 
-// export const isUserOnline = async (userId) => {
-//   if (!userId) {
-//     return false; // If no user ID is provided, return false
-//   }
+export const isUserOnline = async (userId) => {
+  if (!userId) return false; // ✅ Return early if userId is invalid
 
-//   const database = getDatabase();
-//   const userRef = ref(database, `users/${userId}/online`);
+  try {
+    const userRef = ref(getDatabase(), `users/${userId}/online`);
+    const snapshot = await get(userRef);
+    
+    return snapshot.val() ?? false; // ✅ Return online status OR false (cleaner)
+  } catch (error) {
+    console.error("🔥 Error checking user online status:", error);
+    return false; // ✅ Always return a boolean
+  }
+};
 
-//   try {
-//     const snapshot = await get(userRef);
-//     if (snapshot.exists()) {
-//       const userStatus = snapshot.val();
-//       return userStatus?.status === true; // Return true if status is true
-//     }
-//     return false; // If no data exists, the user is offline
-//   } catch (error) {
-//     console.error('Error checking user status:', error);
-//     return false; // Return false in case of an error
-//   }
-// };
 export const setActiveChat = async (userId, chatId) => {
   const database = getDatabase();
   const activeChatRef = ref(database, `/activeChats/${userId}`);

@@ -12,6 +12,8 @@ import es from "./Code/Translation/es.json";
 import fr from "./Code/Translation/fr.json";
 import de from "./Code/Translation/de.json";
 import ru from "./Code/Translation/ru.json";
+import ar from "./Code/Translation/ar.json";
+
 
 // Map country codes to languages
 const countryToLanguage = {
@@ -25,6 +27,7 @@ const countryToLanguage = {
   DE: "de",  // Germany -> German
   RU: "ru",  // Russia -> Russian
   IN: "en",  // India -> English (Default)
+  AR: "ar",  // India -> English (Default)
 };
 
 // Detect the device's language setting
@@ -48,6 +51,7 @@ i18n
       fr: { translation: fr },
       de: { translation: de },
       ru: { translation: ru },
+      ar: { translation: ar },
     },
     lng: getDeviceLanguage(), // Set the detected language
     fallbackLng: "en", // Default to English if translation is missing

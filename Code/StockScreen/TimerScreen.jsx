@@ -14,6 +14,9 @@ import { requestPermission } from '../Helper/PermissionCheck';
 import { useIsFocused } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { logEvent } from '@react-native-firebase/analytics';
+import FlashMessage, { showMessage } from 'react-native-flash-message';
+import MyNativeAdComponent from '../Ads/NativAds';
+
 const bannerAdUnitId = getAdUnitId('banner');
 const interstitialAdUnitId = getAdUnitId('interstitial');
 const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId);
@@ -103,51 +106,61 @@ useEffect(() => {
   const closeDrawer = () => setDrawerVisible(false);
   const closeDrawerSignin = () => setisSigninDrawerVisible(false);
 
-  const handleFruitSelect = (fruit) => {
+  const handleFruitSelect = async (fruit) => {
     triggerHapticFeedback('impactLight');
     logEvent(analytics, `${platform}_select_fruit`);
-    const userPoints = user.points || 0; // Ensure `points` exists and default to 0 if undefined
+  
+    const userPoints = user.points || 0; // Ensure `points` exists
     const selectedFruits = user.selectedFruits || []; // Ensure `selectedFruits` is always an array
     const isAlreadySelected = selectedFruits.some((item) => item.Name === fruit.Name);
-
+  
     if (isAlreadySelected) {
-      Alert.alert('Notice', t("stock.already_selected"));
-      return; // Exit if the fruit is already selected
+      showMessage({
+        message: t("settings.notice"),
+        description: t("stock.already_selected"),
+        type: "warning",
+      });
+      return;
     }
-    if (localState.isPro) {
-      // First selection is free
+  
+    if (localState.isPro || selectedFruits.length === 0) {
+      // First selection is free for Pro users or first-time selection
       const updatedFruits = [...selectedFruits, fruit];
-      updateLocalStateAndDatabase('selectedFruits', updatedFruits); // Update selected fruits locally and remotely
-      // updateLocalStateAndDatabase('admin', true)
-      Alert.alert(t("home.alert.success"),  t("stock.fruit_selected"));
-    }
-    else if (selectedFruits.length === 0) {
-      // First selection is free
-      const updatedFruits = [...selectedFruits, fruit];
-      updateLocalStateAndDatabase('selectedFruits', updatedFruits); // Update selected fruits locally and remotely
-      Alert.alert(t("home.alert.success"),  t("stock.fruit_selected"));
+      await updateLocalStateAndDatabase('selectedFruits', updatedFruits);
+  
+      showMessage({
+        message: t("home.alert.success"),
+        description: t("stock.fruit_selected"),
+        type: "success",
+      });
     } else if (userPoints >= 50) {
       // Deduct 50 points for additional selections
       const updatedPoints = userPoints - 50;
-      updateLocalStateAndDatabase('points', updatedPoints); // Update points locally and remotely
-
+      await updateLocalStateAndDatabase('points', updatedPoints);
+  
       const updatedFruits = [...selectedFruits, fruit];
-      updateLocalStateAndDatabase('selectedFruits', updatedFruits); // Update selected fruits locally and remotely
-      Alert.alert(t("home.alert.success"), `${fruit.Name}`, t("stock.success_selection"));
+      await updateLocalStateAndDatabase('selectedFruits', updatedFruits);
+  
+      // Alert.alert(t("home.alert.success"), `${fruit.Name} - ${t("stock.success_selection")}`);
+      showMessage({
+        message: t("home.alert.success"),
+        description: `${fruit.Name} - ${t("stock.success_selection")}`,
+        type: "success",
+      });
     } else {
       Alert.alert(
         t("stock.insufficient_points"),
         t("stock.insufficient_points_description"),
-        [
-          { text: 'OK', onPress: () => { } },
-        ]
+        [{ text: 'OK', onPress: () => {} }]
       );
-
     }
-
-    closeDrawer(); // Close the drawer after selection
+  
+    // Ensure drawer closes after updates
+    setTimeout(() => {
+      closeDrawer();
+    }, 300);
   };
-
+  
   const handleRefresh = async () => {
     logEvent(analytics, `${platform}_stock_refresh`);
     setRefreshing(true);
@@ -208,9 +221,9 @@ useEffect(() => {
         setisSigninDrawerVisible(true);
       } else {
         const currentValue = user.isSelectedReminderEnabled;
-        logEvent(analytics, `${platform}_toggle_switch_selected_fruit_notifier`);
         // Optimistically update the UI
         updateLocalStateAndDatabase('isSelectedReminderEnabled', !currentValue);
+        logEvent(analytics, `${platform}_toggle_switch_selected_fruit_notifier`);
       }
     } catch (error) {
       // console.error('Error handling notification permission or sign-in:', error);
@@ -334,7 +347,7 @@ const showInterstitialAd = useCallback((callback) => {
   }
 }, [isAdLoaded, isShowingAd, localState.isPro]);
 // console.log(state?.normalStock)
-  const styles = getStyles(isDarkMode, user);
+const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
 // console.log(state.premirageStock)
 // console.log(localState.normalStock, localState.mi)
   return (
@@ -452,6 +465,7 @@ const showInterstitialAd = useCallback((callback) => {
   )}
 </View>
 
+
             </View>
             <View style={styles.preCont}>
               <Text style={styles.pre}>  { t("stock.previous_stock")}</Text>
@@ -514,6 +528,7 @@ const showInterstitialAd = useCallback((callback) => {
             />
           </ScrollView>
         </View>
+        {/* <FlashMessage position="top" /> */}
 
       </GestureHandlerRootView>
 
@@ -624,7 +639,7 @@ const getStyles = (isDarkMode, user) =>
     selectedContainericon: {
       // flexDirection: 'column',
       alignItems: 'center',
-      backgroundColor: user.isSelectedReminderEnabled ? config.colors.hasBlockGreen : config.colors.primary,
+      backgroundColor: user?.isSelectedReminderEnabled ? config.colors.hasBlockGreen : config.colors.primary,
       borderRadius: 20,
       marginLeft: 10
     },

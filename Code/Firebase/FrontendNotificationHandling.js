@@ -37,19 +37,19 @@ const NotificationHandler = () => {
 
     // ✅ Function to Process Notifications
     const processNotification = async (remoteMessage) => {
+      // console.log(remoteMessage)
       if (isProcessingNotification) {
         console.warn('Already processing a notification. Skipping...');
         return;
       }
 
       isProcessingNotification = true;
-      // console.log(remoteMessage)
 
       try {
         const { notification, data } = remoteMessage || {};
         const title = notification?.title || data?.title || null;
         const body = notification?.body || data?.body || null;
-        const type = data?.type;
+        const type = data?.taype;
 
         if (!title || !body) {
           console.warn('Notification payload is incomplete:', remoteMessage);

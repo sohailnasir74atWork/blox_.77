@@ -68,7 +68,9 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
     { code: "es", label: t("settings.languages.es"), flag: "🇪🇸" },
     { code: "fr", label: t("settings.languages.fr"), flag: "🇫🇷" },
     { code: "de", label: t("settings.languages.de"), flag: "🇩🇪" },
-    { code: "ru", label: t("settings.languages.ru"), flag: "🇷🇺" }
+    { code: "ru", label: t("settings.languages.ru"), flag: "🇷🇺" },
+    { code: "ar", label: t("settings.languages.ar"), flag: "🇸🇦" }
+
   ];
 
   const handleNext = () => {
