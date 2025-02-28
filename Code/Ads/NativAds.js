@@ -24,6 +24,8 @@ const MyNativeAdComponent = () => {
       .then((ad) => {
         if (isMounted) {
           setNativeAd(ad);
+
+
           setLoading(false);
         }
       })
@@ -52,7 +54,6 @@ const MyNativeAdComponent = () => {
       </View>
     );
   }
-console.log(nativeAd)
   return (
     <View style={styles.adContainermain}>
     <NativeAdView nativeAd={nativeAd} style={styles.adContainer}>
@@ -104,6 +105,8 @@ StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
+    height:150
+
     // borderRadius: 12,
     // backgroundColor: isDarkMode ? config.colors.primary : 'white',
     // marginBottom: 10,

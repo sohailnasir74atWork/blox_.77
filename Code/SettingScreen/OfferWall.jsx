@@ -345,6 +345,7 @@ import { useTranslation } from 'react-i18next';
         fontSize: 9,
         fontFamily: 'Lato-Regular', // Corrected
         color: isDarkMode ? 'lightgrey' : '#333',
+        alignSelf:'center'
       },
       icon: {
         margin: 10

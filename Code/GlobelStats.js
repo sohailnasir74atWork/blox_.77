@@ -115,53 +115,58 @@ export const GlobalStateProvider = ({ children }) => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (loggedInUser) => {
-      try {
-        if (!loggedInUser) {
-          resetUserState();
-          storage_user_data.delete('userData'); // Clear MMKV user data on logout
-          // console.log("🔴 User logged out. MMKV cleared.");
-          return;
+        // console.log("🔄 Auth state changed. Current user:", loggedInUser ? loggedInUser.uid : "No user");
+
+        try {
+            if (!loggedInUser) {
+                // console.log("🔴 User logged out. Clearing local data...");
+                resetUserState();
+                storage_user_data.clearAll(); // ✅ Fix: Removed double semicolon
+                return;
+            }
+
+            const userId = loggedInUser.uid;
+            // console.log(`🟢 User logged in: ${userId}`);
+
+            const storedUser = storage_user_data.getString(`userData_${userId}`);
+
+            if (storedUser) {
+                // console.log("✅ Using cached user data from MMKV.");
+                setUser(JSON.parse(storedUser));
+            } else {
+                // console.log("⚠️ No cached user data. Fetching from Firebase...");
+                const userRef = ref(appdatabase, `users/${userId}`);
+                const snapshot = await get(userRef);
+
+                if (snapshot.exists()) {
+                    const userData = { ...snapshot.val(), id: userId };
+                    // console.log("✅ User data loaded from Firebase.");
+                    setUser(userData);
+                    storage_user_data.set(`userData_${userId}`, JSON.stringify(userData));
+                } else {
+                    // console.log("🆕 New user detected. Creating in Firebase...");
+                    const newUser = createNewUser(userId, loggedInUser);
+                    await set(userRef, newUser);
+                    setUser(newUser);
+                    storage_user_data.set(`userData_${userId}`, JSON.stringify(newUser));
+                }
+            }
+
+            // 🔥 Always refresh and update the FCM token
+            // console.log("🔄 Updating FCM token...");
+            await registerForNotifications(userId);
+            await requestPermission();
+        } catch (error) {
+            // console.error("❌ Auth state change error:", error);
         }
-
-        const userId = loggedInUser.uid;
-        const storedUser = storage_user_data.getString(`userData_${userId}`);
-
-        if (storedUser) {
-          // console.log("✅ User data found in MMKV. Using cached data.");
-          setUser(JSON.parse(storedUser));
-        } else {
-          // console.log("⚠️ No cached data. Fetching from Firebase...");
-          const userRef = ref(appdatabase, `users/${userId}`);
-          const snapshot = await get(userRef);
-
-          if (snapshot.exists()) {
-            const userData = { ...snapshot.val(), id: userId };
-            // console.log("✅ User data loaded from Firebase.");
-            setUser(userData);
-            storage_user_data.set(`userData_${userId}`, JSON.stringify(userData));
-          } else {
-            // console.log("🆕 New user detected. Creating in Firebase...");
-            const newUser = createNewUser(userId, loggedInUser);
-            await set(userRef, newUser);
-            setUser(newUser);
-            storage_user_data.set(`userData_${userId}`, JSON.stringify(newUser));
-          }
-        }
-
-        // 🔥 Always refresh and update the FCM token
-        // console.log("🔄 Registering for notifications...");
-        await registerForNotifications(userId);
-        await requestPermission();
-        
-      } catch (error) {
-        console.error("❌ Auth state change error:", error);
-      }
     });
 
-    return () => unsubscribe();
-  }, []);
+    return () => {
+        // console.log("🚪 Unsubscribing from auth state changes...");
+        unsubscribe();
+    };
+}, [auth]); // ✅ Fix: Added `auth` dependency
 
-  
 
 
 

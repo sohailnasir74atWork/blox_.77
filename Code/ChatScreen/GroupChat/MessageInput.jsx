@@ -7,6 +7,7 @@ import { useHaptic } from '../../Helper/HepticFeedBack';
 import getAdUnitId from '../../Ads/ads';
 import { AdEventType, InterstitialAd } from 'react-native-google-mobile-ads';
 import { useTranslation } from 'react-i18next';
+import { useLocalState } from '../../LocalGlobelStats';
 
 const interstitialAdUnitId = getAdUnitId('interstitial');
 const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId);
@@ -26,6 +27,7 @@ const MessageInput = ({
   const [isAdLoaded, setIsAdLoaded] = useState(false);
   const [isShowingAd, setIsShowingAd] = useState(false);
   const { t } = useTranslation();
+  const {localState} = useLocalState()
 
   useEffect(() => {
     interstitial.load();
@@ -74,17 +76,17 @@ const MessageInput = ({
     const trimmedInput = input.trim();
     if (!trimmedInput || isSending) return; // Prevent empty messages or multiple sends
     setIsSending(true);
-
+  
     try {
       await handleSendMessage(replyTo, trimmedInput);
       setInput('');
       if (onCancelReply) onCancelReply();
-
+  
       // Increment message count
       setMessageCount(prevCount => {
         const newCount = prevCount + 1;
-        if (newCount % 5 === 0) {
-          // Show ad on every 5th message
+        if (!localState.isPro && newCount % 5 === 0) {
+          // Show ad only if user is NOT pro
           showInterstitialAd(() => setIsSending(false));
         } else {
           setIsSending(false);
@@ -96,7 +98,7 @@ const MessageInput = ({
       setIsSending(false);
     }
   };
-
+  
   return (
     <View style={styles.inputWrapper}>
       {/* Reply context UI */}

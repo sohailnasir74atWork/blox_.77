@@ -277,7 +277,6 @@ export default function SettingsScreen({ selectedTheme }) {
       await Promise.all([
         remove(userRef), // ✅ Delete user profile
       ]);
-  
       // Step 4: Delete user from Firebase Authentication
       const currentUser = auth().currentUser;
       if (currentUser) {

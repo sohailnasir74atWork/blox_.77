@@ -5,7 +5,7 @@ import {  TestIds } from 'react-native-google-mobile-ads';
 import config from '../Helper/Environment';
 
 
-export const developmentMode =false;
+export const developmentMode = false
 
 const adUnits = {
   test: {
@@ -13,7 +13,7 @@ const adUnits = {
     interstitial: TestIds.INTERSTITIAL,
     rewarded:TestIds.REWARDED,
     openapp:TestIds.APP_OPEN,
-    native:TestIds.NATIVE,
+    native:'ca-app-pub-3940256099942544/2247696110',
   },
   android: {
     banner: config.andriodBanner,       

@@ -68,10 +68,10 @@ function App() {
     mobileAds()
       .initialize()
       .then(adapterStatuses => {
-        console.log('AdMob initialized', adapterStatuses);
+        // console.log('AdMob initialized', adapterStatuses);
       })
       .catch(error => {
-        console.error('AdMob failed to initialize:', error);
+        // console.error('AdMob failed to initialize:', error);
       });
   }, []);
   useEffect(() => {

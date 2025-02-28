@@ -23,9 +23,8 @@ export const LocalStateProvider = ({ children }) => {
       updateCount: parseInt(storage.getString('updateCount') || '0', 10),
       isHaptic: storage.getBoolean('isHaptic') ?? true,
       theme: initialTheme, // Default to system theme if not set
-      userId: storage.getString('userId') || null, // Store User ID
       consentStatus: storage.getString('consentStatus') || 'UNKNOWN',
-      isPro: storage.getBoolean('isPro') ?? false, 
+      isPro: storage.getBoolean('isPro') ?? false,
       fetchDataTime: storage.getString('fetchDataTime') || null,
       data: JSON.parse(storage.getString('data') || '{}'),
       codes: JSON.parse(storage.getString('codes') || '{}'),
@@ -61,8 +60,8 @@ export const LocalStateProvider = ({ children }) => {
       storage.set('data', JSON.stringify(localState.data)); // Force store
     }
   }, [localState.data]);
-  
-// console.log(isPro)
+
+  // console.log(isPro)
   // Update local state and MMKV storage
   const updateLocalState = (key, value) => {
     setLocalState((prevState) => ({
@@ -85,7 +84,7 @@ export const LocalStateProvider = ({ children }) => {
   };
 
   // console.log(localState.data)
-// console.log(isPro)
+  // console.log(isPro)
   // Initialize RevenueCat
   useEffect(() => {
     const initRevenueCat = async () => {
@@ -106,7 +105,7 @@ export const LocalStateProvider = ({ children }) => {
 
     initRevenueCat();
   }, []);
-// console.log(isPro)
+  // console.log(isPro)
   // Fetch available subscriptions
   const fetchOfferings = async () => {
     try {
@@ -129,7 +128,7 @@ export const LocalStateProvider = ({ children }) => {
     setLoadingReStore(true)
     try {
       const customerInfo = await Purchases.restorePurchases();
-  
+
       if (customerInfo.entitlements.active['Pro']) {
         // console.log('✅ Purchases restored! Pro features unlocked.');
         // setIsPro(true);
@@ -140,7 +139,7 @@ export const LocalStateProvider = ({ children }) => {
         }));
         setMySubscriptions(activePlansWithExpiry);
       } else {
-        console.warn('⚠️ No active subscriptions found.');
+        // console.warn('⚠️ No active subscriptions found.');
         // setsPro(false);
         updateLocalState('isPro', false);
         setLoadingReStore(false)
@@ -152,7 +151,7 @@ export const LocalStateProvider = ({ children }) => {
 
     }
   };
-  
+
   // Check if the user has an active subscription
   const checkEntitlements = async () => {
     try {
@@ -177,22 +176,22 @@ export const LocalStateProvider = ({ children }) => {
   const purchaseProduct = async (packageToPurchase, setLoading) => {
     // console.log("🛒 Starting purchase process...");
 
-  setLoading(true)
+    setLoading(true)
     try {
       if (!packageToPurchase || !packageToPurchase.product) {
-        console.error("🚨 Invalid package passed:", JSON.stringify(packageToPurchase, null, 2));
+        // console.error("🚨 Invalid package passed:", JSON.stringify(packageToPurchase, null, 2));
         return;
       }
-  
+
       // console.log("📦 Package details:", packageToPurchase.identifier);
       // console.log("💰 Attempting to purchase:", packageToPurchase.product.title);
-  
+
       // ✅ Attempt the purchase
       const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
-  
+
       // console.log("✅ Apple purchase dialog completed! Checking purchase status...");
       // console.log("🛒 Purchased productIdentifier:", productIdentifier);
-  
+
       // ✅ Check if user has "Pro" entitlement
       if (customerInfo.entitlements.active["Pro"]) {
         // console.log("🎉 Purchase successful! User now has Pro features.");
@@ -208,7 +207,7 @@ export const LocalStateProvider = ({ children }) => {
       console.error("❌ Error during purchase:", error);
       // Alert.alert(`Error during purchase:", ${error}`)
       setLoading(false)
-  
+
       if (error.userCancelled) {
         console.warn("🚫 User cancelled the purchase.");
       } else if (error.code === Purchases.PURCHASES_ERROR_CODE.PURCHASE_NOT_ALLOWED) {
@@ -221,7 +220,7 @@ export const LocalStateProvider = ({ children }) => {
       }
     }
   };
-  
+
   // Clear a specific key
   const clearKey = (key) => {
     setLocalState((prevState) => {

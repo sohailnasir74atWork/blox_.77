@@ -166,8 +166,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message }) => {
         try {
             setIsLoading(true);
             await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-            const signInResult = await GoogleSignin.signIn();
-            
+            const signInResult = await GoogleSignin.signIn();            
             const idToken = signInResult?.idToken || signInResult?.data?.idToken;
             if (!idToken) {
                 throw new Error(t("signin.error_signin_message"));
