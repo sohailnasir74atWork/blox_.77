@@ -188,7 +188,25 @@
         "fair_deal": "Справедливая сделка",
         "decent_deal": "Достойная сделка",
         "weak_deal": "Слабая сделка",
-        "risky_deal": "Рискованная сделка"
+        "risky_deal": "Рискованная сделка",
+        "feature_pro_only_title": "Функция недоступна",
+        "feature_pro_only_message": "Только пользователи Pro могут выделять обмены. Обновите до Pro!",
+        "upgrade": "Обновить",
+        
+        "feature_limit_reached_title": "Достигнут предел",
+        "feature_limit_reached_message": "Вы достигли лимита в 2 выделенных обмена.",
+        
+        "feature_confirmation_title": "Выделить этот обмен?",
+        "feature_confirmation_message": "Вы уверены, что хотите выделить этот обмен? Это повысит его видимость!",
+        
+        "feature": "Выделить",
+        "feature_success": "Обмен выделен!",
+        "feature_success_message": "Ваш обмен теперь выделен на 24 часа!",
+        "feature_error": "Ошибка выделения обмена",
+        "feature_error_message": "Не удалось выделить обмен. Попробуйте снова.",
+        
+        "purchase_success": "Покупка успешно завершена",
+        "purchase_success_message": "Пользователь теперь имеет функции Pro!"
     },
     "signin": {
         "title_signin": "Войти",
@@ -297,7 +315,8 @@
         "restore": "Восстановить покупку",
         "recurring": "Регулярные платежи, отмена в любое время",
         "termsOfService": "Условия обслуживания",
-        "privacyPolicy": "Политика конфиденциальности"
+        "privacyPolicy": "Политика конфиденциальности",
+        "featureListing": "2x Выделенное Объявление на 24 Часа"
     },
     "misc": {
         "loginRequired": "Требуется вход в систему, пожалуйста, войдите, чтобы загрузить предыдущие сообщения.",

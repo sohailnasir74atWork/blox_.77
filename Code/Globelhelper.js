@@ -123,7 +123,9 @@ export const firebaseConfig = {
       isBlock:false,
       fcmToken:null,
       lastactivity:null,
-      online:false
+      online:false,
+      featured:0
+
   });
   
 
@@ -140,6 +142,8 @@ export const resetUserState = (setUser) => {
       isBlock:false,
       fcmToken:null,
       lastactivity:null,
-      online:false
+      online:false,
+      featured:0
+
     });
   };

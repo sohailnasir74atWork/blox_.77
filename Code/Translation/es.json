@@ -187,7 +187,25 @@
         "fair_deal": "Acuerdo justo",
         "decent_deal": "Acuerdo decente",
         "weak_deal": "Acuerdo débil",
-        "risky_deal": "Acuerdo arriesgado"
+        "risky_deal": "Acuerdo arriesgado", 
+            "feature_pro_only_title": "Función de intercambio no disponible",
+            "feature_pro_only_message": "Solo los usuarios Pro pueden destacar intercambios. ¡Actualiza a Pro ahora!",
+            "upgrade": "Actualizar",
+            
+            "feature_limit_reached_title": "Límite de funciones alcanzado",
+            "feature_limit_reached_message": "Has alcanzado tu límite de 2 intercambios destacados.",
+            
+            "feature_confirmation_title": "¿Destacar este intercambio?",
+            "feature_confirmation_message": "¿Estás seguro de que quieres destacar este intercambio? ¡Esto aumentará su visibilidad!",
+            
+            "feature": "Destacar",
+            "feature_success": "¡Intercambio destacado!",
+            "feature_success_message": "¡Tu intercambio ahora está destacado por 24 horas!",
+            "feature_error": "Error al destacar intercambio",
+            "feature_error_message": "No se pudo destacar el intercambio. Inténtalo de nuevo.",
+            
+            "purchase_success": "Compra exitosa",
+            "purchase_success_message": "¡El usuario ahora tiene funciones Pro!"        
     },
     "signin": {
         "title_signin": "Iniciar sesión",
@@ -296,7 +314,7 @@
         "restore": "Restaurar compra",
         "recurring": "Facturación recurrente, cancelación en cualquier momento",
         "termsOfService": "Términos de servicio",
-        "privacyPolicy": "Política de privacidad"
+        "privacyPolicy": "Política de privacidad",    "featureListing": "2x Listado Destacado por 24 Horas"
     },
     "misc": {
         "loginRequired": "Se requiere inicio de sesión, inicie sesión para cargar los mensajes anteriores.",

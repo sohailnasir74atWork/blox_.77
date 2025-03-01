@@ -3,6 +3,8 @@ import { Alert, Appearance } from 'react-native'; // For system theme detection
 import { MMKV } from 'react-native-mmkv';
 import Purchases from 'react-native-purchases'; // Ensure react-native-purchases is installed
 import config from './Helper/Environment';
+import { showMessage } from 'react-native-flash-message';
+import { useTranslation } from 'react-i18next';
 
 const storage = new MMKV();
 const LocalStateContext = createContext();
@@ -21,6 +23,7 @@ export const LocalStateProvider = ({ children }) => {
       reviewCount: parseInt(storage.getString('reviewCount') || '0', 10), // Ensure reviewCount is a number
       lastVersion: storage.getString('lastVersion') || 'UNKNOWN',
       updateCount: parseInt(storage.getString('updateCount') || '0', 10),
+      featuredCount: parseInt(storage.getString('featuredCount') || '0', 10),
       isHaptic: storage.getBoolean('isHaptic') ?? true,
       theme: initialTheme, // Default to system theme if not set
       consentStatus: storage.getString('consentStatus') || 'UNKNOWN',
@@ -44,6 +47,8 @@ export const LocalStateProvider = ({ children }) => {
   // const [isPro, setIsPro] = useState(true); // Sync with MMKV storage
   const [packages, setPackages] = useState([]);
   const [mySubscriptions, setMySubscriptions] = useState([]);
+  const { t } = useTranslation();
+
 
   // Listen for system theme changes
   useEffect(() => {
@@ -195,7 +200,12 @@ export const LocalStateProvider = ({ children }) => {
       // ✅ Check if user has "Pro" entitlement
       if (customerInfo.entitlements.active["Pro"]) {
         // console.log("🎉 Purchase successful! User now has Pro features.");
-        Alert.alert("🎉 Purchase successful! User now has Pro features.")
+        // Alert.alert("🎉 Purchase successful! User now has Pro features.")
+        showMessage({
+          message: t("trade.delete_success"),
+          description: t("trade.purchase_success"),
+          type: "success",
+        });
         updateLocalState("isPro", true);
       } else {
         // console.warn("⚠️ Purchase completed, but Pro entitlement NOT active!");

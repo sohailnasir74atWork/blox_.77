@@ -5,7 +5,6 @@ import moment from 'moment';
 import { useGlobalState } from '../GlobelStats';
 import config from '../Helper/Environment';
 import { useNavigation } from '@react-navigation/native';
-// import { isUserOnline } from '../ChatScreen/utils';
 import { AdEventType, BannerAd, BannerAdSize, InterstitialAd } from 'react-native-google-mobile-ads';
 import getAdUnitId from '../Ads/ads';
 import { FilterMenu } from './tradeHelpers';
@@ -18,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import FlashMessage, { showMessage } from 'react-native-flash-message';
 import { logEvent } from '@react-native-firebase/analytics';
 import MyNativeAdComponent from '../Ads/NativAds';
+import SubscriptionScreen from '../SettingScreen/OfferWall';
 
 
 const bannerAdUnitId = getAdUnitId('banner');
@@ -27,21 +27,23 @@ const TradeList = ({ route }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAdVisible, setIsAdVisible] = useState(true);
   const { selectedTheme } = route.params
-  const { user, analytics } = useGlobalState()
+  const { user, analytics, updateLocalStateAndDatabase, appdatabase } = useGlobalState()
   const [trades, setTrades] = useState([]);
   const [filteredTrades, setFilteredTrades] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [lastDoc, setLastDoc] = useState(null);
   const [hasMore, setHasMore] = useState(true);
-  const [filterType, setFilterType] = useState('hasItems');
+  const [showofferwall, setShowofferwall] = useState(false);
+  const [remainingFeaturedTrades, setRemainingFeaturedTrades] = useState([]);
+
   const [isAdLoaded, setIsAdLoaded] = useState(false);
   const [isShowingAd, setIsShowingAd] = useState(false);
   const [isReportPopupVisible, setReportPopupVisible] = useState(false);
   const PAGE_SIZE = 20;
   const [isSigninDrawerVisible, setIsSigninDrawerVisible] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState(null);
-  const { localState } = useLocalState()
+  const { localState, updateLocalState } = useLocalState()
   const navigation = useNavigation()
   const { theme } = useGlobalState()
   const { t } = useTranslation();
@@ -54,12 +56,9 @@ const TradeList = ({ route }) => {
   };
 
 
- 
-  
-  // const handleReportTrade = (trade) => {
-  //   setSelectedTrade(trade);
-  //   setReportPopupVisible(true);
-  // };
+  useEffect(() => { }, [localState.isPro])
+
+
   const [selectedFilters, setSelectedFilters] = useState([]);
   useEffect(() => {
     const lowerCaseQuery = searchQuery.trim().toLowerCase();
@@ -121,10 +120,6 @@ const TradeList = ({ route }) => {
       })
     );
   }, [searchQuery, trades, selectedFilters]);
-
-
-
-
 
   useEffect(() => {
     interstitial.load();
@@ -192,50 +187,139 @@ const TradeList = ({ route }) => {
     return deal;
   };
 
-
   const handleDelete = useCallback((item) => {
     Alert.alert(
-      t("trade.delete_confirmation_title"), // "Confirm Deletion"
-      t("trade.delete_confirmation_message"), // "Are you sure you want to delete this trade? This action cannot be undone."
+      t("trade.delete_confirmation_title"),
+      t("trade.delete_confirmation_message"),
       [
+        { text: t("trade.cancel"), style: "cancel" },
         {
-          text: t("trade.cancel"), // "Cancel"
-          style: "cancel",
-        },
-        {
-          text: t("trade.delete"), // "Delete"
+          text: t("trade.delete"),
+          style: "destructive",
           onPress: async () => {
             try {
-              // Delete the trade from Firestore
-              await firestore().collection('trades').doc(item.id).delete();
+              const tradeId = item.id.startsWith("featured-") ? item.id.replace("featured-", "") : item.id;
+              console.log(`🔄 [handleDelete] Deleting trade: ${tradeId}`);
 
-              // Update local state to remove the deleted trade
+              await firestore().collection("trades").doc(tradeId).delete();
+              console.log(`✅ [handleDelete] Trade deleted: ${tradeId}`);
+
+              // ✅ Decrement featured count if trade was featured
+              if (item.isFeatured) {
+                const newFeaturedCount = Math.max(0, localState.featuredCount - 1);
+                console.log(`📌 [handleDelete] Updating local featured count: ${newFeaturedCount}`);
+                await updateLocalState('featuredCount', newFeaturedCount);
+              }
+
+              // ✅ Remove trade from local state
               setTrades((prev) => prev.filter((trade) => trade.id !== item.id));
               setFilteredTrades((prev) => prev.filter((trade) => trade.id !== item.id));
 
-              // Alert.alert(t("trade.delete_success"), t("trade.delete_success_message")); 
               showMessage({
                 message: t("trade.delete_success"),
                 description: t("trade.delete_success_message"),
                 type: "success",
               });
-              // "Success", "Trade deleted successfully!"
+
             } catch (error) {
-              console.error('🔥 Error deleting trade:', error);
-              Alert.alert(t("trade.delete_error"), t("trade.delete_error_message"));
+              console.error("🔥 [handleDelete] Error deleting trade:", error);
               showMessage({
                 message: t("trade.delete_error"),
                 description: t("trade.delete_error_message"),
                 type: "danger",
               });
-              // "Error", "Failed to delete the trade. Please try again."
             }
           },
-          style: "destructive", // Red color for destructive action
         },
       ]
     );
-  }, [t]);
+  }, [t, localState.featuredCount]);
+
+
+
+
+  console.log(localState.featuredCount)
+
+
+
+  // console.log(user.featured)
+  const handleMakeFeatureTrade = useCallback(async (item) => {
+    if (!localState.isPro) {
+      Alert.alert(
+        t("trade.feature_pro_only_title"),
+        t("trade.feature_pro_only_message"),
+        [
+          { text: t("trade.cancel"), style: "cancel" },
+          { text: t("trade.upgrade"), onPress: () => setShowofferwall(true) },
+        ]
+      );
+      return;
+    }
+
+    if (localState.featuredCount >= 2) {
+      showMessage({
+        message: t("trade.feature_limit_reached_title"),
+        description: t("trade.feature_limit_reached_message"),
+        type: "danger",
+      });
+      return;
+    }
+
+    // ✅ **Confirmation before featuring**
+    Alert.alert(
+      t("trade.feature_confirmation_title"),
+      t("trade.feature_confirmation_message"),
+      [
+        { text: t("trade.cancel"), style: "cancel" },
+        {
+          text: t("feature"),
+          onPress: async () => {
+            try {
+              console.log(`🔄 [handleMakeFeatureTrade] Marking trade as featured: ${item.id}`);
+
+              await firestore().collection("trades").doc(item.id).update({
+                isFeatured: true,
+                featuredUntil: firestore.Timestamp.fromDate(new Date(Date.now() + 1 * 60 * 60 * 1000)), // 24 hours
+              });
+
+              console.log(`✅ [handleMakeFeatureTrade] Trade successfully featured: ${item.id}`);
+
+              // ✅ Update local featured count
+              const newFeaturedCount = localState.featuredCount + 1;
+              await updateLocalState('featuredCount', newFeaturedCount);
+
+              // ✅ Update UI
+              setTrades((prev) =>
+                prev.map((trade) =>
+                  trade.id === item.id ? { ...trade, isFeatured: true } : trade
+                )
+              );
+              setFilteredTrades((prev) =>
+                prev.map((trade) =>
+                  trade.id === item.id ? { ...trade, isFeatured: true } : trade
+                )
+              );
+
+              showMessage({
+                message: t("trade.feature_success"),
+                description: t("trade.feature_success_message"),
+                type: "success",
+              });
+
+            } catch (error) {
+              console.error("🔥 [handleMakeFeatureTrade] Error featuring trade:", error);
+              showMessage({
+                message: t("trade.feature_error"),
+                description: t("trade.feature_error_message"),
+                type: "danger",
+              });
+            }
+          },
+        },
+      ]
+    );
+  }, [t, localState.featuredCount]);
+
 
 
   const formatValue = (value) => {
@@ -249,30 +333,48 @@ const TradeList = ({ route }) => {
       return value.toLocaleString(); // Default formatting
     }
   };
-
   const fetchMoreTrades = useCallback(async () => {
     if (!hasMore || !lastDoc) return;
 
     try {
-      const querySnapshot = await firestore()
+      // ✅ Fetch more normal trades
+      const normalTradesQuery = await firestore()
         .collection('trades')
+        .where('isFeatured', '==', false)
         .orderBy('timestamp', 'desc')
         .startAfter(lastDoc)
         .limit(PAGE_SIZE)
         .get();
 
-      if (!querySnapshot.empty) {
-        const newTrades = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        setTrades((prevTrades) => [...prevTrades, ...newTrades]);
-        setLastDoc(querySnapshot.docs[querySnapshot.docs.length - 1]);
-        setHasMore(newTrades.length === PAGE_SIZE);
-      } else {
-        setHasMore(false);
+      const newNormalTrades = normalTradesQuery.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      if (newNormalTrades.length === 0) {
+        setHasMore(false); // ✅ Stop pagination if no more trades exist
+        return;
       }
+
+      // ✅ Get **2 more** featured trades if available
+      const newFeaturedTrades = remainingFeaturedTrades.splice(0, 3);
+      setRemainingFeaturedTrades([...remainingFeaturedTrades]); // ✅ Update remaining featured
+
+      // ✅ Merge & maintain balance
+      const mergedTrades = mergeFeaturedWithNormal(newFeaturedTrades, newNormalTrades);
+
+      setTrades((prevTrades) => [...prevTrades, ...mergedTrades]);
+      setLastDoc(normalTradesQuery.docs[normalTradesQuery.docs.length - 1]); // ✅ Update last doc
+      setHasMore(newNormalTrades.length === PAGE_SIZE);
     } catch (error) {
-      console.error("Error fetching more trades:", error);
+      console.error('❌ Error fetching more trades:', error);
     }
-  }, [lastDoc, hasMore]);
+  }, [lastDoc, hasMore, remainingFeaturedTrades]);
+
+
+
+
+
 
 
 
@@ -291,25 +393,58 @@ const TradeList = ({ route }) => {
   };
   // console.log(trades)
 
+  // import firestore from '@react-native-firebase/firestore'; // Ensure this import
+
   const fetchInitialTrades = useCallback(async () => {
     setLoading(true);
     try {
-      const querySnapshot = await firestore()
+      // ✅ Fetch latest normal trades
+      const normalTradesQuery = await firestore()
         .collection('trades')
+        .orderBy('isFeatured')
+        .where('isFeatured', '!=', true) // Get only non-featured trades
         .orderBy('timestamp', 'desc')
         .limit(PAGE_SIZE)
         .get();
 
-      if (!querySnapshot.empty) {
-        const tradeList = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        setTrades(tradeList);
-        setLastDoc(querySnapshot.docs[querySnapshot.docs.length - 1]); // Save last doc for pagination
-        setHasMore(tradeList.length === PAGE_SIZE);
-      } else {
-        setHasMore(false);
+      const normalTrades = normalTradesQuery.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      // ✅ Fetch only valid featured trades (NOT expired)
+      const featuredQuerySnapshot = await firestore()
+        .collection('trades')
+        .where('isFeatured', '==', true)
+        .where('featuredUntil', '>', firestore.Timestamp.now()) // ✅ Only fetch active featured trades
+        .orderBy('featuredUntil', 'desc')
+        .get();
+
+      let featuredTrades = [];
+      if (!featuredQuerySnapshot.empty) {
+        featuredTrades = featuredQuerySnapshot.docs.map((doc) => ({
+          id: `featured-${doc.id}`, // ✅ Unique keys for featured trades
+          ...doc.data(),
+        }));
       }
+
+      console.log('✅ Featured trades:', featuredTrades.length);
+
+      // ✅ Keep some featured trades aside for future loadMore()
+      setRemainingFeaturedTrades(featuredTrades);
+
+      // ✅ Merge trades but **reserve** featured trades for later
+      const mergedTrades = mergeFeaturedWithNormal(
+        featuredTrades.splice(0, 3), // ✅ Only use first 2 featured
+        normalTrades
+      );
+
+      // ✅ Update state
+      setTrades(mergedTrades);
+      setLastDoc(normalTradesQuery.docs[normalTradesQuery.docs.length - 1]); // ✅ Save last doc for pagination
+      setHasMore(normalTrades.length === PAGE_SIZE);
     } catch (error) {
-      console.error("Error fetching initial trades:", error);
+      console.error('❌ Error fetching trades:', error);
     } finally {
       setLoading(false);
     }
@@ -317,9 +452,48 @@ const TradeList = ({ route }) => {
 
 
 
+  const mergeFeaturedWithNormal = (featuredTrades, normalTrades) => {
+    let result = [];
+    let featuredIndex = 0;
+    let normalIndex = 0;
+    const featuredCount = featuredTrades.length;
+
+    // ✅ Add first 2 featured trades (if available)
+    for (let i = 0; i < 4 && featuredIndex < featuredCount; i++) {
+      result.push(featuredTrades[featuredIndex]);
+      featuredIndex++;
+    }
+
+    // ✅ Merge in the format of 4 normal trades, then 2 featured trades
+    while (normalIndex < normalTrades.length) {
+      // ✅ Insert up to 4 normal trades
+      for (let i = 0; i < 4 && normalIndex < normalTrades.length; i++) {
+        result.push(normalTrades[normalIndex]);
+        normalIndex++;
+      }
+
+      // ✅ Insert up to 2 featured trades (if available)
+      for (let i = 0; i < 4 && featuredIndex < featuredCount; i++) {
+        result.push(featuredTrades[featuredIndex]);
+        featuredIndex++;
+      }
+    }
+
+    // ✅ Add last 2 featured trades at the end (if available)
+    // for (let i = 0; i < 2 && featuredIndex < featuredCount; i++) {
+    //   result.push(featuredTrades[featuredIndex]);
+    //   featuredIndex++;
+    // }
+
+    return result;
+  };
+
+
+
 
   useEffect(() => {
     fetchInitialTrades();
+    // updateLatest50TradesWithoutIsFeatured()
 
     if (!user?.id) {
       setTrades((prev) => prev.slice(0, PAGE_SIZE)); // Keep only 20 trades for logged-out users
@@ -416,7 +590,8 @@ const TradeList = ({ route }) => {
     };
 
     return (
-      <View style={styles.tradeItem}>
+      <View style={[styles.tradeItem, item.isFeatured && { backgroundColor: 'rgba(245, 222, 179, 0.6)' }]}>
+
 
         <View style={styles.tradeHeader}>
           <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={handleChatNavigation}>
@@ -497,14 +672,14 @@ const TradeList = ({ route }) => {
             {t("trade.price_has")} {formatValue(item.hasTotal.price)}
           </Text>
           <View style={styles.transfer}>
-            {item.userId === user.id && (
+            {/* {item.userId === user.id && (
               <Icon
                 name="trash-outline"
                 size={18}
                 color={config.colors.wantBlockRed}
                 onPress={() => handleDelete(item)}
               />
-            )}
+            )} */}
           </View>
           <Text style={[styles.priceText, styles.wantBackground]}>
             {t("trade.price_want")} {formatValue(item.wantsTotal.price)}
@@ -514,7 +689,24 @@ const TradeList = ({ route }) => {
         {/* Description */}
         {item.description && <Text style={styles.description}>{renderTextWithUsername(item.description)}
         </Text>}
+        {item.userId === user.id && (<View style={styles.footer}>
+          {!item.isFeatured && <Icon
+            name="rocket"
+            size={24}
+            color={config.colors.primary}
+            onPress={() => handleMakeFeatureTrade(item)}
+            style={{ marginRight: 20 }}
+          />}
 
+          <Icon
+            name="close-circle"
+            size={24}
+            color={config.colors.wantBlockRed}
+            onPress={() => handleDelete(item)}
+          />
+
+
+        </View>)}
 
       </View>
     );
@@ -541,7 +733,7 @@ const TradeList = ({ route }) => {
       <FlatList
         data={filteredTrades}
         renderItem={renderTrade}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item) => item.isFeatured ? `featured-${item.id}` : item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 20 }}
         onEndReached={handleEndReached}
@@ -583,6 +775,8 @@ const TradeList = ({ route }) => {
           />
         )}
       </View>}
+      <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} />
+
     </View>
   );
 };
@@ -638,8 +832,8 @@ const getStyles = (isDarkMode) =>
     },
     tradeTime: {
       fontSize: 8,
-      color: '#666',
-      color: 'lightgrey'
+      color: isDarkMode ? 'lightgrey' : "grey",
+      // color: 'lightgrey'
 
     },
     tradeDetails: {
@@ -710,15 +904,7 @@ const getStyles = (isDarkMode) =>
       flexDirection: 'row',
       alignItems: 'center',
     },
-    // actionText: {
-    //   marginLeft: 5,
-    //   fontSize: 10,
-    //   color: config.colors.hasBlockGreen,
-    //   textShadowColor: isDarkMode ? '#000000AA' : '#FFFFFFAA', // Dark Mode: Black shadow, Light Mode: White shadow
-    //   textShadowOffset: { width: 1, height: 1 }, // Offset the shadow slightly
-    //   textShadowRadius: 3, // Blur effect for the shadow
-
-    // },
+ 
     transfer: {
       width: '20%',
       justifyContent: 'center',
@@ -780,6 +966,15 @@ const getStyles = (isDarkMode) =>
       fontFamily: 'Lato-Bold',
       fontSize: 10
     },
+    footer: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      borderTopWidth: 1,
+      borderColor: 'lightgrey',
+      paddingHorizontal: 30,
+      paddingTop: 5,
+      marginTop: 10
+    }
   });
 
 export default TradeList;

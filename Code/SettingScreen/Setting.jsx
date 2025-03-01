@@ -644,15 +644,15 @@ export default function SettingsScreen({ selectedTheme }) {
  }}>
             <Icon name="prism-outline" size={24} color={config.colors.hasBlockGreen} />
             <Text style={[styles.optionText]}>
-            {t('settings.active_plan')} : {localState.isPro ? t('settings.pro') : t('settings.free')}
+            {t('settings.active_plan')} : {localState.isPro ? t('settings.paid') : t('settings.free')}
             </Text>
           </TouchableOpacity>
           {localState.isPro && (
             <View style={styles.subscriptionContainer}>
               <Text style={styles.subscriptionText}>
-              {t('settings.active_plan')}
-                {mySubscriptions.length === 0
-                  ? t('settings.pro')
+              {t('settings.active_plan')} - 
+                  {mySubscriptions.length === 0
+                  ?   t('settings.paid')
                   : mySubscriptions.map(sub => formatPlanName(sub.plan)).join(', ')}
               </Text>
 

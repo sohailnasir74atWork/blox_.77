@@ -12,22 +12,23 @@ import messaging from '@react-native-firebase/messaging';
 import NotificationHandler from './Code/Firebase/FrontendNotificationHandling';
 
 messaging().setBackgroundMessageHandler(async remoteMessage => {
-//   console.log('📩 Silent notification received in background:', remoteMessage);
+    //   console.log('📩 Silent notification received in background:', remoteMessage);
 });
 
 
 
 const App = () => (
+<LanguageProvider>
     <LocalStateProvider>
         <GlobalStateProvider>
             <MenuProvider>
-              <LanguageProvider>
                 <AppWrapper />
                 <NotificationHandler />
-                </LanguageProvider>
             </MenuProvider>
         </GlobalStateProvider>
-    </LocalStateProvider>
+    </LocalStateProvider>                
+</LanguageProvider>
+
 );
 
 AppRegistry.registerComponent(appName, () => App);

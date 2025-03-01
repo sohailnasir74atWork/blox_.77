@@ -51,7 +51,8 @@ export const GlobalStateProvider = ({ children }) => {
       isBlock:false,
       fcmToken:null,
       lastactivity:null,
-      online:false
+      online:false,
+      featured:0
   });
 
   const [onlineMembersCount, setOnlineMembersCount] = useState(0);
@@ -109,7 +110,9 @@ export const GlobalStateProvider = ({ children }) => {
       isBlock:false,
       fcmToken:null,
       lastactivity:null,
-      online:false
+      online:false,
+      featured:0
+
     });
   };
 
@@ -157,12 +160,12 @@ export const GlobalStateProvider = ({ children }) => {
             await registerForNotifications(userId);
             await requestPermission();
         } catch (error) {
-            // console.error("❌ Auth state change error:", error);
+            console.error("❌ Auth state change error:", error);
         }
     });
 
     return () => {
-        // console.log("🚪 Unsubscribing from auth state changes...");
+        console.log("🚪 Unsubscribing from auth state changes...");
         unsubscribe();
     };
 }, [auth]); // ✅ Fix: Added `auth` dependency

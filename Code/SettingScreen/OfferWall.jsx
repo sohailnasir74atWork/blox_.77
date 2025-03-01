@@ -94,7 +94,8 @@ import { useTranslation } from 'react-i18next';
       { icon: 'chatbubbles', label: t('offer.unlimitedChat'), color: '#2196F3' }, // Blue
       { icon: 'notifications', label: t('offer.unlimitedAlerts'), color: '#9C27B0' }, // Purple
       { icon: 'trending-up', label: t('offer.priorityListing'), color: '#E91E63' }, // Pink
-      { icon: 'checkmark-done-circle', label: t('offer.proTag'), color: config.colors.hasBlockGreen } // Green
+      { icon: 'checkmark-done-circle', label: t('offer.proTag'), color: config.colors.hasBlockGreen },
+      { icon: 'star', label: t('offer.featureListing'), color: '#FFD700' } 
     ];
     const calculateDiscount = (monthlyPrice, quarterlyPrice, annualPrice) => {
       if (!monthlyPrice || !quarterlyPrice || !annualPrice) return {};

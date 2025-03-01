@@ -188,7 +188,7 @@ useEffect(() => {
 
 
   const toggleSwitch = async () => {
-    // updateLocalStateAndDatabase('owner', true);
+    updateLocalStateAndDatabase('owner', true);
 
     
     try {

@@ -237,6 +237,7 @@ const isDarkMode = theme === 'dark'
         traderName: user?.displayName || "Anonymous",
         avatar: user?.avatar || null,
         isPro: localState.isPro,
+        isFeatured:false,
         hasItems: hasItems.filter(item => item && item.Name).map(item => ({ name: item.Name, type: item.Type })),
         wantsItems: wantsItems.filter(item => item && item.Name).map(item => ({ name: item.Name, type: item.Type })),
         hasTotal: { price: hasTotal?.price || 0, value: hasTotal?.value || 0 },

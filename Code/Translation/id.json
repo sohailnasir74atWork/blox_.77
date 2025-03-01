@@ -188,7 +188,25 @@
         "fair_deal": "Kesepakatan Adil",
         "decent_deal": "Kesepakatan Layak",
         "weak_deal": "Kesepakatan Lemah",
-        "risky_deal": "Kesepakatan Berisiko"
+        "risky_deal": "Kesepakatan Berisiko",
+        "feature_pro_only_title": "Fitur Tidak Tersedia",
+    "feature_pro_only_message": "Hanya pengguna Pro yang dapat menampilkan perdagangan. Tingkatkan ke Pro sekarang!",
+    "upgrade": "Tingkatkan",
+    
+    "feature_limit_reached_title": "Batas Fitur Tercapai",
+    "feature_limit_reached_message": "Anda telah mencapai batas 2 perdagangan yang ditampilkan.",
+    
+    "feature_confirmation_title": "Tampilkan Perdagangan Ini?",
+    "feature_confirmation_message": "Apakah Anda yakin ingin menampilkan perdagangan ini? Ini akan meningkatkan visibilitasnya!",
+    
+    "feature": "Tampilkan",
+    "feature_success": "Perdagangan Ditampilkan!",
+    "feature_success_message": "Perdagangan Anda sekarang ditampilkan selama 24 jam!",
+    "feature_error": "Kesalahan Menampilkan Perdagangan",
+    "feature_error_message": "Gagal menampilkan perdagangan. Silakan coba lagi.",
+    
+    "purchase_success": "Pembelian Berhasil",
+    "purchase_success_message": "Pengguna sekarang memiliki fitur Pro!"
     },
     "signin": {
         "title_signin": "Masuk",
@@ -288,6 +306,7 @@
         "unlimitedTrade": "Pembuatan Perdagangan Tanpa Batas",
         "unlimitedChat": "Chat P2P Tanpa Batas (Pesan Langsung)",
         "unlimitedAlerts": "Pemberitahuan & Peringatan Stok Tanpa Batas",
+        "featureListing": "2x Daftar Fitur selama 24 Jam",
         "priorityListing": "Listing Prioritas",
         "proTag": "Dapatkan Tag Pro dengan Nama Pengguna Anda",
         "monthly": "Bulanan",

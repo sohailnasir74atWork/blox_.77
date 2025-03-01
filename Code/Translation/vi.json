@@ -188,7 +188,25 @@
         "fair_deal": "Thỏa thuận Công bằng",
         "decent_deal": "Thỏa thuận Hợp lý",
         "weak_deal": "Thỏa thuận Yếu",
-        "risky_deal": "Thỏa thuận Rủi ro"
+        "risky_deal": "Thỏa thuận Rủi ro",
+        "feature_pro_only_title": "Tính năng không khả dụng",
+    "feature_pro_only_message": "Chỉ người dùng Pro mới có thể làm nổi bật giao dịch. Nâng cấp lên Pro ngay bây giờ!",
+    "upgrade": "Nâng cấp",
+    
+    "feature_limit_reached_title": "Đã đạt giới hạn",
+    "feature_limit_reached_message": "Bạn đã đạt giới hạn 2 giao dịch nổi bật.",
+    
+    "feature_confirmation_title": "Làm nổi bật giao dịch này?",
+    "feature_confirmation_message": "Bạn có chắc chắn muốn làm nổi bật giao dịch này không? Điều này sẽ tăng khả năng hiển thị của nó!",
+    
+    "feature": "Làm nổi bật",
+    "feature_success": "Giao dịch đã được làm nổi bật!",
+    "feature_success_message": "Giao dịch của bạn sẽ được làm nổi bật trong 24 giờ!",
+    "feature_error": "Lỗi làm nổi bật giao dịch",
+    "feature_error_message": "Không thể làm nổi bật giao dịch. Vui lòng thử lại.",
+    
+    "purchase_success": "Mua hàng thành công",
+    "purchase_success_message": "Người dùng hiện có các tính năng Pro!"
     },
     "signin": {
         "title_signin": "Đăng nhập",
@@ -298,7 +316,8 @@
         "restore": "Khôi phục giao dịch",
         "recurring": "Hóa đơn định kỳ, hủy bất cứ lúc nào",
         "termsOfService": "Điều khoản dịch vụ",
-        "privacyPolicy": "Chính sách bảo mật"
+        "privacyPolicy": "Chính sách bảo mật",
+        "featureListing": "2x Danh sách nổi bật trong 24 giờ"
     },
     "misc": {
         "loginRequired": "Cần đăng nhập, vui lòng đăng nhập để tải các tin nhắn trước đó.",

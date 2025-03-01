@@ -187,7 +187,25 @@
         "fair_deal": "Makatarungang Kasunduan",
         "decent_deal": "Katamtamang Kasunduan",
         "weak_deal": "Mahinang Kasunduan",
-        "risky_deal": "Mapanganib na Kasunduan"
+        "risky_deal": "Mapanganib na Kasunduan",
+        "feature_pro_only_title": "Hindi Magagamit ang Tampok na Kalakal",
+        "feature_pro_only_message": "Tanging mga Pro user lamang ang maaaring magtampok ng mga kalakal. Mag-upgrade sa Pro ngayon!",
+        "upgrade": "I-upgrade",
+        
+        "feature_limit_reached_title": "Naabot na ang Limitasyon",
+        "feature_limit_reached_message": "Naabot mo na ang limitasyon ng 2 itinampok na kalakal.",
+        
+        "feature_confirmation_title": "Itampok ang Kalakal na Ito?",
+        "feature_confirmation_message": "Sigurado ka bang nais mong itampok ang kalakal na ito? Ito ay magpapataas ng visibility nito!",
+        
+        "feature": "Itampok",
+        "feature_success": "Na-itampok na ang Kalakal!",
+        "feature_success_message": "Ang iyong kalakal ay itinampok na sa loob ng 24 oras!",
+        "feature_error": "Error sa Pagtatampok ng Kalakal",
+        "feature_error_message": "Nabigo ang pagtatampok ng kalakal. Pakisubukang muli.",
+        
+        "purchase_success": "Matagumpay na Pagbili",
+        "purchase_success_message": "Ang user ay mayroon na ngayong Pro features!"
     },
     "signin": {
         "title_signin": "Mag-sign In",
@@ -297,7 +315,8 @@
         "restore": "Ibalik ang Pagbili",
         "recurring": "Ulit-ulit na pagsingil, kanselahin anumang oras",
         "termsOfService": "Mga Termino ng Serbisyo",
-        "privacyPolicy": "Patakaran sa Privacy"
+        "privacyPolicy": "Patakaran sa Privacy",
+        "featureListing": "2x Tampok na Listahan sa loob ng 24 Oras"
     },
     "misc": {
         "loginRequired": "Kinakailangan mag-login, mangyaring mag-login upang ma-load ang mga naunang mensahe.",
