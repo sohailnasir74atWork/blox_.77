@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, FlatList, TextInput, Image, Alert, useColorScheme, Keyboard, Pressable, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { InterstitialAd, AdEventType, TestIds, BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
-import getAdUnitId, { developmentMode } from '../Ads/ads';
+import getAdUnitId from '../Ads/ads';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import RNFS from 'react-native-fs';
 import Share from 'react-native-share';
@@ -20,11 +20,8 @@ import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../Translation/LanguageProvider';
 import i18n from '../../i18n';
 import { logEvent } from '@react-native-firebase/analytics';
-import { Notifier, NotifierComponents } from 'react-native-notifier';
-import FlashMessage, { showMessage } from 'react-native-flash-message';
+import  { showMessage } from 'react-native-flash-message';
 import DeviceInfo from 'react-native-device-info';
-
-
 
 
 const bannerAdUnitId = getAdUnitId('banner');
@@ -34,7 +31,7 @@ const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId);
 const HomeScreen = ({ selectedTheme }) => {
   const { theme, user, updateLocalStateAndDatabase, analytics, appdatabase } = useGlobalState();
   const tradesCollection = useMemo(() => firestore().collection('trades'), []);
-  const initialItems = [null, null];
+  const initialItems = [null, null, null, null];
   const [hasItems, setHasItems] = useState(initialItems);
   const [fruitRecords, setFruitRecords] = useState([]);
   const [wantsItems, setWantsItems] = useState(initialItems);
@@ -46,7 +43,6 @@ const HomeScreen = ({ selectedTheme }) => {
   const [isAdLoaded, setIsAdLoaded] = useState(false);
   const [isShowingAd, setIsShowingAd] = useState(false);
   const [isAdVisible, setIsAdVisible] = useState(true);
-  const [message, setMessage] = useState('')
   const { triggerHapticFeedback } = useHaptic();
   const { localState } = useLocalState()
   const [modalVisible, setModalVisible] = useState(false);
@@ -61,61 +57,61 @@ const HomeScreen = ({ selectedTheme }) => {
   const platform = Platform.OS.toLowerCase();
 
   const { t } = useTranslation();
-  const CURRENT_APP_VERSION = DeviceInfo.getVersion(); 
+  const CURRENT_APP_VERSION = DeviceInfo.getVersion();
 
   useEffect(() => {
     const checkForUpdate = async () => {
-        try {
-            const database = getDatabase();
-            const platformKey = Platform.OS === "ios" ? "ios_app_version" : (config.isNoman ? "noman_app_version" : 'waqas_app_version');
-            const versionRef = ref(database, platformKey);
-            const snapshot = await get(versionRef);
-            // console.log(snapshot.val(), CURRENT_APP_VERSION)
+      try {
+        const database = getDatabase();
+        const platformKey = Platform.OS === "ios" ? "ios_app_version" : (config.isNoman ? "noman_app_version" : 'waqas_app_version');
+        const versionRef = ref(database, platformKey);
+        const snapshot = await get(versionRef);
+        // console.log(snapshot.val(), CURRENT_APP_VERSION)
 
-            if (snapshot.exists() && snapshot.val().app_version !== CURRENT_APP_VERSION) {
-                setShowNotification(true);
-            } else {
-                setShowNotification(false);
-            }
-        } catch (error) {
-            console.error("🔥 Error checking for updates:", error);
+        if (snapshot.exists() && snapshot.val().app_version !== CURRENT_APP_VERSION) {
+          setShowNotification(true);
+        } else {
+          setShowNotification(false);
         }
+      } catch (error) {
+        console.error("🔥 Error checking for updates:", error);
+      }
     };
     checkForUpdate();
-}, []);
-const pinnedMessagesRef = useMemo(() => ref(appdatabase, 'pin_messages'), []);
+  }, []);
+  const pinnedMessagesRef = useMemo(() => ref(appdatabase, 'pin_messages'), []);
 
-useEffect(() => {
-  const loadPinnedMessages = async () => {
-    try {
-      const snapshot = await pinnedMessagesRef.once('value');
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        const parsedPinnedMessages = Object.entries(data).map(([key, value]) => ({
-          firebaseKey: key, // Use the actual Firebase key here
-          ...value,
-        }));
-        setPinnedMessages(parsedPinnedMessages); // Store the parsed messages with the Firebase key
-      } else {
-        setPinnedMessages([]); // No pinned messages
+  useEffect(() => {
+    const loadPinnedMessages = async () => {
+      try {
+        const snapshot = await pinnedMessagesRef.once('value');
+        if (snapshot.exists()) {
+          const data = snapshot.val();
+          const parsedPinnedMessages = Object.entries(data).map(([key, value]) => ({
+            firebaseKey: key, // Use the actual Firebase key here
+            ...value,
+          }));
+          setPinnedMessages(parsedPinnedMessages); // Store the parsed messages with the Firebase key
+        } else {
+          setPinnedMessages([]); // No pinned messages
+        }
+      } catch (error) {
+        console.error('Error loading pinned messages:', error);
+        Alert.alert(t('home.alert.error'), 'Could not load pinned messages. Please try again.');
       }
-    } catch (error) {
-      console.error('Error loading pinned messages:', error);
-      Alert.alert(t('home.alert.error'), 'Could not load pinned messages. Please try again.');
-    }
-  };
+    };
 
-  loadPinnedMessages();
-}, [pinnedMessagesRef]);
-// Run this once when the app starts
-  useEffect(()=>{
+    loadPinnedMessages();
+  }, [pinnedMessagesRef]);
+  // Run this once when the app starts
+  useEffect(() => {
     logEvent(analytics, `${platform}_${language}`);
   })
-const onClose = ()=>{setShowNotification(false)}
-const onClosePinMessage = (index) => {
-  setPinnedMessages((prevMessages) => prevMessages.filter((_, i) => i !== index));
-};
-const isDarkMode = theme === 'dark'
+  const onClose = () => { setShowNotification(false) }
+  const onClosePinMessage = (index) => {
+    setPinnedMessages((prevMessages) => prevMessages.filter((_, i) => i !== index));
+  };
+  const isDarkMode = theme === 'dark'
   const viewRef = useRef();
 
   const resetState = () => {
@@ -125,12 +121,12 @@ const isDarkMode = theme === 'dark'
     setWantsTotal({ price: 0, value: 0 });
     setIsAdLoaded(false);
     setIsShowingAd(false);
-    setHasItems([null, null]);
-    setWantsItems([null, null]);
+    setHasItems([null, null, null, null]);
+    setWantsItems([null, null, null, null]);
   };
   const resetTradeState = () => {
-    setHasItems([null, null]);
-    setWantsItems([null, null]);
+    setHasItems([null, null, null, null]);
+    setWantsItems([null, null, null, null]);
     setHasTotal({ price: 0, value: 0 });
     setWantsTotal({ price: 0, value: 0 });
     setDescription("");  // ✅ Reset description field
@@ -146,40 +142,26 @@ const isDarkMode = theme === 'dark'
 
   const handleCreateTradePress = async () => {
     logEvent(analytics, `${platform}_submit_trade`);
-
-
     if (!user.id) {
       setIsSigninDrawerVisible(true)
       return;
     }
-
     if (hasItems.filter(Boolean).length === 0 || wantsItems.filter(Boolean).length === 0) {
       // Alert.alert(t("home.alert.error"), t("home.alert.missing_items_error"));
-
-
-
       showMessage({
         message: t("home.alert.error"),
         description: t("home.alert.missing_items_error"),
         type: "danger",
       });
 
-
+    
       
-      // Notifier.showNotification({
-      //   title: 'The request was failed',
-      //   description: 'Check your internet connection, please',
-      //   Component: NotifierComponents.Alert,
-      //   componentProps: {
-      //     alertType: 'error',
-      //   },
-      // });
       return;
 
 
-      
+
     }
-    const tradeRatio = wantsTotal.price / hasTotal.price;
+    const tradeRatio = wantsTotal.value / hasTotal.value;
 
     if (tradeRatio < 0.05) {
       showMessage({
@@ -187,20 +169,20 @@ const isDarkMode = theme === 'dark'
         description: t('home.unfair_trade_description'),
         type: "danger",
       });
-    
+
       return;
     }
-    
+
     if (tradeRatio > 1.95) {
       showMessage({
         message: t('home.invalid_trade'),
         description: t('home.invalid_trade_description'),
         type: "danger",
       });
-    
+
       return;
     }
-    
+
     setModalVisible(true)
   };
 
@@ -224,7 +206,7 @@ const isDarkMode = theme === 'dark'
       // 🔍 Check if user has used the free trade
       const snapshot = await get(freeTradeRef);
       const hasUsedFreeTrade = snapshot.exists() && snapshot.val();
-     
+
       // if (developmentMode) {
       //   const hasUsedFreeTradeSize = JSON.stringify(hasUsedFreeTrade).length / 1024;
       //   // console.log(`🚀 free trade data data: ${hasUsedFreeTradeSize.toFixed(2)} KB`);
@@ -237,7 +219,7 @@ const isDarkMode = theme === 'dark'
         traderName: user?.displayName || "Anonymous",
         avatar: user?.avatar || null,
         isPro: localState.isPro,
-        isFeatured:false,
+        isFeatured: false,
         hasItems: hasItems.filter(item => item && item.Name).map(item => ({ name: item.Name, type: item.Type })),
         wantsItems: wantsItems.filter(item => item && item.Name).map(item => ({ name: item.Name, type: item.Type })),
         hasTotal: { price: hasTotal?.price || 0, value: hasTotal?.value || 0 },
@@ -297,7 +279,7 @@ const isDarkMode = theme === 'dark'
         // Alert.alert(t("home.alert.success"), t("home.alert.free_trade_used"));
         showMessage({
           message: t("home.alert.success"),
-          description:  t("home.alert.free_trade_used"),
+          description: t("home.alert.free_trade_used"),
           type: "success",
         });
       }
@@ -343,8 +325,8 @@ const isDarkMode = theme === 'dark'
     fruitRecords.forEach((fruit) => {
       if (!fruit.Name) return; // Skip invalid entries
       if (fruit.Permanent && fruit.Value) {
-        transformedData.push({ Name: `${fruit.Name}`, Value: fruit.Permanent, Type: 'p' });
-        transformedData.push({ Name: `${fruit.Name}`, Value: fruit.Value, Type: 'n' });
+        transformedData.push({ Name: `${fruit.Name}`, Value: fruit.Permanent, Type: 'p', Price: fruit.Biliprice });
+        transformedData.push({ Name: `${fruit.Name}`, Value: fruit.Value, Type: 'n', Price: fruit.Biliprice });
       } else if (fruit.Permanent || fruit.Value) {
         // If only one exists, keep it as is
         transformedData.push({ Name: fruit.Name, Value: fruit.Value || fruit.Permanent });
@@ -449,11 +431,18 @@ const isDarkMode = theme === 'dark'
   };
 
   const updateTotal = (item, section, add = true, isNew = false) => {
-    const priceChange = add
-      ? (item.usePermanent ? item.Permanent : item.Value)
-      : -(item.usePermanent ? item.Permanent : item.Value);
+    // console.log(item);
 
-    const valueChange = isNew ? (add ? (isNaN(item.Biliprice) ? 0 : item.Biliprice) : -(isNaN(item.Biliprice) ? 0 : item.Biliprice)) : 0;
+    // Only update price if item.Type is NOT "p"
+    const priceChange =  add
+      ? (item.Price ?? 0)  // If item.Price is undefined/null, default to 0
+      : -(item.Price ?? 0);
+  
+
+    // Update value only if item.Type isNew
+    const valueChange = isNew
+      ? (add ? (isNaN(item.Value) ? 0 : item.Value) : -(isNaN(item.Value) ? 0 : item.Value))
+      : 0;
 
     if (section === 'has') {
       setHasTotal((prev) => ({
@@ -475,6 +464,7 @@ const isDarkMode = theme === 'dark'
     return formattedName;
   }
   const selectItem = (item) => {
+    // console.log(item)
     triggerHapticFeedback('impactLight');
     const newItem = { ...item, usePermanent: false };
     const updateItems = selectedSection === 'has' ? [...hasItems] : [...wantsItems];
@@ -504,7 +494,7 @@ const isDarkMode = theme === 'dark'
 
     if (item) {
       updatedItems[index] = null;
-      const filteredItems = updatedItems.filter((item, i) => item !== null || i < 2);
+      const filteredItems = updatedItems.filter((item, i) => item !== null || i < 4);
       if (isHas) setHasItems(filteredItems);
       else setWantsItems(filteredItems);
       updateTotal(item, section, false, true);
@@ -599,40 +589,40 @@ const isDarkMode = theme === 'dark'
   return (
     <>
       <GestureHandlerRootView>
-    
+
         <View style={styles.container} key={language}>
           <ScrollView showsVerticalScrollIndicator={false}>
-          {showNotification && <View style={[styles.notification]}>
-            <Text style={styles.text}>A new update is available! Please update your app.</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButtonNotification}>
+            {showNotification && <View style={[styles.notification]}>
+              <Text style={styles.text}>A new update is available! Please update your app.</Text>
+              <TouchableOpacity onPress={onClose} style={styles.closeButtonNotification}>
                 <Icon name="close-outline" size={18} color="white" />
                 {/* <Text>ssssefrrevrvtvtvrvrvrvervrvervrevrmrelxjferofmerihxoerghorgorhforxmzhrzgroh,gmrhzrhzgmrmhmzrhmzirhmmirmhzizrhzmizrzmzrhohhg</Text> */}
-            </TouchableOpacity>
-        </View>        }
-        {pinnedMessages.length > 0 && pinnedMessages.map((message, index) => (
-    <View key={index} style={styles.notification}>
-        <Text style={styles.text}>{message.text}</Text>  
-        <TouchableOpacity onPress={()=>onClosePinMessage(index)} style={styles.closeButtonNotification}>
-            <Icon name="close-outline" size={18} color="white" />
-        </TouchableOpacity>
-    </View>
-))}
+              </TouchableOpacity>
+            </View>}
+            {pinnedMessages.length > 0 && pinnedMessages.map((message, index) => (
+              <View key={index} style={styles.notification}>
+                <Text style={styles.text}>{message.text}</Text>
+                <TouchableOpacity onPress={() => onClosePinMessage(index)} style={styles.closeButtonNotification}>
+                  <Icon name="close-outline" size={18} color="white" />
+                </TouchableOpacity>
+              </View>
+            ))}
 
 
-     
+
             <ViewShot ref={viewRef} style={styles.screenshotView}>
               <View style={styles.summaryContainer}>
                 <View style={[styles.summaryBox, styles.hasBox]}>
                   <Text style={[styles.summaryText]}>{t('home.you')}</Text>
                   <View style={{ width: '90%', backgroundColor: '#e0e0e0', height: 1, alignSelf: 'center' }} />
-                  <Text style={styles.priceValue}>{t('home.price')}: ${hasTotal.price.toLocaleString()}</Text>
-                  <Text style={styles.priceValue}>{t('home.value')}: {hasTotal.value.toLocaleString()}</Text>
+                  <Text style={styles.priceValue}>{t('home.price')}: ${hasTotal.price?.toLocaleString()}</Text>
+                  <Text style={styles.priceValue}>{t('home.value')}: {hasTotal.value?.toLocaleString()}</Text>
                 </View>
                 <View style={[styles.summaryBox, styles.wantsBox]}>
                   <Text style={styles.summaryText}>{t('home.them')}</Text>
                   <View style={{ width: '90%', backgroundColor: '#e0e0e0', height: 1, alignSelf: 'center' }} />
-                  <Text style={styles.priceValue}>{t('home.price')}: ${wantsTotal.price.toLocaleString()}</Text>
-                  <Text style={styles.priceValue}>{t('home.value')}: {wantsTotal.value.toLocaleString()}</Text>
+                  <Text style={styles.priceValue}>{t('home.price')}: ${wantsTotal.price?.toLocaleString()}</Text>
+                  <Text style={styles.priceValue}>{t('home.value')}: {wantsTotal.value?.toLocaleString()}</Text>
                 </View>
               </View>
               <View style={styles.profitLossBox}>
@@ -652,12 +642,12 @@ const isDarkMode = theme === 'dark'
 
               <Text style={[styles.sectionTitle, { color: selectedTheme.colors.text }]}>{t('home.you')}</Text>
               <View style={styles.itemRow}>
-                <TouchableOpacity onPress={() => { openDrawer('has') }} style={styles.addItemBlock}>
+                {/* <TouchableOpacity onPress={() => { openDrawer('has') }} style={styles.addItemBlock}>
                   <Icon name="add-circle" size={40} color="white" />
                   <Text style={styles.itemText}>{t('home.add_item')}</Text>
-                </TouchableOpacity>
+                </TouchableOpacity> */}
                 {hasItems?.map((item, index) => (
-                  <View key={index} style={[styles.itemBlock, { backgroundColor: item?.Type === 'p' ? '#FFCC00' : config.colors.primary }]}>
+                  <TouchableOpacity key={index} style={[styles.addItemBlockNew, { backgroundColor: config.colors.primary }]} onPress={() => { openDrawer('has') }} disabled={item !== null}>
                     {item ? (
                       <>
                         <Image
@@ -666,54 +656,61 @@ const isDarkMode = theme === 'dark'
                           { backgroundColor: item.Type === 'p' ? '#FFCC00' : '' }
                           ]}
                         />
-                        <Text style={[styles.itemText, { color: item.Type === 'p' ? config.colors.primary : 'white' }]}>${item.usePermanent ? item.Permanent.toLocaleString() : item.Value.toLocaleString()}</Text>
-                        <Text style={[styles.itemText, { color: item.Type === 'p' ? config.colors.primary : 'white' }]}>{item.Name}</Text>
+                        <Text style={[styles.itemText, { color: 'white' }]}>${item.usePermanent ? item.Permanent?.toLocaleString() : item.Value?.toLocaleString()}</Text>
+                        <Text style={[styles.itemText, { color: 'white' }]}>{item.Name}</Text>
                         {item.Type === 'p' && <Text style={styles.perm}>P</Text>}
                         <TouchableOpacity onPress={() => removeItem(index, true)} style={styles.removeButton}>
-                          <Icon name="close-outline" size={24} color="white" />
+                          <Icon name="close-outline" size={20} color="white" />
                         </TouchableOpacity>
                       </>
                     ) : (
-                      <Text style={styles.itemPlaceholder}>{t('home.empty')}</Text>
+                      <>
+                        <Icon name="add-circle" size={30} color="white" />
+                        <Text style={styles.itemText}>{t('home.add_item')}</Text>
+                      </>
                     )}
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </View>
 
               <View style={styles.divider}>
                 <Image
                   source={require('../../assets/reset.png')} // Replace with your image path
-                  style={{ width: 24, height: 24, tintColor: 'white' }} // Customize size and color
+                  style={{ width: 20, height: 20, tintColor: 'white' }} // Customize size and color
                   onTouchEnd={resetState} // Add event handler
                 />
               </View>
 
               <Text style={[styles.sectionTitle, { color: selectedTheme.colors.text }]}>{t('home.them')}</Text>
               <View style={styles.itemRow}>
-                <TouchableOpacity onPress={() => { openDrawer('wants'); }} style={styles.addItemBlock}>
+                {/* <TouchableOpacity onPress={() => { openDrawer('wants'); }} style={styles.addItemBlockNew}>
                   <Icon name="add-circle" size={40} color="white" />
                   <Text style={styles.itemText}>{t('home.add_item')}</Text>
-                </TouchableOpacity>
+                </TouchableOpacity> */}
                 {wantsItems?.map((item, index) => (
-                  <View key={index} style={[styles.itemBlock, { backgroundColor: item?.Type === 'p' ? '#FFCC00' : config.colors.primary }]}>
+                  <TouchableOpacity key={index} style={[styles.addItemBlockNew, { backgroundColor: config.colors.primary }]} onPress={() => { openDrawer('wants'); }} disabled={item !== null}>
                     {item ? (
                       <>
                         <Image
                           source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` }}
                           style={[styles.itemImageOverlay, { backgroundColor: item?.Type === 'p' ? '#FFCC00' : config.colors.primary }]}
                         />
-                        <Text style={[styles.itemText, { color: item.Type === 'p' ? config.colors.primary : 'white' }]}>${item.usePermanent ? item.Permanent.toLocaleString() : item.Value.toLocaleString()}</Text>
-                        <Text style={[styles.itemText, { color: item.Type === 'p' ? config.colors.primary : 'white' }]}>{item.Name}</Text>
+                        <Text style={[styles.itemText, { color: 'white' }]}>${item.usePermanent ? item.Permanent?.toLocaleString() : item.Value?.toLocaleString()}</Text>
+                        <Text style={[styles.itemText, { color: 'white' }]}>{item.Name}</Text>
                         {item.Type === 'p' && <Text style={styles.perm}>P</Text>}
                         <TouchableOpacity onPress={() => removeItem(index, false)} style={styles.removeButton}>
-                          <Icon name="close-outline" size={24} color="white" />
+                          <Icon name="close-outline" size={20} color="white" />
                         </TouchableOpacity>
                       </>
 
                     ) : (
-                      <Text style={styles.itemPlaceholder}>{t('home.empty')}</Text>
+                      <>
+                        <Icon name="add-circle" size={30} color="white" />
+                        <Text style={styles.itemText}>{t('home.add_item')}</Text>
+                      </>
+                      // <Text style={styles.itemPlaceholder}>{t('home.empty')}</Text>
                     )}
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </View>
             </ViewShot>
@@ -727,8 +724,6 @@ const isDarkMode = theme === 'dark'
             animationType="slide"
             onRequestClose={closeDrawer}
           >
-
-
             <Pressable style={styles.modalOverlay} onPress={closeDrawer} />
             <ConditionalKeyboardWrapper>
               <View>
@@ -760,14 +755,14 @@ const isDarkMode = theme === 'dark'
                     data={filteredData}
                     keyExtractor={(item) => item.Name}
                     renderItem={({ item }) => (
-                      <TouchableOpacity style={[styles.itemBlock, { backgroundColor: item?.Type === 'p' ? '#FFCC00' : config.colors.primary }]} onPress={() => selectItem(item)}>
+                      <TouchableOpacity style={[styles.itemBlock, { backgroundColor: config.colors.primary }]} onPress={() => selectItem(item)}>
                         <>
                           <Image
                             source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` }}
                             style={[styles.itemImageOverlay, { backgroundColor: item.Type === 'p' ? '#FFCC00' : '' }]}
                           />
-                          <Text style={[[styles.itemText, { color: item.Type === 'p' ? config.colors.primary : 'white' }]]}>${item.Value.toLocaleString()}</Text>
-                          <Text style={[[styles.itemText, { color: item.Type === 'p' ? config.colors.primary : 'white' }]]}>{item.Name}</Text>
+                          <Text style={[[styles.itemText, { color: 'white' }]]}>${item.Value?.toLocaleString()}</Text>
+                          <Text style={[[styles.itemText, { color: 'white' }]]}>{item.Name}</Text>
                           {item.Type === 'p' && <Text style={styles.perm}>P</Text>}
                         </>
                       </TouchableOpacity>
@@ -852,7 +847,7 @@ const getStyles = (isDarkMode) =>
     container: {
       flex: 1,
       backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
-      paddingBottom:20
+      paddingBottom: 5
     },
 
     summaryContainer: {
@@ -898,9 +893,18 @@ const getStyles = (isDarkMode) =>
       marginBottom: 10,
 
     },
+    addItemBlockNew: {
+      width: '48%',
+      height: 100,
+      backgroundColor: config.colors.secondary,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderRadius: 10,
+      marginBottom: 5,
+    },
     addItemBlock: {
       width: '32%',
-      height: 110,
+      height: 100,
       backgroundColor: config.colors.secondary,
       justifyContent: 'center',
       alignItems: 'center',
@@ -926,6 +930,7 @@ const getStyles = (isDarkMode) =>
       color: 'white',
       textAlign: 'center',
       fontFamily: 'Lato-Bold',
+      fontSize: 14
     },
     itemPlaceholder: {
       color: '#CCC',
@@ -933,8 +938,8 @@ const getStyles = (isDarkMode) =>
     },
     removeButton: {
       position: 'absolute',
-      top: 5,
-      right: 5,
+      top: 1,
+      right: 1,
       backgroundColor: config.colors.wantBlockRed,
       borderRadius: 50,
     },
@@ -996,18 +1001,19 @@ const getStyles = (isDarkMode) =>
       color: 'white',
       textAlign: 'center',
       fontFamily: 'Lato-Regular',
-      fontSize:12
+      fontSize: 12
     },
     flatListContainer: {
       justifyContent: 'space-between',
+      paddingBottom: 20
     },
     columnWrapper: {
       flex: 1,
       justifyContent: 'space-around',
     },
     itemImageOverlay: {
-      width: 60,
-      height: 60,
+      width: 50,
+      height: 50,
       borderRadius: 5,
     },
     switchValue: {
@@ -1151,30 +1157,30 @@ const getStyles = (isDarkMode) =>
       left: 10,
       color: 'lightgrey',
       fontFamily: 'Lato-Bold',
-      color: config.colors.primary,
+      color: 'white',
     },
     notification: {
       justifyContent: "space-between",
       padding: 12,
-      paddingTop:20,
-      backgroundColor:config.colors.secondary,
-      marginHorizontal:10,
-      marginTop:10,
-      borderRadius:8
-  },
-  text: {
+      paddingTop: 20,
+      backgroundColor: config.colors.secondary,
+      marginHorizontal: 10,
+      marginTop: 10,
+      borderRadius: 8
+    },
+    text: {
       color: "white",
       fontSize: 12,
       fontFamily: "Lato-Regular",
-      lineHeight:14
-  },
-  closeButtonNotification: {
+      lineHeight: 12
+    },
+    closeButtonNotification: {
       marginLeft: 10,
       padding: 5,
-      position:'absolute',
-      top:0,
-      right:0
-  },
+      position: 'absolute',
+      top: 0,
+      right: 0
+    },
 
   });
 

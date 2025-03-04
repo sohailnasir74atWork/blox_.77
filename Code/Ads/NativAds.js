@@ -97,7 +97,7 @@ StyleSheet.create({
         alignItems: 'center',
         width: '100%',
         borderRadius: 12,
-        backgroundColor: isDarkMode ? config.colors.primary : 'white',
+        // backgroundColor: isDarkMode ? config.colors.primary : 'white',
         marginBottom: 10,
         padding: 12,
 },

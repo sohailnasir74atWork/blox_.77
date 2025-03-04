@@ -163,11 +163,11 @@ const TradeList = ({ route }) => {
     }
   };
   const getTradeDeal = (hasTotal, wantsTotal) => {
-    if (!hasTotal?.price || !wantsTotal?.price || hasTotal.price <= 0) {
+    if (!hasTotal?.price || !wantsTotal?.price || hasTotal.value <= 0) {
       return { label: "trade.unknown_deal", color: "#8E8E93" }; // ⚠️ Unknown deal (invalid input)
     }
 
-    const tradeRatio = wantsTotal.price / hasTotal.price;
+    const tradeRatio = wantsTotal.price / hasTotal.value;
     let deal;
 
     if (tradeRatio >= 0.05 && tradeRatio <= 0.6) {
@@ -199,15 +199,15 @@ const TradeList = ({ route }) => {
           onPress: async () => {
             try {
               const tradeId = item.id.startsWith("featured-") ? item.id.replace("featured-", "") : item.id;
-              console.log(`🔄 [handleDelete] Deleting trade: ${tradeId}`);
+              // console.log(`🔄 [handleDelete] Deleting trade: ${tradeId}`);
 
               await firestore().collection("trades").doc(tradeId).delete();
-              console.log(`✅ [handleDelete] Trade deleted: ${tradeId}`);
+              // console.log(`✅ [handleDelete] Trade deleted: ${tradeId}`);
 
               // ✅ Decrement featured count if trade was featured
               if (item.isFeatured) {
                 const newFeaturedCount = Math.max(0, localState.featuredCount - 1);
-                console.log(`📌 [handleDelete] Updating local featured count: ${newFeaturedCount}`);
+                // console.log(`📌 [handleDelete] Updating local featured count: ${newFeaturedCount}`);
                 await updateLocalState('featuredCount', newFeaturedCount);
               }
 
@@ -238,7 +238,7 @@ const TradeList = ({ route }) => {
 
 
 
-  console.log(localState.featuredCount)
+  // console.log(localState.featuredCount)
 
 
 
@@ -275,14 +275,14 @@ const TradeList = ({ route }) => {
           text: t("feature"),
           onPress: async () => {
             try {
-              console.log(`🔄 [handleMakeFeatureTrade] Marking trade as featured: ${item.id}`);
+              // console.log(`🔄 [handleMakeFeatureTrade] Marking trade as featured: ${item.id}`);
 
               await firestore().collection("trades").doc(item.id).update({
                 isFeatured: true,
                 featuredUntil: firestore.Timestamp.fromDate(new Date(Date.now() + 1 * 60 * 60 * 1000)), // 24 hours
               });
 
-              console.log(`✅ [handleMakeFeatureTrade] Trade successfully featured: ${item.id}`);
+              // console.log(`✅ [handleMakeFeatureTrade] Trade successfully featured: ${item.id}`);
 
               // ✅ Update local featured count
               const newFeaturedCount = localState.featuredCount + 1;
@@ -428,7 +428,7 @@ const TradeList = ({ route }) => {
         }));
       }
 
-      console.log('✅ Featured trades:', featuredTrades.length);
+      // console.log('✅ Featured trades:', featuredTrades.length);
 
       // ✅ Keep some featured trades aside for future loadMore()
       setRemainingFeaturedTrades(featuredTrades);
@@ -541,7 +541,7 @@ const TradeList = ({ route }) => {
 
   const renderTrade = ({ item, index }) => {
     const formattedTime = item.timestamp ? moment(item.timestamp.toDate()).fromNow() : "Anonymous";
-    if ((index + 1) % 10 === 0) {
+    if ((index + 1) % 10 === 0 && !localState.isPro) {
       return <MyNativeAdComponent />;
     }
     // Function to group items and count duplicates
@@ -669,7 +669,7 @@ const TradeList = ({ route }) => {
         </View>
         <View style={styles.tradeTotals}>
           <Text style={[styles.priceText, styles.hasBackground]}>
-            {t("trade.price_has")} {formatValue(item.hasTotal.price)}
+            {t("trade.price_has")} {formatValue(item.hasTotal.value)}
           </Text>
           <View style={styles.transfer}>
             {/* {item.userId === user.id && (
@@ -791,7 +791,8 @@ const getStyles = (isDarkMode) =>
       padding: 10,
       marginBottom: 10,
       // marginHorizontal: 10,
-      backgroundColor: isDarkMode ? config.colors.primary : 'white',
+      backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+
       borderRadius: 10, // Smooth rounded corners
       borderWidth: !config.isNoman ? 3 : 0,
       borderColor: config.colors.hasBlockGreen,
@@ -800,7 +801,8 @@ const getStyles = (isDarkMode) =>
     searchInput: {
       height: 48,
       borderColor: isDarkMode ? config.colors.primary : 'white',
-      backgroundColor: isDarkMode ? config.colors.primary : 'white',
+      backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+
       borderWidth: 1,
       borderRadius: 5,
       marginVertical: 8,
@@ -925,7 +927,7 @@ const getStyles = (isDarkMode) =>
       color: config.colors.secondary,
       fontFamily: 'Lato-Regular',
       fontSize: 10,
-      marginTop: 5,
+      // marginTop: 5,
       // lineHeight:12
 
     },

@@ -74,7 +74,7 @@ const BlockedUsersScreen = () => {
 
     fetchBlockedUsers();
   }, [user?.id, localState?.bannedUsers]);
-console.log(blockedUsers)
+// console.log(blockedUsers)
   const handleUnblockUser = async (selectedUserId) => {
     try {
       const updatedBannedUsers = (localState.bannedUsers || []).filter(id => id !== selectedUserId);

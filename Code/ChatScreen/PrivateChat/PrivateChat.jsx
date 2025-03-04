@@ -125,7 +125,7 @@ const PrivateChatScreen = () => {
       // Alert.alert("Error", "Message cannot be empty!");
       showMessage({
         message: t("home.alert.error"),
-        description:t("chat.cannot_empty"),
+        description: t("chat.cannot_empty"),
         type: "success",
       });
       return;
@@ -153,7 +153,7 @@ const PrivateChatScreen = () => {
       await senderChatRef.update({
         chatId,
         receiverId: selectedUserId,
-        receiverName: selectedUser?.sender ||  "Anonymous",
+        receiverName: selectedUser?.sender || "Anonymous",
         receiverAvatar: selectedUser?.avatar || "https://example.com/default-avatar.jpg",
         lastMessage: trimmedText,
         timestamp,
@@ -182,20 +182,20 @@ const PrivateChatScreen = () => {
   useFocusEffect(
     useCallback(() => {
       if (!user?.id || !selectedUserId) return;
-  
+
       const chatMetaRef = database().ref(`chat_meta_data/${user.id}/${selectedUserId}`);
-  
+
       // ✅ Reset unreadCount when entering chat
       chatMetaRef.update({ unreadCount: 0 });
-  
+
       setActiveChat(user.id, chatKey);
-  
+
       return () => {
         clearActiveChat(user.id);
       };
     }, [user?.id, selectedUserId, chatKey])
   );
-  
+  // console.log(selectedUser.senderId)
 
   // Handle refresh
   const handleRefresh = useCallback(async () => {

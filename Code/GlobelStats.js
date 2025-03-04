@@ -165,7 +165,7 @@ export const GlobalStateProvider = ({ children }) => {
     });
 
     return () => {
-        console.log("🚪 Unsubscribing from auth state changes...");
+        // console.log("🚪 Unsubscribing from auth state changes...");
         unsubscribe();
     };
 }, [auth]); // ✅ Fix: Added `auth` dependency
