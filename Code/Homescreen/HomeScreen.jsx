@@ -20,7 +20,7 @@ import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../Translation/LanguageProvider';
 import i18n from '../../i18n';
 import { logEvent } from '@react-native-firebase/analytics';
-import  { showMessage } from 'react-native-flash-message';
+import { showMessage } from 'react-native-flash-message';
 import DeviceInfo from 'react-native-device-info';
 
 
@@ -52,7 +52,7 @@ const HomeScreen = ({ selectedTheme }) => {
   const { language, changeLanguage } = useLanguage();
   const [showNotification, setShowNotification] = useState(false);
   const [pinnedMessages, setPinnedMessages] = useState([]);
-  
+
 
 
   const platform = Platform.OS.toLowerCase();
@@ -155,8 +155,8 @@ const HomeScreen = ({ selectedTheme }) => {
         type: "danger",
       });
 
-    
-      
+
+
       return;
 
 
@@ -435,10 +435,10 @@ const HomeScreen = ({ selectedTheme }) => {
     // console.log(item);
 
     // Only update price if item.Type is NOT "p"
-    const priceChange =  add
+    const priceChange = add
       ? (item.Price ?? 0)  // If item.Price is undefined/null, default to 0
       : -(item.Price ?? 0);
-  
+
 
     // Update value only if item.Type isNew
     const valueChange = isNew
@@ -508,7 +508,7 @@ const HomeScreen = ({ selectedTheme }) => {
 
 
   // console.log(filteredData)
-  const profitLoss = wantsTotal.price - hasTotal.price;
+  const profitLoss = wantsTotal.value - hasTotal.value;
   const isProfit = profitLoss >= 0;
   const neutral = profitLoss === 0;
 
@@ -658,15 +658,15 @@ const HomeScreen = ({ selectedTheme }) => {
                           ]}
                         />
                         <Text style={[styles.itemText, { color: 'white' }]}>${item.usePermanent ? item.Permanent?.toLocaleString() : item.Value?.toLocaleString()}</Text>
-                        <Text style={[styles.itemText, { color: 'white' }]}>{item.Name}</Text>
-                        {item.Type === 'p' && <Text style={styles.perm}>P</Text>}
+                        <Text style={[styles.itemText, { color: 'white' }]}>{item.Type === 'p' && 'Perm'}  {item.Name}</Text>
+                        {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
                         <TouchableOpacity onPress={() => removeItem(index, true)} style={styles.removeButton}>
                           <Icon name="close-outline" size={20} color="white" />
                         </TouchableOpacity>
                       </>
                     ) : (
                       <>
-                        <Icon name="add-circle" size={30} color="white" />
+                        <Icon name="add-circle" size={30} color="grey" />
                         <Text style={styles.itemText}>{t('home.add_item')}</Text>
                       </>
                     )}
@@ -697,8 +697,8 @@ const HomeScreen = ({ selectedTheme }) => {
                           style={[styles.itemImageOverlay, { backgroundColor: item?.Type === 'p' ? '#FFCC00' : config.colors.primary }]}
                         />
                         <Text style={[styles.itemText, { color: 'white' }]}>${item.usePermanent ? item.Permanent?.toLocaleString() : item.Value?.toLocaleString()}</Text>
-                        <Text style={[styles.itemText, { color: 'white' }]}>{item.Name}</Text>
-                        {item.Type === 'p' && <Text style={styles.perm}>P</Text>}
+                        <Text style={[styles.itemText, { color: 'white' }]}>{item.Type === 'p' && 'Perm'} {item.Name}</Text>
+                        {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
                         <TouchableOpacity onPress={() => removeItem(index, false)} style={styles.removeButton}>
                           <Icon name="close-outline" size={20} color="white" />
                         </TouchableOpacity>
@@ -706,7 +706,7 @@ const HomeScreen = ({ selectedTheme }) => {
 
                     ) : (
                       <>
-                        <Icon name="add-circle" size={30} color="white" />
+                        <Icon name="add-circle" size={30} color="grey" />
                         <Text style={styles.itemText}>{t('home.add_item')}</Text>
                       </>
                       // <Text style={styles.itemPlaceholder}>{t('home.empty')}</Text>
@@ -763,8 +763,8 @@ const HomeScreen = ({ selectedTheme }) => {
                             style={[styles.itemImageOverlay, { backgroundColor: item.Type === 'p' ? '#FFCC00' : '' }]}
                           />
                           <Text style={[[styles.itemText, { color: 'white' }]]}>${item.Value?.toLocaleString()}</Text>
-                          <Text style={[[styles.itemText, { color: 'white' }]]}>{item.Name}</Text>
-                          {item.Type === 'p' && <Text style={styles.perm}>P</Text>}
+                          <Text style={[[styles.itemText, { color: 'white' }]]}>{item.Type === 'p' && 'Perm'} {item.Name}</Text>
+                          {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
                         </>
                       </TouchableOpacity>
                     )}
@@ -896,7 +896,7 @@ const getStyles = (isDarkMode) =>
     },
     addItemBlockNew: {
       width: '48%',
-      height: 100,
+      height: 85,
       backgroundColor: config.colors.secondary,
       justifyContent: 'center',
       alignItems: 'center',
@@ -905,7 +905,7 @@ const getStyles = (isDarkMode) =>
     },
     addItemBlock: {
       width: '32%',
-      height: 100,
+      height: 85,
       backgroundColor: config.colors.secondary,
       justifyContent: 'center',
       alignItems: 'center',
@@ -928,10 +928,10 @@ const getStyles = (isDarkMode) =>
     },
 
     itemText: {
-      color: 'white',
+      color: 'grey',
       textAlign: 'center',
       fontFamily: 'Lato-Bold',
-      fontSize: 14
+      fontSize: 12
     },
     itemPlaceholder: {
       color: '#CCC',
@@ -943,6 +943,7 @@ const getStyles = (isDarkMode) =>
       right: 1,
       backgroundColor: config.colors.wantBlockRed,
       borderRadius: 50,
+      opacity:.7
     },
     divider: {
       justifyContent: 'center',
@@ -970,7 +971,7 @@ const getStyles = (isDarkMode) =>
       textAlign: 'center',
       fontFamily: 'Lato-Bold'
     },
-    profitLossBox: { flexDirection: 'row', justifyContent: 'center', marginVertical: 10, alignItems: 'center' },
+    profitLossBox: { flexDirection: 'row', justifyContent: 'center', marginVertical: 0, alignItems: 'center' },
     profitLossText: { fontSize: 16, fontFamily: 'Lato-Bold' },
     profitLossValue: { fontSize: 16, marginLeft: 5, fontFamily: 'Lato-Bold' },
     modalOverlay: {
@@ -1013,29 +1014,11 @@ const getStyles = (isDarkMode) =>
       justifyContent: 'space-around',
     },
     itemImageOverlay: {
-      width: 50,
-      height: 50,
+      width: 40,
+      height: 40,
       borderRadius: 5,
     },
-    switchValue: {
-      backgroundColor: 'lightgreen',
-      flexDirection: 'row',
-      paddingVertical: 0,
-      paddingHorizontal: 10,
-      borderRadius: 20,
-      margin: 5,
-      alignItems: 'center'
-    },
-    switchValueText: {
-      fontSize: 10,
-      padding: 3,
-      fontFamily: 'Lato-Regular',
-      color: 'black'
 
-    },
-    captureButton: { backgroundColor: '#3E8BFC', padding: 10, borderRadius: 8, alignItems: 'center', marginTop: 20, alignSelf: 'center' },
-    captureButtonText: { color: 'white', fontFamily: 'Lato-Bold', fontSize: 14 },
-    captureView: { backgroundColor: '#fff', padding: 10, borderRadius: 10 },
 
     screenshotView: {
       padding: 10,

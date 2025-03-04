@@ -124,7 +124,7 @@ export const GlobalStateProvider = ({ children }) => {
             if (!loggedInUser) {
                 // console.log("🔴 User logged out. Clearing local data...");
                 resetUserState();
-                // storage_user_data.clearAll(); // ✅ Fix: Removed double semicolon
+                storage_user_data.clearAll(); // ✅ Fix: Removed double semicolon
                 return;
             }
 
@@ -134,11 +134,11 @@ export const GlobalStateProvider = ({ children }) => {
             const storedUser = storage_user_data.getString(`userData_${userId}`);
             // console.log(storedUser)
 
-            if (storedUser.id == !null) {
-                console.log("✅ Using cached user data from MMKV.");
+            if (storedUser?.id == !null) {
+                // console.log("✅ Using cached user data from MMKV.");
                 setUser(JSON.parse(storedUser));
             } else {
-                // console.log("⚠️ No cached user data. Fetching from Firebase...");
+                console.log("⚠️ No cached user data. Fetching from Firebase...");
                 const userRef = ref(appdatabase, `users/${userId}`);
                 const snapshot = await get(userRef);
               // console.log('fetching ... ')

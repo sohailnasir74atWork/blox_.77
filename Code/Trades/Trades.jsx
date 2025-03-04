@@ -185,7 +185,7 @@ const TradeList = ({ route }) => {
 
     return deal;
   };
-console.log(localState.featuredCount, 'featu')
+// console.log(localState.featuredCount, 'featu')
 const handleDelete = useCallback((item) => {
   Alert.alert(
     t("trade.delete_confirmation_title"),
@@ -457,7 +457,6 @@ const handleDelete = useCallback((item) => {
           ...doc.data(),
         }));
       }
-
       // console.log('✅ Featured trades:', featuredTrades.length);
 
       // ✅ Keep some featured trades aside for future loadMore()
@@ -1012,7 +1011,7 @@ const getStyles = (isDarkMode) =>
       left: 0,
       height: 15, // Increased height for a better rounded effect
       width: 15,  // Increased width for proportion
-      borderTopLeftRadius: 30,  // Increased to make it more curved
+      borderTopLeftRadius: 10,  // Increased to make it more curved
       borderBottomRightRadius: 30, // Further increased for more curve
     }
     
