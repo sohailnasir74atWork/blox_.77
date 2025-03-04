@@ -228,7 +228,7 @@ export default function SettingsScreen({ selectedTheme }) {
   const handleDeleteUser = async () => {
     triggerHapticFeedback('impactLight');
     try {
-      if (!user || !user.id) {
+      if (!user || !user?.id) {
         // Alert.alert(t("home.alert.error"), t("settings.logout_error"));
         showMessage({
           message: t("home.alert.error"),
@@ -523,11 +523,11 @@ export default function SettingsScreen({ selectedTheme }) {
               style={styles.profileImage}
             />
             <TouchableOpacity onPress={user?.id ? () => { } : () => { setOpenSignin(true) }} disabled={user?.id !== null}>
-              <Text style={!user.id ? styles.userNameLogout : styles.userName}>
+              <Text style={!user?.id ? styles.userNameLogout : styles.userName}>
                 {!user?.id ? t("settings.login_register") : displayName}
               </Text>
               {!user?.id && <Text style={styles.rewardLogout}>{t('settings.login_description')}</Text>}
-              {user.id && <Text style={styles.reward}>{t("settings.my_points")}: {user?.points || 0}</Text>}
+              {user?.id && <Text style={styles.reward}>{t("settings.my_points")}: {user?.points || 0}</Text>}
             </TouchableOpacity>
           </View>
           <TouchableOpacity onPress={handleProfileUpdate}>

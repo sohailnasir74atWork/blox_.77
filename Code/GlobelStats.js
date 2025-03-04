@@ -20,7 +20,7 @@ const firestoreDB = getFirestore(app);
 const appdatabase = getDatabase(app);
 const GlobalStateContext = createContext();
 setAnalyticsCollectionEnabled(analytics, true);
-const storage_user_data = new MMKV(); // Initialize MMKV
+export const storage_user_data = new MMKV(); // Initialize MMKV
 
 
 // Custom hook to access global state
@@ -111,11 +111,11 @@ export const GlobalStateProvider = ({ children }) => {
       fcmToken:null,
       lastactivity:null,
       online:false,
-      featured:0
+      featured:0,
+      online:false
 
     });
   };
-
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (loggedInUser) => {
         // console.log("🔄 Auth state changed. Current user:", loggedInUser ? loggedInUser.uid : "No user");
@@ -124,7 +124,7 @@ export const GlobalStateProvider = ({ children }) => {
             if (!loggedInUser) {
                 // console.log("🔴 User logged out. Clearing local data...");
                 resetUserState();
-                storage_user_data.clearAll(); // ✅ Fix: Removed double semicolon
+                // storage_user_data.clearAll(); // ✅ Fix: Removed double semicolon
                 return;
             }
 
@@ -132,15 +132,16 @@ export const GlobalStateProvider = ({ children }) => {
             // console.log(`🟢 User logged in: ${userId}`);
 
             const storedUser = storage_user_data.getString(`userData_${userId}`);
+            // console.log(storedUser)
 
-            if (storedUser) {
-                // console.log("✅ Using cached user data from MMKV.");
+            if (storedUser.id == !null) {
+                console.log("✅ Using cached user data from MMKV.");
                 setUser(JSON.parse(storedUser));
             } else {
                 // console.log("⚠️ No cached user data. Fetching from Firebase...");
                 const userRef = ref(appdatabase, `users/${userId}`);
                 const snapshot = await get(userRef);
-
+              // console.log('fetching ... ')
                 if (snapshot.exists()) {
                     const userData = { ...snapshot.val(), id: userId };
                     // console.log("✅ User data loaded from Firebase.");

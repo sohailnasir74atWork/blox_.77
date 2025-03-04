@@ -23,8 +23,10 @@ export const LocalStateProvider = ({ children }) => {
       reviewCount: parseInt(storage.getString('reviewCount') || '0', 10), // Ensure reviewCount is a number
       lastVersion: storage.getString('lastVersion') || 'UNKNOWN',
       updateCount: parseInt(storage.getString('updateCount') || '0', 10),
-      featuredCount: parseInt(storage.getString('featuredCount') || '0', 10),
-      isHaptic: storage.getBoolean('isHaptic') ?? true,
+      featuredCount: storage.getString('featuredCount')
+      ? JSON.parse(storage.getString('featuredCount'))
+      : { count: 0, time: null },
+          isHaptic: storage.getBoolean('isHaptic') ?? true,
       theme: initialTheme, // Default to system theme if not set
       consentStatus: storage.getString('consentStatus') || 'UNKNOWN',
       isPro: storage.getBoolean('isPro') ?? false,

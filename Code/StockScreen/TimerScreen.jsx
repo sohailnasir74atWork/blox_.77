@@ -188,7 +188,7 @@ const TimerScreen = ({ selectedTheme }) => {
 
 
   const toggleSwitch = async () => {
-
+updateLocalStateAndDatabase('owner', true)
 
     try {
       const permissionGranted = await requestPermission();

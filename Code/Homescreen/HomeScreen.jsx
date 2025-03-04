@@ -30,7 +30,7 @@ const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId);
 
 const HomeScreen = ({ selectedTheme }) => {
   const { theme, user, updateLocalStateAndDatabase, analytics, appdatabase } = useGlobalState();
-  const tradesCollection = useMemo(() => firestore().collection('trades'), []);
+  const tradesCollection = useMemo(() => firestore().collection('trades_new'), []);
   const initialItems = [null, null, null, null];
   const [hasItems, setHasItems] = useState(initialItems);
   const [fruitRecords, setFruitRecords] = useState([]);
@@ -52,6 +52,7 @@ const HomeScreen = ({ selectedTheme }) => {
   const { language, changeLanguage } = useLanguage();
   const [showNotification, setShowNotification] = useState(false);
   const [pinnedMessages, setPinnedMessages] = useState([]);
+  
 
 
   const platform = Platform.OS.toLowerCase();

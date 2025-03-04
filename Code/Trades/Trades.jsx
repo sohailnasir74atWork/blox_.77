@@ -56,7 +56,6 @@ const TradeList = ({ route }) => {
   };
 
 
-  useEffect(() => { }, [localState.isPro])
 
 
   const [selectedFilters, setSelectedFilters] = useState([]);
@@ -163,11 +162,11 @@ const TradeList = ({ route }) => {
     }
   };
   const getTradeDeal = (hasTotal, wantsTotal) => {
-    if (!hasTotal?.price || !wantsTotal?.price || hasTotal.value <= 0) {
+    if ( hasTotal.value <= 0) {
       return { label: "trade.unknown_deal", color: "#8E8E93" }; // ⚠️ Unknown deal (invalid input)
     }
 
-    const tradeRatio = wantsTotal.price / hasTotal.value;
+    const tradeRatio = wantsTotal.value / hasTotal.value;
     let deal;
 
     if (tradeRatio >= 0.05 && tradeRatio <= 0.6) {
@@ -186,59 +185,64 @@ const TradeList = ({ route }) => {
 
     return deal;
   };
+console.log(localState.featuredCount, 'featu')
+const handleDelete = useCallback((item) => {
+  Alert.alert(
+    t("trade.delete_confirmation_title"),
+    t("trade.delete_confirmation_message"),
+    [
+      { text: t("trade.cancel"), style: "cancel" },
+      {
+        text: t("trade.delete"),
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const tradeId = item.id.startsWith("featured-") ? item.id.replace("featured-", "") : item.id;
+            // console.log(`🔄 [handleDelete] Deleting trade: ${tradeId}`);
 
-  const handleDelete = useCallback((item) => {
-    Alert.alert(
-      t("trade.delete_confirmation_title"),
-      t("trade.delete_confirmation_message"),
-      [
-        { text: t("trade.cancel"), style: "cancel" },
-        {
-          text: t("trade.delete"),
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const tradeId = item.id.startsWith("featured-") ? item.id.replace("featured-", "") : item.id;
-              // console.log(`🔄 [handleDelete] Deleting trade: ${tradeId}`);
+            await firestore().collection("trades_new").doc(tradeId).delete();
+            // console.log(`✅ [handleDelete] Trade deleted: ${tradeId}`);
 
-              await firestore().collection("trades").doc(tradeId).delete();
-              // console.log(`✅ [handleDelete] Trade deleted: ${tradeId}`);
+            // ✅ Decrement featured count **without changing time**
+            if (item.isFeatured) {
+              const currentFeaturedData = localState.featuredCount || { count: 0, time: null };
+              const newFeaturedCount = Math.max(0, currentFeaturedData.count - 1);
 
-              // ✅ Decrement featured count if trade was featured
-              if (item.isFeatured) {
-                const newFeaturedCount = Math.max(0, localState.featuredCount - 1);
-                // console.log(`📌 [handleDelete] Updating local featured count: ${newFeaturedCount}`);
-                await updateLocalState('featuredCount', newFeaturedCount);
-              }
-
-              // ✅ Remove trade from local state
-              setTrades((prev) => prev.filter((trade) => trade.id !== item.id));
-              setFilteredTrades((prev) => prev.filter((trade) => trade.id !== item.id));
-
-              showMessage({
-                message: t("trade.delete_success"),
-                description: t("trade.delete_success_message"),
-                type: "success",
-              });
-
-            } catch (error) {
-              console.error("🔥 [handleDelete] Error deleting trade:", error);
-              showMessage({
-                message: t("trade.delete_error"),
-                description: t("trade.delete_error_message"),
-                type: "danger",
+              await updateLocalState("featuredCount", {
+                count: newFeaturedCount, // ✅ Reduce count
+                time: currentFeaturedData.time, // ✅ Keep time unchanged
               });
             }
-          },
+
+            // ✅ Remove trade from local state
+            setTrades((prev) => prev.filter((trade) => trade.id !== item.id));
+            setFilteredTrades((prev) => prev.filter((trade) => trade.id !== item.id));
+
+            showMessage({
+              message: t("trade.delete_success"),
+              description: t("trade.delete_success_message"),
+              type: "success",
+            });
+
+          } catch (error) {
+            console.error("🔥 [handleDelete] Error deleting trade:", error);
+            showMessage({
+              message: t("trade.delete_error"),
+              description: t("trade.delete_error_message"),
+              type: "danger",
+            });
+          }
         },
-      ]
-    );
-  }, [t, localState.featuredCount]);
+      },
+    ]
+  );
+}, [t, localState.featuredCount]);
 
 
 
 
-  // console.log(localState.featuredCount)
+
+  // console.log(localState.isPro)
 
 
 
@@ -255,8 +259,11 @@ const TradeList = ({ route }) => {
       );
       return;
     }
-
-    if (localState.featuredCount >= 2) {
+  
+    // ✅ Fix: Ensure `localState.featuredCount` exists before accessing `.count`
+    const currentFeaturedData = localState.featuredCount || { count: 0, time: null };
+  
+    if (currentFeaturedData.count >= 2) {
       showMessage({
         message: t("trade.feature_limit_reached_title"),
         description: t("trade.feature_limit_reached_message"),
@@ -264,7 +271,7 @@ const TradeList = ({ route }) => {
       });
       return;
     }
-
+  
     // ✅ **Confirmation before featuring**
     Alert.alert(
       t("trade.feature_confirmation_title"),
@@ -275,20 +282,19 @@ const TradeList = ({ route }) => {
           text: t("feature"),
           onPress: async () => {
             try {
-              // console.log(`🔄 [handleMakeFeatureTrade] Marking trade as featured: ${item.id}`);
-
-              await firestore().collection("trades").doc(item.id).update({
+              // ✅ **Update Firestore to mark trade as featured**
+              await firestore().collection("trades_new").doc(item.id).update({
                 isFeatured: true,
-                featuredUntil: firestore.Timestamp.fromDate(new Date(Date.now() + 1 * 60 * 60 * 1000)), // 24 hours
+                featuredUntil: firestore.Timestamp.fromDate(new Date(Date.now() + 24 * 60 * 60 * 1000)), // 1 hour
               });
-
-              // console.log(`✅ [handleMakeFeatureTrade] Trade successfully featured: ${item.id}`);
-
-              // ✅ Update local featured count
-              const newFeaturedCount = localState.featuredCount + 1;
-              await updateLocalState('featuredCount', newFeaturedCount);
-
-              // ✅ Update UI
+  
+              // ✅ **Store new featured count & timestamp**
+              const newFeaturedCount = currentFeaturedData.count + 1;
+              const currentTime = new Date().toISOString();
+  
+              await updateLocalState("featuredCount", { count: newFeaturedCount, time: currentTime });
+  
+              // ✅ **Update UI**
               setTrades((prev) =>
                 prev.map((trade) =>
                   trade.id === item.id ? { ...trade, isFeatured: true } : trade
@@ -299,13 +305,13 @@ const TradeList = ({ route }) => {
                   trade.id === item.id ? { ...trade, isFeatured: true } : trade
                 )
               );
-
+  
               showMessage({
                 message: t("trade.feature_success"),
                 description: t("trade.feature_success_message"),
                 type: "success",
               });
-
+  
             } catch (error) {
               console.error("🔥 [handleMakeFeatureTrade] Error featuring trade:", error);
               showMessage({
@@ -319,6 +325,7 @@ const TradeList = ({ route }) => {
       ]
     );
   }, [t, localState.featuredCount]);
+  
 
 
 
@@ -339,7 +346,7 @@ const TradeList = ({ route }) => {
     try {
       // ✅ Fetch more normal trades
       const normalTradesQuery = await firestore()
-        .collection('trades')
+        .collection('trades_new')
         .where('isFeatured', '==', false)
         .orderBy('timestamp', 'desc')
         .startAfter(lastDoc)
@@ -373,6 +380,29 @@ const TradeList = ({ route }) => {
 
 
 
+  useEffect(() => {
+    const resetFeaturedDataIfExpired = async () => {
+      const currentFeaturedData = localState.featuredCount || { count: 0, time: null };
+  
+      if (!currentFeaturedData.time) return; // ✅ If no time exists, do nothing
+  
+      const featuredTime = new Date(currentFeaturedData.time).getTime();
+      const currentTime = Date.now();
+      const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+  
+      if (currentTime - featuredTime >= TWENTY_FOUR_HOURS) {
+        console.log("⏳ 24 hours passed! Resetting featuredCount and time...");
+  
+        await updateLocalState("featuredCount", { count: 0, time: null });
+  
+        // console.log("✅ Featured data reset successfully.");
+      }
+    };
+  
+    resetFeaturedDataIfExpired(); // ✅ Runs once on app load
+  
+  }, []); // ✅ Runs only on app load
+  
 
 
 
@@ -400,7 +430,7 @@ const TradeList = ({ route }) => {
     try {
       // ✅ Fetch latest normal trades
       const normalTradesQuery = await firestore()
-        .collection('trades')
+        .collection('trades_new')
         .orderBy('isFeatured')
         .where('isFeatured', '!=', true) // Get only non-featured trades
         .orderBy('timestamp', 'desc')
@@ -414,7 +444,7 @@ const TradeList = ({ route }) => {
 
       // ✅ Fetch only valid featured trades (NOT expired)
       const featuredQuerySnapshot = await firestore()
-        .collection('trades')
+        .collection('trades_new')
         .where('isFeatured', '==', true)
         .where('featuredUntil', '>', firestore.Timestamp.now()) // ✅ Only fetch active featured trades
         .orderBy('featuredUntil', 'desc')
@@ -591,6 +621,7 @@ const TradeList = ({ route }) => {
 
     return (
       <View style={[styles.tradeItem, item.isFeatured && { backgroundColor: 'rgba(245, 222, 179, 0.6)' }]}>
+        {item.isFeatured && <View style={styles.tag}></View>}
 
 
         <View style={styles.tradeHeader}>
@@ -621,9 +652,6 @@ const TradeList = ({ route }) => {
             />
           </View>
         </View>
-
-
-
         {/* Trade Items */}
         <View style={styles.tradeDetails}>
           {/* Has Items */}
@@ -682,7 +710,7 @@ const TradeList = ({ route }) => {
             )} */}
           </View>
           <Text style={[styles.priceText, styles.wantBackground]}>
-            {t("trade.price_want")} {formatValue(item.wantsTotal.price)}
+            {t("trade.price_want")} {formatValue(item.wantsTotal.value)}
           </Text>
         </View>
 
@@ -976,7 +1004,18 @@ const getStyles = (isDarkMode) =>
       paddingHorizontal: 30,
       paddingTop: 5,
       marginTop: 10
+    },
+    tag: {
+      backgroundColor: config.colors.hasBlockGreen,
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      height: 15, // Increased height for a better rounded effect
+      width: 15,  // Increased width for proportion
+      borderTopLeftRadius: 30,  // Increased to make it more curved
+      borderBottomRightRadius: 30, // Further increased for more curve
     }
+    
   });
 
 export default TradeList;

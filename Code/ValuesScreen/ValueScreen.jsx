@@ -58,6 +58,7 @@ const platform = Platform.OS.toLowerCase();
 // console.log(valuesData)
 
   const toggleDrawer = () => {
+    
     triggerHapticFeedback('impactLight');
     logEvent(analytics, `${platform}_code_drawer_open`);
     if (!hasAdBeenShown) {
