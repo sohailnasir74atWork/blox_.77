@@ -1,6 +1,7 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import * as RNLocalize from "react-native-localize";
+import { MMKV } from "react-native-mmkv";
 
 // Import translation files
 import en from "./Code/Translation/en.json";
@@ -14,33 +15,46 @@ import de from "./Code/Translation/de.json";
 import ru from "./Code/Translation/ru.json";
 import ar from "./Code/Translation/ar.json";
 
+// Initialize MMKV storage
+const storage = new MMKV();
 
 // Map country codes to languages
 const countryToLanguage = {
-  BR: "pt",  // Brazil -> Portuguese
-  PH: "fil", // Philippines -> Filipino
-  VN: "vi",  // Vietnam -> Vietnamese
-  ID: "id",  // Indonesia -> Indonesian
-  US: "en",  // United States -> English
-  MX: "es",  // Mexico -> Spanish
-  FR: "fr",  // France -> French
-  DE: "de",  // Germany -> German
-  RU: "ru",  // Russia -> Russian
-  IN: "en",  // India -> English (Default)
-  AR: "ar",  // India -> English (Default)
+  BR: "pt",
+  PH: "fil",
+  VN: "vi",
+  ID: "id",
+  US: "en",
+  MX: "es",
+  FR: "fr",
+  DE: "de",
+  RU: "ru",
+  IN: "en",
+  AR: "ar",
 };
 
-// Detect the device's language setting
+// Function to get saved language from MMKV
+const getStoredLanguage = () => {
+  return storage.getString("appLanguage") || null;
+};
+
+// Function to get the device language
 const getDeviceLanguage = () => {
   const locales = RNLocalize.getLocales();
-  return locales.length > 0 ? locales[0].languageCode : "en";
+  if (locales.length > 0) {
+    return countryToLanguage[locales[0].countryCode] || "en"; // Default to English if country is not mapped
+  }
+  return "en";
 };
+
+// Determine initial language
+const initialLanguage = getStoredLanguage() || 'en';
 
 // Initialize i18next
 i18n
   .use(initReactI18next)
   .init({
-    compatibilityJSON: 'v3',
+    compatibilityJSON: "v3",
     resources: {
       en: { translation: en },
       fil: { translation: fil },
@@ -53,11 +67,17 @@ i18n
       ru: { translation: ru },
       ar: { translation: ar },
     },
-    lng: getDeviceLanguage(), // Set the detected language
-    fallbackLng: "en", // Default to English if translation is missing
+    lng: initialLanguage, // Set initial language
+    fallbackLng: "en", // Default fallback language
     interpolation: {
       escapeValue: false,
     },
   });
+
+// Function to update language and store in MMKV
+export const setAppLanguage = (languageCode) => {
+  i18n.changeLanguage(languageCode);
+  storage.set("appLanguage", languageCode);
+};
 
 export default i18n;

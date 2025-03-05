@@ -8,19 +8,18 @@
         "theme": "Tema",
         "theme_system": "SISTEMA",
         "theme_light": "CLARO",
-       "languages": {
-    "en": "Inglês",
-    "fil": "Filipino",
-    "vi": "Vietnamita",
-    "pt": "Português",
-    "id": "Indonésio",
-    "es": "Espanhol",
-    "fr": "Francês",
-    "de": "Alemão",
-    "ru": "Russo",
-    "ar": "Árabe"
-},
-
+        "languages": {
+            "en": "Inglês",
+            "fil": "Filipino",
+            "vi": "Vietnamita",
+            "pt": "Português",
+            "id": "Indonésio",
+            "es": "Espanhol",
+            "fr": "Francês",
+            "de": "Alemão",
+            "ru": "Russo",
+            "ar": "Árabe"
+        },
         "theme_dark": "ESCURO",
         "language_settings": "CONFIGURAÇÕES DE IDIOMA",
         "select_language": "Selecionar Idioma",
@@ -190,23 +189,19 @@
         "weak_deal": "Negócio fraco",
         "risky_deal": "Negócio arriscado",
         "feature_pro_only_title": "Recurso de troca não disponível",
-    "feature_pro_only_message": "Apenas usuários Pro podem destacar trocas. Faça o upgrade para Pro agora!",
-    "upgrade": "Atualizar",
-    
-    "feature_limit_reached_title": "Limite de destaque atingido",
-    "feature_limit_reached_message": "Você atingiu o limite de 2 trocas destacadas.",
-    
-    "feature_confirmation_title": "Destacar esta troca?",
-    "feature_confirmation_message": "Tem certeza de que deseja destacar esta troca? Isso aumentará sua visibilidade!",
-    
-    "feature": "Destacar",
-    "feature_success": "Troca destacada!",
-    "feature_success_message": "Sua troca agora está destacada por 24 horas!",
-    "feature_error": "Erro ao destacar troca",
-    "feature_error_message": "Falha ao destacar a troca. Tente novamente.",
-    
-    "purchase_success": "Compra realizada com sucesso",
-    "purchase_success_message": "O usuário agora tem recursos Pro!"
+        "feature_pro_only_message": "Apenas usuários Pro podem destacar trocas. Faça o upgrade para Pro agora!",
+        "upgrade": "Atualizar",
+        "feature_limit_reached_title": "Limite de destaque atingido",
+        "feature_limit_reached_message": "Você atingiu o limite de 2 trocas destacadas.",
+        "feature_confirmation_title": "Destacar esta troca?",
+        "feature_confirmation_message": "Tem certeza de que deseja destacar esta troca? Isso aumentará sua visibilidade!",
+        "feature": "Destacar",
+        "feature_success": "Troca destacada!",
+        "feature_success_message": "Sua troca agora está destacada por 24 horas!",
+        "feature_error": "Erro ao destacar troca",
+        "feature_error_message": "Falha ao destacar a troca. Tente novamente.",
+        "purchase_success": "Compra realizada com sucesso",
+        "purchase_success_message": "O usuário agora tem recursos Pro!"
     },
     "signin": {
         "title_signin": "Entrar",

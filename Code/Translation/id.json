@@ -8,19 +8,18 @@
         "theme": "Tema",
         "theme_system": "SISTEM",
         "theme_light": "TERANG",
-       "languages": {
-    "en": "Inggris",
-    "fil": "Filipina",
-    "vi": "Vietnam",
-    "pt": "Portugis",
-    "id": "Indonesia",
-    "es": "Spanyol",
-    "fr": "Prancis",
-    "de": "Jerman",
-    "ru": "Rusia",
-    "ar": "Arab"
-}
-,
+        "languages": {
+            "en": "Inggris",
+            "fil": "Filipina",
+            "vi": "Vietnam",
+            "pt": "Portugis",
+            "id": "Indonesia",
+            "es": "Spanyol",
+            "fr": "Prancis",
+            "de": "Jerman",
+            "ru": "Rusia",
+            "ar": "Arab"
+        },
         "theme_dark": "GELAP",
         "language_settings": "PENGATURAN BAHASA",
         "select_language": "Pilih Bahasa",
@@ -104,9 +103,9 @@
         "screenshot_error": "Gagal menangkap dan menyimpan tangkapan layar. Coba lagi.",
         "write_description": "Tulis deskripsi",
         "unfair_trade": "Perdagangan Tidak Adil",
-  "unfair_trade_description": "Anda menawarkan terlalu banyak tetapi menerima terlalu sedikit! Sesuaikan perdagangan agar lebih adil.",
-  "invalid_trade": "Perdagangan Tidak Sah",
-  "invalid_trade_description": "Anda menerima jauh lebih banyak daripada yang Anda berikan. Silakan sesuaikan tawaran Anda agar tetap adil.",
+        "unfair_trade_description": "Anda menawarkan terlalu banyak tetapi menerima terlalu sedikit! Sesuaikan perdagangan agar lebih adil.",
+        "invalid_trade": "Perdagangan Tidak Sah",
+        "invalid_trade_description": "Anda menerima jauh lebih banyak daripada yang Anda berikan. Silakan sesuaikan tawaran Anda agar tetap adil.",
         "alert": {
             "error": "Kesalahan",
             "success": "Sukses",
@@ -190,23 +189,19 @@
         "weak_deal": "Kesepakatan Lemah",
         "risky_deal": "Kesepakatan Berisiko",
         "feature_pro_only_title": "Fitur Tidak Tersedia",
-    "feature_pro_only_message": "Hanya pengguna Pro yang dapat menampilkan perdagangan. Tingkatkan ke Pro sekarang!",
-    "upgrade": "Tingkatkan",
-    
-    "feature_limit_reached_title": "Batas Fitur Tercapai",
-    "feature_limit_reached_message": "Anda telah mencapai batas 2 perdagangan yang ditampilkan.",
-    
-    "feature_confirmation_title": "Tampilkan Perdagangan Ini?",
-    "feature_confirmation_message": "Apakah Anda yakin ingin menampilkan perdagangan ini? Ini akan meningkatkan visibilitasnya!",
-    
-    "feature": "Tampilkan",
-    "feature_success": "Perdagangan Ditampilkan!",
-    "feature_success_message": "Perdagangan Anda sekarang ditampilkan selama 24 jam!",
-    "feature_error": "Kesalahan Menampilkan Perdagangan",
-    "feature_error_message": "Gagal menampilkan perdagangan. Silakan coba lagi.",
-    
-    "purchase_success": "Pembelian Berhasil",
-    "purchase_success_message": "Pengguna sekarang memiliki fitur Pro!"
+        "feature_pro_only_message": "Hanya pengguna Pro yang dapat menampilkan perdagangan. Tingkatkan ke Pro sekarang!",
+        "upgrade": "Tingkatkan",
+        "feature_limit_reached_title": "Batas Fitur Tercapai",
+        "feature_limit_reached_message": "Anda telah mencapai batas 2 perdagangan yang ditampilkan.",
+        "feature_confirmation_title": "Tampilkan Perdagangan Ini?",
+        "feature_confirmation_message": "Apakah Anda yakin ingin menampilkan perdagangan ini? Ini akan meningkatkan visibilitasnya!",
+        "feature": "Tampilkan",
+        "feature_success": "Perdagangan Ditampilkan!",
+        "feature_success_message": "Perdagangan Anda sekarang ditampilkan selama 24 jam!",
+        "feature_error": "Kesalahan Menampilkan Perdagangan",
+        "feature_error_message": "Gagal menampilkan perdagangan. Silakan coba lagi.",
+        "purchase_success": "Pembelian Berhasil",
+        "purchase_success_message": "Pengguna sekarang memiliki fitur Pro!"
     },
     "signin": {
         "title_signin": "Masuk",

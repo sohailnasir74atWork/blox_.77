@@ -188,26 +188,20 @@
         "decent_deal": "Decent Deal",
         "weak_deal": "Weak Deal",
         "risky_deal": "Risky Deal",
-
         "feature_pro_only_title": "Feature Trade Not Available",
-    "feature_pro_only_message": "Only Pro users can feature trades. Upgrade to Pro now!",
-    "upgrade": "Upgrade",
-    
-    "feature_limit_reached_title": "Feature Limit Reached",
-    "feature_limit_reached_message": "You have reached your limit of 2 featured trades.",
-    
-    "feature_confirmation_title": "Feature This Trade?",
-    "feature_confirmation_message": "Are you sure you want to feature this trade? This will boost its visibility!",
-    
-    "feature": "Feature",
-    "feature_success": "Trade Featured!",
-    "feature_success_message": "Your trade is now featured for 24 hours!",
-    "feature_error": "Error Featuring Trade",
-    "feature_error_message": "Failed to feature trade. Please try again.",
-    
-    "purchase_success": "Purchase Successful",
-    "purchase_success_message": "User now has Pro features!"
-
+        "feature_pro_only_message": "Only Pro users can feature trades. Upgrade to Pro now!",
+        "upgrade": "Upgrade",
+        "feature_limit_reached_title": "Feature Limit Reached",
+        "feature_limit_reached_message": "You have reached your limit of 2 featured trades.",
+        "feature_confirmation_title": "Feature This Trade?",
+        "feature_confirmation_message": "Are you sure you want to feature this trade? This will boost its visibility!",
+        "feature": "Feature",
+        "feature_success": "Trade Featured!",
+        "feature_success_message": "Your trade is now featured for 24 hours!",
+        "feature_error": "Error Featuring Trade",
+        "feature_error_message": "Failed to feature trade. Please try again.",
+        "purchase_success": "Purchase Successful",
+        "purchase_success_message": "User now has Pro features!"
     },
     "signin": {
         "title_signin": "Sign In",
@@ -292,7 +286,6 @@
         "chat_success_message": "Chat deleted successfully!",
         "unblock": "Unblock User",
         "block": "Block User"
-        
     },
     "first": {
         "welcome_title": "Welcome to Fruit Values",

@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { FlatList, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { logEvent } from '@react-native-firebase/analytics';
+import { setAppLanguage } from '../../i18n';
 
 const { width } = Dimensions.get('window');
 const images = [
@@ -214,6 +215,7 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
                   style={styles.languageOption}
                   onPress={() => {
                     changeLanguage(item.code);
+                    setAppLanguage(item.code);
                     logEvent(analytics, `${platform}_change_lang_onboarding_${item.code}`);
                     setLanguageModalVisible(false);
 

@@ -30,14 +30,14 @@ const MessagesList = ({
   onPinMessage,
   onDeleteMessage,
   onReply,
-  isAdmin,
+  // isAdmin,
   refreshing,
   onRefresh,
   banUser,
   makeadmin,
   removeAdmin,
   unbanUser,
-  isOwner,
+  // isOwner,
   toggleDrawer,
   setMessages
 }) => {
@@ -46,6 +46,9 @@ const MessagesList = ({
   const [showReportPopup, setShowReportPopup] = useState(false);
   const { triggerHapticFeedback } = useHaptic();
   const { t } = useTranslation();
+  const isAdmin = user?.id  ? 'illHUCN4EzPwcmZLzRD3hJXI4vm1' : false
+
+  console.log(user)
 
 
   const handleLongPress = (item) => {
@@ -207,7 +210,7 @@ const MessagesList = ({
             </Text>
 
           </View>
-          {(isOwner || isAdmin) && (
+          {(isAdmin) && (
             <Menu>
               <MenuTrigger>
                 <Icon
@@ -230,12 +233,12 @@ const MessagesList = ({
                   <MenuOption onSelect={() => unbanUser(item.senderId)} style={styles.deleteButton}>
                     <Text style={styles.adminTextAction}>Unblock</Text>
                   </MenuOption>
-                  {isOwner && (
+                  {isAdmin && (
                     <MenuOption onSelect={() => makeadmin(item.senderId)} style={styles.deleteButton}>
                       <Text style={styles.adminTextAction}>Make Admin</Text>
                     </MenuOption>
                   )}
-                  {isOwner && (
+                  {isAdmin && (
                     <MenuOption onSelect={() => removeAdmin(item.senderId)} style={styles.deleteButton}>
                       <Text style={styles.adminTextAction}>Remove Admin</Text>
                     </MenuOption>

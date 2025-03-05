@@ -96,8 +96,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   const chatRef = useMemo(() => ref(appdatabase, 'chat_new'), []);
   const pinnedMessagesRef = useMemo(() => ref(appdatabase, 'pin_messages'), []);
 
-  const isAdmin = user?.admin || false;
-  const isOwner = user?.owner || false;
+  // const isAdmin = user?.admin || false;
+  // const isOwner = user?.owner || false;
   const styles = useMemo(() => getStyles(theme === 'dark'), [theme]);
 
 
@@ -426,7 +426,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         senderId: user.id,
         avatar: user.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
         replyTo: replyTo ? { id: replyTo.id, text: replyTo.text } : null,
-        isAdmin: user.admin || user.owner,
+        // isAdmin: user.admin || user.owner,
         reportCount: 0,
         containsLink: containsLink,
         isPro: localState.isPro
@@ -457,10 +457,10 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
             pinnedMessages={pinnedMessages}
             onClearPin={clearAllPinnedMessages}
             onUnpinMessage={unpinSingleMessage}
-            isAdmin={isAdmin}
+            // isAdmin={isAdmin}
             selectedTheme={selectedTheme}
             onlineMembersCount={onlineMembersCount}
-            isOwner={isOwner}
+            // isOwner={isOwner}
             modalVisibleChatinfo={modalVisibleChatinfo}
             setModalVisibleChatinfo={setModalVisibleChatinfo}
             triggerHapticFeedback={triggerHapticFeedback}
@@ -479,7 +479,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                 isDarkMode={theme === 'dark'}
                 onPinMessage={handlePinMessage}
                 onDeleteMessage={(messageId) => chatRef.child(messageId.replace('chat_new-', '')).remove()}
-                isAdmin={isAdmin}
+                // isAdmin={isAdmin}
                 refreshing={refreshing}
                 onRefresh={handleRefresh}
                 handleLoadMore={handleLoadMore}
@@ -489,7 +489,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                 // onReport={onReport}
                 removeAdmin={removeAdmin}
                 unbanUser={unbanUser}
-                isOwner={isOwner}
+                // isOwner={isOwner}
                 toggleDrawer={toggleDrawer}
                 setMessages={setMessages}
               />

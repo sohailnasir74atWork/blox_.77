@@ -15,19 +15,18 @@
         "get_points": "Obtenir des Points",
         "pro_subscription": "Abonnement Pro",
         "active_plan": "Plan Actif",
-       "languages": {
-    "en": "Anglais",
-    "fil": "Filipino",
-    "vi": "Vietnamien",
-    "pt": "Portugais",
-    "id": "Indonésien",
-    "es": "Espagnol",
-    "fr": "Français",
-    "de": "Allemand",
-    "ru": "Russe",
-    "ar": "Arabe"
-}
-,
+        "languages": {
+            "en": "Anglais",
+            "fil": "Filipino",
+            "vi": "Vietnamien",
+            "pt": "Portugais",
+            "id": "Indonésien",
+            "es": "Espagnol",
+            "fr": "Français",
+            "de": "Allemand",
+            "ru": "Russe",
+            "ar": "Arabe"
+        },
         "free": "Gratuit",
         "paid": "Payé",
         "manage": "Gérer",
@@ -193,19 +192,15 @@
         "feature_pro_only_title": "Fonction d'échange non disponible",
         "feature_pro_only_message": "Seuls les utilisateurs Pro peuvent mettre en avant des échanges. Passez à Pro maintenant !",
         "upgrade": "Mettre à niveau",
-        
         "feature_limit_reached_title": "Limite de fonctionnalité atteinte",
         "feature_limit_reached_message": "Vous avez atteint votre limite de 2 échanges mis en avant.",
-        
         "feature_confirmation_title": "Mettre en avant cet échange ?",
         "feature_confirmation_message": "Êtes-vous sûr de vouloir mettre en avant cet échange ? Cela augmentera sa visibilité !",
-        
         "feature": "Mettre en avant",
         "feature_success": "Échange mis en avant !",
         "feature_success_message": "Votre échange est maintenant mis en avant pendant 24 heures !",
         "feature_error": "Erreur lors de la mise en avant",
         "feature_error_message": "Échec de la mise en avant de l'échange. Veuillez réessayer.",
-        
         "purchase_success": "Achat réussi",
         "purchase_success_message": "L'utilisateur a maintenant des fonctionnalités Pro !"
     },

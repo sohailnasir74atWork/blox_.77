@@ -22,7 +22,6 @@ import { handleGetSuggestions, handleOpenFacebook, handleOpenWebsite, handleRate
 import { logoutUser } from '../Firebase/UserLogics';
 import SignInDrawer from '../Firebase/SigninDrawer';
 import auth from '@react-native-firebase/auth';
-
 import { RewardedAd, RewardedAdEventType } from 'react-native-google-mobile-ads';
 import getAdUnitId from '../Ads/ads';
 import { resetUserState } from '../Globelhelper';
@@ -38,6 +37,7 @@ import { useLanguage } from '../Translation/LanguageProvider';
 import { useTranslation } from 'react-i18next';
 import { logEvent } from '@react-native-firebase/analytics';
 import FlashMessage, { showMessage } from 'react-native-flash-message';
+import { setAppLanguage } from '../../i18n';
 
 const adUnitId = getAdUnitId('rewarded')
 
@@ -58,6 +58,7 @@ export default function SettingsScreen({ selectedTheme }) {
   const [isPermissionGranted, setIsPermissionGranted] = useState(false);
   const [showOfferWall, setShowofferWall] = useState(false);
   const { language, changeLanguage } = useLanguage();
+
   const { t } = useTranslation();
   const platform = Platform.OS.toLowerCase();
   // console.log(analytics)
@@ -616,7 +617,7 @@ export default function SettingsScreen({ selectedTheme }) {
 
               <MenuOptions style={styles.options}>
                 {languageOptions.map((lang) => (
-                  <MenuOption key={lang.code} onSelect={() => changeLanguage(lang.code)} style={styles.option_menu}>
+                  <MenuOption key={lang.code} onSelect={() => {setAppLanguage(lang.code); changeLanguage(lang.code)}} style={styles.option_menu}>
                     <Text>
                       {lang.flag} {lang.label}
                     </Text>

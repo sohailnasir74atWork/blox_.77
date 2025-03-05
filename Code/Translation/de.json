@@ -16,19 +16,18 @@
         "pro_subscription": "Pro-Abonnement",
         "active_plan": "Aktiver Plan",
         "free": "Kostenlos",
-       "languages": {
-    "en": "Englisch",
-    "fil": "Filipino",
-    "vi": "Vietnamesisch",
-    "pt": "Portugiesisch",
-    "id": "Indonesisch",
-    "es": "Spanisch",
-    "fr": "Französisch",
-    "de": "Deutsch",
-    "ru": "Russisch",
-    "ar": "Arabisch"
-}
-,
+        "languages": {
+            "en": "Englisch",
+            "fil": "Filipino",
+            "vi": "Vietnamesisch",
+            "pt": "Portugiesisch",
+            "id": "Indonesisch",
+            "es": "Spanisch",
+            "fr": "Französisch",
+            "de": "Deutsch",
+            "ru": "Russisch",
+            "ar": "Arabisch"
+        },
         "paid": "Bezahlt",
         "manage": "Verwalten",
         "plan_name": "Planname:",
@@ -192,19 +191,15 @@
         "feature_pro_only_title": "Funktion nicht verfügbar",
         "feature_pro_only_message": "Nur Pro-Benutzer können Trades hervorheben. Jetzt auf Pro upgraden!",
         "upgrade": "Upgrade",
-        
         "feature_limit_reached_title": "Limit erreicht",
         "feature_limit_reached_message": "Du hast dein Limit von 2 hervorgehobenen Trades erreicht.",
-        
         "feature_confirmation_title": "Diesen Trade hervorheben?",
         "feature_confirmation_message": "Bist du sicher, dass du diesen Trade hervorheben möchtest? Dies erhöht seine Sichtbarkeit!",
-        
         "feature": "Hervorheben",
         "feature_success": "Trade hervorgehoben!",
         "feature_success_message": "Dein Trade ist jetzt für 24 Stunden hervorgehoben!",
         "feature_error": "Fehler beim Hervorheben",
         "feature_error_message": "Fehler beim Hervorheben des Trades. Bitte versuche es erneut.",
-        
         "purchase_success": "Kauf erfolgreich",
         "purchase_success_message": "Der Benutzer hat jetzt Pro-Funktionen!"
     },
