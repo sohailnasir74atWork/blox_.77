@@ -210,7 +210,7 @@ export const GlobalStateProvider = ({ children }) => {
 // console.log(user)
 
 
-const fetchStockData = async () => {
+const fetchStockData = async (refresh) => {
   try {
     setLoading(true);
 
@@ -218,7 +218,7 @@ const fetchStockData = async () => {
     const lastActivity = localState.lastActivity ? new Date(localState.lastActivity).getTime() : 0;
     const now = Date.now();
     const timeElapsed = now - lastActivity;
-    const TWENTY_FOUR_HOURS = isAdmin ? 1 * 1 * 1 * 1000 : 1 * 15 * 60 * 1000; // 24 hours in ms
+    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000; // 24 hours in ms
 
     // ✅ Fetch `codes & data` only if 24 hours have passed OR they are missing
     const shouldFetchCodesData =
@@ -228,7 +228,7 @@ const fetchStockData = async () => {
       !localState.data ||
       !Object.keys(localState.data).length;
 
-    if (shouldFetchCodesData) {
+    if (shouldFetchCodesData || refresh) {
       // console.log("📌 Fetching codes & data from database...");
 
       const [xlsSnapshot, codeSnapShot] = await Promise.all([
@@ -312,7 +312,9 @@ const fetchStockData = async () => {
 useEffect(() => {
   fetchStockData();
 }, []);
-
+const reload = () => {
+  fetchStockData(true); 
+};
 
 useEffect(() => {
   if (!user?.id) return;
@@ -345,7 +347,7 @@ useEffect(() => {
       theme,
       setUser,
       setOnlineMembersCount,
-      updateLocalStateAndDatabase, fetchStockData, loading, analytics, isAdmin
+      updateLocalStateAndDatabase, fetchStockData, loading, analytics, isAdmin, reload
       
     }),
     [user, onlineMembersCount, theme, fetchStockData, loading]
