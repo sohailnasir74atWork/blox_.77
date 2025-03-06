@@ -124,8 +124,8 @@ const ValueScreen = ({ selectedTheme }) => {
       return;
     }
 
-    console.log("📌 localState.data:", localData);
-    console.log("📌 Selected Fruit:", selectedFruit);
+    // console.log("📌 localState.data:", localData);
+    // console.log("📌 Selected Fruit:", selectedFruit);
 
     // Find the correct record key (case-insensitive match)
     const recordKey = Object.keys(localData).find(key => {
@@ -144,7 +144,7 @@ const ValueScreen = ({ selectedTheme }) => {
       return;
     }
 
-    console.log(`✅ Found record key: ${recordKey} for ${selectedFruit.Name}`);
+    // console.log(`✅ Found record key: ${recordKey} for ${selectedFruit.Name}`);
 
     // Ensure values are valid before updating
     const updatedValues = {
@@ -154,14 +154,14 @@ const ValueScreen = ({ selectedTheme }) => {
       Robuxprice: editValuesRef.current.Robuxprice || "N/A",
     };
 
-    console.log("🔄 Updating Firebase with values:", updatedValues);
+    // console.log("🔄 Updating Firebase with values:", updatedValues);
 
     // Reference to the correct Firebase record
     const fruitRef = ref(appdatabase, `/testing/${recordKey}`);
 
     update(fruitRef, updatedValues)
       .then(() => {
-        console.log("✅ Fruit updated successfully!");
+        // console.log("✅ Fruit updated successfully!");
         setIsModalVisible(false);
       })
       .catch((error) => {

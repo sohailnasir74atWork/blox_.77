@@ -391,7 +391,7 @@ const handleDelete = useCallback((item) => {
       const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
   
       if (currentTime - featuredTime >= TWENTY_FOUR_HOURS) {
-        console.log("⏳ 24 hours passed! Resetting featuredCount and time...");
+        // console.log("⏳ 24 hours passed! Resetting featuredCount and time...");
   
         await updateLocalState("featuredCount", { count: 0, time: null });
   

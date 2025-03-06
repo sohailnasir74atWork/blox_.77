@@ -64,7 +64,7 @@ export const GlobalStateProvider = ({ children }) => {
 
   }, [localState.theme]);
   const isAdmin = user?.id  ? user?.id == 'illHUCN4EzPwcmZLzRD3hJXI4vm1' : false
-  console.log(isAdmin, user)
+  // console.log(isAdmin, user)
 
 
   const updateLocalStateAndDatabase = async (keyOrUpdates, value) => {
@@ -141,7 +141,7 @@ export const GlobalStateProvider = ({ children }) => {
                 // console.log("✅ Using cached user data from MMKV.");
                 setUser(JSON.parse(storedUser));
             } else {
-                console.log("⚠️ No cached user data. Fetching from Firebase...");
+                // console.log("⚠️ No cached user data. Fetching from Firebase...");
                 const userRef = ref(appdatabase, `users/${userId}`);
                 const snapshot = await get(userRef);
               // console.log('fetching ... ')
@@ -254,7 +254,7 @@ const fetchStockData = async () => {
       // ✅ Store fetched data locally
       await updateLocalState('codes', JSON.stringify(codes));
       await updateLocalState('data', JSON.stringify(data));
-console.log(data)
+// console.log(data)
       // ✅ Update last fetch timestamp
       await updateLocalState('lastActivity', new Date().toISOString());
 
