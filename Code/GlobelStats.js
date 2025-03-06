@@ -29,9 +29,7 @@ export const useGlobalState = () => useContext(GlobalStateContext);
 export const GlobalStateProvider = ({ children }) => {
   const {localState, updateLocalState} = useLocalState()
   const [theme, setTheme] = useState(localState.theme || 'light');
-  const isAdmin = user?.id  ? user?.id == 'illHUCN4EzPwcmZLzRD3hJXI4vm1' : false
-
-
+  
 
   useEffect(() => {
     const appOwner = config.isNoman ? "Noman" : "Waqas";
@@ -65,6 +63,9 @@ export const GlobalStateProvider = ({ children }) => {
       setTheme(localState.theme); 
 
   }, [localState.theme]);
+  const isAdmin = user?.id  ? user?.id == 'illHUCN4EzPwcmZLzRD3hJXI4vm1' : false
+  console.log(isAdmin, user)
+
 
   const updateLocalStateAndDatabase = async (keyOrUpdates, value) => {
     if (!user.id) return; // Prevent updates if user is not logged in
