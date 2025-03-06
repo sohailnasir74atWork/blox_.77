@@ -29,6 +29,8 @@ export const useGlobalState = () => useContext(GlobalStateContext);
 export const GlobalStateProvider = ({ children }) => {
   const {localState, updateLocalState} = useLocalState()
   const [theme, setTheme] = useState(localState.theme || 'light');
+  const isAdmin = user?.id  ? user?.id == 'illHUCN4EzPwcmZLzRD3hJXI4vm1' : false
+
 
 
   useEffect(() => {
@@ -215,7 +217,7 @@ const fetchStockData = async () => {
     const lastActivity = localState.lastActivity ? new Date(localState.lastActivity).getTime() : 0;
     const now = Date.now();
     const timeElapsed = now - lastActivity;
-    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000; // 24 hours in ms
+    const TWENTY_FOUR_HOURS = isAdmin ? 1 * 1 * 1 * 1000 : 24 * 60 * 60 * 1000; // 24 hours in ms
 
     // ✅ Fetch `codes & data` only if 24 hours have passed OR they are missing
     const shouldFetchCodesData =
@@ -251,7 +253,7 @@ const fetchStockData = async () => {
       // ✅ Store fetched data locally
       await updateLocalState('codes', JSON.stringify(codes));
       await updateLocalState('data', JSON.stringify(data));
-
+console.log(data)
       // ✅ Update last fetch timestamp
       await updateLocalState('lastActivity', new Date().toISOString());
 
@@ -342,7 +344,7 @@ useEffect(() => {
       theme,
       setUser,
       setOnlineMembersCount,
-      updateLocalStateAndDatabase, fetchStockData, loading, analytics
+      updateLocalStateAndDatabase, fetchStockData, loading, analytics, isAdmin
       
     }),
     [user, onlineMembersCount, theme, fetchStockData, loading]

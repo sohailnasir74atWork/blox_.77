@@ -185,13 +185,13 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
         {renderScreen()}
 
         {screenIndex !== 2 && <View style={styles.bottomContainer}>
-          {screenIndex === 0 && !user?.id && (
+          {/* {screenIndex === 0 && !user?.id && (
             <TouchableOpacity style={styles.buttonOutline} onPress={() => {setLanguageModalVisible(true);     logEvent(analytics, `${platform}_check_all_languages_onboarding`);}          }>
               <Text style={[styles.optionText, {color: isDarkMode ? 'white' : 'black'}]}>
                 {languageOptions.find(l => l.code === language)?.flag} {'  '}   {languageOptions.find(l => l.code === language)?.label.toUpperCase()}
               </Text>
             </TouchableOpacity>
-          )}
+          )} */}
           <TouchableOpacity style={styles.button} onPress={handleNext}>
             <Text style={styles.buttonText}>{screenIndex === 1 && !user.id ? t("first.signin") : t("first.continue")}</Text>
           </TouchableOpacity>

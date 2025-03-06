@@ -19,6 +19,7 @@ import { useHaptic } from '../../Helper/HepticFeedBack';
 import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
 import { useTranslation } from 'react-i18next';
+import { useGlobalState } from '../../GlobelStats';
 
 
 
@@ -46,9 +47,7 @@ const MessagesList = ({
   const [showReportPopup, setShowReportPopup] = useState(false);
   const { triggerHapticFeedback } = useHaptic();
   const { t } = useTranslation();
-  const isAdmin = user?.id  ? 'illHUCN4EzPwcmZLzRD3hJXI4vm1' : false
-
-  console.log(user)
+const {isAdmin} = useGlobalState()
 
 
   const handleLongPress = (item) => {

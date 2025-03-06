@@ -512,6 +512,10 @@ const HomeScreen = ({ selectedTheme }) => {
   const isProfit = profitLoss >= 0;
   const neutral = profitLoss === 0;
 
+  const profitPercentage = hasTotal.value > 0 
+  ? ((profitLoss / hasTotal.value) * 100).toFixed(2) 
+  : 0;
+
 
   const captureAndSave = async () => {
     if (!viewRef.current) {
@@ -631,7 +635,7 @@ const HomeScreen = ({ selectedTheme }) => {
                   {isProfit ? t('home.profit') : t('home.loss')}:
                 </Text>
                 <Text style={[styles.profitLossValue, { color: isProfit ? config.colors.hasBlockGreen : config.colors.wantBlockRed }]}>
-                  ${Math.abs(profitLoss).toLocaleString()}
+                  ${Math.abs(profitLoss).toLocaleString()} ({profitPercentage}%)
                 </Text>
                 {!neutral && <Icon
                   name={isProfit ? 'arrow-up-outline' : 'arrow-down-outline'}

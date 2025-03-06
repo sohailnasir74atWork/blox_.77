@@ -489,7 +489,13 @@ export default function SettingsScreen({ selectedTheme }) {
       console.error('Error displaying ad:', error);
     }
   };
-
+const handleSelect = () => {
+  if(!localState.isPro){
+    setShowofferWall(true)
+  } else
+ { setAppLanguage(lang.code); 
+  changeLanguage(lang.code)}
+}
 
 
   const handleGetPoints = () => {
@@ -617,7 +623,7 @@ export default function SettingsScreen({ selectedTheme }) {
 
               <MenuOptions style={styles.options}>
                 {languageOptions.map((lang) => (
-                  <MenuOption key={lang.code} onSelect={() => {setAppLanguage(lang.code); changeLanguage(lang.code)}} style={styles.option_menu}>
+                  <MenuOption key={lang.code} onSelect={handleSelect} style={styles.option_menu}>
                     <Text>
                       {lang.flag} {lang.label}
                     </Text>
