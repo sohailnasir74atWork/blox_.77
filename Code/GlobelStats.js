@@ -218,7 +218,7 @@ const fetchStockData = async () => {
     const lastActivity = localState.lastActivity ? new Date(localState.lastActivity).getTime() : 0;
     const now = Date.now();
     const timeElapsed = now - lastActivity;
-    const TWENTY_FOUR_HOURS = isAdmin ? 1 * 1 * 1 * 1000 : 24 * 60 * 60 * 1000; // 24 hours in ms
+    const TWENTY_FOUR_HOURS = isAdmin ? 1 * 1 * 1 * 1000 : 1 * 15 * 60 * 1000; // 24 hours in ms
 
     // ✅ Fetch `codes & data` only if 24 hours have passed OR they are missing
     const shouldFetchCodesData =
