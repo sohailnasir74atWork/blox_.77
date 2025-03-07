@@ -109,11 +109,11 @@ const TimerScreen = ({ selectedTheme }) => {
   const handleFruitSelect = async (fruit) => {
     triggerHapticFeedback('impactLight');
     logEvent(analytics, `${platform}_select_fruit`);
-
-    const userPoints = user.points || 0; // Ensure `points` exists
+  
     const selectedFruits = user.selectedFruits || []; // Ensure `selectedFruits` is always an array
     const isAlreadySelected = selectedFruits.some((item) => item.Name === fruit.Name);
-
+  
+    // ✅ Prevent duplicate selection
     if (isAlreadySelected) {
       showMessage({
         message: t("settings.notice"),
@@ -122,44 +122,33 @@ const TimerScreen = ({ selectedTheme }) => {
       });
       return;
     }
-
-    if (localState.isPro || selectedFruits.length === 0) {
-      // First selection is free for Pro users or first-time selection
-      const updatedFruits = [...selectedFruits, fruit];
-      await updateLocalStateAndDatabase('selectedFruits', updatedFruits);
-
-      showMessage({
-        message: t("home.alert.success"),
-        description: t("stock.fruit_selected"),
-        type: "success",
-      });
-    } else if (userPoints >= 50) {
-      // Deduct 50 points for additional selections
-      const updatedPoints = userPoints - 50;
-      await updateLocalStateAndDatabase('points', updatedPoints);
-
-      const updatedFruits = [...selectedFruits, fruit];
-      await updateLocalStateAndDatabase('selectedFruits', updatedFruits);
-
-      // Alert.alert(t("home.alert.success"), `${fruit.Name} - ${t("stock.success_selection")}`);
-      showMessage({
-        message: t("home.alert.success"),
-        description: `${fruit.Name} - ${t("stock.success_selection")}`,
-        type: "success",
-      });
-    } else {
+  
+    // ✅ Restriction: Free users can select up to 3 fruits, Pro users have no limit
+    if (!localState.isPro && selectedFruits.length >= 4) {
       Alert.alert(
-        t("stock.insufficient_points"),
-        t("stock.insufficient_points_description"),
-        [{ text: 'OK', onPress: () => { } }]
-      );
+        "Selection Limit Reached",
+        "You can only select up to 4 fruits as a free user. Upgrade to Pro to select more.",
+        [{ text: "OK", onPress: () => {} }]
+      );      
+      return;
     }
-
-    // Ensure drawer closes after updates
+  
+    // ✅ Add selected fruit
+    const updatedFruits = [...selectedFruits, fruit];
+    await updateLocalStateAndDatabase('selectedFruits', updatedFruits);
+  
+    showMessage({
+      message: t("home.alert.success"),
+      description: t("stock.fruit_selected"),
+      type: "success",
+    });
+  
+    // ✅ Ensure drawer closes after updates
     setTimeout(() => {
       closeDrawer();
     }, 300);
   };
+  
 
   const handleRefresh = async () => {
     logEvent(analytics, `${platform}_stock_refresh`);

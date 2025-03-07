@@ -329,9 +329,6 @@ const ValueScreen = ({ selectedTheme }) => {
 
 
 
-
-
-
   useEffect(() => {
     interstitial.load();
 

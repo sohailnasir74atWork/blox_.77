@@ -3,7 +3,6 @@ import messaging from '@react-native-firebase/messaging'; // React Native Fireba
 import { Platform } from 'react-native'; // Platform detection (iOS/Android)
 import { generateOnePieceUsername } from './Helper/RendomNamegen';
 import { getDatabase, ref, get, set } from '@react-native-firebase/database';
-import { developmentMode } from './Ads/ads';
 
 export const firebaseConfig = {
     apiKey: "AIzaSyDUXkQcecnhrNmeagvtRsKmDBmwz4AsRC0",
@@ -21,40 +20,39 @@ export const firebaseConfig = {
   
 
   export const saveTokenToDatabase = async (token, currentUserId) => {
-      if (!currentUserId || !token) {
-          console.warn('⚠️ Invalid inputs: Cannot save FCM token. User ID or token is null.');
-          return;
-      }
-  
-      try {
-          const db = getDatabase();
-          const tokenRef = ref(db, `users/${currentUserId}/fcmToken`);
-          const invalidTokenRef = ref(db, `users/${currentUserId}/isTokenInvalid`);
-        //   console.log('📡 Checking existing FCM token...');
-          const currentTokenSnapshot = await get(tokenRef);
-          const currentToken = currentTokenSnapshot.exists() ? currentTokenSnapshot.val() : null;
-          
-                // if (developmentMode) {
-                //     const currentTokenSize = JSON.stringify(currentToken).length / 1024;
-                //     console.log(`🚀 toekn size data: ${currentTokenSize.toFixed(2)} KB`);
-                // }
-//   console.log(token)
-          if (currentToken === token) {
-              // console.log('✅ Token already up-to-date. No action needed.');
-              return;
-          }
-  
-          // console.log('💾 Updating FCM token in the database...');
-          await Promise.all([
-              set(tokenRef, token),
-              set(invalidTokenRef, false),
-          ]);
-  
-          // console.log('✅ FCM token saved successfully.');
-      } catch (error) {
-          console.error(`🔥 Error saving FCM token: ${error.message || error}`);
-      }
-  };
+    if (!currentUserId || !token) {
+        console.warn('⚠️ Invalid inputs: Cannot save FCM token.');
+        return;
+    }
+
+    try {
+        const db = getDatabase();
+        const tokenRef = ref(db, `users/${currentUserId}/fcmToken`);
+        const invalidTokenRef = ref(db, `users/${currentUserId}/isTokenInvalid`);
+
+        // ✅ Set a timeout to prevent blocking the main thread
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("🔥 Firebase timeout while fetching token")), 5000)
+        );
+
+        const tokenSnapshot = await Promise.race([get(tokenRef), timeoutPromise]);
+
+        const currentToken = tokenSnapshot.exists() ? tokenSnapshot.val() : null;
+
+        if (currentToken === token) {
+            return; // ✅ No update needed
+        }
+
+        await Promise.all([
+            set(tokenRef, token),
+            set(invalidTokenRef, false),
+        ]);
+
+    } catch (error) {
+        console.error(`🔥 Error saving FCM token: ${error.message || error}`);
+    }
+};
+
   
 
 

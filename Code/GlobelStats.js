@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { getApp, getApps, initializeApp } from '@react-native-firebase/app';
 import  { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
 import  { ref, set, update, get, onDisconnect, getDatabase } from '@react-native-firebase/database';
@@ -12,8 +12,6 @@ import config from './Helper/Environment';
 import { MMKV } from 'react-native-mmkv';
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
-
-
 const analytics = getAnalytics(app);
 const firestoreDB = getFirestore(app);
 const appdatabase = getDatabase(app);
@@ -36,7 +34,6 @@ export const GlobalStateProvider = ({ children }) => {
     logEvent(analytics, `platform_${platform}`);
   }, []);
 
-
   const [user, setUser] = useState({
     id: null,
     selectedFruits: [],
@@ -56,10 +53,10 @@ export const GlobalStateProvider = ({ children }) => {
   
   // Track theme changes
   useEffect(() => {
-      setTheme(localState.theme); 
+    setTheme(localState.theme); 
+}, [localState.theme]);
 
-  }, [localState.theme]);
-  const isAdmin = user?.id  ? user?.id == 'illHUCN4EzPwcmZLzRD3hJXI4vm1' : false
+  const isAdmin = user?.id  ? user?.id == 'kiFDYH7YwFTGiZZaTMF2z622v253' : false
   // console.log(isAdmin, user)
 
 
@@ -81,10 +78,8 @@ export const GlobalStateProvider = ({ children }) => {
       }
   
       // ✅ Update local state
-      setUser((prev) => {
-        const updatedUser = { ...prev, ...updates };
-        return updatedUser;
-      });
+      setUser((prev) => ({ ...prev, ...updates }));
+
   
       // ✅ Update Firebase database
       await update(userRef, updates);
@@ -94,8 +89,11 @@ export const GlobalStateProvider = ({ children }) => {
   };
 
 
-  // Reset user state
-  const resetUserState = () => {
+  
+
+
+  // ✅ Memoize resetUserState to prevent unnecessary re-renders
+  const resetUserState = useCallback(() => {
     setUser({
       id: null,
       selectedFruits: [],
@@ -104,49 +102,51 @@ export const GlobalStateProvider = ({ children }) => {
       displayName: '',
       avatar: null,
       points: 0, 
-      isBlock:false,
-      fcmToken:null,
-      lastactivity:null,
-      online:false,
+      isBlock: false,
+      fcmToken: null,
+      lastactivity: null,
+      online: false,
     });
-  };
+  }, []); // No dependencies, so it never re-creates
+  
+  // ✅ Memoize handleUserLogin
+  const handleUserLogin = useCallback(async (loggedInUser) => {
+    if (!loggedInUser) {
+      resetUserState(); // No longer recreates resetUserState
+      return;
+    }
+  
+    try {
+      const userId = loggedInUser.uid;
+      const userRef = ref(appdatabase, `users/${userId}`);
+      
+      // 🔄 Fetch user data
+      const snapshot = await get(userRef);
+      let userData;
+      
+      if (snapshot.exists()) {
+        userData = { ...snapshot.val(), id: userId };
+      } else {
+        userData = createNewUser(userId, loggedInUser);
+        await set(userRef, userData);
+      }
+  
+      setUser(userData);
+  
+      // 🔥 Refresh and update FCM token
+      await Promise.all([registerForNotifications(userId), requestPermission()]);
+      
+    } catch (error) {
+      console.error("❌ Auth state change error:", error);
+    }
+  }, [appdatabase, resetUserState]); // ✅ Uses memoized resetUserState
+  
+  // ✅ Ensure useEffect runs only when necessary
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (loggedInUser) => {
-        try {
-            if (!loggedInUser) {
-                resetUserState();
-                return;
-            }
-            const userId = loggedInUser.uid;
-            const userRef = ref(appdatabase, `users/${userId}`);
-                const snapshot = await get(userRef);
-                if (snapshot.exists()) {
-                    const userData = { ...snapshot.val(), id: userId };
-                    setUser(userData);
-                } else {
-                    const newUser = createNewUser(userId, loggedInUser);
-                    await set(userRef, newUser);
-                    setUser(newUser);
-                }
-            
-
-            // 🔥 Always refresh and update the FCM token
-            // console.log("🔄 Updating FCM token...");
-            await registerForNotifications(userId);
-            await requestPermission();
-        } catch (error) {
-            console.error("❌ Auth state change error:", error);
-        }
-    });
-
-    return () => {
-        // console.log("🚪 Unsubscribing from auth state changes...");
-        unsubscribe();
-    };
-}, []); // ✅ Fix: Added `auth` dependency
-
-
-
+    const unsubscribe = onAuthStateChanged(auth, handleUserLogin);
+    return () => unsubscribe();
+  }, [auth, handleUserLogin]); // ✅ Dependencies are stable
+  
 
 
   const checkInternetConnection = async () => {
@@ -177,9 +177,7 @@ export const GlobalStateProvider = ({ children }) => {
     }
   }, []);
   
-  
-// console.log(user)
-
+ 
 
 const fetchStockData = async (refresh) => {
   try {
@@ -212,15 +210,6 @@ const fetchStockData = async (refresh) => {
 
      
     
-            // 🔹 Calculate total downloaded size
-            
-            // if (developmentMode) {
-            //     const codeSize = JSON.stringify(codes).length / 1024; 
-            //     const dataSize = JSON.stringify(data).length / 1024; 
-            //     console.log(`🚀 user code data: ${codeSize.toFixed(2)} KB`);
-            //     // console.log(`🚀 user values data: ${dataSize.toFixed(2)} KB`);
-            // }
-      // console.log(codes, data)
 
       // ✅ Store fetched data locally
       await updateLocalState('codes', JSON.stringify(codes));
@@ -246,23 +235,8 @@ const fetchStockData = async (refresh) => {
     const mirageStock = calcSnapshot.exists() ? calcSnapshot.val()?.mirage || {} : {};
     const prenormalStock = preSnapshot.exists() ? preSnapshot.val()?.normalStock || {} : {};
     const premirageStock = preSnapshot.exists() ? preSnapshot.val()?.mirageStock || {} : {};
-    
-    // 🔹 Calculate data size in KB for each dataset
    
     
-    // 🔹 Calculate total downloaded size
-   
-    
-    // if (developmentMode) {
-    //   const normalStockSize = JSON.stringify(normalStock).length / 1024; 
-    //   const mirageStockSize = JSON.stringify(mirageStock).length / 1024; 
-    //   const prenormalStockSize = JSON.stringify(prenormalStock).length / 1024; 
-    //   const premirageStockSize = JSON.stringify(premirageStock).length / 1024; 
-    //   const totalDownloadedSize = normalStockSize + mirageStockSize + prenormalStockSize + premirageStockSize;
-    //     console.log(`🚀 Total stock data: ${totalDownloadedSize.toFixed(2)} KB`);
-    // }
-    
-
     // ✅ Store frequently updated stock data
     await updateLocalState('normalStock', JSON.stringify(normalStock));
     await updateLocalState('mirageStock', JSON.stringify(mirageStock));
@@ -306,7 +280,6 @@ useEffect(() => {
   };
 }, [user?.id]);
 
-// console.log(user.online)
 
 
   const contextValue = useMemo(
@@ -318,11 +291,15 @@ useEffect(() => {
       theme,
       setUser,
       setOnlineMembersCount,
-      updateLocalStateAndDatabase, fetchStockData, loading, analytics, isAdmin, reload
-      
+      updateLocalStateAndDatabase, 
+      fetchStockData, 
+      loading, 
+      analytics, 
+      isAdmin, 
+      reload
     }),
     [user, onlineMembersCount, theme, fetchStockData, loading]
-  );
+  );  
 
   return (
     <GlobalStateContext.Provider value={contextValue}>

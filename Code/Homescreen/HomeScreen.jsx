@@ -52,6 +52,8 @@ const HomeScreen = ({ selectedTheme }) => {
   const { language, changeLanguage } = useLanguage();
   const [showNotification, setShowNotification] = useState(false);
   const [pinnedMessages, setPinnedMessages] = useState([]);
+  const [lastTradeTime, setLastTradeTime] = useState(null); // 🔄 Store last trade timestamp locally
+
 
 
 
@@ -191,30 +193,19 @@ const HomeScreen = ({ selectedTheme }) => {
 
 
 
-
-
   const handleCreateTrade = async () => {
-    if (isSubmitting) return; // Prevent duplicate submissions
+    if (isSubmitting) {
+      // console.log("🚫 Trade submission blocked: Already submitting.");
+      return; // Prevent duplicate submissions
+    }
+  
     setIsSubmitting(true);
+    // console.log("🚀 Trade submission started...");
+    
     logEvent(analytics, `${platform}_create_trade`);
-
-    const userPoints = user?.points || 0;
-    const userId = user?.id;
-    const database = getDatabase();
-    const freeTradeRef = ref(database, `freeTradeUsed/${userId}`);
-
+    
     try {
-      // 🔍 Check if user has used the free trade
-      const snapshot = await get(freeTradeRef);
-      const hasUsedFreeTrade = snapshot.exists() && snapshot.val();
-
-      // if (developmentMode) {
-      //   const hasUsedFreeTradeSize = JSON.stringify(hasUsedFreeTrade).length / 1024;
-      //   // console.log(`🚀 free trade data data: ${hasUsedFreeTradeSize.toFixed(2)} KB`);
-      // }
-
-
-      // ✅ Prepare trade object
+      // ✅ Build new trade object
       let newTrade = {
         userId: user?.id || "Anonymous",
         traderName: user?.displayName || "Anonymous",
@@ -228,98 +219,60 @@ const HomeScreen = ({ selectedTheme }) => {
         description: description || "",
         timestamp: firestore.FieldValue.serverTimestamp(),
       };
-
-      // 🔥 Default Empty Trade Object
-      const resetNewTrade = {
-        userId: null,
-        traderName: null,
-        avatar: null,
-        isPro: null,
-        hasItems: [],
-        wantsItems: [],
-        hasTotal: null,
-        wantsTotal: null,
-        description: null,
-        timestamp: null,
-      };
-
-      // ❌ Prevent Empty Trades from Being Submitted
-      if (JSON.stringify(newTrade) === JSON.stringify(resetNewTrade)) {
-        // Alert.alert("Error", t("home.alert.trade_empty_error"));
+  
+      // console.log("📌 New trade object created:", newTrade);
+  
+      // ✅ Check last trade locally before querying Firestore
+      const now = Date.now();
+      if (lastTradeTime && now - lastTradeTime < 1 * 1 * 60 * 1000) {
         showMessage({
           message: t("home.alert.error"),
-          description: t("home.alert.trade_empty_error"),
+          description: "Please wait for 1 minut before creating new trade",
           type: "danger",
         });
         setIsSubmitting(false);
         return;
       }
-
-      // ✅ Trade Submission Logic
-      const submitTrade = async () => {
-        await tradesCollection.add(newTrade);
-        Object.assign(newTrade, resetNewTrade); // Reset after submission
-        setModalVisible(false); // Close modal
-        // Alert.alert("Success", "Trade submitted successfully!");
-      };
-
-      // 🔹 If user is Pro → Direct submission
-      if (localState.isPro) {
-        await submitTrade();
-        // Alert.alert(t("home.alert.success"), t("home.alert.trade_posted"));
-        showMessage({
-          message: t("home.alert.success"),
-          description: t("home.alert.trade_posted"),
-          type: "success",
-        });
-      }
-      // 🔹 If user has a free trade → Use it
-      else if (!hasUsedFreeTrade) {
-        await set(freeTradeRef, true); // Mark free trade as used
-        showInterstitialAd(async () => await submitTrade());
-        // Alert.alert(t("home.alert.success"), t("home.alert.free_trade_used"));
-        showMessage({
-          message: t("home.alert.success"),
-          description: t("home.alert.free_trade_used"),
-          type: "success",
-        });
-      }
-      // 🔹 If user has enough points → Deduct and submit
-      else if (userPoints >= 200) {
-        const updatedPoints = userPoints - 200;
-        await updateLocalStateAndDatabase('points', updatedPoints); // Deduct points
-        showInterstitialAd(async () => await submitTrade());
-        // Alert.alert("Success", `${t("home.trade_posted_points")} ${updatedPoints}.`);
-        showMessage({
-          message: t("home.alert.success"),
-          description: `${t("home.trade_posted_points")} ${updatedPoints}.`,
-          type: "success",
-        });
-      }
-      // 🔹 If user lacks points → Show error message
-      else {
-        Alert.alert(
-          t("home.alert.insufficient_points"),
-          t("home.alert.insufficient_points_message"),
-          [
-            { text: t("settings.get_points"), onPress: () => { setModalVisible(false); navigation.navigate('Setting'); } },
-            { text: t("home.cancel"), style: 'cancel' },
-          ]
-        );
-      }
+  
+      // ✅ Get timestamp for 4 hours ago
+    
+  
+  
+      // ✅ Fix trade comparison logic
+    
+  
+      // ✅ Prevent duplicate trade within 4 hours
+     
+      console.log("✅ No duplicate trade found. Proceeding with submission...");
+  
+      // ✅ Submit trade
+      await tradesCollection.add(newTrade);
+      // console.log("🎉 Trade successfully submitted!");
+      
+      setModalVisible(false); // Close modal
+  
+      // ✅ Update last trade time locally
+      setLastTradeTime(now);
+  
+      showMessage({
+        message: t("home.alert.success"),
+        description: "Your trade has been posted successfully!",
+        type: "success",
+      });
+  
     } catch (error) {
       console.error("🔥 Error creating trade:", error);
-      // Alert.alert(t("home.alert.error"), t("home.alert.unable_to_create_trade"));
       showMessage({
         message: t("home.alert.error"),
-        description: t("home.alert.unable_to_create_trade"),
+        description: "Something went wrong while posting the trade.",
         type: "danger",
       });
     } finally {
+      console.log("🔄 Resetting submission state...");
       setIsSubmitting(false); // Reset submission state
     }
   };
-
+  
 
   const adjustedData = (fruitRecords) => {
     let transformedData = [];
@@ -413,7 +366,7 @@ const HomeScreen = ({ selectedTheme }) => {
   const openDrawer = (section) => {
     const wantsItemCount = wantsItems.filter((item) => item !== null).length;
     triggerHapticFeedback('impactLight');
-    if (section === 'wants' && wantsItemCount === 1 && !isShowingAd) {
+    if (section === 'wants' && !isShowingAd && (wantsItemCount === 1 || wantsItemCount === 3)) {
       showInterstitialAd(() => {
         setSelectedSection(section);
         setIsDrawerVisible(true);
@@ -512,9 +465,9 @@ const HomeScreen = ({ selectedTheme }) => {
   const isProfit = profitLoss >= 0;
   const neutral = profitLoss === 0;
 
-  const profitPercentage = hasTotal.value > 0 
-  ? ((profitLoss / hasTotal.value) * 100).toFixed(2) 
-  : 0;
+  const profitPercentage = hasTotal.value > 0
+    ? ((profitLoss / hasTotal.value) * 100).toFixed(0)
+    : 0;
 
 
   const captureAndSave = async () => {
@@ -947,7 +900,7 @@ const getStyles = (isDarkMode) =>
       right: 1,
       backgroundColor: config.colors.wantBlockRed,
       borderRadius: 50,
-      opacity:.7
+      opacity: .7
     },
     divider: {
       justifyContent: 'center',
