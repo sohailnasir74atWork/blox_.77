@@ -10,7 +10,6 @@ import { getAnalytics, logEvent, setAnalyticsCollectionEnabled } from '@react-na
 import { Alert, Platform } from 'react-native';
 import config from './Helper/Environment';
 import { MMKV } from 'react-native-mmkv';
-import { developmentMode } from './Ads/ads';
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
@@ -20,7 +19,6 @@ const firestoreDB = getFirestore(app);
 const appdatabase = getDatabase(app);
 const GlobalStateContext = createContext();
 setAnalyticsCollectionEnabled(analytics, true);
-export const storage_user_data = new MMKV(); // Initialize MMKV
 
 
 // Custom hook to access global state
@@ -40,19 +38,17 @@ export const GlobalStateProvider = ({ children }) => {
 
 
   const [user, setUser] = useState({
-      id: null,
-      selectedFruits: [],
-      admin: false,
-      isReminderEnabled: false,
-      isSelectedReminderEnabled: false,
-      displayName: '',
-      avatar: null,
-      points: 0, 
-      isBlock:false,
-      fcmToken:null,
-      lastactivity:null,
-      online:false,
-      featured:0
+    id: null,
+    selectedFruits: [],
+    isReminderEnabled: false,
+    isSelectedReminderEnabled: false,
+    displayName: '',
+    avatar: null,
+    points: 0, 
+    isBlock:false,
+    fcmToken:null,
+    lastactivity:null,
+    online:false,
   });
 
   const [onlineMembersCount, setOnlineMembersCount] = useState(0);
@@ -87,7 +83,6 @@ export const GlobalStateProvider = ({ children }) => {
       // ✅ Update local state
       setUser((prev) => {
         const updatedUser = { ...prev, ...updates };
-        storage_user_data.set(`userData_${user.id}`, JSON.stringify(updatedUser)); // ✅ Update MMKV
         return updatedUser;
       });
   
@@ -104,7 +99,6 @@ export const GlobalStateProvider = ({ children }) => {
     setUser({
       id: null,
       selectedFruits: [],
-      admin: false,
       isReminderEnabled: false,
       isSelectedReminderEnabled: false,
       displayName: '',
@@ -114,50 +108,27 @@ export const GlobalStateProvider = ({ children }) => {
       fcmToken:null,
       lastactivity:null,
       online:false,
-      featured:0,
-      online:false
-
     });
   };
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (loggedInUser) => {
-        // console.log("🔄 Auth state changed. Current user:", loggedInUser ? loggedInUser.uid : "No user");
-
         try {
             if (!loggedInUser) {
-                // console.log("🔴 User logged out. Clearing local data...");
                 resetUserState();
-                storage_user_data.clearAll(); // ✅ Fix: Removed double semicolon
                 return;
             }
-
             const userId = loggedInUser.uid;
-            // console.log(`🟢 User logged in: ${userId}`);
-
-            const storedUser = storage_user_data.getString(`userData_${userId}`);
-            // console.log(storedUser)
-
-            if (storedUser?.id == !null) {
-                // console.log("✅ Using cached user data from MMKV.");
-                setUser(JSON.parse(storedUser));
-            } else {
-                // console.log("⚠️ No cached user data. Fetching from Firebase...");
-                const userRef = ref(appdatabase, `users/${userId}`);
+            const userRef = ref(appdatabase, `users/${userId}`);
                 const snapshot = await get(userRef);
-              // console.log('fetching ... ')
                 if (snapshot.exists()) {
                     const userData = { ...snapshot.val(), id: userId };
-                    // console.log("✅ User data loaded from Firebase.");
                     setUser(userData);
-                    storage_user_data.set(`userData_${userId}`, JSON.stringify(userData));
                 } else {
-                    // console.log("🆕 New user detected. Creating in Firebase...");
                     const newUser = createNewUser(userId, loggedInUser);
                     await set(userRef, newUser);
                     setUser(newUser);
-                    storage_user_data.set(`userData_${userId}`, JSON.stringify(newUser));
                 }
-            }
+            
 
             // 🔥 Always refresh and update the FCM token
             // console.log("🔄 Updating FCM token...");
@@ -172,7 +143,7 @@ export const GlobalStateProvider = ({ children }) => {
         // console.log("🚪 Unsubscribing from auth state changes...");
         unsubscribe();
     };
-}, [auth]); // ✅ Fix: Added `auth` dependency
+}, []); // ✅ Fix: Added `auth` dependency
 
 
 

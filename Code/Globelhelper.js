@@ -114,7 +114,6 @@ export const firebaseConfig = {
   export const createNewUser = (userId, loggedInUser = {}) => ({
       id: userId,
       selectedFruits: [],
-      admin: false,
       isReminderEnabled: false,
       isSelectedReminderEnabled: false,
       displayName: loggedInUser.displayName || generateOnePieceUsername() || 'Anonymous',
@@ -124,7 +123,6 @@ export const firebaseConfig = {
       fcmToken:null,
       lastactivity:null,
       online:false,
-      featured:0
 
   });
   
@@ -132,18 +130,17 @@ export const firebaseConfig = {
 
 export const resetUserState = (setUser) => {
     setUser({
-      id: null,
-      selectedFruits: [],
-      admin: false,
-      isReminderEnabled: false,
-      isSelectedReminderEnabled: false,
-      avatar: null,
-      points: 0, 
-      isBlock:false,
-      fcmToken:null,
-      lastactivity:null,
-      online:false,
-      featured:0
+        id: null,
+        selectedFruits: [],
+        isReminderEnabled: false,
+        isSelectedReminderEnabled: false,
+        displayName: '',
+        avatar: null,
+        points: 0, 
+        isBlock:false,
+        fcmToken:null,
+        lastactivity:null,
+        online:false,
 
     });
   };

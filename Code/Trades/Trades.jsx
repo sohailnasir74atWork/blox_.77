@@ -242,11 +242,9 @@ const handleDelete = useCallback((item) => {
 
 
 
-  // console.log(localState.isPro)
 
 
 
-  // console.log(user.featured)
   const handleMakeFeatureTrade = useCallback(async (item) => {
     if (!localState.isPro) {
       Alert.alert(

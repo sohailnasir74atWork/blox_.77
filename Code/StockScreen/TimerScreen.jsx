@@ -230,7 +230,7 @@ const TimerScreen = ({ selectedTheme }) => {
     }
   };
 
-  // console.log(state.mirageStock)
+  // console.log(normalTimer)
 
 
   // Format time utility
@@ -256,8 +256,8 @@ const TimerScreen = ({ selectedTheme }) => {
   const normalInterval = 4; // Normal stock resets every 4 hours
   const mirageInterval = 2; // Mirage stock resets every 2 hours
 
-  const normalTimer = useMemo(() => formatTime(calculateTimeLeft(normalInterval)), []);
-  const mirageTimer = useMemo(() => formatTime(calculateTimeLeft(mirageInterval)), []);
+  const normalTimer = useMemo(() => formatTime(calculateTimeLeft(normalInterval)), [currentTime]);
+const mirageTimer = useMemo(() => formatTime(calculateTimeLeft(mirageInterval)), [currentTime]);
 
 
 
