@@ -346,6 +346,108 @@ export const getStyles = (isDarkMode) =>
     emptyText:{
       color: isDarkMode ? 'white' : 'black',
     }
+,
+tradeDetails: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  backgroundColor: config.colors.secondary,
+  paddingHorizontal:10
 
+
+},
+itemList: {
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  justifyContent: 'space-evenly',
+  width: "45%",
+  paddingVertical: 15,
+},
+itemImage: {
+  width: 30,
+  height: 30,
+  // marginRight: 5,
+  // borderRadius: 25,
+  marginVertical: 5,
+  borderRadius: 5
+  // padding:10
+
+},
+
+transferImage: {
+  width: 15,
+  height: 15,
+  // marginRight: 5,
+  borderRadius: 5,
+},
+tradeTotals: {
+  flexDirection: 'row',
+  justifyContent: 'center',
+  // marginTop: 10,
+  width: '100%'
+
+},
+names:{
+  fontSize: 8,
+  color:'white'
+},
+priceText: {
+  fontSize: 10,
+  fontFamily: 'Lato-Regular',
+  color: '#007BFF',
+  // width: '40%',
+  textAlign: 'center', // Centers text within its own width
+  alignSelf: 'center', // Centers within the parent container
+  color: isDarkMode ? 'white' : "white",
+  marginHorizontal: 'auto',
+  paddingHorizontal: 4,
+  paddingVertical: 2,
+  borderRadius: 6
+},
+priceTextProfit: {
+  fontSize: 10,
+  lineHeight:14,
+  fontFamily: 'Lato-Regular',
+  // color: '#007BFF',
+  // width: '40%',
+  textAlign: 'center', // Centers text within its own width
+  alignSelf: 'center', // Centers within the parent container
+  // color: isDarkMode ? 'white' : "grey",
+  // marginHorizontal: 'auto',
+  // paddingHorizontal: 4,
+  // paddingVertical: 2,
+  // borderRadius: 6
+},
+tagcount: {
+  position: 'absolute',
+  backgroundColor: 'purple',
+  top: 4,
+  left: 1,
+  borderRadius: 50,
+  paddingHorizontal: 3,
+  paddingBottom: 2
+
+},
+tagcounttext: {
+  color: 'white',
+  fontFamily: 'Lato-Bold',
+  fontSize: 10
+},
+
+hasBackground: {
+  backgroundColor: config.colors.hasBlockGreen,
+},
+wantBackground: {
+  backgroundColor: config.colors.wantBlockRed,
+},
+tradeActions: {
+  flexDirection: 'row',
+  alignItems: 'center',
+},
+
+transfer: {
+  width: '10%',
+  justifyContent: 'center',
+  alignItems: 'center'
+},
 
   });

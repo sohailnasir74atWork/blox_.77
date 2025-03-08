@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   Text,
+  Image,
 } from 'react-native';
 import { useFocusEffect, useRoute } from '@react-navigation/native';
 import { getStyles } from '../Style';
@@ -27,8 +28,9 @@ const bannerAdUnitId = getAdUnitId('banner');
 
 const PrivateChatScreen = () => {
   const route = useRoute();
-  const { selectedUser, selectedTheme, bannedUsers, } = route.params || {};
+  const { selectedUser, selectedTheme, bannedUsers, item } = route.params || {};
   const { user, theme, appdatabase } = useGlobalState();
+  const [trade, setTrade] = useState(null)
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -40,6 +42,11 @@ const PrivateChatScreen = () => {
   const selectedUserId = selectedUser?.senderId;
   const myUserId = user?.id;
   const { t } = useTranslation();
+  console.log(item)
+  
+  useEffect(()=>{setTrade(item)}, [])
+
+
 
   const isBanned = useMemo(() => {
     // const bannedUserIds = bannedUsers?.map((user) => user.id) || [];
@@ -115,6 +122,48 @@ const PrivateChatScreen = () => {
   );
 
   // console.log(selectedUser.sender)
+  const groupItems = (items) => {
+    const grouped = {};
+    items.forEach(({ name, type }) => {
+      const key = `${name}-${type}`;
+      if (grouped[key]) {
+        grouped[key].count += 1;
+      } else {
+        grouped[key] = { name, type, count: 1 };
+      }
+    });
+    return Object.values(grouped);
+  };
+  const formatName = (name) => {
+    let formattedName = name.replace(/^\+/, '');
+    formattedName = formattedName.replace(/\s+/g, '-');
+    return formattedName;
+  };
+
+  useEffect(() => {
+    const chatId = [myUserId, selectedUserId].sort().join('_');
+    const tradeRef = database().ref(`private_messages/${chatId}/trade`);
+  
+    if (item) {
+      // ✅ If trade comes from props, set it and update Firebase
+      setTrade(item);
+      tradeRef.set(item).catch((error) => console.error("Error updating trade in Firebase:", error));
+    } else {
+      // ✅ If no trade in props, check Firebase
+      tradeRef.once('value')
+        .then((snapshot) => {
+          const tradeData = snapshot.val();
+          if (tradeData) {
+            setTrade(tradeData);
+          }
+        })
+        .catch((error) => console.error("Error fetching trade from Firebase:", error));
+    }
+  }, []);
+  
+
+  const groupedHasItems = groupItems(trade?.hasItems || []);
+  const groupedWantsItems = groupItems(trade?.wantsItems || []);
 
 
   // Send message
@@ -133,6 +182,8 @@ const PrivateChatScreen = () => {
 
     const timestamp = Date.now();
     const chatId = [myUserId, selectedUserId].sort().join('_');
+    const tradeRef = database().ref(`private_messages/${chatId}/trade`);
+
 
     // References
     const messageRef = database().ref(`private_messages/${chatId}/messages/${timestamp}`);
@@ -148,6 +199,7 @@ const PrivateChatScreen = () => {
       const snapshot = await receiverStatusRef.once('value');
       const isReceiverInChat = snapshot.val() === chatId;
       // console.log(selectedUser)
+
 
       // Update sender's chat metadata (unread count always 0 for sender)
       await senderChatRef.update({
@@ -210,10 +262,10 @@ const PrivateChatScreen = () => {
   useEffect(() => {
     const listener = messagesRef.on('child_added', (snapshot) => {
       const newMessage = { id: snapshot.key, ...snapshot.val() };
-      if (developmentMode) {
-        const privatechat_new_message = JSON.stringify(newMessage).length / 1024;
-        // console.log(`🚀 Downloaded data: ${privatechat_new_message.toFixed(2)} KB from private chat new messages node`);
-      }
+      // if (developmentMode) {
+      //   const privatechat_new_message = JSON.stringify(newMessage).length / 1024;
+      //   console.log(`🚀 Downloaded data: ${privatechat_new_message.toFixed(2)} KB from private chat new messages node`);
+      // }
       setMessages((prevMessages) =>
         prevMessages.some((msg) => msg.id === newMessage.id)
           ? prevMessages
@@ -236,38 +288,87 @@ const PrivateChatScreen = () => {
 
 
         <View style={styles.container}>
-          <ConditionalKeyboardWrapper style={{ flex: 1 }} chatscreen={true}>
-            {!loading && messages.length === 0 ? (
-              <ActivityIndicator size="large" color="#1E88E5" style={{ flex: 1, justifyContent: 'center' }} />
-            ) : messages.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>{t("chat.no_messages_yet")}</Text>
-              </View>
-            ) : (
-              <PrivateMessageList
-                messages={messages}
-                userId={myUserId}
-                handleLoadMore={loadMessages}
-                refreshing={refreshing}
-                onRefresh={handleRefresh}
-                isBanned={isBanned}
-                selectedUser={selectedUser}
-                user={user}
-                onReply={(message) => setReplyTo(message)}
-              />
-            )}
 
-            <PrivateMessageInput
-              onSend={sendMessage}
-              isBanned={isBanned}
-              bannedUsers={bannedUsers}
-              replyTo={replyTo}
-              onCancelReply={() => setReplyTo(null)}
-              input={input}
-              setInput={setInput}
-              selectedTheme={selectedTheme}
-            />
-          </ConditionalKeyboardWrapper>
+          <ConditionalKeyboardWrapper style={{ flex: 1 }} chatscreen={true}>
+            {/* <View style={{ flex: 1 }}> */}
+              {trade && (
+                <View style={styles.tradeDetails}>
+                  <View style={styles.itemList}>
+                    {groupedHasItems?.map((hasItem, index) => (
+                      <View key={`${hasItem.name}-${hasItem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
+                        <Image
+                          source={{
+                            uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(hasItem.name)}_Icon.webp`,
+                          }}
+                          style={[styles.itemImage, { backgroundColor: hasItem.type === 'p' ? '#FFCC00' : '' }]}
+                        />
+                        <Text style={styles.names}>
+                          {hasItem.name}{hasItem.type === 'p' && " (P)"}
+                        </Text>
+                        {hasItem.count > 1 && (
+                          <View style={styles.tagcount}>
+                            <Text style={styles.tagcounttext}>{hasItem.count}</Text>
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                  <View style={styles.transfer}>
+                    <Image source={require('../../../assets/transfer.png')} style={styles.transferImage} />
+                  </View>
+                  {groupedWantsItems?.map((wantitem, index) => (
+                    <View key={`${wantitem.name}-${wantitem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
+                      <Image
+                        source={{
+                          uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(wantitem.name)}_Icon.webp`,
+                        }}
+                        style={[styles.itemImage, { backgroundColor: wantitem.type === 'p' ? '#FFCC00' : '' }]}
+                      />
+                      <Text style={styles.names}>
+                        {wantitem.name}{wantitem.type === 'p' && " (P)"}
+                      </Text>
+                      {wantitem.count > 1 && (
+                        <View style={styles.tagcount}>
+                          <Text style={styles.tagcounttext}>{wantitem.count}</Text>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {!loading && messages.length === 0 ? (
+                <ActivityIndicator size="large" color="#1E88E5" style={{ flex: 1, justifyContent: 'center' }} />
+              ) : messages.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>{t("chat.no_messages_yet")}</Text>
+                </View>
+              ) : (
+                <PrivateMessageList
+                  messages={messages}
+                  userId={myUserId}
+                  handleLoadMore={loadMessages}
+                  refreshing={refreshing}
+                  onRefresh={handleRefresh}
+                  isBanned={isBanned}
+                  selectedUser={selectedUser}
+                  user={user}
+                  onReply={(message) => setReplyTo(message)}
+                />
+              )}
+
+              <PrivateMessageInput
+                onSend={sendMessage}
+                isBanned={isBanned}
+                bannedUsers={bannedUsers}
+                replyTo={replyTo}
+                onCancelReply={() => setReplyTo(null)}
+                input={input}
+                setInput={setInput}
+                selectedTheme={selectedTheme}
+              />
+            {/* </View>  */}
+            </ConditionalKeyboardWrapper>
         </View>
       </GestureHandlerRootView>
 

@@ -22,6 +22,7 @@ import i18n from '../../i18n';
 import { logEvent } from '@react-native-firebase/analytics';
 import { showMessage } from 'react-native-flash-message';
 import DeviceInfo from 'react-native-device-info';
+import ShareTradeModal from '../Trades/SharetradeModel';
 
 
 const bannerAdUnitId = getAdUnitId('banner');
@@ -53,7 +54,12 @@ const HomeScreen = ({ selectedTheme }) => {
   const [showNotification, setShowNotification] = useState(false);
   const [pinnedMessages, setPinnedMessages] = useState([]);
   const [lastTradeTime, setLastTradeTime] = useState(null); // 🔄 Store last trade timestamp locally
+  const [openShareModel, setOpenShareModel] = useState(false);
+  const [selectedTrade, setSelectedTrade] = useState(null);
 
+
+
+  const [type, setType] = useState(null); // 🔄 Store last trade timestamp locally
 
 
 
@@ -105,6 +111,8 @@ const HomeScreen = ({ selectedTheme }) => {
     };
 
     loadPinnedMessages();
+    // return () => pinnedMessagesRef.off(); // ✅ Clean up Firebase reference
+
   }, [pinnedMessagesRef]);
   // Run this once when the app starts
   useEffect(() => {
@@ -143,9 +151,9 @@ const HomeScreen = ({ selectedTheme }) => {
   //   // console.log("Language changed:", i18n.language);
   // }, [i18n.language]);
 
-  const handleCreateTradePress = async () => {
-    logEvent(analytics, `${platform}_submit_trade`);
-    if (!user.id) {
+  const handleCreateTradePress = async (type) => {
+    logEvent(analytics, `${platform}_${type}`);
+    if (!user.id & type === 'create') {
       setIsSigninDrawerVisible(true)
       return;
     }
@@ -163,6 +171,11 @@ const HomeScreen = ({ selectedTheme }) => {
 
 
 
+    }
+    if(type === 'create') {
+      setType('create')
+    }else {
+      setType('share')
     }
     const tradeRatio = wantsTotal.value / hasTotal.value;
 
@@ -201,9 +214,6 @@ const HomeScreen = ({ selectedTheme }) => {
   
     setIsSubmitting(true);
     // console.log("🚀 Trade submission started...");
-    
-    logEvent(analytics, `${platform}_create_trade`);
-    
     try {
       // ✅ Build new trade object
       let newTrade = {
@@ -212,13 +222,18 @@ const HomeScreen = ({ selectedTheme }) => {
         avatar: user?.avatar || null,
         isPro: localState.isPro,
         isFeatured: false,
-        hasItems: hasItems.filter(item => item && item.Name).map(item => ({ name: item.Name, type: item.Type })),
-        wantsItems: wantsItems.filter(item => item && item.Name).map(item => ({ name: item.Name, type: item.Type })),
+        hasItems: hasItems.filter(item => item && item.Name).map(item => ({ name: item.Name, type: item.Type, value:item.Value })),
+        wantsItems: wantsItems.filter(item => item && item.Name).map(item => ({ name: item.Name, type: item.Type, value:item.Value })),
         hasTotal: { price: hasTotal?.price || 0, value: hasTotal?.value || 0 },
         wantsTotal: { price: wantsTotal?.price || 0, value: wantsTotal?.value || 0 },
         description: description || "",
         timestamp: firestore.FieldValue.serverTimestamp(),
       };
+      if (type ==='share'){
+        setModalVisible(false); // Close modal
+        setSelectedTrade(newTrade);
+        setOpenShareModel(true)
+      } else {  
   
       // console.log("📌 New trade object created:", newTrade);
   
@@ -259,7 +274,7 @@ const HomeScreen = ({ selectedTheme }) => {
         description: "Your trade has been posted successfully!",
         type: "success",
       });
-  
+    }
     } catch (error) {
       console.error("🔥 Error creating trade:", error);
       showMessage({
@@ -673,8 +688,8 @@ const HomeScreen = ({ selectedTheme }) => {
               </View>
             </ViewShot>
             <View style={styles.createtrade} >
-              <TouchableOpacity style={styles.createtradeButton} onPress={handleCreateTradePress}><Text style={{ color: 'white' }}>{t('home.create_trade')}</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.shareTradeButton} onPress={proceedWithScreenshotShare}><Text style={{ color: 'white' }}>{t('home.share_trade')}</Text></TouchableOpacity></View>
+              <TouchableOpacity style={styles.createtradeButton} onPress={()=>handleCreateTradePress('create')}><Text style={{ color: 'white' }}>{t('home.create_trade')}</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.shareTradeButton} onPress={()=>handleCreateTradePress('share')}><Text style={{ color: 'white' }}>{t('home.share_trade')}</Text></TouchableOpacity></View>
           </ScrollView>
           <Modal
             visible={isDrawerVisible}
@@ -776,7 +791,11 @@ const HomeScreen = ({ selectedTheme }) => {
               </View>
             </ConditionalKeyboardWrapper>
           </Modal>
-
+          <ShareTradeModal
+  visible={openShareModel}
+  onClose={() => setOpenShareModel(false)}
+  tradeData={selectedTrade}
+/>
           <SignInDrawer
             visible={isSigninDrawerVisible}
             onClose={() => setIsSigninDrawerVisible(false)}

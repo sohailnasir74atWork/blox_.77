@@ -18,6 +18,7 @@ import FlashMessage, { showMessage } from 'react-native-flash-message';
 import { logEvent } from '@react-native-firebase/analytics';
 import MyNativeAdComponent from '../Ads/NativAds';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
+import ShareTradeModal from './SharetradeModel';
 
 
 const bannerAdUnitId = getAdUnitId('banner');
@@ -36,6 +37,8 @@ const TradeList = ({ route }) => {
   const [hasMore, setHasMore] = useState(true);
   const [showofferwall, setShowofferwall] = useState(false);
   const [remainingFeaturedTrades, setRemainingFeaturedTrades] = useState([]);
+  const [openShareModel, setOpenShareModel] = useState(false);
+
 
   const [isAdLoaded, setIsAdLoaded] = useState(false);
   const [isShowingAd, setIsShowingAd] = useState(false);
@@ -161,8 +164,10 @@ const TradeList = ({ route }) => {
       callback(); // If ad is not loaded, proceed immediately
     }
   };
+
+
   const getTradeDeal = (hasTotal, wantsTotal) => {
-    if ( hasTotal.value <= 0) {
+    if (hasTotal.value <= 0) {
       return { label: "trade.unknown_deal", color: "#8E8E93" }; // ⚠️ Unknown deal (invalid input)
     }
 
@@ -183,60 +188,60 @@ const TradeList = ({ route }) => {
       deal = { label: "trade.risky_deal", color: "#7D1128" }; // ❌ Risky Deal (Missing in your original code)
     }
 
-    return deal;
+    return { deal, tradeRatio };
   };
-// console.log(localState.featuredCount, 'featu')
-const handleDelete = useCallback((item) => {
-  Alert.alert(
-    t("trade.delete_confirmation_title"),
-    t("trade.delete_confirmation_message"),
-    [
-      { text: t("trade.cancel"), style: "cancel" },
-      {
-        text: t("trade.delete"),
-        style: "destructive",
-        onPress: async () => {
-          try {
-            const tradeId = item.id.startsWith("featured-") ? item.id.replace("featured-", "") : item.id;
-            // console.log(`🔄 [handleDelete] Deleting trade: ${tradeId}`);
+  // console.log(localState.featuredCount, 'featu')
+  const handleDelete = useCallback((item) => {
+    Alert.alert(
+      t("trade.delete_confirmation_title"),
+      t("trade.delete_confirmation_message"),
+      [
+        { text: t("trade.cancel"), style: "cancel" },
+        {
+          text: t("trade.delete"),
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const tradeId = item.id.startsWith("featured-") ? item.id.replace("featured-", "") : item.id;
+              // console.log(`🔄 [handleDelete] Deleting trade: ${tradeId}`);
 
-            await firestore().collection("trades_new").doc(tradeId).delete();
-            // console.log(`✅ [handleDelete] Trade deleted: ${tradeId}`);
+              await firestore().collection("trades_new").doc(tradeId).delete();
+              // console.log(`✅ [handleDelete] Trade deleted: ${tradeId}`);
 
-            // ✅ Decrement featured count **without changing time**
-            if (item.isFeatured) {
-              const currentFeaturedData = localState.featuredCount || { count: 0, time: null };
-              const newFeaturedCount = Math.max(0, currentFeaturedData.count - 1);
+              // ✅ Decrement featured count **without changing time**
+              if (item.isFeatured) {
+                const currentFeaturedData = localState.featuredCount || { count: 0, time: null };
+                const newFeaturedCount = Math.max(0, currentFeaturedData.count - 1);
 
-              await updateLocalState("featuredCount", {
-                count: newFeaturedCount, // ✅ Reduce count
-                time: currentFeaturedData.time, // ✅ Keep time unchanged
+                await updateLocalState("featuredCount", {
+                  count: newFeaturedCount, // ✅ Reduce count
+                  time: currentFeaturedData.time, // ✅ Keep time unchanged
+                });
+              }
+
+              // ✅ Remove trade from local state
+              setTrades((prev) => prev.filter((trade) => trade.id !== item.id));
+              setFilteredTrades((prev) => prev.filter((trade) => trade.id !== item.id));
+
+              showMessage({
+                message: t("trade.delete_success"),
+                description: t("trade.delete_success_message"),
+                type: "success",
+              });
+
+            } catch (error) {
+              console.error("🔥 [handleDelete] Error deleting trade:", error);
+              showMessage({
+                message: t("trade.delete_error"),
+                description: t("trade.delete_error_message"),
+                type: "danger",
               });
             }
-
-            // ✅ Remove trade from local state
-            setTrades((prev) => prev.filter((trade) => trade.id !== item.id));
-            setFilteredTrades((prev) => prev.filter((trade) => trade.id !== item.id));
-
-            showMessage({
-              message: t("trade.delete_success"),
-              description: t("trade.delete_success_message"),
-              type: "success",
-            });
-
-          } catch (error) {
-            console.error("🔥 [handleDelete] Error deleting trade:", error);
-            showMessage({
-              message: t("trade.delete_error"),
-              description: t("trade.delete_error_message"),
-              type: "danger",
-            });
-          }
+          },
         },
-      },
-    ]
-  );
-}, [t, localState.featuredCount]);
+      ]
+    );
+  }, [t, localState.featuredCount]);
 
 
 
@@ -257,10 +262,10 @@ const handleDelete = useCallback((item) => {
       );
       return;
     }
-  
+
     // ✅ Fix: Ensure `localState.featuredCount` exists before accessing `.count`
     const currentFeaturedData = localState.featuredCount || { count: 0, time: null };
-  
+
     if (currentFeaturedData.count >= 2) {
       showMessage({
         message: t("trade.feature_limit_reached_title"),
@@ -269,7 +274,7 @@ const handleDelete = useCallback((item) => {
       });
       return;
     }
-  
+
     // ✅ **Confirmation before featuring**
     Alert.alert(
       t("trade.feature_confirmation_title"),
@@ -285,13 +290,13 @@ const handleDelete = useCallback((item) => {
                 isFeatured: true,
                 featuredUntil: firestore.Timestamp.fromDate(new Date(Date.now() + 24 * 60 * 60 * 1000)), // 1 hour
               });
-  
+
               // ✅ **Store new featured count & timestamp**
               const newFeaturedCount = currentFeaturedData.count + 1;
               const currentTime = new Date().toISOString();
-  
+
               await updateLocalState("featuredCount", { count: newFeaturedCount, time: currentTime });
-  
+
               // ✅ **Update UI**
               setTrades((prev) =>
                 prev.map((trade) =>
@@ -303,13 +308,13 @@ const handleDelete = useCallback((item) => {
                   trade.id === item.id ? { ...trade, isFeatured: true } : trade
                 )
               );
-  
+
               showMessage({
                 message: t("trade.feature_success"),
                 description: t("trade.feature_success_message"),
                 type: "success",
               });
-  
+
             } catch (error) {
               console.error("🔥 [handleMakeFeatureTrade] Error featuring trade:", error);
               showMessage({
@@ -323,7 +328,7 @@ const handleDelete = useCallback((item) => {
       ]
     );
   }, [t, localState.featuredCount]);
-  
+
 
 
 
@@ -381,26 +386,26 @@ const handleDelete = useCallback((item) => {
   useEffect(() => {
     const resetFeaturedDataIfExpired = async () => {
       const currentFeaturedData = localState.featuredCount || { count: 0, time: null };
-  
+
       if (!currentFeaturedData.time) return; // ✅ If no time exists, do nothing
-  
+
       const featuredTime = new Date(currentFeaturedData.time).getTime();
       const currentTime = Date.now();
       const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-  
+
       if (currentTime - featuredTime >= TWENTY_FOUR_HOURS) {
         // console.log("⏳ 24 hours passed! Resetting featuredCount and time...");
-  
+
         await updateLocalState("featuredCount", { count: 0, time: null });
-  
+
         // console.log("✅ Featured data reset successfully.");
       }
     };
-  
+
     resetFeaturedDataIfExpired(); // ✅ Runs once on app load
-  
+
   }, []); // ✅ Runs only on app load
-  
+
 
 
 
@@ -476,8 +481,66 @@ const handleDelete = useCallback((item) => {
       setLoading(false);
     }
   }, []);
+  const captureAndSave = async () => {
+    if (!viewRef.current) {
+      console.error('View reference is undefined.');
+      return;
+    }
 
+    try {
+      // Capture the view as an image
+      const uri = await captureRef(viewRef.current, {
+        format: 'png',
+        quality: 0.8,
+      });
 
+      // Generate a unique file name
+      const timestamp = new Date().getTime(); // Use the current timestamp
+      const uniqueFileName = `screenshot_${timestamp}.png`;
+
+      // Determine the path to save the screenshot
+      const downloadDest = Platform.OS === 'android'
+        ? `${RNFS.ExternalDirectoryPath}/${uniqueFileName}`
+        : `${RNFS.DocumentDirectoryPath}/${uniqueFileName}`;
+
+      // Save the captured image to the determined path
+      await RNFS.copyFile(uri, downloadDest);
+
+      // console.log(`Screenshot saved to: ${downloadDest}`);
+
+      return downloadDest;
+    } catch (error) {
+      console.error('Error capturing screenshot:', error);
+      // Alert.alert(t("home.alert.error"), t("home.screenshot_error"));
+      showMessage({
+        message: t("home.alert.error"),
+        description: t("home.screenshot_error"),
+        type: "danger",
+      });
+    }
+  };
+
+  const proceedWithScreenshotShare = async () => {
+    triggerHapticFeedback('impactLight');
+    logEvent(analytics, `${platform}_screenshot_share_trade_screen`);
+    try {
+      const filePath = await captureAndSave();
+
+      if (filePath) {
+        const shareOptions = {
+          title: t("home.screenshot_title"),
+          url: `file://${filePath}`,
+          type: 'image/png',
+        };
+
+        Share.open(shareOptions)
+          .then((res) => console.log('Share Response:', res))
+          .catch((err) => console.log('Share Error:', err));
+      }
+    } catch (error) {
+      // console.log('Error sharing screenshot:', error);
+    }
+  };
 
   const mergeFeaturedWithNormal = (featuredTrades, normalTrades) => {
     let result = [];
@@ -567,7 +630,13 @@ const handleDelete = useCallback((item) => {
 
 
   const renderTrade = ({ item, index }) => {
+    const { deal, tradeRatio } = getTradeDeal(item.hasTotal, item.wantsTotal);
+    const tradePercentage = Math.abs(((tradeRatio - 1) * 100).toFixed(0));
+
+    const isProfit = tradeRatio > 1; // Profit if trade ratio > 1
+    const neutral = tradeRatio === 1; // Exactly 1:1 trade
     const formattedTime = item.timestamp ? moment(item.timestamp.toDate()).fromNow() : "Anonymous";
+
     if ((index + 1) % 10 === 0 && !localState.isPro) {
       return <MyNativeAdComponent />;
     }
@@ -603,8 +672,9 @@ const handleDelete = useCallback((item) => {
               senderId: item.userId,
               sender: item.traderName,
               avatar: item.avatar,
+
             },
-            // isOnline,
+            item,
           });
         });
         logEvent(analytics, `${platform}_trade_screen_nav_to_chat`);
@@ -634,9 +704,10 @@ const handleDelete = useCallback((item) => {
             </View>
           </TouchableOpacity>
           <View style={{ flexDirection: 'row' }}>
-            <View style={[styles.dealContainer, { backgroundColor: getTradeDeal(item.hasTotal, item.wantsTotal).color }]}>
+            <View style={[styles.dealContainer, { backgroundColor: deal.color }]}>
               <Text style={styles.dealText}>
-                {t(getTradeDeal(item.hasTotal, item.wantsTotal).label)}
+
+                {t(deal.label)}
               </Text>
 
             </View>
@@ -697,14 +768,16 @@ const handleDelete = useCallback((item) => {
             {t("trade.price_has")} {formatValue(item.hasTotal.value)}
           </Text>
           <View style={styles.transfer}>
-            {/* {item.userId === user.id && (
-              <Icon
-                name="trash-outline"
-                size={18}
-                color={config.colors.wantBlockRed}
-                onPress={() => handleDelete(item)}
-              />
-            )} */}
+            <Text style={[styles.priceTextProfit, { color: !isProfit ? config.colors.hasBlockGreen : config.colors.wantBlockRed }]}>
+              {tradePercentage}% {!neutral && (
+                <Icon
+                  name={isProfit ? 'arrow-down-outline' : 'arrow-up-outline'}
+                  size={10}
+                  color={isProfit ? config.colors.wantBlockRed : config.colors.hasBlockGreen}
+                  style={styles.icon}
+                />
+              )}
+            </Text>
           </View>
           <Text style={[styles.priceText, styles.wantBackground]}>
             {t("trade.price_want")} {formatValue(item.wantsTotal.value)}
@@ -727,11 +800,27 @@ const handleDelete = useCallback((item) => {
             name="close-circle"
             size={24}
             color={config.colors.wantBlockRed}
+            style={{ marginRight: 20 }}
             onPress={() => handleDelete(item)}
           />
+         <Icon
+  name="share-social"
+  size={24}
+  color={config.colors.primary}
+  onPress={() => {
+    setSelectedTrade(item); // ✅ Set the selected trade
+    setOpenShareModel(true); // ✅ Then open the modal
+  }}
+/>
+
 
 
         </View>)}
+        <ShareTradeModal
+  visible={openShareModel}
+  onClose={() => setOpenShareModel(false)}
+  tradeData={selectedTrade}
+/>
 
       </View>
     );
@@ -853,7 +942,7 @@ const getStyles = (isDarkMode) =>
     },
     traderName: {
       fontFamily: 'Lato-Bold',
-      fontSize: 10,
+      fontSize: 8,
       color: isDarkMode ? 'white' : "black",
 
     },
@@ -874,12 +963,12 @@ const getStyles = (isDarkMode) =>
       flexDirection: 'row',
       flexWrap: 'wrap',
       justifyContent: 'space-evenly',
-      width: "40%",
+      width: "45%",
       paddingVertical: 15,
     },
     itemImage: {
-      width: 40,
-      height: 40,
+      width: 30,
+      height: 30,
       // marginRight: 5,
       // borderRadius: 25,
       marginVertical: 5,
@@ -888,16 +977,16 @@ const getStyles = (isDarkMode) =>
 
     },
     itemImageUser: {
-      width: 30,
-      height: 30,
+      width: 20,
+      height: 20,
       // marginRight: 5,
       borderRadius: 15,
       marginRight: 5,
       backgroundColor: 'white'
     },
     transferImage: {
-      width: 20,
-      height: 20,
+      width: 15,
+      height: 15,
       // marginRight: 5,
       borderRadius: 5,
     },
@@ -909,7 +998,7 @@ const getStyles = (isDarkMode) =>
 
     },
     priceText: {
-      fontSize: 10,
+      fontSize: 8,
       fontFamily: 'Lato-Regular',
       color: '#007BFF',
       // width: '40%',
@@ -921,6 +1010,20 @@ const getStyles = (isDarkMode) =>
       paddingVertical: 2,
       borderRadius: 6
     },
+    priceTextProfit: {
+      fontSize: 10,
+      lineHeight: 14,
+      fontFamily: 'Lato-Regular',
+      // color: '#007BFF',
+      // width: '40%',
+      textAlign: 'center', // Centers text within its own width
+      alignSelf: 'center', // Centers within the parent container
+      // color: isDarkMode ? 'white' : "grey",
+      // marginHorizontal: 'auto',
+      // paddingHorizontal: 4,
+      // paddingVertical: 2,
+      // borderRadius: 6
+    },
     hasBackground: {
       backgroundColor: config.colors.hasBlockGreen,
     },
@@ -931,9 +1034,9 @@ const getStyles = (isDarkMode) =>
       flexDirection: 'row',
       alignItems: 'center',
     },
- 
+
     transfer: {
-      width: '20%',
+      width: '10%',
       justifyContent: 'center',
       alignItems: 'center'
     },
@@ -969,7 +1072,7 @@ const getStyles = (isDarkMode) =>
     dealText: {
       color: 'white',
       fontWeight: 'Lato-Bold',
-      fontSize: 10,
+      fontSize: 8,
       textAlign: 'center',
     },
     names: {
@@ -1012,7 +1115,7 @@ const getStyles = (isDarkMode) =>
       borderTopLeftRadius: 10,  // Increased to make it more curved
       borderBottomRightRadius: 30, // Further increased for more curve
     }
-    
+
   });
 
 export default TradeList;
