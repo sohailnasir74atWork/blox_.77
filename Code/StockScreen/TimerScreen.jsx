@@ -348,9 +348,10 @@ const mirageTimer = useMemo(() => formatTime(calculateTimeLeft(mirageInterval)),
               <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
             }
           >
-            <Text style={[styles.description, { color: selectedTheme.colors.text }]}>
+            <View style={{backgroundColor:config.colors.secondary, padding:5, borderRadius:10, marginVertical:10}}>
+            <Text style={[styles.description]}>
               {t("stock.description")}
-            </Text>
+            </Text></View>
             <View style={styles.reminderContainer}>
               <View style={styles.row}>
                 <Text style={styles.title}>{t("stock.stock_updates")}</Text>
@@ -542,7 +543,7 @@ const getStyles = (isDarkMode, user) =>
     container: {
       flex: 1, paddingHorizontal: 10, backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
     },
-    description: { fontSize: 14, marginVertical: 10, fontFamily: 'Lato-Regular' },
+    description: { fontSize: 14, lineHeight: 18, marginVertical: 10, fontFamily: 'Lato-Regular', color:'white' },
     headerContainer: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 10, paddingHorizontal: 10 },
     headerContainerpre: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 10, paddingHorizontal: 10, opacity: .3 },
 

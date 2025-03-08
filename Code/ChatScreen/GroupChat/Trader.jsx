@@ -189,7 +189,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       const newMessage = validateMessage({ id: snapshot.key, ...snapshot.val() })
       if (developmentMode) {
         const newMessageSize = JSON.stringify(newMessage).length / 1024;
-        console.log(`🚀 Downloaded data: ${newMessageSize.toFixed(2)} KB from NEW MESSAGE`);
+        // console.log(`🚀 Downloaded data: ${newMessageSize.toFixed(2)} KB from NEW MESSAGE`);
       }
 
       setMessages((prev) => {

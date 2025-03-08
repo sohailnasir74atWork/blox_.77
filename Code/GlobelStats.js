@@ -56,9 +56,8 @@ export const GlobalStateProvider = ({ children }) => {
     setTheme(localState.theme); 
 }, [localState.theme]);
 
-  const isAdmin = user?.id  ? user?.id == 'kiFDYH7YwFTGiZZaTMF2z622v253' : false
+  const isAdmin = user?.id  ? user?.id == '3CAAolfaX3UE3BLTZ7ghFbNnY513' : false
   // console.log(isAdmin, user)
-
 
   const updateLocalStateAndDatabase = async (keyOrUpdates, value) => {
     if (!user.id) return; // Prevent updates if user is not logged in

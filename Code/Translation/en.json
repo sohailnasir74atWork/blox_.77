@@ -136,7 +136,7 @@
         "copy_success": "Code copied to clipboard!"
     },
     "stock": {
-        "description": "Stay updated on the latest fruits stock.",
+        "description": "Disclaimer: Stock updates may sometimes be delayed as data is updated manually. We appreciate your patience and recommend checking back periodically for the latest updates.",
         "search_placeholder": "Search",
         "normal_stock": "Normal Stock",
         "mirage_stock": "Mirage Stock",

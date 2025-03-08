@@ -43,7 +43,21 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message }) => {
         });
     }, [])
 
-
+    useEffect(() => {
+        if (appleAuth.isSupported) {
+            return appleAuth.onCredentialRevoked(async () => {
+                // console.log("Apple Credentials Revoked");
+                // Handle user session expiration (e.g., force sign-out)
+                auth().signOut();
+                showMessage({
+                    message: "Session Expired",
+                    description: "Your Apple Sign-in session has expired. Please sign in again.",
+                    type: "warning",
+                });
+            });
+        }
+    }, []);
+    
  
 
     // Updated onAppleButtonPress function
