@@ -26,6 +26,7 @@ export const GlobalStateProvider = ({ children }) => {
   const {localState, updateLocalState} = useLocalState()
   const [theme, setTheme] = useState(localState.theme || 'light');
   
+  
 
   useEffect(() => {
     const appOwner = config.isNoman ? "Noman" : "Waqas";

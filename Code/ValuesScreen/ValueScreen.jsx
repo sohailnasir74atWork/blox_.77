@@ -33,7 +33,7 @@ const ValueScreen = ({ selectedTheme }) => {
   const [searchText, setSearchText] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [filterDropdownVisible, setFilterDropdownVisible] = useState(false);
-  const { analytics, appdatabase, isAdmin } = useGlobalState()
+  const { analytics, appdatabase, isAdmin, reload } = useGlobalState()
   const [filteredData, setFilteredData] = useState([]);
   const { localState } = useLocalState()
   const [valuesData, setValuesData] = useState([]);
@@ -51,6 +51,8 @@ const ValueScreen = ({ selectedTheme }) => {
   const { triggerHapticFeedback } = useHaptic();
   const [selectedFruit, setSelectedFruit] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false); // State for pull-to-refresh
+
   const editValuesRef = useRef({
     Value: '',
     Permanent: '',
@@ -73,10 +75,17 @@ const ValueScreen = ({ selectedTheme }) => {
     setIsModalVisible(true);
   };
 
-  // const toggleDrawer = () => {
-  //   setIsDrawerVisible(!isDrawerVisible);
-  // };
-  // console.log(valuesData)
+  const handleRefresh = async () => {
+    setRefreshing(true);
+   
+    try {
+      await  reload(); // Re-fetch stock data
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const toggleDrawer = () => {
 
@@ -436,6 +445,8 @@ const ValueScreen = ({ selectedTheme }) => {
                 showsVerticalScrollIndicator={false}
                 removeClippedSubviews={true}
                 numColumns={!config.isNoman ? 1 : 2}
+                refreshing={refreshing} 
+                onRefresh={handleRefresh} 
                 columnWrapperStyle={!config.isNoman ? null : styles.columnWrapper}
               />
               {isModalVisible && selectedFruit && <EditFruitModal />}
