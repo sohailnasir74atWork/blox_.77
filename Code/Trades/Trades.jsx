@@ -273,8 +273,8 @@ const TradeList = ({ route }) => {
             setShowofferwall(true);
 
             // ✅ Manually update state after upgrade
-            setIsProStatus(true);
-            updateLocalState("isPro", true);
+            // setIsProStatus(true);
+            // updateLocalState("isPro", true);
           }
         },
       ]
