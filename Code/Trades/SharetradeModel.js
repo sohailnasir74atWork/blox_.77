@@ -24,7 +24,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
     const {localState} = useLocalState()
     const [showofferwall, setShowofferwall] = useState(false);
-    console.log(localState.isPro, 'from share model')
+    // console.log(localState.isPro, 'from share model')
 
 
 
@@ -32,7 +32,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
 
 
     if (!tradeData) return null;
-    console.log(tradeData)
+    // console.log(tradeData)
 
     const { hasItems, wantsItems, hasTotal, wantsTotal, description } = tradeData;
 
@@ -95,7 +95,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
           return;
         }
       
-        setIncludeAppTag(false); // Assuming this is what you intended
+        setIncludeAppTag(!includeAppTag); // Assuming this is what you intended
       };
       
 

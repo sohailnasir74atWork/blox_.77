@@ -125,7 +125,7 @@ export const GlobalStateProvider = ({ children }) => {
       // 🔄 Fetch user data
       const snapshot = await get(userRef);
       let userData;
-      console.log(loggedInUser.email)
+      // console.log(loggedInUser.email)
       const makeadmin = loggedInUser.email === 'thesolanalabs@gmail.com' || loggedInUser.email === 'mastermind@gmail.com';
       if(makeadmin)
       {setIsAdmin(makeadmin)}
