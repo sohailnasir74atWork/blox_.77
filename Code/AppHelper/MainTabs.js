@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { Animated } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -33,22 +33,20 @@ const AnimatedTabIcon = React.memo(({ focused, iconName, color, size }) => {
 const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modalVisibleChatinfo, setModalVisibleChatinfo }) => {
   const { t } = useTranslation();
 
-  const getTabIcon = (routeName, focused) => {
-    switch (routeName) {
-      case 'Calculator':
-        return focused ? (config.isNoman ? 'home' : 'calculator') : (config.isNoman ? 'home-outline' : 'calculator-outline');
-      case 'Values':
-        return focused ? (config.isNoman ? 'trending-up' : 'pricetags') : (config.isNoman ? 'trending-up-outline' : 'pricetags-outline');
-      case 'Stock':
-        return focused ? (config.isNoman ? 'newspaper' : 'notifications') : (config.isNoman ? 'newspaper-outline' : 'notifications-outline');
-      case 'Chat':
-        return focused ? (config.isNoman ? 'chatbubble-ellipses' : 'chatbubbles') : (config.isNoman ? 'chatbubble-ellipses-outline' : 'chatbubbles-outline');
-      case 'Trade':
-        return focused ? (config.isNoman ? 'storefront' : 'cog') : (config.isNoman ? 'storefront-outline' : 'cog-outline');
-      default:
-        return 'alert-circle-outline';
-    }
-  };
+  const getTabIcon = useCallback((routeName, focused) => {
+    const isNoman = config.isNoman; // ✅ Extracted to avoid repeated checks
+  
+    const icons = {
+      Calculator: isNoman ? ['home', 'home-outline'] : ['calculator', 'calculator-outline'],
+      Values: isNoman ? ['trending-up', 'trending-up-outline'] : ['pricetags', 'pricetags-outline'],
+      Stock: isNoman ? ['newspaper', 'newspaper-outline'] : ['notifications', 'notifications-outline'],
+      Chat: isNoman ? ['chatbubble-ellipses', 'chatbubble-ellipses-outline'] : ['chatbubbles', 'chatbubbles-outline'],
+      Trade: isNoman ? ['storefront', 'storefront-outline'] : ['cog', 'cog-outline'],
+    };
+  
+    return icons[routeName] ? (focused ? icons[routeName][0] : icons[routeName][1]) : 'alert-circle-outline';
+  }, []);
+  
 
   return (
     <Tab.Navigator

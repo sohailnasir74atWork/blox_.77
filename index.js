@@ -1,6 +1,8 @@
+// 🏆 Optimize performance by enabling screens before any imports
 import { enableScreens } from 'react-native-screens';
-enableScreens(); // Call this first
+enableScreens(); 
 
+import React, { useEffect, lazy, Suspense } from 'react';
 import { AppRegistry } from 'react-native';
 import AppWrapper from './App';
 import { name as appName } from './app.json';
@@ -9,26 +11,29 @@ import { LocalStateProvider } from './Code/LocalGlobelStats';
 import { MenuProvider } from 'react-native-popup-menu';
 import { LanguageProvider } from './Code/Translation/LanguageProvider';
 import messaging from '@react-native-firebase/messaging';
-import NotificationHandler from './Code/Firebase/FrontendNotificationHandling';
 
+// 🚀 Lazy load Notification Handler for better startup performance
+const NotificationHandler = lazy(() => import('./Code/Firebase/FrontendNotificationHandling'));
+
+// ✅ Background Notification Handler
 messaging().setBackgroundMessageHandler(async remoteMessage => {
-    //   console.log('📩 Silent notification received in background:', remoteMessage);
+  // console.log('📩 Silent notification received in background:', remoteMessage);
 });
 
-
-
-const App = () => (
-<LanguageProvider>
+// ✅ Memoized App component to prevent unnecessary re-renders
+const App = React.memo(() => (
+  <LanguageProvider>
     <LocalStateProvider>
-        <GlobalStateProvider>
-            <MenuProvider>
-                <AppWrapper />
-                <NotificationHandler />
-            </MenuProvider>
-        </GlobalStateProvider>
+      <GlobalStateProvider>
+        <MenuProvider>
+          <AppWrapper />
+          <Suspense fallback={null}>
+            <NotificationHandler />
+          </Suspense>
+        </MenuProvider>
+      </GlobalStateProvider>
     </LocalStateProvider>                
-</LanguageProvider>
-
-);
+  </LanguageProvider>
+));
 
 AppRegistry.registerComponent(appName, () => App);

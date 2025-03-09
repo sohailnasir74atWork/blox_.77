@@ -25,6 +25,8 @@ export const useGlobalState = () => useContext(GlobalStateContext);
 export const GlobalStateProvider = ({ children }) => {
   const {localState, updateLocalState} = useLocalState()
   const [theme, setTheme] = useState(localState.theme || 'light');
+  const [isAdmin, setIsAdmin] = useState(false);
+
   
   
 
@@ -57,7 +59,7 @@ export const GlobalStateProvider = ({ children }) => {
     setTheme(localState.theme); 
 }, [localState.theme]);
 
-  const isAdmin = user?.id  ? user?.id == '3CAAolfaX3UE3BLTZ7ghFbNnY513' : false
+  // const isAdmin = user?.id  ? user?.id == '3CAAolfaX3UE3BLTZ7ghFbNnY513' : false
   // console.log(isAdmin, user)
 
   const updateLocalStateAndDatabase = async (keyOrUpdates, value) => {
@@ -115,17 +117,22 @@ export const GlobalStateProvider = ({ children }) => {
       resetUserState(); // No longer recreates resetUserState
       return;
     }
-  
     try {
       const userId = loggedInUser.uid;
       const userRef = ref(appdatabase, `users/${userId}`);
+
       
       // 🔄 Fetch user data
       const snapshot = await get(userRef);
       let userData;
+      console.log(loggedInUser.email)
+      const makeadmin = loggedInUser.email === 'thesolanalabs@gmail.com' || loggedInUser.email === 'mastermind@gmail.com';
+      if(makeadmin)
+      {setIsAdmin(makeadmin)}
       
       if (snapshot.exists()) {
         userData = { ...snapshot.val(), id: userId };
+
       } else {
         userData = createNewUser(userId, loggedInUser);
         await set(userRef, userData);

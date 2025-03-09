@@ -56,7 +56,7 @@ const BlockedUsersScreen = () => {
             // console.log(userData)
             return {
               id,
-              displayName: userData?.displayName || userData?.displayname || 'Anonymous',
+              displayName: userData?.displayName || 'Anonymous',
               avatar: userData?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
             };
           } else {

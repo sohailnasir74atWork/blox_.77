@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     Modal,
     View,
@@ -44,57 +44,36 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message }) => {
     }, [])
 
     useEffect(() => {
-        if (appleAuth.isSupported) {
-            return appleAuth.onCredentialRevoked(async () => {
-                // console.log("Apple Credentials Revoked");
-                // Handle user session expiration (e.g., force sign-out)
-                auth().signOut();
-                showMessage({
-                    message: "Session Expired",
-                    description: "Your Apple Sign-in session has expired. Please sign in again.",
-                    type: "warning",
-                });
-            });
-        }
+        if (!appleAuth.isSupported) return;
+    
+        return appleAuth.onCredentialRevoked(async () => {
+            await auth().signOut();
+            showMessage({ message: "Session Expired", description: "Please sign in again.", type: "warning" });
+        });
     }, []);
+    
     
  
 
     // Updated onAppleButtonPress function
-    async function onAppleButtonPress() {
+    const onAppleButtonPress = useCallback(async () => {
         triggerHapticFeedback('impactLight');
         try {
-            const appleAuthRequestResponse = await appleAuth.performRequest({
+            const { identityToken, nonce } = await appleAuth.performRequest({
                 requestedOperation: appleAuth.Operation.LOGIN,
                 requestedScopes: [appleAuth.Scope.FULL_NAME, appleAuth.Scope.EMAIL],
             });
     
-            const { identityToken, nonce } = appleAuthRequestResponse;
+            if (!identityToken) throw new Error(t("signin.error_apple_token"));
     
-            if (!identityToken) {
-                throw new Error(t("signin.error_apple_token"));
-            }
-    
-            const appleCredential = auth.AppleAuthProvider.credential(identityToken, nonce);
-            await auth().signInWithCredential(appleCredential);
-    
-            // Alert.alert(t("home.alert.success"), t("signin.success_signin"));
-            showMessage({
-                message: t("home.alert.success"),
-                description:t("signin.success_signin"),
-                type: "success",
-              });
-            onClose(); // Close the modal on success
+            await auth().signInWithCredential(auth.AppleAuthProvider.credential(identityToken, nonce));
+            showMessage({ message: t("home.alert.success"), description: t("signin.success_signin"), type: "success" });
+            onClose();
         } catch (error) {
-            // console.error(t("signin.error_apple_signin"), error);
-            // Alert.alert(t("home.alert.error"), error?.message || t("signin.error_signin_message"));
-            showMessage({
-                message: t("home.alert.error"),
-                description:error?.message || t("signin.error_signin_message"),
-                type: "danger",
-              });
+            showMessage({ message: t("home.alert.error"), description: error?.message || t("signin.error_signin_message"), type: "danger" });
         }
-    }
+    }, [t, triggerHapticFeedback, onClose]);
+    
     
     
     const handleSignInOrRegister = async () => {
@@ -176,38 +155,24 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message }) => {
         }
     };
     
-    const handleGoogleSignIn = async () => {
+    const handleGoogleSignIn = useCallback(async () => {
         try {
             setIsLoading(true);
             await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
             const signInResult = await GoogleSignin.signIn();            
             const idToken = signInResult?.idToken || signInResult?.data?.idToken;
-            if (!idToken) {
-                throw new Error(t("signin.error_signin_message"));
-            }
-            
-            const googleCredential = auth.GoogleAuthProvider.credential(idToken);
-            await auth().signInWithCredential(googleCredential);
+            if (!idToken) throw new Error(t("signin.error_signin_message"));
     
-            // Alert.alert(t("signin.alert_welcome_back"), t("signin.success_signin"));
-            showMessage({
-                message: t("signin.alert_welcome_back"),
-                description:t("signin.success_signin"),
-                type: "success",
-              });
-            onClose(); // Close the modal on success
+            await auth().signInWithCredential(auth.GoogleAuthProvider.credential(idToken));
+            showMessage({ message: t("signin.alert_welcome_back"), description: t("signin.success_signin"), type: "success" });
+            onClose();
         } catch (error) {
-            console.error(t("signin.error_signin_message"), error);
-            // Alert.alert(t("home.alert.error"), error?.message || t("signin.error_signin_message"));
-            showMessage({
-                message: t("home.alert.error"),
-                description:error?.message || t("signin.error_signin_message"),
-                type: "danger",
-              });
+            showMessage({ message: t("home.alert.error"), description: error?.message || t("signin.error_signin_message"), type: "danger" });
         } finally {
-            setIsLoading(false); // Reset loading state
+            setIsLoading(false);
         }
-    };
+    }, [onClose]);
+    
     
 
     return (

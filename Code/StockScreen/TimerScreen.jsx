@@ -14,7 +14,7 @@ import { requestPermission } from '../Helper/PermissionCheck';
 import { useIsFocused } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { logEvent } from '@react-native-firebase/analytics';
-import FlashMessage, { showMessage } from 'react-native-flash-message';
+import  { showMessage } from 'react-native-flash-message';
 import MyNativeAdComponent from '../Ads/NativAds';
 
 const bannerAdUnitId = getAdUnitId('banner');
@@ -49,43 +49,23 @@ const TimerScreen = ({ selectedTheme }) => {
   const isDarkMode = theme === 'dark';
 
 
-
   useEffect(() => {
-    // console.log("🔍 Raw localState:", localState);
-
-    // Initialize variables for parsed values
-    let parsedData = {};
-    let parsedNormalStock = {};
-    let parsedMirageStock = {};
-    let parsedPreNormalStock = {};
-    let parsedPreMirageStock = {};
-
     try {
-      // Parse JSON values if stored as strings in MMKV
-      parsedData = localState.data ? (typeof localState.data === "string" ? JSON.parse(localState.data) : localState.data) : {};
-      parsedNormalStock = localState.normalStock ? (typeof localState.normalStock === "string" ? JSON.parse(localState.normalStock) : localState.normalStock) : {};
-      parsedMirageStock = localState.mirageStock ? (typeof localState.mirageStock === "string" ? JSON.parse(localState.mirageStock) : localState.mirageStock) : {};
-      parsedPreNormalStock = localState.prenormalStock ? (typeof localState.prenormalStock === "string" ? JSON.parse(localState.prenormalStock) : localState.prenormalStock) : {};
-      parsedPreMirageStock = localState.premirageStock ? (typeof localState.premirageStock === "string" ? JSON.parse(localState.premirageStock) : localState.premirageStock) : {};
+      const newFruitRecords = localState.data ? JSON.parse(localState.data) : {};
+      const newNormalStock = localState.normalStock ? JSON.parse(localState.normalStock) : {};
+      const newMirageStock = localState.mirageStock ? JSON.parse(localState.mirageStock) : {};
+      const newPreNormalStock = localState.prenormalStock ? JSON.parse(localState.prenormalStock) : {};
+      const newPreMirageStock = localState.premirageStock ? JSON.parse(localState.premirageStock) : {};
+
+      setFruitRecords((prev) => (JSON.stringify(prev) !== JSON.stringify(newFruitRecords) ? Object.values(newFruitRecords) : prev));
+      setNormalStock((prev) => (JSON.stringify(prev) !== JSON.stringify(newNormalStock) ? Object.values(newNormalStock) : prev));
+      setmirageStock((prev) => (JSON.stringify(prev) !== JSON.stringify(newMirageStock) ? Object.values(newMirageStock) : prev));
+      setPreNormalStock((prev) => (JSON.stringify(prev) !== JSON.stringify(newPreNormalStock) ? Object.values(newPreNormalStock) : prev));
+      setPremirageStock((prev) => (JSON.stringify(prev) !== JSON.stringify(newPreMirageStock) ? Object.values(newPreMirageStock) : prev));
     } catch (error) {
       console.error("❌ Error parsing data from localState:", error);
     }
-
-    // console.log("✅ Parsed Data:", parsedData);
-    // console.log("✅ Parsed Normal Stock:", parsedNormalStock);
-    // console.log("✅ Parsed Mirage Stock:", parsedMirageStock);
-    // console.log("✅ Parsed Previous Normal Stock:", parsedPreNormalStock);
-    // console.log("✅ Parsed Previous Mirage Stock:", parsedPreMirageStock);
-
-    // Ensure only valid objects are processed
-    setFruitRecords(Object.keys(parsedData).length > 0 ? Object.values(parsedData) : []);
-    setNormalStock(Object.keys(parsedNormalStock).length > 0 ? Object.values(parsedNormalStock) : []);
-    setmirageStock(Object.keys(parsedMirageStock).length > 0 ? Object.values(parsedMirageStock) : []);
-    setPreNormalStock(Object.keys(parsedPreNormalStock).length > 0 ? Object.values(parsedPreNormalStock) : []);
-    setPremirageStock(Object.keys(parsedPreMirageStock).length > 0 ? Object.values(parsedPreMirageStock) : []);
-
   }, [localState.data, localState.normalStock, localState.mirageStock, localState.prenormalStock, localState.premirageStock]);
-  // ✅ Effect runs only when these state values change
 
 
 
@@ -109,10 +89,10 @@ const TimerScreen = ({ selectedTheme }) => {
   const handleFruitSelect = async (fruit) => {
     triggerHapticFeedback('impactLight');
     logEvent(analytics, `${platform}_select_fruit`);
-  
+
     const selectedFruits = user.selectedFruits || []; // Ensure `selectedFruits` is always an array
     const isAlreadySelected = selectedFruits.some((item) => item.Name === fruit.Name);
-  
+
     // ✅ Prevent duplicate selection
     if (isAlreadySelected) {
       showMessage({
@@ -122,33 +102,33 @@ const TimerScreen = ({ selectedTheme }) => {
       });
       return;
     }
-  
+
     // ✅ Restriction: Free users can select up to 3 fruits, Pro users have no limit
     if (!localState.isPro && selectedFruits.length >= 4) {
       Alert.alert(
         "Selection Limit Reached",
         "You can only select up to 4 fruits as a free user. Upgrade to Pro to select more.",
-        [{ text: "OK", onPress: () => {} }]
-      );      
+        [{ text: "OK", onPress: () => { } }]
+      );
       return;
     }
-  
+
     // ✅ Add selected fruit
     const updatedFruits = [...selectedFruits, fruit];
     await updateLocalStateAndDatabase('selectedFruits', updatedFruits);
-  
+
     showMessage({
       message: t("home.alert.success"),
       description: t("stock.fruit_selected"),
       type: "success",
     });
-  
+
     // ✅ Ensure drawer closes after updates
     setTimeout(() => {
       closeDrawer();
     }, 300);
   };
-  
+
 
   const handleRefresh = async () => {
     logEvent(analytics, `${platform}_stock_refresh`);
@@ -177,7 +157,7 @@ const TimerScreen = ({ selectedTheme }) => {
 
 
   const toggleSwitch = async () => {
-// updateLocalStateAndDatabase('owner', true)
+    // updateLocalStateAndDatabase('owner', true)
 
     try {
       const permissionGranted = await requestPermission();
@@ -246,23 +226,26 @@ const TimerScreen = ({ selectedTheme }) => {
   const mirageInterval = 2; // Mirage stock resets every 2 hours
 
   const normalTimer = useMemo(() => formatTime(calculateTimeLeft(normalInterval)), [currentTime]);
-const mirageTimer = useMemo(() => formatTime(calculateTimeLeft(mirageInterval)), [currentTime]);
+  const mirageTimer = useMemo(() => formatTime(calculateTimeLeft(mirageInterval)), [currentTime]);
 
 
 
   useEffect(() => {
-    if (!isFocused) return; // Only run when the screen is focused
+    if (!isFocused) {
+      clearInterval(intervalRef.current); // ✅ Ensure old intervals are cleared
+      return;
+    }
 
     intervalRef.current = setInterval(() => {
-      setCurrentTime(Date.now()); // Update time without forcing full re-render
+      setCurrentTime(Date.now()); // ✅ Update time without forcing full re-render
     }, 1000);
 
-    return () => clearInterval(intervalRef.current); // Cleanup interval on unmount
-  }, [isFocused]); // Depend only on focus
+    return () => clearInterval(intervalRef.current); // ✅ Cleanup interval on unmount
+  }, [isFocused]);
 
-  //   return { normalTimer, mirageTimer };
-  // };
 
+
+  
   // Render FlatList Item
   const renderItem = ({ item, index, isLastItem }) => {
     return (
@@ -296,27 +279,30 @@ const mirageTimer = useMemo(() => formatTime(calculateTimeLeft(mirageInterval)),
 
   useEffect(() => {
     interstitial.load();
-
-    const onAdLoaded = () => setIsAdLoaded(true);
-    const onAdClosed = () => {
+  
+    const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+      setIsAdLoaded(true);
+    });
+  
+    const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
       setIsAdLoaded(false);
       setIsShowingAd(false);
-      interstitial.load();
-    };
-    const onAdError = (error) => {
+      interstitial.load(); // Reload ad for next use
+    });
+  
+    const unsubscribeError = interstitial.addAdEventListener(AdEventType.ERROR, (error) => {
       setIsAdLoaded(false);
       setIsShowingAd(false);
       console.error('Ad Error:', error);
-    };
-
-    interstitial.addAdEventListener(AdEventType.LOADED, onAdLoaded);
-    interstitial.addAdEventListener(AdEventType.CLOSED, onAdClosed);
-    interstitial.addAdEventListener(AdEventType.ERROR, onAdError);
-
+    });
+  
     return () => {
-      interstitial.removeAllListeners(); // Prevent memory leaks
+      unsubscribeLoaded();  // ✅ Correct way to remove event listeners
+      unsubscribeClosed();
+      unsubscribeError();
     };
   }, []);
+  
 
   const showInterstitialAd = useCallback((callback) => {
     if (isAdLoaded && !isShowingAd && !localState.isPro) {
@@ -348,10 +334,10 @@ const mirageTimer = useMemo(() => formatTime(calculateTimeLeft(mirageInterval)),
               <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
             }
           >
-            <View style={{backgroundColor:config.colors.secondary, padding:5, borderRadius:10, marginVertical:10}}>
-            <Text style={[styles.description]}>
-              {t("stock.description")}
-            </Text></View>
+            <View style={{ backgroundColor: config.colors.secondary, padding: 5, borderRadius: 10, marginVertical: 10 }}>
+              <Text style={[styles.description]}>
+                {t("stock.description")}
+              </Text></View>
             <View style={styles.reminderContainer}>
               <View style={styles.row}>
                 <Text style={styles.title}>{t("stock.stock_updates")}</Text>
@@ -543,7 +529,7 @@ const getStyles = (isDarkMode, user) =>
     container: {
       flex: 1, paddingHorizontal: 10, backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
     },
-    description: { fontSize: 14, lineHeight: 18, marginVertical: 10, fontFamily: 'Lato-Regular', color:'white' },
+    description: { fontSize: 14, lineHeight: 18, marginVertical: 10, fontFamily: 'Lato-Regular', color: 'white' },
     headerContainer: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 10, paddingHorizontal: 10 },
     headerContainerpre: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 10, paddingHorizontal: 10, opacity: .3 },
 

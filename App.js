@@ -36,44 +36,86 @@ function App() {
   const { t } = useTranslation();
 
   const selectedTheme = useMemo(() => {
-    if (!theme) {
+    if (!theme && !localState.warnedAboutTheme) {
       console.warn("⚠️ Theme not found! Falling back to Light Theme.");
+      updateLocalState('warnedAboutTheme', true); // Prevent future warnings
     }
     return theme === 'dark' ? MyDarkTheme : MyLightTheme;
   }, [theme]);
   
-  const [loading, setLoading] = useState(false);
-  const [isAdLoaded, setIsAdLoaded] = useState(false);
+  
   const { localState, updateLocalState } = useLocalState();
   const [chatFocused,setChatFocused] = useState(true);
   const [modalVisibleChatinfo, setModalVisibleChatinfo ] = useState(false)
-  const adCooldown = 90000; // 2 minutes in milliseconds
+  const [loading, setLoading] = useState(false);
+  const [isAdLoading, setIsAdLoading] = useState(false);
   const [lastAdShownTime, setLastAdShownTime] = useState(0);
-
-  // useEffect(() => {
-  //   const logCustomAppOpen = async () => {
-  //     const analytics = getAnalytics();
-  //     logEvent(analytics, 'custom_app_open', {
-  //       platform: Platform.OS, // 'ios' or 'android'
-  //       timestamp: new Date().toISOString(),
-  //     });
-  
-  //     console.log(`Custom App Open Logged on ${analytics}`);
-  //   };
-  
-  //   logCustomAppOpen();
-  // }, []);
+  const adCooldown = 180000; // 2 minutes cooldown
 
   useEffect(() => {
-    mobileAds()
-      .initialize()
-      .then(adapterStatuses => {
-        // console.log('AdMob initialized', adapterStatuses);
-      })
-      .catch(error => {
-        // console.error('AdMob failed to initialize:', error);
-      });
+    mobileAds().initialize();
   }, []);
+
+
+  const [appOpenAd, setAppOpenAd] = useState(null);
+  
+  useEffect(() => {
+    if (localState.isPro) return; // Skip ads for Pro users
+  
+    const newAd = AppOpenAd.createForAdRequest(adUnitId, {
+      requestNonPersonalizedAdsOnly: true,
+    });
+  
+    newAd.addAdEventListener(AdEventType.LOADED, () => {
+      setAppOpenAd(newAd);
+    });
+  
+    newAd.addAdEventListener(AdEventType.ERROR, (error) => {
+      console.error('App Open Ad Error:', error);
+      setAppOpenAd(null);
+    });
+  
+    newAd.load();
+  }, []); // Load once when the app starts
+  
+  const showAppOpenAd = () => {
+    const now = Date.now();
+    if (now - lastAdShownTime < adCooldown || !appOpenAd || isAdLoading) return;
+  
+    setIsAdLoading(true);
+    appOpenAd.show();
+    setLastAdShownTime(Date.now());
+  
+    setTimeout(() => {
+      setIsAdLoading(false);
+      setAppOpenAd(null); // Reset ad instance after showing
+    }, 2000);
+  };
+  
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState) => {
+      if (nextAppState === 'active') {
+        showAppOpenAd();
+      }
+    };
+  
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+  
+    return () => subscription.remove();
+  }, [appOpenAd, lastAdShownTime, isAdLoading]);
+  
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#1E88E5" />
+      </View>
+    );
+  }
+
+
+
+
   useEffect(() => {
 
     const { reviewCount } = localState;
@@ -83,13 +125,7 @@ function App() {
 
     updateLocalState('reviewCount', Number(reviewCount) + 1);
   }, []);
-  useEffect(() => {
-    if (localState.consentStatus === 'UNKNOWN' || localState.consentStatus === AdsConsentStatus.REQUIRED) {
-      handleUserConsent();
-    } else {
-      // console.log('Consent status already determined:', localState.consentStatus);
-    }
-  }, [localState.consentStatus]);  
+  
   const saveConsentStatus = (status) => {
     updateLocalState('consentStatus', status);
   };
@@ -113,77 +149,10 @@ function App() {
     }
   };
   
-  
-  
-  // Timeout fallback to avoid infinite loader
-
   // Handle Consent
   useEffect(() => {
     handleUserConsent();
   }, []);
-  const loadAppOpenAd = async () => {
-    if (localState.isPro) {
-      // console.log('Skipping ad: User is Pro');
-      return;
-    }
-  
-    const now = Date.now();
-    if (now - lastAdShownTime < adCooldown) {
-      // console.log(`Skipping ad: Cooldown active (${((adCooldown - (now - lastAdShownTime)) / 1000).toFixed(0)}s remaining)`);
-      return;
-    }
-  
-    // console.log('Attempting to load App Open Ad...');
-  
-    try {
-      const appOpenAd = AppOpenAd.createForAdRequest(adUnitId, {
-        requestNonPersonalizedAdsOnly: true, // Change based on consent
-      });
-  
-      appOpenAd.addAdEventListener(AdEventType.LOADED, () => {
-        // console.log('Ad Loaded! Showing Ad...');
-        setIsAdLoaded(true);
-        appOpenAd.show();
-        setLastAdShownTime(Date.now()); // Save last shown time
-        setIsAdLoaded(false);
-      });
-  
-      appOpenAd.addAdEventListener(AdEventType.ERROR, (error) => {
-        console.error('App Open Ad Error:', error);
-        setIsAdLoaded(false);
-      });
-  
-      await appOpenAd.load();
-    } catch (error) {
-      console.error('Error loading App Open Ad:', error);
-      setIsAdLoaded(false);
-    }
-  };
-
-
-
-  
-  // Handle App State Changes for Ads
-  useEffect(() => {
-    const handleAppStateChange = (state) => {
-      if (state === 'active') {
-        loadAppOpenAd();
-      }
-    };
-  
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-    return () => subscription.remove();
-  }, [lastAdShownTime]); // Depend on lastAdShownTime to enforce cooldown
-  
-
-  // Loading Indicator
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#1E88E5" />
-      </View>
-    );
-  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: selectedTheme.colors.background }}>

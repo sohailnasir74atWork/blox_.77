@@ -17,16 +17,14 @@ export const LocalStateProvider = ({ children }) => {
     const systemTheme = Appearance.getColorScheme(); // 'light' or 'dark'
     const storedTheme = storage.getString('theme');
     const initialTheme = storedTheme === 'system' || !storedTheme ? systemTheme : storedTheme;
-
+  
     return {
       localKey: storage.getString('localKey') || 'defaultValue',
-      reviewCount: parseInt(storage.getString('reviewCount') || '0', 10), // Ensure reviewCount is a number
+      reviewCount: Number(storage.getString('reviewCount')) || 0,
       lastVersion: storage.getString('lastVersion') || 'UNKNOWN',
-      updateCount: parseInt(storage.getString('updateCount') || '0', 10),
-      featuredCount: storage.getString('featuredCount')
-      ? JSON.parse(storage.getString('featuredCount'))
-      : { count: 0, time: null },
-          isHaptic: storage.getBoolean('isHaptic') ?? true,
+      updateCount: Number(storage.getString('updateCount')) || 0,
+      featuredCount: JSON.parse(storage.getString('featuredCount') || '{"count":0,"time":null}'),
+      isHaptic: storage.getBoolean('isHaptic') ?? true,
       theme: initialTheme, // Default to system theme if not set
       consentStatus: storage.getString('consentStatus') || 'UNKNOWN',
       isPro: storage.getBoolean('isPro') ?? false,
@@ -43,7 +41,7 @@ export const LocalStateProvider = ({ children }) => {
       showOnBoardingScreen: storage.getBoolean('showOnBoardingScreen') ?? true,
     };
   });
-
+  
   // RevenueCat states
   const [customerId, setCustomerId] = useState(null);
   // const [isPro, setIsPro] = useState(true); // Sync with MMKV storage
@@ -58,10 +56,10 @@ export const LocalStateProvider = ({ children }) => {
       const listener = Appearance.addChangeListener(({ colorScheme }) => {
         updateLocalState('theme', colorScheme);
       });
-      return () => listener.remove();
+      return () => listener.remove(); // Correct cleanup
     }
   }, [localState.theme]);
-
+  
   useEffect(() => {
     if (localState.data) {
       storage.set('data', JSON.stringify(localState.data)); // Force store
@@ -117,47 +115,41 @@ export const LocalStateProvider = ({ children }) => {
   const fetchOfferings = async () => {
     try {
       const offerings = await Purchases.getOfferings();
-      if (offerings.current?.availablePackages.length > 0) {
-        // console.log('✅ Offerings loaded:', offerings.current.availablePackages);
-
+      if (offerings.current?.availablePackages?.length > 0) {
         setPackages(offerings.current.availablePackages);
       } else {
-        console.warn('⚠️ No offerings found. Check RevenueCat settings.');
+        console.warn('⚠️ No offerings found in RevenueCat.');
       }
     } catch (error) {
-      console.error('❌ Error fetching offerings:', error.message);
+      console.error('❌ Fetch Offerings Error:', error.message);
     }
   };
+  
 
 
 
   const restorePurchases = async (setLoadingReStore) => {
-    setLoadingReStore(true)
+    setLoadingReStore(true);
     try {
       const customerInfo = await Purchases.restorePurchases();
-
-      if (customerInfo.entitlements.active['Pro']) {
-        // console.log('✅ Purchases restored! Pro features unlocked.');
-        // setIsPro(true);
-        updateLocalState('isPro', true);
-        const activePlansWithExpiry = customerInfo.activeSubscriptions.map((subscription) => ({
-          plan: subscription,
-          expiry: customerInfo.allExpirationDates[subscription],
-        }));
-        setMySubscriptions(activePlansWithExpiry);
-      } else {
-        // console.warn('⚠️ No active subscriptions found.');
-        // setsPro(false);
-        updateLocalState('isPro', false);
-        setLoadingReStore(false)
-
-      }
+      const proStatus = !!customerInfo.entitlements.active['Pro'];
+  
+      updateLocalState('isPro', proStatus);
+      setMySubscriptions(
+        proStatus
+          ? customerInfo.activeSubscriptions.map((plan) => ({
+              plan,
+              expiry: customerInfo.allExpirationDates[plan] || null,
+            }))
+          : []
+      );
     } catch (error) {
-      console.error('❌ Error restoring purchases:', error);
-      setLoadingReStore(false)
-
+      console.error('❌ Restore Purchases Error:', error);
+    } finally {
+      setLoadingReStore(false); // Ensure loading state resets
     }
   };
+  
 
   // Check if the user has an active subscription
   const checkEntitlements = async () => {
@@ -181,57 +173,28 @@ export const LocalStateProvider = ({ children }) => {
   };
   // Handle in-app purchase
   const purchaseProduct = async (packageToPurchase, setLoading) => {
-    // console.log("🛒 Starting purchase process...");
-
-    setLoading(true)
+    setLoading(true);
     try {
-      if (!packageToPurchase || !packageToPurchase.product) {
-        // console.error("🚨 Invalid package passed:", JSON.stringify(packageToPurchase, null, 2));
-        return;
-      }
-
-      // console.log("📦 Package details:", packageToPurchase.identifier);
-      // console.log("💰 Attempting to purchase:", packageToPurchase.product.title);
-
-      // ✅ Attempt the purchase
+      if (!packageToPurchase?.product) return;
+      
       const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
-
-      // console.log("✅ Apple purchase dialog completed! Checking purchase status...");
-      // console.log("🛒 Purchased productIdentifier:", productIdentifier);
-
-      // ✅ Check if user has "Pro" entitlement
-      if (customerInfo.entitlements.active["Pro"]) {
-        // console.log("🎉 Purchase successful! User now has Pro features.");
-        // Alert.alert("🎉 Purchase successful! User now has Pro features.")
+      const isPro = !!customerInfo.entitlements.active['Pro'];
+  
+      if (isPro) {
         showMessage({
-          message: t("trade.delete_success"),
-          description: t("trade.purchase_success"),
-          type: "success",
+          message: t('trade.delete_success'),
+          description: t('trade.purchase_success'),
+          type: 'success',
         });
-        updateLocalState("isPro", true);
-      } else {
-        // console.warn("⚠️ Purchase completed, but Pro entitlement NOT active!");
-        // console.warn("🛒 Customer Info:", JSON.stringify(customerInfo, null, 2));
+        updateLocalState('isPro', true);
       }
-      setLoading(false)
-
     } catch (error) {
-      console.error("❌ Error during purchase:", error);
-      // Alert.alert(`Error during purchase:", ${error}`)
-      setLoading(false)
-
-      if (error.userCancelled) {
-        console.warn("🚫 User cancelled the purchase.");
-      } else if (error.code === Purchases.PURCHASES_ERROR_CODE.PURCHASE_NOT_ALLOWED) {
-        console.error("🔒 Purchases not allowed on this device (Parental Controls?)");
-      } else if (error.code === Purchases.PURCHASES_ERROR_CODE.NETWORK_ERROR) {
-        console.error("📶 Network error - Check internet connection!");
-      } else {
-        console.error("🔥 Unknown purchase error:", error.code, error.message);
-
-      }
+      console.error('❌ Purchase Error:', error);
+    } finally {
+      setLoading(false); // Always reset loading state
     }
   };
+  
 
   // Clear a specific key
   const clearKey = (key) => {

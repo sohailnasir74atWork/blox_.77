@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, FlatList, TextInput, Image, Alert, useColorScheme, Keyboard, Pressable, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, FlatList, TextInput, Image, Alert, Keyboard, Pressable, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { InterstitialAd, AdEventType, TestIds, BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
+import { InterstitialAd, AdEventType, BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 import getAdUnitId from '../Ads/ads';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import RNFS from 'react-native-fs';
@@ -18,7 +18,6 @@ import { useNavigation } from '@react-navigation/native';
 import firestore from '@react-native-firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../Translation/LanguageProvider';
-import i18n from '../../i18n';
 import { logEvent } from '@react-native-firebase/analytics';
 import { showMessage } from 'react-native-flash-message';
 import DeviceInfo from 'react-native-device-info';
@@ -30,7 +29,7 @@ const interstitialAdUnitId = getAdUnitId('interstitial');
 const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId);
 
 const HomeScreen = ({ selectedTheme }) => {
-  const { theme, user, updateLocalStateAndDatabase, analytics, appdatabase } = useGlobalState();
+  const { theme, user, analytics, appdatabase } = useGlobalState();
   const tradesCollection = useMemo(() => firestore().collection('trades_new'), []);
   const initialItems = [null, null, null, null];
   const [hasItems, setHasItems] = useState(initialItems);
@@ -50,33 +49,28 @@ const HomeScreen = ({ selectedTheme }) => {
   const [description, setDescription] = useState('');
   const [isSigninDrawerVisible, setIsSigninDrawerVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { language, changeLanguage } = useLanguage();
+  const { language } = useLanguage();
   const [showNotification, setShowNotification] = useState(false);
   const [pinnedMessages, setPinnedMessages] = useState([]);
   const [lastTradeTime, setLastTradeTime] = useState(null); // 🔄 Store last trade timestamp locally
   const [openShareModel, setOpenShareModel] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState(null);
-
-
-
   const [type, setType] = useState(null); // 🔄 Store last trade timestamp locally
-
-
-
   const platform = Platform.OS.toLowerCase();
-
   const { t } = useTranslation();
-  const CURRENT_APP_VERSION = DeviceInfo.getVersion();
+  const pinnedMessagesRef = useMemo(() => ref(appdatabase, 'pin_messages'), []);
 
+
+
+  const CURRENT_APP_VERSION = DeviceInfo.getVersion();
   useEffect(() => {
+    let isMounted = true; // ✅ Track mounted state
     const checkForUpdate = async () => {
       try {
         const database = getDatabase();
         const platformKey = Platform.OS === "ios" ? "ios_app_version" : (config.isNoman ? "noman_app_version" : 'waqas_app_version');
         const versionRef = ref(database, platformKey);
         const snapshot = await get(versionRef);
-        // console.log(snapshot.val(), CURRENT_APP_VERSION)
-
         if (snapshot.exists() && snapshot.val().app_version !== CURRENT_APP_VERSION) {
           setShowNotification(true);
         } else {
@@ -87,8 +81,10 @@ const HomeScreen = ({ selectedTheme }) => {
       }
     };
     checkForUpdate();
+    return () => {
+      isMounted = false; // ✅ Prevent updates after unmount
+    };
   }, []);
-  const pinnedMessagesRef = useMemo(() => ref(appdatabase, 'pin_messages'), []);
 
   useEffect(() => {
     const loadPinnedMessages = async () => {
@@ -111,7 +107,7 @@ const HomeScreen = ({ selectedTheme }) => {
     };
 
     loadPinnedMessages();
-    // return () => pinnedMessagesRef.off(); // ✅ Clean up Firebase reference
+    return () => pinnedMessagesRef.off(); // ✅ Clean up Firebase reference
 
   }, [pinnedMessagesRef]);
   // Run this once when the app starts
@@ -144,12 +140,6 @@ const HomeScreen = ({ selectedTheme }) => {
     setSelectedSection(null);
     setModalVisible(false); // ✅ Close modal after successful trade
   };
-
-  const navigation = useNavigation()
-
-  // useEffect(() => {
-  //   // console.log("Language changed:", i18n.language);
-  // }, [i18n.language]);
 
   const handleCreateTradePress = async (type) => {
     logEvent(analytics, `${platform}_${type}`);
@@ -248,17 +238,8 @@ const HomeScreen = ({ selectedTheme }) => {
         setIsSubmitting(false);
         return;
       }
-  
-      // ✅ Get timestamp for 4 hours ago
-    
-  
-  
-      // ✅ Fix trade comparison logic
-    
-  
-      // ✅ Prevent duplicate trade within 4 hours
      
-      console.log("✅ No duplicate trade found. Proceeding with submission...");
+      // console.log("✅ No duplicate trade found. Proceeding with submission...");
   
       // ✅ Submit trade
       await tradesCollection.add(newTrade);
@@ -338,29 +319,31 @@ const HomeScreen = ({ selectedTheme }) => {
 
   useEffect(() => {
     interstitial.load();
-
-    const onAdLoaded = () => setIsAdLoaded(true);
-    const onAdClosed = () => {
+  
+    const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+      setIsAdLoaded(true);
+    });
+  
+    const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
       setIsAdLoaded(false);
       setIsShowingAd(false);
-      interstitial.load(); // Reload ad for the next use
-    };
-    const onAdError = (error) => {
+      interstitial.load(); // Reload ad for next use
+    });
+  
+    const unsubscribeError = interstitial.addAdEventListener(AdEventType.ERROR, (error) => {
       setIsAdLoaded(false);
       setIsShowingAd(false);
       console.error('Ad Error:', error);
-    };
-
-    const loadedListener = interstitial.addAdEventListener(AdEventType.LOADED, onAdLoaded);
-    const closedListener = interstitial.addAdEventListener(AdEventType.CLOSED, onAdClosed);
-    const errorListener = interstitial.addAdEventListener(AdEventType.ERROR, onAdError);
-
+    });
+  
     return () => {
-      loadedListener();
-      closedListener();
-      errorListener();
+      unsubscribeLoaded();  // ✅ Correct way to remove event listeners
+      unsubscribeClosed();
+      unsubscribeError();
     };
   }, []);
+  
+  
 
   const showInterstitialAd = (callback) => {
     if (isAdLoaded && !isShowingAd && !localState.isPro) {
@@ -484,80 +467,7 @@ const HomeScreen = ({ selectedTheme }) => {
     ? ((profitLoss / hasTotal.value) * 100).toFixed(0)
     : 0;
 
-
-  const captureAndSave = async () => {
-    if (!viewRef.current) {
-      console.error('View reference is undefined.');
-      return;
-    }
-
-    try {
-      // Capture the view as an image
-      const uri = await captureRef(viewRef.current, {
-        format: 'png',
-        quality: 0.8,
-      });
-
-      // Generate a unique file name
-      const timestamp = new Date().getTime(); // Use the current timestamp
-      const uniqueFileName = `screenshot_${timestamp}.png`;
-
-      // Determine the path to save the screenshot
-      const downloadDest = Platform.OS === 'android'
-        ? `${RNFS.ExternalDirectoryPath}/${uniqueFileName}`
-        : `${RNFS.DocumentDirectoryPath}/${uniqueFileName}`;
-
-      // Save the captured image to the determined path
-      await RNFS.copyFile(uri, downloadDest);
-
-      // console.log(`Screenshot saved to: ${downloadDest}`);
-
-      return downloadDest;
-    } catch (error) {
-      console.error('Error capturing screenshot:', error);
-      // Alert.alert(t("home.alert.error"), t("home.screenshot_error"));
-      showMessage({
-        message: t("home.alert.error"),
-        description: t("home.screenshot_error"),
-        type: "danger",
-      });
-    }
-  };
-
-
-
-  const proceedWithScreenshotShare = async () => {
-    triggerHapticFeedback('impactLight');
-    logEvent(analytics, `${platform}_screenshot_share`);
-    if (hasItems.filter(Boolean).length === 0 || wantsItems.filter(Boolean).length === 0) {
-      // Alert.alert(t("home.alert.error"), t("home.alert.missing_items_error"));
-      showMessage({
-        message: t("home.alert.error"),
-        description: t("home.alert.missing_items_error"),
-        type: "danger",
-      });
-      return;
-    }
-    try {
-      const filePath = await captureAndSave();
-
-      if (filePath) {
-        const shareOptions = {
-          title: t("home.screenshot_title"),
-          url: `file://${filePath}`,
-          type: 'image/png',
-        };
-
-        Share.open(shareOptions)
-          .then((res) => console.log('Share Response:', res))
-          .catch((err) => console.log('Share Error:', err));
-      }
-    } catch (error) {
-      // console.log('Error sharing screenshot:', error);
-    }
-  };
-
-  const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
+const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
 
   return (
     <>
@@ -569,7 +479,7 @@ const HomeScreen = ({ selectedTheme }) => {
               <Text style={styles.text}>A new update is available! Please update your app.</Text>
               <TouchableOpacity onPress={onClose} style={styles.closeButtonNotification}>
                 <Icon name="close-outline" size={18} color="white" />
-                {/* <Text>ssssefrrevrvtvtvrvrvrvervrvervrevrmrelxjferofmerihxoerghorgorhforxmzhrzgroh,gmrhzrhzgmrmhmzrhmzirhmmirmhzizrhzmizrzmzrhohhg</Text> */}
+
               </TouchableOpacity>
             </View>}
             {pinnedMessages.length > 0 && pinnedMessages.map((message, index) => (
@@ -714,7 +624,7 @@ const HomeScreen = ({ selectedTheme }) => {
                       placeholder={t('home.search_placeholder')}
                       value={searchText}
                       onChangeText={setSearchText}
-                      placeholderTextColor={selectedTheme.colors.text}
+                      placeholderTextColor={isDarkMode ? 'white' : 'black'}
 
                     />
                     <TouchableOpacity onPress={closeDrawer} style={styles.closeButton}>

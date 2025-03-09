@@ -1,9 +1,12 @@
-import React, { useRef, useState } from 'react';
-import { View, Text, Image, Modal, TouchableOpacity, Switch, StyleSheet } from 'react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import { View, Text, Image, Modal, TouchableOpacity, Switch, StyleSheet, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import Share from 'react-native-share';
 import config from '../Helper/Environment';
+import { useGlobalState } from '../GlobelStats';
+import { useLocalState } from '../LocalGlobelStats';
+import SubscriptionScreen from '../SettingScreen/OfferWall';
 
 const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const viewRef = useRef();
@@ -16,6 +19,14 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const [includePrice, setIncludePrice] = useState(true);
     const [includePercentage, setIncludePercentage] = useState(true);
     const [includeAppTag, setIncludeAppTag] = useState(true);
+    const {theme} = useGlobalState()
+    const isDarkMode = theme === 'dark'
+    const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
+    const {localState} = useLocalState()
+    const [showofferwall, setShowofferwall] = useState(false);
+    console.log(localState.isPro, 'from share model')
+
+
 
 
 
@@ -71,6 +82,22 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const hasItemsChunks = chunkArray(ensureFourItems(hasItems), 2);
     const wantItemsChunk = chunkArray(ensureFourItems(wantsItems), 2);
 
+    const handleRemoveAttribute = () => {
+        if (!localState?.isPro) {
+          Alert.alert(
+            "Pro Feature", 
+            "Only Pro users can remove this. Do you want to upgrade?", 
+            [
+              { text: "Cancel", style: "cancel" },
+              { text: "Upgrade", onPress: () => setShowofferwall(true) }
+            ]
+          );
+          return;
+        }
+      
+        setIncludeAppTag(false); // Assuming this is what you intended
+      };
+      
 
 
     return (
@@ -78,7 +105,8 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
             <View style={styles.modalOverlay}>
                 <View style={styles.modalContainer}>
                     {/* Trade Details */}
-                    <ViewShot ref={viewRef} style={{ backgroundColor: 'white', padding: 10 }}>
+                    <ViewShot ref={viewRef} style={{ backgroundColor: 'white', padding: 5, borderRadius:8,         backgroundColor:'#E8F9FF'
+ }}>
                         {includeHasWants && (
                             <View style={styles.tradeDetails}>
                                 {/* Has Items */}
@@ -89,7 +117,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                                 <View key={`${item.name}-${item.type}-${index}`} style={styles.gridItem}>
                                                     <View style={item.name !== '' && styles.top}>
                                                         <Text style={styles.itemText}>
-                                                            ${item.value}
+                                                        {item.name !== '' ? item.value : ''}
                                                         </Text></View>
                                                     <Image
                                                         source={{
@@ -120,7 +148,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                                 <View key={`${item.name}-${item.type}-${index}`} style={styles.gridItem}>
                                                     <View style={item.name !== '' && styles.top}>
                                                         <Text style={styles.itemText}>
-                                                            ${item.value}
+                                                        {item.name !== '' ? item.value : ''}
                                                         </Text></View>
                                                     <Image
                                                         source={{
@@ -225,7 +253,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                             <Text style={styles.switchLabel}>Remove Attributes</Text>
                             <Switch
                                 value={includeAppTag}
-                                onValueChange={setIncludeAppTag}
+                                onValueChange={handleRemoveAttribute}
                             />
                         </View>
                     </View>
@@ -241,22 +269,24 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                     </View>
                 </View>
             </View>
+            <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} />
         </Modal>
     );
 };
 
 // Styles
-const styles = StyleSheet.create({
+const getStyles = (isDarkMode) =>
+StyleSheet.create({
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.6)',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'center',
         alignItems: 'center',
     },
     modalContainer: {
-        backgroundColor: '#fff',
-        // padding: 10,
-        borderRadius: 10,
+        backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
+        // paddingVertical: 10,
+        borderRadius: 8,
         width: '98%',
         alignItems: 'center',
     },
@@ -264,6 +294,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         marginBottom: 10,
+        
     },
     transfer: {
         width: '10%',
@@ -277,10 +308,7 @@ const styles = StyleSheet.create({
         width: '100%',
         marginBottom: 15,
         paddingTop: 20,
-        paddingHorizontal: 10,
-        // marginTop:20,
-        borderTopWidth: 1,
-        borderColor: 'lightgrey'
+        paddingHorizontal: 5,
     },
     switchRow: {
         flexDirection: 'row',
@@ -289,27 +317,28 @@ const styles = StyleSheet.create({
     },
     switchLabel: {
         fontSize: 12,
-        fontFamily:'Lato-Regular'
+        fontFamily:'Lato-Regular',
+        color: isDarkMode ? '#f2f2f7' : '#121212' ,
     },
     buttonContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         width: '100%',
-        padding: 10,
+        padding: 5,
 
     },
     cancelButton: {
         backgroundColor: config.colors.wantBlockRed,
         paddingVertical: 10,
         paddingHorizontal: 20,
-        borderRadius: 5,
+        borderRadius: 8,
         width: '48%'
     },
     shareButton: {
         backgroundColor: config.colors.hasBlockGreen,
         paddingVertical: 10,
         paddingHorizontal: 20,
-        borderRadius: 5,
+        borderRadius: 8,
         width: '48%'
 
     },
@@ -322,21 +351,22 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-around',
         width: '100%',
-        marginBottom: 8, // Space between rows
+        marginBottom: 4, // Space between rows
     },
     gridItem: {
-        width: '48%', // Each item takes ~45% of the row width
+        width: '49%', // Each item takes ~45% of the row width
         alignItems: 'center',
         justifyContent: 'center',
         // padding: 4,
-        borderWidth: 1, // Optional: Add border for grid feel
+        // borderWidth: 1, // Optional: Add border for grid feel
         borderColor: '#ccc',
         borderRadius: 8,
+        backgroundColor:config.colors.primary
     },
     itemImage: {
         width: 50,
         height: 50,
-        borderRadius: 5,
+        borderRadius: 8,
     },
     itemText: {
         fontSize: 10,
@@ -369,7 +399,7 @@ const styles = StyleSheet.create({
         backgroundColor: config.colors.wantBlockRed,
         paddingVertical: 3,
         paddingHorizontal: 5,
-        borderRadius: 12,
+        borderRadius: 8,
         justifyContent: 'center',
         alignItems: 'center',
         width: '45%'
@@ -386,7 +416,7 @@ const styles = StyleSheet.create({
         backgroundColor: config.colors.hasBlockGreen,
         paddingVertical: 3,
         paddingHorizontal: 5,
-        borderRadius: 12,
+        borderRadius: 8,
         justifyContent: 'center',
         alignItems: 'center',
         width: '45%'
@@ -406,15 +436,15 @@ const styles = StyleSheet.create({
     },
 
     footerText: {
-        fontSize: 10,
+        fontSize: 14,
         color: '#666',
         marginRight: 5,
         fontStyle: "italic"
     },
 
     footerImage: {
-        width: 30, // Adjust size as needed
-        height: 30,
+        width: 40, // Adjust size as needed
+        height: 40,
         resizeMode: 'contain',
     },
 

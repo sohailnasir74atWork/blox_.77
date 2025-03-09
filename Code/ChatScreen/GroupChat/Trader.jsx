@@ -71,17 +71,17 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     setIsDrawerVisible(!isDrawerVisible);
 
     if (userData?.id) {  // ✅ Ensure userData exists before checking
-        try {
-            const online = await isUserOnline(userData.senderId); // ✅ Await the async function
-            // console.log('isUserOnline', online)
-            setIsOnline(online);
-        } catch (error) {
-            console.error("🔥 Error checking online status:", error);
-        }
+      try {
+        const online = await isUserOnline(userData.senderId); // ✅ Await the async function
+        // console.log('isUserOnline', online)
+        setIsOnline(online);
+      } catch (error) {
+        console.error("🔥 Error checking online status:", error);
+      }
     } else {
-        setIsOnline(false); // ✅ Default to offline if no user data
+      setIsOnline(false); // ✅ Default to offline if no user data
     }
-};
+  };
 
   const startPrivateChat = () => {
     // console.log('clikcked')
@@ -186,26 +186,17 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
   useEffect(() => {
     const listener = chatRef.limitToLast(1).on('child_added', (snapshot) => {
-      const newMessage = validateMessage({ id: snapshot.key, ...snapshot.val() })
-      if (developmentMode) {
-        const newMessageSize = JSON.stringify(newMessage).length / 1024;
-        // console.log(`🚀 Downloaded data: ${newMessageSize.toFixed(2)} KB from NEW MESSAGE`);
-      }
+      const newMessage = validateMessage({ id: snapshot.key, ...snapshot.val() });
 
       setMessages((prev) => {
         const seenKeys = new Set(prev.map((msg) => msg.id));
-
-        if (!seenKeys.has(newMessage.id)) {
-          return [newMessage, ...prev]; // Ensure no duplicates
-        }
-        return prev;
+        return seenKeys.has(newMessage.id) ? prev : [newMessage, ...prev];
       });
     });
 
-    return () => {
-      chatRef.off('child_added'); // ✅ Correct cleanup
-    };
-  }, [chatRef]);
+    return () => chatRef.off('child_added', listener); // ✅ Ensures proper cleanup
+  }, [chatRef, setMessages]);
+
 
 
 
@@ -227,35 +218,6 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       // console.log('No more messages to load or currently loading.');
     }
   };
-
-
-
-  // useEffect(() => {
-  //   const loadPinnedMessages = async () => {
-  //     try {
-  //       const snapshot = await pinnedMessagesRef.once('value');
-  //       if (snapshot.exists()) {
-  //         const data = snapshot.val();
-  //         if (developmentMode) {
-  //           const dataSize = JSON.stringify(data).length / 1024;
-  //           console.log(`🚀 Downloaded group chat data: ${dataSize.toFixed(2)} KB from pin messages`);
-  //         }
-  //         const parsedPinnedMessages = Object.entries(data).map(([key, value]) => ({
-  //           firebaseKey: key, // Use the actual Firebase key here
-  //           ...value,
-  //         }));
-  //         setPinnedMessages(parsedPinnedMessages); // Store the parsed messages with the Firebase key
-  //       } else {
-  //         setPinnedMessages([]); // No pinned messages
-  //       }
-  //     } catch (error) {
-  //       console.error('Error loading pinned messages:', error);
-  //       Alert.alert(t('home.alert.error'), 'Could not load pinned messages. Please try again.');
-  //     }
-  //   };
-
-  //   loadPinnedMessages();
-  // }, [pinnedMessagesRef]);
 
 
 
@@ -317,29 +279,30 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
   useEffect(() => {
     interstitial.load();
-
-    const onAdLoaded = () => setIsAdLoaded(true);
-    const onAdClosed = () => {
+  
+    const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+      setIsAdLoaded(true);
+    });
+  
+    const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
       setIsAdLoaded(false);
       setIsShowingAd(false);
-      interstitial.load(); // Reload ad for the next use
-    };
-    const onAdError = (error) => {
+      interstitial.load(); // Reload ad for next use
+    });
+  
+    const unsubscribeError = interstitial.addAdEventListener(AdEventType.ERROR, (error) => {
       setIsAdLoaded(false);
       setIsShowingAd(false);
       console.error('Ad Error:', error);
-    };
-
-    const loadedListener = interstitial.addAdEventListener(AdEventType.LOADED, onAdLoaded);
-    const closedListener = interstitial.addAdEventListener(AdEventType.CLOSED, onAdClosed);
-    const errorListener = interstitial.addAdEventListener(AdEventType.ERROR, onAdError);
-
+    });
+  
     return () => {
-      loadedListener();
-      closedListener();
-      errorListener();
+      unsubscribeLoaded();  // ✅ Correct way to remove event listeners
+      unsubscribeClosed();
+      unsubscribeError();
     };
   }, []);
+  
 
   const showInterstitialAd = (callback) => {
     if (isAdLoaded && !isShowingAd && !localState.isPro) {
@@ -369,39 +332,24 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     const MESSAGE_COOLDOWN = 1000;
     const LINK_REGEX = /(https?:\/\/[^\s]+)/g;
 
-    // console.log("handleSendMessage triggered", input);
-
-    if (!user?.id) {
-      // Alert.alert(t('home.alert.error'), 'You must be logged in to send messages.');
+    if (!user?.id || user?.isBlock) {
+      Alert.alert(t('home.alert.error'), user?.isBlock ? 'You are blocked by an Admin' : 'You must be logged in.');
       return;
     }
 
-    if (user?.isBlock) {
-      Alert.alert('You are blocked by an Admin');
-      return;
-    }
     const trimmedInput = input.trim();
-
     if (!trimmedInput) {
       Alert.alert(t('home.alert.error'), 'Message cannot be empty.');
       return;
     }
 
-    // Check for profane content
     if (leoProfanity.check(trimmedInput)) {
       Alert.alert(t('home.alert.error'), t('misc.inappropriateLanguage'));
       return;
     }
 
-    // 🛠️ Fix: Ensure word count is accurate
-    const wordCount = trimmedInput.split(/\s+/).filter(word => word.length > 0).length;
-    // console.log(`Word Count: ${wordCount}, Max Allowed: ${MAX_WORDS}`);
-
-    if (wordCount > MAX_WORDS) {
-      Alert.alert(
-        t('home.alert.error'),
-        t('misc.messageTooLong')
-      );
+    if (trimmedInput.split(/\s+/).length > MAX_WORDS) {
+      Alert.alert(t('home.alert.error'), t('misc.messageTooLong'));
       return;
     }
 
@@ -410,36 +358,27 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       return;
     }
 
-    // 🔍 Check if the message contains a link
     const containsLink = LINK_REGEX.test(trimmedInput);
-
     if (containsLink && !localState?.isPro) {
       Alert.alert(t('home.alert.error'), t('misc.proUsersOnlyLinks'));
       return;
     }
 
     try {
-      const newMessage = {
+      ref(appdatabase, 'chat_new').push({
         text: trimmedInput,
         timestamp: Date.now(),
         sender: user.displayName || 'Anonymous',
         senderId: user.id,
         avatar: user.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
         replyTo: replyTo ? { id: replyTo.id, text: replyTo.text } : null,
-        // isAdmin: user.admin || user.owner,
         reportCount: 0,
-        containsLink: containsLink,
-        isPro: localState.isPro
-      };
+        containsLink,
+        isPro: localState.isPro,
+      });
 
-      // Push the message to Firebase
-      ref(appdatabase, 'chat_new').push(newMessage);
-
-      // Clear the input and reply context
       setInput('');
       setReplyTo(null);
-
-      // Activate the cooldown
       setIsCooldown(true);
       setTimeout(() => setIsCooldown(false), MESSAGE_COOLDOWN);
     } catch (error) {
@@ -447,6 +386,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       Alert.alert(t('home.alert.error'), 'Could not send your message. Please try again.');
     }
   };
+
   // console.log(isPro)
   return (
     <>

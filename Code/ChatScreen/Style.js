@@ -350,7 +350,7 @@ export const getStyles = (isDarkMode) =>
 tradeDetails: {
   flexDirection: 'row',
   justifyContent: 'space-between',
-  backgroundColor: config.colors.secondary,
+  backgroundColor: 'grey',
   paddingHorizontal:10
 
 

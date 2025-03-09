@@ -3,13 +3,11 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import ChatScreen from './GroupChat/Trader';
 import PrivateChatScreen from './PrivateChat/PrivateChat';
 import InboxScreen from './GroupChat/InboxScreen';
-import { ref } from '@react-native-firebase/database';
 import { useGlobalState } from '../GlobelStats';
 import PrivateChatHeader from './PrivateChat/PrivateChatHeader';
 import BlockedUsersScreen from './PrivateChat/BlockUserList';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { useLocalState } from '../LocalGlobelStats';
-import { developmentMode } from '../Ads/ads';
 import database from '@react-native-firebase/database';
 
 const Stack = createNativeStackNavigator();
@@ -42,74 +40,48 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
     if (!user?.id) return;
   
     setLoading(true);
-  
     const userChatsRef = database().ref(`chat_meta_data/${user.id}`);
-    // const activeChatRef = database().ref(`users/${user.id}/activeChat`);
   
-    // 🔹 Listen for real-time changes
-    const onValueChange = userChatsRef.on('value', async (snapshot) => {
+    const onValueChange = userChatsRef.on('value', (snapshot) => {
       try {
-        let updatedChats = [];
-        let totalUnread = 0;
-  
-        if (snapshot.exists()) {
-          const fetchedData = snapshot.val();
-  
-          updatedChats = Object.entries(fetchedData)
-            .filter(([chatPartnerId, chatData]) => chatPartnerId && !bannedUsers.includes(chatPartnerId))
-            .map(([chatPartnerId, chatData]) => {
-              const lastMessage = chatData.lastMessage || 'No messages yet';
-              const lastMessageTimestamp = chatData.timestamp || null;
-              const unreadCount = chatData.unreadCount || 0;
-              totalUnread += unreadCount;
-  
-              return {
-                chatId: chatData.chatId,
-                otherUserId: chatPartnerId,
-                lastMessage,
-                lastMessageTimestamp,
-                unreadCount,
-                otherUserAvatar: chatData.receiverAvatar || 'https://example.com/default-avatar.jpg',
-                otherUserName: chatData.receiverName || 'Anonymous',
-              };
-            });
-  
-          // 🔹 Sort chats by last message timestamp (newest first)
-          updatedChats = updatedChats.sort((a, b) => (b.lastMessageTimestamp || 0) - (a.lastMessageTimestamp || 0));
-        } else {
-          // console.log("⚠️ No chats found, checking for active chat...");
-  
-          // // ✅ If no chats exist, check for active chat
-          // const activeChatSnapshot = await activeChatRef.once('value');
-          // const activeChat = activeChatSnapshot.val();
-  
-          // if (activeChat) {
-          //   console.log("🔥 Found active chat, setting as default:", activeChat);
-          //   updatedChats = [{
-          //     chatId: activeChat,
-          //     otherUserId: "active",
-          //     lastMessage: "Active Chat",
-          //     lastMessageTimestamp: Date.now(),
-          //     unreadCount: 0
-          //   }];
-          // }
+        if (!snapshot.exists()) {
+          setChats([]); 
+          setunreadcount(0);
+          return;
         }
   
-        // ✅ Update state with the fetched chats
-        setChats(updatedChats);
+        let updatedChats = [];
+        let totalUnread = 0;
+        const fetchedData = snapshot.val();
+  
+        updatedChats = Object.entries(fetchedData)
+          .filter(([chatPartnerId]) => chatPartnerId && !bannedUsers.includes(chatPartnerId))
+          .map(([chatPartnerId, chatData]) => {
+            totalUnread += chatData.unreadCount || 0;
+            return {
+              chatId: chatData.chatId,
+              otherUserId: chatPartnerId,
+              lastMessage: chatData.lastMessage || 'No messages yet',
+              lastMessageTimestamp: chatData.timestamp || 0,
+              unreadCount: chatData.unreadCount || 0,
+              otherUserAvatar: chatData.receiverAvatar || 'https://example.com/default-avatar.jpg',
+              otherUserName: chatData.receiverName || 'Anonymous',
+            };
+          });
+  
+        // ✅ Sort by latest message
+        setChats(updatedChats.sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp));
         setunreadcount(totalUnread);
       } catch (error) {
         console.error("❌ Error fetching chats:", error);
-        // Alert.alert("Error", "Unable to fetch chats. Please try again later.");
       } finally {
-        // ✅ Ensures `setLoading(false)` is always called
         setLoading(false);
       }
     });
   
-    // ✅ Cleanup listener when component unmounts
-    return () => userChatsRef.off('value', onValueChange);
-  }, [user]);
+    return () => userChatsRef.off('value', onValueChange); // ✅ Ensures cleanup
+  }, [user]); // ✅ Added `bannedUsers` as a dependency
+  
   
   
 

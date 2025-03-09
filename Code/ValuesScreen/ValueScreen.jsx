@@ -340,29 +340,30 @@ const ValueScreen = ({ selectedTheme }) => {
 
   useEffect(() => {
     interstitial.load();
-
-    const onAdLoaded = () => setIsAdLoaded(true);
-    const onAdClosed = () => {
+  
+    const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+      setIsAdLoaded(true);
+    });
+  
+    const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
       setIsAdLoaded(false);
       setIsShowingAd(false);
-      interstitial.load(); // Reload ad for the next use
-    };
-    const onAdError = (error) => {
+      interstitial.load(); // Reload ad for next use
+    });
+  
+    const unsubscribeError = interstitial.addAdEventListener(AdEventType.ERROR, (error) => {
       setIsAdLoaded(false);
       setIsShowingAd(false);
       console.error('Ad Error:', error);
-    };
-
-    const loadedListener = interstitial.addAdEventListener(AdEventType.LOADED, onAdLoaded);
-    const closedListener = interstitial.addAdEventListener(AdEventType.CLOSED, onAdClosed);
-    const errorListener = interstitial.addAdEventListener(AdEventType.ERROR, onAdError);
-
+    });
+  
     return () => {
-      loadedListener();
-      closedListener();
-      errorListener();
+      unsubscribeLoaded();  // ✅ Correct way to remove event listeners
+      unsubscribeClosed();
+      unsubscribeError();
     };
   }, []);
+  
 
   const showInterstitialAd = (callback) => {
     if (isAdLoaded && !isShowingAd && !localState.isPro) {

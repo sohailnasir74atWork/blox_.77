@@ -162,7 +162,7 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
               {!user.id && <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>{t("first.signin_or_guest")}</Text>}
               {user?.id && (
                 <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>
-                  {`Welcome ${user?.displayName || user?.displayname || 'Anonymous'}`}
+                  {`Welcome ${user?.displayName || 'Anonymous'}`}
 
                 </Text>
               )}

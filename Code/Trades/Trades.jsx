@@ -40,6 +40,7 @@ const TradeList = ({ route }) => {
   const [openShareModel, setOpenShareModel] = useState(false);
 
 
+
   const [isAdLoaded, setIsAdLoaded] = useState(false);
   const [isShowingAd, setIsShowingAd] = useState(false);
   const [isReportPopupVisible, setReportPopupVisible] = useState(false);
@@ -49,6 +50,7 @@ const TradeList = ({ route }) => {
   const { localState, updateLocalState } = useLocalState()
   const navigation = useNavigation()
   const { theme } = useGlobalState()
+  const [isProStatus, setIsProStatus] = useState(localState.isPro);
   const { t } = useTranslation();
   const platform = Platform.OS.toLowerCase();
   const isDarkMode = theme === 'dark'
@@ -62,6 +64,12 @@ const TradeList = ({ route }) => {
 
 
   const [selectedFilters, setSelectedFilters] = useState([]);
+
+  useEffect(() => {
+    // console.log(localState.isPro, 'from trade model'); // ✅ Check if isPro is updated
+    setIsProStatus(localState.isPro); // ✅ Force update state and trigger re-render
+  }, [localState.isPro]); 
+
   useEffect(() => {
     const lowerCaseQuery = searchQuery.trim().toLowerCase();
 
@@ -125,32 +133,33 @@ const TradeList = ({ route }) => {
 
   useEffect(() => {
     interstitial.load();
-
-    const onAdLoaded = () => setIsAdLoaded(true);
-    const onAdClosed = () => {
+  
+    const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+      setIsAdLoaded(true);
+    });
+  
+    const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
       setIsAdLoaded(false);
       setIsShowingAd(false);
-      interstitial.load(); // Reload ad for the next use
-    };
-    const onAdError = (error) => {
+      interstitial.load(); // Reload ad for next use
+    });
+  
+    const unsubscribeError = interstitial.addAdEventListener(AdEventType.ERROR, (error) => {
       setIsAdLoaded(false);
       setIsShowingAd(false);
       console.error('Ad Error:', error);
-    };
-
-    const loadedListener = interstitial.addAdEventListener(AdEventType.LOADED, onAdLoaded);
-    const closedListener = interstitial.addAdEventListener(AdEventType.CLOSED, onAdClosed);
-    const errorListener = interstitial.addAdEventListener(AdEventType.ERROR, onAdError);
-
+    });
+  
     return () => {
-      loadedListener();
-      closedListener();
-      errorListener();
+      unsubscribeLoaded();  // ✅ Correct way to remove event listeners
+      unsubscribeClosed();
+      unsubscribeError();
     };
   }, []);
+  
 
   const showInterstitialAd = (callback) => {
-    if (isAdLoaded && !isShowingAd && !localState.isPro) {
+    if (isAdLoaded && !isShowingAd && !isProStatus) {
       setIsShowingAd(true);
       try {
         interstitial.show();
@@ -249,85 +258,78 @@ const TradeList = ({ route }) => {
 
 
 
+  console.log(isProStatus, 'from trade model')
 
-  const handleMakeFeatureTrade = useCallback(async (item) => {
-    if (!localState.isPro) {
-      Alert.alert(
-        t("trade.feature_pro_only_title"),
-        t("trade.feature_pro_only_message"),
-        [
-          { text: t("trade.cancel"), style: "cancel" },
-          { text: t("trade.upgrade"), onPress: () => setShowofferwall(true) },
-        ]
-      );
-      return;
-    }
-
-    // ✅ Fix: Ensure `localState.featuredCount` exists before accessing `.count`
-    const currentFeaturedData = localState.featuredCount || { count: 0, time: null };
-
-    if (currentFeaturedData.count >= 2) {
-      showMessage({
-        message: t("trade.feature_limit_reached_title"),
-        description: t("trade.feature_limit_reached_message"),
-        type: "danger",
-      });
-      return;
-    }
-
-    // ✅ **Confirmation before featuring**
+  const handleMakeFeatureTrade = async (item) => {
+  if (!isProStatus) {  // ✅ Use updated state instead of `localState.isPro`
     Alert.alert(
-      t("trade.feature_confirmation_title"),
-      t("trade.feature_confirmation_message"),
+      t("trade.feature_pro_only_title"),
+      t("trade.feature_pro_only_message"),
       [
         { text: t("trade.cancel"), style: "cancel" },
-        {
-          text: t("feature"),
+        { 
+          text: t("trade.upgrade"), 
           onPress: async () => {
-            try {
-              // ✅ **Update Firestore to mark trade as featured**
-              await firestore().collection("trades_new").doc(item.id).update({
-                isFeatured: true,
-                featuredUntil: firestore.Timestamp.fromDate(new Date(Date.now() + 24 * 60 * 60 * 1000)), // 1 hour
-              });
+            setShowofferwall(true);
 
-              // ✅ **Store new featured count & timestamp**
-              const newFeaturedCount = currentFeaturedData.count + 1;
-              const currentTime = new Date().toISOString();
-
-              await updateLocalState("featuredCount", { count: newFeaturedCount, time: currentTime });
-
-              // ✅ **Update UI**
-              setTrades((prev) =>
-                prev.map((trade) =>
-                  trade.id === item.id ? { ...trade, isFeatured: true } : trade
-                )
-              );
-              setFilteredTrades((prev) =>
-                prev.map((trade) =>
-                  trade.id === item.id ? { ...trade, isFeatured: true } : trade
-                )
-              );
-
-              showMessage({
-                message: t("trade.feature_success"),
-                description: t("trade.feature_success_message"),
-                type: "success",
-              });
-
-            } catch (error) {
-              console.error("🔥 [handleMakeFeatureTrade] Error featuring trade:", error);
-              showMessage({
-                message: t("trade.feature_error"),
-                description: t("trade.feature_error_message"),
-                type: "danger",
-              });
-            }
-          },
+            // ✅ Manually update state after upgrade
+            setIsProStatus(true);
+            updateLocalState("isPro", true);
+          }
         },
       ]
     );
-  }, [t, localState.featuredCount]);
+    return;
+  }
+
+  // ✅ Proceed with feature logic if Pro
+  Alert.alert(
+    t("trade.feature_confirmation_title"),
+    t("trade.feature_confirmation_message"),
+    [
+      { text: t("trade.cancel"), style: "cancel" },
+      {
+        text: t("feature"),
+        onPress: async () => {
+          try {
+            await firestore().collection("trades_new").doc(item.id).update({
+              isFeatured: true,
+              featuredUntil: firestore.Timestamp.fromDate(new Date(Date.now() + 24 * 60 * 60 * 1000)),
+            });
+
+            // ✅ Store new featured count
+            const newFeaturedCount = (localState.featuredCount?.count || 0) + 1;
+            updateLocalState("featuredCount", { count: newFeaturedCount, time: new Date().toISOString() });
+
+            // ✅ Update UI
+            setTrades((prev) =>
+              prev.map((trade) => (trade.id === item.id ? { ...trade, isFeatured: true } : trade))
+            );
+
+            setFilteredTrades((prev) =>
+              prev.map((trade) => (trade.id === item.id ? { ...trade, isFeatured: true } : trade))
+            );
+
+            showMessage({
+              message: t("trade.feature_success"),
+              description: t("trade.feature_success_message"),
+              type: "success",
+            });
+
+          } catch (error) {
+            console.error("🔥 [handleMakeFeatureTrade] Error:", error);
+            showMessage({
+              message: t("trade.feature_error"),
+              description: t("trade.feature_error_message"),
+              type: "danger",
+            });
+          }
+        },
+      },
+    ]
+  );
+};
+
 
 
 
@@ -413,17 +415,14 @@ const TradeList = ({ route }) => {
 
 
   const handleEndReached = () => {
-    if (!hasMore) {
-      return;
-    }
-    if (!user?.id) {
+  if (!hasMore || loading) return; // ✅ Prevents unnecessary calls
+  if (!user?.id) {
+    setIsSigninDrawerVisible(true);
+    return;
+  }
+  fetchMoreTrades();
+};
 
-      setIsSigninDrawerVisible(true);
-      return;
-    }
-
-    fetchMoreTrades();
-  };
   // console.log(trades)
 
   // import firestore from '@react-native-firebase/firestore'; // Ensure this import
@@ -520,27 +519,27 @@ const TradeList = ({ route }) => {
     }
   };
 
-  const proceedWithScreenshotShare = async () => {
-    triggerHapticFeedback('impactLight');
-    logEvent(analytics, `${platform}_screenshot_share_trade_screen`);
-    try {
-      const filePath = await captureAndSave();
+  // const proceedWithScreenshotShare = async () => {
+  //   triggerHapticFeedback('impactLight');
+  //   logEvent(analytics, `${platform}_screenshot_share_trade_screen`);
+  //   try {
+  //     const filePath = await captureAndSave();
 
-      if (filePath) {
-        const shareOptions = {
-          title: t("home.screenshot_title"),
-          url: `file://${filePath}`,
-          type: 'image/png',
-        };
+  //     if (filePath) {
+  //       const shareOptions = {
+  //         title: t("home.screenshot_title"),
+  //         url: `file://${filePath}`,
+  //         type: 'image/png',
+  //       };
 
-        Share.open(shareOptions)
-          .then((res) => console.log('Share Response:', res))
-          .catch((err) => console.log('Share Error:', err));
-      }
-    } catch (error) {
-      // console.log('Error sharing screenshot:', error);
-    }
-  };
+  //       Share.open(shareOptions)
+  //         .then((res) => console.log('Share Response:', res))
+  //         .catch((err) => console.log('Share Error:', err));
+  //     }
+  //   } catch (error) {
+  //     // console.log('Error sharing screenshot:', error);
+  //   }
+  // };
 
   const mergeFeaturedWithNormal = (featuredTrades, normalTrades) => {
     let result = [];
@@ -578,7 +577,21 @@ const TradeList = ({ route }) => {
     return result;
   };
 
-
+  // useEffect(() => {
+  //   const unsubscribe = firestore()
+  //     .collection('trades_new')
+  //     .orderBy('timestamp', 'desc')
+  //     .limit(PAGE_SIZE)
+  //     .onSnapshot(snapshot => {
+  //       const newTrades = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  //       setTrades(newTrades);
+  //       setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
+  //       setHasMore(snapshot.docs.length === PAGE_SIZE);
+  //     }, error => console.error('🔥 Firestore error:', error));
+  
+  //   return () => unsubscribe(); // ✅ Unsubscribing on unmount
+  // }, []);
+  
 
 
   useEffect(() => {
@@ -637,7 +650,7 @@ const TradeList = ({ route }) => {
     const neutral = tradeRatio === 1; // Exactly 1:1 trade
     const formattedTime = item.timestamp ? moment(item.timestamp.toDate()).fromNow() : "Anonymous";
 
-    if ((index + 1) % 10 === 0 && !localState.isPro) {
+    if ((index + 1) % 10 === 0 && !isProStatus) {
       return <MyNativeAdComponent />;
     }
     // Function to group items and count duplicates
@@ -879,7 +892,7 @@ const TradeList = ({ route }) => {
       />
       {/* <FlashMessage position="top" /> */}
 
-      {!localState.isPro && <View style={{ alignSelf: 'center' }}>
+      {!isProStatus && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (
           <BannerAd
             unitId={bannerAdUnitId}
