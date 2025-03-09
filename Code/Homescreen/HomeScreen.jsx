@@ -3,9 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, FlatList, 
 import Icon from 'react-native-vector-icons/Ionicons';
 import { InterstitialAd, AdEventType, BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 import getAdUnitId from '../Ads/ads';
-import ViewShot, { captureRef } from 'react-native-view-shot';
-import RNFS from 'react-native-fs';
-import Share from 'react-native-share';
+import ViewShot from 'react-native-view-shot';
 import { useGlobalState } from '../GlobelStats';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import config from '../Helper/Environment';
@@ -14,7 +12,6 @@ import { useHaptic } from '../Helper/HepticFeedBack';
 import { getDatabase, ref, push, get, set } from '@react-native-firebase/database';
 import { useLocalState } from '../LocalGlobelStats';
 import SignInDrawer from '../Firebase/SigninDrawer';
-import { useNavigation } from '@react-navigation/native';
 import firestore from '@react-native-firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../Translation/LanguageProvider';
@@ -162,9 +159,9 @@ const HomeScreen = ({ selectedTheme }) => {
 
 
     }
-    if(type === 'create') {
+    if (type === 'create') {
       setType('create')
-    }else {
+    } else {
       setType('share')
     }
     const tradeRatio = wantsTotal.value / hasTotal.value;
@@ -201,7 +198,7 @@ const HomeScreen = ({ selectedTheme }) => {
       // console.log("🚫 Trade submission blocked: Already submitting.");
       return; // Prevent duplicate submissions
     }
-  
+
     setIsSubmitting(true);
     // console.log("🚀 Trade submission started...");
     try {
@@ -212,54 +209,60 @@ const HomeScreen = ({ selectedTheme }) => {
         avatar: user?.avatar || null,
         isPro: localState.isPro,
         isFeatured: false,
-        hasItems: hasItems.filter(item => item && item.Name).map(item => ({ name: item.Name, type: item.Type, value:item.Value })),
-        wantsItems: wantsItems.filter(item => item && item.Name).map(item => ({ name: item.Name, type: item.Type, value:item.Value })),
+        hasItems: hasItems.filter(item => item && item.Name).map(item => ({ name: item.Name, type: item.Type, value: item.Value })),
+        wantsItems: wantsItems.filter(item => item && item.Name).map(item => ({ name: item.Name, type: item.Type, value: item.Value })),
         hasTotal: { price: hasTotal?.price || 0, value: hasTotal?.value || 0 },
         wantsTotal: { price: wantsTotal?.price || 0, value: wantsTotal?.value || 0 },
         description: description || "",
         timestamp: firestore.FieldValue.serverTimestamp(),
       };
-      if (type ==='share'){
+      if (type === 'share') {
         setModalVisible(false); // Close modal
         setSelectedTrade(newTrade);
         setOpenShareModel(true)
-      } else {  
-  
-      // console.log("📌 New trade object created:", newTrade);
-  
-      // ✅ Check last trade locally before querying Firestore
-      const now = Date.now();
-      if (lastTradeTime && now - lastTradeTime < 1 * 1 * 60 * 1000) {
-        showMessage({
-          message: t("home.alert.error"),
-          description: "Please wait for 1 minut before creating new trade",
-          type: "danger",
-        });
-        setIsSubmitting(false);
-        return;
+      } else {
+
+        // console.log("📌 New trade object created:", newTrade);
+
+        // ✅ Check last trade locally before querying Firestore
+        const now = Date.now();
+        if (lastTradeTime && now - lastTradeTime < 1 * 1 * 60 * 1000) {
+          showMessage({
+            message: t("home.alert.error"),
+            description: "Please wait for 1 minut before creating new trade",
+            type: "danger",
+          });
+          setIsSubmitting(false);
+          return;
+        }
+
+        // console.log("✅ No duplicate trade found. Proceeding with submission...");
+
+        // ✅ Submit trade
+        await tradesCollection.add(newTrade);
+        // console.log("🎉 Trade successfully submitted!");
+
+        setModalVisible(false); // Close modal
+
+        // ✅ Update last trade time locally
+        setLastTradeTime(now);
+
+        if (!localState.isPro) {
+          showInterstitialAd(() => {
+            showMessage({
+              message: t("home.alert.success"),
+              description: "Your trade has been posted successfully!",
+              type: "success",
+            });
+          })
+        } else {
+          showMessage({
+            message: t("home.alert.success"),
+            description: "Your trade has been posted successfully!",
+            type: "success",
+          });
+        }
       }
-     
-      // console.log("✅ No duplicate trade found. Proceeding with submission...");
-  
-      // ✅ Submit trade
-      await tradesCollection.add(newTrade);
-      // console.log("🎉 Trade successfully submitted!");
-      
-      setModalVisible(false); // Close modal
-  
-      // ✅ Update last trade time locally
-      setLastTradeTime(now);
-  showInterstitialAd(()=>{showMessage({
-    message: t("home.alert.success"),
-    description: "Your trade has been posted successfully!",
-    type: "success",
-  });})
-      // showMessage({
-      //   message: t("home.alert.success"),
-      //   description: "Your trade has been posted successfully!",
-      //   type: "success",
-      // });
-    }
     } catch (error) {
       console.error("🔥 Error creating trade:", error);
       showMessage({
@@ -272,7 +275,7 @@ const HomeScreen = ({ selectedTheme }) => {
       setIsSubmitting(false); // Reset submission state
     }
   };
-  
+
 
   const adjustedData = (fruitRecords) => {
     let transformedData = [];
@@ -323,31 +326,31 @@ const HomeScreen = ({ selectedTheme }) => {
 
   useEffect(() => {
     interstitial.load();
-  
+
     const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
       setIsAdLoaded(true);
     });
-  
+
     const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
       setIsAdLoaded(false);
       setIsShowingAd(false);
       interstitial.load(); // Reload ad for next use
     });
-  
+
     const unsubscribeError = interstitial.addAdEventListener(AdEventType.ERROR, (error) => {
       setIsAdLoaded(false);
       setIsShowingAd(false);
       console.error('Ad Error:', error);
     });
-  
+
     return () => {
       unsubscribeLoaded();  // ✅ Correct way to remove event listeners
       unsubscribeClosed();
       unsubscribeError();
     };
   }, []);
-  
-  
+
+
 
   const showInterstitialAd = (callback) => {
     if (isAdLoaded && !isShowingAd && !localState.isPro) {
@@ -471,7 +474,7 @@ const HomeScreen = ({ selectedTheme }) => {
     ? ((profitLoss / hasTotal.value) * 100).toFixed(0)
     : 0;
 
-const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
+  const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
 
   return (
     <>
@@ -602,8 +605,8 @@ const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
               </View>
             </ViewShot>
             <View style={styles.createtrade} >
-              <TouchableOpacity style={styles.createtradeButton} onPress={()=>handleCreateTradePress('create')}><Text style={{ color: 'white' }}>{t('home.create_trade')}</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.shareTradeButton} onPress={()=>handleCreateTradePress('share')}><Text style={{ color: 'white' }}>{t('home.share_trade')}</Text></TouchableOpacity></View>
+              <TouchableOpacity style={styles.createtradeButton} onPress={() => handleCreateTradePress('create')}><Text style={{ color: 'white' }}>{t('home.create_trade')}</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.shareTradeButton} onPress={() => handleCreateTradePress('share')}><Text style={{ color: 'white' }}>{t('home.share_trade')}</Text></TouchableOpacity></View>
           </ScrollView>
           <Modal
             visible={isDrawerVisible}
@@ -706,10 +709,10 @@ const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
             </ConditionalKeyboardWrapper>
           </Modal>
           <ShareTradeModal
-  visible={openShareModel}
-  onClose={() => setOpenShareModel(false)}
-  tradeData={selectedTrade}
-/>
+            visible={openShareModel}
+            onClose={() => setOpenShareModel(false)}
+            tradeData={selectedTrade}
+          />
           <SignInDrawer
             visible={isSigninDrawerVisible}
             onClose={() => setIsSigninDrawerVisible(false)}
