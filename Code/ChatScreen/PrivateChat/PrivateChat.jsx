@@ -42,7 +42,7 @@ const PrivateChatScreen = () => {
   const selectedUserId = selectedUser?.senderId;
   const myUserId = user?.id;
   const { t } = useTranslation();
-  console.log(item)
+  // console.log(item)
   
   useEffect(()=>{setTrade(item)}, [])
 

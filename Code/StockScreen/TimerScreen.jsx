@@ -22,7 +22,7 @@ const interstitialAdUnitId = getAdUnitId('interstitial');
 const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId);
 
 const TimerScreen = ({ selectedTheme }) => {
-  const { user, updateLocalStateAndDatabase, theme, fetchStockData, analytics } = useGlobalState();
+  const { user, updateLocalStateAndDatabase, theme, fetchStockData, analytics, reload } = useGlobalState();
   const [hasAdBeenShown, setHasAdBeenShown] = useState(false);
   const [isAdLoaded, setIsAdLoaded] = useState(false);
   const [isShowingAd, setIsShowingAd] = useState(false);
@@ -134,7 +134,7 @@ const TimerScreen = ({ selectedTheme }) => {
     logEvent(analytics, `${platform}_stock_refresh`);
     setRefreshing(true);
     try {
-      await fetchStockData(); // Re-fetch stock data
+      await reload(); // Re-fetch stock data
     } catch (error) {
       console.error('Error refreshing data:', error);
     } finally {
@@ -443,6 +443,9 @@ const TimerScreen = ({ selectedTheme }) => {
 
 
             </View>
+            {/* <TouchableOpacity style={styles.preContrefresh} onPress={reload}>
+              <Text style={styles.pre}>REFRESH</Text>
+            </TouchableOpacity> */}
             <View style={styles.preCont}>
               <Text style={styles.pre}>  {t("stock.previous_stock")}</Text>
             </View>
@@ -650,6 +653,14 @@ const getStyles = (isDarkMode, user) =>
       borderRadius: 10,
       margin: 10,
       opacity: .3
+    },
+    preContrefresh:{
+      justifyContent: 'center',
+      flex: 1,
+      padding: 20,
+      backgroundColor: config.colors.hasBlockGreen,
+      borderRadius: 10,
+      margin: 10,
     },
     pre: {
       color: 'white',

@@ -13,34 +13,39 @@ export const useLocalState = () => useContext(LocalStateContext);
 
 export const LocalStateProvider = ({ children }) => {
   // Initial local state
-  const [localState, setLocalState] = useState(() => {
-    const systemTheme = Appearance.getColorScheme(); // 'light' or 'dark'
-    const storedTheme = storage.getString('theme');
-    const initialTheme = storedTheme === 'system' || !storedTheme ? systemTheme : storedTheme;
+  const safeParseJSON = (key, defaultValue) => {
+    try {
+      const value = storage.getString(key);
+      return value ? JSON.parse(value) : defaultValue;
+    } catch (error) {
+      console.error(`🚨 JSON Parse Error for key "${key}":`, error);
+      return defaultValue; // Return a safe fallback value
+    }
+  };
   
-    return {
-      localKey: storage.getString('localKey') || 'defaultValue',
-      reviewCount: Number(storage.getString('reviewCount')) || 0,
-      lastVersion: storage.getString('lastVersion') || 'UNKNOWN',
-      updateCount: Number(storage.getString('updateCount')) || 0,
-      featuredCount: JSON.parse(storage.getString('featuredCount') || '{"count":0,"time":null}'),
-      isHaptic: storage.getBoolean('isHaptic') ?? true,
-      theme: initialTheme, // Default to system theme if not set
-      consentStatus: storage.getString('consentStatus') || 'UNKNOWN',
-      isPro: storage.getBoolean('isPro') ?? false,
-      fetchDataTime: storage.getString('fetchDataTime') || null,
-      data: JSON.parse(storage.getString('data') || '{}'),
-      codes: JSON.parse(storage.getString('codes') || '{}'),
-      normalStock: JSON.parse(storage.getString('normalStock') || '[]'),
-      bannedUsers: JSON.parse(storage.getString('bannedUsers') || '[]'),
-      mirageStock: JSON.parse(storage.getString('mirageStock') || '[]'),
-      prenormalStock: JSON.parse(storage.getString('prenormalStock') || '[]'),
-      premirageStock: JSON.parse(storage.getString('premirageStock') || '[]'),
-      isAppReady: storage.getBoolean('isAppReady') ?? false,
-      lastActivity: storage.getString('lastActivity') || null,
-      showOnBoardingScreen: storage.getBoolean('showOnBoardingScreen') ?? true,
-    };
-  });
+  const [localState, setLocalState] = useState(() => ({
+    localKey: storage.getString('localKey') || 'defaultValue',
+    reviewCount: Number(storage.getString('reviewCount')) || 0,
+    lastVersion: storage.getString('lastVersion') || 'UNKNOWN',
+    updateCount: Number(storage.getString('updateCount')) || 0,
+    featuredCount: safeParseJSON('featuredCount', { count: 0, time: null }),
+    isHaptic: storage.getBoolean('isHaptic') ?? true,
+    theme: storage.getString('theme') || 'system',
+    consentStatus: storage.getString('consentStatus') || 'UNKNOWN',
+    isPro: storage.getBoolean('isPro') ?? false,
+    fetchDataTime: storage.getString('fetchDataTime') || null,
+    data: safeParseJSON('data', {}),
+    codes: safeParseJSON('codes', {}),
+    normalStock: safeParseJSON('normalStock', []),
+    bannedUsers: safeParseJSON('bannedUsers', []),
+    mirageStock: safeParseJSON('mirageStock', []),
+    prenormalStock: safeParseJSON('prenormalStock', []),
+    premirageStock: safeParseJSON('premirageStock', []),
+    isAppReady: storage.getBoolean('isAppReady') ?? false,
+    lastActivity: storage.getString('lastActivity') || null,
+    showOnBoardingScreen: storage.getBoolean('showOnBoardingScreen') ?? true,
+  }));
+  
   
   // RevenueCat states
   const [customerId, setCustomerId] = useState(null);

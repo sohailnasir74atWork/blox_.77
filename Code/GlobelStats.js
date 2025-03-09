@@ -193,7 +193,8 @@ export const GlobalStateProvider = ({ children }) => {
       const lastActivity = localState.lastActivity ? new Date(localState.lastActivity).getTime() : 0;
       const now = Date.now();
       const timeElapsed = now - lastActivity;
-      const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000; // 24 hours in ms
+      const TWENTY_FOUR_HOURS = refresh ? 24 * 60 * 60 * 1000 : 1 * 1 * 1 * 1000; // 24 hours in ms
+      // console.log(TWENTY_FOUR_HOURS, refresh)
 
       // ✅ Fetch `codes & data` only if 24 hours have passed OR they are missing
       const shouldFetchCodesData =
@@ -203,7 +204,7 @@ export const GlobalStateProvider = ({ children }) => {
         !localState.data ||
         !Object.keys(localState.data).length;
 
-      if (shouldFetchCodesData || refresh) {
+      if (shouldFetchCodesData) {
         // console.log("📌 Fetching codes & data from database...");
 
         const [xlsSnapshot, codeSnapShot] = await Promise.all([
@@ -257,7 +258,7 @@ export const GlobalStateProvider = ({ children }) => {
       setLoading(false);
     }
   };
-
+// console.log(isAdmin)
 
   // ✅ Run the function only if needed
   useEffect(() => {
