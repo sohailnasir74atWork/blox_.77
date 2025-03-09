@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Image, Modal, TouchableOpacity, Switch, StyleSheet, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import ViewShot, { captureRef } from 'react-native-view-shot';
@@ -7,6 +7,11 @@ import config from '../Helper/Environment';
 import { useGlobalState } from '../GlobelStats';
 import { useLocalState } from '../LocalGlobelStats';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
+import getAdUnitId from '../Ads/ads';
+import { AdEventType, InterstitialAd } from 'react-native-google-mobile-ads';
+
+const interstitialAdUnitId = getAdUnitId('interstitial');
+const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId);
 
 const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const viewRef = useRef();
@@ -24,11 +29,57 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
     const {localState} = useLocalState()
     const [showofferwall, setShowofferwall] = useState(false);
+    const [isAdLoaded, setIsAdLoaded] = useState(false);
+  const [isShowingAd, setIsShowingAd] = useState(false);
     // console.log(localState.isPro, 'from share model')
 
 
 
 
+    useEffect(() => {
+        interstitial.load();
+      
+        const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+          setIsAdLoaded(true);
+        });
+      
+        const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
+          setIsAdLoaded(false);
+          setIsShowingAd(false);
+          interstitial.load(); // Reload ad for next use
+        });
+      
+        const unsubscribeError = interstitial.addAdEventListener(AdEventType.ERROR, (error) => {
+          setIsAdLoaded(false);
+          setIsShowingAd(false);
+          console.error('Ad Error:', error);
+        });
+      
+        return () => {
+          unsubscribeLoaded();  // ✅ Correct way to remove event listeners
+          unsubscribeClosed();
+          unsubscribeError();
+        };
+      }, []);
+      
+      
+    
+      const showInterstitialAd = (callback) => {
+        if (isAdLoaded && !isShowingAd && !localState.isPro) {
+          setIsShowingAd(true);
+          try {
+            interstitial.show();
+            interstitial.addAdEventListener(AdEventType.CLOSED, callback);
+          } catch (error) {
+            // console.error('Error showing interstitial ad:', error);
+            setIsShowingAd(false);
+            callback(); // Proceed with fallback in case of error
+          }
+        } else {
+          callback(); // If ad is not loaded, proceed immediately
+        }
+      };
+    
 
 
     if (!tradeData) return null;
@@ -43,15 +94,24 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
 
     const formatName = (name) => name.replace(/\s+/g, '-');
 
+
+
+    const sharewithAds = ()=>{
+        showInterstitialAd(()=>{
+            handleShare()
+        })
+    }
+
     const handleShare = async () => {
         try {
             if (!viewRef.current) return;
-
             const uri = await captureRef(viewRef, {
                 format: 'png',
                 quality: 0.8,
                 result: 'tmpfile',
             });
+
+
 
             await Share.open({
                 url: `file://${uri}`,
@@ -263,7 +323,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                         <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
                             <Text style={styles.cancelText}>Cancel</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+                        <TouchableOpacity style={styles.shareButton} onPress={sharewithAds}>
                             <Text style={styles.cancelText}>Share</Text>
                         </TouchableOpacity>
                     </View>

@@ -249,12 +249,16 @@ const HomeScreen = ({ selectedTheme }) => {
   
       // ✅ Update last trade time locally
       setLastTradeTime(now);
-  
-      showMessage({
-        message: t("home.alert.success"),
-        description: "Your trade has been posted successfully!",
-        type: "success",
-      });
+  showInterstitialAd(()=>{showMessage({
+    message: t("home.alert.success"),
+    description: "Your trade has been posted successfully!",
+    type: "success",
+  });})
+      // showMessage({
+      //   message: t("home.alert.success"),
+      //   description: "Your trade has been posted successfully!",
+      //   type: "success",
+      // });
     }
     } catch (error) {
       console.error("🔥 Error creating trade:", error);

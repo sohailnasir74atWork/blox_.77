@@ -258,7 +258,7 @@ const TradeList = ({ route }) => {
 
 
 
-  console.log(isProStatus, 'from trade model')
+  // console.log(isProStatus, 'from trade model')
 
   const handleMakeFeatureTrade = async (item) => {
   if (!isProStatus) {  // ✅ Use updated state instead of `localState.isPro`
