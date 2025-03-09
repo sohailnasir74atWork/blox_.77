@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { getApp, getApps, initializeApp } from '@react-native-firebase/app';
-import  { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
-import  { ref, set, update, get, onDisconnect, getDatabase } from '@react-native-firebase/database';
-import  { getFirestore } from '@react-native-firebase/firestore';
+import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
+import { ref, set, update, get, onDisconnect, getDatabase } from '@react-native-firebase/database';
+import { getFirestore } from '@react-native-firebase/firestore';
 import { createNewUser, firebaseConfig, registerForNotifications } from './Globelhelper';
 import { useLocalState } from './LocalGlobelStats';
 import { requestPermission } from './Helper/PermissionCheck';
@@ -23,16 +23,16 @@ setAnalyticsCollectionEnabled(analytics, true);
 export const useGlobalState = () => useContext(GlobalStateContext);
 
 export const GlobalStateProvider = ({ children }) => {
-  const {localState, updateLocalState} = useLocalState()
+  const { localState, updateLocalState } = useLocalState()
   const [theme, setTheme] = useState(localState.theme || 'light');
   const [isAdmin, setIsAdmin] = useState(false);
 
-  
-  
+
+
 
   useEffect(() => {
     const appOwner = config.isNoman ? "Noman" : "Waqas";
-    const platform = Platform.OS.toLowerCase(); 
+    const platform = Platform.OS.toLowerCase();
     logEvent(analytics, `${appOwner}_app_open`);
     logEvent(analytics, `platform_${platform}`);
   }, []);
@@ -44,31 +44,31 @@ export const GlobalStateProvider = ({ children }) => {
     isSelectedReminderEnabled: false,
     displayName: '',
     avatar: null,
-    points: 0, 
-    isBlock:false,
-    fcmToken:null,
-    lastactivity:null,
-    online:false,
+    points: 0,
+    isBlock: false,
+    fcmToken: null,
+    lastactivity: null,
+    online: false,
   });
 
   const [onlineMembersCount, setOnlineMembersCount] = useState(0);
   const [loading, setLoading] = useState(false);
-  
+
   // Track theme changes
   useEffect(() => {
-    setTheme(localState.theme); 
-}, [localState.theme]);
+    setTheme(localState.theme);
+  }, [localState.theme]);
 
   // const isAdmin = user?.id  ? user?.id == '3CAAolfaX3UE3BLTZ7ghFbNnY513' : false
   // console.log(isAdmin, user)
 
   const updateLocalStateAndDatabase = async (keyOrUpdates, value) => {
     if (!user.id) return; // Prevent updates if user is not logged in
-  
+
     try {
       const userRef = ref(appdatabase, `users/${user.id}`);
       let updates = {};
-  
+
       if (typeof keyOrUpdates === 'string') {
         // Single update
         updates = { [keyOrUpdates]: value };
@@ -78,11 +78,11 @@ export const GlobalStateProvider = ({ children }) => {
       } else {
         throw new Error('Invalid arguments for update.');
       }
-  
+
       // ✅ Update local state
       setUser((prev) => ({ ...prev, ...updates }));
 
-  
+
       // ✅ Update Firebase database
       await update(userRef, updates);
     } catch (error) {
@@ -91,7 +91,7 @@ export const GlobalStateProvider = ({ children }) => {
   };
 
 
-  
+
 
 
   // ✅ Memoize resetUserState to prevent unnecessary re-renders
@@ -103,14 +103,14 @@ export const GlobalStateProvider = ({ children }) => {
       isSelectedReminderEnabled: false,
       displayName: '',
       avatar: null,
-      points: 0, 
+      points: 0,
       isBlock: false,
       fcmToken: null,
       lastactivity: null,
       online: false,
     });
   }, []); // No dependencies, so it never re-creates
-  
+
   // ✅ Memoize handleUserLogin
   const handleUserLogin = useCallback(async (loggedInUser) => {
     if (!loggedInUser) {
@@ -121,15 +121,14 @@ export const GlobalStateProvider = ({ children }) => {
       const userId = loggedInUser.uid;
       const userRef = ref(appdatabase, `users/${userId}`);
 
-      
+
       // 🔄 Fetch user data
       const snapshot = await get(userRef);
       let userData;
       // console.log(loggedInUser.email)
       const makeadmin = loggedInUser.email === 'thesolanalabs@gmail.com' || loggedInUser.email === 'mastermind@gmail.com';
-      if(makeadmin)
-      {setIsAdmin(makeadmin)}
-      
+      if (makeadmin) { setIsAdmin(makeadmin) }
+
       if (snapshot.exists()) {
         userData = { ...snapshot.val(), id: userId };
 
@@ -137,23 +136,23 @@ export const GlobalStateProvider = ({ children }) => {
         userData = createNewUser(userId, loggedInUser);
         await set(userRef, userData);
       }
-  
+
       setUser(userData);
-  
+
       // 🔥 Refresh and update FCM token
       await Promise.all([registerForNotifications(userId), requestPermission()]);
-      
+
     } catch (error) {
       console.error("❌ Auth state change error:", error);
     }
   }, [appdatabase, resetUserState]); // ✅ Uses memoized resetUserState
-  
+
   // ✅ Ensure useEffect runs only when necessary
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, handleUserLogin);
     return () => unsubscribe();
   }, [auth, handleUserLogin]); // ✅ Dependencies are stable
-  
+
 
 
   const checkInternetConnection = async () => {
@@ -171,121 +170,121 @@ export const GlobalStateProvider = ({ children }) => {
       );
     }
   };
-  
+
   useEffect(() => {
 
     const lastActivity = localState.lastactivity ? new Date(localState.lastactivity).getTime() : 0;
     const now = Date.now();
     const THREE_HOURS = 36 * 60 * 60 * 1000; // 3 hours in milliseconds
-  
+
     if (now - lastActivity > THREE_HOURS) {
       updateLocalStateAndDatabase('lastactivity', new Date().toISOString());
 
     }
   }, []);
-  
- 
 
-const fetchStockData = async (refresh) => {
-  try {
-    setLoading(true);
 
-    // ✅ Check when `codes & data` were last fetched
-    const lastActivity = localState.lastActivity ? new Date(localState.lastActivity).getTime() : 0;
-    const now = Date.now();
-    const timeElapsed = now - lastActivity;
-    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000; // 24 hours in ms
 
-    // ✅ Fetch `codes & data` only if 24 hours have passed OR they are missing
-    const shouldFetchCodesData =
-      timeElapsed > TWENTY_FOUR_HOURS ||
-      !localState.codes ||
-      !Object.keys(localState.codes).length ||
-      !localState.data ||
-      !Object.keys(localState.data).length;
+  const fetchStockData = async (refresh) => {
+    try {
+      setLoading(true);
 
-    if (shouldFetchCodesData || refresh) {
-      // console.log("📌 Fetching codes & data from database...");
+      // ✅ Check when `codes & data` were last fetched
+      const lastActivity = localState.lastActivity ? new Date(localState.lastActivity).getTime() : 0;
+      const now = Date.now();
+      const timeElapsed = now - lastActivity;
+      const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000; // 24 hours in ms
 
-      const [xlsSnapshot, codeSnapShot] = await Promise.all([
-        get(ref(appdatabase, 'testing')),
-        get(ref(appdatabase, 'codes')),
+      // ✅ Fetch `codes & data` only if 24 hours have passed OR they are missing
+      const shouldFetchCodesData =
+        timeElapsed > TWENTY_FOUR_HOURS ||
+        !localState.codes ||
+        !Object.keys(localState.codes).length ||
+        !localState.data ||
+        !Object.keys(localState.data).length;
+
+      if (shouldFetchCodesData || refresh) {
+        // console.log("📌 Fetching codes & data from database...");
+
+        const [xlsSnapshot, codeSnapShot] = await Promise.all([
+          get(ref(appdatabase, 'testing')),
+          get(ref(appdatabase, 'codes')),
+        ]);
+
+        const codes = codeSnapShot.exists() ? codeSnapShot.val() : {};
+        const data = xlsSnapshot.exists() ? xlsSnapshot.val() : {};
+
+
+
+
+        // ✅ Store fetched data locally
+        await updateLocalState('codes', JSON.stringify(codes));
+        await updateLocalState('data', JSON.stringify(data));
+        // console.log(data)
+        // ✅ Update last fetch timestamp
+        await updateLocalState('lastActivity', new Date().toISOString());
+
+        // console.log("✅ Data updated successfully.");
+      } else {
+        // console.log("⏳ Using cached codes & data, no need to fetch.");
+      }
+
+      // ✅ Always fetch stock data (`calcData`) on app load
+      // console.log("📌 Fetching fresh stock data...");
+      const [calcSnapshot, preSnapshot] = await Promise.all([
+        get(ref(appdatabase, 'calcData')), // ✅ Always updated stock data
+        get(ref(appdatabase, 'previousStock')),
       ]);
 
-      const codes = codeSnapShot.exists() ? codeSnapShot.val() : {};
-      const data = xlsSnapshot.exists() ? xlsSnapshot.val() : {};
+      // ✅ Extract relevant stock data
+      const normalStock = calcSnapshot.exists() ? calcSnapshot.val()?.test || {} : {};
+      const mirageStock = calcSnapshot.exists() ? calcSnapshot.val()?.mirage || {} : {};
+      const prenormalStock = preSnapshot.exists() ? preSnapshot.val()?.normalStock || {} : {};
+      const premirageStock = preSnapshot.exists() ? preSnapshot.val()?.mirageStock || {} : {};
 
-     
-    
 
-      // ✅ Store fetched data locally
-      await updateLocalState('codes', JSON.stringify(codes));
-      await updateLocalState('data', JSON.stringify(data));
-// console.log(data)
-      // ✅ Update last fetch timestamp
-      await updateLocalState('lastActivity', new Date().toISOString());
+      // ✅ Store frequently updated stock data
+      await updateLocalState('normalStock', JSON.stringify(normalStock));
+      await updateLocalState('mirageStock', JSON.stringify(mirageStock));
+      await updateLocalState('prenormalStock', JSON.stringify(prenormalStock));
+      await updateLocalState('premirageStock', JSON.stringify(premirageStock));
+      await updateLocalState('isAppReady', true);
 
-      // console.log("✅ Data updated successfully.");
-    } else {
-      // console.log("⏳ Using cached codes & data, no need to fetch.");
+      // console.log("✅ Stock data processed and stored successfully.");
+    } catch (error) {
+      console.error("❌ Error fetching stock data:", error);
+    } finally {
+      setLoading(false);
     }
-
-    // ✅ Always fetch stock data (`calcData`) on app load
-    // console.log("📌 Fetching fresh stock data...");
-    const [calcSnapshot, preSnapshot] = await Promise.all([
-      get(ref(appdatabase, 'calcData')), // ✅ Always updated stock data
-      get(ref(appdatabase, 'previousStock')),
-    ]);
-
-    // ✅ Extract relevant stock data
-    const normalStock = calcSnapshot.exists() ? calcSnapshot.val()?.test || {} : {};
-    const mirageStock = calcSnapshot.exists() ? calcSnapshot.val()?.mirage || {} : {};
-    const prenormalStock = preSnapshot.exists() ? preSnapshot.val()?.normalStock || {} : {};
-    const premirageStock = preSnapshot.exists() ? preSnapshot.val()?.mirageStock || {} : {};
-   
-    
-    // ✅ Store frequently updated stock data
-    await updateLocalState('normalStock', JSON.stringify(normalStock));
-    await updateLocalState('mirageStock', JSON.stringify(mirageStock));
-    await updateLocalState('prenormalStock', JSON.stringify(prenormalStock));
-    await updateLocalState('premirageStock', JSON.stringify(premirageStock));
-    await updateLocalState('isAppReady', true);
-
-    // console.log("✅ Stock data processed and stored successfully.");
-  } catch (error) {
-    console.error("❌ Error fetching stock data:", error);
-  } finally {
-    setLoading(false);
-  }
-};
-
-
-// ✅ Run the function only if needed
-useEffect(() => {
-  fetchStockData();
-}, []);
-const reload = () => {
-  fetchStockData(true); 
-};
-
-useEffect(() => {
-  if (!user?.id) return;
-
-  // ✅ Mark user as online in local state & database
-  updateLocalStateAndDatabase('online', true);
-
-  // ✅ Ensure user is marked offline upon disconnection (only applies to Firebase)
-  const userOnlineRef = ref(appdatabase, `/users/${user.id}/online`);
-
-  onDisconnect(userOnlineRef)
-    .set(false)
-    .catch((error) => console.error("🔥 Error setting onDisconnect:", error));
-
-  return () => {
-    // ✅ Cleanup: Mark user offline when the app is closed
-    updateLocalStateAndDatabase('online', false);
   };
-}, [user?.id]);
+
+
+  // ✅ Run the function only if needed
+  useEffect(() => {
+    fetchStockData();
+  }, []);
+  const reload = () => {
+    fetchStockData(true);
+  };
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    // ✅ Mark user as online in local state & database
+    updateLocalStateAndDatabase('online', true);
+
+    // ✅ Ensure user is marked offline upon disconnection (only applies to Firebase)
+    const userOnlineRef = ref(appdatabase, `/users/${user.id}/online`);
+
+    onDisconnect(userOnlineRef)
+      .set(false)
+      .catch((error) => console.error("🔥 Error setting onDisconnect:", error));
+
+    return () => {
+      // ✅ Cleanup: Mark user offline when the app is closed
+      updateLocalStateAndDatabase('online', false);
+    };
+  }, [user?.id]);
 
 
 
@@ -298,15 +297,15 @@ useEffect(() => {
       theme,
       setUser,
       setOnlineMembersCount,
-      updateLocalStateAndDatabase, 
-      fetchStockData, 
-      loading, 
-      analytics, 
-      isAdmin, 
+      updateLocalStateAndDatabase,
+      fetchStockData,
+      loading,
+      analytics,
+      isAdmin,
       reload
     }),
     [user, onlineMembersCount, theme, fetchStockData, loading]
-  );  
+  );
 
   return (
     <GlobalStateContext.Provider value={contextValue}>

@@ -172,7 +172,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                         {includeProfitLoss && (
                             <View style={styles.tradeTotals}>
                                 <View style={styles.hasBackground}>
-                                    <Text style={[styles.priceText]}>YOU</Text>
+                                    <Text style={[styles.priceText]}>Has</Text>
                                     {includeValue && <Text style={[styles.priceText, { borderTopWidth: 1, borderTopColor: 'lightgrey' }]}>Has Value: {hasTotal.value.toLocaleString()}</Text>}
                                     {includePrice && <Text style={[styles.priceText]}>Has Price: {hasTotal.price.toLocaleString()}</Text>}
                                 </View>
@@ -190,7 +190,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                     </Text>
                                 </View>}
                                 <View style={styles.wantBackground}>
-                                    <Text style={[styles.priceText]}>Them</Text>
+                                    <Text style={[styles.priceText]}>Want</Text>
                                     {includeValue && <Text style={[styles.priceText, { borderTopWidth: 1, borderTopColor: 'lightgrey' }]}>Wants Value: {wantsTotal.value.toLocaleString()}</Text>}
                                     {includePrice && <Text style={[styles.priceText]}>Wants Price: {hasTotal.price.toLocaleString()}</Text>}
                                 </View>
@@ -430,13 +430,13 @@ StyleSheet.create({
     },
     footer: {
         flexDirection: 'row',
-        justifyContent: 'center',
+        justifyContent: 'flex-end',
         alignItems: 'center',
-        marginTop: 10,
+        // marginTop: 10,
     },
 
     footerText: {
-        fontSize: 14,
+        fontSize: 10,
         color: '#666',
         marginRight: 5,
         fontStyle: "italic"
