@@ -9,7 +9,6 @@ import { requestPermission } from './Helper/PermissionCheck';
 import { getAnalytics, logEvent, setAnalyticsCollectionEnabled } from '@react-native-firebase/analytics';
 import { Alert, Platform } from 'react-native';
 import config from './Helper/Environment';
-import { MMKV } from 'react-native-mmkv';
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const analytics = getAnalytics(app);
@@ -136,7 +135,7 @@ export const GlobalStateProvider = ({ children }) => {
         userData = createNewUser(userId, loggedInUser);
         await set(userRef, userData);
       }
-
+// console.log(userData, 'user')
       setUser(userData);
 
       // 🔥 Refresh and update FCM token
@@ -287,7 +286,7 @@ export const GlobalStateProvider = ({ children }) => {
     };
   }, [user?.id]);
 
-
+// console.log(user)
 
   const contextValue = useMemo(
     () => ({

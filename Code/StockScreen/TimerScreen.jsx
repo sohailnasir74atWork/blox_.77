@@ -443,9 +443,9 @@ const TimerScreen = ({ selectedTheme }) => {
 
 
             </View>
-            {/* <TouchableOpacity style={styles.preContrefresh} onPress={reload}>
+            <TouchableOpacity style={styles.preContrefresh} onPress={reload}>
               <Text style={styles.pre}>REFRESH</Text>
-            </TouchableOpacity> */}
+            </TouchableOpacity>
             <View style={styles.preCont}>
               <Text style={styles.pre}>  {t("stock.previous_stock")}</Text>
             </View>

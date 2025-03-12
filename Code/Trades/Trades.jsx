@@ -700,7 +700,7 @@ const TradeList = ({ route }) => {
     };
 
     return (
-      <View style={[styles.tradeItem, item.isFeatured && { backgroundColor: 'rgba(245, 222, 179, 0.6)' }]}>
+      <View style={[styles.tradeItem, item.isFeatured && { backgroundColor: isDarkMode  ?   config.colors.primary: 'rgba(245, 222, 179, 0.6)'  }]}>
         {item.isFeatured && <View style={styles.tag}></View>}
 
 

@@ -77,13 +77,24 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
         options={({ navigation }) => ({
           title: t('tabs.calculator'), // Translation applied here
           headerRight: () => (
+            <>
             <Icon
+              name="trophy-outline"
+              size={24}
+              color={selectedTheme.colors.text}
+              style={{ marginRight: 16 }}
+              onPress={() => navigation.navigate('Reward')}
+            />
+              <Icon
               name="settings-outline"
               size={24}
               color={selectedTheme.colors.text}
               style={{ marginRight: 16 }}
               onPress={() => navigation.navigate('Setting')}
             />
+            </>
+
+            
           ),
         })}
       >

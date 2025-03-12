@@ -26,6 +26,7 @@ import getAdUnitId from './Code/Ads/ads';
 import OnboardingScreen from './Code/AppHelper/OnBoardingScreen';
 import { useTranslation } from 'react-i18next';
 import FlashMessage from 'react-native-flash-message';
+import RewardCenterScreen from './Code/SettingScreen/RewardCenter';
 
 const Stack = createNativeStackNavigator();
 const adUnitId = getAdUnitId('openapp');
@@ -165,6 +166,16 @@ function App() {
           <Stack.Navigator>
             <Stack.Screen name="Home" options={{ headerShown: false }}>
               {() => <MainTabs selectedTheme={selectedTheme} setChatFocused={setChatFocused} chatFocused={chatFocused} setModalVisibleChatinfo={setModalVisibleChatinfo} modalVisibleChatinfo={modalVisibleChatinfo} />}
+            </Stack.Screen>
+            <Stack.Screen
+              name="Reward"
+              options={{
+                title: 'Reward Center',
+                headerStyle: { backgroundColor: selectedTheme.colors.background },
+                headerTintColor: selectedTheme.colors.text,
+              }}
+            >
+              {() => <RewardCenterScreen selectedTheme={selectedTheme} />}
             </Stack.Screen>
             <Stack.Screen
               name="Setting"

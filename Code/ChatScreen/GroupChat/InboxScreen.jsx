@@ -97,30 +97,36 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
 
 
   // console.log(chats)
-  const handleOpenChat = (chatId, otherUserId, otherUserName, otherUserAvatar,
-    // isOnline, 
-    // isBanned
-  ) => {
+  const handleOpenChat = async (chatId, otherUserId, otherUserName, otherUserAvatar) => {
     if (!user?.id) return;
-
-    // ✅ Update local state to reset unread count
-    setChats((prevChats) =>
-      prevChats.map((chat) =>
-        chat.chatId === chatId ? { ...chat, unreadCount: 0 } : chat
-      )
-    );
-
-    // ✅ Navigate to PrivateChat
-    navigation.navigate('PrivateChat', {
-      selectedUser: {
-        senderId: otherUserId,
-        sender: otherUserName,
-        avatar: otherUserAvatar,
-      },
-      // isOnline,
-      // isBanned,
-    });
+  
+    try {
+      // ✅ Check if user is online before navigating
+      // const online = await isUserOnline(otherUserId);
+      // console.log(online)
+  
+      // ✅ Update local state to reset unread count
+      setChats((prevChats) =>
+        prevChats.map((chat) =>
+          chat.chatId === chatId ? { ...chat, unreadCount: 0 } : chat
+        )
+      );
+  
+      // ✅ Navigate to PrivateChat with isOnline status
+      navigation.navigate('PrivateChat', {
+        selectedUser: {
+          senderId: otherUserId,
+          sender: otherUserName,
+          avatar: otherUserAvatar,
+        },
+        // online,
+      });
+  
+    } catch (error) {
+      console.error("Error checking online status:", error);
+    }
   };
+  
 
 
 

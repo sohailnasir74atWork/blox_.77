@@ -421,7 +421,7 @@ StyleSheet.create({
         borderWidth: !config.isNoman ? 1 : 0, // Optional: Add border for grid feel
         borderColor: '#ccc',
         borderRadius: 8,
-        backgroundColor: !config.isNoman ? config.colors.primary : '' 
+        backgroundColor: config.isNoman ? config.colors.primary : '' 
     },
     itemImage: {
         width: 50,

@@ -19,7 +19,7 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
 // console.log(bannedUsers)
 
 useEffect(() => {
-  if (selectedUser?.id) {
+  if (selectedUser?.senderId) {
     isUserOnline(selectedUser.senderId).then(setIsOnline).catch(() => setIsOnline(false));
   }
 }, [selectedUser?.id]);
