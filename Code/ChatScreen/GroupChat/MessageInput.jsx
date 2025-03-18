@@ -10,8 +10,9 @@ import { useTranslation } from 'react-i18next';
 import { useLocalState } from '../../LocalGlobelStats';
 
 const interstitialAdUnitId = getAdUnitId('interstitial');
-const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId);
-
+const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
+  requestNonPersonalizedAdsOnly: true
+});
 const MessageInput = ({
   input,
   setInput,

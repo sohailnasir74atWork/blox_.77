@@ -25,14 +25,15 @@ import { useHaptic } from '../../Helper/HepticFeedBack';
 import { useLocalState } from '../../LocalGlobelStats';
 import { ref } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
-import { logEvent } from '@react-native-firebase/analytics';
+import { mixpanel } from '../../AppHelper/MixPenel';
 leoProfanity.add(['hell', 'shit']);
 leoProfanity.loadDictionary('en');
 
 const bannerAdUnitId = getAdUnitId('banner');
 const interstitialAdUnitId = getAdUnitId('interstitial');
-const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId);
-
+const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
+  requestNonPersonalizedAdsOnly: true
+});
 
 const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatFocused,
   setModalVisibleChatinfo, unreadMessagesCount, fetchChats, unreadcount, setunreadcount }) => {
@@ -88,6 +89,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     showInterstitialAd(() => {
       toggleDrawer();
       navigation.navigate('PrivateChat', { selectedUser, selectedTheme });
+      mixpanel.track("Inbox Chat");
+
 
     })
 
@@ -277,6 +280,10 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     }
   };
 
+  const handleLoginSuccess = () => {
+    setIsSigninDrawerVisible(false);
+  };
+
   useEffect(() => {
     interstitial.load();
   
@@ -447,7 +454,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
               <TouchableOpacity
                 style={styles.login}
                 onPress={() => {
-                  setIsSigninDrawerVisible(true); triggerHapticFeedback('impactLight'); logEvent(analytics, `${platform}_signin_from_group_chat`);
+                  setIsSigninDrawerVisible(true); triggerHapticFeedback('impactLight'); 
                 }}
               >
                 <Text style={styles.loginText}>{t('misc.loginToStartChat')}</Text>
@@ -457,9 +464,10 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
           <SignInDrawer
             visible={isSigninDrawerVisible}
-            onClose={() => setIsSigninDrawerVisible(false)}
+            onClose={handleLoginSuccess}
             selectedTheme={selectedTheme}
             message={t('misc.loginRequired')}
+            screen='Chat'
 
           />
         </View>
@@ -481,6 +489,9 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
             size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
             onAdLoaded={() => setIsAdVisible(true)}
             onAdFailedToLoad={() => setIsAdVisible(false)}
+            requestOptions={{
+              requestNonPersonalizedAdsOnly: true,
+            }}
           />
         )}
       </View>}

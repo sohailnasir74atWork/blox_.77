@@ -6,16 +6,12 @@ import { getFirestore } from '@react-native-firebase/firestore';
 import { createNewUser, firebaseConfig, registerForNotifications } from './Globelhelper';
 import { useLocalState } from './LocalGlobelStats';
 import { requestPermission } from './Helper/PermissionCheck';
-import { getAnalytics, logEvent, setAnalyticsCollectionEnabled } from '@react-native-firebase/analytics';
-import { Alert, Platform } from 'react-native';
-import config from './Helper/Environment';
+import { Alert } from 'react-native';
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const analytics = getAnalytics(app);
 const firestoreDB = getFirestore(app);
 const appdatabase = getDatabase(app);
 const GlobalStateContext = createContext();
-setAnalyticsCollectionEnabled(analytics, true);
 
 
 // Custom hook to access global state
@@ -25,17 +21,6 @@ export const GlobalStateProvider = ({ children }) => {
   const { localState, updateLocalState } = useLocalState()
   const [theme, setTheme] = useState(localState.theme || 'light');
   const [isAdmin, setIsAdmin] = useState(false);
-
-
-
-
-  useEffect(() => {
-    const appOwner = config.isNoman ? "Noman" : "Waqas";
-    const platform = Platform.OS.toLowerCase();
-    logEvent(analytics, `${appOwner}_app_open`);
-    logEvent(analytics, `platform_${platform}`);
-  }, []);
-
   const [user, setUser] = useState({
     id: null,
     selectedFruits: [],
@@ -43,11 +28,13 @@ export const GlobalStateProvider = ({ children }) => {
     isSelectedReminderEnabled: false,
     displayName: '',
     avatar: null,
-    points: 0,
+    rewardPoints: 0,
     isBlock: false,
     fcmToken: null,
     lastactivity: null,
     online: false,
+    isPro:false
+
   });
 
   const [onlineMembersCount, setOnlineMembersCount] = useState(0);
@@ -102,11 +89,12 @@ export const GlobalStateProvider = ({ children }) => {
       isSelectedReminderEnabled: false,
       displayName: '',
       avatar: null,
-      points: 0,
+      rewardPoints: 0,
       isBlock: false,
       fcmToken: null,
       lastactivity: null,
       online: false,
+      isPro:false
     });
   }, []); // No dependencies, so it never re-creates
 
@@ -120,16 +108,20 @@ export const GlobalStateProvider = ({ children }) => {
       const userId = loggedInUser.uid;
       const userRef = ref(appdatabase, `users/${userId}`);
 
+      // console.log(snapshot, userId, 'userData', userRef)
 
       // 🔄 Fetch user data
       const snapshot = await get(userRef);
       let userData;
+
       // console.log(loggedInUser.email)
       const makeadmin = loggedInUser.email === 'thesolanalabs@gmail.com' || loggedInUser.email === 'mastermind@gmail.com';
       if (makeadmin) { setIsAdmin(makeadmin) }
 
       if (snapshot.exists()) {
         userData = { ...snapshot.val(), id: userId };
+        // console.log(userData, 'userData')
+
 
       } else {
         userData = createNewUser(userId, loggedInUser);
@@ -152,7 +144,22 @@ export const GlobalStateProvider = ({ children }) => {
     return () => unsubscribe();
   }, [auth, handleUserLogin]); // ✅ Dependencies are stable
 
-
+  const updateUserProStatus = () => {
+    if (!user?.id) {
+      // console.error("User ID or database instance is missing!");
+      return;
+    }
+  
+    const userIsProRef = ref(appdatabase, `/users/${user?.id}/isPro`);
+  
+    set(userIsProRef, localState?.isPro)
+      .then(() => {
+        // console.log("User online status updated to true");
+      })
+      .catch((error) => {
+        console.error("Error updating online status:", error);
+      });
+  };
 
   const checkInternetConnection = async () => {
     try {
@@ -170,6 +177,10 @@ export const GlobalStateProvider = ({ children }) => {
     }
   };
 
+  useEffect(()=>{
+    updateUserProStatus()
+  }, [user.id, localState.isPro])
+
   useEffect(() => {
 
     const lastActivity = localState.lastactivity ? new Date(localState.lastactivity).getTime() : 0;
@@ -180,7 +191,7 @@ export const GlobalStateProvider = ({ children }) => {
       updateLocalStateAndDatabase('lastactivity', new Date().toISOString());
 
     }
-  }, []);
+  }, [localState.lastactivity]);
 
 
 
@@ -207,7 +218,7 @@ export const GlobalStateProvider = ({ children }) => {
         // console.log("📌 Fetching codes & data from database...");
 
         const [xlsSnapshot, codeSnapShot] = await Promise.all([
-          get(ref(appdatabase, 'testing')),
+          get(ref(appdatabase, 'fruit_data')),
           get(ref(appdatabase, 'codes')),
         ]);
 
@@ -257,7 +268,7 @@ export const GlobalStateProvider = ({ children }) => {
       setLoading(false);
     }
   };
-// console.log(isAdmin)
+// console.log(user)
 
   // ✅ Run the function only if needed
   useEffect(() => {
@@ -300,7 +311,6 @@ export const GlobalStateProvider = ({ children }) => {
       updateLocalStateAndDatabase,
       fetchStockData,
       loading,
-      analytics,
       isAdmin,
       reload
     }),

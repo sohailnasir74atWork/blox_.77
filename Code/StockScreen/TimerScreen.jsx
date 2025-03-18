@@ -13,14 +13,15 @@ import { useLocalState } from '../LocalGlobelStats';
 import { requestPermission } from '../Helper/PermissionCheck';
 import { useIsFocused } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { logEvent } from '@react-native-firebase/analytics';
 import  { showMessage } from 'react-native-flash-message';
 import MyNativeAdComponent from '../Ads/NativAds';
+import { mixpanel } from '../AppHelper/MixPenel';
 
 const bannerAdUnitId = getAdUnitId('banner');
 const interstitialAdUnitId = getAdUnitId('interstitial');
-const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId);
-
+const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
+  requestNonPersonalizedAdsOnly: true
+});
 const TimerScreen = ({ selectedTheme }) => {
   const { user, updateLocalStateAndDatabase, theme, fetchStockData, analytics, reload } = useGlobalState();
   const [hasAdBeenShown, setHasAdBeenShown] = useState(false);
@@ -83,15 +84,20 @@ const TimerScreen = ({ selectedTheme }) => {
     }
 
   }
+
+  const handleLoginSuccess = () => {
+    setisSigninDrawerVisible(false);
+  };
+
   const closeDrawer = () => setDrawerVisible(false);
-  const closeDrawerSignin = () => setisSigninDrawerVisible(false);
 
   const handleFruitSelect = async (fruit) => {
     triggerHapticFeedback('impactLight');
-    logEvent(analytics, `${platform}_select_fruit`);
 
     const selectedFruits = user.selectedFruits || []; // Ensure `selectedFruits` is always an array
-    const isAlreadySelected = selectedFruits.some((item) => item.Name === fruit.Name);
+    const isAlreadySelected = selectedFruits.some((item) => item.name === fruit.name);
+    mixpanel.track("Select Fruit", {fruit:fruit.name});
+
 
     // ✅ Prevent duplicate selection
     if (isAlreadySelected) {
@@ -131,7 +137,6 @@ const TimerScreen = ({ selectedTheme }) => {
 
 
   const handleRefresh = async () => {
-    logEvent(analytics, `${platform}_stock_refresh`);
     setRefreshing(true);
     try {
       await reload(); // Re-fetch stock data
@@ -147,7 +152,7 @@ const TimerScreen = ({ selectedTheme }) => {
     const selectedFruits = user.selectedFruits || []; // Ensure `selectedFruits` is always an array
 
     // Remove the selected fruit and update state/database
-    const updatedFruits = selectedFruits.filter((item) => item.Name !== fruit.Name);
+    const updatedFruits = selectedFruits.filter((item) => item.name !== fruit.name);
     updateLocalStateAndDatabase('selectedFruits', updatedFruits);
   };
 
@@ -167,7 +172,6 @@ const TimerScreen = ({ selectedTheme }) => {
         setisSigninDrawerVisible(true);
       } else {
         const currentValue = user.isReminderEnabled;
-        logEvent(analytics, `${platform}_toggle_switch_stock_notifier`);
 
 
         // Optimistically update the UI
@@ -190,7 +194,6 @@ const TimerScreen = ({ selectedTheme }) => {
         const currentValue = user.isSelectedReminderEnabled;
         // Optimistically update the UI
         updateLocalStateAndDatabase('isSelectedReminderEnabled', !currentValue);
-        logEvent(analytics, `${platform}_toggle_switch_selected_fruit_notifier`);
       }
     } catch (error) {
       // console.error('Error handling notification permission or sign-in:', error);
@@ -303,7 +306,6 @@ const TimerScreen = ({ selectedTheme }) => {
     };
   }, []);
   
-
   const showInterstitialAd = useCallback((callback) => {
     if (isAdLoaded && !isShowingAd && !localState.isPro) {
       setIsShowingAd(true);
@@ -372,16 +374,16 @@ const TimerScreen = ({ selectedTheme }) => {
             </View>
             <View style={styles.listContentSelected}>
               {user.selectedFruits?.map((item) => (
-                <View key={item.Name} style={styles.selectedContainer}>
+                <View key={item.name || item.Name} style={styles.selectedContainer}>
                   <Image
                     source={{
-                      uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${item.Name
-                        .replace(/^\+/, '')
+                      uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${item.name?.replace(/^\+/, '')
+                        .replace(/\s+/g, '-') || item.Name?.replace(/^\+/, '')
                         .replace(/\s+/g, '-')}_Icon.webp`,
                     }}
                     style={styles.iconselected}
                   />
-                  <Text style={[styles.fruitText, { color: selectedTheme.colors.text }]}>{item.Name}</Text>
+                  <Text style={[styles.fruitText, { color: selectedTheme.colors.text }]}>{item.name || item.Name}</Text>
                   <TouchableOpacity onPress={() => handleRemoveFruit(item)}>
                     <Icon name="close-circle" size={24} color={config.colors.wantBlockRed} style={styles.closeIcon} />
                   </TouchableOpacity>
@@ -443,7 +445,7 @@ const TimerScreen = ({ selectedTheme }) => {
 
 
             </View>
-            <TouchableOpacity style={styles.preContrefresh} onPress={reload}>
+            <TouchableOpacity style={styles.preContrefresh} onPress={handleRefresh}>
               <Text style={styles.pre}>REFRESH</Text>
             </TouchableOpacity>
             <View style={styles.preCont}>
@@ -501,9 +503,10 @@ const TimerScreen = ({ selectedTheme }) => {
 
             <SigninDrawer
               visible={isSigninDrawerVisible}
-              onClose={closeDrawerSignin}
+              onClose={handleLoginSuccess}
               selectedTheme={selectedTheme}
               message={t("stock.signin_required_message")}
+               screen='Stock'
             />
           </ScrollView>
         </View>
@@ -518,6 +521,9 @@ const TimerScreen = ({ selectedTheme }) => {
             size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
             onAdLoaded={() => setIsAdVisible(true)}
             onAdFailedToLoad={() => setIsAdVisible(false)}
+            requestOptions={{
+              requestNonPersonalizedAdsOnly: true,
+            }}
           />
         )}
       </View>}

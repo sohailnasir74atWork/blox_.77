@@ -20,10 +20,11 @@ import { useGlobalState } from '../GlobelStats';
 import ConditionalKeyboardWrapper from '../Helper/keyboardAvoidingContainer';
 import { useTranslation } from 'react-i18next';
 import { showMessage } from 'react-native-flash-message';
+import { mixpanel } from '../AppHelper/MixPenel';
 
 
 
-const SignInDrawer = ({ visible, onClose, selectedTheme, message }) => {
+const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isRegisterMode, setIsRegisterMode] = useState(false);
@@ -69,6 +70,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message }) => {
             await auth().signInWithCredential(auth.AppleAuthProvider.credential(identityToken, nonce));
             showMessage({ message: t("home.alert.success"), description: t("signin.success_signin"), type: "success" });
             onClose();
+            mixpanel.track(`Login with apple from ${screen}`);
         } catch (error) {
             showMessage({ message: t("home.alert.error"), description: error?.message || t("signin.error_signin_message"), type: "danger" });
         }
@@ -108,6 +110,8 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message }) => {
                 // Handle user registration
                 await auth().createUserWithEmailAndPassword(email, password);
                 // Alert.alert(t("signin.alert_success"), t("signin.alert_account_created"));
+                mixpanel.track(`Login with email from ${screen}`);
+
                 showMessage({
                     message: t("home.alert.success"),
                     description:t("signin.alert_account_created"),
@@ -116,6 +120,8 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message }) => {
             } else {
                 // Handle user login
                 await auth().signInWithEmailAndPassword(email, password);
+                mixpanel.track(`Login with email from ${screen}`);
+
                 // Alert.alert(t("signin.alert_welcome_back"), t("signin.success_signin"));
                 showMessage({
                     message: t("signin.alert_welcome_back"),
@@ -166,6 +172,8 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message }) => {
             await auth().signInWithCredential(auth.GoogleAuthProvider.credential(idToken));
             showMessage({ message: t("signin.alert_welcome_back"), description: t("signin.success_signin"), type: "success" });
             onClose();
+            mixpanel.track(`Login with google from ${screen}`);
+
         } catch (error) {
             showMessage({ message: t("home.alert.error"), description: error?.message || t("signin.error_signin_message"), type: "danger" });
         } finally {
@@ -233,7 +241,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message }) => {
     
                     <TouchableOpacity
                         style={styles.googleButton}
-                        onPress={handleGoogleSignIn}
+                        onPress={() => handleGoogleSignIn()}
                         disabled={isLoading}
                     >
                         {isLoading ? (

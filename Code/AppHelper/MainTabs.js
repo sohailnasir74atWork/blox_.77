@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback } from 'react';
-import { Animated } from 'react-native';
+import { Animated, Image, TouchableOpacity } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Ionicons';
 import HomeScreen from '../Homescreen/HomeScreen';
@@ -35,7 +35,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
 
   const getTabIcon = useCallback((routeName, focused) => {
     const isNoman = config.isNoman; // ✅ Extracted to avoid repeated checks
-  
+
     const icons = {
       Calculator: isNoman ? ['home', 'home-outline'] : ['calculator', 'calculator-outline'],
       Values: isNoman ? ['trending-up', 'trending-up-outline'] : ['pricetags', 'pricetags-outline'],
@@ -43,10 +43,10 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
       Chat: isNoman ? ['chatbubble-ellipses', 'chatbubble-ellipses-outline'] : ['chatbubbles', 'chatbubbles-outline'],
       Trade: isNoman ? ['storefront', 'storefront-outline'] : ['cog', 'cog-outline'],
     };
-  
+
     return icons[routeName] ? (focused ? icons[routeName][0] : icons[routeName][1]) : 'alert-circle-outline';
   }, []);
-  
+
 
   return (
     <Tab.Navigator
@@ -78,23 +78,22 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
           title: t('tabs.calculator'), // Translation applied here
           headerRight: () => (
             <>
-            <Icon
-              name="trophy-outline"
-              size={24}
-              color={selectedTheme.colors.text}
-              style={{ marginRight: 16 }}
-              onPress={() => navigation.navigate('Reward')}
-            />
+              <TouchableOpacity onPress={() => navigation.navigate('Reward')}>
+                <Image
+                  source={require('../../assets/trophy.webp')} // ✅ Ensure the correct path
+                  style={{ width: 20, height: 20, marginRight: 16 }}
+                />
+              </TouchableOpacity>
               <Icon
-              name="settings-outline"
-              size={24}
-              color={selectedTheme.colors.text}
-              style={{ marginRight: 16 }}
-              onPress={() => navigation.navigate('Setting')}
-            />
+                name="settings-outline"
+                size={24}
+                color={selectedTheme.colors.text}
+                style={{ marginRight: 16 }}
+                onPress={() => navigation.navigate('Setting')}
+              />
             </>
 
-            
+
           ),
         })}
       >

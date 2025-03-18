@@ -19,7 +19,6 @@ import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { rulesde, rulesen, rulesfil, rulesfr, rulesid, rulespt, rulesru, rulesvi } from '../utils';
 import i18n from '../../../i18n';
-import { logEvent } from '@react-native-firebase/analytics';
 
 const AdminHeader = ({
   selectedTheme,
@@ -81,7 +80,7 @@ const AdminHeader = ({
                 color={selectedTheme.colors.text}
                 style={styles.icon2}
                 onPress={() => {
-                  navigation.navigate('Inbox'); triggerHapticFeedback('impactLight'); setunreadcount(0); logEvent(analytics, `${platform}_nav_to_inbox_from_group_chat`);
+                  navigation.navigate('Inbox'); triggerHapticFeedback('impactLight'); setunreadcount(0); 
                 }}
               />
               {unreadcount > 0 && (

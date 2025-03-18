@@ -5,40 +5,31 @@ import { useGlobalState } from '../GlobelStats';
 import SignInDrawer from '../Firebase/SigninDrawer';
 import { useLocalState } from '../LocalGlobelStats';
 import SubscriptionScreen from './OfferWall';
-import { ref } from '@react-native-firebase/database';
+import { get, push, ref, set } from '@react-native-firebase/database';
 import { GestureHandlerRootView, TextInput } from 'react-native-gesture-handler';
-import  { showMessage } from 'react-native-flash-message';
-import Icon from 'react-native-vector-icons/Ionicons';
+import { showMessage } from 'react-native-flash-message';
+import RewardedAdComponent from './RewardScreens/RewardedAd';
+import UserProfileSection from './RewardScreens/RewardProfile';
+import PointsSlotsSection from './RewardScreens/RewardPointSlot';
+import CountdownTimer from './RewardScreens/RewardTimer';
+import { getStyles } from './RewardScreens/rewardstyle'
 
-
-// Countdown Timer
-// const targetDate = new Date();
-// targetDate.setMonth(targetDate.getMonth() + 1);
-// targetDate.setDate(1);
-// targetDate.setHours(0, 0, 0, 0);
 
 const RewardCenterScreen = ({ selectedTheme }) => {
-    const [countdown, setCountdown] = useState('');
-    const { user, appdatabase, isAdmin } = useGlobalState();
+    const { user, appdatabase, isAdmin, theme, updateLocalStateAndDatabase } = useGlobalState();
     const currentUser = user || null;  // Ensures user is properly handled
     const [openSingnin, setOpenSignin] = useState(false);
     const [showOfferWall, setShowofferWall] = useState(false);
-    const { localState } = useLocalState()
     const [isClaimModalVisible, setIsClaimModalVisible] = useState(false);
     const [targetDate, setTargetDate] = useState(null); // Store target date from Firebase
     const [email, setEmail] = useState('');
     const [robloxId, setRobloxId] = useState('');
     const [latestWinner, setLatestWinner] = useState();
-
-    const [prize, setPrize] = useState({
-        name: 'Robux',
-        value: '1000',
-        image: 'https://bloxfruitsvalues.com/_next/image?url=%2F_next%2Fstatic%2Fmedia%2FRobux.8647bbaa.webp&w=48&q=75',
-    });
+    const [prize, setPrize] = useState();
     const [previousWinners, setPreviousWinners] = useState([]);
     const [isAdminModalVisible, setIsAdminModalVisible] = useState(false);
     const [isAdminPrizeModalVisible, setIsAdminPrizeModalVisible] = useState(false);
-    const [nextTargetDate, setNextTargetDate] = useState(new Date().toISOString().split('T')[0]); // Default Today
+    const [nextTargetDate, setNextTargetDate] = useState(new Date().toISOString().split('T')[0]);
     const [prizeName, setPrizeName] = useState('');
     const [prizeValue, setPrizeValue] = useState('');
     const [prizeImage, setPrizeImage] = useState('');
@@ -46,6 +37,300 @@ const RewardCenterScreen = ({ selectedTheme }) => {
     const [winnerId, setWinnerId] = useState('');
     const [winnerPrize, setWinnerPrize] = useState('');
     const [winnerDate, setWinnerDate] = useState(new Date().toISOString().split('T')[0]);
+    const isDarkMode = theme === 'dark';
+    const styles = useMemo(() => getStyles(isDarkMode, config), [isDarkMode]);
+    const [showEnrollOptions, setShowEnrollOptions] = useState(false);
+    const [activeSlots, setActiveSlots] = useState(0); // Track number of active slots
+    const [userPoints, setUserPoints] = useState(user?.rewardPoints || 0);
+    const [isAdsDrawerVisible, setIsAdsDrawerVisible] = useState(false);
+    const [isLoading, setIsLoading] = useState(false); // Loader state
+    const [winnerAvatar, setWinnerAvatar] = useState(''); // Loader state
+    const { locatState } = useLocalState()
+    const [hasClaimed, setHasClaimed] = useState(false);
+
+
+
+    // 🔥 Trigger Ad Modal
+    const handleGetPoints = () => {
+        if (!user?.id) {
+            setOpenSignin(true); // Ensure user is logged in
+        } else {
+            setIsAdsDrawerVisible(true);
+            // rewarded.load(); // Load the ad
+        }
+    };
+
+    const [activeTab, setActiveTab] = useState('winners'); // Default tab
+    const [leaderboardData, setLeaderboardData] = useState([]); // Mock leaderboard data
+
+    useEffect(() => {
+        const fetchLeaderboardData = async () => {
+            try {
+                const leaderboardRef = ref(appdatabase, 'leader_board');
+                const snapshot = await get(leaderboardRef);
+
+                if (!snapshot.exists()) {
+                    setLeaderboardData([]);
+                    return;
+                }
+
+                const leaderboardData = snapshot.val();
+
+                // Ensure leaderboardData is an array and limit to top 10
+                if (Array.isArray(leaderboardData)) {
+                    setLeaderboardData(leaderboardData.slice(0, 10)); // Get top 10
+                } else {
+                    // console.error("Unexpected leaderboard data format:", leaderboardData);
+                    setLeaderboardData([]);
+                }
+            } catch (error) {
+                console.error("Error fetching leaderboard data:", error);
+                setLeaderboardData([]);
+            }
+        };
+
+        fetchLeaderboardData();
+    }, []);
+
+
+
+    useEffect(() => {
+        const prizeRef = ref(appdatabase, 'prize');
+
+        const fetchPrize = async () => {
+            try {
+                const snapshot = await get(prizeRef);
+                if (snapshot.exists()) {
+                    const data = snapshot.val();
+                    setPrize(data);
+                    if (data.targetDate) {
+                        setTargetDate(new Date(data.targetDate)); // Ensure proper date conversion
+                    }
+                }
+            } catch (error) {
+                console.error("Error fetching prize:", error);
+            }
+        };
+
+        // Fetch data once when the component mounts
+        fetchPrize();
+
+        // Listen for real-time updates
+        const unsubscribe = prizeRef.on('value', (snapshot) => {
+            if (snapshot.exists()) {
+                const data = snapshot.val();
+                setPrize(data);
+                if (data.targetDate) {
+                    setTargetDate(new Date(data.targetDate));
+                }
+            }
+        });
+
+        // Cleanup function to remove the listener on unmount
+        return () => prizeRef.off('value');
+
+    }, [appdatabase]);
+
+
+    useEffect(() => {
+        const fetchWinners = async () => {
+            try {
+                const winnersRef = ref(appdatabase, 'winners');
+                const snapshot = await get(winnersRef);
+
+                if (snapshot.exists()) {
+                    const data = snapshot.val();
+                    const winnersArray = Object.keys(data).map((key) => ({
+                        id: key,
+                        ...data[key],
+                    }));
+
+                    winnersArray.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                    // Update latest winner and previous winners
+                    if (winnersArray.length > 0) {
+                        setLatestWinner(winnersArray[0]); // Most recent winner
+                        setPreviousWinners(winnersArray.slice(1)); // Others
+                    }
+                }
+            } catch (error) {
+                console.error("Error fetching winners:", error);
+            }
+        };
+
+        fetchWinners();
+    }, [appdatabase]);
+
+    useEffect(() => {
+        if (!user?.id) return;
+
+        const enrollRef = ref(appdatabase, `/enrole/${user.id}`);
+
+        const fetchActiveSlots = async () => {
+            try {
+                const snapshot = await get(enrollRef);
+                if (snapshot.exists()) {
+                    const activeSlotsCount = Object.values(snapshot.val()).length;
+                    setActiveSlots(activeSlotsCount);
+                } else {
+                    setActiveSlots(0);
+                }
+            } catch (error) {
+                console.error("Error fetching active slots:", error);
+            }
+        };
+
+        fetchActiveSlots();
+
+        // Re-fetch whenever user enrolls or points change
+    }, [user?.id, userPoints, locatState?.isPro]);
+    useEffect(() => { if (locatState?.isPro && user.id) { setActiveSlots(2) } }, [locatState?.isPro])
+
+    const handleBuySlot = async () => {
+        if (!user || !user.id) {
+            showMessage({ message: "Error", description: "You must be logged in to participate!", type: "danger" });
+            return;
+        }
+
+        const userRef = ref(appdatabase, `/users/${user.id}/rewardPoints`);
+        const enrollRef = ref(appdatabase, `/enrole/${user.id}`);
+
+        setIsLoading(true); // 🔥 Start loading
+
+        try {
+            // 🔴 Fetch latest reward points to avoid stale data
+            const pointsSnapshot = await get(userRef);
+            const currentPoints = pointsSnapshot.exists() ? pointsSnapshot.val() : 0;
+
+            if (currentPoints < 2500) {
+                showMessage({
+                    message: "Insufficient Points",
+                    description: "You need at least 2500 reward points to buy a slot.",
+                    type: "danger",
+                });
+                setIsLoading(false); // 🛑 Stop loading
+                return;
+            }
+
+            // 🔴 Fetch current slot count to ensure limit enforcement
+            const slotSnapshot = await get(enrollRef);
+            const currentSlotCount = slotSnapshot.exists() ? Object.keys(slotSnapshot.val()).length : 0;
+
+            if (currentSlotCount >= 2) {
+                showMessage({
+                    message: "Max Slot Limit Reached",
+                    description: "You cannot have more than 2 slots for this prize!",
+                    type: "warning",
+                });
+                setIsLoading(false); // 🛑 Stop loading
+                setShowEnrollOptions(false);
+                return;
+            }
+
+            if (user.isPro) {
+                showMessage({
+                    message: "Pro Members Auto-Enrolled",
+                    description: "Pro users already have 2 slots allocated and cannot purchase more.",
+                    type: "warning",
+                });
+                setIsLoading(false); // 🛑 Stop loading
+                setShowEnrollOptions(false);
+                return;
+            }
+
+            // 🔴 Deduct points and update Firebase
+            const newPoints = currentPoints - 2500;
+            await set(userRef, newPoints);
+
+            // 🔴 Add a new slot under `enrole`
+            const slotRef = push(enrollRef);
+            await set(slotRef, {
+                enrolledAt: new Date().toISOString(),
+            });
+
+            // 🔴 Fetch updated slot count to ensure UI sync
+            const updatedSlotSnapshot = await get(enrollRef);
+            const updatedSlotCount = updatedSlotSnapshot.exists() ? Object.keys(updatedSlotSnapshot.val()).length : 0;
+
+            // ✅ Update local state after Firebase updates
+            setUserPoints(newPoints);
+            setActiveSlots(updatedSlotCount);
+
+            showMessage({
+                message: "Success",
+                description: "You have successfully enrolled in this draw!",
+                type: "success",
+            });
+
+            setShowEnrollOptions(false);
+        } catch (error) {
+            console.error("Error enrolling user:", error);
+            showMessage({ message: "Error", description: "Something went wrong!", type: "danger" });
+
+            // 🔴 Rollback points in UI if something goes wrong
+            const latestPoints = await get(userRef);
+            setUserPoints(latestPoints.exists() ? latestPoints.val() : userPoints);
+        } finally {
+            setIsLoading(false); // 🔥 Stop loading
+        }
+    };
+
+
+    useEffect(() => {
+        if (!user?.id) return;
+
+        const userRef = ref(appdatabase, `/users/${user.id}/rewardPoints`);
+
+        const syncUserPoints = async () => {
+            try {
+                const snapshot = await get(userRef);
+                if (snapshot.exists()) {
+                    setUserPoints(snapshot.val());
+                }
+            } catch (error) {
+                console.error("Error fetching user points:", error);
+            }
+        };
+
+        syncUserPoints();
+
+        // Listen for real-time changes
+        const unsubscribe = userRef.on('value', (snapshot) => {
+            if (snapshot.exists()) {
+                setUserPoints(snapshot.val());
+            }
+        });
+
+        return () => userRef.off('value', unsubscribe);
+    }, [user?.id]);
+
+
+
+    const handleEnrole = () => {
+        if (!user || !user.id) {
+            showMessage({ message: "Error", description: "You must be logged in to participate!", type: "danger" });
+            return;
+        }
+        if (!user.isPro && activeSlots === 2) {
+            showMessage({
+                message: "Max Slot Limit Reached",
+                description: "You cannot have more than 2 slots for this prize!",
+                type: "warning",
+            });
+            return
+        }
+
+
+        if (!user.isPro) {
+            setShowEnrollOptions(true);
+        } else {
+            showMessage({
+                message: "Max Slot Limit Reached",
+                description: "You cannot have more than 2 slots for this prize!",
+                type: "warning",
+            });
+        }
+    };
 
     const handleSubmitWinner = async () => {
         if (!winnerName || !winnerId || !winnerPrize || !winnerDate) {
@@ -60,12 +345,18 @@ const RewardCenterScreen = ({ selectedTheme }) => {
 
         try {
             // Save the winner to Firebase
+
+
+
+
             const winnerRef = ref(appdatabase, `winners/${winnerId}`);
             await winnerRef.set({
                 id: winnerId,
                 name: winnerName,
                 prize: winnerPrize,
                 date: winnerDate,
+                image: winnerAvatar,
+
             });
 
             // alert("Winner submitted successfully!");
@@ -90,15 +381,19 @@ const RewardCenterScreen = ({ selectedTheme }) => {
         }
     };
 
+    const handleLoginSuccess = () => {
+        setOpenSignin(false);
+    };
+
     const handleSubmitPrize = async () => {
-        // if (!nextTargetDate || !prizeName || !prizeValue || !prizeImage) {
-        //     showMessage({
-        //         message: 'Error',
-        //         description: 'All fields are required!',
-        //         type: "danger",
-        //     });
-        //     return;
-        // }
+        if (!nextTargetDate || !prizeName || !prizeValue || !prizeImage) {
+            showMessage({
+                message: 'Error',
+                description: 'All fields are required!',
+                type: "danger",
+            });
+            return;
+        }
 
         try {
             // Update Prize Information
@@ -132,23 +427,27 @@ const RewardCenterScreen = ({ selectedTheme }) => {
     };
 
 
-    const handleEnrole = () => {
-        if (!localState.isPro) {
-            setShowofferWall(true)
-        } else
-            console.log('user is pro')
-    }
     const handleClaimReward = () => {
         setIsClaimModalVisible(true);
     };
 
     // Function to submit claim
     const submitClaim = async () => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; // Basic email validation regex
+
         if (!email || !robloxId) {
-            // Alert.alert('Error', 'Please fill all fields!');
             showMessage({
                 message: 'Error',
                 description: 'Please fill all fields!',
+                type: "danger",
+            });
+            return;
+        }
+
+        if (!emailRegex.test(email)) {
+            showMessage({
+                message: 'Invalid Email',
+                description: 'Please enter a valid email address!',
                 type: "danger",
             });
             return;
@@ -163,182 +462,59 @@ const RewardCenterScreen = ({ selectedTheme }) => {
                 date: new Date().toISOString(),
             });
 
-            // Alert.alert('Success', 'Your reward claim has been submitted!');
+            // Show success message
             showMessage({
                 message: 'Success',
                 description: 'Your reward claim has been submitted!',
                 type: "success",
             });
+
+            // ✅ Close modal and clear fields
             setIsClaimModalVisible(false);
             setEmail('');
             setRobloxId('');
+
+            // ✅ Immediately update UI to show "Claimed"
+            setHasClaimed(true);
+
         } catch (error) {
             showMessage({
                 message: 'Error',
-                description: '"Something went wrong!',
+                description: 'Something went wrong!',
                 type: "danger",
             });
         }
     };
 
 
-    useEffect(() => {
-        if (!targetDate) return;
-
-        const interval = setInterval(() => {
-            const now = new Date();
-            const timeDiff = targetDate - now;
-
-            if (timeDiff > 0) {
-                const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
-                const hours = Math.floor((timeDiff / (1000 * 60 * 60)) % 24);
-                const minutes = Math.floor((timeDiff / (1000 * 60)) % 60);
-                const seconds = Math.floor((timeDiff / 1000) % 60);
-
-                // Ensure two-digit formatting for all values
-                const formatNumber = (num) => String(num).padStart(2, '0');
-
-                setCountdown(`${formatNumber(days)} : ${formatNumber(hours)} : ${formatNumber(minutes)} : ${formatNumber(seconds)} Hrs`);
-            } else {
-                setCountdown('Announcing soon...');
-            }
-        }, 1000);
-
-        return () => clearInterval(interval);
-    }, [targetDate]); // Runs whenever targetDate updates
-
-    useEffect(() => {
-        const prizeRef = ref(appdatabase, 'prize');
-
-        prizeRef.on('value', (snapshot) => {
-            if (snapshot.exists()) {
-                const data = snapshot.val();
-                setPrize(data);
-                if (data.targetDate) {
-                    setTargetDate(new Date(data.targetDate)); // Convert to Date object
-                }
-            }
-        });
-
-        return () => prizeRef.off(); // Cleanup listener on unmount
-    }, [appdatabase]);
-
-
-    useEffect(() => {
-        const prizeRef = ref(appdatabase, 'prize');
-
-        const fetchPrize = async () => {
-            try {
-                prizeRef.on('value', (snapshot) => {
-                    if (snapshot.exists()) {
-                        setPrize(snapshot.val());
-                    }
-                });
-            } catch (error) {
-                console.error("Error fetching prize:", error);
-            }
-        };
-
-        fetchPrize();
-
-        return () => prizeRef.off(); // Cleanup on unmount
-    }, [appdatabase]);
-
-    console.log(user.id, Platform.OS)
-
-    useEffect(() => {
-        const winnersRef = ref(appdatabase, 'winners');
-
-        const fetchWinners = async () => {
-            try {
-                winnersRef.on('value', (snapshot) => {
-                    if (snapshot.exists()) {
-                        const data = snapshot.val();
-                        const winnersArray = Object.keys(data).map((key) => ({
-                            id: key,
-                            ...data[key],
-                        }));
-
-                        winnersArray.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-                        // Update latest winner and previous winners
-                        if (winnersArray.length > 0) {
-                            setLatestWinner(winnersArray[0]); // Most recent winner
-                            setPreviousWinners(winnersArray.slice(1)); // Others
-                        }
-                    }
-                });
-            } catch (error) {
-                console.error("Error fetching winners:", error);
-            }
-        };
-
-        fetchWinners();
-        return () => winnersRef.off();
-    }, [appdatabase]);
-    useEffect(() => {
-        const prizeRef = ref(appdatabase, 'prize');
-
-        prizeRef.on('value', (snapshot) => {
-            if (snapshot.exists()) {
-                const data = snapshot.val();
-                setPrize(data);
-                if (data.nextTargetDate) {
-                    setNextTargetDate(data.nextTargetDate);
-                }
-            }
-        });
-
-        return () => prizeRef.off();
-    }, [appdatabase]);
-
-
-console.log(currentUser)
 
     return (
         <GestureHandlerRootView>
             <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
 
                 {/* User Profile Section */}
-                <View style={styles.userSection}>
-    <Image
-        source={{ uri: currentUser?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/placeholder.png' }}
-        style={styles.profilePic}
-    />
-    <TouchableOpacity style={{ flex: 1 }} disabled={currentUser.id !== null} onPress={() => setOpenSignin(true)}>
-        <Text style={currentUser?.id ? styles.userName : styles.userNameLogout}>
-            {currentUser?.id ? currentUser?.displayName || 'Anonymous' : 'Login / Register'}
-            {currentUser?.id && localState.isPro && (
-                <Icon name="checkmark-done-circle" size={16} color={config.colors.hasBlockGreen} />
-            )}
-        </Text>
-        <Text style={styles.userStatus}>
-            {!currentUser?.id
-                ? 'Login to participate'
-                : localState.isPro
-                ? 'Pro Member'
-                : 'Enroll & Win 1000 Roblox Every Month'}
-        </Text>
-    </TouchableOpacity>
+                <UserProfileSection
+                    user={user}
+                    currentUser={currentUser}
+                    setOpenSignin={setOpenSignin}
+                    latestWinner={latestWinner}
+                    handleClaimReward={handleClaimReward}
+                    styles={styles}
+                    appdatabase={appdatabase}
+                    hasClaimed={hasClaimed}
+                    setHasClaimed={setHasClaimed}
 
-    {!currentUser || !currentUser.id ? (
-       <></>
-    ) : latestWinner?.id === currentUser?.id ? (
-        <TouchableOpacity style={styles.claimButton} onPress={handleClaimReward}>
-            <Text style={styles.claimText}>Claim Reward</Text>
-        </TouchableOpacity>
-    ) : (
-        <TouchableOpacity
-            style={[
-                styles.participateButton,
-                { backgroundColor: localState.isPro ? config.colors.hasBlockGreen : config.colors.wantBlockRed }
-            ]}
-            onPress={handleEnrole}
-        >
-            <Text style={styles.participateText}>{localState.isPro ? 'Enrolled' : 'Enroll'}</Text>
-        </TouchableOpacity>
-    )}
-</View>
+                />
+                <PointsSlotsSection
+                    userPoints={userPoints}
+                    activeSlots={activeSlots}
+                    handleGetPoints={handleGetPoints}
+                    styles={styles}
+                    handleEnrole={handleEnrole}
+
+                />
+
+
 
                 {isAdmin && (
                     <TouchableOpacity style={styles.adminButton} onPress={() => setIsAdminModalVisible(true)}>
@@ -352,21 +528,19 @@ console.log(currentUser)
                 )}
 
                 {/* Prize Countdown */}
-                <View style={styles.timerCard}>
-                    <Text style={styles.timerTitle}>Next Prize in:</Text>
-                    <Text style={[styles.timerText, { fontSize: 24, lineHeight: 32 }]}>{countdown || 'COMING SOON'}</Text>
-                </View>
+                <CountdownTimer targetDate={targetDate} styles={styles} />
+
 
                 {/* Prize Section - Dynamic */}
                 {/* Prize Section - Dynamic */}
                 <View style={[styles.timerCard, { backgroundColor: config.colors.hasBlockGreen }]}>
                     <Text style={styles.timerTitle}>Prize</Text>
-                    {prize.image ? (
+                    {prize?.image ? (
                         <Image source={{ uri: prize.image }} style={styles.prizeImage} />
                     ) : (
                         <Text style={styles.placeholderText}>No prize image available</Text>
                     )}
-                    <Text style={styles.timerText}>{prize.value} {prize.name}</Text>
+                    <Text style={styles.timerText}>{prize?.value} {prize?.name}</Text>
                 </View>
 
 
@@ -380,8 +554,14 @@ console.log(currentUser)
                         </View>
                     ) : (
                         <>
+                            {latestWinner?.image ? (
+                                <Image source={{ uri: latestWinner.image }} style={styles.prizeImage} />
+                            ) : (
+                                <Text style={styles.placeholderText}>No winner image available</Text>
+                            )}
                             <Text style={styles.winnerName}>{latestWinner.name}</Text>
-                            <Text style={styles.winnerPrize}>{latestWinner.prize}</Text>
+
+                            <Text style={styles.winnerPrize}>Prize: {latestWinner.prize}</Text>
                             <Text style={styles.winnerDate}>Won on {new Date(latestWinner.date).toDateString()}</Text>
                         </>
                     )}
@@ -391,30 +571,72 @@ console.log(currentUser)
 
 
                 {/* Previous Winners Section */}
-                <Text style={styles.sectionTitle}>🏅 Previous Winners</Text>
-                {previousWinners.length > 0 ? (
-                    previousWinners.map((winner) => (
-                        <View key={winner.id} style={styles.historyCard}>
-                            <View>
-                                <Text style={styles.historyName}>{winner.name}</Text>
-                                <Text style={styles.historyDate}>{new Date(winner.date).toDateString()}</Text>
-                            </View>
-                            <Text style={styles.historyPrize}>{winner.prize}</Text>
-                        </View>
-                    ))
-                ) : (
-                    <View style={styles.placeholder}>
-                        <Text style={styles.placeholderText}>No winners yet! Participate and be the first to win 🏆</Text>
+                <View style={styles.tabContainer}>
+                    {/* Tab Navigation */}
+                    <View style={styles.tabHeader}>
+                        <TouchableOpacity
+                            style={[styles.tabButton, activeTab === 'winners' && styles.activeTab]}
+                            onPress={() => setActiveTab('winners')}
+                        >
+                            <Text style={[styles.tabText, activeTab === 'winners' && styles.activeTabText]}>🏅 Previous Winners</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.tabButton, activeTab === 'leaderboard' && styles.activeTab]}
+                            onPress={() => setActiveTab('leaderboard')}
+                        >
+                            <Text style={[styles.tabText, activeTab === 'leaderboard' && styles.activeTabText]}>🏆 Leaderboard</Text>
+                        </TouchableOpacity>
                     </View>
-                )}
+
+                    {/* Content */}
+                    <View style={styles.tabContent}>
+                        {activeTab === 'leaderboard' ? (
+                            leaderboardData.length > 0 ? (
+                                leaderboardData.map((player, index) => (
+                                    <View key={player.id} style={styles.leaderboardCard}>
+                                        <View style={styles.leaderboardCardsub}>
+                                            <Text style={styles.rankText}>#{index + 1}</Text>
+                                            <Image source={{ uri: player.avatar }} style={styles.avatar} />
+                                            <Text style={styles.playerName}>{player.displayName}</Text>
+                                        </View>
+                                        <Text style={styles.playerScore}>{player.rewardPoints} Points</Text>
+                                    </View>
+                                ))
+                            ) : (
+                                <View style={styles.placeholder}>
+                                    <Text style={styles.placeholderText}>No active slots yet! Be the first 🚀</Text>
+                                </View>
+                            )
+                        ) : (
+                            previousWinners.length > 0 ? (
+                                previousWinners.map((winner) => (
+                                    <View key={winner.id} style={styles.historyCard}>
+                                        <View>
+                                            <Text style={styles.historyName}>{winner.name}</Text>
+                                            <Text style={styles.historyDate}>{new Date(winner.date).toDateString()}</Text>
+                                        </View>
+                                        <Text style={styles.historyPrize}>{winner.prize}</Text>
+                                    </View>
+                                ))
+                            ) : (
+                                <View style={styles.placeholder}>
+                                    <Text style={styles.placeholderText}>No winners yet! Participate and be the first to win 🏆</Text>
+                                </View>
+                            )
+                        )}
+                    </View>
+                </View>
+
+
 
                 <SignInDrawer
                     visible={openSingnin}
-                    onClose={() => setOpenSignin(false)}
+                    onClose={handleLoginSuccess}
                     selectedTheme={selectedTheme}
                     message='To participate in rewards you needs to sigin'
+                    screen='Reward'
                 />
-                <SubscriptionScreen visible={showOfferWall} onClose={() => setShowofferWall(false)} />
+                <SubscriptionScreen visible={showOfferWall} onClose={() => setShowofferWall(false)} track='Reward Center' />
                 {/* Claim Reward Modal */}
                 <Modal visible={isClaimModalVisible} transparent animationType="slide">
                     <View style={styles.modalContainer}>
@@ -478,6 +700,13 @@ console.log(currentUser)
                                 placeholder="Prize (e.g., 1000 Robux)"
                                 value={winnerPrize}
                                 onChangeText={setWinnerPrize}
+                            />
+                            {/* Winner avatar */}
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Image URL"
+                                value={winnerAvatar}
+                                onChangeText={setWinnerAvatar}
                             />
 
                             {/* Winner Date */}
@@ -551,258 +780,49 @@ console.log(currentUser)
                         </View>
                     </View>
                 </Modal>
+                <Modal visible={showEnrollOptions} transparent animationType="slide">
+                    <View style={styles.modalContainer}>
+                        <View style={styles.enrollModal}>
+                            <Text style={styles.modalTitle}>Choose an Enrollment Option</Text>
 
+                            {/* Go Pro Option */}
+                            <TouchableOpacity
+                                style={[styles.enrollButton, { backgroundColor: config.colors.primary }]}
+                                onPress={() => {
+                                    setShowEnrollOptions(false);
+                                    setShowofferWall(true); // Open the subscription modal
+                                }}
+                            >
+                                <Text style={styles.enrollButtonText}>Go Pro - Get 2 Slots Every Week</Text>
+                            </TouchableOpacity>
 
+                            {/* Buy Slot with Points */}
+                            <TouchableOpacity
+                                style={[styles.enrollButton, { backgroundColor: config.colors.secondary }]}
+                                onPress={handleBuySlot}
+                            >
+                                <Text style={styles.enrollButtonText}>{isLoading ? "Submitting ..." : 'Buy 1 Slot - 2500 Points'}</Text>
+                            </TouchableOpacity>
 
-
-
+                            {/* Close Button */}
+                            <TouchableOpacity
+                                style={styles.closeButton}
+                                onPress={() => setShowEnrollOptions(false)}
+                            >
+                                <Text style={styles.closeText}>Cancel</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </Modal>
+                <RewardedAdComponent
+                    user={user}
+                    appdatabase={appdatabase}
+                    updateLocalStateAndDatabase={updateLocalStateAndDatabase}
+                    isAdsDrawerVisible={isAdsDrawerVisible}
+                    setIsAdsDrawerVisible={setIsAdsDrawerVisible}
+                />
             </ScrollView></GestureHandlerRootView>
     );
 };
-
-// Styles
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#F5F5F5',
-        padding: 14,
-    },
-    sectionTitle: {
-        fontSize: 16,
-        fontFamily: 'Lato-Bold',
-        color: '#333',
-        // marginVertical: 10,
-        fontFamily: 'Lato-Regular',
-    },
-
-    // User Profile Section
-    userSection: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#FFF',
-        padding: 15,
-        borderRadius: 10,
-        marginBottom: 20,
-    },
-    profilePic: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        marginRight: 10,
-    },
-    userName: {
-        fontSize: 14,
-        fontFamily: 'Lato-Bold',
-        // color: '#333',
-    },
-    userStatus: {
-        fontSize: 10,
-        color: '#777',
-        fontFamily: 'Lato-Regular',
-
-    },
-    participateButton: {
-        backgroundColor: '#FF4500',
-        paddingVertical: 8,
-        paddingHorizontal: 15,
-        borderRadius: 6,
-    },
-    participateText: {
-        color: '#FFF',
-        fontSize: 12,
-        fontFamily: 'Lato-Bold',
-    },
-
-    // Countdown Timer
-    timerCard: {
-        backgroundColor: '#007AFF',
-        padding: 14,
-        borderRadius: 10,
-        alignItems: 'center',
-        marginBottom: 10,
-        fontFamily: 'Lato-Regular',
-
-    },
-    timerTitle: {
-        fontSize: 16,
-        fontFamily: 'Lato-Bold',
-        color: '#FFF',
-    },
-    timerText: {
-        fontSize: 14,
-        fontFamily: 'Lato-Bold',
-        color: '#FFF',
-        marginVertical: 5,
-    },
-    timerPrize: {
-        fontSize: 14,
-        color: '#FFF',
-        fontFamily: 'Lato-Regular',
-
-    },
-
-    // Winner Announcement
-    winnerCard: {
-        backgroundColor: '#FFD700',
-        padding: 14,
-        borderRadius: 10,
-        alignItems: 'center',
-        marginBottom: 20,
-    },
-    winnerTitle: {
-        fontSize: 16,
-        fontFamily: 'Lato-Bold',
-        color: '#333',
-    },
-    winnerName: {
-        fontSize: 16,
-        fontFamily: 'Lato-Bold',
-        color: '#000',
-        marginTop: 5,
-    },
-    winnerPrize: {
-        fontSize: 16,
-        color: '#555',
-        marginTop: 5,
-        fontFamily: 'Lato-Regular',
-
-    },
-    winnerDate: {
-        fontSize: 14,
-        color: '#666',
-        marginTop: 5,
-        fontFamily: 'Lato-Regular',
-
-    },
-
-    // History Section
-    historyCard: {
-        backgroundColor: '#FFF',
-        padding: 15,
-        borderRadius: 8,
-        marginVertical: 5,
-        flexDirection: 'row',
-        justifyContent: 'space-between'
-    },
-    historyName: {
-        fontSize: 16,
-        fontFamily: 'Lato-Bold',
-        color: '#333',
-    },
-    historyPrize: {
-        fontSize: 14,
-        color: '#555',
-        marginTop: 2,
-        fontFamily: 'Lato-Regular',
-    },
-    historyDate: {
-        fontSize: 12,
-        color: '#777',
-        marginTop: 2,
-        fontFamily: 'Lato-Regular',
-
-    },
-    placeholder: {
-        // backgroundColor: '#FFF',
-        padding: 15,
-        borderRadius: 8,
-        marginVertical: 5,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    placeholderText: {
-        fontSize: 14,
-        color: '#777',
-        fontFamily: 'Lato-Regular',
-        textAlign: 'center',
-    },
-    guest: {
-        fontSize: 14,
-        fontFamily: 'Lato-Bold',
-        color: config.colors.secondary,
-        lineHeight: 24
-    },
-    prizeImage: {
-        width: 40,
-        height: 40,
-        borderRadius: 10,
-        marginVertical: 5,
-    },
-    modalContainer: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modalContent: {
-        backgroundColor: '#FFF',
-        padding: 20,
-        borderRadius: 10,
-        width: '80%',
-        alignItems: 'center',
-    },
-    modalTitle: {
-        fontSize: 14,
-        fontWeight: 'bold',
-        marginBottom: 10,
-    },
-    input: {
-        width: '100%',
-        padding: 10,
-        borderWidth: 1,
-        borderColor: '#DDD',
-        borderRadius: 5,
-        marginBottom: 10,
-    },
-    submitButton: {
-        backgroundColor: '#28A745',
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-        borderRadius: 5,
-    },
-    submitText: {
-        color: '#FFF',
-        fontSize: 14,
-        fontWeight: 'bold',
-    },
-    closeButton: {
-        marginTop: 10,
-    },
-    closeText: {
-        color: '#FF0000',
-        fontSize: 14,
-    },
-    claimButton: {
-        backgroundColor: '#FFD700',
-        padding: 10,
-        borderRadius: 6,
-        marginTop: 10,
-    },
-    claimText: {
-        color: '#333',
-        fontSize: 12,
-        fontWeight: 'bold',
-    },
-    adminButton: {
-        backgroundColor: '#FF4500',
-        padding: 10,
-        borderRadius: 6,
-        marginVertical: 10,
-        alignItems: 'center',
-    },
-    adminText: {
-        color: '#FFF',
-        fontSize: 14,
-        fontWeight: 'bold',
-    },
-    userNameLogout: {
-        fontSize: 18,
-        fontFamily:'Lato-Bold',
-        color: config.colors.secondary,
-        lineHeight:24
-      },
-
-
-});
 
 export default RewardCenterScreen;

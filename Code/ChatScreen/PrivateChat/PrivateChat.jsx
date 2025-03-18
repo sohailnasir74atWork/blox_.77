@@ -295,7 +295,7 @@ const PrivateChatScreen = () => {
                 <View style={styles.tradeDetails}>
                   <View style={styles.itemList}>
                     {groupedHasItems?.map((hasItem, index) => (
-                      <View key={`${hasItem.name}-${hasItem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
+                      <View key={`${hasItem.name}-${hasItem.type}`} style={{ justifyContent: 'center', alignItems: 'center'}}>
                         <Image
                           source={{
                             uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(hasItem.name)}_Icon.webp`,
@@ -316,8 +316,9 @@ const PrivateChatScreen = () => {
                   <View style={styles.transfer}>
                     <Image source={require('../../../assets/transfer.png')} style={styles.transferImage} />
                   </View>
+                  <View style={styles.itemList}>
                   {groupedWantsItems?.map((wantitem, index) => (
-                    <View key={`${wantitem.name}-${wantitem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
+                    <View key={`${wantitem.name}-${wantitem.type}`} style={{ justifyContent: 'center', alignItems: 'center'}}>
                       <Image
                         source={{
                           uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(wantitem.name)}_Icon.webp`,
@@ -334,6 +335,7 @@ const PrivateChatScreen = () => {
                       )}
                     </View>
                   ))}
+                  </View>
                 </View>
               )}
 
@@ -379,6 +381,9 @@ const PrivateChatScreen = () => {
             size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
             onAdLoaded={() => setIsAdVisible(true)}
             onAdFailedToLoad={() => setIsAdVisible(false)}
+            requestOptions={{
+              requestNonPersonalizedAdsOnly: true,
+            }}
           />
         )}
       </View>}

@@ -14,17 +14,20 @@ import { useLocalState } from '../LocalGlobelStats';
 import firestore from '@react-native-firebase/firestore';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useTranslation } from 'react-i18next';
-import FlashMessage, { showMessage } from 'react-native-flash-message';
-import { logEvent } from '@react-native-firebase/analytics';
+import  { showMessage } from 'react-native-flash-message';
 import MyNativeAdComponent from '../Ads/NativAds';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
 import ShareTradeModal from './SharetradeModel';
+import { mixpanel } from '../AppHelper/MixPenel';
 
 
 const bannerAdUnitId = getAdUnitId('banner');
 const interstitialAdUnitId = getAdUnitId('interstitial');
-const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId);
-const TradeList = ({ route }) => {
+const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
+  requestNonPersonalizedAdsOnly: true
+});
+
+  const TradeList = ({ route }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAdVisible, setIsAdVisible] = useState(true);
   const { selectedTheme } = route.params
@@ -100,7 +103,9 @@ const TradeList = ({ route }) => {
           matchesAnyFilter = matchesAnyFilter || trade.userId === user.id;
         }
 
-        const tradeLabel = getTradeDeal(trade.hasTotal, trade.wantsTotal).label;
+        const { deal } = getTradeDeal(trade.hasTotal, trade.wantsTotal);
+        const tradeLabel = deal?.label || "trade.unknown_deal"; // Fallback to avoid undefined
+        
 
         if (selectedFilters.includes("fairDeal")) {
           matchesAnyFilter = matchesAnyFilter || tradeLabel === "trade.fair_deal";
@@ -480,48 +485,47 @@ const TradeList = ({ route }) => {
       setLoading(false);
     }
   }, []);
-  const captureAndSave = async () => {
-    if (!viewRef.current) {
-      console.error('View reference is undefined.');
-      return;
-    }
+  // const captureAndSave = async () => {
+  //   if (!viewRef.current) {
+  //     console.error('View reference is undefined.');
+  //     return;
+  //   }
 
-    try {
-      // Capture the view as an image
-      const uri = await captureRef(viewRef.current, {
-        format: 'png',
-        quality: 0.8,
-      });
+  //   try {
+  //     // Capture the view as an image
+  //     const uri = await captureRef(viewRef.current, {
+  //       format: 'png',
+  //       quality: 0.8,
+  //     });
 
-      // Generate a unique file name
-      const timestamp = new Date().getTime(); // Use the current timestamp
-      const uniqueFileName = `screenshot_${timestamp}.png`;
+  //     // Generate a unique file name
+  //     const timestamp = new Date().getTime(); // Use the current timestamp
+  //     const uniqueFileName = `screenshot_${timestamp}.png`;
 
-      // Determine the path to save the screenshot
-      const downloadDest = Platform.OS === 'android'
-        ? `${RNFS.ExternalDirectoryPath}/${uniqueFileName}`
-        : `${RNFS.DocumentDirectoryPath}/${uniqueFileName}`;
+  //     // Determine the path to save the screenshot
+  //     const downloadDest = Platform.OS === 'android'
+  //       ? `${RNFS.ExternalDirectoryPath}/${uniqueFileName}`
+  //       : `${RNFS.DocumentDirectoryPath}/${uniqueFileName}`;
 
-      // Save the captured image to the determined path
-      await RNFS.copyFile(uri, downloadDest);
+  //     // Save the captured image to the determined path
+  //     await RNFS.copyFile(uri, downloadDest);
 
-      // console.log(`Screenshot saved to: ${downloadDest}`);
+  //     // console.log(`Screenshot saved to: ${downloadDest}`);
 
-      return downloadDest;
-    } catch (error) {
-      console.error('Error capturing screenshot:', error);
-      // Alert.alert(t("home.alert.error"), t("home.screenshot_error"));
-      showMessage({
-        message: t("home.alert.error"),
-        description: t("home.screenshot_error"),
-        type: "danger",
-      });
-    }
-  };
+  //     return downloadDest;
+  //   } catch (error) {
+  //     console.error('Error capturing screenshot:', error);
+  //     // Alert.alert(t("home.alert.error"), t("home.screenshot_error"));
+  //     showMessage({
+  //       message: t("home.alert.error"),
+  //       description: t("home.screenshot_error"),
+  //       type: "danger",
+  //     });
+  //   }
+  // };
 
   // const proceedWithScreenshotShare = async () => {
   //   triggerHapticFeedback('impactLight');
-  //   logEvent(analytics, `${platform}_screenshot_share_trade_screen`);
   //   try {
   //     const filePath = await captureAndSave();
 
@@ -640,6 +644,9 @@ const TradeList = ({ route }) => {
     setRefreshing(false);
   };
 
+  const handleLoginSuccess = () => {
+    setIsSigninDrawerVisible(false);
+  };
 
 
   const renderTrade = ({ item, index }) => {
@@ -680,6 +687,7 @@ const TradeList = ({ route }) => {
             setIsSigninDrawerVisible(true);
             return;
           }
+          mixpanel.track("Inbox Trade");
           navigation.navigate('PrivateChatTrade', {
             selectedUser: {
               senderId: item.userId,
@@ -690,7 +698,6 @@ const TradeList = ({ route }) => {
             item,
           });
         });
-        logEvent(analytics, `${platform}_trade_screen_nav_to_chat`);
 
 
       } catch (error) {
@@ -717,13 +724,13 @@ const TradeList = ({ route }) => {
             </View>
           </TouchableOpacity>
           <View style={{ flexDirection: 'row' }}>
-            <View style={[styles.dealContainer, { backgroundColor: deal.color }]}>
+          {(groupedHasItems.length > 0 && groupedWantsItems.length > 0) &&  <View style={[styles.dealContainer, { backgroundColor: deal.color }]}>
               <Text style={styles.dealText}>
 
                 {t(deal.label)}
               </Text>
 
-            </View>
+            </View>}
 
             <Icon
               name="chatbox-outline"
@@ -737,20 +744,31 @@ const TradeList = ({ route }) => {
         <View style={styles.tradeDetails}>
           {/* Has Items */}
           <View style={styles.itemList}>
-            {groupedHasItems.map((hasItem, index) => (
-              <View key={`${hasItem.name}-${hasItem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
-                <Image
-                  source={{
-                    uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(hasItem.name)}_Icon.webp`,
-                  }}
-                  style={[styles.itemImage, { backgroundColor: hasItem.type === 'p' ? '#FFCC00' : '' }]}
-                />
-                <Text style={styles.names}>
-                  {hasItem.name}{hasItem.type === 'p' && " (P)"}
-                </Text>
-                {hasItem.count > 1 && <View style={styles.tagcount}><Text style={styles.tagcounttext}>{hasItem.count}</Text></View>}
-              </View>
-            ))}
+          {groupedHasItems.length > 0 ? (
+  groupedHasItems.map((hasItem, index) => (
+    <View key={`${hasItem.name}-${hasItem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
+      <Image
+        source={{
+          uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(hasItem.name)}_Icon.webp`,
+        }}
+        style={[styles.itemImage, { backgroundColor: hasItem.type === 'p' ? '#FFCC00' : '' }]}
+      />
+      <Text style={styles.names}>
+        {hasItem.name}{hasItem.type === 'p' && " (P)"}
+      </Text>
+      {hasItem.count > 1 && (
+        <View style={styles.tagcount}>
+          <Text style={styles.tagcounttext}>{hasItem.count}</Text>
+        </View>
+      )}
+    </View>
+  ))
+) : (
+  <TouchableOpacity style={styles.dealContainerSingle} onPress={handleChatNavigation}>
+  <Text style={styles.dealText}>Give offer</Text> 
+  </TouchableOpacity>
+)}
+
           </View>
 
           {/* Transfer Icon */}
@@ -760,28 +778,38 @@ const TradeList = ({ route }) => {
 
           {/* Wants Items */}
           <View style={styles.itemList}>
-            {groupedWantsItems.map((wantsItem, index) => (
-              <View key={`${wantsItem.name}-${wantsItem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
-                <Image
-                  source={{
-                    uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(wantsItem.name)}_Icon.webp`,
-                  }}
-                  style={[styles.itemImage, { backgroundColor: wantsItem.type === 'p' ? '#FFCC00' : '' }]}
-                />
-                <Text style={styles.names}>
-                  {wantsItem.name}{wantsItem.type === 'p' && " (P)"}
-                </Text>
-                {wantsItem.count > 1 && <View style={styles.tagcount}><Text style={styles.tagcounttext}>{wantsItem.count}</Text></View>}
-              </View>
-            ))}
+          {groupedWantsItems.length > 0 ? (
+  groupedWantsItems.map((wantnItem, index) => (
+    <View key={`${wantnItem.name}-${wantnItem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
+      <Image
+        source={{
+          uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(wantnItem.name)}_Icon.webp`,
+        }}
+        style={[styles.itemImage, { backgroundColor: wantnItem.type === 'p' ? '#FFCC00' : '' }]}
+      />
+      <Text style={styles.names}>
+        {wantnItem.name}{wantnItem.type === 'p' && " (P)"}
+      </Text>
+      {wantnItem.count > 1 && (
+        <View style={styles.tagcount}>
+          <Text style={styles.tagcounttext}>{wantnItem.count}</Text>
+        </View>
+      )}
+    </View>
+  ))
+) : (
+  <TouchableOpacity style={styles.dealContainerSingle} onPress={handleChatNavigation}>
+  <Text style={styles.dealText}>Give offer</Text> 
+  </TouchableOpacity>
+)}
           </View>
         </View>
         <View style={styles.tradeTotals}>
-          <Text style={[styles.priceText, styles.hasBackground]}>
+         {groupedHasItems.length > 0 && <Text style={[styles.priceText, styles.hasBackground]}>
             {t("trade.price_has")} {formatValue(item.hasTotal.value)}
-          </Text>
+          </Text>}
           <View style={styles.transfer}>
-            <Text style={[styles.priceTextProfit, { color: !isProfit ? config.colors.hasBlockGreen : config.colors.wantBlockRed }]}>
+           {(groupedHasItems.length > 0 && groupedWantsItems.length > 0) &&  <Text style={[styles.priceTextProfit, { color: !isProfit ? config.colors.hasBlockGreen : config.colors.wantBlockRed }]}>
               {tradePercentage}% {!neutral && (
                 <Icon
                   name={isProfit ? 'arrow-down-outline' : 'arrow-up-outline'}
@@ -790,11 +818,11 @@ const TradeList = ({ route }) => {
                   style={styles.icon}
                 />
               )}
-            </Text>
+            </Text>}
           </View>
-          <Text style={[styles.priceText, styles.wantBackground]}>
-            {t("trade.price_want")} {formatValue(item.wantsTotal.value)}
-          </Text>
+         {groupedWantsItems.length > 0 && <Text style={[styles.priceText, styles.wantBackground]}>
+            { t("trade.price_want")} {formatValue(item.wantsTotal.value)}
+          </Text>}
         </View>
 
         {/* Description */}
@@ -885,9 +913,10 @@ const TradeList = ({ route }) => {
 
       <SignInDrawer
         visible={isSigninDrawerVisible}
-        onClose={() => setIsSigninDrawerVisible(false)}
+        onClose={handleLoginSuccess}
         selectedTheme={selectedTheme}
         message={t("trade.signin_required_message")}
+         screen='Trade'
 
       />
       {/* <FlashMessage position="top" /> */}
@@ -899,10 +928,13 @@ const TradeList = ({ route }) => {
             size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
             onAdLoaded={() => setIsAdVisible(true)}
             onAdFailedToLoad={() => setIsAdVisible(false)}
+            requestOptions={{
+              requestNonPersonalizedAdsOnly: true,
+            }}
           />
         )}
       </View>}
-      <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} />
+      <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} track='Trade'/>
 
     </View>
   );
@@ -978,6 +1010,7 @@ const getStyles = (isDarkMode) =>
       justifyContent: 'space-evenly',
       width: "45%",
       paddingVertical: 15,
+      alignSelf:'center'
     },
     itemImage: {
       width: 30,
@@ -1049,7 +1082,7 @@ const getStyles = (isDarkMode) =>
     },
 
     transfer: {
-      width: '10%',
+      // width: '10%',
       justifyContent: 'center',
       alignItems: 'center'
     },
@@ -1082,11 +1115,26 @@ const getStyles = (isDarkMode) =>
       alignSelf: 'center',
       marginRight: 10
     },
+    dealContainerSingle: {
+      paddingVertical: 5,
+      paddingHorizontal: 6,
+      borderRadius: 6,
+      alignSelf: 'center',
+      // height:30,
+      // marginRight: 10,
+      backgroundColor:'black',
+      justifyContent:'center',
+      alignItems:'center'
+    },
     dealText: {
       color: 'white',
       fontWeight: 'Lato-Bold',
       fontSize: 8,
       textAlign: 'center',
+      alignItems:'center',
+justifyContent:'center'
+      // backgroundColor:'black'
+
     },
     names: {
       fontFamily: 'Lato-Bold',

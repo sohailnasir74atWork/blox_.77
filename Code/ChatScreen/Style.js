@@ -361,6 +361,7 @@ itemList: {
   justifyContent: 'space-evenly',
   width: "45%",
   paddingVertical: 15,
+  // backgroundColor:'red'
 },
 itemImage: {
   width: 30,

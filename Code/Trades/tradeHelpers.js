@@ -4,13 +4,11 @@ import { Text, View, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../Helper/Environment';
 import { useTranslation } from 'react-i18next';
-import { logEvent } from '@react-native-firebase/analytics';
 
 export const FilterMenu = ({ selectedFilters, setSelectedFilters, analytics, platform }) => {
   const { t } = useTranslation(); // 🔹 Import translation function
 
   const toggleFilter = (filterKey) => {
-    logEvent(analytics, `${platform}_selected_trade_filter_${filterKey}`);
     setSelectedFilters((prevFilters) =>
       prevFilters.includes(filterKey) ? prevFilters.filter((f) => f !== filterKey) : [...prevFilters, filterKey]
     );

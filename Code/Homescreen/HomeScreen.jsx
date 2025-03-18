@@ -15,15 +15,17 @@ import SignInDrawer from '../Firebase/SigninDrawer';
 import firestore from '@react-native-firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../Translation/LanguageProvider';
-import { logEvent } from '@react-native-firebase/analytics';
 import { showMessage } from 'react-native-flash-message';
 import DeviceInfo from 'react-native-device-info';
 import ShareTradeModal from '../Trades/SharetradeModel';
+import { mixpanel } from '../AppHelper/MixPenel';
 
 
 const bannerAdUnitId = getAdUnitId('banner');
 const interstitialAdUnitId = getAdUnitId('interstitial');
-const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId);
+const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
+  requestNonPersonalizedAdsOnly: true
+});
 
 const HomeScreen = ({ selectedTheme }) => {
   const { theme, user, analytics, appdatabase } = useGlobalState();
@@ -83,6 +85,10 @@ const HomeScreen = ({ selectedTheme }) => {
     };
   }, []);
 
+  const handleLoginSuccess = () => {
+    setIsSigninDrawerVisible(false);
+  };
+
   useEffect(() => {
     const loadPinnedMessages = async () => {
       try {
@@ -108,9 +114,11 @@ const HomeScreen = ({ selectedTheme }) => {
 
   }, [pinnedMessagesRef]);
   // Run this once when the app starts
-  useEffect(() => {
-    logEvent(analytics, `${platform}_${language}`);
-  })
+
+
+
+
+
   const onClose = () => { setShowNotification(false) }
   const onClosePinMessage = (index) => {
     setPinnedMessages((prevMessages) => prevMessages.filter((_, i) => i !== index));
@@ -139,26 +147,25 @@ const HomeScreen = ({ selectedTheme }) => {
   };
 
   const handleCreateTradePress = async (type) => {
-    logEvent(analytics, `${platform}_${type}`);
     if (!user.id & type === 'create') {
       setIsSigninDrawerVisible(true)
       return;
     }
-    if (hasItems.filter(Boolean).length === 0 || wantsItems.filter(Boolean).length === 0) {
-      // Alert.alert(t("home.alert.error"), t("home.alert.missing_items_error"));
-      showMessage({
-        message: t("home.alert.error"),
-        description: t("home.alert.missing_items_error"),
-        type: "danger",
-      });
+    // if (hasItems.filter(Boolean).length === 0 || wantsItems.filter(Boolean).length === 0) {
+    //   // Alert.alert(t("home.alert.error"), t("home.alert.missing_items_error"));
+    //   showMessage({
+    //     message: t("home.alert.error"),
+    //     description: t("home.alert.missing_items_error"),
+    //     type: "danger",
+    //   });
 
 
 
-      return;
+    //   return;
 
 
 
-    }
+    // }
     if (type === 'create') {
       setType('create')
     } else {
@@ -166,17 +173,24 @@ const HomeScreen = ({ selectedTheme }) => {
     }
     const tradeRatio = wantsTotal.value / hasTotal.value;
 
-    if (tradeRatio < 0.05) {
+    if (
+      tradeRatio < 0.05 &&
+      hasItems.filter(Boolean).length > 0 && 
+      wantsItems.filter(Boolean).length > 0 && type !== 'share'
+    ) {
       showMessage({
         message: t("home.unfair_trade"),
         description: t('home.unfair_trade_description'),
         type: "danger",
       });
-
+    
       return;
     }
+    
 
-    if (tradeRatio > 1.95) {
+    if ( tradeRatio >1.95 && type !== 'share' &&
+      hasItems.filter(Boolean).length > 0 && 
+      wantsItems.filter(Boolean).length > 0) {
       showMessage({
         message: t('home.invalid_trade'),
         description: t('home.invalid_trade_description'),
@@ -220,6 +234,8 @@ const HomeScreen = ({ selectedTheme }) => {
         setModalVisible(false); // Close modal
         setSelectedTrade(newTrade);
         setOpenShareModel(true)
+        mixpanel.track("Start Sharing");
+
       } else {
 
         // console.log("📌 New trade object created:", newTrade);
@@ -246,6 +262,7 @@ const HomeScreen = ({ selectedTheme }) => {
 
         // ✅ Update last trade time locally
         setLastTradeTime(now);
+        mixpanel.track("Trade Created",{user:user?.id});
 
         if (!localState.isPro) {
           showInterstitialAd(() => {
@@ -271,27 +288,66 @@ const HomeScreen = ({ selectedTheme }) => {
         type: "danger",
       });
     } finally {
-      console.log("🔄 Resetting submission state...");
+      // console.log("🔄 Resetting submission state...");
       setIsSubmitting(false); // Reset submission state
     }
   };
 
-
   const adjustedData = (fruitRecords) => {
     let transformedData = [];
+
     fruitRecords.forEach((fruit) => {
-      if (!fruit.Name) return; // Skip invalid entries
-      if (fruit.Permanent && fruit.Value) {
-        transformedData.push({ Name: `${fruit.Name}`, Value: fruit.Permanent, Type: 'p', Price: fruit.Biliprice });
-        transformedData.push({ Name: `${fruit.Name}`, Value: fruit.Value, Type: 'n', Price: fruit.Biliprice });
-      } else if (fruit.Permanent || fruit.Value) {
-        // If only one exists, keep it as is
-        transformedData.push({ Name: fruit.Name, Value: fruit.Value || fruit.Permanent });
-      }
+        if (!fruit.name) return; // Skip invalid entries
+
+        const permValueInvalid = fruit.permValue === 0  || fruit.permValue === "0" || fruit.permValue === "N/A";
+
+        // ✅ If both permValue & value exist (permValue must be valid)
+        if (!permValueInvalid && fruit.permValue !== undefined && fruit.value !== undefined) {
+            transformedData.push({
+                Name: fruit.name,
+                Value: fruit.permValue,
+                Type: 'p', // Permanent type
+                Price: 0
+            });
+
+            transformedData.push({
+                Name: fruit.name,
+                Value: fruit.value,
+                Type: 'n', // Normal type
+                Price: fruit.beli || 0
+            });
+
+            // console.log(`✅ Added ${fruit.name}: Permanent (${fruit.permValue}), Normal (${fruit.value})`);
+
+        } else if (!permValueInvalid && fruit.permValue !== undefined) {
+            // ✅ If only permValue exists (must be valid)
+            transformedData.push({
+                Name: fruit.name,
+                Value: fruit.permValue,
+                Type: 'p', // Permanent type
+                Price: 0
+            });
+
+            // console.log(`⚠️ Only Permanent found for ${fruit.name}: ${fruit.permValue}`);
+
+        } else if (fruit.value !== undefined) {
+            // ✅ If only value exists
+            transformedData.push({
+                Name: fruit.name,
+                Value: fruit.value,
+                Type: 'n', // Normal type
+                Price: fruit.beli || 0
+            });
+
+            // console.log(`⚠️ Only Normal found for ${fruit.name}: ${fruit.value}`);
+        } else {
+            console.warn(`🚨 No valid values found for ${fruit.name}, skipping!`);
+        }
     });
 
     return transformedData;
-  };
+};
+
 
 
 
@@ -324,6 +380,8 @@ const HomeScreen = ({ selectedTheme }) => {
     }
   }, [localState.data]);
 
+  // console.log(fruitRecords)
+
   useEffect(() => {
     interstitial.load();
 
@@ -340,7 +398,7 @@ const HomeScreen = ({ selectedTheme }) => {
     const unsubscribeError = interstitial.addAdEventListener(AdEventType.ERROR, (error) => {
       setIsAdLoaded(false);
       setIsShowingAd(false);
-      console.error('Ad Error:', error);
+      // console.error('Ad Error:', error);
     });
 
     return () => {
@@ -392,29 +450,29 @@ const HomeScreen = ({ selectedTheme }) => {
   const updateTotal = (item, section, add = true, isNew = false) => {
     // console.log(item);
 
-    // Only update price if item.Type is NOT "p"
-    const priceChange = add
-      ? (item.Price ?? 0)  // If item.Price is undefined/null, default to 0
-      : -(item.Price ?? 0);
+    // Convert `item.Price` and `item.Value` to numbers to prevent string concatenation
+    const price = Number(item.Price) || 0; // Ensure it's a number or default to 0
+    const value = Number(item.Value) || 0;
 
+    // Only update price if item.Type is NOT "p"
+    const priceChange = add ? price : -price;
 
     // Update value only if item.Type isNew
-    const valueChange = isNew
-      ? (add ? (isNaN(item.Value) ? 0 : item.Value) : -(isNaN(item.Value) ? 0 : item.Value))
-      : 0;
+    const valueChange = isNew ? (add ? value : -value) : 0;
 
     if (section === 'has') {
-      setHasTotal((prev) => ({
-        price: prev.price + priceChange,
-        value: prev.value + valueChange,
-      }));
+        setHasTotal((prev) => ({
+            price: prev.price + priceChange,
+            value: prev.value + valueChange,
+        }));
     } else {
-      setWantsTotal((prev) => ({
-        price: prev.price + priceChange,
-        value: prev.value + valueChange,
-      }));
+        setWantsTotal((prev) => ({
+            price: prev.price + priceChange,
+            value: prev.value + valueChange,
+        }));
     }
-  };
+};
+
 
 
   const formatName = (name) => {
@@ -475,6 +533,10 @@ const HomeScreen = ({ selectedTheme }) => {
     : 0;
 
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
+  const lastFilledIndexHas = hasItems.reduce((lastIndex, item, index) => (item ? index : lastIndex), -1);
+  const lastFilledIndexWant = wantsItems.reduce((lastIndex, item, index) => (item ? index : lastIndex), -1);
+
+
 
   return (
     <>
@@ -505,14 +567,14 @@ const HomeScreen = ({ selectedTheme }) => {
                 <View style={[styles.summaryBox, styles.hasBox]}>
                   <Text style={[styles.summaryText]}>{t('home.you')}</Text>
                   <View style={{ width: '90%', backgroundColor: '#e0e0e0', height: 1, alignSelf: 'center' }} />
-                  <Text style={styles.priceValue}>{t('home.price')}: ${hasTotal.price?.toLocaleString()}</Text>
                   <Text style={styles.priceValue}>{t('home.value')}: {hasTotal.value?.toLocaleString()}</Text>
+                  <Text style={styles.priceValue}>{t('home.price')}: ${hasTotal.price?.toLocaleString()}</Text>
                 </View>
                 <View style={[styles.summaryBox, styles.wantsBox]}>
                   <Text style={styles.summaryText}>{t('home.them')}</Text>
                   <View style={{ width: '90%', backgroundColor: '#e0e0e0', height: 1, alignSelf: 'center' }} />
-                  <Text style={styles.priceValue}>{t('home.price')}: ${wantsTotal.price?.toLocaleString()}</Text>
                   <Text style={styles.priceValue}>{t('home.value')}: {wantsTotal.value?.toLocaleString()}</Text>
+                  <Text style={styles.priceValue}>{t('home.price')}: ${wantsTotal.price?.toLocaleString()}</Text>
                 </View>
               </View>
               <View style={styles.profitLossBox}>
@@ -536,27 +598,30 @@ const HomeScreen = ({ selectedTheme }) => {
                   <Icon name="add-circle" size={40} color="white" />
                   <Text style={styles.itemText}>{t('home.add_item')}</Text>
                 </TouchableOpacity> */}
+                
                 {hasItems?.map((item, index) => (
-                  <TouchableOpacity key={index} style={[styles.addItemBlockNew, { backgroundColor: config.colors.primary }]} onPress={() => { openDrawer('has') }} disabled={item !== null}>
+                  <TouchableOpacity key={index} style={[styles.addItemBlockNew, { backgroundColor: item?.Type === 'p' ? '#FFD700' : isDarkMode ? '#34495E' : '#CCCCFF' }]} onPress={() => { openDrawer('has') }} disabled={item !== null}>
                     {item ? (
                       <>
                         <Image
                           source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` }}
                           style={[styles.itemImageOverlay,
-                          { backgroundColor: item.Type === 'p' ? '#FFCC00' : '' }
+                         
                           ]}
                         />
-                        <Text style={[styles.itemText, { color: 'white' }]}>${item.usePermanent ? item.Permanent?.toLocaleString() : item.Value?.toLocaleString()}</Text>
-                        <Text style={[styles.itemText, { color: 'white' }]}>{item.Type === 'p' && 'Perm'}  {item.Name}</Text>
+                        <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
+]}>${item.usePermanent ? item.Permanent?.toLocaleString() : item.Value?.toLocaleString()}</Text>
+                        <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
+]}>{item.Type === 'p' && 'Perm'}  {item.Name}</Text>
                         {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
                         <TouchableOpacity onPress={() => removeItem(index, true)} style={styles.removeButton}>
-                          <Icon name="close-outline" size={20} color="white" />
+                          <Icon name="close-outline" size={18} color="white" />
                         </TouchableOpacity>
                       </>
                     ) : (
                       <>
-                        <Icon name="add-circle" size={30} color="grey" />
-                        <Text style={styles.itemText}>{t('home.add_item')}</Text>
+                        {index === lastFilledIndexHas + 1 && <Icon name="add-circle" size={30} color="grey" />}
+                        {index === lastFilledIndexHas + 1 && <Text style={styles.itemText}>{t('home.add_item')}</Text>}
                       </>
                     )}
                   </TouchableOpacity>
@@ -566,37 +631,39 @@ const HomeScreen = ({ selectedTheme }) => {
               <View style={styles.divider}>
                 <Image
                   source={require('../../assets/reset.png')} // Replace with your image path
-                  style={{ width: 20, height: 20, tintColor: 'white' }} // Customize size and color
+                  style={{ width: 15, height: 15, tintColor: 'white' }} // Customize size and color
                   onTouchEnd={resetState} // Add event handler
                 />
               </View>
 
               <Text style={[styles.sectionTitle, { color: selectedTheme.colors.text }]}>{t('home.them')}</Text>
-              <View style={styles.itemRow}>
+              <View style={[styles.itemRow, {marginBottom:0}]}>
                 {/* <TouchableOpacity onPress={() => { openDrawer('wants'); }} style={styles.addItemBlockNew}>
                   <Icon name="add-circle" size={40} color="white" />
                   <Text style={styles.itemText}>{t('home.add_item')}</Text>
                 </TouchableOpacity> */}
                 {wantsItems?.map((item, index) => (
-                  <TouchableOpacity key={index} style={[styles.addItemBlockNew, { backgroundColor: config.colors.primary }]} onPress={() => { openDrawer('wants'); }} disabled={item !== null}>
+                  <TouchableOpacity key={index} style={[styles.addItemBlockNew, { backgroundColor: item?.Type === 'p' ? '#FFD700' : isDarkMode ? '#34495E' : '#CCCCFF' }]} onPress={() => { openDrawer('wants'); }} disabled={item !== null}>
                     {item ? (
                       <>
                         <Image
                           source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` }}
-                          style={[styles.itemImageOverlay, { backgroundColor: item?.Type === 'p' ? '#FFCC00' : config.colors.primary }]}
+                          style={[styles.itemImageOverlay ]}
                         />
-                        <Text style={[styles.itemText, { color: 'white' }]}>${item.usePermanent ? item.Permanent?.toLocaleString() : item.Value?.toLocaleString()}</Text>
-                        <Text style={[styles.itemText, { color: 'white' }]}>{item.Type === 'p' && 'Perm'} {item.Name}</Text>
+                        <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
+]}>${item.usePermanent ? item.Permanent?.toLocaleString() : item.Value?.toLocaleString()}</Text>
+                        <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
+]}>{item.Type === 'p' && 'Perm'} {item.Name}</Text>
                         {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
                         <TouchableOpacity onPress={() => removeItem(index, false)} style={styles.removeButton}>
-                          <Icon name="close-outline" size={20} color="white" />
+                          <Icon name="close-outline" size={18} color="white" />
                         </TouchableOpacity>
                       </>
 
                     ) : (
                       <>
-                        <Icon name="add-circle" size={30} color="grey" />
-                        <Text style={styles.itemText}>{t('home.add_item')}</Text>
+                       {index === lastFilledIndexWant + 1 && <Icon name="add-circle" size={30} color="grey" />}
+                       {index === lastFilledIndexWant + 1 && <Text style={styles.itemText}>{t('home.add_item')}</Text>}
                       </>
                       // <Text style={styles.itemPlaceholder}>{t('home.empty')}</Text>
                     )}
@@ -645,14 +712,16 @@ const HomeScreen = ({ selectedTheme }) => {
                     data={filteredData}
                     keyExtractor={(item) => item.Name}
                     renderItem={({ item }) => (
-                      <TouchableOpacity style={[styles.itemBlock, { backgroundColor: config.colors.primary }]} onPress={() => selectItem(item)}>
+                      <TouchableOpacity style={[styles.itemBlock, { backgroundColor: item.Type === 'p' ? '#FFD700' : isDarkMode ? '#34495E' : '#CCCCFF' }]} onPress={() => selectItem(item)}>
                         <>
                           <Image
                             source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` }}
-                            style={[styles.itemImageOverlay, { backgroundColor: item.Type === 'p' ? '#FFCC00' : '' }]}
+                            style={[styles.itemImageOverlay]}
                           />
-                          <Text style={[[styles.itemText, { color: 'white' }]]}>${item.Value?.toLocaleString()}</Text>
-                          <Text style={[[styles.itemText, { color: 'white' }]]}>{item.Type === 'p' && 'Perm'} {item.Name}</Text>
+                          <Text style={[[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
+]]}>${item.Value?.toLocaleString()}</Text>
+                          <Text style={[[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
+]]}>{item.Type === 'p' && 'Perm'} {item.Name}</Text>
                           {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
                         </>
                       </TouchableOpacity>
@@ -715,8 +784,9 @@ const HomeScreen = ({ selectedTheme }) => {
           />
           <SignInDrawer
             visible={isSigninDrawerVisible}
-            onClose={() => setIsSigninDrawerVisible(false)}
+            onClose={handleLoginSuccess}
             selectedTheme={selectedTheme}
+             screen='Chat'
             message={t("home.alert.sign_in_required")}
 
           />
@@ -730,6 +800,9 @@ const HomeScreen = ({ selectedTheme }) => {
             size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
             onAdLoaded={() => setIsAdVisible(true)}
             onAdFailedToLoad={() => setIsAdVisible(false)}
+            requestOptions={{
+              requestNonPersonalizedAdsOnly: true,
+            }}
           />
         )}
       </View>}
@@ -741,18 +814,18 @@ const getStyles = (isDarkMode) =>
     container: {
       flex: 1,
       backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
-      paddingBottom: 5
+      paddingBottom: 5,
     },
 
     summaryContainer: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginBottom: 20,
+      marginBottom: 10,
     },
     summaryBox: {
       width: '48%',
-      padding: 10,
-      borderRadius: 10,
+      padding: 5,
+      borderRadius: 8,
     },
     hasBox: {
       backgroundColor: config.colors.hasBlockGreen,
@@ -761,7 +834,8 @@ const getStyles = (isDarkMode) =>
       backgroundColor: config.colors.wantBlockRed,
     },
     summaryText: {
-      fontSize: 18,
+      fontSize: 16,
+      lineHeight:20,
       color: 'white',
       textAlign: 'center',
       fontFamily: 'Lato-Bold',
@@ -775,8 +849,8 @@ const getStyles = (isDarkMode) =>
 
     },
     sectionTitle: {
-      fontSize: 16,
-      marginBottom: 10,
+      fontSize: 14,
+      marginBottom: 5,
       fontFamily: 'Lato-Bold',
 
     },
@@ -784,22 +858,25 @@ const getStyles = (isDarkMode) =>
       flexDirection: 'row',
       flexWrap: 'wrap',
       justifyContent: 'space-between',
-      marginBottom: 10,
+      marginBottom: 5,
 
     },
     addItemBlockNew: {
       width: '48%',
-      height: 85,
-      backgroundColor: config.colors.secondary,
+      height: 70,
+      backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF', // Dark: darker contrast, Light: White
+      borderWidth: Platform.OS === 'android' ? 0 : 1,
+      borderColor:'lightgrey',
       justifyContent: 'center',
       alignItems: 'center',
-      borderRadius: 10,
+      borderRadius: 8,
       marginBottom: 5,
+
     },
     addItemBlock: {
       width: '32%',
       height: 85,
-      backgroundColor: config.colors.secondary,
+      backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF', // Dark: darker contrast, Light: White
       justifyContent: 'center',
       alignItems: 'center',
       borderRadius: 10,
@@ -808,7 +885,7 @@ const getStyles = (isDarkMode) =>
     itemBlock: {
       width: '32%',
       height: 110,
-      backgroundColor: config.colors.primary,
+      backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF', // Dark: darker contrast, Light: White
       justifyContent: 'center',
       alignItems: 'center',
       borderRadius: 10,
@@ -821,7 +898,7 @@ const getStyles = (isDarkMode) =>
     },
 
     itemText: {
-      color: 'grey',
+      color: isDarkMode ? 'white' : 'black',
       textAlign: 'center',
       fontFamily: 'Lato-Bold',
       fontSize: 12
@@ -832,8 +909,8 @@ const getStyles = (isDarkMode) =>
     },
     removeButton: {
       position: 'absolute',
-      top: 1,
-      right: 1,
+      top: 2,
+      right: 2,
       backgroundColor: config.colors.wantBlockRed,
       borderRadius: 50,
       opacity: .7
@@ -843,7 +920,7 @@ const getStyles = (isDarkMode) =>
       alignItems: 'center',
       backgroundColor: config.colors.primary,
       margin: 'auto',
-      borderRadius: 24,
+      borderRadius: 12,
       padding: 5,
     },
     drawerContainer: {
@@ -860,13 +937,13 @@ const getStyles = (isDarkMode) =>
     },
 
     drawerTitle: {
-      fontSize: 18,
+      fontSize: 16,
       textAlign: 'center',
       fontFamily: 'Lato-Bold'
     },
     profitLossBox: { flexDirection: 'row', justifyContent: 'center', marginVertical: 0, alignItems: 'center' },
-    profitLossText: { fontSize: 16, fontFamily: 'Lato-Bold' },
-    profitLossValue: { fontSize: 16, marginLeft: 5, fontFamily: 'Lato-Bold' },
+    profitLossText: { fontSize: 14, fontFamily: 'Lato-Bold' },
+    profitLossValue: { fontSize: 14, marginLeft: 5, fontFamily: 'Lato-Bold' },
     modalOverlay: {
       backgroundColor: 'rgba(0, 0, 0, 0.5)',
       flex: 1,
@@ -916,7 +993,7 @@ const getStyles = (isDarkMode) =>
     screenshotView: {
       padding: 10,
       flex: 1,
-      paddingVertical: 10
+      // paddingVertical: 10,
     },
     float: {
       position: 'absolute',

@@ -9,6 +9,7 @@
     StyleSheet,
     Platform,
     ActivityIndicator,
+    ScrollView,
   } from 'react-native';
   import Ionicons from 'react-native-vector-icons/Ionicons';
   import { useGlobalState } from '../GlobelStats';
@@ -16,7 +17,7 @@
   import config from '../Helper/Environment';
 import { useTranslation } from 'react-i18next';
 
-  const SubscriptionScreen = ({ visible, onClose }) => {
+  const SubscriptionScreen = ({ visible, onClose, track }) => {
     const [activePlan, setActivePlan] = useState(null);
     const [loading, setLoading] = useState(false);
     const [loadingRestore, setLoadingReStore] = useState(false);
@@ -30,6 +31,7 @@ import { useTranslation } from 'react-i18next';
     const { t } = useTranslation();
 
     const isDarkMode = theme === 'dark';
+
     useEffect(() => {
       Animated.timing(slideAnim, {
           toValue: visible ? 0 : 500, 
@@ -74,7 +76,7 @@ import { useTranslation } from 'react-i18next';
     const handlePurchase = () => {
       if (activePlan) {
         setLoading(true); // Start loading before calling the function
-        purchaseProduct(activePlan, setLoading);
+        purchaseProduct(activePlan, setLoading, track);
       }
     };
     const handleRestorePur = () => {
@@ -91,12 +93,13 @@ import { useTranslation } from 'react-i18next';
     const benefits = [
       { icon: 'shield-checkmark', label: t('offer.adsFree'), color: '#4CAF50' }, // Green
       { icon: 'swap-horizontal', label: t('offer.unlimitedTrade'), color: '#FF9800' }, // Orange
-      { icon: 'chatbubbles', label: t('offer.unlimitedChat'), color: '#2196F3' }, // Blue
+      // { icon: 'chatbubbles', label: t('offer.unlimitedChat'), color: '#2196F3' }, // Blue
       { icon: 'notifications', label: t('offer.unlimitedAlerts'), color: '#9C27B0' }, // Purple
       { icon: 'trending-up', label: t('offer.priorityListing'), color: '#E91E63' }, // Pink
       { icon: 'checkmark-done-circle', label: t('offer.proTag'), color: config.colors.hasBlockGreen },
-      { icon: 'star', label: t('offer.featureListing'), color: '#FFD700' },
-      { icon: 'language', label: 'You can select multiple languages', color: config.colors.wantBlockRed }  
+      // { icon: 'star', label: t('offer.featureListing'), color: '#FFD700' },
+      // { icon: 'language', label: 'You can select multiple languages', color: config.colors.wantBlockRed },
+      { icon: 'trophy', label: 'Win prizes on every weekend', color: 'red' }    
     ];
     const calculateDiscount = (monthlyPrice, quarterlyPrice, annualPrice) => {
       if (!monthlyPrice || !quarterlyPrice || !annualPrice) return {};
@@ -117,13 +120,20 @@ import { useTranslation } from 'react-i18next';
     return (
       <Modal transparent visible={visible} animationType="fade">
           <Animated.View style={[styles.container, { transform: [{ translateY: slideAnim }] }]}>
+          <ScrollView 
+                contentContainerStyle={{flex:1}} 
+                showsVerticalScrollIndicator={false} 
+                keyboardShouldPersistTaps="handled"
+            >
           <TouchableOpacity onPress={onClose} disabled={!showCloseButton} style={styles.closeButton}>
             {showCloseButton &&
               <Ionicons name="close" size={24} color="grey" />
            }
           </TouchableOpacity>
             
-            <Text style={styles.title}>{t('offer.title')} <Ionicons name="checkmark-done-circle" size={26} color={config.colors.hasBlockGreen}  style={styles.icon}/></Text>
+            <Text style={styles.title}>GO PRO 
+              {/* <Ionicons name="checkmark-done-circle" size={26} color={config.colors.hasBlockGreen}  style={styles.icon}/> */}
+            </Text>
             <Text style={styles.subtitle}>{t('offer.subtitle')}</Text>
 
             <View style={styles.benefitsContainer}>
@@ -147,12 +157,12 @@ import { useTranslation } from 'react-i18next';
                 const { quarterlyDiscount, annualDiscount } = calculateDiscount(monthlyPlan, quarterlyPlan, annualPlan);
                 return (
                   <TouchableOpacity key={pkg.identifier} onPress={() => handleSelectPlan(pkg)} style={[styles.planBox, isSelected && styles.selectedPlan]}>
-                    {pkg.packageType === 'ANNUAL' && annualDiscount && (
+                    {pkg.packageType === 'ANNUAL' && annualDiscount && isSelected && (
               <View style={styles.discountBox}>
                 <Text style={styles.discountTag}>{annualDiscount}</Text>
               </View>
             )}
-            {pkg.packageType === 'THREE_MONTH' && quarterlyDiscount && (
+            {pkg.packageType === 'THREE_MONTH' && quarterlyDiscount && isSelected && (
               <View style={[styles.discountBox, {backgroundColor:config.colors.secondary}]}>
                 <Text style={styles.discountTag}>{quarterlyDiscount}</Text>
               </View>
@@ -209,6 +219,7 @@ import { useTranslation } from 'react-i18next';
         </View>
       </View>
       {/* <FlashMessage position="top" /> */}
+      </ScrollView>
 
           </Animated.View>
       </Modal>
@@ -265,6 +276,7 @@ import { useTranslation } from 'react-i18next';
         flexDirection: 'row',
         justifyContent: 'space-between',
         marginBottom: 20,
+        // width:'100%'
       },
       planBox: {
         borderRadius: 10,
@@ -273,7 +285,7 @@ import { useTranslation } from 'react-i18next';
         alignItems: 'center',
         marginHorizontal: 5,
         justifyContent: 'flex-end',
-        width: '33%',
+        width: '30%',
         minHeight: 100,
         paddingBottom:10
       },
@@ -397,6 +409,7 @@ import { useTranslation } from 'react-i18next';
         alignItems: "center",
         alignSelf:'flex-end'
       },
+      
     });
     
 

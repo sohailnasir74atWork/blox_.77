@@ -31,8 +31,8 @@ const FruitSelectionDrawer = ({ visible, onClose, onSelect, data, selectedTheme 
 
   const handleSelect = (item) => {
     // Add or remove the item from the selected list
-    if (selectedItems?.some((selected) => selected.Name === item.Name)) {
-      setSelectedItems(selectedItems?.filter((selected) => selected.Name !== item.Name));
+    if (selectedItems?.some((selected) => selected.name === item.name)) {
+      setSelectedItems(selectedItems?.filter((selected) => selected.name !== item.name));
     } else {
       setSelectedItems([...selectedItems, item]);
     }
@@ -44,7 +44,7 @@ const FruitSelectionDrawer = ({ visible, onClose, onSelect, data, selectedTheme 
   };
 
   const filteredData = data.filter((item) =>
-    item.Name.toLowerCase().includes(searchText.toLowerCase())
+    item.name.toLowerCase().includes(searchText.toLowerCase())
   );
 
   return (
@@ -69,26 +69,26 @@ const FruitSelectionDrawer = ({ visible, onClose, onSelect, data, selectedTheme 
           <FlatList
             showsVerticalScrollIndicator={false}
             data={filteredData}
-            keyExtractor={(item) => item.Name}
+            keyExtractor={(item) => item.name}
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={[
                   styles.itemBlock,
-                  selectedItems?.some((selected) => selected.Name === item.Name) && styles.selectedItem,
+                  selectedItems?.some((selected) => selected.name === item.name) && styles.selectedItem,
                 ]}
                 onPress={() => handleSelect(item)}
               >
                 <Image
                   source={{
-                    uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${item.Name.replace(
+                    uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${item.name.replace(
                       /^\+/,
                       ''
                     ).replace(/\s+/g, '-')}_Icon.webp`,
                   }}
                   style={styles.icon}
                 />
-                <Text style={styles.itemText}>{item.Name}</Text>
-                <Text style={styles.itemText}>{item.Value}</Text>
+                <Text style={styles.itemText}>{item.name}</Text>
+                <Text style={styles.itemText}>{item.value}</Text>
               </TouchableOpacity>
             )}
             numColumns={3}

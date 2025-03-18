@@ -20,8 +20,8 @@ import { useLanguage } from '../Translation/LanguageProvider';
 import { useTranslation } from 'react-i18next';
 import { FlatList, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { logEvent } from '@react-native-firebase/analytics';
 import { setAppLanguage } from '../../i18n';
+import { mixpanel } from './MixPenel';
 
 const { width } = Dimensions.get('window');
 const images = [
@@ -76,6 +76,7 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
 
   const handleNext = () => {
     if (screenIndex === 0) {
+      mixpanel.track("New Install");
       setScreenIndex(1);
     } else if (screenIndex === 1) {
       user?.id ? setScreenIndex(2) : setOpenSignin(true);
@@ -85,13 +86,12 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
   };
 
   const handleGuest = () => {
+    mixpanel.track("Go as Guest");
     setScreenIndex(2);
-    logEvent(analytics, `${platform}_go_as_guest`);
   };
 
   const handleLoginSuccess = () => {
     setOpenSignin(false);
-    logEvent(analytics, `${platform}_signin_form_onboarding`);
   };
 
   const createSlideAnimation = (direction) => {
@@ -172,7 +172,7 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
 
         );
       case 2:
-        return <SubscriptionScreen visible={true} onClose={onFinish} />;
+        return <SubscriptionScreen visible={true} onClose={onFinish} track='On Boarding'/>;
       default:
         return null;
     }
@@ -185,13 +185,7 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
         {renderScreen()}
 
         {screenIndex !== 2 && <View style={styles.bottomContainer}>
-          {/* {screenIndex === 0 && !user?.id && (
-            <TouchableOpacity style={styles.buttonOutline} onPress={() => {setLanguageModalVisible(true);     logEvent(analytics, `${platform}_check_all_languages_onboarding`);}          }>
-              <Text style={[styles.optionText, {color: isDarkMode ? 'white' : 'black'}]}>
-                {languageOptions.find(l => l.code === language)?.flag} {'  '}   {languageOptions.find(l => l.code === language)?.label.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          )} */}
+         
           <TouchableOpacity style={styles.button} onPress={handleNext}>
             <Text style={styles.buttonText}>{screenIndex === 1 && !user.id ? t("first.signin") : t("first.continue")}</Text>
           </TouchableOpacity>
@@ -202,7 +196,7 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
           )}
         </View>}
 
-        <SignInDrawer visible={openSignin} onClose={() => setOpenSignin(false)} onLoginSuccess={handleLoginSuccess} selectedTheme={selectedTheme} />
+        <SignInDrawer visible={openSignin} onClose={handleLoginSuccess}  selectedTheme={selectedTheme} screen='On Boarding'/>
         <Modal visible={languageModalVisible} animationType="slide" transparent>
           <View style={[styles.modalContainer, { backgroundColor: isDarkMode ? '#121212' : '#f2f2f7' }]}>
             <Text style={[styles.modalTitle, { color: isDarkMode ? 'white' : '#666' }]}>{t("settings.select_language")}</Text>
@@ -216,7 +210,6 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
                   onPress={() => {
                     changeLanguage(item.code);
                     setAppLanguage(item.code);
-                    logEvent(analytics, `${platform}_change_lang_onboarding_${item.code}`);
                     setLanguageModalVisible(false);
 
                   }}

@@ -21,19 +21,24 @@ import CodesDrawer from './Code';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { useLocalState } from '../LocalGlobelStats';
 import { useTranslation } from 'react-i18next';
-import { logEvent } from '@react-native-firebase/analytics';
 import { ref, update } from '@react-native-firebase/database';
+import { mixpanel } from '../AppHelper/MixPenel';
+import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
+
 
 const bannerAdUnitId = getAdUnitId('banner');
 const interstitialAdUnitId = getAdUnitId('interstitial');
-const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId);
-
+const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
+  requestNonPersonalizedAdsOnly: true
+});
 
 const ValueScreen = ({ selectedTheme }) => {
   const [searchText, setSearchText] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [filterDropdownVisible, setFilterDropdownVisible] = useState(false);
-  const { analytics, appdatabase, isAdmin, reload } = useGlobalState()
+  const { analytics, appdatabase, isAdmin, reload, theme } = useGlobalState()
+  const isDarkMode = theme === 'dark'
+  const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
   const [filteredData, setFilteredData] = useState([]);
   const { localState } = useLocalState()
   const [valuesData, setValuesData] = useState([]);
@@ -41,7 +46,7 @@ const ValueScreen = ({ selectedTheme }) => {
   const { t } = useTranslation();
   const platform = Platform.OS.toLowerCase();
   const [isAdVisible, setIsAdVisible] = useState(true);
-  const filters = ['All', 'COMMON', 'UNCOMMON', 'RARE', 'LEGENDARY', 'MYTHICAL', 'GAME PASS'];
+  const filters = ['All', 'COMMON', 'UNCOMMON', 'RARE', 'LEGENDARY', 'MYTHICAL', 'GAME PASS', 'LIMITED'];
   const displayedFilter = selectedFilter === 'PREMIUM' ? 'GAME PASS' : selectedFilter;
   const formatName = (name) => name.replace(/^\+/, '').replace(/\s+/g, '-');
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
@@ -77,9 +82,9 @@ const ValueScreen = ({ selectedTheme }) => {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-   
+
     try {
-      await  reload(); // Re-fetch stock data
+      await reload(); // Re-fetch stock data
     } catch (error) {
       console.error('Error refreshing data:', error);
     } finally {
@@ -90,7 +95,6 @@ const ValueScreen = ({ selectedTheme }) => {
   const toggleDrawer = () => {
 
     triggerHapticFeedback('impactLight');
-    logEvent(analytics, `${platform}_code_drawer_open`);
     if (!hasAdBeenShown) {
       showInterstitialAd(() => {
         setHasAdBeenShown(true); // Mark the ad as shown
@@ -101,6 +105,8 @@ const ValueScreen = ({ selectedTheme }) => {
       setIsDrawerVisible(!isDrawerVisible);
 
     }
+    mixpanel.track("Code Drawer Open");
+
 
   }
 
@@ -166,7 +172,7 @@ const ValueScreen = ({ selectedTheme }) => {
     // console.log("🔄 Updating Firebase with values:", updatedValues);
 
     // Reference to the correct Firebase record
-    const fruitRef = ref(appdatabase, `/testing/${recordKey}`);
+    const fruitRef = ref(appdatabase, `/fruit_data/${recordKey}`);
 
     update(fruitRef, updatedValues)
       .then(() => {
@@ -176,6 +182,9 @@ const ValueScreen = ({ selectedTheme }) => {
       .catch((error) => {
         console.error("❌ Error updating fruit:", error);
       });
+  };
+  const applyFilter = (filter) => {
+    setSelectedFilter(filter);
   };
 
 
@@ -196,7 +205,6 @@ const ValueScreen = ({ selectedTheme }) => {
       }
     }
   }, [localState.data]);
-
 
 
   useEffect(() => {
@@ -239,12 +247,12 @@ const ValueScreen = ({ selectedTheme }) => {
     }
 
     const filtered = valuesData.filter((item) => {
-      if (!item?.Name) return false;
+      if (!item?.name) return false;
 
       const itemType =
-        item?.Type?.toUpperCase() === 'GAME PASS' ? 'PREMIUM' : item?.Type?.toUpperCase();
+        item?.rarity == 'gamepass' ? 'GAME PASS' : item?.rarity?.toUpperCase();
       return (
-        item.Name.toLowerCase().includes(searchText.toLowerCase()) &&
+        item.name.toLowerCase().includes(searchText.toLowerCase()) &&
         (selectedFilter === 'All' || itemType === selectedFilter)
       );
     });
@@ -254,7 +262,7 @@ const ValueScreen = ({ selectedTheme }) => {
   const EditFruitModal = () => (
     <Modal visible={isModalVisible} transparent={true} animationType="slide">
       <View style={styles.modalContainer}>
-        <Text style={styles.modalTitle}>Edit {selectedFruit?.Name}</Text>
+        <Text style={styles.modalTitle}>Edit {selectedFruit?.name}</Text>
 
         <TextInput
           style={styles.input}
@@ -304,33 +312,101 @@ const ValueScreen = ({ selectedTheme }) => {
 
   const renderItem = React.useCallback(({ item }) => (
     <View style={styles.itemContainer}>
-      <View style={styles.imageContainer}>
-        <Image
-          source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` }}
-          style={styles.icon}
-          resizeMode="cover"
-        />
+      <View style={styles.headerContainer}>
+        <View style={styles.imageContainer}>
+          <Image
+            source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.name)}_Icon.webp` }}
+            style={styles.icon}
+            resizeMode="cover"
+          />
+
+          <View>
+            <Text style={styles.name}>{item.name}</Text>
+            <Text style={styles.value}> Robux Price: ${item?.robux}</Text>
+            <Text style={styles.value}> Beli Price: ${item?.beli}</Text>
+
+          </View>
+        </View>
 
         <View>
-          <Text style={styles.name}>{item.Name}</Text>
-          <Text style={styles.value}> {t("value.value")}: ${item.Value.toLocaleString()}</Text></View>
+
+        </View>
+        <View>
+          <Text style={styles.rarity}>{item.rarity}</Text>
+        </View>
+
       </View>
-      <View style={styles.devider}></View>
-      <View style={styles.infoContainer}>
-        <Text style={styles.permanentValue}>{t("value.permanent_value")}: ${item.Permanent.toLocaleString()}</Text>
-        <Text style={styles.beliPrice}>{t("value.beli_price")}: ${item.Biliprice.toLocaleString()}</Text>
-        <Text style={styles.robuxPrice}>{t("value.robux_price")}: ${item.Robuxprice}</Text>
+      <View style={styles.headerContainer}>
+        <View style={styles.pointsBox}>
+          <View style={styles.rowcenter}>
+            <Text style={styles.headertext}>Value: </Text>
+            <Text style={styles.value}>${item?.value ? item?.value : 'N/A'} </Text>
+          </View>
+          <View style={styles.rowcenter}>
+            <Text style={styles.headertext}>Status: </Text>
+            <Text style={styles.value}>{item?.physicalStatus ? item?.physicalStatus : 'N/A'} </Text>
+          </View>
+          <View style={styles.rowcenter}>
+            <Text style={styles.headertext}>Demand: </Text>
+            <Text style={styles.value}>{item?.demand ? item?.demand : 'N/A'} </Text>
+          </View>
+        </View>
+
+        <View style={styles.pointsBox}>
+          <View style={styles.rowcenter}>
+            <Text style={styles.headertext}>Perm Value: </Text>
+            <Text style={styles.value}>${item?.permValue ? item?.permValue : 'N/A'}</Text>
+          </View>
+          <View style={styles.rowcenter}>
+            <Text style={styles.headertext}>Perm Status: </Text>
+            <Text style={styles.value}>{item?.permanentStatus ? item?.permanentStatus : 'N/A'}</Text>
+          </View>
+          <View style={styles.rowcenter}>
+            <Text style={styles.headertext}>Perm Demand: </Text>
+            <Text style={styles.value}>{item?.permDemand ? item?.permDemand : 'N/A'}</Text>
+          </View>
+
+        </View>
+
+
+      </View>
+      <View style={{ backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF', width: '100%', borderRadius: 8, padding: 10, marginTop: 10 }}>
+        <View style={styles.rowcenter}>
+          <Text style={styles.headertext}>TYPE : </Text>
+          <Text style={styles.value}>{item.type ? item.type : 'N/A'} </Text>
+        </View>
+        <View style={styles.rowcenter}>
+          <Text style={styles.headertext}>BEST USED FOR :</Text>
+          <Text style={styles.value}>{item.bestUsedFor ? item.bestUsedFor :'N/A'} </Text>
+
+        </View>
+        <View style={styles.rowcenter}>
+          {/* <Text style={styles.headertext}>AWAKENING PRICE (Fragments)</Text> */}
+        </View>
+
+        {/* <View style={styles.rowcenter}>
+  {["X", "V", "Z", "F", "C"].map((key) => {
+    const value = item.fragments?.[key.toLowerCase()] ?? "N/A"; // ✅ Prevent undefined values
+    return (
+      <Text key={key} style={[styles.value, { paddingRight: 10 }]}>{key}: {value}</Text>
+    );
+  })}
+</View>
+
+<Text style={styles.value}>
+  Total Price: {Object.values(item.fragments || {}).reduce((sum, val) => sum + (val || 0), 0)}
+</Text> */}
+
+
+
       </View>
       {isAdmin && (
         <TouchableOpacity onPress={() => openEditModal(item)} style={styles.editButton}>
           <Text style={styles.editButtonText}>Edit</Text>
         </TouchableOpacity>
       )}
-      {/* <View style={styles.statusContainer}>
-        <Text style={[styles.status, { backgroundColor: item.Stability === 'Stable' ? config.colors.hasBlockGreen : config.colors.wantBlockRed }]}>
-          {item.Stability}
-        </Text>
-      </View> */}
+      <View style={styles.devider}></View>
+
     </View>
   ));
 
@@ -340,30 +416,30 @@ const ValueScreen = ({ selectedTheme }) => {
 
   useEffect(() => {
     interstitial.load();
-  
+
     const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
       setIsAdLoaded(true);
     });
-  
+
     const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
       setIsAdLoaded(false);
       setIsShowingAd(false);
       interstitial.load(); // Reload ad for next use
     });
-  
+
     const unsubscribeError = interstitial.addAdEventListener(AdEventType.ERROR, (error) => {
       setIsAdLoaded(false);
       setIsShowingAd(false);
       console.error('Ad Error:', error);
     });
-  
+
     return () => {
       unsubscribeLoaded();  // ✅ Correct way to remove event listeners
       unsubscribeClosed();
       unsubscribeError();
     };
   }, []);
-  
+
 
   const showInterstitialAd = (callback) => {
     if (isAdLoaded && !isShowingAd && !localState.isPro) {
@@ -385,9 +461,9 @@ const ValueScreen = ({ selectedTheme }) => {
       <GestureHandlerRootView>
 
         <View style={styles.container}>
-          <Text style={[styles.description, { color: selectedTheme.colors.text }]}>
+          {/* <Text style={[styles.description, { color: selectedTheme.colors.text }]}>
             {t("value.description")}
-          </Text>
+          </Text> */}
           <View style={styles.searchFilterContainer}>
             <TextInput
               style={styles.searchInput}
@@ -396,59 +472,55 @@ const ValueScreen = ({ selectedTheme }) => {
               onChangeText={handleSearchChange}
 
             />
+            <Menu>
+              <MenuTrigger onPress={() => console.log("Menu opened!")}>
+                <View style={styles.filterButton}>
+                  <Text style={styles.filterText}>{displayedFilter}</Text>
+                  <Icon name="chevron-down-outline" size={18} color="white" />
+                </View>
+              </MenuTrigger>
+
+              <MenuOptions customStyles={{ optionsContainer: styles.menuOptions }}>
+                {filters.map((filter) => (
+                  <MenuOption
+                    key={filter}
+                    onSelect={() => {
+                      applyFilter(filter);
+                    }}
+                  >
+                    <Text style={[styles.filterOptionText, selectedFilter === filter && styles.selectedOption]}>
+                      {filter}
+                    </Text>
+                  </MenuOption>
+                ))}
+              </MenuOptions>
+            </Menu>
             <TouchableOpacity
-              style={[styles.filterDropdown, { backgroundColor: config.colors.hasBlockGreen }]}
-              onPress={() => setFilterDropdownVisible(!filterDropdownVisible)}
-            >
-              <Text style={[styles.filterText, { color: selectedTheme.colors.text }]}>{displayedFilter}</Text>
-              <Icon name="chevron-down-outline" size={18} color="#333" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.filterDropdown, { backgroundColor: config.colors.hasBlockGreen }]}
+              style={[styles.filterDropdown, { backgroundColor: config.colors.primary }]}
               onPress={toggleDrawer}
             >
-              <Text style={[styles.filterText, { color: selectedTheme.colors.text }]}> {t("value.codes")}</Text>
+              <Text style={[styles.filterText, { color: 'white' }]}> {t("value.codes")}</Text>
             </TouchableOpacity>
           </View>
 
 
-          {filterDropdownVisible && (
-            <View style={styles.filterDropdownContainer}>
-              {filters.map((filter) => (
-                <TouchableOpacity
-                  key={filter}
-                  style={[
-                    styles.filterOption,
-                    { backgroundColor: selectedFilter === filter ? '#34C759' : '#F2F2F2' },
-                  ]}
-                  onPress={() => handleFilterChange(filter)}
-                >
-                  <Text
-                    style={[
-                      styles.filterTextOption,
-                      { color: selectedFilter === filter ? '#FFF' : '#333' },
-                    ]}
-                  >
-                    {filter}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+
+
+
 
 
           {filteredData.length > 0 ? (
             <>
               <FlatList
                 data={filteredData}
-                keyExtractor={(item) => item.Name}
+                keyExtractor={(item) => item.name}
                 renderItem={renderItem}
                 showsVerticalScrollIndicator={false}
                 removeClippedSubviews={true}
-                numColumns={!config.isNoman ? 1 : 2}
-                refreshing={refreshing} 
-                onRefresh={handleRefresh} 
-                columnWrapperStyle={!config.isNoman ? null : styles.columnWrapper}
+                numColumns={!config.isNoman ? 1 : 1}
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+              // columnWrapperStyle={!config.isNoman ? styles.columnWrapper : styles.columnWrapper}
               />
               {isModalVisible && selectedFruit && <EditFruitModal />}
             </>
@@ -470,157 +542,228 @@ const ValueScreen = ({ selectedTheme }) => {
             size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
             onAdLoaded={() => setIsAdVisible(true)}
             onAdFailedToLoad={() => setIsAdVisible(false)}
+            requestOptions={{
+              requestNonPersonalizedAdsOnly: true,
+            }}
           />
         )}
       </View>}
     </>
   );
 };
+export const getStyles = (isDarkMode) =>
+  StyleSheet.create({
+    container: { paddingHorizontal: 8, marginHorizontal: 2, flex: 1 },
+    searchFilterContainer: { flexDirection: 'row', marginVertical: 5, alignItems: 'center' },
+    searchInput: { flex: 1, backgroundColor: '#E0E0E0', padding: 10, borderRadius: 10, marginRight: 10, height: 40 },
+    filterDropdown: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E0E0E0', padding: 10, borderRadius: 10, height: 40, marginLeft: 10 },
+    filterOption: { padding: 10, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
+    filterTextOption: { fontSize: 12 },
+    // itemContainer: { alignItems: 'flex-start', backgroundColor: 'red', borderRadius: 10, padding: 10, 
+    //    width: '100%', marginVertical: 5 },
+    icon: { width: 50, height: 50, borderRadius: 5, marginRight: 10 },
+    infoContainer: { flex: 1 },
+    name: {
+      fontSize: 16, fontFamily: 'Lato-Bold',
+      color: isDarkMode ? '#fff' : '#000',
+      lineHeight: 18,
+    },
+    value: {
+      fontSize: 10, fontFamily: 'Lato-Regular',
+      color: isDarkMode ? '#fff' : '#000',
+      lineHeight: 14,
+    },
+    permanentValue: {
+      fontSize: 10, fontFamily: 'Lato-Regular', color: 'white', lineHeight: 14,
+    },
+    beliPrice: {
+      fontSize: 10, fontFamily: 'Lato-Regular', color: 'white', lineHeight: 14,
+    },
+    robuxPrice: {
+      fontSize: 10, fontFamily: 'Lato-Regular', color: 'white', lineHeight: 14,
+    },
+    // statusContainer: { alignItems: 'left', alignSelf: 'flex-end', position: 'absolute', bottom: 0 },
+    status: {
+      paddingHorizontal: 8, paddingVertical: 4, borderTopLeftRadius: 10, borderBottomRightRadius: 10, color: '#FFF', fontSize: 12, fontFamily: 'Lato-Bold'
+    },
+    filterText: { fontSize: 14, fontFamily: 'Lato-Regular', marginRight: 5 },
+    description: {
+      fontSize: 14, lineHeight: 18, marginVertical: 10, fontFamily: 'Lato-Regular',
+    },
+    loadingIndicator: { marginVertical: 20, alignSelf: 'center' },
+    containerBannerAd: {
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
 
-const styles = StyleSheet.create({
-  container: { paddingHorizontal: 8, marginHorizontal: 2, flex: 1 },
-  searchFilterContainer: { flexDirection: 'row', marginBottom: 10, alignItems: 'center' },
-  searchInput: { flex: 1, backgroundColor: '#E0E0E0', padding: 10, borderRadius: 10, marginRight: 10, height: 48 },
-  filterDropdown: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E0E0E0', padding: 10, borderRadius: 10, height: 48, marginLeft: 10 },
-  filterDropdownContainer: {
-    position: 'absolute', top: 80, right: 10, width: 120, backgroundColor: '#FFF', borderRadius: 8,
-    zIndex: 1
-  },
-  filterOption: { padding: 10, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
-  filterTextOption: { fontSize: 14 },
-  // itemContainer: { alignItems: 'flex-start', backgroundColor: 'red', borderRadius: 10, padding: 10, 
-  //    width: '100%', marginVertical: 5 },
-  icon: { width: 50, height: 50, borderRadius: 5, marginRight: 10 },
-  infoContainer: { flex: 1 },
-  name: {
-    fontSize: 16, fontFamily: 'Lato-Bold', color: 'white', lineHeight: 18,
-  },
-  value: {
-    fontSize: 10, fontFamily: 'Lato-Regular', color: 'white', lineHeight: 14,
-  },
-  permanentValue: {
-    fontSize: 10, fontFamily: 'Lato-Regular', color: 'white', lineHeight: 14,
-  },
-  beliPrice: {
-    fontSize: 10, fontFamily: 'Lato-Regular', color: 'white', lineHeight: 14,
-  },
-  robuxPrice: {
-    fontSize: 10, fontFamily: 'Lato-Regular', color: 'white', lineHeight: 14,
-  },
-  // statusContainer: { alignItems: 'left', alignSelf: 'flex-end', position: 'absolute', bottom: 0 },
-  status: {
-    paddingHorizontal: 8, paddingVertical: 4, borderTopLeftRadius: 10, borderBottomRightRadius: 10, color: '#FFF', fontSize: 12, fontFamily: 'Lato-Bold'
-  },
-  filterText: { fontSize: 16, fontFamily: 'Lato-Regular', marginRight: 5 },
-  description: {
-    fontSize: 14, lineHeight: 18, marginVertical: 10, fontFamily: 'Lato-Regular',
-  },
-  loadingIndicator: { marginVertical: 20, alignSelf: 'center' },
-  containerBannerAd: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  flateLiastContainer: {
-    marginBottom: 70
-  }
-  , flateListContainer: {
-    marginBottom: 120
-  },
-  row: {
-    justifyContent: 'space-between', // Space items evenly in a row
-    marginVertical: 10, // Add vertical spacing between rows
-  },
-  imageContainer: {
-    flexDirection: 'row',
-    flex: 1,
-    alignItems: 'center',
-  },
-  devider: {
-    width: '90%',
-    height: 1,
-    backgroundColor: 'lightgrey',
-    marginVertical: 5
-  },
-  columnWrapper: {
-    justifyContent: 'space-between', // Distribute items evenly in each row
-    marginBottom: 10, // Add space between rows  
-    flex: 1
-  },
-  itemContainer: {
-    alignItems: 'flex-start',
-    borderRadius: 10,
-    padding: 10,
-    backgroundColor: config.colors.primary,
-    width: !config.isNoman ? '99%' : '49%',
-    marginBottom: !config.isNoman ? 10 : 0,
-    ...(!config.isNoman && {
-      borderWidth: 5,
-      borderColor: config.colors.hasBlockGreen,
-    }),
-  },
-  editButton: {
-    backgroundColor: "#3498db",
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 5,
-    marginTop: 5,
-    alignSelf: "flex-end",
-  },
-  editButtonText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "bold",
-  },
-  modalContainer: {
-    backgroundColor: "#fff",
-    padding: 20,
-    borderRadius: 10,
-    width: '80%',
-    alignSelf: 'center', // Centers the modal horizontally
-    position: 'absolute',
-    top: '50%', // Moves modal halfway down the screen
-    left: '10%', // Centers horizontally considering width: '80%'
-    transform: [{ translateY: -150 }], // Adjusts for perfect vertical centering
-    justifyContent: 'center',
-    // alignItems: 'center',
-    elevation: 5, // Adds a shadow on Android
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-  }
-  ,
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 10,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    padding: 8,
-    marginVertical: 5,
-    borderRadius: 5,
-  },
-  saveButton: {
-    backgroundColor: "#2ecc71",
-    paddingVertical: 10,
-    borderRadius: 5,
-    marginTop: 10,
-  },
-  saveButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  cencelButton: {
-    backgroundColor: "red",
-    paddingVertical: 10,
-    borderRadius: 5,
-    marginTop: 10,
-  },
+    row: {
+      justifyContent: 'space-between', // Space items evenly in a row
+      marginVertical: 10, // Add vertical spacing between rows
+    },
+    imageContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      // flex: 1,
+      alignItems: 'center',
+      
+    },
+    headerContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      flex: 1,
+      alignItems: 'center',
+      width: '100%',
+      marginBottom:3
 
-});
+    },
+    devider: {
+      width: '100%',
+      height: 1,
+      backgroundColor: 'lightgrey',
+      marginVertical: 10
+    },
+    columnWrapper: {
+      justifyContent: 'space-between', // Distribute items evenly in each row
+      marginBottom: 10, // Add space between rows  
+      flex: 1
+    },
+    itemContainer: {
+      alignItems: 'flex-start',
+      borderRadius: 10,
+      paddingVertical: 10,
+      // backgroundColor: config.colors.primary,
+      width: !config.isNoman ? '99%' : '99%',
+      // marginBottom: !config.isNoman ? 10 : 10,
+      // ...(!config.isNoman && {
+      //   borderWidth: 5,
+      //   borderColor: config.colors.hasBlockGreen,
+      // }),
+    },
+    editButton: {
+      backgroundColor: "#3498db",
+      paddingVertical: 5,
+      paddingHorizontal: 10,
+      borderRadius: 5,
+      marginTop: 5,
+      alignSelf: "flex-end",
+    },
+    editButtonText: {
+      color: "#fff",
+      fontSize: 12,
+      fontWeight: "bold",
+    },
+    modalContainer: {
+      backgroundColor: "#fff",
+      padding: 20,
+      borderRadius: 10,
+      width: '80%',
+      alignSelf: 'center', // Centers the modal horizontally
+      position: 'absolute',
+      top: '50%', // Moves modal halfway down the screen
+      left: '10%', // Centers horizontally considering width: '80%'
+      transform: [{ translateY: -150 }], // Adjusts for perfect vertical centering
+      justifyContent: 'center',
+      // alignItems: 'center',
+      elevation: 5, // Adds a shadow on Android
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 4,
+    }
+    ,
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      marginBottom: 10,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: "#ccc",
+      padding: 8,
+      marginVertical: 5,
+      borderRadius: 5,
+    },
+    saveButton: {
+      backgroundColor: "#2ecc71",
+      paddingVertical: 10,
+      borderRadius: 5,
+      marginTop: 10,
+    },
+    saveButtonText: {
+      color: "#fff",
+      fontSize: 14,
+      fontWeight: "bold",
+      textAlign: "center",
+    },
+    cencelButton: {
+      backgroundColor: "red",
+      paddingVertical: 10,
+      borderRadius: 5,
+      marginTop: 10,
+    },
+    rarity: {
+      backgroundColor: '#6A5ACD',
+      paddingVertical: 1
+      ,
+      paddingHorizontal: 5,
+      borderRadius: 5,
+      color: 'white',
+      fontSize: 12
+    },
+    headertext: {
+      backgroundColor: '#6A5ACD',
+      paddingVertical: 1,
+      paddingHorizontal: 5,
+      borderRadius: 5,
+      color: 'white',
+      fontSize: 10,
+      justifyContent: 'center',
+      alignItems: 'center',
+      alignSelf: "flex-start",
+      marginRight: 10
+
+    },
+    pointsBox: {
+      width: '49%', // Ensures even spacing
+      backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF', // Dark: darker contrast, Light: White
+      borderRadius: 8,
+      // alignItems: 'center',
+      padding: 10,
+    },
+    rowcenter: {
+      flexDirection: 'row',
+      // justifyContent:'center',
+      alignItems: 'center',
+      fontSize: 12,
+      marginTop: 5,
+
+    },
+    menuContainer: {
+      alignSelf: "center",
+    },
+    filterButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: "#3498db",
+      paddingVertical: 10,
+      paddingHorizontal: 15,
+      borderRadius: 8,
+    },
+    filterText: {
+      color: "white",
+      fontSize: 14,
+      fontWeight: "bold",
+      marginRight: 5,
+    },
+    filterOptionText: {
+      fontSize: 14,
+      padding: 10,
+      color: "#333",
+    },
+    selectedOption: {
+      fontWeight: "bold",
+      color: "#34C759",
+    },
+  });
 
 export default ValueScreen;

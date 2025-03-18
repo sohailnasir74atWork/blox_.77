@@ -9,10 +9,12 @@ import { useLocalState } from '../LocalGlobelStats';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
 import getAdUnitId from '../Ads/ads';
 import { AdEventType, InterstitialAd } from 'react-native-google-mobile-ads';
+import { mixpanel } from '../AppHelper/MixPenel';
 
 const interstitialAdUnitId = getAdUnitId('interstitial');
-const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId);
-
+const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
+    requestNonPersonalizedAdsOnly: true
+  });
 const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const viewRef = useRef();
 
@@ -105,6 +107,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const handleShare = async () => {
         try {
             if (!viewRef.current) return;
+            mixpanel.track("Trade Share");
             const uri = await captureRef(viewRef, {
                 format: 'png',
                 quality: 0.8,
@@ -119,6 +122,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
             });
 
             onClose();
+
         } catch (error) {
             console.error('Error sharing:', error);
         }
@@ -202,7 +206,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
 
                                 {/* Wants Items */}
                                 <View style={styles.gridContainer}>
-                                    {wantItemsChunk.map((row, rowIndex) => (
+                                    { wantItemsChunk.map((row, rowIndex) => (
                                         <View key={rowIndex} style={styles.row}>
                                             {row.map((item, index) => (
                                                 <View key={`${item.name}-${item.type}-${index}`} style={styles.gridItem}>
@@ -227,20 +231,9 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                 </View>
                             </View>
                         )}
-
-                        {/* Profit/Loss (Optional) */}
-                        {includeProfitLoss && (
-                            <View style={styles.tradeTotals}>
-                                <View style={styles.hasBackground}>
-                                    <Text style={[styles.priceText]}>Has</Text>
-                                    {includeValue && <Text style={[styles.priceText, { borderTopWidth: 1, borderTopColor: 'lightgrey' }]}>Has Value: {hasTotal.value.toLocaleString()}</Text>}
-                                    {includePrice && <Text style={[styles.priceText]}>Has Price: {hasTotal.price.toLocaleString()}</Text>}
-                                </View>
-
-
-                                {includePercentage && <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '10%' }}>
+                          {includePercentage && <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%', paddingVertical:10 }}>
                                     <Text style={[styles.priceTextProfit, { color: !isProfit ? 'green' : 'red' }]}>
-                                        {tradePercentage}%{!neutral && (
+                                        {!isProfit ? 'Profit :' : 'Loss :'} {tradePercentage}%{!neutral && (
                                             <Icon
                                                 name={isProfit ? 'arrow-down-outline' : 'arrow-up-outline'}
                                                 size={12}
@@ -249,10 +242,19 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                         )}
                                     </Text>
                                 </View>}
+
+                        {/* Profit/Loss (Optional) */}
+                        {includeProfitLoss && (
+                            <View style={styles.tradeTotals}>
+                                <View style={styles.hasBackground}>
+                                    <Text style={[styles.priceText]}>Has</Text>
+                                    {includeValue && <Text style={[styles.priceText, { borderTopWidth: 1, borderTopColor: 'lightgrey' }]}>Value: {hasTotal.value.toLocaleString()}</Text>}
+                                    {includePrice && <Text style={[styles.priceText]}>Price: {hasTotal.price.toLocaleString()}</Text>}
+                                </View>
                                 <View style={styles.wantBackground}>
                                     <Text style={[styles.priceText]}>Want</Text>
-                                    {includeValue && <Text style={[styles.priceText, { borderTopWidth: 1, borderTopColor: 'lightgrey' }]}>Wants Value: {wantsTotal.value.toLocaleString()}</Text>}
-                                    {includePrice && <Text style={[styles.priceText]}>Wants Price: {hasTotal.price.toLocaleString()}</Text>}
+                                    {includeValue && <Text style={[styles.priceText, { borderTopWidth: 1, borderTopColor: 'lightgrey' }]}>Value: {wantsTotal.value.toLocaleString()}</Text>}
+                                    {includePrice && <Text style={[styles.priceText]}>Price: {wantsTotal.price.toLocaleString()}</Text>}
                                 </View>
                             </View>
                         )}
@@ -329,7 +331,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                     </View>
                 </View>
             </View>
-            <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} />
+            <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} track='Share'/>
         </Modal>
     );
 };
@@ -421,7 +423,7 @@ StyleSheet.create({
         borderWidth: !config.isNoman ? 1 : 0, // Optional: Add border for grid feel
         borderColor: '#ccc',
         borderRadius: 8,
-        backgroundColor: config.isNoman ? config.colors.primary : '' 
+        backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF',
     },
     itemImage: {
         width: 50,
@@ -450,7 +452,7 @@ StyleSheet.create({
         // paddingHorizontal:20
     },
     bottom: {
-        backgroundColor: config.colors.secondary, width: '100%', borderBottomEndRadius: 8, borderBottomStartRadius: 8
+        backgroundColor: config.colors.primary, width: '100%', borderBottomEndRadius: 8, borderBottomStartRadius: 8
     },
     top: {
         backgroundColor: config.colors.hasBlockGreen, width: '100%', borderTopEndRadius: 8, borderTopStartRadius: 8

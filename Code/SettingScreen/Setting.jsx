@@ -35,14 +35,13 @@ import { ref, get, update, remove } from '@react-native-firebase/database';
 import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
 import { useLanguage } from '../Translation/LanguageProvider';
 import { useTranslation } from 'react-i18next';
-import { logEvent } from '@react-native-firebase/analytics';
 import FlashMessage, { showMessage } from 'react-native-flash-message';
 import { setAppLanguage } from '../../i18n';
 
 const adUnitId = getAdUnitId('rewarded')
 
 const rewarded = RewardedAd.createForAdRequest(adUnitId, {
-  keywords: ['fashion', 'clothing'],
+  requestNonPersonalizedAdsOnly: true
 });
 
 
@@ -156,7 +155,6 @@ export default function SettingsScreen({ selectedTheme }) {
   const handleSaveChanges = async () => {
 
     triggerHapticFeedback('impactLight');
-    logEvent(analytics, `${platform}_profile_edit`);
     const MAX_NAME_LENGTH = 20;
 
     if (!user?.id) return;
@@ -196,7 +194,7 @@ export default function SettingsScreen({ selectedTheme }) {
 
 
   const displayName = user?.id
-    ? newDisplayName?.trim() || user?.displayName?.trim() || 'Anonymous'
+    ? newDisplayName?.trim() || user?.displayName || 'Anonymous'
     : 'Guest User';
 
 
@@ -204,7 +202,6 @@ export default function SettingsScreen({ selectedTheme }) {
 
   const handleLogout = async () => {
     triggerHapticFeedback('impactLight');
-    logEvent(analytics, `${platform}_logout_user`);
     try {
       await logoutUser(setUser); // Await the logout process
       // setSelectedImage('https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png');
@@ -282,7 +279,6 @@ export default function SettingsScreen({ selectedTheme }) {
       const currentUser = auth().currentUser;
       if (currentUser) {
         await currentUser.delete();
-        logEvent(analytics, `${platform}_delete_user`);
 
       } else {
         // Alert.alert(t(".alerthome.error"), t("settings.user_not_found"));
@@ -348,147 +344,6 @@ export default function SettingsScreen({ selectedTheme }) {
   };
 
 
-  // 🔥 Completely delete the `points` field from the database
-  // 🔥 Update user points safely
-  const updateUserPoints = async (userId, pointsToAdd, updateLocalStateAndDatabase) => {
-    if (!userId) {
-      // console.error("updateUserPoints: User ID is undefined");
-      return;
-    }
-
-    try {
-      const userPointsRef = ref(appdatabase, `/users/${userId}`);
-
-      // Fetch latest points first
-      const latestPoints = await getUserPoints(user?.id);
-      const newPoints = latestPoints + pointsToAdd;
-
-      // 🔥 Correcting the .update() call by using an object
-      await update(userPointsRef, { points: newPoints });
-      // console.log(`✅ User points updated in Firebase: ${newPoints}`);
-
-      // Update local & global state after Firebase update
-      updateLocalStateAndDatabase('points', newPoints);
-    } catch (error) {
-      // console.error("❌ Error updating user points:", error);
-    }
-  };
-
-  // 🔥 Fetch latest user points from Firebase
-  const getUserPoints = async (userId) => {
-    if (!userId) {
-      // console.error("getUserPoints: User ID is undefined");
-      return 0;
-    }
-
-    try {
-
-      const snapshot = await get(ref(appdatabase, `/users/${userId}/points`));
-
-      if (snapshot.exists()) {
-        // console.log(`Fetched user points: ${snapshot.val()}`);
-        // if (developmentMode) {
-        //   const hasUsedFreeTradeSize = JSON.stringify(snapshot.val()).length / 1024;
-        //   console.log(`🚀 get points in setting data: ${hasUsedFreeTradeSize.toFixed(2)} KB`);
-        // }
-  
-        return snapshot.val(); // Returns the points
-
-      } else {
-        // console.warn("User points not found, defaulting to 0");
-        return 0;
-      }
-    } catch (error) {
-      // console.error("Error fetching user points:", error);
-      return 0;
-    }
-  };
-
-
-
-  useEffect(() => {
-    const fetchUserPoints = async () => {
-      const latestPoints = await getUserPoints(user?.id);
-      // console.log("Setting user points in state:", latestPoints);
-      updateLocalStateAndDatabase('points', latestPoints); // Store latest points
-    };
-
-    fetchUserPoints(); // Fetch points when component mounts
-
-    const unsubscribeLoaded = rewarded.addAdEventListener(RewardedAdEventType.LOADED, () => {
-      setLoaded(true);
-    });
-
-    const unsubscribeEarned = rewarded.addAdEventListener(
-      RewardedAdEventType.EARNED_REWARD,
-      async (reward) => {
-        // console.log("Ad shown, User earned reward:", reward.amount);
-
-        // 🔥 Fetch latest points, add reward, update Firebase
-        await updateUserPoints(user?.id, 100, updateLocalStateAndDatabase);
-
-        updateLocalStateAndDatabase('lastRewardtime', new Date().getTime());
-        Alert.alert(t("settings.reward_granted"), t("settings.reward_granted_message"));
-      }
-    );
-
-    return () => {
-      unsubscribeLoaded();
-      unsubscribeEarned();
-    };
-  }, [user?.id]);
-
-
-
-
-
-
-
-  const canClaimReward = () => {
-    const now = new Date().getTime();
-    const lastRewardTime = user?.lastRewardtime;
-
-    if (!lastRewardTime) return true;
-
-    const timeDifference = now - lastRewardTime;
-    return timeDifference >= 10 * 1000;
-  };
-  // console.log(user)
-  const showAd = async () => {
-    setIsAdsDrawerVisible(false);
-    try {
-      if (!canClaimReward()) {
-        const remainingTime = 1 - Math.floor((new Date().getTime() - user?.lastRewardtime) / 60000);
-        // Alert.alert(t("settings.not_eligible_for_reward"), t("settings.reward_wait_time"));
-        showMessage({
-          message:t("settings.not_eligible_for_reward"),
-          description: t("settings.reward_wait_time"),
-          type: "warning",
-        });
-        return;
-      }
-
-      if (loaded) {
-        await rewarded.show();
-        setLoaded(false);
-      } else {
-        // console.log("No ad available, granting fallback reward...");
-
-        // 🔥 Fetch latest points, add fallback reward (50 points)
-        await updateUserPoints(user?.id, 50, updateLocalStateAndDatabase);
-
-        updateLocalStateAndDatabase('lastRewardtime', new Date().getTime());
-        // Alert.alert(t("settings.ad_not_ready"), t("settings.ad_not_ready_message"));
-        showMessage({
-          message:t("settings.ad_not_ready"),
-          description:  t("settings.ad_not_ready_message"),
-          type: "success",
-        });
-      }
-    } catch (error) {
-      console.error('Error displaying ad:', error);
-    }
-  };
 const handleSelect = (lang) => {
   if(!localState.isPro){
     setShowofferWall(true)
@@ -498,16 +353,6 @@ const handleSelect = (lang) => {
 }
 
 
-  const handleGetPoints = () => {
-    triggerHapticFeedback('impactLight');
-    if (!user?.id) {
-      setOpenSignin(true);
-    } else {
-      logEvent(analytics, `${platform}_get_points_click`);
-      setIsAdsDrawerVisible(true)
-      rewarded.load()
-    }
-  };
   const formatPlanName = (plan) => {
     if (plan.includes('monthly')) return '1 MONTH';
     if (plan.includes('quarterly')) return '3 MONTHS';
@@ -534,7 +379,7 @@ const handleSelect = (lang) => {
                 {!user?.id ? t("settings.login_register") : displayName}
               </Text>
               {!user?.id && <Text style={styles.rewardLogout}>{t('settings.login_description')}</Text>}
-              {user?.id && <Text style={styles.reward}>{t("settings.my_points")}: {user?.points || 0}</Text>}
+              {user?.id && <Text style={styles.reward}>{t("settings.my_points")}: {user?.rewardPoints || 0}</Text>}
             </TouchableOpacity>
           </View>
           <TouchableOpacity onPress={handleProfileUpdate}>
@@ -635,19 +480,10 @@ const handleSelect = (lang) => {
         </View>
 
 
-
-        <Text style={styles.subtitle}>{t('settings.reward_settings')}</Text>
-        <View style={styles.cardContainer}>
-
-          <TouchableOpacity style={styles.optionLast} onPress={handleGetPoints}>
-            <Icon name="trophy-outline" size={24} color={'#4B4453'} />
-            <Text style={styles.optionText}>{t('settings.get_points')}</Text>
-          </TouchableOpacity>
-        </View>
         <Text style={styles.subtitle}>{t('settings.pro_subscription')}</Text>
         <View style={styles.cardContainer}>
 
-          <TouchableOpacity style={styles.optionLast} onPress={() => { setShowofferWall(true);     logEvent(analytics, `${platform}_check_offer_wall`);
+          <TouchableOpacity style={styles.optionLast} onPress={() => { setShowofferWall(true);     
  }}>
             <Icon name="prism-outline" size={24} color={config.colors.hasBlockGreen} />
             <Text style={[styles.optionText]}>
@@ -772,44 +608,14 @@ const handleSelect = (lang) => {
           </View>
         </ConditionalKeyboardWrapper>
       </Modal>
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={isAdsDrawerVisible}
-        onRequestClose={() => setIsAdsDrawerVisible(false)}
-      >
-        <Pressable
-          style={styles.overlay}
-          onPress={() => setIsAdsDrawerVisible(false)}
-        />
-        <View style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <View style={styles.drawer}>
-            {/* Explanation of Rewards */}
-            <Text style={styles.drawerSubtitle}>
-            {t('settings.watch_ad')}
-              
-            </Text>
-            <Text style={styles.rewardDescription}>
-            {t('settings.watch_ad_message')}
-              
-            </Text>
-
-            {/* Button to Show Ad */}
-            <TouchableOpacity
-              style={styles.saveButton}
-              onPress={showAd}
-            >
-              <Text style={styles.saveButtonText}>{t('settings.earn_reward')}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-      <SubscriptionScreen visible={showOfferWall} onClose={() => setShowofferWall(false)} />
+     
+      <SubscriptionScreen visible={showOfferWall} onClose={() => setShowofferWall(false)} track='Setting'/>
       <SignInDrawer
         visible={openSingnin}
         onClose={() => setOpenSignin(false)}
         selectedTheme={selectedTheme}
-        message='To collect points, you need to sign in'
+        message='Signin to access all features'
+         screen='Setting'
       />
 
     </View>

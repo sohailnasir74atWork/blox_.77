@@ -15,8 +15,8 @@ import { useGlobalState } from '../GlobelStats';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { t } from 'i18next';
-import { logEvent } from '@react-native-firebase/analytics';
 import { showMessage } from 'react-native-flash-message';
+import { mixpanel } from '../AppHelper/MixPenel';
 
 const CodesDrawer = ({ isVisible, toggleModal, codes }) => {
   // Flatten codes if necessary
@@ -34,7 +34,6 @@ const CodesDrawer = ({ isVisible, toggleModal, codes }) => {
   // Function to copy the code to the clipboard
   const copyToClipboard = (code) => {
     triggerHapticFeedback('impactLight');
-    logEvent(analytics, `${platform}_code_copy_${code}`);
     Clipboard.setString(code); // Copies the code to the clipboard
     showMessage({
       message:t("value.copy"),
@@ -42,6 +41,8 @@ const CodesDrawer = ({ isVisible, toggleModal, codes }) => {
       type: "success",
     });
     // Alert.alert(t("value.copy"), t("value.copy_success"));
+    mixpanel.track("Code Copy", {Code:code});
+
   };
 
   const renderCodeItem = ({ item }) => (

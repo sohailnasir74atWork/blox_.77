@@ -116,11 +116,12 @@ export const firebaseConfig = {
       isSelectedReminderEnabled: false,
       displayName: loggedInUser.displayName || generateOnePieceUsername() || 'Anonymous',
       avatar: loggedInUser.photoURL || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
-      points: 0, 
+      rewardPoints: 0, 
       isBlock:false,
       fcmToken:null,
       lastactivity:null,
       online:false,
+      isPro:false
 
   });
   
@@ -134,11 +135,13 @@ export const resetUserState = (setUser) => {
         isSelectedReminderEnabled: false,
         displayName: '',
         avatar: null,
-        points: 0, 
+        rewardPoints: 0, 
         isBlock:false,
         fcmToken:null,
         lastactivity:null,
         online:false,
+        isPro:false
+
 
     });
   };

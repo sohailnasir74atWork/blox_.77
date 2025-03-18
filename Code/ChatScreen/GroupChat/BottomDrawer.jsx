@@ -16,7 +16,6 @@ import { getStyles } from '../../SettingScreen/settingstyle';
 import { useLocalState } from '../../LocalGlobelStats';
 import { Alert } from 'react-native';  // ✅ Ensure Alert is imported
 import { useTranslation } from 'react-i18next';
-import { logEvent } from '@react-native-firebase/analytics';
 import FlashMessage, { showMessage } from 'react-native-flash-message';
 
 
@@ -99,7 +98,6 @@ const ProfileBottomDrawer = ({ isVisible, toggleModal, startChat, selectedUser,
   const handleStartChat = () => {
     if (startChat) {
       startChat(); // Call the function passed as a prop
-      logEvent(analytics, `${platform}_nav_to_chat_from_group_chat`);
     }
   };
 

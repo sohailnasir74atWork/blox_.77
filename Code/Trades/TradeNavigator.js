@@ -1,44 +1,68 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, TouchableOpacity, Modal, StyleSheet, ScrollView } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { onValue, ref } from '@react-native-firebase/database';
 import TradeList from './Trades';
-import { useGlobalState } from '../GlobelStats'; // Adjust import path
-import { useHaptic } from '../Helper/HepticFeedBack'; // Adjust import path
+import { useHaptic } from '../Helper/HepticFeedBack';
 import PrivateChatScreen from '../ChatScreen/PrivateChat/PrivateChat';
 import PrivateChatHeader from '../ChatScreen/PrivateChat/PrivateChatHeader';
 import { useTranslation } from 'react-i18next';
+import Icon from 'react-native-vector-icons/Ionicons';
+import config from '../Helper/Environment';
+import { useGlobalState } from '../GlobelStats';
 
 const Stack = createNativeStackNavigator();
 
+const HighlightedText = ({ text }) => {
+  return (
+    <Text style={styles.highlightedText}>{text}</Text>
+  );
+};
+
+const TradeRulesModal = ({ visible, onClose }) => {
+  const { theme } = useGlobalState();
+  const isDarkMode = theme === 'dark';
+
+  return (
+    <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
+      <View style={styles.modalBackground}>
+        <View style={[styles.modalContainer, { backgroundColor: isDarkMode ? '#222' : 'white' }]}>
+        <View style={styles.modalHeader}>
+            <Text style={[styles.modalTitle, { color: isDarkMode ? 'white' : 'black' }]}>
+            Trade Rules
+            </Text>
+            <TouchableOpacity onPress={onClose}>
+              <Icon name="close-circle" size={28} color={isDarkMode ? '#bbb' : '#333'} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false}>
+          <Text style={[styles.modalText, { color: isDarkMode ? '#ccc' : '#333' }]}>
+            1. Players can trade <HighlightedText text="up to 4 items" /> per trade.{"\n"}{"\n"}
+            2. A maximum of <HighlightedText text="5 trades" /> is allowed every <HighlightedText text="8 hours" />.{"\n"}{"\n"}
+            3. <HighlightedText text="Game Passes & Permanent Fruits" /> cannot be traded if the receiver already owns them.{"\n"}{"\n"}
+            4. To trade <HighlightedText text="Game Passes & Permanent Fruits" />, they must first be stored by gifting them to yourself.{"\n"}{"\n"}
+            5. The total value difference between traded fruits <HighlightedText text="cannot exceed 40%" />, but adding Robux items can increase it to <HighlightedText text="80-100%" />.{"\n"}{"\n"}
+            6. Players can store <HighlightedText text="only one of each fruit" /> unless they purchase <HighlightedText text="+1 Fruit Storage (R$ 400)" />.{"\n"}{"\n"}
+            7. Once stored in the inventory, <HighlightedText text="fruits cannot be dropped" />.{"\n"}
+          </Text>
+          </ScrollView>
+          <TouchableOpacity
+            style={[styles.closeButton, { backgroundColor: config.colors.primary }]}
+            onPress={onClose}
+          >
+            <Text style={[styles.closeButtonText, { color: isDarkMode ? 'white' : 'white' }]}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
 export const TradeStack = ({ selectedTheme }) => {
-  // const { user, appdatabase } = useGlobalState();
   const [bannedUsers, setBannedUsers] = useState([]);
   const { triggerHapticFeedback } = useHaptic();
-  const {t} = useTranslation()
+  const { t } = useTranslation();
+  const [modalVisible, setModalVisible] = useState(false);
 
-  // useEffect(() => {
-  //   if (!user?.id) return;
-
-  //   // const db = getDatabase();
-  //   const bannedRef = ref(appdatabase, `bannedUsers/${user.id}`);
-  //   const unsubscribe = onValue(
-  //     bannedRef,
-  //     (snapshot) => {
-  //       const data = snapshot.val() || {};
-  //       const bannedUsersList = Object.entries(data).map(([id, details]) => ({
-  //         id,
-  //         displayName: details?.displayName || 'Anonymous',
-  //         avatar: details?.avatar || '',
-  //       }));
-  //       setBannedUsers(bannedUsersList);
-  //     },
-  //     (error) => console.error('Error fetching banned users:', error)
-  //   );
-
-  //   return () => unsubscribe(); // Cleanup listener on unmount
-  // }, [user?.id]);
-
-  // Memoized header options for performance
   const headerOptions = useMemo(
     () => ({
       headerStyle: { backgroundColor: selectedTheme.colors.background },
@@ -49,38 +73,103 @@ export const TradeStack = ({ selectedTheme }) => {
   );
 
   return (
-    <Stack.Navigator screenOptions={headerOptions}>
-      {/* Trade List Screen */}
-      <Stack.Screen
-        name="TradeScreen"
-        component={TradeList}
-        initialParams={{ bannedUsers, selectedTheme }}
-
-        options={{ title: t("tabs.trade") }}
-      />
-
-      {/* Private Chat Screen */}
-      <Stack.Screen
-        name="PrivateChatTrade"
-        component={PrivateChatScreen}
-        initialParams={{ bannedUsers }}
-        options={({ route }) => {
-          const { selectedUser, isOnline } = route.params;
-
-          return {
-            headerTitle: () => (
-              <PrivateChatHeader
-                selectedUser={selectedUser}
-                isOnline={isOnline}
-                selectedTheme={selectedTheme}
-                bannedUsers={bannedUsers}
-                setBannedUsers={setBannedUsers}
-                triggerHapticFeedback={triggerHapticFeedback}
-              />
+    <>
+      <Stack.Navigator screenOptions={headerOptions}>
+        {/* Trade List Screen with Trade Rules Button */}
+        <Stack.Screen
+          name="TradeScreen"
+          component={TradeList}
+          initialParams={{ bannedUsers, selectedTheme }}
+          options={{
+            title: t("tabs.trade"),
+            headerRight: () => (
+              <TouchableOpacity onPress={() => setModalVisible(true)} style={{ marginRight: 8 }}>
+                <Icon
+                  name="information-circle-outline"
+                  size={24}
+                  color={config.colors.primary}
+                />
+              </TouchableOpacity>
             ),
-          };
-        }}
-      />
-    </Stack.Navigator>
+          }}
+        />
+
+        {/* Private Chat Screen */}
+        <Stack.Screen
+          name="PrivateChatTrade"
+          component={PrivateChatScreen}
+          initialParams={{ bannedUsers }}
+          options={({ route }) => {
+            const { selectedUser, isOnline } = route.params;
+            return {
+              headerTitle: () => (
+                <PrivateChatHeader
+                  selectedUser={selectedUser}
+                  isOnline={isOnline}
+                  selectedTheme={selectedTheme}
+                  bannedUsers={bannedUsers}
+                  setBannedUsers={setBannedUsers}
+                  triggerHapticFeedback={triggerHapticFeedback}
+                />
+              ),
+            };
+          }}
+        />
+      </Stack.Navigator>
+
+      {/* Trade Rules Modal */}
+      <TradeRulesModal visible={modalVisible} onClose={() => setModalVisible(false)} />
+    </>
   );
 };
+
+const styles = StyleSheet.create({
+  modalBackground: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  modalContainer: {
+    width: '98%',
+    maxHeight: '90%',
+    padding: 20,
+    borderRadius: 15,
+    alignItems: 'center',
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontFamily: 'Lato-Bold',
+  },
+
+  modalText: {
+    fontSize: 14,
+    textAlign: 'left',
+    fontFamily: 'Lato-Regular',
+    lineHeight: 24,
+  },
+  highlightedText: {
+    fontWeight: 'bold',
+    color: config.colors.primary,
+  },
+  closeButton: {
+    width: '100%',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    fontSize: 16,
+    fontFamily: 'Lato-Bold',
+  },});
+
+export default TradeStack;

@@ -5,6 +5,7 @@ import Purchases from 'react-native-purchases'; // Ensure react-native-purchases
 import config from './Helper/Environment';
 import { showMessage } from 'react-native-flash-message';
 import { useTranslation } from 'react-i18next';
+import { mixpanel } from './AppHelper/MixPenel';
 
 const storage = new MMKV();
 const LocalStateContext = createContext();
@@ -100,7 +101,6 @@ export const LocalStateProvider = ({ children }) => {
     const initRevenueCat = async () => {
       try {
         await Purchases.configure({ apiKey: config.apiKey, usesStoreKit2IfAvailable: false });
-
         // Fetch customer ID
         const userID = await Purchases.getAppUserID();
         setCustomerId(userID);
@@ -177,7 +177,7 @@ export const LocalStateProvider = ({ children }) => {
     }
   };
   // Handle in-app purchase
-  const purchaseProduct = async (packageToPurchase, setLoading) => {
+  const purchaseProduct = async (packageToPurchase, setLoading, track) => {
     setLoading(true);
     try {
       if (!packageToPurchase?.product) return;
@@ -192,6 +192,7 @@ export const LocalStateProvider = ({ children }) => {
           type: 'success',
         });
         updateLocalState('isPro', true);
+        mixpanel.track(`Pro from ${track}`);
       }
     } catch (error) {
       console.error('❌ Purchase Error:', error);

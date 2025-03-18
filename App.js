@@ -6,17 +6,18 @@ import {
   Animated,
   ActivityIndicator,
   AppState,
+  TouchableOpacity,
 } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import SettingsScreen from './Code/SettingScreen/Setting';
 import { GlobalStateProvider, useGlobalState } from './Code/GlobelStats';
 import { LocalStateProvider, useLocalState } from './Code/LocalGlobelStats';
-import { MenuProvider } from 'react-native-popup-menu';
 import { AdsConsent, AdsConsentStatus } from 'react-native-google-mobile-ads';
 import { AppOpenAd, AdEventType } from 'react-native-google-mobile-ads';
 import mobileAds from 'react-native-google-mobile-ads';
 import MainTabs from './Code/AppHelper/MainTabs';
+import Icon from 'react-native-vector-icons/Ionicons';
 import {
   MyDarkTheme,
   MyLightTheme,
@@ -27,10 +28,10 @@ import OnboardingScreen from './Code/AppHelper/OnBoardingScreen';
 import { useTranslation } from 'react-i18next';
 import FlashMessage from 'react-native-flash-message';
 import RewardCenterScreen from './Code/SettingScreen/RewardCenter';
+import RewardRulesModal from './Code/SettingScreen/RewardRulesModel';
 
 const Stack = createNativeStackNavigator();
 const adUnitId = getAdUnitId('openapp');
-
 
 function App() {
   const { theme } = useGlobalState();
@@ -52,6 +53,8 @@ function App() {
   const [isAdLoading, setIsAdLoading] = useState(false);
   const [lastAdShownTime, setLastAdShownTime] = useState(0);
   const adCooldown = 180000; // 2 minutes cooldown
+  const [modalVisible, setModalVisible] = useState(false);
+  const isDarkMode = theme === 'dark';
 
   useEffect(() => {
     mobileAds().initialize();
@@ -154,29 +157,41 @@ function App() {
   useEffect(() => {
     handleUserConsent();
   }, []);
+  
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: selectedTheme.colors.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: selectedTheme.colors.background,  }}>
       <Animated.View style={{ flex: 1 }}>
         <NavigationContainer theme={selectedTheme}>
           <StatusBar
             barStyle={theme === 'dark' ? 'light-content' : 'dark-content'}
             backgroundColor={selectedTheme.colors.background}
           />
+                <FlashMessage position="top" />
+
           <Stack.Navigator>
             <Stack.Screen name="Home" options={{ headerShown: false }}>
               {() => <MainTabs selectedTheme={selectedTheme} setChatFocused={setChatFocused} chatFocused={chatFocused} setModalVisibleChatinfo={setModalVisibleChatinfo} modalVisibleChatinfo={modalVisibleChatinfo} />}
             </Stack.Screen>
-            <Stack.Screen
-              name="Reward"
-              options={{
-                title: 'Reward Center',
-                headerStyle: { backgroundColor: selectedTheme.colors.background },
-                headerTintColor: selectedTheme.colors.text,
-              }}
-            >
-              {() => <RewardCenterScreen selectedTheme={selectedTheme} />}
-            </Stack.Screen>
+            <Stack.Screen 
+  name="Reward" 
+  options={{
+    title: "Reward Center",
+    headerStyle: { backgroundColor: selectedTheme.colors.background },
+    headerTintColor: selectedTheme.colors.text,
+    headerRight: () => (
+      <TouchableOpacity onPress={() => setModalVisible(true)} style={{ marginRight: 16 }}>
+        <Icon name="information-circle-outline" size={24} color={selectedTheme.colors.text} />
+      </TouchableOpacity>
+    ),
+  }} 
+>
+  {() => <RewardCenterScreen selectedTheme={selectedTheme} />}
+</Stack.Screen>
+
+{/* Move this outside of <Stack.Navigator> */}
+
+
             <Stack.Screen
               name="Setting"
               options={{
@@ -189,8 +204,10 @@ function App() {
             </Stack.Screen>
           </Stack.Navigator>
         </NavigationContainer>
+        {modalVisible && (
+  <RewardRulesModal visible={modalVisible} onClose={() => setModalVisible(false)} selectedTheme={selectedTheme} />
+)}
       </Animated.View>
-      <FlashMessage position="top" />
     </SafeAreaView>
   );
 }

@@ -20,7 +20,9 @@ const MyNativeAdComponent = () => {
   useEffect(() => {
     let isMounted = true;
 
-    NativeAd.createForAdRequest(bannerAdUnitId)
+    NativeAd.createForAdRequest(bannerAdUnitId, {
+        requestNonPersonalizedAdsOnly: true
+    })
       .then((ad) => {
         if (isMounted) {
           setNativeAd(ad);
@@ -105,7 +107,7 @@ StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
-    height:100
+    // height:100
 
     // borderRadius: 12,
     // backgroundColor: isDarkMode ? config.colors.primary : 'white',
