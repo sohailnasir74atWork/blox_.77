@@ -604,7 +604,7 @@ const HomeScreen = ({ selectedTheme }) => {
                     {item ? (
                       <>
                         <Image
-                          source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` }}
+                          source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
                           style={[styles.itemImageOverlay,
                          
                           ]}
@@ -647,8 +647,8 @@ const HomeScreen = ({ selectedTheme }) => {
                     {item ? (
                       <>
                         <Image
-                          source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` }}
-                          style={[styles.itemImageOverlay ]}
+                          source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
+                          style={[styles.itemImageOverlay]}
                         />
                         <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
 ]}>${item.usePermanent ? item.Permanent?.toLocaleString() : item.Value?.toLocaleString()}</Text>
@@ -715,7 +715,7 @@ const HomeScreen = ({ selectedTheme }) => {
                       <TouchableOpacity style={[styles.itemBlock, { backgroundColor: item.Type === 'p' ? '#FFD700' : isDarkMode ? '#34495E' : '#CCCCFF' }]} onPress={() => selectItem(item)}>
                         <>
                           <Image
-                            source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` }}
+                            source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
                             style={[styles.itemImageOverlay]}
                           />
                           <Text style={[[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
