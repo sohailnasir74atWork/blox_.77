@@ -14,7 +14,7 @@ import { requestPermission } from '../Helper/PermissionCheck';
 import { useIsFocused } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import  { showMessage } from 'react-native-flash-message';
-import MyNativeAdComponent from '../Ads/NativAds';
+// import MyNativeAdComponent from '../Ads/NativAds';
 import { mixpanel } from '../AppHelper/MixPenel';
 
 const bannerAdUnitId = getAdUnitId('banner');
@@ -417,7 +417,7 @@ const TimerScreen = ({ selectedTheme }) => {
                   })
                 )}
               </View>
-              {!localState.isPro && <MyNativeAdComponent />}
+              {/* {!localState.isPro && <MyNativeAdComponent />} */}
 
 
               {/* Mirage Stock Section */}

@@ -15,7 +15,6 @@ import firestore from '@react-native-firebase/firestore';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useTranslation } from 'react-i18next';
 import  { showMessage } from 'react-native-flash-message';
-import MyNativeAdComponent from '../Ads/NativAds';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
 import ShareTradeModal from './SharetradeModel';
 import { mixpanel } from '../AppHelper/MixPenel';
@@ -423,9 +422,8 @@ const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
   if (!hasMore || loading) return; // ✅ Prevents unnecessary calls
   if (!user?.id) {
     setIsSigninDrawerVisible(true);
-    return;
   }
-  fetchMoreTrades();
+  else {fetchMoreTrades();}
 };
 
   // console.log(trades)
@@ -657,9 +655,9 @@ const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
     const neutral = tradeRatio === 1; // Exactly 1:1 trade
     const formattedTime = item.timestamp ? moment(item.timestamp.toDate()).fromNow() : "Anonymous";
 
-    if ((index + 1) % 10 === 0 && !isProStatus) {
-      return <MyNativeAdComponent />;
-    }
+    // if ((index + 1) % 10 === 0 && !isProStatus) {
+    //   return <MyNativeAdComponent />;
+    // }
     // Function to group items and count duplicates
     const groupItems = (items) => {
       const grouped = {};

@@ -185,7 +185,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                                         </Text></View>
                                                     <Image
                                                         source={{
-                                                            uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.name)}_Icon.webp`,
+                                                            uri: item.type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.name)}_Icon.webp`,
                                                         }}
                                                         style={styles.itemImage}
                                                     />
@@ -216,7 +216,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                                         </Text></View>
                                                     <Image
                                                         source={{
-                                                            uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.name)}_Icon.webp`,
+                                                            uri: item.type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.name)}_Icon.webp`,
                                                         }}
                                                         style={styles.itemImage}
                                                     />

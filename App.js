@@ -52,7 +52,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [isAdLoading, setIsAdLoading] = useState(false);
   const [lastAdShownTime, setLastAdShownTime] = useState(0);
-  const adCooldown = 180000; // 2 minutes cooldown
+  const adCooldown = 120000; // 2 minutes cooldown
   const [modalVisible, setModalVisible] = useState(false);
   const isDarkMode = theme === 'dark';
 
