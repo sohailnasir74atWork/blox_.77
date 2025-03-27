@@ -24,14 +24,11 @@ import { useTranslation } from 'react-i18next';
 import { ref, update } from '@react-native-firebase/database';
 import { mixpanel } from '../AppHelper/MixPenel';
 import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
+import InterstitialAdManager from '../Ads/IntAd';
+import BannerAdComponent from '../Ads/bannerAds';
 
 
 const bannerAdUnitId = getAdUnitId('banner');
-const interstitialAdUnitId = getAdUnitId('interstitial');
-const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
-  requestNonPersonalizedAdsOnly: true
-});
-
 const ValueScreen = ({ selectedTheme }) => {
   const [searchText, setSearchText] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
@@ -95,19 +92,19 @@ const ValueScreen = ({ selectedTheme }) => {
   const toggleDrawer = () => {
 
     triggerHapticFeedback('impactLight');
-    if (!hasAdBeenShown) {
-      showInterstitialAd(() => {
-        setHasAdBeenShown(true); // Mark the ad as shown
-        setIsDrawerVisible(!isDrawerVisible);
-      });
+    const callbackfunction = () => {
+      setHasAdBeenShown(true); // Mark the ad as shown
+      setIsDrawerVisible(!isDrawerVisible);
+    };
+
+    if (!hasAdBeenShown && !localState.isPro) {
+      InterstitialAdManager.showAd(callbackfunction);
     }
     else {
       setIsDrawerVisible(!isDrawerVisible);
 
     }
     mixpanel.track("Code Drawer Open");
-
-
   }
 
   // const openEditModal = (fruit) => {
@@ -297,7 +294,7 @@ const ValueScreen = ({ selectedTheme }) => {
         />
 
 
-        <TouchableOpacity onPress={updateFruitData} style={styles.saveButton}>
+        <TouchableOpacity style={styles.saveButton}>
           <Text style={styles.saveButtonText}>Save Changes</Text>
         </TouchableOpacity>
 
@@ -414,48 +411,7 @@ const ValueScreen = ({ selectedTheme }) => {
 
 
 
-  useEffect(() => {
-    interstitial.load();
 
-    const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
-      setIsAdLoaded(true);
-    });
-
-    const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
-      setIsAdLoaded(false);
-      setIsShowingAd(false);
-      interstitial.load(); // Reload ad for next use
-    });
-
-    const unsubscribeError = interstitial.addAdEventListener(AdEventType.ERROR, (error) => {
-      setIsAdLoaded(false);
-      setIsShowingAd(false);
-      console.error('Ad Error:', error);
-    });
-
-    return () => {
-      unsubscribeLoaded();  // ✅ Correct way to remove event listeners
-      unsubscribeClosed();
-      unsubscribeError();
-    };
-  }, []);
-
-
-  const showInterstitialAd = (callback) => {
-    if (isAdLoaded && !isShowingAd && !localState.isPro) {
-      setIsShowingAd(true);
-      try {
-        interstitial.show();
-        interstitial.addAdEventListener(AdEventType.CLOSED, callback);
-      } catch (error) {
-        console.error('Error showing interstitial ad:', error);
-        setIsShowingAd(false);
-        callback(); // Proceed with fallback in case of error
-      }
-    } else {
-      callback(); // If ad is not loaded, proceed immediately
-    }
-  };
   return (
     <>
       <GestureHandlerRootView>
@@ -534,8 +490,9 @@ const ValueScreen = ({ selectedTheme }) => {
         </View>
         <CodesDrawer isVisible={isDrawerVisible} toggleModal={toggleDrawer} codes={codesData} />
       </GestureHandlerRootView>
+      {!localState.isPro && <BannerAdComponent/>}
 
-      {!localState.isPro && <View style={{ alignSelf: 'center' }}>
+      {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (
           <BannerAd
             unitId={bannerAdUnitId}
@@ -547,7 +504,7 @@ const ValueScreen = ({ selectedTheme }) => {
             }}
           />
         )}
-      </View>}
+      </View>} */}
     </>
   );
 };

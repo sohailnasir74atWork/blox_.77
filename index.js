@@ -11,6 +11,7 @@ import { LocalStateProvider } from './Code/LocalGlobelStats';
 import { MenuProvider } from 'react-native-popup-menu';
 import { LanguageProvider } from './Code/Translation/LanguageProvider';
 import messaging from '@react-native-firebase/messaging';
+import FlashMessage from 'react-native-flash-message';
 
 // 🚀 Lazy load Notification Handler for better startup performance
 const NotificationHandler = lazy(() => import('./Code/Firebase/FrontendNotificationHandling'));
@@ -28,6 +29,7 @@ const App = React.memo(() => (
         <MenuProvider>
           <AppWrapper />
           <Suspense fallback={null}>
+          <FlashMessage position="top" />
             <NotificationHandler />
           </Suspense>
         </MenuProvider>

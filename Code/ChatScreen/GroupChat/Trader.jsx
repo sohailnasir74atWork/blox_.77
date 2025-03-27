@@ -26,15 +26,12 @@ import { useLocalState } from '../../LocalGlobelStats';
 import { ref } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
 import { mixpanel } from '../../AppHelper/MixPenel';
+import InterstitialAdManager from '../../Ads/IntAd';
+import BannerAdComponent from '../../Ads/bannerAds';
 leoProfanity.add(['hell', 'shit']);
 leoProfanity.loadDictionary('en');
 
 const bannerAdUnitId = getAdUnitId('banner');
-const interstitialAdUnitId = getAdUnitId('interstitial');
-const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
-  requestNonPersonalizedAdsOnly: true
-});
-
 const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatFocused,
   setModalVisibleChatinfo, unreadMessagesCount, fetchChats, unreadcount, setunreadcount }) => {
   const { user, theme, onlineMembersCount, appdatabase, analytics } = useGlobalState();
@@ -86,14 +83,15 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
   const startPrivateChat = () => {
     // console.log('clikcked')
-    showInterstitialAd(() => {
+
+    const callbackfunction = () => {
       toggleDrawer();
       navigation.navigate('PrivateChat', { selectedUser, selectedTheme });
       mixpanel.track("Inbox Chat");
-
-
-    })
-
+    };
+    if(!localState.isPro)
+      {InterstitialAdManager.showAd(callbackfunction);}
+      else {callbackfunction()}
   };
 
   const chatRef = useMemo(() => ref(appdatabase, 'chat_new'), []);
@@ -284,48 +282,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     setIsSigninDrawerVisible(false);
   };
 
-  useEffect(() => {
-    interstitial.load();
-  
-    const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
-      setIsAdLoaded(true);
-    });
-  
-    const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
-      setIsAdLoaded(false);
-      setIsShowingAd(false);
-      interstitial.load(); // Reload ad for next use
-    });
-  
-    const unsubscribeError = interstitial.addAdEventListener(AdEventType.ERROR, (error) => {
-      setIsAdLoaded(false);
-      setIsShowingAd(false);
-      console.error('Ad Error:', error);
-    });
-  
-    return () => {
-      unsubscribeLoaded();  // ✅ Correct way to remove event listeners
-      unsubscribeClosed();
-      unsubscribeError();
-    };
-  }, []);
-  
+ 
 
-  const showInterstitialAd = (callback) => {
-    if (isAdLoaded && !isShowingAd && !localState.isPro) {
-      setIsShowingAd(true);
-      try {
-        interstitial.show();
-        interstitial.addAdEventListener(AdEventType.CLOSED, callback);
-      } catch (error) {
-        console.error('Error showing interstitial ad:', error);
-        setIsShowingAd(false);
-        callback(); // Proceed with fallback in case of error
-      }
-    } else {
-      callback(); // If ad is not loaded, proceed immediately
-    }
-  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -478,11 +436,11 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
           selectedUser={selectedUser}
           isOnline={isOnline}
           bannedUsers={bannedUsers}
-          showInterstitialAd={showInterstitialAd}
         />
       </GestureHandlerRootView>
+      {!localState.isPro && <BannerAdComponent/>}
 
-      {!localState.isPro && <View style={{ alignSelf: 'center' }}>
+      {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (
           <BannerAd
             unitId={bannerAdUnitId}
@@ -494,7 +452,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
             }}
           />
         )}
-      </View>}
+      </View>} */}
     </>
   );
 };

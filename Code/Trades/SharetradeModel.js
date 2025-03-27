@@ -7,14 +7,9 @@ import config from '../Helper/Environment';
 import { useGlobalState } from '../GlobelStats';
 import { useLocalState } from '../LocalGlobelStats';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
-import getAdUnitId from '../Ads/ads';
-import { AdEventType, InterstitialAd } from 'react-native-google-mobile-ads';
 import { mixpanel } from '../AppHelper/MixPenel';
+import InterstitialAdManager from '../Ads/IntAd';
 
-const interstitialAdUnitId = getAdUnitId('interstitial');
-const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
-    requestNonPersonalizedAdsOnly: true
-  });
 const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const viewRef = useRef();
 
@@ -31,56 +26,12 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
     const {localState} = useLocalState()
     const [showofferwall, setShowofferwall] = useState(false);
-    const [isAdLoaded, setIsAdLoaded] = useState(false);
-  const [isShowingAd, setIsShowingAd] = useState(false);
-    // console.log(localState.isPro, 'from share model')
 
 
 
 
-    useEffect(() => {
-        interstitial.load();
+   
       
-        const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
-          setIsAdLoaded(true);
-        });
-      
-        const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
-          setIsAdLoaded(false);
-          setIsShowingAd(false);
-          interstitial.load(); // Reload ad for next use
-        });
-      
-        const unsubscribeError = interstitial.addAdEventListener(AdEventType.ERROR, (error) => {
-          setIsAdLoaded(false);
-          setIsShowingAd(false);
-          console.error('Ad Error:', error);
-        });
-      
-        return () => {
-          unsubscribeLoaded();  // ✅ Correct way to remove event listeners
-          unsubscribeClosed();
-          unsubscribeError();
-        };
-      }, []);
-      
-      
-    
-      const showInterstitialAd = (callback) => {
-        if (isAdLoaded && !isShowingAd && !localState.isPro) {
-          setIsShowingAd(true);
-          try {
-            interstitial.show();
-            interstitial.addAdEventListener(AdEventType.CLOSED, callback);
-          } catch (error) {
-            // console.error('Error showing interstitial ad:', error);
-            setIsShowingAd(false);
-            callback(); // Proceed with fallback in case of error
-          }
-        } else {
-          callback(); // If ad is not loaded, proceed immediately
-        }
-      };
     
 
 
@@ -97,11 +48,15 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const formatName = (name) => name.replace(/\s+/g, '-');
 
 
+    const callbackfunction = () => {
+       handleShare()
+      };
+
 
     const sharewithAds = ()=>{
-        showInterstitialAd(()=>{
-            handleShare()
-        })
+       if(!localState.isPro)
+        {InterstitialAdManager.showAd(callbackfunction);}
+        else {callbackfunction()}
     }
 
     const handleShare = async () => {

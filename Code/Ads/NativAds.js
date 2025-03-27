@@ -19,7 +19,7 @@ const MyNativeAdComponent = () => {
     let isMounted = true;
 
     NativeAd.createForAdRequest(bannerAdUnitId, {
-      requestNonPersonalizedAdsOnly: true
+      requestNonPersonalizedAdsOnly: false
     })
       .then((ad) => {
         if (isMounted) {

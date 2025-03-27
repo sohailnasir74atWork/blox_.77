@@ -22,8 +22,6 @@ import { handleGetSuggestions, handleOpenFacebook, handleOpenWebsite, handleRate
 import { logoutUser } from '../Firebase/UserLogics';
 import SignInDrawer from '../Firebase/SigninDrawer';
 import auth from '@react-native-firebase/auth';
-import { RewardedAd, RewardedAdEventType } from 'react-native-google-mobile-ads';
-import getAdUnitId from '../Ads/ads';
 import { resetUserState } from '../Globelhelper';
 import ConditionalKeyboardWrapper from '../Helper/keyboardAvoidingContainer';
 import { useHaptic } from '../Helper/HepticFeedBack';
@@ -37,12 +35,6 @@ import { useLanguage } from '../Translation/LanguageProvider';
 import { useTranslation } from 'react-i18next';
 import FlashMessage, { showMessage } from 'react-native-flash-message';
 import { setAppLanguage } from '../../i18n';
-
-const adUnitId = getAdUnitId('rewarded')
-
-const rewarded = RewardedAd.createForAdRequest(adUnitId, {
-  requestNonPersonalizedAdsOnly: true
-});
 
 
 export default function SettingsScreen({ selectedTheme }) {

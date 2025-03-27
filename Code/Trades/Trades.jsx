@@ -18,13 +18,11 @@ import  { showMessage } from 'react-native-flash-message';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
 import ShareTradeModal from './SharetradeModel';
 import { mixpanel } from '../AppHelper/MixPenel';
+import InterstitialAdManager from '../Ads/IntAd';
+import BannerAdComponent from '../Ads/bannerAds';
 
 
 const bannerAdUnitId = getAdUnitId('banner');
-const interstitialAdUnitId = getAdUnitId('interstitial');
-const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
-  requestNonPersonalizedAdsOnly: true
-});
 
   const TradeList = ({ route }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,7 +42,6 @@ const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
 
 
   const [isAdLoaded, setIsAdLoaded] = useState(false);
-  const [isShowingAd, setIsShowingAd] = useState(false);
   const [isReportPopupVisible, setReportPopupVisible] = useState(false);
   const PAGE_SIZE = 20;
   const [isSigninDrawerVisible, setIsSigninDrawerVisible] = useState(false);
@@ -135,48 +132,6 @@ const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
     );
   }, [searchQuery, trades, selectedFilters]);
 
-  useEffect(() => {
-    interstitial.load();
-  
-    const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
-      setIsAdLoaded(true);
-    });
-  
-    const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
-      setIsAdLoaded(false);
-      setIsShowingAd(false);
-      interstitial.load(); // Reload ad for next use
-    });
-  
-    const unsubscribeError = interstitial.addAdEventListener(AdEventType.ERROR, (error) => {
-      setIsAdLoaded(false);
-      setIsShowingAd(false);
-      console.error('Ad Error:', error);
-    });
-  
-    return () => {
-      unsubscribeLoaded();  // ✅ Correct way to remove event listeners
-      unsubscribeClosed();
-      unsubscribeError();
-    };
-  }, []);
-  
-
-  const showInterstitialAd = (callback) => {
-    if (isAdLoaded && !isShowingAd && !isProStatus) {
-      setIsShowingAd(true);
-      try {
-        interstitial.show();
-        interstitial.addAdEventListener(AdEventType.CLOSED, callback);
-      } catch (error) {
-        console.error('Error showing interstitial ad:', error);
-        setIsShowingAd(false);
-        callback(); // Proceed with fallback in case of error
-      }
-    } else {
-      callback(); // If ad is not loaded, proceed immediately
-    }
-  };
 
 
   const getTradeDeal = (hasTotal, wantsTotal) => {
@@ -483,6 +438,8 @@ const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
       setLoading(false);
     }
   }, []);
+
+
   // const captureAndSave = async () => {
   //   if (!viewRef.current) {
   //     console.error('View reference is undefined.');
@@ -678,24 +635,30 @@ const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
 
     const handleChatNavigation = async () => {
 
-      try {
-        // const isOnline = await isUserOnline(item.userId);
-        showInterstitialAd(() => {
-          if (!user?.id) {
-            setIsSigninDrawerVisible(true);
-            return;
-          }
-          mixpanel.track("Inbox Trade");
-          navigation.navigate('PrivateChatTrade', {
-            selectedUser: {
-              senderId: item.userId,
-              sender: item.traderName,
-              avatar: item.avatar,
+      const callbackfunction = () => {
+        if (!user?.id) {
+          setIsSigninDrawerVisible(true);
+          return;
+        }
+        mixpanel.track("Inbox Trade");
+        navigation.navigate('PrivateChatTrade', {
+          selectedUser: {
+            senderId: item.userId,
+            sender: item.traderName,
+            avatar: item.avatar,
 
-            },
-            item,
-          });
+          },
+          item,
         });
+      };
+
+      try {
+        // const isOnline = await isUserOnline(item.userId)
+
+
+        if(!localState.isPro)
+        {InterstitialAdManager.showAd(callbackfunction);}
+        else {callbackfunction()}
 
 
       } catch (error) {
@@ -918,8 +881,9 @@ const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
 
       />
       {/* <FlashMessage position="top" /> */}
+      {!localState.isPro && <BannerAdComponent/>}
 
-      {!isProStatus && <View style={{ alignSelf: 'center' }}>
+      {/* {!isProStatus && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (
           <BannerAd
             unitId={bannerAdUnitId}
@@ -931,7 +895,7 @@ const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
             }}
           />
         )}
-      </View>}
+      </View>} */}
       <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} track='Trade'/>
 
     </View>

@@ -21,6 +21,7 @@ import { ref } from '@react-native-firebase/database';
 import database from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
 import FlashMessage, { showMessage } from 'react-native-flash-message';
+import BannerAdComponent from '../../Ads/bannerAds';
 
 
 const PAGE_SIZE = 30;
@@ -373,8 +374,9 @@ const PrivateChatScreen = () => {
             </ConditionalKeyboardWrapper>
         </View>
       </GestureHandlerRootView>
+      {!localState.isPro && <BannerAdComponent/>}
 
-      {!localState.isPro && <View style={{ alignSelf: 'center' }}>
+      {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (
           <BannerAd
             unitId={bannerAdUnitId}
@@ -386,7 +388,7 @@ const PrivateChatScreen = () => {
             }}
           />
         )}
-      </View>}
+      </View>} */}
     </>
   );
 };

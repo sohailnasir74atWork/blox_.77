@@ -16,17 +16,13 @@ import { useTranslation } from 'react-i18next';
 import  { showMessage } from 'react-native-flash-message';
 // import MyNativeAdComponent from '../Ads/NativAds';
 import { mixpanel } from '../AppHelper/MixPenel';
+import InterstitialAdManager from '../Ads/IntAd';
+import BannerAdComponent from '../Ads/bannerAds';
 
-const bannerAdUnitId = getAdUnitId('banner');
-const interstitialAdUnitId = getAdUnitId('interstitial');
-const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
-  requestNonPersonalizedAdsOnly: true
-});
+
 const TimerScreen = ({ selectedTheme }) => {
   const { user, updateLocalStateAndDatabase, theme, fetchStockData, analytics, reload } = useGlobalState();
   const [hasAdBeenShown, setHasAdBeenShown] = useState(false);
-  const [isAdLoaded, setIsAdLoaded] = useState(false);
-  const [isShowingAd, setIsShowingAd] = useState(false);
   const [fruitRecords, setFruitRecords] = useState([]);
   const [isDrawerVisible, setDrawerVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false); // State for pull-to-refresh
@@ -37,7 +33,7 @@ const TimerScreen = ({ selectedTheme }) => {
   const [prenormalStock, setPreNormalStock] = useState([]);
   const [premirageStock, setPremirageStock] = useState([]);
   const { t } = useTranslation();
-  const platform = Platform.OS.toLowerCase();
+  // const platform = Platform.OS.toLowerCase();
 
 
   const isFocused = useIsFocused();
@@ -48,6 +44,7 @@ const TimerScreen = ({ selectedTheme }) => {
 
 
   const isDarkMode = theme === 'dark';
+
 
 
   useEffect(() => {
@@ -72,14 +69,16 @@ const TimerScreen = ({ selectedTheme }) => {
 
   const openDrawer = () => {
     triggerHapticFeedback('impactLight');
-    if (!hasAdBeenShown) {
-      showInterstitialAd(() => {
-        setHasAdBeenShown(true); // Mark the ad as shown
-        setDrawerVisible(true);
-      });
+
+    const callbackfunction = () => {
+      setHasAdBeenShown(true); // Mark the ad as shown
+      setDrawerVisible(true);
+    };
+    if (!hasAdBeenShown && !localState.isPro) {
+      InterstitialAdManager.showAd(callbackfunction);
     }
     else {
-      setDrawerVisible(true);
+      callbackfunction()
 
     }
 
@@ -275,53 +274,7 @@ const TimerScreen = ({ selectedTheme }) => {
 
 
 
-  ///////////////
-
-  // console.log(state.mirageStock)
-
-
-  useEffect(() => {
-    interstitial.load();
   
-    const unsubscribeLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
-      setIsAdLoaded(true);
-    });
-  
-    const unsubscribeClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
-      setIsAdLoaded(false);
-      setIsShowingAd(false);
-      interstitial.load(); // Reload ad for next use
-    });
-  
-    const unsubscribeError = interstitial.addAdEventListener(AdEventType.ERROR, (error) => {
-      setIsAdLoaded(false);
-      setIsShowingAd(false);
-      console.error('Ad Error:', error);
-    });
-  
-    return () => {
-      unsubscribeLoaded();  // ✅ Correct way to remove event listeners
-      unsubscribeClosed();
-      unsubscribeError();
-    };
-  }, []);
-  
-  const showInterstitialAd = useCallback((callback) => {
-    if (isAdLoaded && !isShowingAd && !localState.isPro) {
-      setIsShowingAd(true);
-      try {
-        interstitial.show();
-        callback(); // Call the function after the ad
-      } catch (error) {
-        console.error('Error showing interstitial ad:', error);
-        setIsShowingAd(false);
-        callback();
-      }
-    } else {
-      callback();
-    }
-  }, [isAdLoaded, isShowingAd, localState.isPro]);
-  // console.log(state?.normalStock)
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
   // console.log(state.premirageStock)
   // console.log(localState.normalStock, localState.mi)
@@ -514,7 +467,9 @@ const TimerScreen = ({ selectedTheme }) => {
 
       </GestureHandlerRootView>
 
-      {!localState.isPro && <View style={{ alignSelf: 'center' }}>
+      {!localState.isPro && <BannerAdComponent/>}
+
+      {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (
           <BannerAd
             unitId={bannerAdUnitId}
@@ -526,7 +481,7 @@ const TimerScreen = ({ selectedTheme }) => {
             }}
           />
         )}
-      </View>}
+      </View>} */}
     </>
 
 

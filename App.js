@@ -11,11 +11,9 @@ import {
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import SettingsScreen from './Code/SettingScreen/Setting';
-import { GlobalStateProvider, useGlobalState } from './Code/GlobelStats';
-import { LocalStateProvider, useLocalState } from './Code/LocalGlobelStats';
+import {  useGlobalState } from './Code/GlobelStats';
+import {  useLocalState } from './Code/LocalGlobelStats';
 import { AdsConsent, AdsConsentStatus } from 'react-native-google-mobile-ads';
-import { AppOpenAd, AdEventType } from 'react-native-google-mobile-ads';
-import mobileAds from 'react-native-google-mobile-ads';
 import MainTabs from './Code/AppHelper/MainTabs';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {
@@ -26,9 +24,10 @@ import {
 import getAdUnitId from './Code/Ads/ads';
 import OnboardingScreen from './Code/AppHelper/OnBoardingScreen';
 import { useTranslation } from 'react-i18next';
-import FlashMessage from 'react-native-flash-message';
 import RewardCenterScreen from './Code/SettingScreen/RewardCenter';
 import RewardRulesModal from './Code/SettingScreen/RewardRulesModel';
+import InterstitialAdManager from './Code/Ads/IntAd';
+import AppOpenAdManager from './Code/Ads/openApp';
 
 const Stack = createNativeStackNavigator();
 const adUnitId = getAdUnitId('openapp');
@@ -44,70 +43,37 @@ function App() {
     }
     return theme === 'dark' ? MyDarkTheme : MyLightTheme;
   }, [theme]);
-  
-  
+
+
   const { localState, updateLocalState } = useLocalState();
-  const [chatFocused,setChatFocused] = useState(true);
-  const [modalVisibleChatinfo, setModalVisibleChatinfo ] = useState(false)
+  const [chatFocused, setChatFocused] = useState(true);
+  const [modalVisibleChatinfo, setModalVisibleChatinfo] = useState(false)
   const [loading, setLoading] = useState(false);
-  const [isAdLoading, setIsAdLoading] = useState(false);
-  const [lastAdShownTime, setLastAdShownTime] = useState(0);
-  const adCooldown = 120000; // 2 minutes cooldown
   const [modalVisible, setModalVisible] = useState(false);
-  const isDarkMode = theme === 'dark';
 
   useEffect(() => {
-    mobileAds().initialize();
+    InterstitialAdManager.init();
   }, []);
 
 
-  const [appOpenAd, setAppOpenAd] = useState(null);
-  
+
+
   useEffect(() => {
-    if (localState.isPro) return; // Skip ads for Pro users
-  
-    const newAd = AppOpenAd.createForAdRequest(adUnitId, {
-      requestNonPersonalizedAdsOnly: true,
-    });
-  
-    newAd.addAdEventListener(AdEventType.LOADED, () => {
-      setAppOpenAd(newAd);
-    });
-  
-    newAd.addAdEventListener(AdEventType.ERROR, (error) => {
-      console.error('App Open Ad Error:', error);
-      setAppOpenAd(null);
-    });
-  
-    newAd.load();
-  }, []); // Load once when the app starts
-  
-  const showAppOpenAd = () => {
-    const now = Date.now();
-    if (now - lastAdShownTime < adCooldown || !appOpenAd || isAdLoading) return;
-  
-    setIsAdLoading(true);
-    appOpenAd.show();
-    setLastAdShownTime(Date.now());
-  
-    setTimeout(() => {
-      setIsAdLoading(false);
-      setAppOpenAd(null); // Reset ad instance after showing
-    }, 2000);
-  };
-  
-  useEffect(() => {
-    const handleAppStateChange = (nextAppState) => {
-      if (nextAppState === 'active') {
-        showAppOpenAd();
+    AppOpenAdManager.init();
+
+    const unsubscribe = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && !localState?.isPro) {
+        AppOpenAdManager.showAd(); // Show on app foreground
       }
+    });
+
+    return () => {
+      unsubscribe.remove();
+      AppOpenAdManager.cleanup();
     };
-  
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-  
-    return () => subscription.remove();
-  }, [appOpenAd, lastAdShownTime, isAdLoading]);
-  
+  }, []);
+
+
 
   if (loading) {
     return (
@@ -129,7 +95,7 @@ function App() {
 
     updateLocalState('reviewCount', Number(reviewCount) + 1);
   }, []);
-  
+
   const saveConsentStatus = (status) => {
     updateLocalState('consentStatus', status);
   };
@@ -137,7 +103,7 @@ function App() {
   const handleUserConsent = async () => {
     try {
       const consentInfo = await AdsConsent.requestInfoUpdate();
-  
+
       if (consentInfo.isConsentFormAvailable) {
         if (consentInfo.status === AdsConsentStatus.REQUIRED) {
           const formResult = await AdsConsent.showForm();
@@ -152,44 +118,43 @@ function App() {
       // console.error('Error handling consent:', error);
     }
   };
-  
+
   // Handle Consent
   useEffect(() => {
     handleUserConsent();
   }, []);
-  
+
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: selectedTheme.colors.background,  }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: selectedTheme.colors.background, }}>
       <Animated.View style={{ flex: 1 }}>
         <NavigationContainer theme={selectedTheme}>
           <StatusBar
             barStyle={theme === 'dark' ? 'light-content' : 'dark-content'}
             backgroundColor={selectedTheme.colors.background}
           />
-                <FlashMessage position="top" />
 
           <Stack.Navigator>
             <Stack.Screen name="Home" options={{ headerShown: false }}>
               {() => <MainTabs selectedTheme={selectedTheme} setChatFocused={setChatFocused} chatFocused={chatFocused} setModalVisibleChatinfo={setModalVisibleChatinfo} modalVisibleChatinfo={modalVisibleChatinfo} />}
             </Stack.Screen>
-            <Stack.Screen 
-  name="Reward" 
-  options={{
-    title: "Reward Center",
-    headerStyle: { backgroundColor: selectedTheme.colors.background },
-    headerTintColor: selectedTheme.colors.text,
-    headerRight: () => (
-      <TouchableOpacity onPress={() => setModalVisible(true)} style={{ marginRight: 16 }}>
-        <Icon name="information-circle-outline" size={24} color={selectedTheme.colors.text} />
-      </TouchableOpacity>
-    ),
-  }} 
->
-  {() => <RewardCenterScreen selectedTheme={selectedTheme} />}
-</Stack.Screen>
+            <Stack.Screen
+              name="Reward"
+              options={{
+                title: "Reward Center",
+                headerStyle: { backgroundColor: selectedTheme.colors.background },
+                headerTintColor: selectedTheme.colors.text,
+                headerRight: () => (
+                  <TouchableOpacity onPress={() => setModalVisible(true)} style={{ marginRight: 16 }}>
+                    <Icon name="information-circle-outline" size={24} color={selectedTheme.colors.text} />
+                  </TouchableOpacity>
+                ),
+              }}
+            >
+              {() => <RewardCenterScreen selectedTheme={selectedTheme} />}
+            </Stack.Screen>
 
-{/* Move this outside of <Stack.Navigator> */}
+            {/* Move this outside of <Stack.Navigator> */}
 
 
             <Stack.Screen
@@ -205,8 +170,8 @@ function App() {
           </Stack.Navigator>
         </NavigationContainer>
         {modalVisible && (
-  <RewardRulesModal visible={modalVisible} onClose={() => setModalVisible(false)} selectedTheme={selectedTheme} />
-)}
+          <RewardRulesModal visible={modalVisible} onClose={() => setModalVisible(false)} selectedTheme={selectedTheme} />
+        )}
       </Animated.View>
     </SafeAreaView>
   );
@@ -227,7 +192,7 @@ export default function AppWrapper() {
   };
 
   if (localState.showOnBoardingScreen) {
-    return <OnboardingScreen onFinish={handleSplashFinish} selectedTheme={selectedTheme}/>;
+    return <OnboardingScreen onFinish={handleSplashFinish} selectedTheme={selectedTheme} />;
   }
 
   return <App />;

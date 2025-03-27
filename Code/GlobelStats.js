@@ -203,7 +203,7 @@ export const GlobalStateProvider = ({ children }) => {
       const lastActivity = localState.lastActivity ? new Date(localState.lastActivity).getTime() : 0;
       const now = Date.now();
       const timeElapsed = now - lastActivity;
-      const TWENTY_FOUR_HOURS = refresh ? 24 * 60 * 60 * 1000 : 1 * 1 * 1 * 1000; // 24 hours in ms
+      const TWENTY_FOUR_HOURS = refresh ?  1 * 1 * 1 * 1000 : 24 * 60 * 60 * 1000 ; // 24 hours in ms
       // console.log(TWENTY_FOUR_HOURS, refresh)
 
       // ✅ Fetch `codes & data` only if 24 hours have passed OR they are missing
@@ -224,6 +224,8 @@ export const GlobalStateProvider = ({ children }) => {
 
         const codes = codeSnapShot.exists() ? codeSnapShot.val() : {};
         const data = xlsSnapshot.exists() ? xlsSnapshot.val() : {};
+
+        // console.log(data)
 
 
 
