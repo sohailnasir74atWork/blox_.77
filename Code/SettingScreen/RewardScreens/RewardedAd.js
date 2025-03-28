@@ -15,6 +15,7 @@ const rewardedAd = RewardedAd.createForAdRequest(adUnitId, {
 
 let adListenersAttached = false;
 let isCoolingDown = false;
+const COOLDOWN_MS = 40 * 1000; // 1 minute cooldown
 
 const RewardedAdComponent = ({
   user,
@@ -25,6 +26,7 @@ const RewardedAdComponent = ({
 }) => {
   const { t } = useTranslation();
   const [loaded, setLoaded] = useState(false);
+  const [lastRewardTime, setLastRewardTime] = useState(user?.lastRewardtime || 0);
   const { theme } = useGlobalState();
   const isDarkMode = theme === 'dark';
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
@@ -33,34 +35,29 @@ const RewardedAdComponent = ({
     if (!adListenersAttached) {
       rewardedAd.addAdEventListener(RewardedAdEventType.LOADED, () => {
         setLoaded(true);
-        // console.log('[RewardedAd] Ad loaded ✅');
       });
 
       rewardedAd.addAdEventListener(RewardedAdEventType.EARNED_REWARD, async () => {
-        // console.log('[RewardedAd] Reward earned 🎁');
         await updateUserPoints(user?.id, 100);
-        updateLocalStateAndDatabase('lastRewardtime', Date.now());
+        const now = Date.now();
+        updateLocalStateAndDatabase('lastRewardtime', now);
+        setLastRewardTime(now);
         Alert.alert(t('settings.reward_granted'), t('settings.reward_granted_message'));
       });
 
       rewardedAd.addAdEventListener(AdEventType.CLOSED, () => {
-        // console.log('[RewardedAd] Ad closed 👋');
         setLoaded(false);
         isCoolingDown = true;
-
-        // Cooldown for 2 minutes
         setTimeout(() => {
           isCoolingDown = false;
-        //   console.log('[RewardedAd] Cooldown ended. Reloading ad.');
-          rewardedAd.load();
-        }, 5 * 60 * 1000); // 2 mins
+          if (!rewardedAd.loaded) rewardedAd.load();
+        }, COOLDOWN_MS);
       });
 
       adListenersAttached = true;
     }
 
-    if (!loaded && !isCoolingDown) {
-    //   console.log('[RewardedAd] Initial load attempt...');
+    if (!loaded && !isCoolingDown && !rewardedAd.loaded) {
       rewardedAd.load();
     }
   }, [user?.id]);
@@ -71,7 +68,6 @@ const RewardedAdComponent = ({
       const snapshot = await get(ref(appdatabase, `/users/${userId}/rewardPoints`));
       return snapshot.exists() ? snapshot.val() : 0;
     } catch (error) {
-    //   console.error('[RewardedAd] Error fetching points:', error);
       return 0;
     }
   };
@@ -83,59 +79,36 @@ const RewardedAdComponent = ({
       const newPoints = latestPoints + pointsToAdd;
       await update(ref(appdatabase, `/users/${userId}`), { rewardPoints: newPoints });
       updateLocalStateAndDatabase('rewardPoints', newPoints);
-    } catch (error) {
-    //   console.error('[RewardedAd] Error updating points:', error);
-    }
-  };
-
-  const canClaimReward = () => {
-    const now = Date.now();
-    const last = user?.lastRewardtime;
-    return !last || (now - last >= 5 * 60 * 1000); // 2 minutes cooldown
+    } catch (error) {}
   };
 
   const showAd = async () => {
-    // setIsAdsDrawerVisible(false);
-
+    setIsAdsDrawerVisible(false)
     const now = Date.now();
-  const last = user?.lastRewardtime || 0;
-  const cooldown = 5 * 60 * 1000; // 2 mins in ms
-  const remainingMs = cooldown - (now - last);
+    const remainingMs = COOLDOWN_MS - (now - lastRewardTime);
 
-  if (remainingMs > 0) {
-    const remainingSeconds = Math.ceil(remainingMs / 1000);
-    const mins = Math.floor(remainingSeconds / 60);
-    const secs = remainingSeconds % 60;
+    if (remainingMs > 0) {
+      const remainingSeconds = Math.ceil(remainingMs / 1000);
+      const mins = Math.floor(remainingSeconds / 60);
+      const secs = remainingSeconds % 60;
+      const formatted = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
 
-    const formatted = mins > 0
-      ? `${mins}m ${secs}s`
-      : `${secs}s`;
-
-    showMessage({
-      message: t('settings.not_eligible_for_reward'),
-      description: `Ad will be available in ${formatted}`,
-      type: 'warning',
-    });
-    return;
-  }
+      showMessage({
+        message: t('settings.not_eligible_for_reward'),
+        description: `Ad will be available in ${formatted}`,
+        type: 'warning',
+      });
+      return;
+    }
 
     if (loaded) {
       try {
         await rewardedAd.show();
-        // console.log('[RewardedAd] Ad shown 🚀');
       } catch (err) {
-        // console.error('[RewardedAd] Failed to show ad ❌', err);
-        showMessage({
-          message: t('settings.ad_not_ready'),
-          type: 'danger',
-        });
+        showMessage({ message: t('settings.ad_not_ready'), type: 'danger' });
       }
     } else {
-    //   console.log('[RewardedAd] Ad not loaded yet 💤');
-      showMessage({
-        message: t('settings.ad_not_ready'),
-        type: 'danger',
-      });
+      showMessage({ message: t('settings.ad_not_ready'), type: 'danger' });
     }
   };
 
@@ -144,7 +117,6 @@ const RewardedAdComponent = ({
       animationType="slide"
       transparent={true}
       visible={isAdsDrawerVisible}
-    //   onRequestClose={() => setIsAdsDrawerVisible(false)}
     >
       <Pressable style={styles.overlay} onPress={() => setIsAdsDrawerVisible(false)} />
       <View style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>

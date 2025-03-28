@@ -1,6 +1,7 @@
-import { AppOpenAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
+import { AppOpenAd, AdEventType } from 'react-native-google-mobile-ads';
+import getAdUnitId from './ads';
 
-const adUnitId = __DEV__ ? TestIds.APP_OPEN : 'ca-app-pub-xxxxxxxxxxxxx/yyyyyyyyyyyyyy';
+const adUnitId = getAdUnitId('openapp');
 
 class AppOpenAdManager {
   static appOpenAd = AppOpenAd.createForAdRequest(adUnitId);
@@ -23,7 +24,7 @@ class AppOpenAdManager {
 
     const onError = this.appOpenAd.addAdEventListener(AdEventType.ERROR, (error) => {
       this.isAdLoaded = false;
-      console.error('[AppOpenAdManager] Ad failed ❌', error);
+    //   console.error('[AppOpenAdManager] Ad failed ❌', error);
 
       if (this.retryCount < this.maxRetries) {
         const delay = Math.pow(2, this.retryCount) * 1000;
@@ -33,7 +34,7 @@ class AppOpenAdManager {
           this.appOpenAd.load();
         }, delay);
       } else {
-        console.warn('[AppOpenAdManager] Max retries reached.');
+        // console.warn('[AppOpenAdManager] Max retries reached.');
       }
     });
 

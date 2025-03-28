@@ -220,75 +220,94 @@ const bannerAdUnitId = getAdUnitId('banner');
   // console.log(isProStatus, 'from trade model')
 
   const handleMakeFeatureTrade = async (item) => {
-  if (!isProStatus) {  // ✅ Use updated state instead of `localState.isPro`
-    Alert.alert(
-      t("trade.feature_pro_only_title"),
-      t("trade.feature_pro_only_message"),
-      [
-        { text: t("trade.cancel"), style: "cancel" },
-        { 
-          text: t("trade.upgrade"), 
-          onPress: async () => {
-            setShowofferwall(true);
-
-            // ✅ Manually update state after upgrade
-            // setIsProStatus(true);
-            // updateLocalState("isPro", true);
-          }
-        },
-      ]
-    );
-    return;
-  }
-
-  // ✅ Proceed with feature logic if Pro
-  Alert.alert(
-    t("trade.feature_confirmation_title"),
-    t("trade.feature_confirmation_message"),
-    [
-      { text: t("trade.cancel"), style: "cancel" },
-      {
-        text: t("feature"),
-        onPress: async () => {
-          try {
-            await firestore().collection("trades_new").doc(item.id).update({
-              isFeatured: true,
-              featuredUntil: firestore.Timestamp.fromDate(new Date(Date.now() + 24 * 60 * 60 * 1000)),
-            });
-
-            // ✅ Store new featured count
-            const newFeaturedCount = (localState.featuredCount?.count || 0) + 1;
-            updateLocalState("featuredCount", { count: newFeaturedCount, time: new Date().toISOString() });
-
-            // ✅ Update UI
-            setTrades((prev) =>
-              prev.map((trade) => (trade.id === item.id ? { ...trade, isFeatured: true } : trade))
-            );
-
-            setFilteredTrades((prev) =>
-              prev.map((trade) => (trade.id === item.id ? { ...trade, isFeatured: true } : trade))
-            );
-
-            showMessage({
-              message: t("trade.feature_success"),
-              description: t("trade.feature_success_message"),
-              type: "success",
-            });
-
-          } catch (error) {
-            console.error("🔥 [handleMakeFeatureTrade] Error:", error);
-            showMessage({
-              message: t("trade.feature_error"),
-              description: t("trade.feature_error_message"),
-              type: "danger",
-            });
-          }
-        },
-      },
-    ]
-  );
-};
-
+    if (!isProStatus) {
+      Alert.alert(
+        t("trade.feature_pro_only_title"),
+        t("trade.feature_pro_only_message"),
+        [
+          { text: t("trade.cancel"), style: "cancel" },
+          {
+            text: t("trade.upgrade"),
+            onPress: () => setShowofferwall(true),
+          },
+        ]
+      );
+      return;
+    }
+  
+    try {
+      // 🔐 Check from Firestore how many featured trades user already has
+      const oneDayAgo = firestore.Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
+      const featuredSnapshot = await firestore()
+        .collection("trades_new")
+        .where("userId", "==", user.id)
+        .where("isFeatured", "==", true)
+        .where("featuredUntil", ">", oneDayAgo)
+        .get();
+  
+      if (featuredSnapshot.size >= 2) {
+        Alert.alert(
+          "Limit Reached",
+          "You can only feature 2 trades every 24 hours."
+        );
+        return;
+      }
+  
+      // ✅ Proceed with confirmation
+      Alert.alert(
+        t("trade.feature_confirmation_title"),
+        t("trade.feature_confirmation_message"),
+        [
+          { text: t("trade.cancel"), style: "cancel" },
+          {
+            text: t("feature"),
+            onPress: async () => {
+              try {
+                await firestore().collection("trades_new").doc(item.id).update({
+                  isFeatured: true,
+                  featuredUntil: firestore.Timestamp.fromDate(new Date(Date.now() + 24 * 60 * 60 * 1000)),
+                });
+  
+                const newFeaturedCount = (localState.featuredCount?.count || 0) + 1;
+                updateLocalState("featuredCount", {
+                  count: newFeaturedCount,
+                  time: new Date().toISOString(),
+                });
+  
+                setTrades((prev) =>
+                  prev.map((trade) =>
+                    trade.id === item.id ? { ...trade, isFeatured: true } : trade
+                  )
+                );
+                setFilteredTrades((prev) =>
+                  prev.map((trade) =>
+                    trade.id === item.id ? { ...trade, isFeatured: true } : trade
+                  )
+                );
+  
+                showMessage({
+                  message: t("trade.feature_success"),
+                  description: t("trade.feature_success_message"),
+                  type: "success",
+                });
+              } catch (error) {
+                console.error("🔥 Error making trade featured:", error);
+                showMessage({
+                  message: t("trade.feature_error"),
+                  description: t("trade.feature_error_message"),
+                  type: "danger",
+                });
+              }
+            },
+          },
+        ]
+      );
+    } catch (err) {
+      console.error("❌ Error checking featured trades:", err);
+      Alert.alert("Error", "Unable to verify your featured trades. Try again later.");
+    }
+  };
+  
 
 
 
@@ -668,7 +687,7 @@ const bannerAdUnitId = getAdUnitId('banner');
     };
 
     return (
-      <View style={[styles.tradeItem, item.isFeatured && { backgroundColor: isDarkMode  ?   config.colors.primary: 'rgba(245, 222, 179, 0.6)'  }]}>
+      <View style={[styles.tradeItem, item.isFeatured && { backgroundColor: isDarkMode  ?'#34495E': 'rgba(245, 222, 179, 0.6)'  }]}>
         {item.isFeatured && <View style={styles.tag}></View>}
 
 

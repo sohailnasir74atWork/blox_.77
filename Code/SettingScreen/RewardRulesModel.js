@@ -26,14 +26,15 @@ const RewardRulesModal = ({ visible, onClose }) => {
           {/* Scrollable Content */}
           <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollContainer}>
             <Text style={[styles.modalText, { color: isDarkMode ? '#ccc' : '#333' }]}>
-              1. A giveaway happens <Text style={styles.highlightedText}>every week</Text>.{"\n\n"}
+              1. A giveaway happens <Text style={styles.highlightedText}>twice a month—on the 15th and last day.</Text>{"\n\n"}
               2. Everyone gets <Text style={styles.highlightedText}>2 entry slots max</Text> per giveaway.{"\n\n"}
               3. <Text style={styles.highlightedText}>Pro users</Text> are auto-entered—no action needed.{"\n\n"}
-              4. <Text style={styles.highlightedText}>Free users</Text> must earn entry tickets by collecting points through rewarded ads.{"\n\n"}
-              5. Rewards include <Text style={styles.highlightedText}>Robux or Fruits</Text>.{"\n\n"}
-              6. Winners are chosen randomly—<Text style={styles.highlightedText}>no disputes</Text>.{"\n\n"}
-              7. Claim rewards within <Text style={styles.highlightedText}>5 days</Text> of the announcement.{"\n\n"}
-              8. Fake accounts or cheating will lead to <Text style={styles.highlightedText}>disqualification</Text>.
+              4. <Text style={styles.highlightedText}>Free users</Text> earn entries via rewarded ads.{"\n\n"}
+              5. <Text style={styles.highlightedText}>The top leaderboard player at month-end gets</Text> prize as well.{"\n\n"}
+              6. Rewards include <Text style={styles.highlightedText}>Robux or Fruits</Text>.{"\n\n"}
+              7. Winners are chosen randomly—<Text style={styles.highlightedText}>no disputes</Text>.{"\n\n"}
+              8. Claim rewards within <Text style={styles.highlightedText}>5 days</Text> of the announcement.{"\n\n"}
+              9. Cheating =<Text style={styles.highlightedText}>Disqualification.</Text>
             </Text>
           </ScrollView>
 
