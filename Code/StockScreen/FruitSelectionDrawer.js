@@ -88,7 +88,7 @@ const FruitSelectionDrawer = ({ visible, onClose, onSelect, data, selectedTheme 
                   style={styles.icon}
                 />
                 <Text style={styles.itemText}>{item.name}</Text>
-                <Text style={styles.itemText}>{item.value}</Text>
+                <Text style={styles.itemText}>{Number(item.value).toLocaleString()}</Text>
               </TouchableOpacity>
             )}
             numColumns={3}

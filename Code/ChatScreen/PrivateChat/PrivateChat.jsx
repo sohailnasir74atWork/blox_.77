@@ -5,6 +5,7 @@ import {
   Alert,
   Text,
   Image,
+  TouchableOpacity,
 } from 'react-native';
 import { useFocusEffect, useRoute } from '@react-navigation/native';
 import { getStyles } from '../Style';
@@ -22,6 +23,7 @@ import database from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
 import FlashMessage, { showMessage } from 'react-native-flash-message';
 import BannerAdComponent from '../../Ads/bannerAds';
+import config from '../../Helper/Environment';
 
 
 const PAGE_SIZE = 30;
@@ -43,12 +45,41 @@ const PrivateChatScreen = () => {
   const selectedUserId = selectedUser?.senderId;
   const myUserId = user?.id;
   const { t } = useTranslation();
+  const [canRate, setCanRate] = useState(false);
+const [hasRated, setHasRated] = useState(false);
+const [showRatingModal, setShowRatingModal] = useState(false);
+const [rating, setRating] = useState(0);
+
+
   // console.log(item)
   
   useEffect(()=>{setTrade(item)}, [])
 
-
-
+  useEffect(() => {
+    if (messages.length === 0) return;
+  
+    const myMsgs = messages.filter(m => m.senderId === myUserId);
+    const theirMsgs = messages.filter(m => m.senderId === selectedUserId);
+  
+    if (myMsgs.length > 1 && theirMsgs.length > 1) {
+      setCanRate(true);
+    }
+  }, [messages]);
+  
+  useEffect(() => {
+    if (!selectedUserId || !myUserId) return;
+  
+    const ratingRef = database().ref(`ratings/${selectedUserId}/${myUserId}`);
+    ratingRef.once('value').then(snapshot => {
+      if (snapshot.exists()) {
+        setHasRated(true);
+      }
+    }).catch(error => {
+      console.error("Error checking existing rating:", error);
+    });
+  }, [selectedUserId, myUserId]);
+  
+  
   const isBanned = useMemo(() => {
     // const bannedUserIds = bannedUsers?.map((user) => user.id) || [];
     return bannedUsers.includes(selectedUserId);
@@ -82,6 +113,55 @@ const PrivateChatScreen = () => {
     }, [user?.id])
   );
 
+const handleRating = async () => {
+  try {
+    const ratingRef = database().ref(`ratings/${selectedUserId}/${myUserId}`);
+    const avgRef = database().ref(`averageRatings/${selectedUserId}`);
+
+    const [oldRatingSnap, avgSnap] = await Promise.all([
+      ratingRef.once('value'),
+      avgRef.once('value'),
+    ]);
+
+    const oldRating = oldRatingSnap.val()?.rating;
+    const avgData = avgSnap.val();
+    const oldAverage = avgData?.value || 0;
+    const oldCount = avgData?.count || 0;
+
+    let newAverage = 0;
+    let newCount = oldCount;
+
+    if (oldRating !== undefined) {
+      // Updating existing rating
+      newAverage = ((oldAverage * oldCount) - oldRating + rating) / oldCount;
+    } else {
+      // New rating
+      newCount = oldCount + 1;
+      newAverage = ((oldAverage * oldCount) + rating) / newCount;
+    }
+
+    // ✅ Save rating
+    await ratingRef.set({
+      rating,
+      timestamp: Date.now(),
+    });
+
+    // ✅ Update average
+    await avgRef.set({
+      value: parseFloat(newAverage.toFixed(2)),
+      count: newCount,
+      updatedAt: Date.now(),
+    });
+
+    setShowRatingModal(false);
+    setHasRated(true);
+    showMessage({ message: "Thanks for your feedback!", type: "success" });
+
+  } catch (error) {
+    console.error("Rating error:", error);
+    showMessage({ message: "Error submitting rating. Try again!", type: "danger" });
+  }
+}
 
 
   // const messageRef = useMemo(() => ref(appdatabase, `private_chat_new/${chatKey}/messages`), [chatKey]);
@@ -293,6 +373,7 @@ const PrivateChatScreen = () => {
           <ConditionalKeyboardWrapper style={{ flex: 1 }} chatscreen={true}>
             {/* <View style={{ flex: 1 }}> */}
               {trade && (
+                <View>
                 <View style={styles.tradeDetails}>
                   <View style={styles.itemList}>
                     {groupedHasItems?.map((hasItem, index) => (
@@ -337,7 +418,29 @@ const PrivateChatScreen = () => {
                     </View>
                   ))}
                   </View>
+                 
                 </View>
+                {canRate && !hasRated && (
+  <View style={{ alignItems: 'center', marginTop: 10 }}>
+    <TouchableOpacity
+      style={{
+        backgroundColor: config.colors.primary,
+        borderRadius: 10,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+      }}
+      onPress={() => setShowRatingModal(true)}
+    >
+      <Text style={{ color: 'white', fontSize: 12 }}>
+        Rate Trader
+      </Text>
+    </TouchableOpacity>
+  </View>
+)}
+
+
+                </View>
+
               )}
 
               {!loading && messages.length === 0 ? (
@@ -375,6 +478,76 @@ const PrivateChatScreen = () => {
         </View>
       </GestureHandlerRootView>
       {!localState.isPro && <BannerAdComponent/>}
+      {showRatingModal && (
+  <View
+    style={{
+      position: 'absolute',
+      top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 9999,
+    }}
+  >
+    <View
+      style={{
+        backgroundColor: 'white',
+        padding: 20,
+        borderRadius: 10,
+        width: '80%',
+        alignItems: 'center',
+        position: 'relative',
+      }}
+    >
+      {/* ❌ Close Button */}
+      <TouchableOpacity
+        onPress={() => setShowRatingModal(false)}
+        style={{
+          position: 'absolute',
+          top: -5,
+          right: 1,
+          zIndex: 100,
+          padding: 5,
+        }}
+      >
+        <Text style={{ fontSize: 18, color: '#888' }}>✖</Text>
+      </TouchableOpacity>
+
+      {/* Title */}
+      <Text style={{ fontSize: 18, marginBottom: 15, textAlign: 'center' }}>
+        Rate this Trader
+      </Text>
+
+      {/* Stars */}
+      <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 15 }}>
+        {[1, 2, 3, 4, 5].map((num) => (
+          <TouchableOpacity key={num} onPress={() => setRating(num)}>
+            <Text style={{ fontSize: 32, color: num <= rating ? '#FFD700' : '#ccc', marginHorizontal: 4 }}>
+              ★
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Submit Button */}
+      <TouchableOpacity
+        style={{
+          backgroundColor: config.colors.primary,
+          paddingVertical: 10,
+          paddingHorizontal: 20,
+          borderRadius: 8,
+          width: '100%',
+        }}
+        onPress={handleRating}
+      >
+        <Text style={{ color: 'white', fontSize: 14, textAlign: 'center' }}>
+          Submit Rating
+        </Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+)}
+
 
       {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (

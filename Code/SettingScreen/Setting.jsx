@@ -317,9 +317,19 @@ export default function SettingsScreen({ selectedTheme }) {
   };
   
   const manageSubscription = () => {
-    const url = 'https://play.google.com/store/account/subscriptions';
-    Linking.openURL(url).catch((err) => console.error('Error opening subscription manager:', err));
+    const url = Platform.select({
+      ios: 'https://apps.apple.com/account/subscriptions',
+      android: 'https://play.google.com/store/account/subscriptions',
+    });
+  
+    if (url) {
+      Linking.openURL(url).catch((err) => {
+        console.error('Error opening subscription manager:', err);
+      });
+    }
   };
+
+
 
   const handleProfileUpdate = () => {
     triggerHapticFeedback('impactLight');
@@ -345,12 +355,17 @@ const handleSelect = (lang) => {
 }
 
 
-  const formatPlanName = (plan) => {
-    if (plan.includes('monthly')) return '1 MONTH';
-    if (plan.includes('quarterly')) return '3 MONTHS';
-    if (plan.includes('yearly')) return '1 YEAR';
-    return 'Anonymous Plan';
-  };
+const formatPlanName = (plan) => {
+  console.log(plan, 'plan');
+
+  if (plan === 'MONTHLY' || plan === 'Blox_values_199_1m') return '1 MONTH';
+  if (plan === 'QUARTERLY' || plan === 'Blox_values_499_3m') return '3 MONTHS';
+  if (plan === 'YEARLY' || plan === 'Blox_values_999_1y') return '1 YEAR';
+
+  return 'Anonymous Plan';
+};
+
+
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
   return (
     <View style={styles.container}>
@@ -369,6 +384,12 @@ const handleSelect = (lang) => {
             <TouchableOpacity onPress={user?.id ? () => { } : () => { setOpenSignin(true) }} disabled={user?.id !== null}>
               <Text style={!user?.id ? styles.userNameLogout : styles.userName}>
                 {!user?.id ? t("settings.login_register") : displayName}
+                {user?.isPro &&  
+        <Icon
+          name="checkmark-done-circle"
+          size={16}
+          color={config.colors.hasBlockGreen}
+        />}
               </Text>
               {!user?.id && <Text style={styles.rewardLogout}>{t('settings.login_description')}</Text>}
               {user?.id && <Text style={styles.reward}>{t("settings.my_points")}: {user?.rewardPoints || 0}</Text>}
@@ -473,9 +494,9 @@ const handleSelect = (lang) => {
 
 
         <Text style={styles.subtitle}>{t('settings.pro_subscription')}</Text>
-        <View style={styles.cardContainer}>
+        <View style={[styles.cardContainer, {backgroundColor:'#FFD700'}]}>
 
-          <TouchableOpacity style={styles.optionLast} onPress={() => { setShowofferWall(true);     
+          <TouchableOpacity style={[styles.optionLast]} onPress={() => { setShowofferWall(true);     
  }}>
             <Icon name="prism-outline" size={24} color={config.colors.hasBlockGreen} />
             <Text style={[styles.optionText]}>

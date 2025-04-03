@@ -319,8 +319,8 @@ const ValueScreen = ({ selectedTheme }) => {
 
           <View>
             <Text style={styles.name}>{item.name}</Text>
-            <Text style={styles.value}> Robux Price: ${item?.robux}</Text>
-            <Text style={styles.value}> Beli Price: ${item?.beli}</Text>
+            <Text style={styles.value}> Robux Price: ${Number(item?.robux).toLocaleString()}</Text>
+            <Text style={styles.value}> Beli Price: ${Number(item?.beli).toLocaleString()}</Text>
 
           </View>
         </View>
@@ -337,7 +337,7 @@ const ValueScreen = ({ selectedTheme }) => {
         <View style={styles.pointsBox}>
           <View style={styles.rowcenter}>
             <Text style={styles.headertext}>Value: </Text>
-            <Text style={styles.value}>${item?.value ? item?.value : 'N/A'} </Text>
+            <Text style={styles.value}>${item?.value ? Number(item?.value).toLocaleString() : 'N/A'} </Text>
           </View>
           <View style={styles.rowcenter}>
             <Text style={styles.headertext}>Status: </Text>
@@ -352,7 +352,7 @@ const ValueScreen = ({ selectedTheme }) => {
         <View style={styles.pointsBox}>
           <View style={styles.rowcenter}>
             <Text style={styles.headertext}>Perm Value: </Text>
-            <Text style={styles.value}>${item?.permValue ? item?.permValue : 'N/A'}</Text>
+            <Text style={styles.value}>${item?.permValue ? Number(item?.permValue).toLocaleString() : 'N/A'}</Text>
           </View>
           <View style={styles.rowcenter}>
             <Text style={styles.headertext}>Perm Status: </Text>
@@ -429,7 +429,7 @@ const ValueScreen = ({ selectedTheme }) => {
 
             />
             <Menu>
-              <MenuTrigger onPress={() => console.log("Menu opened!")}>
+              <MenuTrigger onPress={() => {}}>
                 <View style={styles.filterButton}>
                   <Text style={styles.filterText}>{displayedFilter}</Text>
                   <Icon name="chevron-down-outline" size={18} color="white" />

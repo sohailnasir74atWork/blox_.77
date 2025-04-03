@@ -72,7 +72,7 @@ export const LocalStateProvider = ({ children }) => {
     }
   }, [localState.data]);
 
-  // console.log(isPro)
+  // console.log(localState.isPro)
   // Update local state and MMKV storage
   const updateLocalState = (key, value) => {
     setLocalState((prevState) => ({
@@ -137,7 +137,11 @@ export const LocalStateProvider = ({ children }) => {
     setLoadingReStore(true);
     try {
       const customerInfo = await Purchases.restorePurchases();
-      const proStatus = !!customerInfo.entitlements.active['Pro'];
+      const entitlements = customerInfo.entitlements.active;
+      const proKey = Object.keys(entitlements).find(
+      (key) => key.toLowerCase() === 'pro'
+      );
+      const proStatus = !!(proKey && entitlements[proKey]);
   
       updateLocalState('isPro', proStatus);
       setMySubscriptions(
@@ -160,12 +164,15 @@ export const LocalStateProvider = ({ children }) => {
   const checkEntitlements = async () => {
     try {
       const customerInfo = await Purchases.getCustomerInfo();
-      const proStatus = !!customerInfo.entitlements.active['Pro'];
+      const entitlements = customerInfo.entitlements.active;
+      const proKey = Object.keys(entitlements).find(
+      (key) => key.toLowerCase() === 'pro'
+      );
 
-      // setIsPro(proStatus);
-      updateLocalState('isPro', proStatus); // Persist Pro status in MMKV
-
+      // console.log(customerInfo.activeSubscriptions)
+      const proStatus = !!(proKey && entitlements[proKey]);
       if (proStatus) {
+        updateLocalState('isPro', proStatus); // Persist Pro status in MMKV
         const activePlansWithExpiry = customerInfo.activeSubscriptions.map((subscription) => ({
           plan: subscription,
           expiry: customerInfo.allExpirationDates[subscription],
@@ -183,7 +190,13 @@ export const LocalStateProvider = ({ children }) => {
       if (!packageToPurchase?.product) return;
       
       const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
-      const isPro = !!customerInfo.entitlements.active['Pro'];
+
+      const entitlements = customerInfo.entitlements.active;
+      const proKey = Object.keys(entitlements).find(
+      (key) => key.toLowerCase() === 'pro'
+      );
+      const isPro = !!(proKey && entitlements[proKey]);
+      // const isPro = !!customerInfo.entitlements.active['Pro'];
   
       if (isPro) {
         showMessage({
@@ -191,7 +204,7 @@ export const LocalStateProvider = ({ children }) => {
           description: t('trade.purchase_success'),
           type: 'success',
         });
-        updateLocalState('isPro', true);
+        updateLocalState('isPro', isPro);
         mixpanel.track(`Pro from ${track}`);
       }
     } catch (error) {

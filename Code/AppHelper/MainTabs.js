@@ -9,12 +9,17 @@ import { ChatStack } from '../ChatScreen/ChatNavigator';
 import { TradeStack } from '../Trades/TradeNavigator';
 import { useTranslation } from 'react-i18next';
 import config from '../Helper/Environment';
+import { useHaptic } from '../Helper/HepticFeedBack';
+import { useNavigationState } from '@react-navigation/native';
+import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
+
 
 const Tab = createBottomTabNavigator();
 
 const AnimatedTabIcon = React.memo(({ focused, iconName, color, size }) => {
   const scaleValue = useRef(new Animated.Value(1)).current;
-
+  
+  
   useEffect(() => {
     Animated.spring(scaleValue, {
       toValue: focused ? 1.2 : 1,
@@ -32,6 +37,30 @@ const AnimatedTabIcon = React.memo(({ focused, iconName, color, size }) => {
 
 const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modalVisibleChatinfo, setModalVisibleChatinfo }) => {
   const { t } = useTranslation();
+  const { triggerHapticFeedback } = useHaptic();
+
+  const withHaptics = () => {
+    triggerHapticFeedback('impactLight');
+  };
+
+  const currentRouteIndex = useNavigationState((state) => state.index);
+  const previousRouteIndex = useRef(currentRouteIndex);
+  const hasMounted = useRef(false); // 👈 NEW
+  
+  useEffect(() => {
+    if (!hasMounted.current) {
+      hasMounted.current = true; // 🚫 Skip first tab render
+      return;
+    }
+  
+    if (previousRouteIndex.current !== currentRouteIndex) {
+      triggerHapticFeedback('impactLight'); // ✅ Trigger only on real tab switch
+      previousRouteIndex.current = currentRouteIndex;
+    }
+  }, [currentRouteIndex, triggerHapticFeedback]);
+  
+
+
 
   const getTabIcon = useCallback((routeName, focused) => {
     const isNoman = config.isNoman; // ✅ Extracted to avoid repeated checks
@@ -84,13 +113,13 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
                   style={{ width: 20, height: 20, marginRight: 16 }}
                 />
               </TouchableOpacity>
+              <TouchableOpacity onPress={() => navigation.navigate('Setting')} style={{ marginRight: 16 }}>
               <Icon
                 name="settings-outline"
                 size={24}
                 color={selectedTheme.colors.text}
-                style={{ marginRight: 16 }}
-                onPress={() => navigation.navigate('Setting')}
               />
+              </TouchableOpacity>
             </>
 
 

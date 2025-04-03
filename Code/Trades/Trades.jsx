@@ -14,7 +14,7 @@ import { useLocalState } from '../LocalGlobelStats';
 import firestore from '@react-native-firebase/firestore';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useTranslation } from 'react-i18next';
-import  { showMessage } from 'react-native-flash-message';
+import { showMessage } from 'react-native-flash-message';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
 import ShareTradeModal from './SharetradeModel';
 import { mixpanel } from '../AppHelper/MixPenel';
@@ -24,7 +24,7 @@ import BannerAdComponent from '../Ads/bannerAds';
 
 const bannerAdUnitId = getAdUnitId('banner');
 
-  const TradeList = ({ route }) => {
+const TradeList = ({ route }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAdVisible, setIsAdVisible] = useState(true);
   const { selectedTheme } = route.params
@@ -67,7 +67,7 @@ const bannerAdUnitId = getAdUnitId('banner');
   useEffect(() => {
     // console.log(localState.isPro, 'from trade model'); // ✅ Check if isPro is updated
     setIsProStatus(localState.isPro); // ✅ Force update state and trigger re-render
-  }, [localState.isPro]); 
+  }, [localState.isPro]);
 
   useEffect(() => {
     const lowerCaseQuery = searchQuery.trim().toLowerCase();
@@ -101,7 +101,7 @@ const bannerAdUnitId = getAdUnitId('banner');
 
         const { deal } = getTradeDeal(trade.hasTotal, trade.wantsTotal);
         const tradeLabel = deal?.label || "trade.unknown_deal"; // Fallback to avoid undefined
-        
+
 
         if (selectedFilters.includes("fairDeal")) {
           matchesAnyFilter = matchesAnyFilter || tradeLabel === "trade.fair_deal";
@@ -234,7 +234,7 @@ const bannerAdUnitId = getAdUnitId('banner');
       );
       return;
     }
-  
+
     try {
       // 🔐 Check from Firestore how many featured trades user already has
       const oneDayAgo = firestore.Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
@@ -244,7 +244,7 @@ const bannerAdUnitId = getAdUnitId('banner');
         .where("isFeatured", "==", true)
         .where("featuredUntil", ">", oneDayAgo)
         .get();
-  
+
       if (featuredSnapshot.size >= 2) {
         Alert.alert(
           "Limit Reached",
@@ -252,7 +252,7 @@ const bannerAdUnitId = getAdUnitId('banner');
         );
         return;
       }
-  
+
       // ✅ Proceed with confirmation
       Alert.alert(
         t("trade.feature_confirmation_title"),
@@ -267,13 +267,13 @@ const bannerAdUnitId = getAdUnitId('banner');
                   isFeatured: true,
                   featuredUntil: firestore.Timestamp.fromDate(new Date(Date.now() + 24 * 60 * 60 * 1000)),
                 });
-  
+
                 const newFeaturedCount = (localState.featuredCount?.count || 0) + 1;
                 updateLocalState("featuredCount", {
                   count: newFeaturedCount,
                   time: new Date().toISOString(),
                 });
-  
+
                 setTrades((prev) =>
                   prev.map((trade) =>
                     trade.id === item.id ? { ...trade, isFeatured: true } : trade
@@ -284,7 +284,7 @@ const bannerAdUnitId = getAdUnitId('banner');
                     trade.id === item.id ? { ...trade, isFeatured: true } : trade
                   )
                 );
-  
+
                 showMessage({
                   message: t("trade.feature_success"),
                   description: t("trade.feature_success_message"),
@@ -307,7 +307,7 @@ const bannerAdUnitId = getAdUnitId('banner');
       Alert.alert("Error", "Unable to verify your featured trades. Try again later.");
     }
   };
-  
+
 
 
 
@@ -393,12 +393,12 @@ const bannerAdUnitId = getAdUnitId('banner');
 
 
   const handleEndReached = () => {
-  if (!hasMore || loading) return; // ✅ Prevents unnecessary calls
-  if (!user?.id) {
-    setIsSigninDrawerVisible(true);
-  }
-  else {fetchMoreTrades();}
-};
+    if (!hasMore || loading) return; // ✅ Prevents unnecessary calls
+    if (!user?.id) {
+      setIsSigninDrawerVisible(true);
+    }
+    else { fetchMoreTrades(); }
+  };
 
   // console.log(trades)
 
@@ -566,10 +566,10 @@ const bannerAdUnitId = getAdUnitId('banner');
   //       setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
   //       setHasMore(snapshot.docs.length === PAGE_SIZE);
   //     }, error => console.error('🔥 Firestore error:', error));
-  
+
   //   return () => unsubscribe(); // ✅ Unsubscribing on unmount
   // }, []);
-  
+
 
 
   useEffect(() => {
@@ -665,7 +665,6 @@ const bannerAdUnitId = getAdUnitId('banner');
             senderId: item.userId,
             sender: item.traderName,
             avatar: item.avatar,
-
           },
           item,
         });
@@ -675,9 +674,8 @@ const bannerAdUnitId = getAdUnitId('banner');
         // const isOnline = await isUserOnline(item.userId)
 
 
-        if(!localState.isPro)
-        {InterstitialAdManager.showAd(callbackfunction);}
-        else {callbackfunction()}
+        if (!localState.isPro) { InterstitialAdManager.showAd(callbackfunction); }
+        else { callbackfunction() }
 
 
       } catch (error) {
@@ -687,30 +685,53 @@ const bannerAdUnitId = getAdUnitId('banner');
     };
 
     return (
-      <View style={[styles.tradeItem, item.isFeatured && { backgroundColor: isDarkMode  ?'#34495E': 'rgba(245, 222, 179, 0.6)'  }]}>
+      <View style={[styles.tradeItem, item.isFeatured && { backgroundColor: isDarkMode ? '#34495E' : 'rgba(245, 222, 179, 0.6)' }]}>
         {item.isFeatured && <View style={styles.tag}></View>}
 
 
         <View style={styles.tradeHeader}>
           <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={handleChatNavigation}>
             <Image source={{ uri: item.avatar }} style={styles.itemImageUser} />
-            <View style={{ justifyContent: 'center' }}>
-              <Text style={styles.traderName}>{item.traderName} {item.isPro && <Icon
-                name="checkmark-done-circle"
-                size={16}
-                color={config.colors.hasBlockGreen}
-              />}</Text>
+
+            <View style={{ justifyContent: 'center', marginLeft: 10 }}>
+              <Text style={styles.traderName}>
+                {item.traderName}{' '}
+                {item.isPro &&
+                  <Icon
+                    name="checkmark-done-circle"
+                    size={14}
+                    color={config.colors.hasBlockGreen}
+                  />}
+                {item.rating ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, backgroundColor: '#FFD700', borderRadius: 5, paddingHorizontal: 4, paddingVertical: 2, marginLeft: 5 }}>
+                    <Icon name="star" size={8} color="white" style={{ marginRight: 4 }} />
+                    <Text style={{ fontSize: 8, color: 'white' }}>{parseFloat(item.rating).toFixed(1)}({item.ratingCount})</Text>
+                  </View>
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, backgroundColor: '#888', borderRadius: 5, paddingHorizontal: 2, paddingVertical: 1, marginLeft: 5 }}>
+                    <Icon name="star-outline" size={8} color="white" style={{ marginRight: 4 }} />
+                    <Text style={{ fontSize: 8, color: 'white' }}>N/A</Text>
+                  </View>
+                )}
+
+
+              </Text>
+
+              {/* Rating Info */}
+
+
               <Text style={styles.tradeTime}>{formattedTime}</Text>
             </View>
           </TouchableOpacity>
+
           <View style={{ flexDirection: 'row' }}>
-          {(groupedHasItems.length > 0 && groupedWantsItems.length > 0) &&  <View style={[styles.dealContainer, { backgroundColor: deal.color }]}>
+            {/* {(groupedHasItems.length > 0 && groupedWantsItems.length > 0) &&  <View style={[styles.dealContainer, { backgroundColor: deal.color }]}>
               <Text style={styles.dealText}>
 
                 {t(deal.label)}
               </Text>
 
-            </View>}
+            </View>} */}
 
             <Icon
               name="chatbox-outline"
@@ -724,30 +745,30 @@ const bannerAdUnitId = getAdUnitId('banner');
         <View style={styles.tradeDetails}>
           {/* Has Items */}
           <View style={styles.itemList}>
-          {groupedHasItems.length > 0 ? (
-  groupedHasItems.map((hasItem, index) => (
-    <View key={`${hasItem.name}-${hasItem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
-      <Image
-        source={{
-          uri: hasItem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(hasItem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(hasItem.name)}_Icon.webp`,
-        }}
-        style={[styles.itemImage, { backgroundColor: hasItem.type === 'p' ? '#FFCC00' : '' }]}
-      />
-      <Text style={styles.names}>
-        {hasItem.name}{hasItem.type === 'p' && " (P)"}
-      </Text>
-      {hasItem.count > 1 && (
-        <View style={styles.tagcount}>
-          <Text style={styles.tagcounttext}>{hasItem.count}</Text>
-        </View>
-      )}
-    </View>
-  ))
-) : (
-  <TouchableOpacity style={styles.dealContainerSingle} onPress={handleChatNavigation}>
-  <Text style={styles.dealText}>Give offer</Text> 
-  </TouchableOpacity>
-)}
+            {groupedHasItems.length > 0 ? (
+              groupedHasItems.map((hasItem, index) => (
+                <View key={`${hasItem.name}-${hasItem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
+                  <Image
+                    source={{
+                      uri: hasItem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(hasItem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(hasItem.name)}_Icon.webp`,
+                    }}
+                    style={[styles.itemImage, { backgroundColor: hasItem.type === 'p' ? '#FFCC00' : '' }]}
+                  />
+                  <Text style={styles.names}>
+                    {hasItem.name}{hasItem.type === 'p' && " (P)"}
+                  </Text>
+                  {hasItem.count > 1 && (
+                    <View style={styles.tagcount}>
+                      <Text style={styles.tagcounttext}>{hasItem.count}</Text>
+                    </View>
+                  )}
+                </View>
+              ))
+            ) : (
+              <TouchableOpacity style={styles.dealContainerSingle} onPress={handleChatNavigation}>
+                <Text style={styles.dealText}>Give offer</Text>
+              </TouchableOpacity>
+            )}
 
           </View>
 
@@ -758,38 +779,38 @@ const bannerAdUnitId = getAdUnitId('banner');
 
           {/* Wants Items */}
           <View style={styles.itemList}>
-          {groupedWantsItems.length > 0 ? (
-  groupedWantsItems.map((wantnItem, index) => (
-    <View key={`${wantnItem.name}-${wantnItem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
-      <Image
-        source={{
-          uri: wantnItem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(wantnItem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(wantnItem.name)}_Icon.webp`,
-        }}
-        style={[styles.itemImage, { backgroundColor: wantnItem.type === 'p' ? '#FFCC00' : '' }]}
-      />
-      <Text style={styles.names}>
-        {wantnItem.name}{wantnItem.type === 'p' && " (P)"}
-      </Text>
-      {wantnItem.count > 1 && (
-        <View style={styles.tagcount}>
-          <Text style={styles.tagcounttext}>{wantnItem.count}</Text>
-        </View>
-      )}
-    </View>
-  ))
-) : (
-  <TouchableOpacity style={styles.dealContainerSingle} onPress={handleChatNavigation}>
-  <Text style={styles.dealText}>Give offer</Text> 
-  </TouchableOpacity>
-)}
+            {groupedWantsItems.length > 0 ? (
+              groupedWantsItems.map((wantnItem, index) => (
+                <View key={`${wantnItem.name}-${wantnItem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
+                  <Image
+                    source={{
+                      uri: wantnItem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(wantnItem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(wantnItem.name)}_Icon.webp`,
+                    }}
+                    style={[styles.itemImage, { backgroundColor: wantnItem.type === 'p' ? '#FFCC00' : '' }]}
+                  />
+                  <Text style={styles.names}>
+                    {wantnItem.name}{wantnItem.type === 'p' && " (P)"}
+                  </Text>
+                  {wantnItem.count > 1 && (
+                    <View style={styles.tagcount}>
+                      <Text style={styles.tagcounttext}>{wantnItem.count}</Text>
+                    </View>
+                  )}
+                </View>
+              ))
+            ) : (
+              <TouchableOpacity style={styles.dealContainerSingle} onPress={handleChatNavigation}>
+                <Text style={styles.dealText}>Give offer</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
         <View style={styles.tradeTotals}>
-         {groupedHasItems.length > 0 && <Text style={[styles.priceText, styles.hasBackground]}>
+          {groupedHasItems.length > 0 && <Text style={[styles.priceText, styles.hasBackground]}>
             {t("trade.price_has")} {formatValue(item.hasTotal.value)}
           </Text>}
           <View style={styles.transfer}>
-           {(groupedHasItems.length > 0 && groupedWantsItems.length > 0) &&  <Text style={[styles.priceTextProfit, { color: !isProfit ? config.colors.hasBlockGreen : config.colors.wantBlockRed }]}>
+            {(groupedHasItems.length > 0 && groupedWantsItems.length > 0) && <Text style={[styles.priceTextProfit, { color: !isProfit ? config.colors.hasBlockGreen : config.colors.wantBlockRed }]}>
               {tradePercentage}% {!neutral && (
                 <Icon
                   name={isProfit ? 'arrow-down-outline' : 'arrow-up-outline'}
@@ -800,8 +821,8 @@ const bannerAdUnitId = getAdUnitId('banner');
               )}
             </Text>}
           </View>
-         {groupedWantsItems.length > 0 && <Text style={[styles.priceText, styles.wantBackground]}>
-            { t("trade.price_want")} {formatValue(item.wantsTotal.value)}
+          {groupedWantsItems.length > 0 && <Text style={[styles.priceText, styles.wantBackground]}>
+            {t("trade.price_want")} {formatValue(item.wantsTotal.value)}
           </Text>}
         </View>
 
@@ -824,24 +845,24 @@ const bannerAdUnitId = getAdUnitId('banner');
             style={{ marginRight: 20 }}
             onPress={() => handleDelete(item)}
           />
-         <Icon
-  name="share-social"
-  size={24}
-  color={config.colors.primary}
-  onPress={() => {
-    setSelectedTrade(item); // ✅ Set the selected trade
-    setOpenShareModel(true); // ✅ Then open the modal
-  }}
-/>
+          <Icon
+            name="share-social"
+            size={24}
+            color={config.colors.primary}
+            onPress={() => {
+              setSelectedTrade(item); // ✅ Set the selected trade
+              setOpenShareModel(true); // ✅ Then open the modal
+            }}
+          />
 
 
 
         </View>)}
         <ShareTradeModal
-  visible={openShareModel}
-  onClose={() => setOpenShareModel(false)}
-  tradeData={selectedTrade}
-/>
+          visible={openShareModel}
+          onClose={() => setOpenShareModel(false)}
+          tradeData={selectedTrade}
+        />
 
       </View>
     );
@@ -896,11 +917,11 @@ const bannerAdUnitId = getAdUnitId('banner');
         onClose={handleLoginSuccess}
         selectedTheme={selectedTheme}
         message={t("trade.signin_required_message")}
-         screen='Trade'
+        screen='Trade'
 
       />
       {/* <FlashMessage position="top" /> */}
-      {!localState.isPro && <BannerAdComponent/>}
+      {!localState.isPro && <BannerAdComponent />}
 
       {/* {!isProStatus && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (
@@ -915,7 +936,7 @@ const bannerAdUnitId = getAdUnitId('banner');
           />
         )}
       </View>} */}
-      <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} track='Trade'/>
+      <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} track='Trade' />
 
     </View>
   );
@@ -991,7 +1012,7 @@ const getStyles = (isDarkMode) =>
       justifyContent: 'space-evenly',
       width: "45%",
       paddingVertical: 15,
-      alignSelf:'center'
+      alignSelf: 'center'
     },
     itemImage: {
       width: 30,
@@ -1103,17 +1124,17 @@ const getStyles = (isDarkMode) =>
       alignSelf: 'center',
       // height:30,
       // marginRight: 10,
-      backgroundColor:'black',
-      justifyContent:'center',
-      alignItems:'center'
+      backgroundColor: 'black',
+      justifyContent: 'center',
+      alignItems: 'center'
     },
     dealText: {
       color: 'white',
       fontWeight: 'Lato-Bold',
       fontSize: 8,
       textAlign: 'center',
-      alignItems:'center',
-justifyContent:'center'
+      alignItems: 'center',
+      justifyContent: 'center'
       // backgroundColor:'black'
 
     },

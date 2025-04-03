@@ -210,6 +210,14 @@ const HomeScreen = ({ selectedTheme }) => {
     setIsSubmitting(true);
     // console.log("🚀 Trade submission started...");
     try {
+      const database = getDatabase();
+      const avgRatingSnap = await ref(database, `averageRatings/${user.id}`).once('value');
+      const avgRatingData = avgRatingSnap.val();
+      
+      const userRating = avgRatingData?.value || null;
+      const ratingCount = avgRatingData?.count || 0; // 👈 total users who rated
+      
+
       // ✅ Build new trade object
       let newTrade = {
         userId: user?.id || "Anonymous",
@@ -223,6 +231,9 @@ const HomeScreen = ({ selectedTheme }) => {
         wantsTotal: { price: wantsTotal?.price || 0, value: wantsTotal?.value || 0 },
         description: description || "",
         timestamp: firestore.FieldValue.serverTimestamp(),
+        rating: userRating,
+        ratingCount: ratingCount
+        
       };
       if (type === 'share') {
         setModalVisible(false); // Close modal
@@ -557,7 +568,7 @@ const HomeScreen = ({ selectedTheme }) => {
                           ]}
                         />
                         <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
-                        ]}>${item.usePermanent ? item.Permanent?.toLocaleString() : item.Value?.toLocaleString()}</Text>
+                        ]}>${item.usePermanent ? Number(item.Permanent).toLocaleString() : Number(item.Value).toLocaleString()}</Text>
                         <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
                         ]}>{item.Type === 'p' && 'Perm'}  {item.Name}</Text>
                         {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
@@ -598,7 +609,7 @@ const HomeScreen = ({ selectedTheme }) => {
                           style={[styles.itemImageOverlay]}
                         />
                         <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
-                        ]}>${item.usePermanent ? item.Permanent?.toLocaleString() : item.Value?.toLocaleString()}</Text>
+                        ]}>${item.usePermanent ? Number(item.Permanent).toLocaleString() : Number(item.Value).toLocaleString()}</Text>
                         <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
                         ]}>{item.Type === 'p' && 'Perm'} {item.Name}</Text>
                         {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
@@ -666,7 +677,7 @@ const HomeScreen = ({ selectedTheme }) => {
                             style={[styles.itemImageOverlay]}
                           />
                           <Text style={[[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
-                          ]]}>${item.Value?.toLocaleString()}</Text>
+                          ]]}>${Number(item.Value)?.toLocaleString()}</Text>
                           <Text style={[[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
                           ]]}>{item.Type === 'p' && 'Perm'} {item.Name}</Text>
                           {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}

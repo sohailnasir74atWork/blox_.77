@@ -71,7 +71,8 @@ import { useTranslation } from 'react-i18next';
       }
     }, [visible, packages]);
 
-    const handleSelectPlan = (pkg) => setActivePlan(pkg);
+    const handleSelectPlan = (pkg) => {setActivePlan(pkg); console.log(pkg)
+    }
 
     const handlePurchase = () => {
       if (activePlan) {
