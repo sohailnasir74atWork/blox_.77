@@ -50,7 +50,7 @@ import { useTranslation } from 'react-i18next';
 
         Animated.timing(animatedValue, {
           toValue: 100,
-          duration: 4000, // 10 seconds
+          duration: 2500, // 10 seconds
           useNativeDriver: false,
         }).start(() => {
           setShowCloseButton(true);

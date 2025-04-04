@@ -39,10 +39,8 @@ import { setAppLanguage } from '../../i18n';
 
 export default function SettingsScreen({ selectedTheme }) {
   const [isDrawerVisible, setDrawerVisible] = useState(false);
-  const [isAdsDrawerVisible, setIsAdsDrawerVisible] = useState(false);
   const [newDisplayName, setNewDisplayName] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
-  const [loaded, setLoaded] = useState(false);
   const [openSingnin, setOpenSignin] = useState(false);
   const { user, theme, updateLocalStateAndDatabase, setUser, appdatabase, analytics } = useGlobalState()
   const { updateLocalState, localState, mySubscriptions } = useLocalState()
@@ -499,7 +497,7 @@ const formatPlanName = (plan) => {
           <TouchableOpacity style={[styles.optionLast]} onPress={() => { setShowofferWall(true);     
  }}>
             <Icon name="prism-outline" size={24} color={config.colors.hasBlockGreen} />
-            <Text style={[styles.optionText]}>
+            <Text style={[styles.optionText, {color:'black'}]}>
             {t('settings.active_plan')} : {localState.isPro ? t('settings.paid') : t('settings.free')}
             </Text>
           </TouchableOpacity>

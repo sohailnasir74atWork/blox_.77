@@ -6,12 +6,14 @@ import { getFirestore } from '@react-native-firebase/firestore';
 import { createNewUser, firebaseConfig, registerForNotifications } from './Globelhelper';
 import { useLocalState } from './LocalGlobelStats';
 import { requestPermission } from './Helper/PermissionCheck';
-import { Alert } from 'react-native';
+import { Alert, useColorScheme } from 'react-native';
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const firestoreDB = getFirestore(app);
 const appdatabase = getDatabase(app);
 const GlobalStateContext = createContext();
+import { InteractionManager } from 'react-native';
+
 
 
 // Custom hook to access global state
@@ -19,7 +21,11 @@ export const useGlobalState = () => useContext(GlobalStateContext);
 
 export const GlobalStateProvider = ({ children }) => {
   const { localState, updateLocalState } = useLocalState()
-  const [theme, setTheme] = useState(localState.theme || 'light');
+
+  const colorScheme = useColorScheme(); // 'light' or 'dark'
+
+const resolvedTheme = localState.theme === 'system' ? colorScheme : localState.theme;
+const [theme, setTheme] = useState(resolvedTheme);
   const [isAdmin, setIsAdmin] = useState(false);
   const [user, setUser] = useState({
     id: null,
@@ -42,8 +48,9 @@ export const GlobalStateProvider = ({ children }) => {
 
   // Track theme changes
   useEffect(() => {
-    setTheme(localState.theme);
-  }, [localState.theme]);
+    setTheme(localState.theme === 'system' ? colorScheme : localState.theme);
+  }, [localState.theme, colorScheme]);
+  
 
   // const isAdmin = user?.id  ? user?.id == '3CAAolfaX3UE3BLTZ7ghFbNnY513' : false
   // console.log(isAdmin, user)
@@ -140,9 +147,19 @@ export const GlobalStateProvider = ({ children }) => {
 
   // ✅ Ensure useEffect runs only when necessary
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, handleUserLogin);
+    const unsubscribe = onAuthStateChanged(auth, (loggedInUser) => {
+      handleUserLogin(loggedInUser);
+  
+      if (loggedInUser?.uid) {
+        InteractionManager.runAfterInteractions(() => {
+          registerForNotifications(loggedInUser.uid);
+          requestPermission();
+        });
+      }
+    });
+  
     return () => unsubscribe();
-  }, [auth, handleUserLogin]); // ✅ Dependencies are stable
+  }, []);
 
   const updateUserProStatus = () => {
     if (!user?.id) {
@@ -177,9 +194,13 @@ export const GlobalStateProvider = ({ children }) => {
     }
   };
 
-  useEffect(()=>{
-    updateUserProStatus()
-  }, [user.id, localState.isPro])
+  useEffect(() => {
+    InteractionManager.runAfterInteractions(() => {
+      checkInternetConnection();
+      updateUserProStatus();
+    });
+  }, [user.id, localState.isPro]);
+  
 
   useEffect(() => {
 
@@ -203,7 +224,7 @@ export const GlobalStateProvider = ({ children }) => {
       const lastActivity = localState.lastActivity ? new Date(localState.lastActivity).getTime() : 0;
       const now = Date.now();
       const timeElapsed = now - lastActivity;
-      const TWENTY_FOUR_HOURS = refresh ?  1 * 1 * 1 * 1000 : 24 * 60 * 60 * 1000 ; // 24 hours in ms
+      const TWENTY_FOUR_HOURS = refresh ?  24 * 60 * 60 * 1000 : 1 * 1 * 60 * 1000 ; // 24 hours in ms
       // console.log(TWENTY_FOUR_HOURS, refresh)
 
       // ✅ Fetch `codes & data` only if 24 hours have passed OR they are missing
@@ -261,21 +282,26 @@ export const GlobalStateProvider = ({ children }) => {
       await updateLocalState('mirageStock', JSON.stringify(mirageStock));
       await updateLocalState('prenormalStock', JSON.stringify(prenormalStock));
       await updateLocalState('premirageStock', JSON.stringify(premirageStock));
-      await updateLocalState('isAppReady', true);
 
       // console.log("✅ Stock data processed and stored successfully.");
     } catch (error) {
       console.error("❌ Error fetching stock data:", error);
     } finally {
       setLoading(false);
+      await updateLocalState('isAppReady', true);
     }
   };
 // console.log(user)
 
   // ✅ Run the function only if needed
   useEffect(() => {
-    fetchStockData();
+    const task = InteractionManager.runAfterInteractions(() => {
+      fetchStockData(); // ✅ Now runs after main thread is free
+    });
+  
+    return () => task.cancel();
   }, []);
+  
   const reload = () => {
     fetchStockData(true);
   };

@@ -360,7 +360,7 @@ itemList: {
   flexWrap: 'wrap',
   justifyContent: 'space-evenly',
   width: "45%",
-  paddingVertical: 15,
+  paddingVertical: 0,
   // backgroundColor:'red'
 },
 itemImage: {

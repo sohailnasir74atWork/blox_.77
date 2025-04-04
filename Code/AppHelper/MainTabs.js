@@ -15,26 +15,23 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 
 const Tab = createBottomTabNavigator();
 
-const AnimatedTabIcon = React.memo(({ focused, iconName, color, size }) => {
-  const scaleValue = useRef(new Animated.Value(1)).current;
+const AnimatedTabIcon = React.memo(({iconName, color, size }) => {
 
-  useEffect(() => {
-    Animated.spring(scaleValue, {
-      toValue: focused ? 1.2 : 1,
-      friction: 3,
-      useNativeDriver: true,
-    }).start();
-  }, [focused]);
+  // useEffect(() => {
+  //   Animated.spring(scaleValue, {
+  //     toValue: focused ? 1.2 : 1,
+  //     friction: 3,
+  //     useNativeDriver: true,
+  //   }).start();
+  // }, [focused]);
 
   return (
-    <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
       <FontAwesome
         name={iconName}
         size={size}
         color={color}
         solid={true}
       />
-    </Animated.View>
   );
 });
 
@@ -120,7 +117,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
               </TouchableOpacity>
               <TouchableOpacity onPress={() => navigation.navigate('Setting')} style={{ marginRight: 16 }}>
               <Icon
-                name="settings-outline"
+                name="settings"
                 size={24}
                 color={selectedTheme.colors.text}
               />

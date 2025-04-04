@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   AppState,
   TouchableOpacity,
+  Appearance,
 } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -28,9 +29,11 @@ import RewardCenterScreen from './Code/SettingScreen/RewardCenter';
 import RewardRulesModal from './Code/SettingScreen/RewardRulesModel';
 import InterstitialAdManager from './Code/Ads/IntAd';
 import AppOpenAdManager from './Code/Ads/openApp';
+import RNBootSplash from "react-native-bootsplash";
+
 
 const Stack = createNativeStackNavigator();
-const adUnitId = getAdUnitId('openapp');
+// const adUnitId = getAdUnitId('openapp');
 
 function App() {
   const { theme } = useGlobalState();
@@ -56,7 +59,9 @@ function App() {
   }, []);
 
 
-
+ 
+  
+  
 
   useEffect(() => {
     AppOpenAdManager.init();
@@ -182,6 +187,11 @@ function App() {
 export default function AppWrapper() {
   const { localState, updateLocalState } = useLocalState();
   const { theme } = useGlobalState();
+  useEffect(() => {
+    if (localState.isAppReady) {
+      RNBootSplash.hide({ fade: true });
+    }
+  }, [localState.isAppReady]);
   const selectedTheme = useMemo(() => {
     if (!theme) {
       console.warn("⚠️ Theme not found! Falling back to Light Theme.");
@@ -197,5 +207,5 @@ export default function AppWrapper() {
     return <OnboardingScreen onFinish={handleSplashFinish} selectedTheme={selectedTheme} />;
   }
 
-  return <App />;
+  return   <App />
 }

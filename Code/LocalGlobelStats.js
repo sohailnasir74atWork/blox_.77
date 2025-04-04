@@ -6,6 +6,8 @@ import config from './Helper/Environment';
 import { showMessage } from 'react-native-flash-message';
 import { useTranslation } from 'react-i18next';
 import { mixpanel } from './AppHelper/MixPenel';
+import { InteractionManager } from 'react-native';
+
 
 const storage = new MMKV();
 const LocalStateContext = createContext();
@@ -97,24 +99,27 @@ export const LocalStateProvider = ({ children }) => {
   // console.log(localState.data)
   // console.log(isPro)
   // Initialize RevenueCat
+  const initRevenueCat = async () => {
+    try {
+      await Purchases.configure({ apiKey: config.apiKey, usesStoreKit2IfAvailable: false });
+      // Fetch customer ID
+      const userID = await Purchases.getAppUserID();
+      setCustomerId(userID);
+
+      // Load offerings & check entitlements
+      await fetchOfferings();
+      await checkEntitlements();
+    } catch (error) {
+      console.error('❌ Error initializing RevenueCat:', error.message);
+    }
+  };
   useEffect(() => {
-    const initRevenueCat = async () => {
-      try {
-        await Purchases.configure({ apiKey: config.apiKey, usesStoreKit2IfAvailable: false });
-        // Fetch customer ID
-        const userID = await Purchases.getAppUserID();
-        setCustomerId(userID);
-
-        // Load offerings & check entitlements
-        await fetchOfferings();
-        await checkEntitlements();
-      } catch (error) {
-        console.error('❌ Error initializing RevenueCat:', error.message);
-      }
-    };
-
-    initRevenueCat();
+    const task = InteractionManager.runAfterInteractions(() => {
+      initRevenueCat();
+    });
+    return () => task.cancel();
   }, []);
+  
   // console.log(isPro)
   // Fetch available subscriptions
   const fetchOfferings = async () => {

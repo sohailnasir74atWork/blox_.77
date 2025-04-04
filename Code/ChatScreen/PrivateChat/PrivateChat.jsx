@@ -421,7 +421,7 @@ const handleRating = async () => {
                  
                 </View>
                 {canRate && !hasRated && (
-  <View style={{ alignItems: 'center', marginTop: 10 }}>
+  <View style={{ alignItems: 'center', marginTop: 5, }}>
     <TouchableOpacity
       style={{
         backgroundColor: config.colors.primary,

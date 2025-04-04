@@ -24,28 +24,7 @@ import { setAppLanguage } from '../../i18n';
 import { mixpanel } from './MixPenel';
 
 const { width } = Dimensions.get('window');
-const images = [
-  require('../../assets/BarrierFruit.png'),
-  require('../../assets/BladeFruit.png'),
-  require('../../assets/BlizzardFruit.png'),
-  require('../../assets/BombFruit.png'),
-  require('../../assets/BuddhaFruit.png'),
-  require('../../assets/ControlFruit.png'),
-  require('../../assets/DarkFruit.png'),
-  require('../../assets/DiamondFruit.png'),
-  require('../../assets/DoughFruit.png'),
-  require('../../assets/DragonEastFruit.png'),
-  require('../../assets/DragonFruit.png'),
-  require('../../assets/FalconFruit.png'),
-  require('../../assets/FlameFruit.png'),
-  require('../../assets/GasFruit.png'),
-  require('../../assets/GhostFruit.png'),
-  require('../../assets/GravityFruit.png'),
-  require('../../assets/IceFruit.png'),
-  require('../../assets/LightFruit.png'),
 
-
-];
 const icon = config.isNoman ? require('../../assets/icon.webp') : require('../../assets/logo.webp');
 
 
@@ -57,22 +36,22 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
   const { language, changeLanguage } = useLanguage();
   const { t } = useTranslation();
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
-  const platform = Platform.OS.toLowerCase();
+  // const platform = Platform.OS.toLowerCase();
 
 
-  const languageOptions = [
-    { code: "en", label: t("settings.languages.en"), flag: "🇺🇸" },
-    { code: "fil", label: t("settings.languages.fil"), flag: "🇵🇭" },
-    { code: "vi", label: t("settings.languages.vi"), flag: "🇻🇳" },
-    { code: "pt", label: t("settings.languages.pt"), flag: "🇵🇹" },
-    { code: "id", label: t("settings.languages.id"), flag: "🇮🇩" },
-    { code: "es", label: t("settings.languages.es"), flag: "🇪🇸" },
-    { code: "fr", label: t("settings.languages.fr"), flag: "🇫🇷" },
-    { code: "de", label: t("settings.languages.de"), flag: "🇩🇪" },
-    { code: "ru", label: t("settings.languages.ru"), flag: "🇷🇺" },
-    { code: "ar", label: t("settings.languages.ar"), flag: "🇸🇦" }
+  // const languageOptions = [
+  //   { code: "en", label: t("settings.languages.en"), flag: "🇺🇸" },
+  //   { code: "fil", label: t("settings.languages.fil"), flag: "🇵🇭" },
+  //   { code: "vi", label: t("settings.languages.vi"), flag: "🇻🇳" },
+  //   { code: "pt", label: t("settings.languages.pt"), flag: "🇵🇹" },
+  //   { code: "id", label: t("settings.languages.id"), flag: "🇮🇩" },
+  //   { code: "es", label: t("settings.languages.es"), flag: "🇪🇸" },
+  //   { code: "fr", label: t("settings.languages.fr"), flag: "🇫🇷" },
+  //   { code: "de", label: t("settings.languages.de"), flag: "🇩🇪" },
+  //   { code: "ru", label: t("settings.languages.ru"), flag: "🇷🇺" },
+  //   { code: "ar", label: t("settings.languages.ar"), flag: "🇸🇦" }
 
-  ];
+  // ];
 
   const handleNext = () => {
     if (screenIndex === 0) {
@@ -94,40 +73,40 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
     setOpenSignin(false);
   };
 
-  const createSlideAnimation = (direction) => {
-    const animatedValue = new Animated.Value(0);
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(animatedValue, {
-          toValue: direction * -width * images.length,
-          duration: 80000,
-          useNativeDriver: true
-        }),
-        Animated.timing(animatedValue, {
-          toValue: 0,
-          duration: 0,
-          useNativeDriver: true
-        })
-      ])
-    ).start();
-    return animatedValue;
-  };
+  // const createSlideAnimation = (direction) => {
+  //   const animatedValue = new Animated.Value(0);
+  //   Animated.loop(
+  //     Animated.sequence([
+  //       Animated.timing(animatedValue, {
+  //         toValue: direction * -width * images.length,
+  //         duration: 80000,
+  //         useNativeDriver: true
+  //       }),
+  //       Animated.timing(animatedValue, {
+  //         toValue: 0,
+  //         duration: 0,
+  //         useNativeDriver: true
+  //       })
+  //     ])
+  //   ).start();
+  //   return animatedValue;
+  // };
 
-  const translateX1 = createSlideAnimation(1);
-  const translateX2 = createSlideAnimation(-1);
-  const translateX3 = createSlideAnimation(1);
+  // const translateX1 = createSlideAnimation(1);
+  // const translateX2 = createSlideAnimation(-1);
+  // const translateX3 = createSlideAnimation(1);
 
-  const renderSlider = (translateX, imageSubset = []) => (
-    <Animated.View style={{ flexDirection: 'row', transform: [{ translateX }] }}>
-      {(imageSubset.length > 0 ? [...imageSubset, ...imageSubset, ...imageSubset, ...imageSubset, ...imageSubset, ...imageSubset, ...imageSubset, ...imageSubset] : []).map((img, index) => (
-        <Image key={index} source={img} style={styles.image} />
-      ))}
-    </Animated.View>
-  );
+  // const renderSlider = (translateX, imageSubset = []) => (
+  //   <Animated.View style={{ flexDirection: 'row', transform: [{ translateX }] }}>
+  //     {(imageSubset.length > 0 ? [...imageSubset, ...imageSubset, ...imageSubset, ...imageSubset, ...imageSubset, ...imageSubset, ...imageSubset, ...imageSubset] : []).map((img, index) => (
+  //       <Image key={index} source={img} style={styles.image} />
+  //     ))}
+  //   </Animated.View>
+  // );
 
-  const firstSliderImages = images.slice(0, 6);  // First 6 images
-  const secondSliderImages = images.slice(6, 12); // Next 6 images
-  const thirdSliderImages = images.slice(12, 18); // Remaining images (ensure at least 6)
+  // const firstSliderImages = images.slice(0, 6);  // First 6 images
+  // const secondSliderImages = images.slice(6, 12); // Next 6 images
+  // const thirdSliderImages = images.slice(12, 18); // Remaining images (ensure at least 6)
 
 
 
@@ -138,10 +117,10 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
         return (
           <View style={styles.slide}>
             <Image source={icon} style={styles.iconmain} />
-            <View>
+            {/* <View>
               <View style={styles.sliderContainer}>{renderSlider(translateX1, firstSliderImages)}</View>
               <View style={styles.sliderContainer}>{renderSlider(translateX2, secondSliderImages)}</View>
-              <View style={styles.sliderContainer}>{renderSlider(translateX3, thirdSliderImages)}</View></View>
+              <View style={styles.sliderContainer}>{renderSlider(translateX3, thirdSliderImages)}</View></View> */}
             <View>
               {/* <View style={styles.spacer}></View> */}
               <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>{t("first.welcome_title")}</Text>
@@ -153,10 +132,11 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
         return (
           <View style={styles.slide}>
             <Image source={icon} style={styles.iconmain} />
-            <View>
+            {/* <View>
               <View style={styles.sliderContainer}>{renderSlider(translateX1, firstSliderImages)}</View>
               <View style={styles.sliderContainer}>{renderSlider(translateX2, secondSliderImages)}</View>
-              <View style={styles.sliderContainer}>{renderSlider(translateX3, thirdSliderImages)}</View></View>
+              <View style={styles.sliderContainer}>{renderSlider(translateX3, thirdSliderImages)}</View>
+              </View> */}
             {/* <View style={styles.spacer}></View> */}
             <View>
               {!user.id && <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>{t("first.signin_or_guest")}</Text>}
@@ -199,7 +179,7 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
         <SignInDrawer visible={openSignin} onClose={handleLoginSuccess}  selectedTheme={selectedTheme} screen='On Boarding'/>
         <Modal visible={languageModalVisible} animationType="slide" transparent>
           <View style={[styles.modalContainer, { backgroundColor: isDarkMode ? '#121212' : '#f2f2f7' }]}>
-            <Text style={[styles.modalTitle, { color: isDarkMode ? 'white' : '#666' }]}>{t("settings.select_language")}</Text>
+            {/* <Text style={[styles.modalTitle, { color: isDarkMode ? 'white' : '#666' }]}>{t("settings.select_language")}</Text>
             <FlatList
               data={languageOptions}
               keyExtractor={(item) => item.code}
@@ -217,7 +197,7 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
                   <Text style={[styles.languageText, { color: isDarkMode ? 'white' : '#666' }]}>{item.flag} {item.label}</Text>
                 </TouchableOpacity>
               )}
-            />
+            /> */}
           </View>
           <Ionicons name="close" size={34} color={isDarkMode ? '#ccc' : '#666'} style={styles.skipButton} onPress={() => { setLanguageModalVisible(false) }} />
         </Modal>
@@ -230,8 +210,8 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  slide: { width: width, alignItems: 'center', justifyContent: 'space-evenly', paddingHorizontal: 20, paddingBottom: 120, flex: 1 },
-  title: { fontSize: 22, fontFamily: 'Lato-Bold', marginBottom: 10, textAlign: 'center', lineHeight: 30, paddingTop: 20 },
+  slide: { width: width, alignItems: 'center', justifyContent: 'space-evenly', paddingHorizontal: 20,  flex: 1 },
+  title: { fontSize: 24, fontFamily: 'Lato-Bold', marginBottom: 10, textAlign: 'center', lineHeight: 30},
   text: { fontSize: 12, textAlign: 'center', paddingHorizontal: 20, fontFamily: 'Lato-Regular' },
   welcomeText: { fontSize: 18, fontFamily: 'Lato-Bold', marginBottom: 10, textAlign: 'center' },
   button: { backgroundColor: config.colors.hasBlockGreen, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12, marginBottom: 10, width: '90%', alignItems: 'center', borderColor: config.colors.hasBlockGreen, borderWidth: 2, },

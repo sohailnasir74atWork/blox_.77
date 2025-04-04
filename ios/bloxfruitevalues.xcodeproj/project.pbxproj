@@ -18,6 +18,8 @@
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		8D6C41CFE32F734FAC1637E3 /* Pods_bloxfruitevalues.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D28019BE7150F5B11779B0AB /* Pods_bloxfruitevalues.framework */; };
 		AE30EFB988CB49C7A0CA6153 /* Lato-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7F5A461FA3FD426E82335FB7 /* Lato-Bold.ttf */; };
+		5C7C8FBEAF374C9EB6612D28 /* BootSplash.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 949F58CEACFD42A38F36032E /* BootSplash.storyboard */; };
+		56F857E2D0424B5587F79BC7 /* Colors.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 67352802B153454498C63C76 /* Colors.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -39,6 +41,8 @@
 		C396F747E7BCA6040709BCAF /* Pods-bloxfruitevalues.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-bloxfruitevalues.release.xcconfig"; path = "Target Support Files/Pods-bloxfruitevalues/Pods-bloxfruitevalues.release.xcconfig"; sourceTree = "<group>"; };
 		D28019BE7150F5B11779B0AB /* Pods_bloxfruitevalues.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_bloxfruitevalues.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		949F58CEACFD42A38F36032E /* BootSplash.storyboard */ = {isa = PBXFileReference; name = "BootSplash.storyboard"; path = "bloxfruitevalues/BootSplash.storyboard"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		67352802B153454498C63C76 /* Colors.xcassets */ = {isa = PBXFileReference; name = "Colors.xcassets"; path = "bloxfruitevalues/Colors.xcassets"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = folder.assetcatalog; explicitFileType = undefined; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -64,6 +68,8 @@
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
 				18119D5A2D5CF50A00B22C3A /* bloxfruitevalues-Bridging-Header.h */,
+				949F58CEACFD42A38F36032E /* BootSplash.storyboard */,
+				67352802B153454498C63C76 /* Colors.xcassets */,
 			);
 			name = bloxfruitevalues;
 			sourceTree = "<group>";
@@ -199,6 +205,8 @@
 				183231FB2D66329F00278B1F /* testing.storekit in Resources */,
 				3DD773292011487396EB3CB0 /* Lato-Regular.ttf in Resources */,
 				187146CE2D5CB1B5003890D6 /* GoogleService-Info.plist in Resources */,
+				5C7C8FBEAF374C9EB6612D28 /* BootSplash.storyboard in Resources */,
+				56F857E2D0424B5587F79BC7 /* Colors.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
