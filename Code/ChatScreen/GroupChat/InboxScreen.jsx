@@ -25,74 +25,65 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
   const { user, theme } = useGlobalState();
   const { t } = useTranslation();
 
-
+console.log(chats)
 
   // console.log('inbox', chats)
   const filteredChats = useMemo(() => {
-    return chats.filter(chat => !bannedUsers.includes(chat.otherUserId));
+    return chats.filter(chat =>
+      chat.chatId && !bannedUsers.includes(chat.otherUserId)
+    );
   }, [chats, bannedUsers]);
+  
   // const [loading, setLoading] = useState(false);
   const isDarkMode = theme === 'dark';
   const styles = getStyles(isDarkMode);
 
-  const handleDelete = (chatId) => {
-    Alert.alert(
-      t("chat.delete_chat"),
-      t("chat.delete_chat_confirmation"),
-      [
-        { text: t("chat.cancel"), style: 'cancel' },
-        {
-          text: t("chat.delete"),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Find chat data based on chatId
-              const chatToDelete = chats.find(chat => chat.chatId === chatId);
-              if (!chatToDelete) {
-                // console.log("⚠️ Chat not found in local state.");
-                return;
-              }
+ const handleDelete = (chatId) => {
+  Alert.alert(
+    t("chat.delete_chat"),
+    t("chat.delete_chat_confirmation"),
+    [
+      { text: t("chat.cancel"), style: 'cancel' },
+      {
+        text: t("chat.delete"),
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const chatToDelete = chats.find(chat => chat.chatId === chatId);
+            if (!chatToDelete) return;
 
-              const otherUserId = chatToDelete.otherUserId; // Get the chat partner's ID
-              if (!otherUserId) {
-                // console.log("⚠️ No valid otherUserId found.");
-                return;
-              }
+            const otherUserId = chatToDelete.otherUserId;
+            if (!otherUserId) return;
 
-              // **1️⃣ Reference to delete only the current user's chat metadata**
-              const senderChatRef = database().ref(`chat_meta_data/${user.id}/${otherUserId}`);
+            // 1. Delete chat metadata for the current user
+            const senderChatRef = database().ref(`chat_meta_data/${user.id}/${otherUserId}`);
+            const snapshot = await senderChatRef.once('value');
 
-              // console.log("🛠 Attempting to delete chat metadata from:", `chat_meta_data/${user.id}/${otherUserId}`);
-
-              // **2️⃣ Fetch and log the metadata before deleting**
-              const snapshot = await senderChatRef.once('value');
-              if (snapshot.exists()) {
-                // console.log("🔥 Chat metadata found and being deleted:", snapshot.val());
-                await senderChatRef.remove(); // ✅ Deletes only the metadata for the current user
-              } else {
-                // console.log("⚠️ No metadata found at path:", `chat_meta_data/${user.id}/${otherUserId}`);
-                return; // Stop execution if nothing is found
-              }
-
-              // **3️⃣ Update local state to remove the chat from UI**
-              setChats((prevChats) => prevChats.filter((chat) => chat.chatId !== chatId));
-
-              // Alert.alert(t("home.alert.success"), t("chat.chat_success_message"));
-              showMessage({
-                message: t("home.alert.success"),
-                description:t("chat.chat_success_message"),
-                type: "success",
-              });
-            } catch (error) {
-              console.error('❌ Error deleting chat metadata:', error);
-              // Alert.alert(t("home.alert.error"), t("chat.delete_chat_error"));
+            if (snapshot.exists()) {
+              await senderChatRef.remove();
             }
-          },
+
+            // 2. Delete full chat thread using chatId
+            const fullChatRef = database().ref(`private_messages/${chatId}`);
+            await fullChatRef.remove();
+
+            // 3. Update local state
+            setChats((prevChats) => prevChats.filter((chat) => chat.chatId !== chatId));
+
+            showMessage({
+              message: t("home.alert.success"),
+              description: t("chat.chat_success_message"),
+              type: "success",
+            });
+          } catch (error) {
+            console.error('❌ Error deleting chat:', error);
+          }
         },
-      ],
-      { cancelable: true }
-    );
-  };
+      },
+    ],
+    { cancelable: true }
+  );
+};
 
 
 

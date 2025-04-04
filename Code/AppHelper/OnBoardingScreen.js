@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 22,
-    fontWeight: 'Lato-Bold',
+    fontFamily: 'Lato-Bold',
     marginVertical: 15,
     alignSelf: 'center'
   },

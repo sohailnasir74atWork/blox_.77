@@ -85,7 +85,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
             focused={focused}
             iconName={getTabIcon(route.name, focused)}
             color={color}
-            size={size}
+            size={18}
           />
         ),
         tabBarStyle: {
