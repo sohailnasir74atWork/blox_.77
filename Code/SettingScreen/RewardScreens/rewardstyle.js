@@ -191,7 +191,7 @@ export const getStyles = (isDarkMode, config) =>
         },
         modalTitle: {
             fontSize: 12,
-            fontWeight: 'bold',
+            fontFamily: 'Lato-Bold',
             marginBottom: 10,
         },
         input: {
@@ -211,7 +211,7 @@ export const getStyles = (isDarkMode, config) =>
         submitText: {
             color: '#FFF',
             fontSize: 12,
-            fontWeight: 'bold',
+            fontFamily: 'Lato-Bold',
         },
         closeButton: {
             marginTop: 10,
@@ -229,7 +229,7 @@ export const getStyles = (isDarkMode, config) =>
         claimText: {
             color: '#333',
             fontSize: 10,
-            fontWeight: 'bold',
+            fontFamily: 'Lato-Bold',
         },
         adminButton: {
             backgroundColor: '#FF4500',
@@ -241,7 +241,7 @@ export const getStyles = (isDarkMode, config) =>
         adminText: {
             color: '#FFF',
             fontSize: 12,
-            fontWeight: 'bold',
+            fontFamily: 'Lato-Bold',
         },
         userNameLogout: {
             fontSize: 16,
@@ -266,7 +266,7 @@ export const getStyles = (isDarkMode, config) =>
         enrollButtonText: {
             color: "#fff",
             fontSize: 12,
-            fontWeight: "bold",
+            fontFamily: 'Lato-Bold',
         },
         pointsContainer: {
             flexDirection: 'row',
@@ -291,14 +291,14 @@ export const getStyles = (isDarkMode, config) =>
         pointsLabel: {
             fontSize: 12,
             color: isDarkMode ? '#ECF0F1' : '#2C3E50', // Light text for dark mode, Dark text for light mode
-            fontWeight: 'bold',
+            fontFamily: 'Lato-Bold',
             paddingTop: 12,
 
         },
         pointsValue: {
             fontSize: 14,
             color: isDarkMode ? '#1ABC9C' : '#27AE60', // Greenish values (Different shades for themes)
-            fontWeight: 'bold',
+            fontFamily: 'Lato-Bold',
             marginTop: 5,
             // paddingVertical: 12,
 
@@ -316,7 +316,7 @@ export const getStyles = (isDarkMode, config) =>
         getPointsText: {
             color: 'white',
             fontSize: 12,
-            fontWeight: 'bold',
+            fontFamily: 'Lato-Bold',
         },
         tabContainer: {
             marginVertical: 20,
@@ -339,7 +339,7 @@ export const getStyles = (isDarkMode, config) =>
         },
         tabText: {
             fontSize: 10,
-            fontWeight: 'bold',
+            fontFamily: 'Lato-Bold',
             color: '#555',
         },
         activeTabText: {
@@ -375,13 +375,13 @@ export const getStyles = (isDarkMode, config) =>
             alignItems: 'center'
         },
         rankText: {
-            fontWeight: 'bold',
+            fontFamily: 'Lato-Bold',
             color: isDarkMode ? 'white' : '#3498DB',
             paddingRight: 10
         },
         playerName: {
             fontSize: 10,
-            fontWeight: 'bold',
+            fontFamily: 'Lato-Bold',
             color: isDarkMode ? 'white' :'black',
         },
         playerScore: {

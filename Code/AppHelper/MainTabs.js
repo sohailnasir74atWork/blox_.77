@@ -9,17 +9,15 @@ import { ChatStack } from '../ChatScreen/ChatNavigator';
 import { TradeStack } from '../Trades/TradeNavigator';
 import { useTranslation } from 'react-i18next';
 import config from '../Helper/Environment';
-import { useHaptic } from '../Helper/HepticFeedBack';
-import { useNavigationState } from '@react-navigation/native';
-import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
+import FontAwesome from 'react-native-vector-icons/FontAwesome6';
+
 
 
 const Tab = createBottomTabNavigator();
 
 const AnimatedTabIcon = React.memo(({ focused, iconName, color, size }) => {
   const scaleValue = useRef(new Animated.Value(1)).current;
-  
-  
+
   useEffect(() => {
     Animated.spring(scaleValue, {
       toValue: focused ? 1.2 : 1,
@@ -30,47 +28,28 @@ const AnimatedTabIcon = React.memo(({ focused, iconName, color, size }) => {
 
   return (
     <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
-      <Icon name={iconName} size={size} color={color} />
+      <FontAwesome
+        name={iconName}
+        size={size}
+        color={color}
+        solid={true}
+      />
     </Animated.View>
   );
 });
 
+
 const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modalVisibleChatinfo, setModalVisibleChatinfo }) => {
   const { t } = useTranslation();
-  const { triggerHapticFeedback } = useHaptic();
-
-  const withHaptics = () => {
-    triggerHapticFeedback('impactLight');
-  };
-
-  const currentRouteIndex = useNavigationState((state) => state.index);
-  const previousRouteIndex = useRef(currentRouteIndex);
-  const hasMounted = useRef(false); // 👈 NEW
-  
-  useEffect(() => {
-    if (!hasMounted.current) {
-      hasMounted.current = true; // 🚫 Skip first tab render
-      return;
-    }
-  
-    if (previousRouteIndex.current !== currentRouteIndex) {
-      triggerHapticFeedback('impactLight'); // ✅ Trigger only on real tab switch
-      previousRouteIndex.current = currentRouteIndex;
-    }
-  }, [currentRouteIndex, triggerHapticFeedback]);
-  
-
-
-
-  const getTabIcon = useCallback((routeName, focused) => {
+    const getTabIcon = useCallback((routeName, focused) => {
     const isNoman = config.isNoman; // ✅ Extracted to avoid repeated checks
 
     const icons = {
-      Calculator: isNoman ? ['home', 'home-outline'] : ['calculator', 'calculator-outline'],
-      Values: isNoman ? ['trending-up', 'trending-up-outline'] : ['pricetags', 'pricetags-outline'],
-      Stock: isNoman ? ['newspaper', 'newspaper-outline'] : ['notifications', 'notifications-outline'],
-      Chat: isNoman ? ['chatbubble-ellipses', 'chatbubble-ellipses-outline'] : ['chatbubbles', 'chatbubbles-outline'],
-      Trade: isNoman ? ['storefront', 'storefront-outline'] : ['cog', 'cog-outline'],
+      Calculator: ['house', 'house'], // Solid icons look same for focused/unfocused
+      Stock: ['cart-shopping', 'cart-shopping'],
+      Trade: ['handshake', 'handshake'],
+      Chat: ['envelope', 'envelope'],
+      Values: ['chart-simple', 'chart-simple'],
     };
 
     return icons[routeName] ? (focused ? icons[routeName][0] : icons[routeName][1]) : 'alert-circle-outline';
@@ -88,9 +67,35 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
             size={18}
           />
         ),
+        tabBarButton: (props) => {
+          const { accessibilityState, children, onPress } = props;
+          const isSelected = accessibilityState?.selected;
+      
+          return (
+            <TouchableOpacity
+              onPress={onPress}
+              activeOpacity={0.9}
+              style={{
+                flex: 1,
+                backgroundColor: isSelected ? selectedTheme.colors.primary + '22' : 'transparent',
+                borderRadius: 12,
+                marginHorizontal: 4,
+                marginVertical:2,
+                justifyContent:'center',
+                alignItems:'center'
+              }}
+            >
+              {children}
+            </TouchableOpacity>
+          );
+        },
         tabBarStyle: {
-          height: 60,
+          height: 50,
           backgroundColor: selectedTheme.colors.background,
+        },
+        tabBarLabelStyle: {
+          fontSize: 9, // 👈 Your custom label font size
+          fontFamily: 'Lato-Bold', // Optional: Custom font family
         },
         tabBarActiveTintColor: selectedTheme.colors.primary,
         tabBarInactiveTintColor: selectedTheme.colors.text,

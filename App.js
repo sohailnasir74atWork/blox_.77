@@ -28,7 +28,6 @@ import RewardCenterScreen from './Code/SettingScreen/RewardCenter';
 import RewardRulesModal from './Code/SettingScreen/RewardRulesModel';
 import InterstitialAdManager from './Code/Ads/IntAd';
 import AppOpenAdManager from './Code/Ads/openApp';
-import { useHaptic } from './Code/Helper/HepticFeedBack';
 
 const Stack = createNativeStackNavigator();
 const adUnitId = getAdUnitId('openapp');
@@ -36,8 +35,6 @@ const adUnitId = getAdUnitId('openapp');
 function App() {
   const { theme } = useGlobalState();
   const { t } = useTranslation();
-  const { triggerHapticFeedback } = useHaptic();
-
 
   const selectedTheme = useMemo(() => {
     if (!theme && !localState.warnedAboutTheme) {
@@ -127,31 +124,13 @@ function App() {
     handleUserConsent();
   }, []);
   const navRef = useRef();
-  const previousRoute = useRef(null);
 
-  const handleTabChange = () => {
-    const state = navRef.current?.getRootState();
+ 
   
-    // Safely drill into nested tab navigator
-    const tabRoute = state?.routes?.find(r => r.name === 'Home')?.state?.routes?.[state?.routes.find(r => r.name === 'Home')?.state?.index || 0];
-  
-    const currentTab = tabRoute?.name;
-  
-    if (previousRoute.current && previousRoute.current !== currentTab) {
-      // ✅ Only fire when actual tab changed
-      triggerHapticFeedback('impactLight');
-    }
-  
-    previousRoute.current = currentTab;
-  };
-  
-
-
-
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: selectedTheme.colors.background, }}>
       <Animated.View style={{ flex: 1 }}>
-        <NavigationContainer theme={selectedTheme} ref={navRef} onStateChange={handleTabChange}>
+        <NavigationContainer theme={selectedTheme}>
           <StatusBar
             barStyle={theme === 'dark' ? 'light-content' : 'dark-content'}
             backgroundColor={selectedTheme.colors.background}

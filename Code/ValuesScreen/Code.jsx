@@ -105,7 +105,7 @@ export const getStyles = (isDarkMode) =>
     },
     headerText: {
       fontSize: 20,
-      fontWeight: 'bold',
+      fontFamily: 'Lato-Bold',
       marginBottom: 10,
       textAlign: 'center',
     },

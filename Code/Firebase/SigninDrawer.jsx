@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
     },
     title: {
         fontSize: 18,
-        fontWeight: 'bold',
+        fontFamily: 'Lato-Bold',
         textAlign: 'center',
     },
     input: {
@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
     },
     primaryButtonText: {
         color: 'white',
-        fontWeight: 'bold',
+        fontFamily: 'Lato-Bold',
     },
     secondaryButton: {
         padding: 10,
@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
     googleButtonText: {
         color: 'white',
         fontSize: 16,
-        fontWeight: 'bold',
+        fontFamily: 'Lato-Bold',
     },
     closeText: {
         color: 'white',
@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
     textoR: {
         marginHorizontal: 10, // Spacing around the text
         fontSize: 16,
-        fontWeight: 'bold',
+        fontFamily: 'Lato-Bold',
     },
 });
 

@@ -1061,7 +1061,7 @@ const getStyles = (isDarkMode) =>
     buttonText: {
       color: 'white',
       fontSize: 14,
-      fontWeight: 'bold',
+      fontFamily: 'Lato-Bold',
     },
 
     perm: {

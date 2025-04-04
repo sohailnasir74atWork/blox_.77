@@ -26,7 +26,7 @@ export const parseMessageText = (text) => {
       return (
         <Text
           key={`mention-${index}`}
-          style={{ color: '#007BFF', fontWeight: 'bold' }}
+          style={{ color: '#007BFF', fontFamily: 'Lato-Bold' }}
           onPress={() => {
             Clipboard.setString(part.replace('@', '')); // Copy without '@'
             Alert.alert('Copied', `${part.replace('@', '')} has been copied.`);

@@ -52,7 +52,7 @@ export const getStyles = (isDarkMode) =>
     },
     senderNameText: {
       fontSize: 10,
-      fontWeight: 'bold',
+      fontFamily: 'Lato-Bold',
       color: '#fff',
     },
     messageTextBox: {
@@ -123,7 +123,7 @@ export const getStyles = (isDarkMode) =>
     sendButtonText: {
       color: '#fff',
       fontSize: 16,
-      fontWeight: 'bold',
+      fontFamily: 'Lato-Bold',
     },
     loggedOutMessage: {
       flex: 1,

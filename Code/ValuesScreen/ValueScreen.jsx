@@ -607,7 +607,7 @@ export const getStyles = (isDarkMode) =>
     editButtonText: {
       color: "#fff",
       fontSize: 12,
-      fontWeight: "bold",
+      fontFamily: 'Lato-Bold',
     },
     modalContainer: {
       backgroundColor: "#fff",
@@ -630,7 +630,7 @@ export const getStyles = (isDarkMode) =>
     ,
     modalTitle: {
       fontSize: 18,
-      fontWeight: "bold",
+      fontFamily: 'Lato-Bold',
       marginBottom: 10,
     },
     input: {
@@ -649,7 +649,7 @@ export const getStyles = (isDarkMode) =>
     saveButtonText: {
       color: "#fff",
       fontSize: 14,
-      fontWeight: "bold",
+      fontFamily: 'Lato-Bold',
       textAlign: "center",
     },
     cencelButton: {
@@ -709,7 +709,7 @@ export const getStyles = (isDarkMode) =>
     filterText: {
       color: "white",
       fontSize: 14,
-      fontWeight: "bold",
+      fontFamily: 'Lato-Bold',
       marginRight: 5,
     },
     filterOptionText: {
@@ -718,7 +718,7 @@ export const getStyles = (isDarkMode) =>
       color: "#333",
     },
     selectedOption: {
-      fontWeight: "bold",
+      fontFamily: 'Lato-Bold',
       color: "#34C759",
     },
   });

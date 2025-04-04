@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   highlightedText: {
-    fontWeight: 'bold',
+    fontFamily: 'Lato-Bold',
     color: config.colors.primary,
   },
   closeButton: {

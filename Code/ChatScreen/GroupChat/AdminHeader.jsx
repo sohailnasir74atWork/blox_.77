@@ -286,7 +286,7 @@ export const getStyles = (isDarkMode) =>
     },
     clearAllText: {
       fontSize: 12,
-      fontWeight: 'bold',
+      fontFamily: 'Lato-Bold',
       color: config.colors.hasBlockGreen,
     },
     arrowButton: {
@@ -367,7 +367,7 @@ export const getStyles = (isDarkMode) =>
     badgeText: {
       color: '#fff',
       fontSize: 10,
-      fontWeight: 'bold',
+      fontFamily: 'Lato-Bold',
     },
   });
 

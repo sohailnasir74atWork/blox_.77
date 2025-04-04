@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontFamily: 'Lato-Bold',
   },
   banIcon: {
     marginLeft: 10,
