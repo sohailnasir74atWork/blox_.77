@@ -33,7 +33,7 @@ import { ref, get, update, remove } from '@react-native-firebase/database';
 import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
 import { useLanguage } from '../Translation/LanguageProvider';
 import { useTranslation } from 'react-i18next';
-import FlashMessage, { showMessage } from 'react-native-flash-message';
+import { showMessage } from 'react-native-flash-message';
 import { setAppLanguage } from '../../i18n';
 
 
@@ -561,7 +561,7 @@ const formatPlanName = (plan) => {
           </TouchableOpacity>}
 
         </View>
-        {/* <FlashMessage position="top" /> */}
+        
 
       </ScrollView>
 

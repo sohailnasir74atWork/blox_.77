@@ -21,7 +21,7 @@ import { useLocalState } from '../../LocalGlobelStats';
 import { ref } from '@react-native-firebase/database';
 import database from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
-import FlashMessage, { showMessage } from 'react-native-flash-message';
+import  { showMessage } from 'react-native-flash-message';
 import BannerAdComponent from '../../Ads/bannerAds';
 import config from '../../Helper/Environment';
 

@@ -78,11 +78,11 @@ export const getStyles = (isDarkMode) =>
     otherMessageText: {
       fontSize: 12,
       color: isDarkMode ? 'white' : 'black',
-      backgroundColor: isDarkMode ? config.colors.primary : 'white',
+      backgroundColor: isDarkMode ? '#34495E' : 'white',
       paddingHorizontal: 10,
       // lineHeight: 20,
       borderRadius: 10,
-      paddingVertical: 5,
+      paddingBottom: 5,
       fontFamily: 'Lato-Regular',
       paddingRight:20,
       lineHeight:14

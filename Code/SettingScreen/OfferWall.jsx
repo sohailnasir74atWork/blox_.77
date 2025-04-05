@@ -219,7 +219,6 @@ import { useTranslation } from 'react-i18next';
           </TouchableOpacity>
         </View>
       </View>
-      {/* <FlashMessage position="top" /> */}
       </ScrollView>
 
           </Animated.View>

@@ -16,7 +16,7 @@ import { getStyles } from '../../SettingScreen/settingstyle';
 import { useLocalState } from '../../LocalGlobelStats';
 import { Alert } from 'react-native';  // ✅ Ensure Alert is imported
 import { useTranslation } from 'react-i18next';
-import FlashMessage, { showMessage } from 'react-native-flash-message';
+import { showMessage } from 'react-native-flash-message';
 
 
 const ProfileBottomDrawer = ({ isVisible, toggleModal, startChat, selectedUser,

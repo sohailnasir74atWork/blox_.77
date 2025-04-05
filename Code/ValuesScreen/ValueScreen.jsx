@@ -28,7 +28,7 @@ import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
 
 
-const bannerAdUnitId = getAdUnitId('banner');
+
 const ValueScreen = ({ selectedTheme }) => {
   const [searchText, setSearchText] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
@@ -41,8 +41,6 @@ const ValueScreen = ({ selectedTheme }) => {
   const [valuesData, setValuesData] = useState([]);
   const [codesData, setCodesData] = useState([]);
   const { t } = useTranslation();
-  const platform = Platform.OS.toLowerCase();
-  const [isAdVisible, setIsAdVisible] = useState(true);
   const filters = ['All', 'COMMON', 'UNCOMMON', 'RARE', 'LEGENDARY', 'MYTHICAL', 'GAME PASS', 'LIMITED'];
   const displayedFilter = selectedFilter === 'PREMIUM' ? 'GAME PASS' : selectedFilter;
   const formatName = (name) => name.replace(/^\+/, '').replace(/\s+/g, '-');
@@ -512,7 +510,18 @@ export const getStyles = (isDarkMode) =>
   StyleSheet.create({
     container: { paddingHorizontal: 8, marginHorizontal: 2, flex: 1 },
     searchFilterContainer: { flexDirection: 'row', marginVertical: 5, alignItems: 'center' },
-    searchInput: { flex: 1, backgroundColor: '#E0E0E0', padding: 10, borderRadius: 10, marginRight: 10, height: 40 },
+    searchInput: {   height: 40,
+      borderColor: isDarkMode ? config.colors.primary : 'white',
+      backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+
+      borderWidth: 1,
+      borderRadius: 5,
+      marginVertical: 8,
+      paddingHorizontal: 10,
+      color: isDarkMode ? 'white' : 'black',
+      flex: 1,
+      borderRadius: 10, marginRight:10 // Ensure smooth corners
+       },
     filterDropdown: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E0E0E0', padding: 10, borderRadius: 10, height: 40, marginLeft: 10 },
     filterOption: { padding: 10, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
     filterTextOption: { fontSize: 12 },
@@ -701,7 +710,7 @@ export const getStyles = (isDarkMode) =>
     filterButton: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: "#3498db",
+      backgroundColor: config.colors.primary,
       paddingVertical: 10,
       paddingHorizontal: 15,
       borderRadius: 8,

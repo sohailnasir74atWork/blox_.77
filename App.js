@@ -30,9 +30,19 @@ import RewardRulesModal from './Code/SettingScreen/RewardRulesModel';
 import InterstitialAdManager from './Code/Ads/IntAd';
 import AppOpenAdManager from './Code/Ads/openApp';
 import RNBootSplash from "react-native-bootsplash";
+import SystemNavigationBar from 'react-native-system-navigation-bar';
+
 
 
 const Stack = createNativeStackNavigator();
+const setNavigationBarAppearance = (theme) => {
+  if (theme === 'dark') {
+    SystemNavigationBar.setNavigationColor('#000000', 'light', 'navigation');
+  } else {
+    SystemNavigationBar.setNavigationColor('#FFFFFF', 'dark', 'navigation');
+  }
+};
+
 // const adUnitId = getAdUnitId('openapp');
 
 function App() {
@@ -60,7 +70,15 @@ function App() {
 
 
  
+  useEffect(() => {
+    const listener = Appearance.addChangeListener(({ colorScheme }) => {
+      if (theme === 'system') {
+        setNavigationBarAppearance(colorScheme);
+      }
+    });
   
+    return () => listener.remove();
+  }, [theme]);
   
 
   useEffect(() => {

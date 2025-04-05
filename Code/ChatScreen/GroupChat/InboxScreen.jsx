@@ -17,7 +17,7 @@ import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-m
 import { isUserOnline } from '../utils';
 import { useTranslation } from 'react-i18next';
 import database from '@react-native-firebase/database';
-import FlashMessage, { showMessage } from 'react-native-flash-message';
+import { showMessage } from 'react-native-flash-message';
 
 const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
   const navigation = useNavigation();

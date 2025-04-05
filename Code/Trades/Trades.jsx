@@ -20,6 +20,7 @@ import ShareTradeModal from './SharetradeModel';
 import { mixpanel } from '../AppHelper/MixPenel';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
+import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 
 
 const bannerAdUnitId = getAdUnitId('banner');
@@ -732,13 +733,19 @@ const TradeList = ({ route }) => {
               </Text>
 
             </View>} */}
-
-            <Icon
+ <FontAwesome
+        name='pen-to-square'
+         size={18}
+              color={config.colors.primary}
+              onPress={handleChatNavigation}
+        solid={false}
+      />
+            {/* <Icon
               name="chatbox-outline"
               size={18}
               color={config.colors.secondary}
               onPress={handleChatNavigation}
-            />
+            /> */}
           </View>
         </View>
         {/* Trade Items */}
@@ -920,7 +927,7 @@ const TradeList = ({ route }) => {
         screen='Trade'
 
       />
-      {/* <FlashMessage position="top" /> */}
+     
       {!localState.isPro && <BannerAdComponent />}
 
       {/* {!isProStatus && <View style={{ alignSelf: 'center' }}>
@@ -960,7 +967,7 @@ const getStyles = (isDarkMode) =>
     },
 
     searchInput: {
-      height: 48,
+      height: 40,
       borderColor: isDarkMode ? config.colors.primary : 'white',
       backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
 

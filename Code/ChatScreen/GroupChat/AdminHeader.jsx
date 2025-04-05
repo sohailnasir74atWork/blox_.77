@@ -169,9 +169,7 @@ const AdminHeader = ({
         onPress={() => setModalVisibleChatinfo(true)}
       >
         </TouchableOpacity>
-        <View style={styles.topRow}>
-          <Text style={[styles.onlineText, { color: config.colors.hasBlockGreen }]}>Online {onlineUsers}</Text>
-        </View>
+       
 
 
         <Modal

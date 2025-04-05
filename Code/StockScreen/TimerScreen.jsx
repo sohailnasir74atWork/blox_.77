@@ -49,11 +49,11 @@ const TimerScreen = ({ selectedTheme }) => {
 
   useEffect(() => {
     try {
-      const newFruitRecords = localState.data ? JSON.parse(localState.data) : {};
-      const newNormalStock = localState.normalStock ? JSON.parse(localState.normalStock) : {};
-      const newMirageStock = localState.mirageStock ? JSON.parse(localState.mirageStock) : {};
-      const newPreNormalStock = localState.prenormalStock ? JSON.parse(localState.prenormalStock) : {};
-      const newPreMirageStock = localState.premirageStock ? JSON.parse(localState.premirageStock) : {};
+      const newFruitRecords = localState?.data ? JSON.parse(localState.data) : {};
+      const newNormalStock = localState?.normalStock ? JSON.parse(localState.normalStock) : {};
+      const newMirageStock = localState?.mirageStock ? JSON.parse(localState.mirageStock) : {};
+      const newPreNormalStock = localState?.prenormalStock ? JSON.parse(localState.prenormalStock) : {};
+      const newPreMirageStock = localState?.premirageStock ? JSON.parse(localState.premirageStock) : {};
 
       setFruitRecords((prev) => (JSON.stringify(prev) !== JSON.stringify(newFruitRecords) ? Object.values(newFruitRecords) : prev));
       setNormalStock((prev) => (JSON.stringify(prev) !== JSON.stringify(newNormalStock) ? Object.values(newNormalStock) : prev));
@@ -463,7 +463,7 @@ const TimerScreen = ({ selectedTheme }) => {
             />
           </ScrollView>
         </View>
-        {/* <FlashMessage position="top" /> */}
+       
 
       </GestureHandlerRootView>
 

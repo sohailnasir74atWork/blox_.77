@@ -81,7 +81,7 @@ const CodesDrawer = ({ isVisible, toggleModal, codes }) => {
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
         />
-                {/* <FlashMessage position="top" /> */}
+          
       </View>
     </Modal>
   );

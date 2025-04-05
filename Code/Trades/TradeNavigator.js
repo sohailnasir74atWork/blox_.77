@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, Modal, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, StyleSheet, ScrollView, Image } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import TradeList from './Trades';
 import { useHaptic } from '../Helper/HepticFeedBack';
@@ -9,6 +9,8 @@ import { useTranslation } from 'react-i18next';
 import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../Helper/Environment';
 import { useGlobalState } from '../GlobelStats';
+import ServerScreen from './Server';
+import { useNavigation } from '@react-navigation/native';
 
 const Stack = createNativeStackNavigator();
 
@@ -26,24 +28,24 @@ const TradeRulesModal = ({ visible, onClose }) => {
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
       <View style={styles.modalBackground}>
         <View style={[styles.modalContainer, { backgroundColor: isDarkMode ? '#222' : 'white' }]}>
-        <View style={styles.modalHeader}>
+          <View style={styles.modalHeader}>
             <Text style={[styles.modalTitle, { color: isDarkMode ? 'white' : 'black' }]}>
-            Trade Rules
+              Trade Rules
             </Text>
             <TouchableOpacity onPress={onClose}>
               <Icon name="close-circle" size={28} color={isDarkMode ? '#bbb' : '#333'} />
             </TouchableOpacity>
           </View>
           <ScrollView showsVerticalScrollIndicator={false}>
-          <Text style={[styles.modalText, { color: isDarkMode ? '#ccc' : '#333' }]}>
-            1. Players can trade <HighlightedText text="up to 4 items" /> per trade.{"\n"}{"\n"}
-            2. A maximum of <HighlightedText text="5 trades" /> is allowed every <HighlightedText text="8 hours" />.{"\n"}{"\n"}
-            3. <HighlightedText text="Game Passes & Permanent Fruits" /> cannot be traded if the receiver already owns them.{"\n"}{"\n"}
-            4. To trade <HighlightedText text="Game Passes & Permanent Fruits" />, they must first be stored by gifting them to yourself.{"\n"}{"\n"}
-            5. The total value difference between traded fruits <HighlightedText text="cannot exceed 40%" />, but adding Robux items can increase it to <HighlightedText text="80-100%" />.{"\n"}{"\n"}
-            6. Players can store <HighlightedText text="only one of each fruit" /> unless they purchase <HighlightedText text="+1 Fruit Storage (R$ 400)" />.{"\n"}{"\n"}
-            7. Once stored in the inventory, <HighlightedText text="fruits cannot be dropped" />.{"\n"}
-          </Text>
+            <Text style={[styles.modalText, { color: isDarkMode ? '#ccc' : '#333' }]}>
+              1. Players can trade <HighlightedText text="up to 4 items" /> per trade.{"\n"}{"\n"}
+              2. A maximum of <HighlightedText text="5 trades" /> is allowed every <HighlightedText text="8 hours" />.{"\n"}{"\n"}
+              3. <HighlightedText text="Game Passes & Permanent Fruits" /> cannot be traded if the receiver already owns them.{"\n"}{"\n"}
+              4. To trade <HighlightedText text="Game Passes & Permanent Fruits" />, they must first be stored by gifting them to yourself.{"\n"}{"\n"}
+              5. The total value difference between traded fruits <HighlightedText text="cannot exceed 40%" />, but adding Robux items can increase it to <HighlightedText text="80-100%" />.{"\n"}{"\n"}
+              6. Players can store <HighlightedText text="only one of each fruit" /> unless they purchase <HighlightedText text="+1 Fruit Storage (R$ 400)" />.{"\n"}{"\n"}
+              7. Once stored in the inventory, <HighlightedText text="fruits cannot be dropped" />.{"\n"}
+            </Text>
           </ScrollView>
           <TouchableOpacity
             style={[styles.closeButton, { backgroundColor: config.colors.primary }]}
@@ -62,6 +64,10 @@ export const TradeStack = ({ selectedTheme }) => {
   const { triggerHapticFeedback } = useHaptic();
   const { t } = useTranslation();
   const [modalVisible, setModalVisible] = useState(false);
+  const { theme } = useGlobalState();
+  const isDarkMode = theme === 'dark';
+  const navigation = useNavigation()
+
 
   const headerOptions = useMemo(
     () => ({
@@ -80,18 +86,40 @@ export const TradeStack = ({ selectedTheme }) => {
           name="TradeScreen"
           component={TradeList}
           initialParams={{ bannedUsers, selectedTheme }}
-          options={{
+          options={({ navigation }) => ({
             title: t("tabs.trade"),
             headerRight: () => (
-              <TouchableOpacity onPress={() => setModalVisible(true)} style={{ marginRight: 8 }}>
-                <Icon
-                  name="information-circle-outline"
-                  size={24}
-                  color={config.colors.primary}
-                />
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', }}>
+                <TouchableOpacity onPress={() => navigation.navigate('Server')} style={{ marginRight: 10,  }}>
+                  <Image
+                    source={
+                      isDarkMode
+                        ? require('../../assets/server.png')
+                        : require('../../assets/server.png')
+                    }
+                    style={{
+                      width: 70,
+                      height:25,
+                      // transform: [{ scale: 1.2 }],
+                      tintColor: config.colors.primary,
+                      justifyContent:'center',
+                      alignItems:'center'
+                    }}
+                    resizeMode="contain"
+                  />
+                </TouchableOpacity>
+          
+                <TouchableOpacity onPress={() => setModalVisible(true)} style={{ marginRight: 8 }}>
+                  <Icon
+                    name="information-circle-outline"
+                    size={24}
+                    color={config.colors.primary}
+                  />
+                </TouchableOpacity>
+              </View>
             ),
-          }}
+          })}
+          
         />
 
         {/* Private Chat Screen */}
@@ -114,6 +142,12 @@ export const TradeStack = ({ selectedTheme }) => {
               ),
             };
           }}
+        />
+
+<Stack.Screen
+          name="Server"
+          component={ServerScreen}
+         
         />
       </Stack.Navigator>
 
@@ -170,6 +204,7 @@ const styles = StyleSheet.create({
   closeButtonText: {
     fontSize: 16,
     fontFamily: 'Lato-Bold',
-  },});
+  },
+});
 
 export default TradeStack;

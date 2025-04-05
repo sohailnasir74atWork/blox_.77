@@ -60,7 +60,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
           <AnimatedTabIcon
             focused={focused}
             iconName={getTabIcon(route.name, focused)}
-            color={color}
+            color={focused ? config.colors.primary : config.colors.primary}
             size={18}
           />
         ),
@@ -74,7 +74,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
               activeOpacity={0.9}
               style={{
                 flex: 1,
-                backgroundColor: isSelected ? selectedTheme.colors.primary + '22' : 'transparent',
+                backgroundColor: isSelected ? config.colors.primary + '42' : 'transparent',
                 borderRadius: 12,
                 marginHorizontal: 4,
                 marginVertical:2,
@@ -94,7 +94,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
           fontSize: 9, // 👈 Your custom label font size
           fontFamily: 'Lato-Bold', // Optional: Custom font family
         },
-        tabBarActiveTintColor: selectedTheme.colors.primary,
+        tabBarActiveTintColor: config.colors.primary,
         tabBarInactiveTintColor: selectedTheme.colors.text,
         headerStyle: {
           backgroundColor: selectedTheme.colors.background,
@@ -164,11 +164,11 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
           title: t('tabs.chat'), // Translation applied here
           tabBarBadge: chatFocused ? "" : null,
           tabBarBadgeStyle: {
-            minWidth: 12,
-            height: 12,
-            borderRadius: 6,
+            maxWidth: 4,
+            height: 8,
+            borderRadius: 4,
             fontSize: 10,
-            backgroundColor: 'red',
+            // backgroundColor: 'red',
             color: 'white',
           },
         }}
