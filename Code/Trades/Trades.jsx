@@ -5,7 +5,6 @@ import moment from 'moment';
 import { useGlobalState } from '../GlobelStats';
 import config from '../Helper/Environment';
 import { useNavigation } from '@react-navigation/native';
-import { AdEventType, BannerAd, BannerAdSize, InterstitialAd } from 'react-native-google-mobile-ads';
 import getAdUnitId from '../Ads/ads';
 import { FilterMenu } from './tradeHelpers';
 import ReportTradePopup from './ReportTradePopUp';
