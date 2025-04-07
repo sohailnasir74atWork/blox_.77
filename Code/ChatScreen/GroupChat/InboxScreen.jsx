@@ -25,7 +25,7 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
   const { user, theme } = useGlobalState();
   const { t } = useTranslation();
 
-console.log(chats)
+// console.log(chats)
 
   // console.log('inbox', chats)
   const filteredChats = useMemo(() => {

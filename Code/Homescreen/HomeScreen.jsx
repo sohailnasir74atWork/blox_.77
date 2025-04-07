@@ -51,33 +51,33 @@ const HomeScreen = ({ selectedTheme }) => {
   const [type, setType] = useState(null); // 🔄 Store last trade timestamp locally
   const platform = Platform.OS.toLowerCase();
   const { t } = useTranslation();
-  const pinnedMessagesRef = useMemo(() => ref(appdatabase, 'pin_messages'), []);
+  // const pinnedMessagesRef = useMemo(() => ref(appdatabase, 'pin_messages'), []);
 
 
 
   const CURRENT_APP_VERSION = DeviceInfo.getVersion();
-  useEffect(() => {
-    let isMounted = true; // ✅ Track mounted state
-    const checkForUpdate = async () => {
-      try {
-        const database = getDatabase();
-        const platformKey = Platform.OS === "ios" ? "ios_app_version" : (config.isNoman ? "noman_app_version" : 'waqas_app_version');
-        const versionRef = ref(database, platformKey);
-        const snapshot = await get(versionRef);
-        if (snapshot.exists() && snapshot.val().app_version !== CURRENT_APP_VERSION) {
-          setShowNotification(true);
-        } else {
-          setShowNotification(false);
-        }
-      } catch (error) {
-        console.error("🔥 Error checking for updates:", error);
-      }
-    };
-    checkForUpdate();
-    return () => {
-      isMounted = false; // ✅ Prevent updates after unmount
-    };
-  }, []);
+  // useEffect(() => {
+  //   let isMounted = true; // ✅ Track mounted state
+  //   const checkForUpdate = async () => {
+  //     try {
+  //       const database = getDatabase();
+  //       const platformKey = Platform.OS === "ios" ? "ios_app_version" : (config.isNoman ? "noman_app_version" : 'waqas_app_version');
+  //       const versionRef = ref(database, platformKey);
+  //       const snapshot = await get(versionRef);
+  //       if (snapshot.exists() && snapshot.val().app_version !== CURRENT_APP_VERSION) {
+  //         setShowNotification(true);
+  //       } else {
+  //         setShowNotification(false);
+  //       }
+  //     } catch (error) {
+  //       console.error("🔥 Error checking for updates:", error);
+  //     }
+  //   };
+  //   checkForUpdate();
+  //   return () => {
+  //     isMounted = false; // ✅ Prevent updates after unmount
+  //   };
+  // }, []);
 
   const handleLoginSuccess = () => {
     setIsSigninDrawerVisible(false);
@@ -85,40 +85,40 @@ const HomeScreen = ({ selectedTheme }) => {
 
  
 
-  useEffect(() => {
-    const loadPinnedMessages = async () => {
-      try {
-        const snapshot = await pinnedMessagesRef.once('value');
-        if (snapshot.exists()) {
-          const data = snapshot.val();
-          const parsedPinnedMessages = Object.entries(data).map(([key, value]) => ({
-            firebaseKey: key, // Use the actual Firebase key here
-            ...value,
-          }));
-          setPinnedMessages(parsedPinnedMessages); // Store the parsed messages with the Firebase key
-        } else {
-          setPinnedMessages([]); // No pinned messages
-        }
-      } catch (error) {
-        console.error('Error loading pinned messages:', error);
-        Alert.alert(t('home.alert.error'), 'Could not load pinned messages. Please try again.');
-      }
-    };
+  // useEffect(() => {
+  //   const loadPinnedMessages = async () => {
+  //     try {
+  //       const snapshot = await pinnedMessagesRef.once('value');
+  //       if (snapshot.exists()) {
+  //         const data = snapshot.val();
+  //         const parsedPinnedMessages = Object.entries(data).map(([key, value]) => ({
+  //           firebaseKey: key, // Use the actual Firebase key here
+  //           ...value,
+  //         }));
+  //         setPinnedMessages(parsedPinnedMessages); // Store the parsed messages with the Firebase key
+  //       } else {
+  //         setPinnedMessages([]); // No pinned messages
+  //       }
+  //     } catch (error) {
+  //       console.error('Error loading pinned messages:', error);
+  //       Alert.alert(t('home.alert.error'), 'Could not load pinned messages. Please try again.');
+  //     }
+  //   };
 
-    loadPinnedMessages();
-    return () => pinnedMessagesRef.off(); // ✅ Clean up Firebase reference
+  //   loadPinnedMessages();
+  //   return () => pinnedMessagesRef.off(); // ✅ Clean up Firebase reference
 
-  }, [pinnedMessagesRef]);
+  // }, [pinnedMessagesRef]);
   // Run this once when the app starts
 
 
 
 
 
-  const onClose = () => { setShowNotification(false) }
-  const onClosePinMessage = (index) => {
-    setPinnedMessages((prevMessages) => prevMessages.filter((_, i) => i !== index));
-  };
+  // const onClose = () => { setShowNotification(false) }
+  // const onClosePinMessage = (index) => {
+  //   setPinnedMessages((prevMessages) => prevMessages.filter((_, i) => i !== index));
+  // };
   const isDarkMode = theme === 'dark'
   const viewRef = useRef();
 
@@ -502,7 +502,7 @@ const HomeScreen = ({ selectedTheme }) => {
 
         <View style={styles.container} key={language}>
           <ScrollView showsVerticalScrollIndicator={false}>
-            {showNotification && <View style={[styles.notification]}>
+            {/* {showNotification && <View style={[styles.notification]}>
               <Text style={styles.text}>A new update is available! Please update your app.</Text>
               <TouchableOpacity onPress={onClose} style={styles.closeButtonNotification}>
                 <Icon name="close-outline" size={18} color="white" />
@@ -516,7 +516,7 @@ const HomeScreen = ({ selectedTheme }) => {
                   <Icon name="close-outline" size={18} color="white" />
                 </TouchableOpacity>
               </View>
-            ))}
+            ))} */}
 
 
 

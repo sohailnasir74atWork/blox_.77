@@ -148,18 +148,22 @@ const [theme, setTheme] = useState(resolvedTheme);
   // ✅ Ensure useEffect runs only when necessary
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (loggedInUser) => {
-      handleUserLogin(loggedInUser);
+      InteractionManager.runAfterInteractions(async () => {
+        await handleUserLogin(loggedInUser);
   
-      if (loggedInUser?.uid) {
-        InteractionManager.runAfterInteractions(() => {
-          registerForNotifications(loggedInUser.uid);
-          requestPermission();
-        });
-      }
+        if (loggedInUser?.uid) {
+          await registerForNotifications(loggedInUser.uid);
+          await requestPermission();
+        }
+  
+        await updateLocalState('isAppReady', true);
+      });
     });
   
     return () => unsubscribe();
   }, []);
+  
+  
 
   const updateUserProStatus = () => {
     if (!user?.id) {
@@ -196,7 +200,7 @@ const [theme, setTheme] = useState(resolvedTheme);
 
   useEffect(() => {
     InteractionManager.runAfterInteractions(() => {
-      checkInternetConnection();
+      // checkInternetConnection();
       updateUserProStatus();
     });
   }, [user.id, localState.isPro]);
@@ -288,7 +292,6 @@ const [theme, setTheme] = useState(resolvedTheme);
       console.error("❌ Error fetching stock data:", error);
     } finally {
       setLoading(false);
-      await updateLocalState('isAppReady', true);
     }
   };
 // console.log(user)
