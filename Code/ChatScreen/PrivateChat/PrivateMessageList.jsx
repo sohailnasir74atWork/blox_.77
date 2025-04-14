@@ -15,6 +15,9 @@ import { useGlobalState } from '../../GlobelStats';
 import { getStyles } from '../Style';
 import ReportPopup from '../ReportPopUp';
 import { useTranslation } from 'react-i18next';
+import Clipboard from '@react-native-clipboard/clipboard';
+import { useHaptic } from '../../Helper/HepticFeedBack';
+import { showMessage } from 'react-native-flash-message';
 
 const PrivateMessageList = ({
   messages,
@@ -38,6 +41,17 @@ const PrivateMessageList = ({
 
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [showReportPopup, setShowReportPopup] = useState(false);
+  const { triggerHapticFeedback } = useHaptic();
+
+  const handleCopy = (message) => {
+    Clipboard.setString(message.text);
+    triggerHapticFeedback('impactLight');
+    showMessage({
+      message: 'Success',
+      description: 'Message Copies',
+      type: "success",
+    });
+  };
 
   // Filter messages: Keep only user's messages if `isBanned` is true
   const filteredMessages = isBanned
@@ -92,6 +106,7 @@ const PrivateMessageList = ({
             </Text>
           </MenuTrigger>
           <MenuOptions style={styles.menuoptions}>
+          <MenuOption onSelect={() => handleCopy(item)} text={'Copy'}/>
             <MenuOption onSelect={() => onReply(item)} text={t("chat.reply")}/>
             <MenuOption onSelect={() => handleReport(item)} text={t("chat.report")} />
           </MenuOptions>

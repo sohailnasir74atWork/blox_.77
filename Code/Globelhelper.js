@@ -64,7 +64,6 @@ export const firebaseConfig = {
       }
   
       try {
-          // console.log('🔔 Requesting notification permissions...');
           const authStatus = await messaging().requestPermission();
   
           const isAuthorized = 
@@ -109,12 +108,12 @@ export const firebaseConfig = {
   
 
 
-  export const createNewUser = (userId, loggedInUser = {}) => ({
+  export const createNewUser = (userId, loggedInUser = {}, robloxUsername) => ({
       id: userId,
       selectedFruits: [],
       isReminderEnabled: false,
       isSelectedReminderEnabled: false,
-      displayName: loggedInUser.displayName || generateOnePieceUsername() || 'Anonymous',
+      displayName: robloxUsername || loggedInUser.displayName || generateOnePieceUsername() || 'Anonymous',
       avatar: loggedInUser.photoURL || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
       rewardPoints: 0, 
       isBlock:false,

@@ -18,6 +18,7 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import { useLocalState } from '../LocalGlobelStats';
 import BannerAdComponent from '../Ads/bannerAds';
 import InterstitialAdManager from '../Ads/IntAd';
+import { mixpanel } from '../AppHelper/MixPenel';
 
 
 const ServerScreen = () => {
@@ -48,11 +49,8 @@ const ServerScreen = () => {
             startAt(Date.now())
         );
 
-        const adminServerQuery = query(
-            ref(appdatabase, 'server'),
-            orderByChild('validate'),
-            equalTo("true")
-        );
+        const adminServerQuery = ref(appdatabase, 'server');
+
 
         const userUnsubscribe = onValue(userServerQuery, (snapshot) => {
             const data = snapshot.val() || {};
@@ -165,8 +163,10 @@ const ServerScreen = () => {
         }
     };
     const handleLinkPress = (url) => {
+        // console.log(url)
+        const trimmedUrl = url?.trim();
         const openLink = () => {
-          Linking.openURL(url).catch(err => {
+          Linking.openURL(trimmedUrl).catch(err => {
             console.warn('Failed to open link:', err);
             showMessage({ message: 'Failed to open link', type: 'danger' });
           });
@@ -176,6 +176,7 @@ const ServerScreen = () => {
           InterstitialAdManager.showAd(openLink);
         } else {
           openLink();
+          mixpanel.track("Server Open");
         }
       };
       

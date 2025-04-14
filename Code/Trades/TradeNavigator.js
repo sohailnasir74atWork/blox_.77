@@ -90,23 +90,24 @@ export const TradeStack = ({ selectedTheme }) => {
             title: t("tabs.trade"),
             headerRight: () => (
               <View style={{ flexDirection: 'row', }}>
-                <TouchableOpacity onPress={() => navigation.navigate('Server')} style={{ marginRight: 10,  }}>
+                <TouchableOpacity onPress={() => navigation.navigate('Server')} style={{ marginRight: 5, backgroundColor:config.colors.hasBlockGreen, borderRadius:5, flexDirection:'row', alignItems:'center', paddingHorizontal:5}}>
                   <Image
                     source={
                       isDarkMode
-                        ? require('../../assets/server.png')
-                        : require('../../assets/server.png')
+                        ? require('../../assets/roblox.png')
+                        : require('../../assets/roblox.png')
                     }
                     style={{
-                      width: 70,
+                      width: 20,
                       height:25,
                       // transform: [{ scale: 1.2 }],
-                      tintColor: config.colors.primary,
+                      tintColor: config.colors.white,
                       justifyContent:'center',
                       alignItems:'center'
                     }}
                     resizeMode="contain"
                   />
+                  <Text style={{color:'white', fontFamily:'Lato-Bold' }}>Pvt Servers</Text>
                 </TouchableOpacity>
           
                 <TouchableOpacity onPress={() => setModalVisible(true)} style={{ marginRight: 8 }}>

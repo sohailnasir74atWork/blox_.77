@@ -20,10 +20,11 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned }) => {
     if (!trimmedInput || isSending) return;
 
     setIsSending(true);
+    setInput(''); // Clear the input field
+
 
     try {
       await onSend(trimmedInput); // Send the message
-      setInput(''); // Clear the input field
       if (onCancelReply) onCancelReply(); // Clear reply context if any
     } catch (error) {
       console.error('Error sending message:', error);

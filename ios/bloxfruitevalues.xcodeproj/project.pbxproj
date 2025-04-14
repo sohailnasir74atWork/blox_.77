@@ -15,11 +15,11 @@
 		187146CE2D5CB1B5003890D6 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 187146CD2D5CB1B5003890D6 /* GoogleService-Info.plist */; };
 		3CB3B02363450A64CDC9063D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		3DD773292011487396EB3CB0 /* Lato-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7C9634A738C64C4B9FFE6234 /* Lato-Regular.ttf */; };
+		56F857E2D0424B5587F79BC7 /* Colors.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 67352802B153454498C63C76 /* Colors.xcassets */; };
+		5C7C8FBEAF374C9EB6612D28 /* BootSplash.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 949F58CEACFD42A38F36032E /* BootSplash.storyboard */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		8D6C41CFE32F734FAC1637E3 /* Pods_bloxfruitevalues.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D28019BE7150F5B11779B0AB /* Pods_bloxfruitevalues.framework */; };
 		AE30EFB988CB49C7A0CA6153 /* Lato-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7F5A461FA3FD426E82335FB7 /* Lato-Bold.ttf */; };
-		5C7C8FBEAF374C9EB6612D28 /* BootSplash.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 949F58CEACFD42A38F36032E /* BootSplash.storyboard */; };
-		56F857E2D0424B5587F79BC7 /* Colors.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 67352802B153454498C63C76 /* Colors.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,15 +34,15 @@
 		183231FA2D66329F00278B1F /* testing.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; name = testing.storekit; path = bloxfruitevalues/testing.storekit; sourceTree = "<group>"; };
 		183231FC2D66334300278B1F /* StoreKitTestCertificate.cer */ = {isa = PBXFileReference; lastKnownFileType = file; name = StoreKitTestCertificate.cer; path = ../../../../../Documents/StoreKitTestCertificate.cer; sourceTree = "<group>"; };
 		187146CD2D5CB1B5003890D6 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		67352802B153454498C63C76 /* Colors.xcassets */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = folder.assetcatalog; name = Colors.xcassets; path = bloxfruitevalues/Colors.xcassets; sourceTree = "<group>"; };
 		7C9634A738C64C4B9FFE6234 /* Lato-Regular.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = "Lato-Regular.ttf"; path = "../assets/fonts/Lato-Regular.ttf"; sourceTree = "<group>"; };
 		7F5A461FA3FD426E82335FB7 /* Lato-Bold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = "Lato-Bold.ttf"; path = "../assets/fonts/Lato-Bold.ttf"; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = bloxfruitevalues/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		8D24501D692A47487B4919ED /* Pods-bloxfruitevalues.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-bloxfruitevalues.debug.xcconfig"; path = "Target Support Files/Pods-bloxfruitevalues/Pods-bloxfruitevalues.debug.xcconfig"; sourceTree = "<group>"; };
+		949F58CEACFD42A38F36032E /* BootSplash.storyboard */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = BootSplash.storyboard; path = bloxfruitevalues/BootSplash.storyboard; sourceTree = "<group>"; };
 		C396F747E7BCA6040709BCAF /* Pods-bloxfruitevalues.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-bloxfruitevalues.release.xcconfig"; path = "Target Support Files/Pods-bloxfruitevalues/Pods-bloxfruitevalues.release.xcconfig"; sourceTree = "<group>"; };
 		D28019BE7150F5B11779B0AB /* Pods_bloxfruitevalues.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_bloxfruitevalues.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
-		949F58CEACFD42A38F36032E /* BootSplash.storyboard */ = {isa = PBXFileReference; name = "BootSplash.storyboard"; path = "bloxfruitevalues/BootSplash.storyboard"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		67352802B153454498C63C76 /* Colors.xcassets */ = {isa = PBXFileReference; name = "Colors.xcassets"; path = "bloxfruitevalues/Colors.xcassets"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = folder.assetcatalog; explicitFileType = undefined; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -151,6 +151,7 @@
 				AB51FDE62BD582D066F02568 /* [CP] Copy Pods Resources */,
 				910340255327CD725F50F200 /* [CP-User] [RNFB] Core Configuration */,
 				D058A65DC2674731CDFC6FCF /* [CP-User] [RNGoogleMobileAds] Configuration */,
+				0B407CB17CF3721B5BED8508 /* [CP-User] [RNFB] Crashlytics Configuration */,
 			);
 			buildRules = (
 			);
@@ -228,6 +229,20 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "set -e\n\nWITH_ENVIRONMENT=\"$REACT_NATIVE_PATH/scripts/xcode/with-environment.sh\"\nREACT_NATIVE_XCODE=\"$REACT_NATIVE_PATH/scripts/react-native-xcode.sh\"\n\n/bin/sh -c \"$WITH_ENVIRONMENT $REACT_NATIVE_XCODE\"\n";
+		};
+		0B407CB17CF3721B5BED8508 /* [CP-User] [RNFB] Crashlytics Configuration */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}",
+				"$(BUILT_PRODUCTS_DIR)/$(INFOPLIST_PATH)",
+			);
+			name = "[CP-User] [RNFB] Crashlytics Configuration";
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "#!/usr/bin/env bash\n#\n# Copyright (c) 2016-present Invertase Limited & Contributors\n#\n# Licensed under the Apache License, Version 2.0 (the \"License\");\n# you may not use this library except in compliance with the License.\n# You may obtain a copy of the License at\n#\n#   http://www.apache.org/licenses/LICENSE-2.0\n#\n# Unless required by applicable law or agreed to in writing, software\n# distributed under the License is distributed on an \"AS IS\" BASIS,\n# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n# See the License for the specific language governing permissions and\n# limitations under the License.\n#\nset -e\n\nif [[ ${PODS_ROOT} ]]; then\n  echo \"info: Exec FirebaseCrashlytics Run from Pods\"\n  \"${PODS_ROOT}/FirebaseCrashlytics/run\"\nelse\n  echo \"info: Exec FirebaseCrashlytics Run from framework\"\n  \"${PROJECT_DIR}/FirebaseCrashlytics.framework/run\"\nfi\n";
 		};
 		685A58E366EBE32ACA5B380F /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -332,7 +347,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = bloxfruitevalues/bloxfruitevalues.entitlements;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 40;
 				DEVELOPMENT_TEAM = P32FX5FC6Z;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = bloxfruitevalues/Info.plist;
@@ -342,7 +357,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.0.209;
+				MARKETING_VERSION = 4.0.210;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -369,7 +384,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = bloxfruitevalues/bloxfruitevalues.entitlements;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 40;
 				DEVELOPMENT_TEAM = P32FX5FC6Z;
 				INFOPLIST_FILE = bloxfruitevalues/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Fruit Values";
@@ -378,7 +393,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 4.0.209;
+				MARKETING_VERSION = 4.0.210;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",

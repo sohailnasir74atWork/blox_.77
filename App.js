@@ -8,12 +8,13 @@ import {
   AppState,
   TouchableOpacity,
   Appearance,
+  InteractionManager,
 } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import SettingsScreen from './Code/SettingScreen/Setting';
-import {  useGlobalState } from './Code/GlobelStats';
-import {  useLocalState } from './Code/LocalGlobelStats';
+import { useGlobalState } from './Code/GlobelStats';
+import { useLocalState } from './Code/LocalGlobelStats';
 import { AdsConsent, AdsConsentStatus } from 'react-native-google-mobile-ads';
 import MainTabs from './Code/AppHelper/MainTabs';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -69,17 +70,17 @@ function App() {
   }, []);
 
 
- 
+
   useEffect(() => {
     const listener = Appearance.addChangeListener(({ colorScheme }) => {
       if (theme === 'system') {
         setNavigationBarAppearance(colorScheme);
       }
     });
-  
+
     return () => listener.remove();
   }, [theme]);
-  
+
 
   useEffect(() => {
     AppOpenAdManager.init();
@@ -127,20 +128,23 @@ function App() {
     try {
       const consentInfo = await AdsConsent.requestInfoUpdate();
 
+      if (
+        consentInfo.status === AdsConsentStatus.OBTAINED ||
+        consentInfo.status === AdsConsentStatus.NOT_REQUIRED
+      ) {
+        saveConsentStatus(consentInfo.status);
+        return;
+      }
+
       if (consentInfo.isConsentFormAvailable) {
-        if (consentInfo.status === AdsConsentStatus.REQUIRED) {
-          const formResult = await AdsConsent.showForm();
-          saveConsentStatus(formResult.status); // Save consent status
-        } else {
-          saveConsentStatus(consentInfo.status); // Save existing consent status
-        }
-      } else {
-        // console.log('Consent form is not available.');
+        const formResult = await AdsConsent.showForm();
+        saveConsentStatus(formResult.status);
       }
     } catch (error) {
-      // console.error('Error handling consent:', error);
+      console.warn("Consent error:", error);
     }
   };
+
 
   // Handle Consent
   useEffect(() => {
@@ -148,8 +152,8 @@ function App() {
   }, []);
   const navRef = useRef();
 
- 
-  
+
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: selectedTheme.colors.background, }}>
       <Animated.View style={{ flex: 1 }}>
@@ -207,9 +211,12 @@ export default function AppWrapper() {
   const { theme } = useGlobalState();
   useEffect(() => {
     if (localState.isAppReady) {
-      RNBootSplash.hide({ fade: true });
+      InteractionManager.runAfterInteractions(() => {
+        RNBootSplash.hide({ fade: true });
+      });
     }
   }, [localState.isAppReady]);
+
   const selectedTheme = useMemo(() => {
     if (!theme) {
       console.warn("⚠️ Theme not found! Falling back to Light Theme.");
@@ -225,5 +232,5 @@ export default function AppWrapper() {
     return <OnboardingScreen onFinish={handleSplashFinish} selectedTheme={selectedTheme} />;
   }
 
-  return   <App />
+  return <App />
 }

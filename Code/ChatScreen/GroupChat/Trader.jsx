@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Alert,
@@ -17,7 +17,7 @@ import { getStyles } from '../Style';
 import { AdEventType, BannerAd, BannerAdSize, InterstitialAd } from 'react-native-google-mobile-ads';
 import getAdUnitId, { developmentMode } from '../../Ads/ads';
 import { banUser, isUserOnline, makeAdmin, removeAdmin, unbanUser } from '../utils';
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import ProfileBottomDrawer from './BottomDrawer';
 import leoProfanity from 'leo-profanity';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
@@ -28,13 +28,14 @@ import { useTranslation } from 'react-i18next';
 import { mixpanel } from '../../AppHelper/MixPenel';
 import InterstitialAdManager from '../../Ads/IntAd';
 import BannerAdComponent from '../../Ads/bannerAds';
+import { logoutUser } from '../../Firebase/UserLogics';
 leoProfanity.add(['hell', 'shit']);
 leoProfanity.loadDictionary('en');
 
 const bannerAdUnitId = getAdUnitId('banner');
 const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatFocused,
   setModalVisibleChatinfo, unreadMessagesCount, fetchChats, unreadcount, setunreadcount }) => {
-  const { user, theme, onlineMembersCount, appdatabase, analytics } = useGlobalState();
+  const { user, theme, onlineMembersCount, appdatabase, setUser } = useGlobalState();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [replyTo, setReplyTo] = useState(null);
@@ -50,13 +51,22 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   const [isCooldown, setIsCooldown] = useState(false);
   const [signinMessage, setSigninMessage] = useState(false);
   const { triggerHapticFeedback } = useHaptic();
-  const [isAdLoaded, setIsAdLoaded] = useState(false);
-  const [isShowingAd, setIsShowingAd] = useState(false);
   const { localState } = useLocalState()
   const { t } = useTranslation();
   const platform = Platform.OS.toLowerCase();
+  const [pendingMessages, setPendingMessages] = useState([]);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const isFocused = useIsFocused();
 
+  const flatListRef = useRef();
 
+  useEffect(() => {
+    if (isAtBottom && pendingMessages.length > 0) {
+      // console.log("✅ User scrolled to bottom. Releasing held messages...");
+      setMessages((prev) => [...pendingMessages, ...prev]);
+      setPendingMessages([]); // Clear the queue
+    }
+  }, [isAtBottom, pendingMessages]);
 
 
   const PAGE_SIZE = 20;
@@ -89,9 +99,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       navigation.navigate('PrivateChat', { selectedUser, selectedTheme });
       mixpanel.track("Inbox Chat");
     };
-    if(!localState.isPro)
-      {InterstitialAdManager.showAd(callbackfunction);}
-      else {callbackfunction()}
+    if (!localState.isPro) { InterstitialAdManager.showAd(callbackfunction); }
+    else { callbackfunction() }
   };
 
   const chatRef = useMemo(() => ref(appdatabase, 'chat_new'), []);
@@ -186,17 +195,29 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   // const bannedUserIds = bannedUsers.map((user) => user.id); // Extract IDs from bannedUsers
 
   useEffect(() => {
+    if(!isFocused) return
     const listener = chatRef.limitToLast(1).on('child_added', (snapshot) => {
       const newMessage = validateMessage({ id: snapshot.key, ...snapshot.val() });
 
       setMessages((prev) => {
         const seenKeys = new Set(prev.map((msg) => msg.id));
-        return seenKeys.has(newMessage.id) ? prev : [newMessage, ...prev];
+        if (seenKeys.has(newMessage.id)) return prev;
+
+        if (isAtBottom) {
+          // Insert immediately
+          // console.log("📥 User is at bottom, adding message now");
+          return [newMessage, ...prev];
+        } else {
+          // Hold in pending
+          // console.log("⏳ Holding new message, user not at bottom");
+          setPendingMessages((prevPending) => [newMessage, ...prevPending]);
+          return prev;
+        }
       });
     });
 
-    return () => chatRef.off('child_added', listener); // ✅ Ensures proper cleanup
-  }, [chatRef, setMessages]);
+    return () => chatRef.off('child_added', listener);
+  }, [chatRef, validateMessage, isAtBottom, isFocused]);
 
 
 
@@ -282,7 +303,31 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     setIsSigninDrawerVisible(false);
   };
 
- 
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const userRef = ref(appdatabase, `users/${user.id}/isBlock`);
+
+    const unsubscribe = userRef.on('value', (snapshot) => {
+      const isBlocked = snapshot.val();
+      if (isBlocked === true) {
+        Alert.alert(
+          '🚫 Blocked',
+          'You have been blocked by the admin. Logging you out.',
+          [{
+            text: 'OK', onPress: () => {
+              logoutUser(setUser)
+            }
+          }]
+        );
+      }
+    });
+
+    return () => {
+      userRef.off('value', unsubscribe);
+    };
+  }, [user?.id]);
 
 
   const handleRefresh = async () => {
@@ -293,8 +338,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   };
 
   const handleSendMessage = () => {
-    const MAX_WORDS = 100;
-    const MESSAGE_COOLDOWN = 1000;
+    const MAX_CHARACTERS = 250;
+    const MESSAGE_COOLDOWN = 100;
     const LINK_REGEX = /(https?:\/\/[^\s]+)/g;
 
     if (!user?.id || user?.isBlock) {
@@ -313,7 +358,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       return;
     }
 
-    if (trimmedInput.split(/\s+/).length > MAX_WORDS) {
+    if (trimmedInput.length > MAX_CHARACTERS) {
       Alert.alert(t('home.alert.error'), t('misc.messageTooLong'));
       return;
     }
@@ -381,6 +426,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
               <MessagesList
                 messages={messages}
                 user={user}
+                flatListRef={flatListRef}
                 isDarkMode={theme === 'dark'}
                 onPinMessage={handlePinMessage}
                 onDeleteMessage={(messageId) => chatRef.child(messageId.replace('chat_new-', '')).remove()}
@@ -395,6 +441,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                 removeAdmin={removeAdmin}
                 unbanUser={unbanUser}
                 // isOwner={isOwner}
+                isAtBottom={isAtBottom}
+                setIsAtBottom={setIsAtBottom}
                 toggleDrawer={toggleDrawer}
                 setMessages={setMessages}
               />
@@ -412,7 +460,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
               <TouchableOpacity
                 style={styles.login}
                 onPress={() => {
-                  setIsSigninDrawerVisible(true); triggerHapticFeedback('impactLight'); 
+                  setIsSigninDrawerVisible(true); triggerHapticFeedback('impactLight');
                 }}
               >
                 <Text style={styles.loginText}>{t('misc.loginToStartChat')}</Text>
@@ -438,7 +486,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
           bannedUsers={bannedUsers}
         />
       </GestureHandlerRootView>
-      {!localState.isPro && <BannerAdComponent/>}
+      {!localState.isPro && <BannerAdComponent />}
 
       {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (

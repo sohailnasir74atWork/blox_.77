@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   FlatList,
   View,
@@ -20,11 +20,13 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
 import { useTranslation } from 'react-i18next';
 import { useGlobalState } from '../../GlobelStats';
-
+import Clipboard from '@react-native-clipboard/clipboard';
+import { showMessage } from 'react-native-flash-message';
 
 
 const MessagesList = ({
   messages,
+  isAtBottom, setIsAtBottom,
   handleLoadMore,
   user,
   isDarkMode,
@@ -33,6 +35,7 @@ const MessagesList = ({
   onReply,
   // isAdmin,
   refreshing,
+  flatListRef,
   onRefresh,
   banUser,
   makeadmin,
@@ -46,9 +49,19 @@ const MessagesList = ({
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [showReportPopup, setShowReportPopup] = useState(false);
   const { triggerHapticFeedback } = useHaptic();
+  // const [isAtBottom, setIsAtBottom] = useState(true);
   const { t } = useTranslation();
-const {isAdmin} = useGlobalState()
-
+  const { isAdmin } = useGlobalState()
+  const handleCopy = (message) => {
+    Clipboard.setString(message.text);
+    triggerHapticFeedback('impactLight');
+    showMessage({
+      message: 'Success',
+      description: 'Message Copies',
+      type: "success",
+    });
+  };
+  
 
   const handleLongPress = (item) => {
     if (!user?.id) return;
@@ -70,7 +83,7 @@ const {isAdmin} = useGlobalState()
       )
     );
   };
-
+ 
   const handleProfileClick = (item) => {
     // console.log(item)
     if (user.id) { toggleDrawer(item); triggerHapticFeedback('impactLight'); }
@@ -168,17 +181,25 @@ const {isAdmin} = useGlobalState()
 
                 </Text>
               </MenuTrigger>
-              <MenuOptions customStyles={{
-                optionsContainer: styles.menuoptions,
-              }}>
-                {user.id && <MenuOption
-                  onSelect={() => onReply(item)}
-                  text={t("chat.reply")}
+              <MenuOptions customStyles={{ optionsContainer: styles.menuoptions }}>
+                <MenuOption
+                  onSelect={() => handleCopy(item)}
+                  text={"Copy"}
                   customStyles={{
                     optionWrapper: styles.menuOption,
                     optionText: styles.menuOptionText,
                   }}
-                />}
+                />
+                {user.id && (
+                  <MenuOption
+                    onSelect={() => onReply(item)}
+                    text={t("chat.reply")}
+                    customStyles={{
+                      optionWrapper: styles.menuOption,
+                      optionText: styles.menuOptionText,
+                    }}
+                  />
+                )}
                 <MenuOption
                   onSelect={() => handleReport(item)}
                   text={t("chat.report")}
@@ -188,6 +209,7 @@ const {isAdmin} = useGlobalState()
                   }}
                 />
               </MenuOptions>
+
             </Menu>
 
             {(item.reportCount > 0 || item.isReportedByUser) && (
@@ -262,6 +284,14 @@ const {isAdmin} = useGlobalState()
         renderItem={({ item, index }) => renderMessage({ item, index })}
         contentContainerStyle={styles.chatList}
         inverted
+        ref={flatListRef}
+        scrollEventThrottle={16}
+        onScroll={({ nativeEvent }) => {
+          const { contentOffset } = nativeEvent;
+          const atBottom = contentOffset.y <= 40;
+          // console.log("✅ isAtBottom (detected):", atBottom);
+          setIsAtBottom(atBottom);
+        }}
         onEndReachedThreshold={0.1}
         onEndReached={handleLoadMore}
         initialNumToRender={20} // Render the first 20 messages upfront
@@ -274,7 +304,7 @@ const {isAdmin} = useGlobalState()
             tintColor={isDarkMode ? '#FFF' : '#000'}
           />
         }
-        onScroll={() => Keyboard.dismiss()}
+        // onScroll={() => Keyboard.dismiss()}
         onTouchStart={() => Keyboard.dismiss()}
         keyboardShouldPersistTaps="handled" // Ensures taps o
       />

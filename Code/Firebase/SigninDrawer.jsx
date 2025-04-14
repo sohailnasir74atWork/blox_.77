@@ -10,6 +10,7 @@ import {
     ActivityIndicator,
     Alert,
     Platform,
+    Image,
 } from 'react-native';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import auth from '@react-native-firebase/auth';
@@ -31,10 +32,13 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     const [isLoading, setIsLoading] = useState(false)
     const [isLoadingSecondary, setIsLoadingSecondary] = useState(false);
     const { triggerHapticFeedback } = useHaptic();
-    const { theme } = useGlobalState()
+    const { theme, robloxUsernameRef } = useGlobalState()
+    const [robloxUsernamelocal, setRobloxUsernamelocal] = useState()
+    useEffect(()=>{robloxUsernameRef.current = robloxUsernamelocal},[robloxUsernamelocal])
+    // useEffect(()=>{setRobloxUsernamelocal()},[robloxUsernamelocal])
+
+
     const { t } = useTranslation();
-
-
     // const appdatabase = getDatabase(app);
     const isDarkMode = theme === 'dark';
     useEffect(() => {
@@ -43,7 +47,6 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
             offlineAccess: true,
         });
     }, [])
-
     useEffect(() => {
         if (!appleAuth.isSupported) return;
     
@@ -54,11 +57,26 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     }, []);
     
     
- 
+    const validateRobloxUsername = () => {
+        const name = robloxUsernameRef.current;
+        if (!name || name.trim().length === 0) {
+          showMessage({
+            message: t("home.alert.error"),
+            description: "Please enter your Roblox username.",
+            type: "danger",
+          });
+          return false;
+        }
+        return true;
+      };
+      
 
     // Updated onAppleButtonPress function
     const onAppleButtonPress = useCallback(async () => {
         triggerHapticFeedback('impactLight');
+        if (!validateRobloxUsername()) return;
+
+
         try {
             const { identityToken, nonce } = await appleAuth.performRequest({
                 requestedOperation: appleAuth.Operation.LOGIN,
@@ -68,7 +86,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
             if (!identityToken) throw new Error(t("signin.error_apple_token"));
     
             await auth().signInWithCredential(auth.AppleAuthProvider.credential(identityToken, nonce));
-            showMessage({ message: t("home.alert.success"), description: t("signin.success_signin"), type: "success" });
+            showMessage({ message: t("home.alert.success"), description: t("signin.success_signin"), type: "success" })
             onClose();
             mixpanel.track(`Login with apple from ${screen}`);
         } catch (error) {
@@ -80,6 +98,8 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     
     const handleSignInOrRegister = async () => {
         triggerHapticFeedback('impactLight');
+        if (!validateRobloxUsername()) return;
+
     
         if (!email || !password) {
             // Alert.alert(t("home.alert.error"), t("signin.error_input_message"));
@@ -108,6 +128,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
         try {
             if (isRegisterMode) {
                 // Handle user registration
+                // await updateLocalState('user_name', robloxUsernamelocal)
                 await auth().createUserWithEmailAndPassword(email, password);
                 // Alert.alert(t("signin.alert_success"), t("signin.alert_account_created"));
                 mixpanel.track(`Login with email from ${screen}`);
@@ -117,10 +138,13 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                     description:t("signin.alert_account_created"),
                     type: "success",
                   });
+                  onClose(); // Close modal after successful operation
+
             } else {
                 // Handle user login
                 await auth().signInWithEmailAndPassword(email, password);
                 mixpanel.track(`Login with email from ${screen}`);
+                onClose(); // Close modal after successful operation
 
                 // Alert.alert(t("signin.alert_welcome_back"), t("signin.success_signin"));
                 showMessage({
@@ -130,7 +154,6 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                   });
             }
     
-            onClose(); // Close modal after successful operation
         } catch (error) {
             console.error(t("signin.auth_error"), error);
     
@@ -162,6 +185,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     };
     
     const handleGoogleSignIn = useCallback(async () => {
+        if (!validateRobloxUsername()) return;
         try {
             setIsLoading(true);
             await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
@@ -171,7 +195,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     
             await auth().signInWithCredential(auth.GoogleAuthProvider.credential(idToken));
             showMessage({ message: t("signin.alert_welcome_back"), description: t("signin.success_signin"), type: "success" });
-            onClose();
+            onClose()
             mixpanel.track(`Login with google from ${screen}`);
 
         } catch (error) {
@@ -196,6 +220,33 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                         <Text style={[styles.text, { color: selectedTheme.colors.text }]}>
                             {message}
                         </Text>
+                    </View>
+                    {/* <TextInput
+  style={[styles.input, { color: selectedTheme.colors.text }]}
+  placeholder="Roblox Username"
+  value={robloxUsername}
+  onChangeText={setRobloxUsername}
+  autoCapitalize="none"
+  placeholderTextColor={selectedTheme.colors.text}
+/> */}
+
+<TextInput
+  style={[styles.input, { color: selectedTheme.colors.text, marginBottom:0 }]}
+  placeholder="Roblox Username"
+  value={robloxUsernamelocal}
+  onChangeText={setRobloxUsernamelocal}
+  autoCapitalize="none"
+  placeholderTextColor={selectedTheme.colors.text}
+/>
+<View style={styles.container}>
+                        <View style={styles.line} />
+                        <Image
+  source={require('../../assets/roblox.png')}
+
+  style={{ width: 24, height: 24 }}
+  resizeMode="contain"
+/>
+                        <View style={styles.line} />
                     </View>
     
                     <TextInput
@@ -248,7 +299,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                             <ActivityIndicator size="small" color="white" />
                         ) : (
                             <>
-                                <Icon name="google" size={24} color="white" style={styles.googleIcon} />
+                                <Icon name="google" size={20} color="white" style={styles.googleIcon} />
                                 <Text style={styles.googleButtonText}>{t("signin.google_signin")}</Text>
                             </>
                         )}
@@ -302,7 +353,7 @@ const styles = StyleSheet.create({
     },
     input: {
         width: '100%',
-        height: 50,
+        height: 40,
         borderColor: 'grey',
         borderWidth: 1,
         borderRadius: 5,
@@ -311,10 +362,10 @@ const styles = StyleSheet.create({
     },
     primaryButton: {
         backgroundColor: '#007BFF',
-        padding: 15,
+        padding: 10,
         borderRadius: 5,
         alignItems: 'center',
-        marginBottom: 10,
+        // marginBottom: 10,
     },
     primaryButtonText: {
         color: 'white',
@@ -323,7 +374,7 @@ const styles = StyleSheet.create({
     secondaryButton: {
         padding: 10,
         alignItems: 'center',
-        marginBottom: 10,
+        // marginBottom: 10,
     },
     secondaryButtonText: {
         color: '#007BFF',
@@ -337,14 +388,14 @@ const styles = StyleSheet.create({
         padding: 10,
         borderRadius: 5,
         marginBottom: 10,
-        height: 50,
+        height: 40,
 
 
     },
     applebUUTON: {
-        height: 50,
+        height: 40,
         width: '100%',
-        marginBottom: 10,
+        // marginBottom: 10,
     },
     googleIcon: {
         marginRight: 10, // Space between the icon and the text

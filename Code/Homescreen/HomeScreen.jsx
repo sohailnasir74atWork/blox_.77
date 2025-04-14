@@ -304,10 +304,10 @@ const HomeScreen = ({ selectedTheme }) => {
       const permValueInvalid = fruit.permValue === 0 || fruit.permValue === "0" || fruit.permValue === "N/A";
 
       // ✅ If both permValue & value exist (permValue must be valid)
-      if (!permValueInvalid && fruit.permValue !== undefined && fruit.value !== undefined) {
+      if (fruit.permValue !== undefined && fruit.value !== undefined) {
         transformedData.push({
           Name: fruit.name,
-          Value: fruit.permValue,
+          Value: permValueInvalid ? 0 :fruit.permValue,
           Type: 'p', // Permanent type
           Price: 0
         });
@@ -321,11 +321,11 @@ const HomeScreen = ({ selectedTheme }) => {
 
         // console.log(`✅ Added ${fruit.name}: Permanent (${fruit.permValue}), Normal (${fruit.value})`);
 
-      } else if (!permValueInvalid && fruit.permValue !== undefined) {
+      } else if ( fruit.permValue !== undefined) {
         // ✅ If only permValue exists (must be valid)
         transformedData.push({
           Name: fruit.name,
-          Value: fruit.permValue,
+          Value: permValueInvalid ? 0 :fruit.permValue,
           Type: 'p', // Permanent type
           Price: 0
         });
@@ -568,7 +568,10 @@ const HomeScreen = ({ selectedTheme }) => {
                           ]}
                         />
                         <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
-                        ]}>${item.usePermanent ? Number(item.Permanent).toLocaleString() : Number(item.Value).toLocaleString()}</Text>
+                        ]}>{item.usePermanent 
+                          ? (Number(item.Permanent) === 0 ? "Special" : Number(item.Permanent).toLocaleString()) 
+                          : (Number(item.Value) === 0 ? "Special" : Number(item.Value).toLocaleString())
+                        }</Text>
                         <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
                         ]}>{item.Type === 'p' && 'Perm'}  {item.Name}</Text>
                         {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
@@ -609,7 +612,10 @@ const HomeScreen = ({ selectedTheme }) => {
                           style={[styles.itemImageOverlay]}
                         />
                         <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
-                        ]}>${item.usePermanent ? Number(item.Permanent).toLocaleString() : Number(item.Value).toLocaleString()}</Text>
+                        ]}>{item.usePermanent 
+                          ? (Number(item.Permanent) === 0 ? "Special" : Number(item.Permanent).toLocaleString()) 
+                          : (Number(item.Value) === 0 ? "Special" : Number(item.Value).toLocaleString())
+                        }</Text>
                         <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
                         ]}>{item.Type === 'p' && 'Perm'} {item.Name}</Text>
                         {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
@@ -822,7 +828,7 @@ const getStyles = (isDarkMode) =>
     },
     addItemBlockNew: {
       width: '48%',
-      height: 70,
+      height: 80,
       backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF', // Dark: darker contrast, Light: White
       borderWidth: Platform.OS === 'android' ? 0 : 1,
       borderColor: 'lightgrey',

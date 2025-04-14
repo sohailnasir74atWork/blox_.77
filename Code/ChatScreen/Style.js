@@ -105,7 +105,7 @@ export const getStyles = (isDarkMode) =>
     input: {
       flex: 1, // Ensures the input takes available space
       borderRadius: 20,
-      padding: 10,
+      padding: 5,
       marginRight: 10,
       fontSize: 16,
       heighteight: 30, // Minimum height for a single line
@@ -114,17 +114,17 @@ export const getStyles = (isDarkMode) =>
       backgroundColor: isDarkMode ? '#333' : '#fff', // Optional background for better visibility
     },
 
-    sendButton: {
-      borderRadius: 20,
-      // paddingVertical: 10,
-      paddingHorizontal: 20,
-      // backgroundColor:config.colors.primary
-    },
-    sendButtonText: {
-      color: '#fff',
-      fontSize: 16,
-      fontFamily: 'Lato-Bold',
-    },
+    // sendButton: {
+    //   borderRadius: 20,
+    //   // paddingVertical: 10,
+    //   paddingHorizontal: 20,
+    //   // backgroundColor:config.colors.primary
+    // },
+    // sendButtonText: {
+    //   color: '#fff',
+    //   fontSize: 16,
+    //   fontFamily: 'Lato-Bold',
+    // },
     loggedOutMessage: {
       flex: 1,
       fontSize: 16,
@@ -219,10 +219,10 @@ export const getStyles = (isDarkMode) =>
     //   fontSize: 16,
     // },
     sendButton: {
-      marginLeft: 10,
+      marginLeft: 5,
       borderRadius: 20,
       paddingHorizontal: 20,
-      paddingVertical: 10,
+      paddingVertical: 5,
     },
     sendButtonText: {
       color: '#fff',

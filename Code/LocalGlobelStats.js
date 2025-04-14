@@ -47,6 +47,7 @@ export const LocalStateProvider = ({ children }) => {
     isAppReady: storage.getBoolean('isAppReady') ?? false,
     lastActivity: storage.getString('lastActivity') || null,
     showOnBoardingScreen: storage.getBoolean('showOnBoardingScreen') ?? true,
+    user_name: storage.getString('user_name') || 'Anonymous',
   }));
   
   

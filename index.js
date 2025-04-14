@@ -3,7 +3,7 @@ import { enableScreens } from 'react-native-screens';
 enableScreens(); 
 
 import React, { useEffect, lazy, Suspense } from 'react';
-import { AppRegistry } from 'react-native';
+import { AppRegistry, Text } from 'react-native';
 import AppWrapper from './App';
 import { name as appName } from './app.json';
 import { GlobalStateProvider } from './Code/GlobelStats';
@@ -18,24 +18,38 @@ const NotificationHandler = lazy(() => import('./Code/Firebase/FrontendNotificat
 
 // ✅ Background Notification Handler
 messaging().setBackgroundMessageHandler(async remoteMessage => {
-  // console.log('📩 Silent notification received in background:', remoteMessage);
 });
+class ErrorBoundary extends React.Component {
+  state = { hasError: false };
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+  componentDidCatch(error, info) {
+    console.error('Caught in ErrorBoundary:', error, info);
+  }
+  render() {
+    return this.state.hasError ? <Text>Something went wrong.</Text> : this.props.children;
+  }
+}
 
 // ✅ Memoized App component to prevent unnecessary re-renders
 const App = React.memo(() => (
+  <MenuProvider skipInstanceCheck>
   <LanguageProvider>
     <LocalStateProvider>
       <GlobalStateProvider>
-        <MenuProvider>
+        <ErrorBoundary>
           <AppWrapper />
-          <Suspense fallback={null}>
-          <FlashMessage position="top" />
-            <NotificationHandler />
-          </Suspense>
-        </MenuProvider>
+        </ErrorBoundary>
+        <FlashMessage position="top" />
+        <Suspense fallback={null}>
+          <NotificationHandler />
+        </Suspense>
       </GlobalStateProvider>
     </LocalStateProvider>                
   </LanguageProvider>
+</MenuProvider>
+
 ));
 
 AppRegistry.registerComponent(appName, () => App);

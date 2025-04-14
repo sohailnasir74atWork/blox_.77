@@ -733,7 +733,7 @@ const TradeList = ({ route }) => {
 
             </View>} */}
  <FontAwesome
-        name='pen-to-square'
+        name='message'
          size={18}
               color={config.colors.primary}
               onPress={handleChatNavigation}
@@ -864,11 +864,11 @@ const TradeList = ({ route }) => {
 
 
         </View>)}
-        <ShareTradeModal
+        {/* <ShareTradeModal
           visible={openShareModel}
           onClose={() => setOpenShareModel(false)}
           tradeData={selectedTrade}
-        />
+        /> */}
 
       </View>
     );

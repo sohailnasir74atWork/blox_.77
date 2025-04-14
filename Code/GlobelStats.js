@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { getApp, getApps, initializeApp } from '@react-native-firebase/app';
 import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
 import { ref, set, update, get, onDisconnect, getDatabase } from '@react-native-firebase/database';
@@ -45,12 +45,14 @@ const [theme, setTheme] = useState(resolvedTheme);
 
   const [onlineMembersCount, setOnlineMembersCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  // const [robloxUsername, setRobloxUsername] = useState('');
+  const robloxUsernameRef = useRef('');
+
 
   // Track theme changes
   useEffect(() => {
     setTheme(localState.theme === 'system' ? colorScheme : localState.theme);
   }, [localState.theme, colorScheme]);
-  
 
   // const isAdmin = user?.id  ? user?.id == '3CAAolfaX3UE3BLTZ7ghFbNnY513' : false
   // console.log(isAdmin, user)
@@ -85,6 +87,7 @@ const [theme, setTheme] = useState(resolvedTheme);
 
 
 
+  // console.log(robloxUsernameRef?.current, 'robloxUsername_outside')
 
 
   // ✅ Memoize resetUserState to prevent unnecessary re-renders
@@ -131,7 +134,8 @@ const [theme, setTheme] = useState(resolvedTheme);
 
 
       } else {
-        userData = createNewUser(userId, loggedInUser);
+        // console.log(robloxUsernameRef?.current, 'robloxUsername_inside')
+        userData = createNewUser(userId, loggedInUser, robloxUsernameRef?.current);
         await set(userRef, userData);
       }
 // console.log(userData, 'user')
@@ -343,9 +347,10 @@ const [theme, setTheme] = useState(resolvedTheme);
       fetchStockData,
       loading,
       isAdmin,
-      reload
+      reload,
+      robloxUsernameRef
     }),
-    [user, onlineMembersCount, theme, fetchStockData, loading]
+    [user, onlineMembersCount, theme, fetchStockData, loading,  robloxUsernameRef ]
   );
 
   return (

@@ -11,7 +11,7 @@ export const getStyles = (isDarkMode) =>
       cardContainer: {
         backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
         borderRadius: 10,
-        paddingVertical: 10,
+        // paddingVertical: 1,
         paddingHorizontal:5,
         marginBottom: 10,
       },
@@ -65,18 +65,20 @@ export const getStyles = (isDarkMode) =>
       option: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 15,
+        paddingHorizontal: 15,
+        paddingVertical:8,
         borderBottomWidth: 1,
         borderBottomColor: isDarkMode ? '#333333' : '#cccccc',
       },
       optionLast: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 15,
+        paddingHorizontal: 15,
+        paddingVertical:8,
         borderBottomColor: isDarkMode ? '#333333' : '#cccccc',
       },
       optionText: {
-        fontSize: 16,
+        fontSize: 14,
         marginLeft: 10,
         color: isDarkMode ? '#fff' : '#000',
         fontFamily:'Lato-Regular',
@@ -149,7 +151,8 @@ export const getStyles = (isDarkMode) =>
 
       },
       optionTextLogout:{
-        fontSize: 16,
+        fontSize: 14,
+        lineHeight:16,
         marginLeft: 10,
         color:config.colors.wantBlockRed,
         fontFamily:'Lato-Regular'

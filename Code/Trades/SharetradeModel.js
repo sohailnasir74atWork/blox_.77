@@ -136,7 +136,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                                 <View key={`${item.name}-${item.type}-${index}`} style={styles.gridItem}>
                                                     <View style={item.name !== '' && styles.top}>
                                                         <Text style={styles.itemText}>
-                                                        {item.name !== '' ? item.value : ''}
+                                                        {item.name !== '' ? (item.value === 0 || item.value === "N/A" ? 'Special' : item.value) : ''}
                                                         </Text></View>
                                                     <Image
                                                         source={{
@@ -167,7 +167,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                                 <View key={`${item.name}-${item.type}-${index}`} style={styles.gridItem}>
                                                     <View style={item.name !== '' && styles.top}>
                                                         <Text style={styles.itemText}>
-                                                        {item.name !== '' ? item.value : ''}
+                                                        {item.name !== '' ? (item.value === 0 || item.value === "N/A" ? 'Special' : item.value) : ''}
                                                         </Text></View>
                                                     <Image
                                                         source={{
@@ -186,17 +186,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                 </View>
                             </View>
                         )}
-                          {includePercentage && <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%', paddingVertical:10 }}>
-                                    <Text style={[styles.priceTextProfit, { color: !isProfit ? 'green' : 'red' }]}>
-                                        {!isProfit ? 'Profit :' : 'Loss :'} {tradePercentage}%{!neutral && (
-                                            <Icon
-                                                name={isProfit ? 'arrow-down-outline' : 'arrow-up-outline'}
-                                                size={12}
-                                                color={isProfit ? 'red' : 'green'}
-                                            />
-                                        )}
-                                    </Text>
-                                </View>}
+                         
 
                         {/* Profit/Loss (Optional) */}
                         {includeProfitLoss && (
@@ -213,7 +203,17 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                 </View>
                             </View>
                         )}
-
+ {includePercentage && <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%', paddingVertical:10 }}>
+                                    <Text style={[styles.priceTextProfit, { color: !isProfit ? 'green' : 'red' }]}>
+                                        {!isProfit ? 'Profit :' : 'Loss :'} {tradePercentage}%{!neutral && (
+                                            <Icon
+                                                name={isProfit ? 'arrow-down-outline' : 'arrow-up-outline'}
+                                                size={12}
+                                                color={isProfit ? 'red' : 'green'}
+                                            />
+                                        )}
+                                    </Text>
+                                </View>}
                         {/* Description (Optional) */}
                         {includeDescription && description && <Text style={styles.description}>Note: {description}</Text>}
 
@@ -314,12 +314,12 @@ StyleSheet.create({
         
     },
     transfer: {
-        width: '10%',
+        width: '2%',
         alignItems: 'center',
     },
     transferImage: {
-        width: 25,
-        height: 25,
+        width: 10,
+        height: 10,
     },
     switchContainer: {
         width: '100%',
@@ -360,7 +360,7 @@ StyleSheet.create({
 
     },
     gridContainer: {
-        width: '45%',
+        width: '49%',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -377,7 +377,7 @@ StyleSheet.create({
         // padding: 4,
         borderWidth: !config.isNoman ? 1 : 0, // Optional: Add border for grid feel
         borderColor: '#ccc',
-        borderRadius: 8,
+        borderRadius: 6,
         backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF',
     },
     itemImage: {
@@ -419,7 +419,7 @@ StyleSheet.create({
         borderRadius: 8,
         justifyContent: 'center',
         alignItems: 'center',
-        width: '45%'
+        width: '49%'
 
     },
     priceText: {
@@ -436,7 +436,7 @@ StyleSheet.create({
         borderRadius: 8,
         justifyContent: 'center',
         alignItems: 'center',
-        width: '45%'
+        width: '49%'
     },
     priceTextProfit: {
         fontSize: 12

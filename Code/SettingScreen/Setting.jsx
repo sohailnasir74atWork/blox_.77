@@ -354,7 +354,7 @@ const handleSelect = (lang) => {
 
 
 const formatPlanName = (plan) => {
-  console.log(plan, 'plan');
+  // console.log(plan, 'plan');
 
   if (plan === 'MONTHLY' || plan === 'Blox_values_199_1m') return '1 MONTH';
   if (plan === 'QUARTERLY' || plan === 'Blox_values_499_3m') return '3 MONTHS';
@@ -387,6 +387,7 @@ const formatPlanName = (plan) => {
           name="checkmark-done-circle"
           size={16}
           color={config.colors.hasBlockGreen}
+          
         />}
               </Text>
               {!user?.id && <Text style={styles.rewardLogout}>{t('settings.login_description')}</Text>}
@@ -394,7 +395,7 @@ const formatPlanName = (plan) => {
             </TouchableOpacity>
           </View>
           <TouchableOpacity onPress={handleProfileUpdate}>
-            {user?.id && <Icon name="create-outline" size={24} color={'#566D5D'} />}
+            {user?.id && <Icon name="create" size={24} color={'#566D5D'} />}
           </TouchableOpacity>
         </View>
       </View>
@@ -408,7 +409,7 @@ const formatPlanName = (plan) => {
           }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
               <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Icon name="radio-outline" size={24} color={'#B76E79'} />
+                <Icon name="radio-outline" size={18} color={'white'} style={{backgroundColor:'#B76E79', padding:5, borderRadius:5}} />
                 <Text style={styles.optionText}>{t('settings.haptic_feedback')}</Text></TouchableOpacity>
               <Switch value={localState.isHaptic} onValueChange={handleToggle} />
             </View>
@@ -419,7 +420,7 @@ const formatPlanName = (plan) => {
           }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
               <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Icon name="notifications" size={24} color={config.colors.hasBlockGreen} />
+                <Icon name="notifications" size={18} color={'white'} style={{backgroundColor:config.colors.hasBlockGreen, padding:5, borderRadius:5}}/>
                 <Text style={styles.optionText}>{t('settings.chat_notifications')}</Text></TouchableOpacity>
               <Switch
                 value={isPermissionGranted}
@@ -434,7 +435,7 @@ const formatPlanName = (plan) => {
           }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
               <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Icon name="contrast-outline" size={24} color={'#4A90E2'} />
+                <Icon name="contrast-outline" size={18} color={'white'} style={{backgroundColor:'#4A90E2', padding:5, borderRadius:5}}/>
                 <Text style={styles.optionText}>{t('settings.theme')}</Text></TouchableOpacity>
               <View style={styles.containertheme}>
                 {themes.map((theme, index) => (
@@ -466,7 +467,7 @@ const formatPlanName = (plan) => {
         <View style={styles.cardContainer}>
           <View style={[styles.optionLast, { flexDirection: 'row', justifyContent: 'space-between' }]}>
             <View style={{ flexDirection: 'row', }}>
-          <Icon name="language-outline" size={24} color={'purple'} />
+          <Icon name="language-outline" size={18} color={'white'} style={{backgroundColor:'purple', padding:5, borderRadius:5}}/>
 
             <Text style={styles.optionText}>{t('settings.select_language')}</Text></View>
 
@@ -496,7 +497,7 @@ const formatPlanName = (plan) => {
 
           <TouchableOpacity style={[styles.optionLast]} onPress={() => { setShowofferWall(true);     
  }}>
-            <Icon name="prism-outline" size={24} color={config.colors.hasBlockGreen} />
+            <Icon name="prism-outline" size={18} color={'white'} style={{backgroundColor:config.colors.hasBlockGreen, padding:5, borderRadius:5}}/>
             <Text style={[styles.optionText, {color:'black'}]}>
             {t('settings.active_plan')} : {localState.isPro ? t('settings.paid') : t('settings.free')}
             </Text>
@@ -525,34 +526,34 @@ const formatPlanName = (plan) => {
           <TouchableOpacity style={styles.option} onPress={() => {
             handleShareApp(); triggerHapticFeedback('impactLight');
           }}>
-            <Icon name="share-social-outline" size={24} color={'#B76E79'} />
+            <Icon name="share-social-outline" size={18} color={'white'} style={{backgroundColor:'#B76E79', padding:5, borderRadius:5}}/>
             <Text style={styles.optionText}>{t('settings.share_app')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.option} onPress={() => {
             handleGetSuggestions(user); triggerHapticFeedback('impactLight');
           }}>
-            <Icon name="mail-outline" size={24} color={'#566D5D'} />
+            <Icon name="mail-outline" size={18} color={'white'}  style={{backgroundColor:'#566D5D', padding:5, borderRadius:5}}/>
             <Text style={styles.optionText}>{t('settings.give_suggestions')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.option} onPress={() => { handleRateApp(); triggerHapticFeedback('impactLight'); }
           }>
-            <Icon name="star-outline" size={24} color={'#A2B38B'} />
+            <Icon name="star-outline" size={18} color={'white'} style={{backgroundColor:'#A2B38B', padding:5, borderRadius:5}}/>
             <Text style={styles.optionText}>{t('settings.rate_us')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.option} onPress={() => {
             handleOpenFacebook(); triggerHapticFeedback('impactLight');
           }}>
-            <Icon name="logo-facebook" size={24} color={'#566D5D'} />
+            <Icon name="logo-facebook" size={18} color={'white'} style={{backgroundColor:'#566D5D', padding:5, borderRadius:5}}/>
             <Text style={styles.optionText}>{t('settings.visit_facebook_group')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={user?.id ? styles.option : styles.optionLast} onPress={() => {
             handleOpenWebsite(); triggerHapticFeedback('impactLight');
           }}>
-            <Icon name="link-outline" size={24} color={'#4B4453'} />
+            <Icon name="link-outline" size={18} color={'white'}  style={{backgroundColor:'#4B4453', padding:5, borderRadius:5}}/>
             <Text style={styles.optionText}>{t('settings.visit_website')}</Text>
           </TouchableOpacity>
           {user?.id && <TouchableOpacity style={styles.option} onPress={handleLogout} >
-            <Icon name="person-outline" size={24} color={'#4B4453'} />
+            <Icon name="person-outline" size={18} color={'white'} style={{backgroundColor:'#4B4453', padding:5, borderRadius:5}} />
             <Text style={styles.optionTextLogout}>{t('settings.logout')}</Text>
           </TouchableOpacity>}
           {user?.id && <TouchableOpacity style={styles.optionDelete} onPress={handleDeleteUser} >

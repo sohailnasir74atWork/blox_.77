@@ -11,12 +11,14 @@ import {
 import { useGlobalState } from '../../GlobelStats';
 import config from '../../Helper/Environment';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { banUserInChat, unbanUserInChat } from './../utils';
 import { getStyles } from '../../SettingScreen/settingstyle';
 import { useLocalState } from '../../LocalGlobelStats';
 import { Alert } from 'react-native';  // ✅ Ensure Alert is imported
 import { useTranslation } from 'react-i18next';
 import { showMessage } from 'react-native-flash-message';
+import { mixpanel } from '../../AppHelper/MixPenel';
+import Clipboard from '@react-native-clipboard/clipboard';
+import { useHaptic } from '../../Helper/HepticFeedBack';
 
 
 const ProfileBottomDrawer = ({ isVisible, toggleModal, startChat, selectedUser,
@@ -29,6 +31,8 @@ const ProfileBottomDrawer = ({ isVisible, toggleModal, startChat, selectedUser,
   const avatar = selectedUser?.avatar || null;
   const { t } = useTranslation();
   const platform = Platform.OS.toLowerCase();
+  const { triggerHapticFeedback } = useHaptic();
+
 
 
   // console.log(selectedUser)
@@ -40,7 +44,17 @@ const ProfileBottomDrawer = ({ isVisible, toggleModal, startChat, selectedUser,
   const isBlock = bannedUsers?.includes(selectedUser?.senderId);
 
   // Handle Ban/Unban Toggle
-
+  const copyToClipboard = (code) => {
+    triggerHapticFeedback('impactLight');
+    Clipboard.setString(code); // Copies the code to the clipboard
+    showMessage({
+      message:t("value.copy"),
+      description:"Copied to Clipboard",
+      type: "success",
+    });
+    // Alert.alert(t("value.copy"), t("value.copy_success"));
+    mixpanel.track("Code UserName", {UserName:code});
+  };
   const handleBanToggle = async () => {
     const action = isBlock ? t("chat.unblock") : t("chat.block");
 
@@ -136,7 +150,8 @@ const ProfileBottomDrawer = ({ isVisible, toggleModal, startChat, selectedUser,
                   name="checkmark-done-circle"
                   size={16}
                   color={config.colors.hasBlockGreen}
-                />}</Text>
+                />}{'  '}<Icon name="copy-outline" size={16} color="#007BFF" onPress={()=>copyToClipboard(userName)}/></Text>
+                
                 <Text
                   style={[
                     styles.drawerSubtitleUser,

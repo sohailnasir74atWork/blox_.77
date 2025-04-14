@@ -52,7 +52,7 @@ class AppOpenAdManager {
   static showAd() {
     if (this.isAdLoaded) {
     //   console.log('[AppOpenAdManager] Showing app open ad 🚀');
-      this.appOpenAd.show();
+      this.appOpenAd?.show();
     } else {
     //   console.log('[AppOpenAdManager] Ad not ready yet 💤');
     }

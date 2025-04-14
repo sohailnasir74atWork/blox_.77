@@ -47,24 +47,29 @@ const TimerScreen = ({ selectedTheme }) => {
 
 
 
-  useEffect(() => {
+  const parseJSONSafely = (data) => {
     try {
-      const newFruitRecords = localState?.data ? JSON.parse(localState.data) : {};
-      const newNormalStock = localState?.normalStock ? JSON.parse(localState.normalStock) : {};
-      const newMirageStock = localState?.mirageStock ? JSON.parse(localState.mirageStock) : {};
-      const newPreNormalStock = localState?.prenormalStock ? JSON.parse(localState.prenormalStock) : {};
-      const newPreMirageStock = localState?.premirageStock ? JSON.parse(localState.premirageStock) : {};
-
-      setFruitRecords((prev) => (JSON.stringify(prev) !== JSON.stringify(newFruitRecords) ? Object.values(newFruitRecords) : prev));
-      setNormalStock((prev) => (JSON.stringify(prev) !== JSON.stringify(newNormalStock) ? Object.values(newNormalStock) : prev));
-      setmirageStock((prev) => (JSON.stringify(prev) !== JSON.stringify(newMirageStock) ? Object.values(newMirageStock) : prev));
-      setPreNormalStock((prev) => (JSON.stringify(prev) !== JSON.stringify(newPreNormalStock) ? Object.values(newPreNormalStock) : prev));
-      setPremirageStock((prev) => (JSON.stringify(prev) !== JSON.stringify(newPreMirageStock) ? Object.values(newPreMirageStock) : prev));
+      return typeof data === 'string' ? JSON.parse(data) : data;
     } catch (error) {
-      console.error("❌ Error parsing data from localState:", error);
+      console.error("❌ JSON parse error:", error, "Raw data:", data);
+      return {};
     }
+  };
+  
+  useEffect(() => {
+    const newFruitRecords = parseJSONSafely(localState?.data);
+    const newNormalStock = parseJSONSafely(localState?.normalStock);
+    const newMirageStock = parseJSONSafely(localState?.mirageStock);
+    const newPreNormalStock = parseJSONSafely(localState?.prenormalStock);
+    const newPreMirageStock = parseJSONSafely(localState?.premirageStock);
+  
+    setFruitRecords((prev) => (JSON.stringify(prev) !== JSON.stringify(newFruitRecords) ? Object.values(newFruitRecords) : prev));
+    setNormalStock((prev) => (JSON.stringify(prev) !== JSON.stringify(newNormalStock) ? Object.values(newNormalStock) : prev));
+    setmirageStock((prev) => (JSON.stringify(prev) !== JSON.stringify(newMirageStock) ? Object.values(newMirageStock) : prev));
+    setPreNormalStock((prev) => (JSON.stringify(prev) !== JSON.stringify(newPreNormalStock) ? Object.values(newPreNormalStock) : prev));
+    setPremirageStock((prev) => (JSON.stringify(prev) !== JSON.stringify(newPreMirageStock) ? Object.values(newPreMirageStock) : prev));
   }, [localState.data, localState.normalStock, localState.mirageStock, localState.prenormalStock, localState.premirageStock]);
-
+  
 
 
   const openDrawer = () => {

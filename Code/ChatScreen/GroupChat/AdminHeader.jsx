@@ -131,7 +131,7 @@ const AdminHeader = ({
                     marginHorizontal: 10,
                   }}
                 />
-                <MenuOption onSelect={() => navigation.navigate('BlockedUsers')}>
+                <MenuOption onSelect={() => navigation?.navigate('BlockedUsers')}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', padding: 10 }}>
                     <Icon
                       name="ban-outline"

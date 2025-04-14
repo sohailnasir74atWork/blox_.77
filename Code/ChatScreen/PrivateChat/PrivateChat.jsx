@@ -18,21 +18,19 @@ import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import { clearActiveChat, setActiveChat } from '../utils';
 import { useLocalState } from '../../LocalGlobelStats';
-import { ref } from '@react-native-firebase/database';
-import database from '@react-native-firebase/database';
+import database, { get, ref, update } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
 import  { showMessage } from 'react-native-flash-message';
 import BannerAdComponent from '../../Ads/bannerAds';
 import config from '../../Helper/Environment';
 
 
-const PAGE_SIZE = 30;
-const bannerAdUnitId = getAdUnitId('banner');
+const PAGE_SIZE = 100;
 
 const PrivateChatScreen = () => {
   const route = useRoute();
   const { selectedUser, selectedTheme, bannedUsers, item } = route.params || {};
-  const { user, theme, appdatabase } = useGlobalState();
+  const { user, theme, appdatabase, updateLocalStateAndDatabase } = useGlobalState();
   const [trade, setTrade] = useState(null)
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +47,7 @@ const PrivateChatScreen = () => {
 const [hasRated, setHasRated] = useState(false);
 const [showRatingModal, setShowRatingModal] = useState(false);
 const [rating, setRating] = useState(0);
+
 
 
   // console.log(item)
@@ -96,7 +95,27 @@ const [rating, setRating] = useState(0);
     [myUserId, selectedUserId]
   );
 
+  const getUserPoints = async (userId) => {
+    if (!userId) return 0;
+    try {
+      const snapshot = await get(ref(appdatabase, `/users/${userId}/rewardPoints`));
+      return snapshot.exists() ? snapshot.val() : 0;
+    } catch (error) {
+      return error;
+    }
+  };
 
+  const updateUserPoints = async (userId, pointsToAdd) => {
+    if (!userId) return;
+    try {
+      const latestPoints = await getUserPoints(userId);
+      // console.log(latestPoints)
+
+      const newPoints = latestPoints + pointsToAdd;
+      await update(ref(appdatabase, `/users/${userId}`), { rewardPoints: newPoints });
+      updateLocalStateAndDatabase('rewardPoints', newPoints);
+    } catch (error) {}
+  };
   // const navigation = useNavigation();
   useFocusEffect(
     useCallback(() => {
@@ -114,6 +133,7 @@ const [rating, setRating] = useState(0);
   );
 
 const handleRating = async () => {
+
   try {
     const ratingRef = database().ref(`ratings/${selectedUserId}/${myUserId}`);
     const avgRef = database().ref(`averageRatings/${selectedUserId}`);
@@ -154,8 +174,10 @@ const handleRating = async () => {
     });
 
     setShowRatingModal(false);
+    await updateUserPoints(user?.id, 100)
     setHasRated(true);
     showMessage({ message: "Thanks for your feedback!", type: "success" });
+
 
   } catch (error) {
     console.error("Rating error:", error);
@@ -260,10 +282,11 @@ const handleRating = async () => {
       });
       return;
     }
+    setInput('');
 
     const timestamp = Date.now();
     const chatId = [myUserId, selectedUserId].sort().join('_');
-    const tradeRef = database().ref(`private_messages/${chatId}/trade`);
+    // const tradeRef = database().ref(`private_messages/${chatId}/trade`);
 
 
     // References
@@ -304,7 +327,7 @@ const handleRating = async () => {
         unreadCount: isReceiverInChat ? 0 : database.ServerValue.increment(1)
       });
 
-      setInput('');
+      // setInput('');
       setReplyTo(null);
     } catch (error) {
       console.error("Error sending message:", error);
@@ -429,10 +452,11 @@ const handleRating = async () => {
         paddingHorizontal: 10,
         paddingVertical: 6,
       }}
-      onPress={() => setShowRatingModal(true)}
+      onPress={() => {setShowRatingModal(true)
+      }}
     >
       <Text style={{ color: 'white', fontSize: 12 }}>
-        Rate Trader
+        Rate Trader and Get 100 points
       </Text>
     </TouchableOpacity>
   </View>
