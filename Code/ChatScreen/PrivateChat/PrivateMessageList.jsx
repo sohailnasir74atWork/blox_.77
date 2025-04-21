@@ -196,7 +196,7 @@ const PrivateMessageList = ({
               <Text style={styles.menuOptionText}>Copy</Text>
             </MenuOption>
             <MenuOption onSelect={() => handleTranslate(item)}>
-              <Text style={styles.menuOptionText}>{t("chat.translate")}</Text>
+              <Text style={styles.menuOptionText}>Translate</Text>
             </MenuOption>
             {!isMyMessage && (
               <MenuOption onSelect={() => handleReport(item)}>

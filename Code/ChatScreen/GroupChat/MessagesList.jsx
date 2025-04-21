@@ -277,7 +277,7 @@ const MessagesList = ({
                   </MenuOption>
                 )}
                 <MenuOption onSelect={() => handleTranslate(item)}>
-                  <Text style={styles.menuOptionText}>{t("chat.translate")}</Text>
+                  <Text style={styles.menuOptionText}>Translate</Text>
                 </MenuOption>
                 <MenuOption onSelect={() => handleReport(item)}>
                   <Text style={styles.menuOptionText}>{t("chat.report")}</Text>
