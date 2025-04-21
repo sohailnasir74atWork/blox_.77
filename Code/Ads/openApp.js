@@ -50,12 +50,40 @@ class AppOpenAdManager {
   }
 
   static showAd() {
-    if (this.isAdLoaded) {
-    //   console.log('[AppOpenAdManager] Showing app open ad 🚀');
-      this.appOpenAd?.show();
-    } else {
-    //   console.log('[AppOpenAdManager] Ad not ready yet 💤');
-    }
+    return new Promise((resolve, reject) => {
+      if (!this.hasInitialized) {
+        this.init();
+      }
+
+      if (this.isAdLoaded) {
+        try {
+          const unsubscribeClose = this.appOpenAd.addAdEventListener(
+            AdEventType.CLOSED,
+            () => {
+              this.isAdLoaded = false;
+              this.appOpenAd.load(); // Preload next
+              unsubscribeClose();
+              resolve();
+            }
+          );
+
+          const unsubscribeError = this.appOpenAd.addAdEventListener(
+            AdEventType.ERROR,
+            (error) => {
+              this.isAdLoaded = false;
+              unsubscribeError();
+              reject(error);
+            }
+          );
+
+          this.appOpenAd.show();
+        } catch (error) {
+          reject(error);
+        }
+      } else {
+        resolve(); // Resolve immediately if ad is not loaded
+      }
+    });
   }
 
   static cleanup() {

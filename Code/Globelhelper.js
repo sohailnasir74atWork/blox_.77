@@ -1,6 +1,5 @@
-import database from '@react-native-firebase/database'; // Correct import for React Native Firebase Database
-import messaging from '@react-native-firebase/messaging'; // React Native Firebase Messaging
-import { Platform } from 'react-native'; // Platform detection (iOS/Android)
+import messaging from '@react-native-firebase/messaging';
+import { Platform } from 'react-native';
 import { generateOnePieceUsername } from './Helper/RendomNamegen';
 import { getDatabase, ref, get, set } from '@react-native-firebase/database';
 

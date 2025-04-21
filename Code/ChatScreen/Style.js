@@ -29,10 +29,10 @@ export const getStyles = (isDarkMode) =>
     },
     othermessageBubble: {
       // width: '100%',
-      paddingHorizontal: 10,
+      // paddingHorizontal: 10,
       borderRadius: 15,
       flexDirection: 'row',
-      marginBottom: 10,
+      marginBottom: 5,
       alignItems: 'flex-start',
 
     },
@@ -41,6 +41,7 @@ export const getStyles = (isDarkMode) =>
     },
     otherMessage: {
       alignSelf: 'flex-start',
+
     },
     senderName: {
       width: 34,
@@ -58,6 +59,7 @@ export const getStyles = (isDarkMode) =>
     messageTextBox: {
       // flex: 1,
       maxWidth:'75%',
+
       // flexDirection:
     },
     messageTextBoxAdmin: {
@@ -73,7 +75,8 @@ export const getStyles = (isDarkMode) =>
       paddingHorizontal: 10,
       borderRadius: 10,
       fontFamily: 'Lato-Regular',
-      lineHeight:14
+      lineHeight:14,
+
 
     },
     otherMessageText: {
@@ -86,7 +89,9 @@ export const getStyles = (isDarkMode) =>
       paddingBottom: 5,
       fontFamily: 'Lato-Regular',
       paddingRight:20,
-      lineHeight:14
+      lineHeight:14,
+      // backgroundColor:'red'
+
 
     },
     timestamp: {

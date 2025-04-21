@@ -31,49 +31,69 @@ const BlockedUsersScreen = () => {
   const [blockedUsers, setBlockedUsers] = useState([]);
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchBlockedUsers = async () => {
-      if (!user?.id) return;
-
-      const bannedUserIds = localState?.bannedUsers || [];
-
-      if (!Array.isArray(bannedUserIds) || bannedUserIds.length === 0) {
-        setBlockedUsers([]); // No banned users
+      if (!user?.id || !appdatabase) {
+        console.warn('⚠️ Missing required data: user ID or database instance');
         return;
       }
 
       try {
-        // Fetch user details from Firebase for each banned user
-        const userDetailsPromises = bannedUserIds.map(async (id) => {
-          const userRef = ref(appdatabase, `users/${id}`);
-          const userSnapshot = await get(userRef);
+        const bannedUserIds = Array.isArray(localState?.bannedUsers) 
+          ? localState.bannedUsers 
+          : [];
 
-          if (userSnapshot.exists()) {
+        if (bannedUserIds.length === 0) {
+          if (isMounted) {
+            setBlockedUsers([]);
+          }
+          return;
+        }
+
+        const userDetailsPromises = bannedUserIds.map(async (id) => {
+          if (!id) return null;
+
+          try {
+            const userRef = ref(appdatabase, `users/${id}`);
+            const userSnapshot = await get(userRef);
+
+            if (!userSnapshot?.exists()) return null;
+
             const userData = userSnapshot.val();
-            // if (developmentMode) {
-            //   const userdata = JSON.stringify(userData).length / 1024; 
-            //   // console.log(`🚀 Downloaded data: ${userData.toFixed(2)} KB from blockuser file`);
-            // }
-            // console.log(userData)
+            if (!userData) return null;
+
             return {
               id,
-              displayName: userData?.displayName || 'Anonymous',
-              avatar: userData?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+              displayName: userData.displayName?.trim() || 'Anonymous',
+              avatar: userData.avatar?.trim() || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
             };
-          } else {
-            return null; // Handle deleted users
+          } catch (error) {
+            console.error(`❌ Error fetching user ${id}:`, error);
+            return null;
           }
         });
 
         const resolvedUsers = await Promise.all(userDetailsPromises);
         const validUsers = resolvedUsers.filter(user => user !== null);
-        setBlockedUsers(validUsers);
+
+        if (isMounted) {
+          setBlockedUsers(validUsers);
+        }
       } catch (error) {
-        // console.error("❌ Error fetching blocked users:", error);
+        console.error("❌ Error in fetchBlockedUsers:", error);
+        if (isMounted) {
+          setBlockedUsers([]);
+        }
       }
     };
 
     fetchBlockedUsers();
-  }, [user?.id, localState?.bannedUsers]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id, localState?.bannedUsers, appdatabase]);
 // console.log(blockedUsers)
   const handleUnblockUser = async (selectedUserId) => {
     try {

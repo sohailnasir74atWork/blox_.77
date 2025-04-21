@@ -1,13 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { Alert, Appearance } from 'react-native'; // For system theme detection
+import { Appearance } from 'react-native';
 import { MMKV } from 'react-native-mmkv';
-import Purchases from 'react-native-purchases'; // Ensure react-native-purchases is installed
+import Purchases from 'react-native-purchases';
 import config from './Helper/Environment';
-import { showSuccessMessage, showErrorMessage } from './Helper/MessageHelper';
 import { useTranslation } from 'react-i18next';
-import { mixpanel } from './AppHelper/MixPenel';
 import { InteractionManager } from 'react-native';
-
 
 const storage = new MMKV();
 const LocalStateContext = createContext();
@@ -131,15 +128,26 @@ export const LocalStateProvider = ({ children }) => {
   const initRevenueCat = async () => {
     try {
       await Purchases.configure({ apiKey: config.apiKey, usesStoreKit2IfAvailable: false });
-      // Fetch customer ID
       const userID = await Purchases.getAppUserID();
       setCustomerId(userID);
 
-      // Load offerings & check entitlements
-      await fetchOfferings();
-      await checkEntitlements();
+      // Run these in parallel for better performance
+      await Promise.all([
+        fetchOfferings().catch(error => {
+          console.error('❌ Error fetching offerings:', error.message);
+          return null; // Return null instead of throwing
+        }),
+        checkEntitlements().catch(error => {
+          console.error('❌ Error checking entitlements:', error.message);
+          return null; // Return null instead of throwing
+        })
+      ]);
     } catch (error) {
       console.error('❌ Error initializing RevenueCat:', error.message);
+      // Set a default state in case of failure
+      setCustomerId(null);
+      setPackages([]);
+      setMySubscriptions([]);
     }
   };
   useEffect(() => {

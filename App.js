@@ -83,19 +83,40 @@ function App() {
 
 
   useEffect(() => {
-    AppOpenAdManager.init();
+    let isMounted = true;
+    let unsubscribe;
 
-    const unsubscribe = AppState.addEventListener('change', (state) => {
-      if (state === 'active' && !localState?.isPro) {
-        AppOpenAdManager.showAd(); // Show on app foreground
+    const initializeAds = async () => {
+      try {
+        await AppOpenAdManager.init();
+      } catch (error) {
+        console.error('❌ Error initializing ads:', error);
       }
-    });
+    };
+
+    const handleAppStateChange = async (state) => {
+      if (!isMounted) return;
+
+      try {
+        if (state === 'active' && !localState?.isPro) {
+          await AppOpenAdManager.showAd();
+        }
+      } catch (error) {
+        console.error('❌ Error showing ad:', error);
+      }
+    };
+
+    initializeAds();
+    unsubscribe = AppState.addEventListener('change', handleAppStateChange);
 
     return () => {
-      unsubscribe.remove();
+      isMounted = false;
+      if (unsubscribe) {
+        unsubscribe.remove();
+      }
       AppOpenAdManager.cleanup();
     };
-  }, []);
+  }, [localState?.isPro]);
 
 
 

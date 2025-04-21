@@ -6,15 +6,12 @@ import { getFirestore } from '@react-native-firebase/firestore';
 import { createNewUser, firebaseConfig, registerForNotifications } from './Globelhelper';
 import { useLocalState } from './LocalGlobelStats';
 import { requestPermission } from './Helper/PermissionCheck';
-import { Alert, useColorScheme } from 'react-native';
+import { useColorScheme, InteractionManager } from 'react-native';
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const firestoreDB = getFirestore(app);
 const appdatabase = getDatabase(app);
 const GlobalStateContext = createContext();
-import { InteractionManager } from 'react-native';
-
-
 
 // Custom hook to access global state
 export const useGlobalState = () => useContext(GlobalStateContext);

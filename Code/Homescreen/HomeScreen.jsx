@@ -340,32 +340,43 @@ const HomeScreen = ({ selectedTheme }) => {
 
 
   useEffect(() => {
-    if (localState.data) {
-      let parsedData = localState.data;
+    let isMounted = true; // Track mounted state
 
-      // ✅ Ensure `localState.data` is always an object
-      if (typeof localState.data === 'string') {
-        try {
-          parsedData = JSON.parse(localState.data); // ✅ Convert string to object
-          // console.log("🛠️ Parsed JSON localState.data:", parsedData);
-        } catch (error) {
-          // console.error("❌ Failed to parse localState.data:", error);
-          return; // Stop execution if parsing fails
+    const parseAndSetData = () => {
+      if (!localState.data) return;
+
+      try {
+        let parsedData = localState.data;
+
+        // Ensure `localState.data` is always an object
+        if (typeof localState.data === 'string') {
+          parsedData = JSON.parse(localState.data);
         }
-      } else {
-        // console.log("🛠️ localState.data is already an object:", parsedData);
-      }
 
-      // ✅ Ensure `parsedData` is a valid object before using it
-      if (parsedData && typeof parsedData === 'object' && Object.keys(parsedData).length > 0) {
-        const formattedData = adjustedData(Object.values(parsedData));
-        // console.log("🚀 Adjusted Data Before Setting:", formattedData);
-        setFruitRecords(formattedData);
-      } else {
-        console.warn("⚠️ localState.data is empty or invalid, resetting fruitRecords.");
-        setFruitRecords([]);
+        // Ensure `parsedData` is a valid object before using it
+        if (parsedData && typeof parsedData === 'object' && Object.keys(parsedData).length > 0) {
+          const formattedData = adjustedData(Object.values(parsedData));
+          if (isMounted) {
+            setFruitRecords(formattedData);
+          }
+        } else {
+          if (isMounted) {
+            setFruitRecords([]);
+          }
+        }
+      } catch (error) {
+        console.error("❌ Error parsing data:", error);
+        if (isMounted) {
+          setFruitRecords([]);
+        }
       }
-    }
+    };
+
+    parseAndSetData();
+
+    return () => {
+      isMounted = false; // Cleanup on unmount
+    };
   }, [localState.data]);
 
 

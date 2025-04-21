@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, FlatList, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, TextInput, Alert, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import moment from 'moment';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
 import { useGlobalState } from '../GlobelStats';
 import config from '../Helper/Environment';
 import { useNavigation } from '@react-navigation/native';
@@ -21,6 +22,8 @@ import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 
+// Initialize dayjs plugins
+dayjs.extend(relativeTime);
 
 const bannerAdUnitId = getAdUnitId('banner');
 
@@ -500,37 +503,46 @@ const TradeList = ({ route }) => {
   // };
 
   const mergeFeaturedWithNormal = (featuredTrades, normalTrades) => {
+    // Input validation
+    if (!Array.isArray(featuredTrades) || !Array.isArray(normalTrades)) {
+      console.warn('⚠️ Invalid input: featuredTrades or normalTrades is not an array');
+      return [];
+    }
+
     let result = [];
     let featuredIndex = 0;
     let normalIndex = 0;
     const featuredCount = featuredTrades.length;
+    const normalCount = normalTrades.length;
+    const MAX_ITERATIONS = 1000; // Safety limit
+    let iterationCount = 0;
 
-    // ✅ Add first 2 featured trades (if available)
+    // Add first 4 featured trades (if available)
     for (let i = 0; i < 4 && featuredIndex < featuredCount; i++) {
       result.push(featuredTrades[featuredIndex]);
       featuredIndex++;
     }
 
-    // ✅ Merge in the format of 4 normal trades, then 2 featured trades
-    while (normalIndex < normalTrades.length) {
-      // ✅ Insert up to 4 normal trades
-      for (let i = 0; i < 4 && normalIndex < normalTrades.length; i++) {
+    // Merge in the format of 4 normal trades, then 4 featured trades
+    while (normalIndex < normalCount && iterationCount < MAX_ITERATIONS) {
+      iterationCount++;
+
+      // Insert up to 4 normal trades
+      for (let i = 0; i < 4 && normalIndex < normalCount; i++) {
         result.push(normalTrades[normalIndex]);
         normalIndex++;
       }
 
-      // ✅ Insert up to 2 featured trades (if available)
+      // Insert up to 4 featured trades (if available)
       for (let i = 0; i < 4 && featuredIndex < featuredCount; i++) {
         result.push(featuredTrades[featuredIndex]);
         featuredIndex++;
       }
     }
 
-    // ✅ Add last 2 featured trades at the end (if available)
-    // for (let i = 0; i < 2 && featuredIndex < featuredCount; i++) {
-    //   result.push(featuredTrades[featuredIndex]);
-    //   featuredIndex++;
-    // }
+    if (iterationCount >= MAX_ITERATIONS) {
+      console.warn('⚠️ Maximum iterations reached in mergeFeaturedWithNormal');
+    }
 
     return result;
   };
@@ -609,7 +621,7 @@ const TradeList = ({ route }) => {
 
     const isProfit = tradeRatio > 1; // Profit if trade ratio > 1
     const neutral = tradeRatio === 1; // Exactly 1:1 trade
-    const formattedTime = item.timestamp ? moment(item.timestamp.toDate()).fromNow() : "Anonymous";
+    const formattedTime = item.timestamp ? dayjs(item.timestamp.toDate()).fromNow() : "Anonymous";
 
     // if ((index + 1) % 10 === 0 && !isProStatus) {
     //   return <MyNativeAdComponent />;

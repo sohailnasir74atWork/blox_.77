@@ -11,10 +11,8 @@ import {
   Modal,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import debounce from 'lodash.debounce';
-import { AdEventType, BannerAd, BannerAdSize, InterstitialAd } from 'react-native-google-mobile-ads';
+import { debounce } from '../Helper/debounce';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import getAdUnitId from '../Ads/ads';
 import config from '../Helper/Environment';
 import { useGlobalState } from '../GlobelStats';
 import CodesDrawer from './Code';
@@ -26,8 +24,6 @@ import { mixpanel } from '../AppHelper/MixPenel';
 import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
-
-
 
 const ValueScreen = ({ selectedTheme }) => {
   const [searchText, setSearchText] = useState('');
@@ -105,11 +101,6 @@ const ValueScreen = ({ selectedTheme }) => {
     mixpanel.track("Code Drawer Open");
   }
 
-  // const openEditModal = (fruit) => {
-  //   if (!fruit) return; // Prevent opening the modal if the fruit is undefined
-  //   setSelectedFruit(fruit);
-  //   setIsModalVisible(true);
-  // };
   const updateFruitData = () => {
     if (!selectedFruit || !selectedFruit.Name) {
       console.error("❌ No fruit selected for update or missing Name property");
@@ -134,9 +125,6 @@ const ValueScreen = ({ selectedTheme }) => {
       return;
     }
 
-    // console.log("📌 localState.data:", localData);
-    // console.log("📌 Selected Fruit:", selectedFruit);
-
     // Find the correct record key (case-insensitive match)
     const recordKey = Object.keys(localData).find(key => {
       const record = localData[key];
@@ -154,8 +142,6 @@ const ValueScreen = ({ selectedTheme }) => {
       return;
     }
 
-    // console.log(`✅ Found record key: ${recordKey} for ${selectedFruit.Name}`);
-
     // Ensure values are valid before updating
     const updatedValues = {
       Value: isNaN(Number(editValuesRef.current.Value)) ? 0 : Number(editValuesRef.current.Value),
@@ -164,14 +150,11 @@ const ValueScreen = ({ selectedTheme }) => {
       Robuxprice: editValuesRef.current.Robuxprice || "N/A",
     };
 
-    // console.log("🔄 Updating Firebase with values:", updatedValues);
-
     // Reference to the correct Firebase record
     const fruitRef = ref(appdatabase, `/fruit_data/${recordKey}`);
 
     update(fruitRef, updatedValues)
       .then(() => {
-        // console.log("✅ Fruit updated successfully!");
         setIsModalVisible(false);
       })
       .catch((error) => {
@@ -213,7 +196,6 @@ const ValueScreen = ({ selectedTheme }) => {
           throw new Error('Parsed codes is not a valid object');
         }
 
-        // console.log("🛠️ Parsed localState.codes:", parsedCodes);
         const extractedCodes = Object.values(parsedCodes);
         setCodesData(extractedCodes.length > 0 ? extractedCodes : []);
       } catch (error) {
