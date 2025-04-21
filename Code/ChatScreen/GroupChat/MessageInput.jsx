@@ -4,8 +4,6 @@ import { getStyles } from './../Style';
 import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
 import { useHaptic } from '../../Helper/HepticFeedBack';
-import getAdUnitId from '../../Ads/ads';
-import { AdEventType, InterstitialAd } from 'react-native-google-mobile-ads';
 import { useTranslation } from 'react-i18next';
 import { useLocalState } from '../../LocalGlobelStats';
 import InterstitialAdManager from '../../Ads/IntAd';

@@ -1,4 +1,4 @@
-import React, { memo, useState } from 'react';
+import React, { memo, useMemo, useState } from 'react';
 import {
   FlatList,
   View,
@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Vibration,
   Keyboard,
+  Alert,
 } from 'react-native';
 import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
 import { useGlobalState } from '../../GlobelStats';
@@ -18,6 +19,19 @@ import { useTranslation } from 'react-i18next';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import { showMessage } from 'react-native-flash-message';
+import { useLocalState } from '../../LocalGlobelStats';
+import axios from 'axios';
+import { getDeviceLanguage } from '../../../i18n';
+import { mixpanel } from '../../AppHelper/MixPenel';
+
+const FRUIT_KEYWORDS = [
+  'rocket', 'spin', 'chop', 'spring', 'bomb', 'spike', 'blade',
+  'smoke', 'flame', 'ice', 'sand', 'dark', 'diamond', 'falcon',
+  'rubber', 'barrier', 'ghost', 'light', 'magma', 'quake', 'love',
+  'spider', 'sound', 'portal', 'pain', 'rumble', 'blizzard', 'buddha',
+  'phoenix', 'gravity', 'shadow', 'venom', 'control', 'spirit', 'dough',
+  'gas', 'dragon', 'leopard', 'kitsune', 'mammoth', 't-rex', 'yeti', 'perm', 'west', 'east', 'gamepass', 'skin', 'chromatic', 'permanent', 'Fruit Storage', 'game pass', 'Eagle', 'Creation',  'gamepass'
+];
 
 const PrivateMessageList = ({
   messages,
@@ -30,21 +44,23 @@ const PrivateMessageList = ({
   isBanned,
   onReply,
   onReportSubmit,
-  loading,
-  selectedUserId, // Add selectedUserId to identify sender messages
+  loading
 }) => {
-  const { theme } = useGlobalState();
+  const { theme, isAdmin, api, freeTranslation } = useGlobalState();
   const isDarkMode = theme === 'dark';
   const styles = getStyles(isDarkMode);
   const { t } = useTranslation();
+  const deviceLanguage = useMemo(() => getDeviceLanguage(), []);
 
 
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [showReportPopup, setShowReportPopup] = useState(false);
   const { triggerHapticFeedback } = useHaptic();
+  const { canTranslate, incrementTranslationCount, getRemainingTranslationTries, localState } = useLocalState();
+
 
   const handleCopy = (message) => {
-    Clipboard.setString(message.text);
+    Clipboard.setString(message?.text ?? '');
     triggerHapticFeedback('impactLight');
     showMessage({
       message: 'Success',
@@ -63,14 +79,84 @@ const PrivateMessageList = ({
     setSelectedMessage(message);
     setShowReportPopup(true);
   };
-// console.log(messages)
+  // console.log(messages)
   // Submit the report
   const handleSubmitReport = (message, reason) => {
     onReportSubmit(message, reason);
     setShowReportPopup(false);
   };
   // console.log(selectedUserId === userId)
+ 
 
+
+  const translateText = async (text, targetLang = deviceLanguage) => {
+    const placeholders = {};
+    let maskedText = text;
+
+    // Step 1: Replace fruit names with placeholders
+    FRUIT_KEYWORDS.forEach((word, index) => {
+      const placeholder = `__FRUIT_${index}__`;
+      const regex = new RegExp(`\\b${word}\\b`, 'gi'); // match full word, case-insensitive
+      maskedText = maskedText.replace(regex, placeholder);
+      placeholders[placeholder] = word;
+    });
+
+    try {
+      // Step 2: Send masked text for translation
+      const response = await axios.post(
+        `https://translation.googleapis.com/language/translate/v2`,
+        {},
+        {
+          params: {
+            q: maskedText,
+            target: targetLang,
+            key: api,
+          },
+        }
+      );
+
+      let translated = response.data.data.translations[0].translatedText;
+
+      // Step 3: Replace placeholders back with original fruit names
+      Object.entries(placeholders).forEach(([placeholder, word]) => {
+        translated = translated.replace(new RegExp(placeholder, 'g'), word);
+      });
+      mixpanel.track("Translation", {lang:targetLang});
+
+      return translated;
+    } catch (err) {
+      console.error('Translation Error:', err);
+      return null;
+    }
+  };
+
+  const handleTranslate = async (item) => {
+    const isUnlimited = freeTranslation || localState.isPro;
+  
+    if (!isUnlimited && !canTranslate()) {
+      Alert.alert('Limit Reached', 'You can only translate 20 messages per day.');
+      return;
+    }
+  
+    const translated = await translateText(item.text, deviceLanguage);
+  
+    if (translated) {
+      if (!isUnlimited) incrementTranslationCount();
+  
+      const remaining = isUnlimited ? 'Unlimited' : `${getRemainingTranslationTries()} remaining`;
+  
+      Alert.alert(
+        'Translated Message',
+        `${translated}\n\n🧠 Daily Limit: ${remaining}${isUnlimited
+          ? ''
+          : '\n\n🔓 Want more? Upgrade to Pro for unlimited translations.'
+        }`
+      );
+    } else {
+      Alert.alert('Error', 'Translation failed. Please try again later.');
+    }
+  };
+  
   // Render a single message
   const renderMessage = ({ item }) => {
     const isMyMessage = item.senderId === userId;
@@ -79,15 +165,15 @@ const PrivateMessageList = ({
     // console.log(item, isMyMessage);
     // console.log('Selected User Avatar:', selectedUser?.avatar);
     const avatarUri = item.senderId !== userId
-    ? selectedUser?.avatar || (console.warn('Missing senderAvatar, using default'), 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png')
-    : user?.avatar || (console.warn('Missing receiverAvatar, using default'), 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png');
-  
+      ? selectedUser?.avatar || (console.warn('Missing senderAvatar, using default'), 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png')
+      : user?.avatar || (console.warn('Missing receiverAvatar, using default'), 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png');
+
     return (
       <View
         style={
           isMyMessage
-            ? [styles.mymessageBubble, styles.myMessage, {width:'80%'}]
-            : [styles.othermessageBubble, styles.otherMessage, {width:'80%'}]
+            ? [styles.mymessageBubble, styles.myMessage, { width: '80%' }]
+            : [styles.othermessageBubble, styles.otherMessage, { width: '80%' }]
         }
       >
         {/* Avatar */}
@@ -106,9 +192,70 @@ const PrivateMessageList = ({
             </Text>
           </MenuTrigger>
           <MenuOptions style={styles.menuoptions}>
-          <MenuOption onSelect={() => handleCopy(item)} text={'Copy'}/>
-            <MenuOption onSelect={() => onReply(item)} text={t("chat.reply")}/>
-            <MenuOption onSelect={() => handleReport(item)} text={t("chat.report")} />
+            <MenuOption onSelect={() => handleCopy(item)} text={'Copy'} customStyles={{
+              optionWrapper: styles.menuOption,
+              optionText: styles.menuOptionText,
+            }} />
+            {/* <MenuOption onSelect={() => onReply(item)} text={t("chat.reply")}/> */}
+            <MenuOption
+             onSelect={() => {
+              if (!item) return; // Add guard
+              handleTranslate(item);
+            }}
+                
+                
+                text={'Translate'} 
+              customStyles={{
+                optionWrapper: styles.menuOption,
+                optionText: styles.menuOptionText,
+              }}
+            />
+            {/* <MenuOption
+                  onSelect={async () => {
+                    if (!canTranslate()) {
+                      Alert.alert('Limit Reached', 'You can only translate 20 messages per day.');
+                      return;
+                    }
+
+                    const translated = await translateText(item.text, language);
+                    if (translated) {
+                      incrementTranslationCount();
+
+                      let remaining;
+
+                      if (freeTranslation || localState.isPro) {
+                        remaining = 1000; // or Infinity
+                      } else {
+                        remaining = getRemainingTranslationTries();
+                      }
+                      
+                      Alert.alert(
+                        'Translated Message',
+                        `${translated}\n\n🧠 Daily Limit: ${
+                          remaining === 1000 ? 'Unlimited' : `${remaining} remaining`
+                        }${
+                          !freeTranslation && !localState.isPro
+                            ? `\n\n🔓 Want more? Upgrade to Pro for unlimited translations.`
+                            : ''
+                        }`
+                      );
+                      
+                    } else {
+                      Alert.alert('Error', 'Translation failed');
+                    }
+                  }}
+                  text={'Translate'}
+                  customStyles={{
+                    optionWrapper: styles.menuOption,
+                    optionText: styles.menuOptionText,
+                  }}
+                /> */}
+
+
+            <MenuOption onSelect={() => handleReport(item)} text={t("chat.report")} customStyles={{
+              optionWrapper: styles.menuOption,
+              optionText: styles.menuOptionText,
+            }} />
           </MenuOptions>
         </Menu>
         <Text style={styles.timestamp}>
@@ -120,7 +267,7 @@ const PrivateMessageList = ({
       </View>
     );
   };
-  
+
   return (
     <View style={[styles.container]}>
       {loading && messages.length === 0 ? (
@@ -128,14 +275,15 @@ const PrivateMessageList = ({
       ) : (
         <FlatList
           data={filteredMessages}
+          removeClippedSubviews={false} 
           keyExtractor={(item) => item.id}
           renderItem={renderMessage} // Pass the render function directly
           inverted // Ensure list starts from the bottom
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.3}
-           onScroll={() => Keyboard.dismiss()}
-        onTouchStart={() => Keyboard.dismiss()}
-        keyboardShouldPersistTaps="handled" // Ensures taps o
+          onScroll={() => Keyboard.dismiss()}
+          onTouchStart={() => Keyboard.dismiss()}
+          keyboardShouldPersistTaps="handled" // Ensures taps o
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }

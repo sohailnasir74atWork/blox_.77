@@ -300,17 +300,18 @@ const HomeScreen = ({ selectedTheme }) => {
 
     fruitRecords.forEach((fruit) => {
       if (!fruit.name) return; // Skip invalid entries
-
+// console.log(fruit)
       const permValueInvalid = fruit.permValue === 0 || fruit.permValue === "0" || fruit.permValue === "N/A";
+      const notperavailable = fruit.rarity == 'gamepass';
 
       // ✅ If both permValue & value exist (permValue must be valid)
       if (fruit.permValue !== undefined && fruit.value !== undefined) {
-        transformedData.push({
+       if(!notperavailable){ transformedData.push({
           Name: fruit.name,
           Value: permValueInvalid ? 0 :fruit.permValue,
           Type: 'p', // Permanent type
           Price: 0
-        });
+        });}
 
         transformedData.push({
           Name: fruit.name,
@@ -480,7 +481,6 @@ const HomeScreen = ({ selectedTheme }) => {
     item.Name.toLowerCase().includes(searchText.toLowerCase())
   );
 
-
   // console.log(filteredData)
   const profitLoss = wantsTotal.value - hasTotal.value;
   const isProfit = profitLoss >= 0;
@@ -521,7 +521,7 @@ const HomeScreen = ({ selectedTheme }) => {
 
 
             <ViewShot ref={viewRef} style={styles.screenshotView}>
-              <View style={styles.summaryContainer}>
+            {config.isNoman &&  <View style={styles.summaryContainer}>
                 <View style={[styles.summaryBox, styles.hasBox]}>
                   <Text style={[styles.summaryText]}>{t('home.you')}</Text>
                   <View style={{ width: '90%', backgroundColor: '#e0e0e0', height: 1, alignSelf: 'center' }} />
@@ -534,7 +534,7 @@ const HomeScreen = ({ selectedTheme }) => {
                   <Text style={styles.priceValue}>{t('home.value')}: {wantsTotal.value?.toLocaleString()}</Text>
                   <Text style={styles.priceValue}>{t('home.price')}: ${wantsTotal.price?.toLocaleString()}</Text>
                 </View>
-              </View>
+              </View>}
               <View style={styles.profitLossBox}>
                 <Text style={[styles.profitLossText, { color: selectedTheme.colors.text }]}>
                   {isProfit ? t('home.profit') : t('home.loss')}:
@@ -557,7 +557,7 @@ const HomeScreen = ({ selectedTheme }) => {
                   <Text style={styles.itemText}>{t('home.add_item')}</Text>
                 </TouchableOpacity> */}
 
-                {hasItems?.map((item, index) => (
+                {config.isNoman && hasItems?.map((item, index) => (
                   <TouchableOpacity key={index} style={[styles.addItemBlockNew, { backgroundColor: item?.Type === 'p' ? '#FFD700' : isDarkMode ? '#34495E' : '#CCCCFF' }]} onPress={() => { openDrawer('has') }} disabled={item !== null}>
                     {item ? (
                       <>
@@ -587,6 +587,39 @@ const HomeScreen = ({ selectedTheme }) => {
                     )}
                   </TouchableOpacity>
                 ))}
+                    {!config.isNoman && hasItems?.map((item, index) => (
+                  <TouchableOpacity key={index} style={[styles.addItemBlockNewNoman,]} onPress={() => { openDrawer('has') }} disabled={item !== null}>
+                    {item ? (
+                      <>
+                      <View style={{backgroundColor:'#1dc226', paddingVertical:6, borderTopLeftRadius:6, borderTopRightRadius:6}}>
+                         <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'black' : 'black') }
+                        ]}>{item.Type === 'p' && 'Perm'}  {item.Name}</Text></View>
+                        <Image
+                          source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
+                          style={[styles.itemImageOverlayNoman, {alignSelf:'center'}
+
+                          ]}
+                        />
+                        <View style={{backgroundColor:'#fe01ea', paddingVertical:6, borderBottomLeftRadius:6, borderBottomRightRadius:6}}>
+                        <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'black' : 'black') }
+                        ]}>${item.usePermanent 
+                          ? (Number(item.Permanent) === 0 ? "Special" : Number(item.Permanent).toLocaleString()) 
+                          : (Number(item.Value) === 0 ? "Special" : Number(item.Value).toLocaleString())
+                        }</Text></View>
+                     
+                        {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
+                        <TouchableOpacity onPress={() => removeItem(index, true)} style={styles.removeButton}>
+                          <Icon name="close-outline" size={18} color="white" />
+                        </TouchableOpacity>
+                      </>
+                    ) : (
+                      <View style={{flex:1, justifyContent:'center', alignItems:'center'}}>
+                        {index === lastFilledIndexHas + 1 && <Icon name="add-circle" size={30} color={isDarkMode ? "lightgrey" : 'grey' }/>}
+                        {index === lastFilledIndexHas + 1 && <Text style={[styles.itemText, {color:isDarkMode ? "lightgrey" : 'grey'}]}>{t('home.add_item')}</Text>}
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
               </View>
 
               <View style={styles.divider}>
@@ -603,7 +636,7 @@ const HomeScreen = ({ selectedTheme }) => {
                   <Icon name="add-circle" size={40} color="white" />
                   <Text style={styles.itemText}>{t('home.add_item')}</Text>
                 </TouchableOpacity> */}
-                {wantsItems?.map((item, index) => (
+                {config.isNoman && wantsItems?.map((item, index) => (
                   <TouchableOpacity key={index} style={[styles.addItemBlockNew, { backgroundColor: item?.Type === 'p' ? '#FFD700' : isDarkMode ? '#34495E' : '#CCCCFF' }]} onPress={() => { openDrawer('wants'); }} disabled={item !== null}>
                     {item ? (
                       <>
@@ -633,7 +666,65 @@ const HomeScreen = ({ selectedTheme }) => {
                     )}
                   </TouchableOpacity>
                 ))}
+
+{!config.isNoman && wantsItems?.map((item, index) => (
+                  <TouchableOpacity key={index} style={[styles.addItemBlockNewNoman,]} onPress={() => { openDrawer('wants') }} disabled={item !== null}>
+                    {item ? (
+                      <>
+                      <View style={{backgroundColor:'#1dc226', paddingVertical:6, borderTopLeftRadius:6, borderTopRightRadius:6}}>
+                         <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'black' : 'black') }
+                        ]}>{item.Type === 'p' && 'Perm'}  {item.Name}</Text></View>
+                        <Image
+                          source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
+                          style={[styles.itemImageOverlayNoman, {alignSelf:'center'}
+
+                          ]}
+                        />
+                        <View style={{backgroundColor:'#fe01ea', paddingVertical:6, borderBottomLeftRadius:6, borderBottomRightRadius:6}}>
+                        <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'black' : 'black') }
+                        ]}>${item.usePermanent 
+                          ? (Number(item.Permanent) === 0 ? "Special" : Number(item.Permanent).toLocaleString()) 
+                          : (Number(item.Value) === 0 ? "Special" : Number(item.Value).toLocaleString())
+                        }</Text></View>
+                     
+                        {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
+                        <TouchableOpacity onPress={() => removeItem(index, false)} style={styles.removeButton}>
+                          <Icon name="close-outline" size={18} color="white" />
+                        </TouchableOpacity>
+                      </>
+                    ) : (
+                      <View style={{flex:1, justifyContent:'center', alignItems:'center'}}>
+                        {index === lastFilledIndexWant + 1 && <Icon name="add-circle" size={30} color={isDarkMode ? "lightgrey" : 'grey'} />}
+                        {index === lastFilledIndexWant + 1 && <Text style={[styles.itemText, {color:isDarkMode ? "lightgrey" : 'grey'}]}>{t('home.add_item')}</Text>}
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
               </View>
+              {!config.isNoman &&  <View style={styles.summaryContainer}>
+                <View style={[styles.summaryBox, styles.hasBox]}>
+                  <View style={{ width: '90%', backgroundColor: '#e0e0e0', alignSelf: 'center', }} />
+                  <View style={{justifyContent:'space-between', flexDirection:'row' }} >
+                  <Text style={styles.priceValue}>{t('home.value')}:</Text>
+                  <Text style={styles.priceValue}>${hasTotal.value?.toLocaleString()}</Text>
+                  </View>
+                  <View style={{justifyContent:'space-between', flexDirection:'row' }}>
+                  <Text style={styles.priceValue}>{t('home.price')}:</Text>
+                  <Text style={styles.priceValue}>${hasTotal.price?.toLocaleString()}</Text>
+                  </View>
+                </View>
+                <View style={[styles.summaryBox, styles.wantsBox]}>
+                  <View style={{ width: '90%', backgroundColor: '#e0e0e0', alignSelf: 'center', }} />
+                  <View style={{justifyContent:'space-between', flexDirection:'row' }} >
+                  <Text style={styles.priceValue}>{t('home.value')}:</Text>
+                  <Text style={styles.priceValue}>${wantsTotal.value?.toLocaleString()}</Text>
+                  </View>
+                  <View style={{justifyContent:'space-between', flexDirection:'row' }}>
+                  <Text style={styles.priceValue}>{t('home.price')}:</Text>
+                  <Text style={styles.priceValue}>${wantsTotal.price?.toLocaleString()}</Text>
+                  </View>
+                </View>
+              </View>}
             </ViewShot>
             <View style={styles.createtrade} >
               <TouchableOpacity style={styles.createtradeButton} onPress={() => handleCreateTradePress('create')}><Text style={{ color: 'white' }}>{t('home.create_trade')}</Text></TouchableOpacity>
@@ -788,7 +879,7 @@ const getStyles = (isDarkMode) =>
       marginBottom: 10,
     },
     summaryBox: {
-      width: '48%',
+      width: config.isNoman ? '48%' : '49%',
       padding: 5,
       borderRadius: 8,
     },
@@ -828,12 +919,24 @@ const getStyles = (isDarkMode) =>
     },
     addItemBlockNew: {
       width: '48%',
-      height: 80,
+      height: config.isNoman ? 80 : 110,
       backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF', // Dark: darker contrast, Light: White
       borderWidth: Platform.OS === 'android' ? 0 : 1,
       borderColor: 'lightgrey',
       justifyContent: 'center',
       alignItems: 'center',
+      borderRadius: 8,
+      marginBottom: 5,
+
+    },
+    addItemBlockNewNoman: {
+      width: '49%',
+      height: config.isNoman ? 80 : 110,
+      backgroundColor: isDarkMode ? '#2d3337' : '#CCCCFF', // Dark: darker contrast, Light: White
+      borderWidth: Platform.OS === 'android' ? 0 : 1,
+      borderColor: 'lightgrey',
+      justifyContent: 'space-between',
+      // alignItems: 'center',
       borderRadius: 8,
       marginBottom: 5,
 
@@ -951,6 +1054,11 @@ const getStyles = (isDarkMode) =>
     itemImageOverlay: {
       width: 40,
       height: 40,
+      borderRadius: 5,
+    },
+    itemImageOverlayNoman: {
+      width: 50,
+      height: 50,
       borderRadius: 5,
     },
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   View,
@@ -22,7 +22,20 @@ import { useTranslation } from 'react-i18next';
 import { useGlobalState } from '../../GlobelStats';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { showMessage } from 'react-native-flash-message';
-
+import axios from 'axios';
+import { useLocalState } from '../../LocalGlobelStats';
+import { getDeviceLanguage } from '../../../i18n';
+import { mixpanel } from '../../AppHelper/MixPenel';
+import { showDebouncedMessage } from '../../Helper/MessageHelper';
+// import { useLanguage } from '../../Translation/LanguageProvider';
+const FRUIT_KEYWORDS = [
+  'rocket', 'spin', 'chop', 'spring', 'bomb', 'spike', 'blade',
+  'smoke', 'flame', 'ice', 'sand', 'dark', 'diamond', 'falcon',
+  'rubber', 'barrier', 'ghost', 'light', 'magma', 'quake', 'love',
+  'spider', 'sound', 'portal', 'pain', 'rumble', 'blizzard', 'buddha',
+  'phoenix', 'gravity', 'shadow', 'venom', 'control', 'spirit', 'dough',
+  'gas', 'dragon', 'leopard', 'kitsune', 'mammoth', 't-rex', 'yeti', 'perm', 'west', 'east', 'gamepass', 'skin', 'chromatic', 'permanent', 'Fruit Storage', 'game pass', 'Eagle', 'Creation', 'gamepass'
+];
 
 const MessagesList = ({
   messages,
@@ -51,17 +64,92 @@ const MessagesList = ({
   const { triggerHapticFeedback } = useHaptic();
   // const [isAtBottom, setIsAtBottom] = useState(true);
   const { t } = useTranslation();
-  const { isAdmin } = useGlobalState()
+  // const { language, changeLanguage } = useLanguage();
+  const { isAdmin, api, freeTranslation } = useGlobalState()
+  const { canTranslate, incrementTranslationCount, getRemainingTranslationTries, localState } = useLocalState();
+  const deviceLanguage = useMemo(() => getDeviceLanguage(), []);
+
   const handleCopy = (message) => {
     Clipboard.setString(message.text);
     triggerHapticFeedback('impactLight');
-    showMessage({
+    showDebouncedMessage({
       message: 'Success',
       description: 'Message Copies',
       type: "success",
     });
   };
-  
+
+
+
+  const translateText = async (text, targetLang = deviceLanguage) => {
+    const placeholders = {};
+    let maskedText = text;
+
+    // Step 1: Replace fruit names with placeholders
+    FRUIT_KEYWORDS.forEach((word, index) => {
+      const placeholder = `__FRUIT_${index}__`;
+      const regex = new RegExp(`\\b${word}\\b`, 'gi'); // match full word, case-insensitive
+      maskedText = maskedText.replace(regex, placeholder);
+      placeholders[placeholder] = word;
+    });
+
+    try {
+      // Step 2: Send masked text for translation
+      const response = await axios.post(
+        `https://translation.googleapis.com/language/translate/v2`,
+        {},
+        {
+          params: {
+            q: maskedText,
+            target: targetLang,
+            key: api,
+          },
+        }
+      );
+
+      let translated = response.data.data.translations[0].translatedText;
+
+      // Step 3: Replace placeholders back with original fruit names
+      Object.entries(placeholders).forEach(([placeholder, word]) => {
+        translated = translated.replace(new RegExp(placeholder, 'g'), word);
+      });
+      mixpanel.track("Translation", { lang: targetLang });
+
+
+      return translated;
+    } catch (err) {
+      console.error('Translation Error:', err);
+      return null;
+    }
+  };
+
+  const handleTranslate = async (item) => {
+    const isUnlimited = freeTranslation || localState.isPro;
+
+    if (!isUnlimited && !canTranslate()) {
+      Alert.alert('Limit Reached', 'You can only translate 20 messages per day.');
+      return;
+    }
+
+    const translated = await translateText(item.text, deviceLanguage);
+
+    if (translated) {
+      if (!isUnlimited) incrementTranslationCount();
+
+      const remaining = isUnlimited ? 'Unlimited' : `${getRemainingTranslationTries()} remaining`;
+
+      Alert.alert(
+        'Translated Message',
+        `${translated}\n\n🧠 Daily Limit: ${remaining}${isUnlimited
+          ? ''
+          : '\n\n🔓 Want more? Upgrade to Pro for unlimited translations.'
+        }`
+      );
+    } else {
+      Alert.alert('Error', 'Translation failed. Please try again later.');
+    }
+  };
+
 
   const handleLongPress = (item) => {
     if (!user?.id) return;
@@ -83,7 +171,7 @@ const MessagesList = ({
       )
     );
   };
- 
+
   const handleProfileClick = (item) => {
     // console.log(item)
     if (user.id) { toggleDrawer(item); triggerHapticFeedback('impactLight'); }
@@ -98,7 +186,7 @@ const MessagesList = ({
       ? new Date(previousMessage.timestamp).toDateString()
       : null;
     const shouldShowDateHeader = currentDate !== previousDate;
-
+    // console.log(user.id)
 
     return (
       <View>
@@ -179,7 +267,9 @@ const MessagesList = ({
 
 
 
+
                 </Text>
+
               </MenuTrigger>
               <MenuOptions customStyles={{ optionsContainer: styles.menuoptions }}>
                 <MenuOption
@@ -200,6 +290,22 @@ const MessagesList = ({
                     }}
                   />
                 )}
+
+                <MenuOption
+                  onSelect={() => {
+                    if (!item) return; // Add guard
+                    handleTranslate(item);
+                  }}
+
+                  text={'Translate'}
+                  customStyles={{
+                    optionWrapper: styles.menuOption,
+                    optionText: styles.menuOptionText,
+                  }}
+                />
+
+
+
                 <MenuOption
                   onSelect={() => handleReport(item)}
                   text={t("chat.report")}
@@ -208,13 +314,18 @@ const MessagesList = ({
                     optionText: styles.menuOptionText,
                   }}
                 />
+
               </MenuOptions>
+              <MenuOption>
+
+              </MenuOption>
 
             </Menu>
 
             {(item.reportCount > 0 || item.isReportedByUser) && (
               <Text style={styles.reportIcon}>Reported</Text>
             )}
+
 
           </View>
 
@@ -286,6 +397,7 @@ const MessagesList = ({
         inverted
         ref={flatListRef}
         scrollEventThrottle={16}
+        removeClippedSubviews={false}
         onScroll={({ nativeEvent }) => {
           const { contentOffset } = nativeEvent;
           const atBottom = contentOffset.y <= 40;

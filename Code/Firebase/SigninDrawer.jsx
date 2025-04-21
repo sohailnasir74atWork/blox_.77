@@ -22,6 +22,7 @@ import ConditionalKeyboardWrapper from '../Helper/keyboardAvoidingContainer';
 import { useTranslation } from 'react-i18next';
 import { showMessage } from 'react-native-flash-message';
 import { mixpanel } from '../AppHelper/MixPenel';
+import { showDebouncedMessage } from '../Helper/MessageHelper';
 
 
 
@@ -31,6 +32,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     const [isRegisterMode, setIsRegisterMode] = useState(false);
     const [isLoading, setIsLoading] = useState(false)
     const [isLoadingSecondary, setIsLoadingSecondary] = useState(false);
+    const [robloxUsernameError, setRobloxUsernameError] = useState('');
     const { triggerHapticFeedback } = useHaptic();
     const { theme, robloxUsernameRef } = useGlobalState()
     const [robloxUsernamelocal, setRobloxUsernamelocal] = useState()
@@ -52,7 +54,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     
         return appleAuth.onCredentialRevoked(async () => {
             await auth().signOut();
-            showMessage({ message: "Session Expired", description: "Please sign in again.", type: "warning" });
+            showDebouncedMessage({ message: "Session Expired", description: "Please sign in again.", type: "warning" });
         });
     }, []);
     
@@ -60,6 +62,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     const validateRobloxUsername = () => {
         const name = robloxUsernameRef.current;
         if (!name || name.trim().length === 0) {
+          setRobloxUsernameError('Roblox username is required');
           showMessage({
             message: t("home.alert.error"),
             description: "Please enter your Roblox username.",
@@ -67,8 +70,9 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
           });
           return false;
         }
+        setRobloxUsernameError('');
         return true;
-      };
+    };
       
 
     // Updated onAppleButtonPress function
@@ -231,13 +235,30 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
 /> */}
 
 <TextInput
-  style={[styles.input, { color: selectedTheme.colors.text, marginBottom:0 }]}
-  placeholder="Roblox Username"
+  style={[
+    styles.input, 
+    { 
+      color: selectedTheme.colors.text, 
+      marginBottom: robloxUsernameError ? 0 : 15,
+      borderColor: robloxUsernameError ? 'red' : 'grey'
+    }
+  ]}
+  placeholder="Roblox Username *"
   value={robloxUsernamelocal}
-  onChangeText={setRobloxUsernamelocal}
+  onChangeText={(text) => {
+    setRobloxUsernamelocal(text);
+    if (robloxUsernameError) {
+      setRobloxUsernameError('');
+    }
+  }}
   autoCapitalize="none"
   placeholderTextColor={selectedTheme.colors.text}
 />
+{robloxUsernameError ? (
+  <Text style={[styles.errorText, { color: 'red', marginBottom: 15 }]}>
+    {robloxUsernameError}
+  </Text>
+) : null}
 <View style={styles.container}>
                         <View style={styles.line} />
                         <Image
@@ -428,6 +449,11 @@ const styles = StyleSheet.create({
         marginHorizontal: 10, // Spacing around the text
         fontSize: 16,
         fontFamily: 'Lato-Bold',
+    },
+    errorText: {
+        fontSize: 12,
+        marginTop: 5,
+        marginLeft: 5,
     },
 });
 

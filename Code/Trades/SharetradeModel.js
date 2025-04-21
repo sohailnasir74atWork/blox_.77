@@ -407,10 +407,10 @@ StyleSheet.create({
         // paddingHorizontal:20
     },
     bottom: {
-        backgroundColor: config.colors.primary, width: '100%', borderBottomEndRadius: 8, borderBottomStartRadius: 8
+        backgroundColor: '#fe01ea', width: '100%', borderBottomEndRadius: 4, borderBottomStartRadius: 4
     },
     top: {
-        backgroundColor: config.colors.hasBlockGreen, width: '100%', borderTopEndRadius: 8, borderTopStartRadius: 8
+        backgroundColor: '#1dc226', width: '100%', borderTopEndRadius: 4, borderTopStartRadius: 4
     },
     wantBackground: {
         backgroundColor: config.colors.wantBlockRed,

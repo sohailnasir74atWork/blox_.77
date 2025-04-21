@@ -57,7 +57,8 @@ export const getStyles = (isDarkMode) =>
     },
     messageTextBox: {
       // flex: 1,
-      maxWidth:'75%'
+      maxWidth:'75%',
+      // flexDirection:
     },
     messageTextBoxAdmin: {
       flexDirection: 'column',

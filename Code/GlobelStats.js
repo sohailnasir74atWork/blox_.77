@@ -24,8 +24,12 @@ export const GlobalStateProvider = ({ children }) => {
 
   const colorScheme = useColorScheme(); // 'light' or 'dark'
 
-const resolvedTheme = localState.theme === 'system' ? colorScheme : localState.theme;
-const [theme, setTheme] = useState(resolvedTheme);
+  const resolvedTheme = localState.theme === 'system' ? colorScheme : localState.theme;
+  const [theme, setTheme] = useState(resolvedTheme);
+  const [api, setApi] = useState(null);
+  const [freeTranslation, setFreeTranslation] = useState(null);
+
+
   const [isAdmin, setIsAdmin] = useState(false);
   const [user, setUser] = useState({
     id: null,
@@ -39,7 +43,7 @@ const [theme, setTheme] = useState(resolvedTheme);
     fcmToken: null,
     lastactivity: null,
     online: false,
-    isPro:false
+    isPro: false
 
   });
 
@@ -86,7 +90,6 @@ const [theme, setTheme] = useState(resolvedTheme);
   };
 
 
-
   // console.log(robloxUsernameRef?.current, 'robloxUsername_outside')
 
 
@@ -104,7 +107,7 @@ const [theme, setTheme] = useState(resolvedTheme);
       fcmToken: null,
       lastactivity: null,
       online: false,
-      isPro:false
+      isPro: false
     });
   }, []); // No dependencies, so it never re-creates
 
@@ -138,7 +141,7 @@ const [theme, setTheme] = useState(resolvedTheme);
         userData = createNewUser(userId, loggedInUser, robloxUsernameRef?.current);
         await set(userRef, userData);
       }
-// console.log(userData, 'user')
+      // console.log(userData, 'user')
       setUser(userData);
 
       // 🔥 Refresh and update FCM token
@@ -154,29 +157,66 @@ const [theme, setTheme] = useState(resolvedTheme);
     const unsubscribe = onAuthStateChanged(auth, (loggedInUser) => {
       InteractionManager.runAfterInteractions(async () => {
         await handleUserLogin(loggedInUser);
-  
+
         if (loggedInUser?.uid) {
           await registerForNotifications(loggedInUser.uid);
           await requestPermission();
         }
-  
+
         await updateLocalState('isAppReady', true);
       });
     });
-  
+
     return () => unsubscribe();
   }, []);
+
+
+ useEffect(() => {
+  const fetchAPIKeys = async () => {
+    try {
+      const apiRef = ref(appdatabase, 'api');
+      const freeRef = ref(appdatabase, 'free_translation');
+
+      const [snapshotApi, snapshotFree] = await Promise.all([
+        get(apiRef),
+        get(freeRef),
+      ]);
+
+      if (snapshotApi.exists()) {
+        const value = snapshotApi.val();
+        setApi(value);
+        // console.log('🔑 [Firebase] Google API Key from /api:', value);
+      } else {
+        console.warn('⚠️ No Google Translate API key found at /api');
+      }
+
+      if (snapshotFree.exists()) {
+        const value = snapshotFree.val();
+        setFreeTranslation(value);
+        // console.log('🔑 [Firebase] Free Translation Key from /free_translation:', value);
+      } else {
+        console.warn('⚠️ No free translation key found at /free_translation');
+      }
+
+    } catch (error) {
+      console.error('🔥 Error fetching API keys from Firebase:', error);
+    }
+  };
+
+  fetchAPIKeys();
+}, []);
+
   
-  
+
 
   const updateUserProStatus = () => {
     if (!user?.id) {
       // console.error("User ID or database instance is missing!");
       return;
     }
-  
+
     const userIsProRef = ref(appdatabase, `/users/${user?.id}/isPro`);
-  
+
     set(userIsProRef, localState?.isPro)
       .then(() => {
         // console.log("User online status updated to true");
@@ -185,6 +225,8 @@ const [theme, setTheme] = useState(resolvedTheme);
         console.error("Error updating online status:", error);
       });
   };
+
+
 
   const checkInternetConnection = async () => {
     try {
@@ -208,7 +250,7 @@ const [theme, setTheme] = useState(resolvedTheme);
       updateUserProStatus();
     });
   }, [user.id, localState.isPro]);
-  
+
 
   useEffect(() => {
 
@@ -232,7 +274,7 @@ const [theme, setTheme] = useState(resolvedTheme);
       const lastActivity = localState.lastActivity ? new Date(localState.lastActivity).getTime() : 0;
       const now = Date.now();
       const timeElapsed = now - lastActivity;
-      const TWENTY_FOUR_HOURS = refresh ?  24 * 60 * 60 * 1000 : 1 * 1 * 60 * 1000 ; // 24 hours in ms
+      const TWENTY_FOUR_HOURS = refresh ? 24 * 60 * 60 * 1000 : 1 * 1 * 60 * 1000; // 24 hours in ms
       // console.log(TWENTY_FOUR_HOURS, refresh)
 
       // ✅ Fetch `codes & data` only if 24 hours have passed OR they are missing
@@ -298,17 +340,17 @@ const [theme, setTheme] = useState(resolvedTheme);
       setLoading(false);
     }
   };
-// console.log(user)
+  // console.log(user)
 
   // ✅ Run the function only if needed
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => {
       fetchStockData(); // ✅ Now runs after main thread is free
     });
-  
+
     return () => task.cancel();
   }, []);
-  
+
   const reload = () => {
     fetchStockData(true);
   };
@@ -332,7 +374,7 @@ const [theme, setTheme] = useState(resolvedTheme);
     };
   }, [user?.id]);
 
-// console.log(user)
+  // console.log(user)
 
   const contextValue = useMemo(
     () => ({
@@ -346,11 +388,12 @@ const [theme, setTheme] = useState(resolvedTheme);
       updateLocalStateAndDatabase,
       fetchStockData,
       loading,
+      freeTranslation,
       isAdmin,
       reload,
-      robloxUsernameRef
+      robloxUsernameRef, api
     }),
-    [user, onlineMembersCount, theme, fetchStockData, loading,  robloxUsernameRef ]
+    [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api,freeTranslation]
   );
 
   return (

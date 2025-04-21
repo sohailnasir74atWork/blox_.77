@@ -312,7 +312,7 @@ const TimerScreen = ({ selectedTheme }) => {
                 </View>
               </View>
 
-              <View style={styles.row2}>
+              <View style={config.isNoman ? styles.row2 : styles.row}>
                 <Text style={[styles.title]}>{t("stock.selected_fruit_notification")} {'\n'}
                   <Text style={styles.footer}>
                     {t("stock.selected_fruit_notification_description")}

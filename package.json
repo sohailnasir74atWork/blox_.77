@@ -23,6 +23,7 @@
     "@react-navigation/bottom-tabs": "^7.2.0",
     "@react-navigation/native": "^7.0.14",
     "@react-navigation/native-stack": "^7.2.0",
+    "axios": "^1.8.4",
     "i18next": "^24.2.2",
     "leo-profanity": "^1.7.0",
     "lodash": "^4.17.21",

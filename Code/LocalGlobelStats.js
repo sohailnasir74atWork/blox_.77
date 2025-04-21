@@ -25,7 +25,7 @@ export const LocalStateProvider = ({ children }) => {
       return defaultValue; // Return a safe fallback value
     }
   };
-  
+
   const [localState, setLocalState] = useState(() => ({
     localKey: storage.getString('localKey') || 'defaultValue',
     reviewCount: Number(storage.getString('reviewCount')) || 0,
@@ -48,9 +48,11 @@ export const LocalStateProvider = ({ children }) => {
     lastActivity: storage.getString('lastActivity') || null,
     showOnBoardingScreen: storage.getBoolean('showOnBoardingScreen') ?? true,
     user_name: storage.getString('user_name') || 'Anonymous',
+    translationUsage: safeParseJSON('translationUsage', { count: 0, date: new Date().toDateString() }),
+
   }));
-  
-  
+
+
   // RevenueCat states
   const [customerId, setCustomerId] = useState(null);
   // const [isPro, setIsPro] = useState(true); // Sync with MMKV storage
@@ -68,7 +70,7 @@ export const LocalStateProvider = ({ children }) => {
       return () => listener.remove(); // Correct cleanup
     }
   }, [localState.theme]);
-  
+
   useEffect(() => {
     if (localState.data) {
       storage.set('data', JSON.stringify(localState.data)); // Force store
@@ -96,6 +98,32 @@ export const LocalStateProvider = ({ children }) => {
       console.error('🚨 MMKV supports only string, number, boolean, or JSON stringified objects.');
     }
   };
+  const canTranslate = () => {
+    const today = new Date().toDateString();
+    const { count, date } = localState.translationUsage || { count: 0, date: today };
+
+    if (date !== today) {
+      // Reset count for new day
+      const newUsage = { count: 0, date: today };
+      updateLocalState('translationUsage', newUsage);
+      return true;
+    }
+
+    return count < 20;
+  };
+
+  const incrementTranslationCount = () => {
+    const today = new Date().toDateString();
+    const { count, date } = localState.translationUsage || { count: 0, date: today };
+
+    const updatedUsage = {
+      count: date === today ? count + 1 : 1,
+      date: today,
+    };
+
+    updateLocalState('translationUsage', updatedUsage);
+  };
+
 
   // console.log(localState.data)
   // console.log(isPro)
@@ -120,7 +148,7 @@ export const LocalStateProvider = ({ children }) => {
     });
     return () => task.cancel();
   }, []);
-  
+
   // console.log(isPro)
   // Fetch available subscriptions
   const fetchOfferings = async () => {
@@ -135,7 +163,7 @@ export const LocalStateProvider = ({ children }) => {
       console.error('❌ Fetch Offerings Error:', error.message);
     }
   };
-  
+
 
 
 
@@ -145,17 +173,17 @@ export const LocalStateProvider = ({ children }) => {
       const customerInfo = await Purchases.restorePurchases();
       const entitlements = customerInfo.entitlements.active;
       const proKey = Object.keys(entitlements).find(
-      (key) => key.toLowerCase() === 'pro'
+        (key) => key.toLowerCase() === 'pro'
       );
       const proStatus = !!(proKey && entitlements[proKey]);
-  
+
       updateLocalState('isPro', proStatus);
       setMySubscriptions(
         proStatus
           ? customerInfo.activeSubscriptions.map((plan) => ({
-              plan,
-              expiry: customerInfo.allExpirationDates[plan] || null,
-            }))
+            plan,
+            expiry: customerInfo.allExpirationDates[plan] || null,
+          }))
           : []
       );
     } catch (error) {
@@ -164,7 +192,7 @@ export const LocalStateProvider = ({ children }) => {
       setLoadingReStore(false); // Ensure loading state resets
     }
   };
-  
+
 
   // Check if the user has an active subscription
   const checkEntitlements = async () => {
@@ -172,7 +200,7 @@ export const LocalStateProvider = ({ children }) => {
       const customerInfo = await Purchases.getCustomerInfo();
       const entitlements = customerInfo.entitlements.active;
       const proKey = Object.keys(entitlements).find(
-      (key) => key.toLowerCase() === 'pro'
+        (key) => key.toLowerCase() === 'pro'
       );
 
       // console.log(customerInfo.activeSubscriptions)
@@ -194,16 +222,16 @@ export const LocalStateProvider = ({ children }) => {
     setLoading(true);
     try {
       if (!packageToPurchase?.product) return;
-      
+
       const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
 
       const entitlements = customerInfo.entitlements.active;
       const proKey = Object.keys(entitlements).find(
-      (key) => key.toLowerCase() === 'pro'
+        (key) => key.toLowerCase() === 'pro'
       );
       const isPro = !!(proKey && entitlements[proKey]);
       // const isPro = !!customerInfo.entitlements.active['Pro'];
-  
+
       if (isPro) {
         showMessage({
           message: t('trade.delete_success'),
@@ -219,8 +247,8 @@ export const LocalStateProvider = ({ children }) => {
       setLoading(false); // Always reset loading state
     }
   };
-  
 
+ 
   // Clear a specific key
   const clearKey = (key) => {
     setLocalState((prevState) => {
@@ -238,6 +266,13 @@ export const LocalStateProvider = ({ children }) => {
     storage.clearAll();
   };
 
+  const getRemainingTranslationTries = () => {
+    const today = new Date().toDateString();
+    const { count = 0, date = today } = localState.translationUsage || {};
+    return date === today ? 20 - count : 20;
+  };
+
+
   const contextValue = useMemo(
     () => ({
       localState,
@@ -248,7 +283,10 @@ export const LocalStateProvider = ({ children }) => {
       packages,
       mySubscriptions,
       purchaseProduct,
-      restorePurchases
+      restorePurchases,
+      canTranslate,
+      incrementTranslationCount,
+      getRemainingTranslationTries
     }),
     [localState, customerId, packages, mySubscriptions]
   );

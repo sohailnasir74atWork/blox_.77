@@ -39,13 +39,11 @@ const getStoredLanguage = () => {
 };
 
 // Function to get the device language
-const getDeviceLanguage = () => {
+export const getDeviceLanguage = () => {
   const locales = RNLocalize.getLocales();
-  if (locales.length > 0) {
-    return countryToLanguage[locales[0].countryCode] || "en"; // Default to English if country is not mapped
-  }
-  return "en";
+  return locales.length > 0 ? locales[0].languageCode : 'en';
 };
+
 
 // Determine initial language
 const initialLanguage = getStoredLanguage() || 'en';

@@ -5,10 +5,15 @@ import { getStyles } from '../Style';
 import config from '../../Helper/Environment';
 import { useGlobalState } from '../../GlobelStats';
 import { useTranslation } from 'react-i18next';
+import InterstitialAdManager from '../../Ads/IntAd';
+import { useLocalState } from '../../LocalGlobelStats';
 
 const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned }) => {
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [messageCount, setMessageCount] = useState(0);
+  const {localState}= useLocalState()
+
   const { theme } = useGlobalState();
   const isDark = theme === 'dark';
   const { t } = useTranslation();
@@ -21,6 +26,19 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned }) => {
 
     setIsSending(true);
     setInput(''); // Clear the input field
+    const callbackfunction = () => {
+      setIsSending(false)
+    };
+    setMessageCount(prevCount => {
+      const newCount = prevCount + 1;
+      if (!localState.isPro && newCount % 5 === 0) {
+        // Show ad only if user is NOT pro
+        InterstitialAdManager.showAd(callbackfunction);
+      } else {
+        setIsSending(false);
+      }
+      return newCount;
+    });
 
 
     try {

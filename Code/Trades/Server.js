@@ -94,7 +94,13 @@ const ServerScreen = () => {
             showMessage({ message: 'Your link must start with https://www.roblox.com/', type: 'danger' });
             return;
         }
+        const urlRegex = /^(https?:\/\/)([\w-]+\.)+[\w-]{2,}(\/[\w\-._~:/?#[\]@!$&'()*+,;=]*)?$/i;
 
+        if (!urlRegex.test(link)) {
+          showMessage({ message: 'There must be a valid link', type: 'danger' });
+          return;
+        }
+        
         const characterCount = message.trim().length;
         if (characterCount > 250) {
             showMessage({ message: 'Description can only be 250 characters max.', type: 'warning' });
