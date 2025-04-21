@@ -2,7 +2,8 @@ import { showMessage } from 'react-native-flash-message';
 
 // Store the last shown messages and their timestamps
 const messageHistory = new Map();
-const DEBOUNCE_TIME = 1000; // 1 second debounce time
+const DEBOUNCE_TIME = 1200; // 1.5 seconds debounce time
+let currentlyVisibleMessage = null;
 
 /**
  * Enhanced version of showMessage that prevents duplicate messages
@@ -22,6 +23,11 @@ export const showUniqueMessage = (options) => {
   // Create a unique key for the message
   const messageKey = `${message}-${description}-${type}`;
   
+  // Check if this exact message is currently visible
+  if (currentlyVisibleMessage === messageKey) {
+    return; // Skip if the same message is already visible
+  }
+  
   // Check if this message was shown recently
   const lastShown = messageHistory.get(messageKey);
   if (lastShown && (now - lastShown) < DEBOUNCE_TIME) {
@@ -30,6 +36,9 @@ export const showUniqueMessage = (options) => {
   
   // Update the message history
   messageHistory.set(messageKey, now);
+  
+  // Set the currently visible message
+  currentlyVisibleMessage = messageKey;
   
   // Clean up old messages from history (older than 5 seconds)
   for (const [key, timestamp] of messageHistory.entries()) {
@@ -44,7 +53,15 @@ export const showUniqueMessage = (options) => {
     description,
     type,
     duration: duration || 3000,
-    id: id || messageKey
+    id: id || messageKey,
+    onShow: () => {
+      // Set a timeout to clear the currently visible message after the duration
+      setTimeout(() => {
+        if (currentlyVisibleMessage === messageKey) {
+          currentlyVisibleMessage = null;
+        }
+      }, duration || 3000);
+    }
   });
 };
 

@@ -23,6 +23,7 @@ import {
   MyLightTheme,
   requestReview,
 } from './Code/AppHelper/AppHelperFunction';
+import getAdUnitId from './Code/Ads/ads';
 import OnboardingScreen from './Code/AppHelper/OnBoardingScreen';
 import { useTranslation } from 'react-i18next';
 import RewardCenterScreen from './Code/SettingScreen/RewardCenter';

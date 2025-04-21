@@ -8,6 +8,7 @@ import {
     TouchableOpacity,
     Pressable,
     ActivityIndicator,
+    Alert,
     Platform,
     Image,
 } from 'react-native';

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   View,
@@ -7,6 +7,7 @@ import {
   RefreshControl,
   Vibration,
   Image,
+  Linking,
   Alert,
   Keyboard,
 } from 'react-native';
@@ -25,6 +26,8 @@ import axios from 'axios';
 import { useLocalState } from '../../LocalGlobelStats';
 import { getDeviceLanguage } from '../../../i18n';
 import { mixpanel } from '../../AppHelper/MixPenel';
+import { showDebouncedMessage } from '../../Helper/MessageHelper';
+// import { useLanguage } from '../../Translation/LanguageProvider';
 const FRUIT_KEYWORDS = [
   'rocket', 'spin', 'chop', 'spring', 'bomb', 'spike', 'blade',
   'smoke', 'flame', 'ice', 'sand', 'dark', 'diamond', 'falcon',

@@ -5,6 +5,7 @@ import {
   Text,
   RefreshControl,
   Image,
+  TouchableOpacity,
   ActivityIndicator,
   Vibration,
   Keyboard,
