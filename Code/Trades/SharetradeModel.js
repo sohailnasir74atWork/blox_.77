@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, {  useMemo, useRef, useState } from 'react';
 import { View, Text, Image, Modal, TouchableOpacity, Switch, StyleSheet, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import ViewShot, { captureRef } from 'react-native-view-shot';

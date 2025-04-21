@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, {  useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, StyleSheet, ScrollView, Image } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import TradeList from './Trades';

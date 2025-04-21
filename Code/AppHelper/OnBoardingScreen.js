@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,11 +6,8 @@ import {
   TouchableOpacity,
   Dimensions,
   StatusBar,
-  ScrollView,
   Image,
-  Animated,
   Modal,
-  Platform
 } from 'react-native';
 import { useGlobalState } from '../GlobelStats';
 import SignInDrawer from '../Firebase/SigninDrawer';
@@ -20,7 +17,6 @@ import { useLanguage } from '../Translation/LanguageProvider';
 import { useTranslation } from 'react-i18next';
 import { FlatList, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { setAppLanguage } from '../../i18n';
 import { mixpanel } from './MixPenel';
 
 const { width } = Dimensions.get('window');

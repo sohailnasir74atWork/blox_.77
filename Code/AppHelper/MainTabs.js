@@ -1,5 +1,5 @@
-import React, { useRef, useEffect, useCallback } from 'react';
-import { Animated, Image, TouchableOpacity } from 'react-native';
+import React, {  useCallback } from 'react';
+import {  Image, TouchableOpacity } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Ionicons';
 import HomeScreen from '../Homescreen/HomeScreen';
@@ -17,13 +17,7 @@ const Tab = createBottomTabNavigator();
 
 const AnimatedTabIcon = React.memo(({iconName, color, size }) => {
 
-  // useEffect(() => {
-  //   Animated.spring(scaleValue, {
-  //     toValue: focused ? 1.2 : 1,
-  //     friction: 3,
-  //     useNativeDriver: true,
-  //   }).start();
-  // }, [focused]);
+
 
   return (
       <FontAwesome

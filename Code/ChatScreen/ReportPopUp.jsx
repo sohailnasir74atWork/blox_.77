@@ -13,7 +13,6 @@ import { useGlobalState } from "../GlobelStats";
 import config from "../Helper/Environment";
 import { ref, get, update } from "@react-native-firebase/database";
 import { useTranslation } from "react-i18next";
-import { developmentMode } from "../Ads/ads";
 
 const ReportPopup = ({ visible, message, onClose }) => {
   const [selectedReason, setSelectedReason] = useState("Spam");

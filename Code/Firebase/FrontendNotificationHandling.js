@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Platform, Alert } from 'react-native';
+import { Platform } from 'react-native';
 import { initializeApp, getApp, getApps } from '@react-native-firebase/app';
 import { getMessaging, onMessage, setBackgroundMessageHandler } from '@react-native-firebase/messaging';
 import notifee, { AndroidImportance, EventType } from '@notifee/react-native';

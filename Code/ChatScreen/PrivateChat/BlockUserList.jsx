@@ -6,8 +6,7 @@ import {
   TouchableOpacity,
   Image,
   StyleSheet,
-  ActivityIndicator,
-  Alert,
+
 } from 'react-native';
 import { get, ref } from '@react-native-firebase/database';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -15,7 +14,6 @@ import config from '../../Helper/Environment';
 import { useLocalState } from '../../LocalGlobelStats';
 import { useGlobalState } from '../../GlobelStats';
 import { useTranslation } from 'react-i18next';
-import { developmentMode } from '../../Ads/ads';
 import { showSuccessMessage } from '../../Helper/MessageHelper';
 
 

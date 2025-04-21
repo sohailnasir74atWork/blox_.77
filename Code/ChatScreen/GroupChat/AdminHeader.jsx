@@ -1,11 +1,11 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   Animated,
-  PanResponder, Modal,
+   Modal,
   Linking,
   Platform
 } from 'react-native';
@@ -13,7 +13,6 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../../GlobelStats';
 import { ScrollView } from 'react-native-gesture-handler';
 import config from '../../Helper/Environment';
-import { parseMessageText } from '../ChatHelper';
 import { Menu, MenuOption, MenuOptions, MenuTrigger, renderers } from 'react-native-popup-menu';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';

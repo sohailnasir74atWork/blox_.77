@@ -8,7 +8,7 @@ import {
 import Icon from 'react-native-vector-icons/FontAwesome';
 import {
     ref, push, onValue, query,
-    orderByChild, startAt, equalTo, remove,
+    orderByChild, startAt, remove,
     set
 } from '@react-native-firebase/database';
 import { showSuccessMessage, showErrorMessage, showWarningMessage } from '../Helper/MessageHelper';

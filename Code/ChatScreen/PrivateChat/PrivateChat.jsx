@@ -13,8 +13,6 @@ import PrivateMessageInput from './PrivateMessageInput';
 import PrivateMessageList from './PrivateMessageList';
 import { useGlobalState } from '../../GlobelStats';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import getAdUnitId, { developmentMode } from '../../Ads/ads';
-import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import { clearActiveChat, setActiveChat } from '../utils';
 import { useLocalState } from '../../LocalGlobelStats';

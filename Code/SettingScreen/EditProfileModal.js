@@ -10,7 +10,6 @@ import {
   Pressable,
   KeyboardAvoidingView,
 } from 'react-native';
-import KeyboardAvoidingWrapper from '../Helper/keyboardAvoidingContainer';
 
 export default function EditProfileModal({
   visible,

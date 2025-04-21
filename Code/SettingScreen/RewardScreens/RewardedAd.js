@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, Modal, Pressable, Alert } from 'react-native';
 import { RewardedAd, RewardedAdEventType, AdEventType } from 'react-native-google-mobile-ads';
 import { ref, get, update } from '@react-native-firebase/database';
-import { showSuccessMessage, showErrorMessage, showWarningMessage } from '../../Helper/MessageHelper';
+import { showErrorMessage, showWarningMessage } from '../../Helper/MessageHelper';
 import { getStyles } from '../settingstyle';
 import getAdUnitId from '../../Ads/ads';
 import { useTranslation } from 'react-i18next';

@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import {  useCallback } from 'react';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { BackHandler } from 'react-native';
 import database from '@react-native-firebase/database';

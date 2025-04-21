@@ -16,7 +16,6 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { useTranslation } from 'react-i18next';
 import { showSuccessMessage, showErrorMessage } from '../Helper/MessageHelper';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
-import ShareTradeModal from './SharetradeModel';
 import { mixpanel } from '../AppHelper/MixPenel';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';

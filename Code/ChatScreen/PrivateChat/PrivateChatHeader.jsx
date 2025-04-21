@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
-import { useGlobalState } from '../../GlobelStats';
 import { useLocalState } from '../../LocalGlobelStats';
 import { useTranslation } from 'react-i18next';
 import { isUserOnline } from '../utils';

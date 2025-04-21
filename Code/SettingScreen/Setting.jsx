@@ -9,7 +9,6 @@ import {
   Modal,
   Pressable,
   Alert,
-  KeyboardAvoidingView,
   ScrollView,
   Switch,
   Linking,
@@ -27,9 +26,9 @@ import ConditionalKeyboardWrapper from '../Helper/keyboardAvoidingContainer';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { useLocalState } from '../LocalGlobelStats';
 import config from '../Helper/Environment';
-import notifee, { AuthorizationStatus } from '@notifee/react-native';
+import notifee from '@notifee/react-native';
 import SubscriptionScreen from './OfferWall';
-import { ref, get, update, remove } from '@react-native-firebase/database';
+import { ref, remove } from '@react-native-firebase/database';
 import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
 import { useLanguage } from '../Translation/LanguageProvider';
 import { useTranslation } from 'react-i18next';
