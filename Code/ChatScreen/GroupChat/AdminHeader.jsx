@@ -13,7 +13,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../../GlobelStats';
 import { ScrollView } from 'react-native-gesture-handler';
 import config from '../../Helper/Environment';
-import { Menu, MenuOption, MenuOptions, MenuTrigger, renderers } from 'react-native-popup-menu';
+import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { rulesde, rulesen, rulesfil, rulesfr, rulesid, rulespt, rulesru, rulesvi } from '../utils';

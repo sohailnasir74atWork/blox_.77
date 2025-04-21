@@ -1,12 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, Image, Switch, TouchableOpacity, Alert, RefreshControl, Platform } from 'react-native';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { View, Text, StyleSheet, Image, Switch, TouchableOpacity, Alert, RefreshControl } from 'react-native';
 import { useGlobalState } from '../GlobelStats';
 import Icon from 'react-native-vector-icons/Ionicons';
 import FruitSelectionDrawer from './FruitSelectionDrawer';
 import SigninDrawer from '../Firebase/SigninDrawer';
 import { GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
-import { AdEventType, BannerAd, BannerAdSize, InterstitialAd } from 'react-native-google-mobile-ads';
-import getAdUnitId from '../Ads/ads';
 import config from '../Helper/Environment';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { useLocalState } from '../LocalGlobelStats';
@@ -20,7 +18,7 @@ import BannerAdComponent from '../Ads/bannerAds';
 
 
 const TimerScreen = ({ selectedTheme }) => {
-  const { user, updateLocalStateAndDatabase, theme, fetchStockData, analytics, reload } = useGlobalState();
+  const { user, updateLocalStateAndDatabase, theme,  reload } = useGlobalState();
   const [hasAdBeenShown, setHasAdBeenShown] = useState(false);
   const [fruitRecords, setFruitRecords] = useState([]);
   const [isDrawerVisible, setDrawerVisible] = useState(false);

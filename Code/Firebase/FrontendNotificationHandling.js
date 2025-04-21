@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import  { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { initializeApp, getApp, getApps } from '@react-native-firebase/app';
 import { getMessaging, onMessage, setBackgroundMessageHandler } from '@react-native-firebase/messaging';

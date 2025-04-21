@@ -15,7 +15,7 @@ import SubscriptionScreen from '../SettingScreen/OfferWall';
 import config from '../Helper/Environment';
 import { useLanguage } from '../Translation/LanguageProvider';
 import { useTranslation } from 'react-i18next';
-import { FlatList, GestureHandlerRootView } from 'react-native-gesture-handler';
+import {  GestureHandlerRootView } from 'react-native-gesture-handler';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { mixpanel } from './MixPenel';
 

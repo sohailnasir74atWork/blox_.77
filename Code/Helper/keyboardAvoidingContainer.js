@@ -1,5 +1,5 @@
 import React from 'react';
-import { KeyboardAvoidingView, View, Platform, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView, View, Platform } from 'react-native';
 
 const ConditionalKeyboardWrapper = ({ children, style, chatscreen }) => {
   return Platform.OS === 'ios' ? (

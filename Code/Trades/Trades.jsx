@@ -6,7 +6,6 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import { useGlobalState } from '../GlobelStats';
 import config from '../Helper/Environment';
 import { useNavigation } from '@react-navigation/native';
-import getAdUnitId from '../Ads/ads';
 import { FilterMenu } from './tradeHelpers';
 import ReportTradePopup from './ReportTradePopUp';
 import SignInDrawer from '../Firebase/SigninDrawer';
@@ -24,7 +23,6 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 // Initialize dayjs plugins
 dayjs.extend(relativeTime);
 
-const bannerAdUnitId = getAdUnitId('banner');
 
 const TradeList = ({ route }) => {
   const [searchQuery, setSearchQuery] = useState('');
