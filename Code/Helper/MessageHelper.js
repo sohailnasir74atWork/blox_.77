@@ -1,19 +1,12 @@
 import { showMessage } from 'react-native-flash-message';
 
-// Store the last shown message and its timestamp
-let lastMessage = {
-  message: null,
-  description: null,
-  type: null,
-  timestamp: 0
-};
-
-// Debounce time in milliseconds (adjust as needed)
-const DEBOUNCE_TIME = 1000;
+// Store the last shown messages and their timestamps
+const messageHistory = new Map();
+const DEBOUNCE_TIME = 1000; // 1 second debounce time
 
 /**
- * Debounced version of showMessage that prevents duplicate messages
- * from appearing in quick succession
+ * Enhanced version of showMessage that prevents duplicate messages
+ * and manages message history
  * 
  * @param {Object} options - The message options
  * @param {string} options.message - The message title
@@ -22,36 +15,52 @@ const DEBOUNCE_TIME = 1000;
  * @param {number} [options.duration] - How long to show the message (in ms)
  * @param {string} [options.id] - Unique identifier for the message
  */
-export const showDebouncedMessage = (options) => {
+export const showUniqueMessage = (options) => {
   const now = Date.now();
   const { message, description, type, duration, id } = options;
   
-  // Check if this is a duplicate of the last message and within debounce time
-  const isDuplicate = 
-    lastMessage.message === message && 
-    lastMessage.description === description && 
-    lastMessage.type === type && 
-    (now - lastMessage.timestamp) < DEBOUNCE_TIME;
+  // Create a unique key for the message
+  const messageKey = `${message}-${description}-${type}`;
   
-  // If it's a duplicate and within debounce time, don't show it
-  if (isDuplicate) {
-    return;
+  // Check if this message was shown recently
+  const lastShown = messageHistory.get(messageKey);
+  if (lastShown && (now - lastShown) < DEBOUNCE_TIME) {
+    return; // Skip if shown within debounce time
   }
   
-  // Update the last message
-  lastMessage = {
-    message,
-    description,
-    type,
-    timestamp: now
-  };
+  // Update the message history
+  messageHistory.set(messageKey, now);
+  
+  // Clean up old messages from history (older than 5 seconds)
+  for (const [key, timestamp] of messageHistory.entries()) {
+    if (now - timestamp > 5000) {
+      messageHistory.delete(key);
+    }
+  }
   
   // Show the message
   showMessage({
     message,
     description,
     type,
-    duration,
-    id
+    duration: duration || 3000,
+    id: id || messageKey
   });
+};
+
+// Convenience methods for common message types
+export const showSuccessMessage = (message, description) => {
+  showUniqueMessage({ message, description, type: 'success' });
+};
+
+export const showErrorMessage = (message, description) => {
+  showUniqueMessage({ message, description, type: 'danger' });
+};
+
+export const showWarningMessage = (message, description) => {
+  showUniqueMessage({ message, description, type: 'warning' });
+};
+
+export const showInfoMessage = (message, description) => {
+  showUniqueMessage({ message, description, type: 'info' });
 }; 

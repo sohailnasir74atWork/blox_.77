@@ -3,7 +3,7 @@ import { Alert, Appearance } from 'react-native'; // For system theme detection
 import { MMKV } from 'react-native-mmkv';
 import Purchases from 'react-native-purchases'; // Ensure react-native-purchases is installed
 import config from './Helper/Environment';
-import { showMessage } from 'react-native-flash-message';
+import { showSuccessMessage, showErrorMessage } from './Helper/MessageHelper';
 import { useTranslation } from 'react-i18next';
 import { mixpanel } from './AppHelper/MixPenel';
 import { InteractionManager } from 'react-native';
@@ -221,30 +221,39 @@ export const LocalStateProvider = ({ children }) => {
   const purchaseProduct = async (packageToPurchase, setLoading, track) => {
     setLoading(true);
     try {
-      if (!packageToPurchase?.product) return;
-
       const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
-
       const entitlements = customerInfo.entitlements.active;
       const proKey = Object.keys(entitlements).find(
         (key) => key.toLowerCase() === 'pro'
       );
-      const isPro = !!(proKey && entitlements[proKey]);
-      // const isPro = !!customerInfo.entitlements.active['Pro'];
+      const proStatus = !!(proKey && entitlements[proKey]);
 
-      if (isPro) {
-        showMessage({
-          message: t('trade.delete_success'),
-          description: t('trade.purchase_success'),
-          type: 'success',
+      updateLocalState('isPro', proStatus);
+      setMySubscriptions(
+        proStatus
+          ? customerInfo.activeSubscriptions.map((plan) => ({
+            plan,
+            expiry: customerInfo.allExpirationDates[plan] || null,
+          }))
+          : []
+      );
+
+      if (track) {
+        mixpanel.track('Purchase Completed', {
+          package: packageToPurchase.identifier,
+          price: packageToPurchase.product.price,
+          currency: packageToPurchase.product.currencyCode,
         });
-        updateLocalState('isPro', isPro);
-        mixpanel.track(`Pro from ${track}`);
       }
+
+      showSuccessMessage("Success", "Purchase completed successfully!");
     } catch (error) {
-      console.error('❌ Purchase Error:', error);
+      if (!error.userCancelled) {
+        console.error('❌ Purchase Error:', error);
+        showErrorMessage("Error", "Failed to complete purchase. Please try again.");
+      }
     } finally {
-      setLoading(false); // Always reset loading state
+      setLoading(false);
     }
   };
 

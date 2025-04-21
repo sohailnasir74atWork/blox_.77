@@ -20,7 +20,7 @@ import { clearActiveChat, setActiveChat } from '../utils';
 import { useLocalState } from '../../LocalGlobelStats';
 import database, { get, ref, update } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
-import  { showMessage } from 'react-native-flash-message';
+import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
 import BannerAdComponent from '../../Ads/bannerAds';
 import config from '../../Helper/Environment';
 
@@ -133,7 +133,6 @@ const [rating, setRating] = useState(0);
   );
 
 const handleRating = async () => {
-
   try {
     const ratingRef = database().ref(`ratings/${selectedUserId}/${myUserId}`);
     const avgRef = database().ref(`averageRatings/${selectedUserId}`);
@@ -176,12 +175,11 @@ const handleRating = async () => {
     setShowRatingModal(false);
     await updateUserPoints(user?.id, 100)
     setHasRated(true);
-    showMessage({ message: "Thanks for your feedback!", type: "success" });
-
+    showSuccessMessage("Success", "Thanks for your feedback!");
 
   } catch (error) {
     console.error("Rating error:", error);
-    showMessage({ message: "Error submitting rating. Try again!", type: "danger" });
+    showErrorMessage("Error", "Error submitting rating. Try again!");
   }
 }
 
@@ -275,11 +273,7 @@ const handleRating = async () => {
     const trimmedText = text.trim();
     if (!trimmedText) {
       // Alert.alert("Error", "Message cannot be empty!");
-      showMessage({
-        message: t("home.alert.error"),
-        description: t("chat.cannot_empty"),
-        type: "success",
-      });
+      showErrorMessage(t("home.alert.error"), t("chat.cannot_empty"));
       return;
     }
     setInput('');

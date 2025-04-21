@@ -13,7 +13,7 @@ import { useLocalState } from '../LocalGlobelStats';
 import firestore from '@react-native-firebase/firestore';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useTranslation } from 'react-i18next';
-import { showMessage } from 'react-native-flash-message';
+import { showSuccessMessage, showErrorMessage } from '../Helper/MessageHelper';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
 import ShareTradeModal from './SharetradeModel';
 import { mixpanel } from '../AppHelper/MixPenel';
@@ -171,39 +171,27 @@ const TradeList = ({ route }) => {
           onPress: async () => {
             try {
               const tradeId = item.id.startsWith("featured-") ? item.id.replace("featured-", "") : item.id;
-              // console.log(`🔄 [handleDelete] Deleting trade: ${tradeId}`);
 
               await firestore().collection("trades_new").doc(tradeId).delete();
-              // console.log(`✅ [handleDelete] Trade deleted: ${tradeId}`);
 
-              // ✅ Decrement featured count **without changing time**
               if (item.isFeatured) {
                 const currentFeaturedData = localState.featuredCount || { count: 0, time: null };
                 const newFeaturedCount = Math.max(0, currentFeaturedData.count - 1);
 
                 await updateLocalState("featuredCount", {
-                  count: newFeaturedCount, // ✅ Reduce count
-                  time: currentFeaturedData.time, // ✅ Keep time unchanged
+                  count: newFeaturedCount,
+                  time: currentFeaturedData.time,
                 });
               }
 
-              // ✅ Remove trade from local state
               setTrades((prev) => prev.filter((trade) => trade.id !== item.id));
               setFilteredTrades((prev) => prev.filter((trade) => trade.id !== item.id));
 
-              showMessage({
-                message: t("trade.delete_success"),
-                description: t("trade.delete_success_message"),
-                type: "success",
-              });
+              showSuccessMessage(t("trade.delete_success"), t("trade.delete_success_message"));
 
             } catch (error) {
               console.error("🔥 [handleDelete] Error deleting trade:", error);
-              showMessage({
-                message: t("trade.delete_error"),
-                description: t("trade.delete_error_message"),
-                type: "danger",
-              });
+              showErrorMessage(t("trade.delete_error"), t("trade.delete_error_message"));
             }
           },
         },
@@ -285,18 +273,10 @@ const TradeList = ({ route }) => {
                   )
                 );
 
-                showMessage({
-                  message: t("trade.feature_success"),
-                  description: t("trade.feature_success_message"),
-                  type: "success",
-                });
+                showSuccessMessage(t("trade.feature_success"), t("trade.feature_success_message"));
               } catch (error) {
                 console.error("🔥 Error making trade featured:", error);
-                showMessage({
-                  message: t("trade.feature_error"),
-                  description: t("trade.feature_error_message"),
-                  type: "danger",
-                });
+                showErrorMessage(t("trade.feature_error"), t("trade.feature_error_message"));
               }
             },
           },

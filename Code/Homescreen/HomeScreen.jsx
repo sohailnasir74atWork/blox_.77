@@ -15,7 +15,7 @@ import SignInDrawer from '../Firebase/SigninDrawer';
 import firestore from '@react-native-firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../Translation/LanguageProvider';
-import { showMessage } from 'react-native-flash-message';
+import { showSuccessMessage, showErrorMessage, showWarningMessage } from '../Helper/MessageHelper';
 import DeviceInfo from 'react-native-device-info';
 import ShareTradeModal from '../Trades/SharetradeModel';
 import { mixpanel } from '../AppHelper/MixPenel';
@@ -146,19 +146,11 @@ const HomeScreen = ({ selectedTheme }) => {
       return;
     }
     if (hasItems.filter(Boolean).length === 0 && wantsItems.filter(Boolean).length === 0) {
-      // Alert.alert(t("home.alert.error"), t("home.alert.missing_items_error"));
-      showMessage({
-        message: t("home.alert.error"),
-        description: t("home.alert.missing_items_error"),
-        type: "danger",
-      });
-
-
-
+      showErrorMessage(
+        t("home.alert.error"),
+        t("home.alert.missing_items_error")
+      );
       return;
-
-
-
     }
     if (type === 'create') {
       setType('create')
@@ -172,12 +164,10 @@ const HomeScreen = ({ selectedTheme }) => {
       hasItems.filter(Boolean).length > 0 &&
       wantsItems.filter(Boolean).length > 0 && type !== 'share'
     ) {
-      showMessage({
-        message: t("home.unfair_trade"),
-        description: t('home.unfair_trade_description'),
-        type: "danger",
-      });
-
+      showErrorMessage(
+        t("home.unfair_trade"),
+        t('home.unfair_trade_description')
+      );
       return;
     }
 
@@ -185,12 +175,10 @@ const HomeScreen = ({ selectedTheme }) => {
     if (tradeRatio > 1.95 && type !== 'share' &&
       hasItems.filter(Boolean).length > 0 &&
       wantsItems.filter(Boolean).length > 0) {
-      showMessage({
-        message: t('home.invalid_trade'),
-        description: t('home.invalid_trade_description'),
-        type: "danger",
-      });
-
+      showErrorMessage(
+        t('home.invalid_trade'),
+        t('home.invalid_trade_description')
+      );
       return;
     }
 
@@ -248,11 +236,10 @@ const HomeScreen = ({ selectedTheme }) => {
         // ✅ Check last trade locally before querying Firestore
         const now = Date.now();
         if (lastTradeTime && now - lastTradeTime < 1 * 1 * 60 * 1000) {
-          showMessage({
-            message: t("home.alert.error"),
-            description: "Please wait for 1 minut before creating new trade",
-            type: "danger",
-          });
+          showErrorMessage(
+            t("home.alert.error"),
+            "Please wait for 1 minut before creating new trade"
+          );
           setIsSubmitting(false);
           return;
         }
@@ -265,11 +252,10 @@ const HomeScreen = ({ selectedTheme }) => {
 
         setModalVisible(false); // Close modal
         const callbackfunction = () => {
-          showMessage({
-            message: t("home.alert.success"),
-            description: "Your trade has been posted successfully!",
-            type: "success",
-          });
+          showSuccessMessage(
+            t("home.alert.success"),
+            "Your trade has been posted successfully!"
+          );
         };
 
         // ✅ Update last trade time locally
@@ -284,11 +270,10 @@ const HomeScreen = ({ selectedTheme }) => {
       }
     } catch (error) {
       console.error("🔥 Error creating trade:", error);
-      showMessage({
-        message: t("home.alert.error"),
-        description: "Something went wrong while posting the trade.",
-        type: "danger",
-      });
+      showErrorMessage(
+        t("home.alert.error"),
+        "Something went wrong while posting the trade."
+      );
     } finally {
       // console.log("🔄 Resetting submission state...");
       setIsSubmitting(false); // Reset submission state

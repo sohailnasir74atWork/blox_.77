@@ -18,7 +18,7 @@ import ReportPopup from '../ReportPopUp';
 import { useTranslation } from 'react-i18next';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useHaptic } from '../../Helper/HepticFeedBack';
-import { showMessage } from 'react-native-flash-message';
+import { showSuccessMessage } from '../../Helper/MessageHelper';
 import { useLocalState } from '../../LocalGlobelStats';
 import axios from 'axios';
 import { getDeviceLanguage } from '../../../i18n';
@@ -62,11 +62,7 @@ const PrivateMessageList = ({
   const handleCopy = (message) => {
     Clipboard.setString(message?.text ?? '');
     triggerHapticFeedback('impactLight');
-    showMessage({
-      message: 'Success',
-      description: 'Message Copies',
-      type: "success",
-    });
+    showSuccessMessage('Success', 'Message Copied');
   };
 
   // Filter messages: Keep only user's messages if `isBanned` is true
@@ -185,77 +181,28 @@ const PrivateMessageList = ({
         <Menu>
           <MenuTrigger
             onLongPress={() => Vibration.vibrate(50)}
-            customStyles={{ TriggerTouchableComponent: TouchableOpacity }}
+            customStyles={{ triggerTouchable: { activeOpacity: 1 } }}
           >
             <Text style={isMyMessage ? styles.myMessageText : styles.otherMessageText}>
               {item.text}
             </Text>
           </MenuTrigger>
-          <MenuOptions style={styles.menuoptions}>
-            <MenuOption onSelect={() => handleCopy(item)} text={'Copy'} customStyles={{
-              optionWrapper: styles.menuOption,
-              optionText: styles.menuOptionText,
-            }} />
-            {/* <MenuOption onSelect={() => onReply(item)} text={t("chat.reply")}/> */}
-            <MenuOption
-             onSelect={() => {
-              if (!item) return; // Add guard
-              handleTranslate(item);
-            }}
-                
-                
-                text={'Translate'} 
-              customStyles={{
-                optionWrapper: styles.menuOption,
-                optionText: styles.menuOptionText,
-              }}
-            />
-            {/* <MenuOption
-                  onSelect={async () => {
-                    if (!canTranslate()) {
-                      Alert.alert('Limit Reached', 'You can only translate 20 messages per day.');
-                      return;
-                    }
-
-                    const translated = await translateText(item.text, language);
-                    if (translated) {
-                      incrementTranslationCount();
-
-                      let remaining;
-
-                      if (freeTranslation || localState.isPro) {
-                        remaining = 1000; // or Infinity
-                      } else {
-                        remaining = getRemainingTranslationTries();
-                      }
-                      
-                      Alert.alert(
-                        'Translated Message',
-                        `${translated}\n\n🧠 Daily Limit: ${
-                          remaining === 1000 ? 'Unlimited' : `${remaining} remaining`
-                        }${
-                          !freeTranslation && !localState.isPro
-                            ? `\n\n🔓 Want more? Upgrade to Pro for unlimited translations.`
-                            : ''
-                        }`
-                      );
-                      
-                    } else {
-                      Alert.alert('Error', 'Translation failed');
-                    }
-                  }}
-                  text={'Translate'}
-                  customStyles={{
-                    optionWrapper: styles.menuOption,
-                    optionText: styles.menuOptionText,
-                  }}
-                /> */}
-
-
-            <MenuOption onSelect={() => handleReport(item)} text={t("chat.report")} customStyles={{
-              optionWrapper: styles.menuOption,
-              optionText: styles.menuOptionText,
-            }} />
+          <MenuOptions customStyles={{
+            optionsContainer: styles.menuoptions,
+            optionWrapper: styles.menuOption,
+            optionText: styles.menuOptionText,
+          }}>
+            <MenuOption onSelect={() => handleCopy(item)}>
+              <Text style={styles.menuOptionText}>Copy</Text>
+            </MenuOption>
+            <MenuOption onSelect={() => handleTranslate(item)}>
+              <Text style={styles.menuOptionText}>{t("chat.translate")}</Text>
+            </MenuOption>
+            {!isMyMessage && (
+              <MenuOption onSelect={() => handleReport(item)}>
+                <Text style={styles.menuOptionText}>{t("chat.report")}</Text>
+              </MenuOption>
+            )}
           </MenuOptions>
         </Menu>
         <Text style={styles.timestamp}>

@@ -21,7 +21,7 @@ import config from '../../Helper/Environment';
 import { useTranslation } from 'react-i18next';
 import { useGlobalState } from '../../GlobelStats';
 import Clipboard from '@react-native-clipboard/clipboard';
-import { showMessage } from 'react-native-flash-message';
+import { showSuccessMessage } from '../../Helper/MessageHelper';
 import axios from 'axios';
 import { useLocalState } from '../../LocalGlobelStats';
 import { getDeviceLanguage } from '../../../i18n';
@@ -72,11 +72,7 @@ const MessagesList = ({
   const handleCopy = (message) => {
     Clipboard.setString(message.text);
     triggerHapticFeedback('impactLight');
-    showDebouncedMessage({
-      message: 'Success',
-      description: 'Message Copies',
-      type: "success",
-    });
+    showSuccessMessage('Success', 'Message Copied');
   };
 
 
@@ -235,91 +231,58 @@ const MessagesList = ({
 
             {/* Render main message */}
 
-            <Menu style={styles.menu}>
+            <Menu>
               <MenuTrigger
-                onLongPress={() => handleLongPress(item)} // Set the message for context menu
-                delayLongPress={300}
-                customStyles={{
-                  TriggerTouchableComponent: TouchableOpacity,
-                }}
+                onLongPress={() => handleLongPress(item)}
+                customStyles={{ triggerTouchable: { activeOpacity: 1 } }}
               >
-                <Text
-                  style={
-                    item.senderId === user?.id
-                      ? styles.myMessageText
-                      : styles.otherMessageText
-                  }
-                >
-                  <Text style={styles.userName}>{item.sender}
-                    {item?.isPro && <Icon
-                      name="checkmark-done-circle"
-                      size={16}
-                      color={config.colors.hasBlockGreen}
-                    />}{'    '}
+                <View style={[
+                  item.senderId === user?.id ? styles.mymessageBubble : styles.othermessageBubble,
+                  item.senderId === user?.id ? styles.myMessage : styles.otherMessage,
+                  item.isReportedByUser && styles.reportedMessage,
+                ]}>
+                  <Text style={item.senderId === user?.id ? styles.myMessageText : styles.otherMessageText}>
+                    <Text style={styles.userName}>{item.sender}
+                      {item?.isPro && <Icon
+                        name="checkmark-done-circle"
+                        size={16}
+                        color={config.colors.hasBlockGreen}
+                      />}{'    '}
+                    </Text>
+
+                    {(!!item.isAdmin) &&
+                      <View style={styles.adminContainer}>
+                        <Text style={styles.admin}>{t("chat.admin")}</Text>
+                      </View>}
+                    {'\n'}
+                    {parseMessageText(item?.text)}
+
+
+
+
                   </Text>
-
-                  {(!!item.isAdmin) &&
-                    <View style={styles.adminContainer}>
-                      <Text style={styles.admin}>{t("chat.admin")}</Text>
-                    </View>}
-                  {'\n'}
-                  {parseMessageText(item?.text)}
-
-
-
-
-                </Text>
-
+                </View>
               </MenuTrigger>
-              <MenuOptions customStyles={{ optionsContainer: styles.menuoptions }}>
-                <MenuOption
-                  onSelect={() => handleCopy(item)}
-                  text={"Copy"}
-                  customStyles={{
-                    optionWrapper: styles.menuOption,
-                    optionText: styles.menuOptionText,
-                  }}
-                />
+              <MenuOptions customStyles={{
+                optionsContainer: styles.menuoptions,
+                optionWrapper: styles.menuOption,
+                optionText: styles.menuOptionText,
+              }}>
+                <MenuOption onSelect={() => handleCopy(item)}>
+                  <Text style={styles.menuOptionText}>Copy</Text>
+                </MenuOption>
                 {user.id && (
-                  <MenuOption
-                    onSelect={() => onReply(item)}
-                    text={t("chat.reply")}
-                    customStyles={{
-                      optionWrapper: styles.menuOption,
-                      optionText: styles.menuOptionText,
-                    }}
-                  />
+                  <MenuOption onSelect={() => onReply(item)}>
+                    <Text style={styles.menuOptionText}>{t("chat.reply")}</Text>
+                  </MenuOption>
                 )}
-
-                <MenuOption
-                  onSelect={() => {
-                    if (!item) return; // Add guard
-                    handleTranslate(item);
-                  }}
-
-                  text={'Translate'}
-                  customStyles={{
-                    optionWrapper: styles.menuOption,
-                    optionText: styles.menuOptionText,
-                  }}
-                />
-
-
-
-                <MenuOption
-                  onSelect={() => handleReport(item)}
-                  text={t("chat.report")}
-                  customStyles={{
-                    optionWrapper: styles.menuOption,
-                    optionText: styles.menuOptionText,
-                  }}
-                />
-
+                <MenuOption onSelect={() => handleTranslate(item)}>
+                  <Text style={styles.menuOptionText}>{t("chat.translate")}</Text>
+                </MenuOption>
+                <MenuOption onSelect={() => handleReport(item)}>
+                  <Text style={styles.menuOptionText}>{t("chat.report")}</Text>
+                </MenuOption>
               </MenuOptions>
-              <MenuOption>
-
-              </MenuOption>
-
             </Menu>
 
             {(item.reportCount > 0 || item.isReportedByUser) && (

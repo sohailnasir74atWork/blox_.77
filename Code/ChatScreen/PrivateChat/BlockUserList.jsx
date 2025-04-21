@@ -16,7 +16,7 @@ import { useLocalState } from '../../LocalGlobelStats';
 import { useGlobalState } from '../../GlobelStats';
 import { useTranslation } from 'react-i18next';
 import { developmentMode } from '../../Ads/ads';
-import { showMessage } from 'react-native-flash-message';
+import { showSuccessMessage } from '../../Helper/MessageHelper';
 
 
 const BlockedUsersScreen = () => {
@@ -88,15 +88,9 @@ const BlockedUsersScreen = () => {
       );
 
       // ✅ Show Alert
-      // Alert.alert(t("home.success"), t("chat.user_unblocked"));
-      showMessage({
-        message: t("home.alert.success"),
-        description:t("chat.user_unblocked"),
-        type: "success",
-      });
+      showSuccessMessage(t("home.alert.success"), t("chat.user_unblocked"));
     } catch (error) {
       console.error('❌ Error unblocking user:', error);
-      // Alert.alert('Error', 'Failed to unblock the user.');
     }
   };
 

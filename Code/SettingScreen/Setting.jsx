@@ -33,7 +33,7 @@ import { ref, get, update, remove } from '@react-native-firebase/database';
 import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
 import { useLanguage } from '../Translation/LanguageProvider';
 import { useTranslation } from 'react-i18next';
-import { showMessage } from 'react-native-flash-message';
+import { showSuccessMessage, showErrorMessage } from '../Helper/MessageHelper';
 import { setAppLanguage } from '../../i18n';
 
 
@@ -150,15 +150,10 @@ export default function SettingsScreen({ selectedTheme }) {
     if (!user?.id) return;
 
     if (newDisplayName.length > MAX_NAME_LENGTH) {
-      showMessage({
-        message: t("home.alert.error"),
-        description:t("settings.display_name_length_error"),
-        type: "danger",
-      });
-      // Alert.alert(
-      //   t("home.alert.error"),
-      //   t("settings.display_name_length_error")
-      // );
+      showErrorMessage(
+        t("home.alert.error"),
+        t("settings.display_name_length_error")
+      );
       return;
     }
 
@@ -169,15 +164,12 @@ export default function SettingsScreen({ selectedTheme }) {
       });
 
       setDrawerVisible(false);
-      // Alert.alert(t("home.alert.success"), t("settings.profile_success"));
-      showMessage({
-        message: t("home.alert.success"),
-        description:t("settings.profile_success"),
-        type: "success",
-      });
+      showSuccessMessage(
+        t("home.alert.success"),
+        t("settings.profile_success")
+      );
     } catch (error) {
       // console.error('Error updating profile:', error);
-      // Alert.alert(t("home.error"), 'Failed to update profile. Please try again.');
     }
   };
 
@@ -193,23 +185,17 @@ export default function SettingsScreen({ selectedTheme }) {
   const handleLogout = async () => {
     triggerHapticFeedback('impactLight');
     try {
-      await logoutUser(setUser); // Await the logout process
-      // setSelectedImage('https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png');
-      // setNewDisplayName('Guest User');
-      // Alert.alert(t("home.alert.success"), t("settings.logout_success"));
-      showMessage({
-        message: t("home.alert.success"),
-        description:t("settings.logout_success"),
-        type: "success",
-      });
+      await logoutUser(setUser);
+      showSuccessMessage(
+        t("home.alert.success"),
+        t("settings.logout_success")
+      );
     } catch (error) {
       console.error('Error during logout:', error);
-      // Alert.alert(t("home.alert.error"), t("settings.logout_error"));
-      showMessage({
-        message: t("home.alert.error"),
-        description:t("settings.logout_error"),
-        type: "danger",
-      });
+      showErrorMessage(
+        t("home.alert.error"),
+        t("settings.logout_error")
+      );
     }
   };
   
@@ -217,12 +203,10 @@ export default function SettingsScreen({ selectedTheme }) {
     triggerHapticFeedback('impactLight');
     try {
       if (!user || !user?.id) {
-        // Alert.alert(t("home.alert.error"), t("settings.logout_error"));
-        showMessage({
-          message: t("home.alert.error"),
-          description:t("settings.delete_error"),
-          type: "danger",
-        });
+        showErrorMessage(
+          t("home.alert.error"),
+          t("settings.delete_error")
+        );
         return;
       }
   
@@ -272,11 +256,10 @@ export default function SettingsScreen({ selectedTheme }) {
 
       } else {
         // Alert.alert(t(".alerthome.error"), t("settings.user_not_found"));
-        showMessage({
-          message: t("home.alert.error"),
-          description:t("settings.user_not_found"),
-          type: "danger",
-        });
+        showErrorMessage(
+          t("home.alert.error"),
+          t("settings.user_not_found")
+        );
         return;
       }
   
@@ -284,11 +267,10 @@ export default function SettingsScreen({ selectedTheme }) {
       await resetUserState(setUser);
   
       // Alert.alert(t("home.alert.success"), t("home.alert.success"));
-      showMessage({
-        message: t("home.alert.success"),
-        description:t("home.alert.success"),
-        type: "success",
-      });
+      showSuccessMessage(
+        t("home.alert.success"),
+        t("home.alert.success")
+      );
     } catch (error) {
       // console.error('Error deleting user:', error.message);
   
@@ -298,18 +280,16 @@ export default function SettingsScreen({ selectedTheme }) {
         //   t("settings.session_expired_message"),
         //   [{ text: 'OK' }]
         // );
-        showMessage({
-          message: t("settings.session_expired"),
-          description:t("settings.session_expired_message"),
-          type: "danger",
-        });
+        showErrorMessage(
+          t("settings.session_expired"),
+          t("settings.session_expired_message")
+        );
       } else {
         // Alert.alert(t("home.alert.error"), t("settings.delete_error"));
-        showMessage({
-          message:t("home.alert.error"),
-          description: t("settings.delete_error"),
-          type: "danger",
-        });
+        showErrorMessage(
+          t("home.alert.error"),
+          t("settings.delete_error")
+        );
       }
     }
   };
@@ -335,11 +315,10 @@ export default function SettingsScreen({ selectedTheme }) {
       setDrawerVisible(true); // Open the profile drawer if the user is logged in
     } else {
       // Alert.alert(t("settings.notice"), t("settings.login_to_customize_profile")); // Show alert if user is not logged in
-      showMessage({
-        message:t("settings.notice"),
-        description: t("settings.login_to_customize_profile"),
-        type: "warning",
-      });
+      showErrorMessage(
+        t("settings.notice"),
+        t("settings.login_to_customize_profile")
+      );
     }
   };
 

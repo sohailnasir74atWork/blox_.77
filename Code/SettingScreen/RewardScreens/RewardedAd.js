@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, Modal, Pressable, Alert } from 'react-native';
 import { RewardedAd, RewardedAdEventType, AdEventType } from 'react-native-google-mobile-ads';
 import { ref, get, update } from '@react-native-firebase/database';
-import { showMessage } from 'react-native-flash-message';
+import { showSuccessMessage, showErrorMessage, showWarningMessage } from '../../Helper/MessageHelper';
 import { getStyles } from '../settingstyle';
 import getAdUnitId from '../../Ads/ads';
 import { useTranslation } from 'react-i18next';
@@ -93,11 +93,10 @@ const RewardedAdComponent = ({
       const secs = remainingSeconds % 60;
       const formatted = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
 
-      showMessage({
-        message: t('settings.not_eligible_for_reward'),
-        description: `Ad will be available in ${formatted}`,
-        type: 'warning',
-      });
+      showWarningMessage(
+        t('settings.not_eligible_for_reward'),
+        `Ad will be available in ${formatted}`
+      );
       return;
     }
 
@@ -105,10 +104,16 @@ const RewardedAdComponent = ({
       try {
         await rewardedAd.show();
       } catch (err) {
-        showMessage({ message: t('settings.ad_not_ready'), type: 'danger' });
+        showErrorMessage(
+          t('settings.ad_not_ready'),
+          ''
+        );
       }
     } else {
-      showMessage({ message: t('settings.ad_not_ready'), type: 'danger' });
+      showErrorMessage(
+        t('settings.ad_not_ready'),
+        ''
+      );
     }
   };
 

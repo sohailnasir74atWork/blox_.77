@@ -17,7 +17,7 @@ import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-m
 import { isUserOnline } from '../utils';
 import { useTranslation } from 'react-i18next';
 import database from '@react-native-firebase/database';
-import { showMessage } from 'react-native-flash-message';
+import { showSuccessMessage } from '../../Helper/MessageHelper';
 
 const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
   const navigation = useNavigation();
@@ -70,11 +70,7 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
             // 3. Update local state
             setChats((prevChats) => prevChats.filter((chat) => chat.chatId !== chatId));
 
-            showMessage({
-              message: t("home.alert.success"),
-              description: t("chat.chat_success_message"),
-              type: "success",
-            });
+            showSuccessMessage(t("home.alert.success"), t("chat.chat_success_message"));
           } catch (error) {
             console.error('❌ Error deleting chat:', error);
           }

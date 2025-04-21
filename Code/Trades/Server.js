@@ -11,7 +11,7 @@ import {
     orderByChild, startAt, equalTo, remove,
     set
 } from '@react-native-firebase/database';
-import { showMessage } from 'react-native-flash-message';
+import { showSuccessMessage, showErrorMessage, showWarningMessage } from '../Helper/MessageHelper';
 import config from '../Helper/Environment';
 import { useGlobalState } from '../GlobelStats';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
@@ -75,41 +75,41 @@ const ServerScreen = () => {
 
     const handleSubmit = () => {
         if (!user?.id) {
-            showMessage({ message: 'Login required to submit a server link', type: 'danger' });
+            showErrorMessage('Login required', 'Login required to submit a server link');
             return;
         }
 
         if (!link.trim()) {
-            showMessage({ message: 'Link is required', type: 'danger' });
+            showErrorMessage('Error', 'Link is required');
             return;
         }
 
         if (!message.trim()) {
-            showMessage({ message: 'Message is required', type: 'danger' });
+            showErrorMessage('Error', 'Message is required');
             return;
         }
 
         const shouldValidate = adminServer.some(server => server.validate === "true");
         if (shouldValidate && !link.startsWith('https://www.roblox.com/')) {
-            showMessage({ message: 'Your link must start with https://www.roblox.com/', type: 'danger' });
+            showErrorMessage('Error', 'Your link must start with https://www.roblox.com/');
             return;
         }
         const urlRegex = /^(https?:\/\/)([\w-]+\.)+[\w-]{2,}(\/[\w\-._~:/?#[\]@!$&'()*+,;=]*)?$/i;
 
         if (!urlRegex.test(link)) {
-          showMessage({ message: 'There must be a valid link', type: 'danger' });
+          showErrorMessage('Error', 'There must be a valid link');
           return;
         }
         
         const characterCount = message.trim().length;
         if (characterCount > 250) {
-            showMessage({ message: 'Description can only be 250 characters max.', type: 'warning' });
+            showWarningMessage('Warning', 'Description can only be 250 characters max.');
             return;
         }
 
         const parsedHours = parseInt(expiryHours);
         if (parsedHours > 24) {
-            showMessage({ message: 'Maximum expiry time is 24 hours.', type: 'danger' });
+            showErrorMessage('Error', 'Maximum expiry time is 24 hours.');
             return;
         }
 
@@ -117,7 +117,7 @@ const ServerScreen = () => {
         const expiresAt = Date.now() + hours * 60 * 60 * 1000;
 
         const callbackfunction = () => {
-            showMessage({ message: '✅ Submitted for review', type: 'success' });
+            showSuccessMessage('Success', '✅ Submitted for review');
             setLink('');
             setMessage('');
             setExpiryHours('');
@@ -145,7 +145,7 @@ const ServerScreen = () => {
                 }
             })
             .catch((error) => {
-                showMessage({ message: '❌ Submission failed', type: 'danger' });
+                showErrorMessage('Error', '❌ Submission failed');
                 console.error('Error submitting trade:', error);
             });
     };
@@ -156,7 +156,7 @@ const ServerScreen = () => {
 
     const handleVote = (serverId, type) => {
         if (!user?.id) {
-            showMessage({ message: 'Login required to vote', type: 'warning' });
+            showWarningMessage('Warning', 'Login required to vote');
             return;
         } else {
             const votePath = type === 'like' ? 'likes' : 'dislikes';
@@ -174,7 +174,7 @@ const ServerScreen = () => {
         const openLink = () => {
           Linking.openURL(trimmedUrl).catch(err => {
             console.warn('Failed to open link:', err);
-            showMessage({ message: 'Failed to open link', type: 'danger' });
+            showErrorMessage('Error', 'Failed to open link');
           });
         };
       
@@ -194,7 +194,7 @@ const ServerScreen = () => {
                 text: 'Delete',
                 onPress: () => {
                     remove(ref(appdatabase, `users_server/${serverId}`));
-                    showMessage({ message: 'Deleted successfully', type: 'success' });
+                    showSuccessMessage('Success', 'Deleted successfully');
                 }
             }
         ]);
@@ -291,7 +291,7 @@ const ServerScreen = () => {
 
                     <TouchableOpacity onPress={() => {
                         if (!user?.id) {
-                            showMessage({ id: '1', message: 'Login required to post a server link', type: 'warning' });
+                            showWarningMessage('Warning', 'Login required to post a server link');
                         } else {
                             setModalVisible(true);
                         }

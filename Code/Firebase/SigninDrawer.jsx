@@ -20,9 +20,8 @@ import { useHaptic } from '../Helper/HepticFeedBack';
 import { useGlobalState } from '../GlobelStats';
 import ConditionalKeyboardWrapper from '../Helper/keyboardAvoidingContainer';
 import { useTranslation } from 'react-i18next';
-import { showMessage } from 'react-native-flash-message';
+import { showSuccessMessage, showErrorMessage, showWarningMessage } from '../Helper/MessageHelper';
 import { mixpanel } from '../AppHelper/MixPenel';
-import { showDebouncedMessage } from '../Helper/MessageHelper';
 
 
 
@@ -54,7 +53,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     
         return appleAuth.onCredentialRevoked(async () => {
             await auth().signOut();
-            showDebouncedMessage({ message: "Session Expired", description: "Please sign in again.", type: "warning" });
+            showWarningMessage("Session Expired", "Please sign in again.");
         });
     }, []);
     
@@ -63,11 +62,10 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
         const name = robloxUsernameRef.current;
         if (!name || name.trim().length === 0) {
           setRobloxUsernameError('Roblox username is required');
-          showMessage({
-            message: t("home.alert.error"),
-            description: "Please enter your Roblox username.",
-            type: "danger",
-          });
+          showErrorMessage(
+            t("home.alert.error"),
+            "Please enter your Roblox username."
+          );
           return false;
         }
         setRobloxUsernameError('');
@@ -90,11 +88,17 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
             if (!identityToken) throw new Error(t("signin.error_apple_token"));
     
             await auth().signInWithCredential(auth.AppleAuthProvider.credential(identityToken, nonce));
-            showMessage({ message: t("home.alert.success"), description: t("signin.success_signin"), type: "success" })
+            showSuccessMessage(
+                t("home.alert.success"),
+                t("signin.success_signin")
+            );
             onClose();
             mixpanel.track(`Login with apple from ${screen}`);
         } catch (error) {
-            showMessage({ message: t("home.alert.error"), description: error?.message || t("signin.error_signin_message"), type: "danger" });
+            showErrorMessage(
+                t("home.alert.error"),
+                error?.message || t("signin.error_signin_message")
+            );
         }
     }, [t, triggerHapticFeedback, onClose]);
     
@@ -107,11 +111,10 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     
         if (!email || !password) {
             // Alert.alert(t("home.alert.error"), t("signin.error_input_message"));
-            showMessage({
-                message: t("home.alert.error"),
-                description:t("signin.error_input_message"),
-                type: "danger",
-              });
+            showErrorMessage(
+                t("home.alert.error"),
+                t("signin.error_input_message")
+            );
             return;
         }
     
@@ -119,11 +122,10 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     
         if (!isValidEmail(email)) {
             // Alert.alert(t("home.alert.error"), t("signin.error_input_message"));
-            showMessage({
-                message: t("home.alert.error"),
-                description:t("signin.error_input_message"),
-                type: "danger",
-              });
+            showErrorMessage(
+                t("home.alert.error"),
+                t("signin.error_input_message")
+            );
             return;
         }
     
@@ -137,11 +139,10 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                 // Alert.alert(t("signin.alert_success"), t("signin.alert_account_created"));
                 mixpanel.track(`Login with email from ${screen}`);
 
-                showMessage({
-                    message: t("home.alert.success"),
-                    description:t("signin.alert_account_created"),
-                    type: "success",
-                  });
+                showSuccessMessage(
+                    t("home.alert.success"),
+                    t("signin.alert_account_created")
+                );
                   onClose(); // Close modal after successful operation
 
             } else {
@@ -151,11 +152,10 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                 onClose(); // Close modal after successful operation
 
                 // Alert.alert(t("signin.alert_welcome_back"), t("signin.success_signin"));
-                showMessage({
-                    message: t("signin.alert_welcome_back"),
-                    description:t("signin.success_signin"),
-                    type: "success",
-                  });
+                showSuccessMessage(
+                    t("signin.alert_welcome_back"),
+                    t("signin.success_signin")
+                );
             }
     
         } catch (error) {
@@ -178,11 +178,10 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
             }
     
             // Alert.alert(t("signin.error_signin_message"), errorMessage);
-            showMessage({
-                message: t("signin.error_signin_message"),
-                description:errorMessage,
-                type: "danger",
-              });
+            showErrorMessage(
+                t("signin.error_signin_message"),
+                errorMessage
+            );
         } finally {
             setIsLoadingSecondary(false); // Hide loading indicator
         }
@@ -198,12 +197,18 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
             if (!idToken) throw new Error(t("signin.error_signin_message"));
     
             await auth().signInWithCredential(auth.GoogleAuthProvider.credential(idToken));
-            showMessage({ message: t("signin.alert_welcome_back"), description: t("signin.success_signin"), type: "success" });
+            showSuccessMessage(
+                t("signin.alert_welcome_back"),
+                t("signin.success_signin")
+            );
             onClose()
             mixpanel.track(`Login with google from ${screen}`);
 
         } catch (error) {
-            showMessage({ message: t("home.alert.error"), description: error?.message || t("signin.error_signin_message"), type: "danger" });
+            showErrorMessage(
+                t("home.alert.error"),
+                error?.message || t("signin.error_signin_message")
+            );
         } finally {
             setIsLoading(false);
         }

@@ -7,7 +7,7 @@ import { useLocalState } from '../LocalGlobelStats';
 import SubscriptionScreen from './OfferWall';
 import { get, push, ref, set } from '@react-native-firebase/database';
 import { GestureHandlerRootView, TextInput } from 'react-native-gesture-handler';
-import { showMessage } from 'react-native-flash-message';
+import { showSuccessMessage, showErrorMessage, showWarningMessage } from '../Helper/MessageHelper';
 import RewardedAdComponent from './RewardScreens/RewardedAd';
 import UserProfileSection from './RewardScreens/RewardProfile';
 import PointsSlotsSection from './RewardScreens/RewardPointSlot';
@@ -188,7 +188,7 @@ const RewardCenterScreen = ({ selectedTheme }) => {
 
     const handleBuySlot = async () => {
         if (!user || !user.id) {
-            showMessage({ message: "Error", description: "You must be logged in to participate!", type: "danger" });
+            showErrorMessage("Error", "You must be logged in to participate!");
             return;
         }
 
@@ -203,11 +203,7 @@ const RewardCenterScreen = ({ selectedTheme }) => {
             const currentPoints = pointsSnapshot.exists() ? pointsSnapshot.val() : 0;
 
             if (currentPoints < 2500) {
-                showMessage({
-                    message: "Insufficient Points",
-                    description: "You need at least 2500 reward points to buy a slot.",
-                    type: "danger",
-                });
+                showErrorMessage("Warning", "You need at least 2500 reward points to buy a slot.");
                 setIsLoading(false); // 🛑 Stop loading
                 return;
             }
@@ -217,22 +213,14 @@ const RewardCenterScreen = ({ selectedTheme }) => {
             const currentSlotCount = slotSnapshot.exists() ? Object.keys(slotSnapshot.val()).length : 0;
 
             if (currentSlotCount >= 2) {
-                showMessage({
-                    message: "Max Slot Limit Reached",
-                    description: "You cannot have more than 2 slots for this prize!",
-                    type: "warning",
-                });
+                showWarningMessage("Warning", "You cannot have more than 2 slots for this prize!");
                 setIsLoading(false); // 🛑 Stop loading
                 setShowEnrollOptions(false);
                 return;
             }
 
             if (user.isPro) {
-                showMessage({
-                    message: "Pro Members Auto-Enrolled",
-                    description: "Pro users already have 2 slots allocated and cannot purchase more.",
-                    type: "warning",
-                });
+                showWarningMessage("Warning", "Pro members already have 2 slots allocated and cannot purchase more.");
                 setIsLoading(false); // 🛑 Stop loading
                 setShowEnrollOptions(false);
                 return;
@@ -256,16 +244,12 @@ const RewardCenterScreen = ({ selectedTheme }) => {
             setUserPoints(newPoints);
             setActiveSlots(updatedSlotCount);
 
-            showMessage({
-                message: "Success",
-                description: "You have successfully enrolled in this draw!",
-                type: "success",
-            });
+            showSuccessMessage("Success", "You have successfully enrolled in this draw!");
 
             setShowEnrollOptions(false);
         } catch (error) {
-            console.error("Error enrolling user:", error);
-            showMessage({ message: "Error", description: "Something went wrong!", type: "danger" });
+            console.error("Error buying slot:", error);
+            showErrorMessage("Error", "Something went wrong!");
 
             // 🔴 Rollback points in UI if something goes wrong
             const latestPoints = await get(userRef);
@@ -308,15 +292,11 @@ const RewardCenterScreen = ({ selectedTheme }) => {
 
     const handleEnrole = () => {
         if (!user || !user.id) {
-            showMessage({ message: "Error", description: "You must be logged in to participate!", type: "danger" });
+            showErrorMessage("Error", "You must be logged in to participate!");
             return;
         }
         if (!user.isPro && activeSlots === 2) {
-            showMessage({
-                message: "Max Slot Limit Reached",
-                description: "You cannot have more than 2 slots for this prize!",
-                type: "warning",
-            });
+            showWarningMessage("Warning", "You cannot have more than 2 slots for this prize!");
             return
         }
 
@@ -324,22 +304,13 @@ const RewardCenterScreen = ({ selectedTheme }) => {
         if (!user.isPro) {
             setShowEnrollOptions(true);
         } else {
-            showMessage({
-                message: "Max Slot Limit Reached",
-                description: "You cannot have more than 2 slots for this prize!",
-                type: "warning",
-            });
+            showWarningMessage("Warning", "You cannot have more than 2 slots for this prize!");
         }
     };
 
     const handleSubmitWinner = async () => {
         if (!winnerName || !winnerId || !winnerPrize || !winnerDate) {
-            // alert("All fields are required!");
-            showMessage({
-                message: 'Error',
-                description: 'All fileds are required',
-                type: "danger",
-            });
+            showErrorMessage("Error", "Please fill in all fields!");
             return;
         }
 
@@ -359,12 +330,7 @@ const RewardCenterScreen = ({ selectedTheme }) => {
 
             });
 
-            // alert("Winner submitted successfully!");
-            showMessage({
-                message: 'Success',
-                description: 'Winner submitted successfully!',
-                type: "success",
-            });
+            showSuccessMessage("Success", "Winner submitted successfully!");
             setIsAdminModalVisible(false);
             setWinnerName('');
             setWinnerId('');
@@ -372,12 +338,7 @@ const RewardCenterScreen = ({ selectedTheme }) => {
             setWinnerDate(new Date().toISOString().split('T')[0]);
         } catch (error) {
             console.error("Error submitting winner:", error);
-            // alert("Something went wrong!");
-            showMessage({
-                message: 'Error',
-                description: '"Something went wrong!',
-                type: "danger",
-            });
+            showErrorMessage("Error", "Something went wrong!");
         }
     };
 
@@ -387,11 +348,7 @@ const RewardCenterScreen = ({ selectedTheme }) => {
 
     const handleSubmitPrize = async () => {
         if (!nextTargetDate || !prizeName || !prizeValue || !prizeImage) {
-            showMessage({
-                message: 'Error',
-                description: 'All fields are required!',
-                type: "danger",
-            });
+            showErrorMessage("Error", "Please fill in all fields!");
             return;
         }
 
@@ -405,11 +362,7 @@ const RewardCenterScreen = ({ selectedTheme }) => {
                 targetDate: nextTargetDate,
             });
 
-            showMessage({
-                message: 'Success',
-                description: 'Prize and Target Date Updated!',
-                type: "success",
-            });
+            showSuccessMessage("Success", "Prize and Target Date Updated!");
 
             setIsAdminPrizeModalVisible(false);
             setPrizeName('');
@@ -418,11 +371,7 @@ const RewardCenterScreen = ({ selectedTheme }) => {
             setNextTargetDate(new Date().toISOString().split('T')[0]);
 
         } catch (error) {
-            showMessage({
-                message: 'Error',
-                description: 'Something went wrong!',
-                type: "danger",
-            });
+            showErrorMessage("Error", "Something went wrong!");
         }
     };
 
@@ -436,20 +385,12 @@ const RewardCenterScreen = ({ selectedTheme }) => {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; // Basic email validation regex
 
         if (!email || !robloxId) {
-            showMessage({
-                message: 'Error',
-                description: 'Please fill all fields!',
-                type: "danger",
-            });
+            showErrorMessage("Error", "Please fill in all fields!");
             return;
         }
 
         if (!emailRegex.test(email)) {
-            showMessage({
-                message: 'Invalid Email',
-                description: 'Please enter a valid email address!',
-                type: "danger",
-            });
+            showErrorMessage("Invalid Email", "Please enter a valid email address!");
             return;
         }
 
@@ -463,11 +404,7 @@ const RewardCenterScreen = ({ selectedTheme }) => {
             });
 
             // Show success message
-            showMessage({
-                message: 'Success',
-                description: 'Your reward claim has been submitted!',
-                type: "success",
-            });
+            showSuccessMessage("Success", "Your reward claim has been submitted!");
 
             // ✅ Close modal and clear fields
             setIsClaimModalVisible(false);
@@ -478,11 +415,7 @@ const RewardCenterScreen = ({ selectedTheme }) => {
             setHasClaimed(true);
 
         } catch (error) {
-            showMessage({
-                message: 'Error',
-                description: 'Something went wrong!',
-                type: "danger",
-            });
+            showErrorMessage("Error", "Something went wrong!");
         }
     };
 

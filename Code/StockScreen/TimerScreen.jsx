@@ -13,8 +13,7 @@ import { useLocalState } from '../LocalGlobelStats';
 import { requestPermission } from '../Helper/PermissionCheck';
 import { useIsFocused } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import  { showMessage } from 'react-native-flash-message';
-// import MyNativeAdComponent from '../Ads/NativAds';
+import { showSuccessMessage, showWarningMessage } from '../Helper/MessageHelper';
 import { mixpanel } from '../AppHelper/MixPenel';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
@@ -105,11 +104,7 @@ const TimerScreen = ({ selectedTheme }) => {
 
     // ✅ Prevent duplicate selection
     if (isAlreadySelected) {
-      showMessage({
-        message: t("settings.notice"),
-        description: t("stock.already_selected"),
-        type: "warning",
-      });
+      showWarningMessage(t("settings.notice"), t("stock.already_selected"));
       return;
     }
 
@@ -127,11 +122,7 @@ const TimerScreen = ({ selectedTheme }) => {
     const updatedFruits = [...selectedFruits, fruit];
     await updateLocalStateAndDatabase('selectedFruits', updatedFruits);
 
-    showMessage({
-      message: t("home.alert.success"),
-      description: t("stock.fruit_selected"),
-      type: "success",
-    });
+    showSuccessMessage(t("home.alert.success"), t("stock.fruit_selected"));
 
     // ✅ Ensure drawer closes after updates
     setTimeout(() => {

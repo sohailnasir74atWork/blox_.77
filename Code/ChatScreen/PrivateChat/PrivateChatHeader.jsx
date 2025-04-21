@@ -6,7 +6,7 @@ import { useGlobalState } from '../../GlobelStats';
 import { useLocalState } from '../../LocalGlobelStats';
 import { useTranslation } from 'react-i18next';
 import { isUserOnline } from '../utils';
-import { showMessage } from 'react-native-flash-message';
+import { showSuccessMessage } from '../../Helper/MessageHelper';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import { mixpanel } from '../../AppHelper/MixPenel';
@@ -20,14 +20,8 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
   const copyToClipboard = (code) => {
     triggerHapticFeedback('impactLight');
     Clipboard.setString(code); // Copies the code to the clipboard
-    showMessage({
-      message:t("value.copy"),
-      description:"Copied to Clipboard",
-      type: "success",
-    });
-    // Alert.alert(t("value.copy"), t("value.copy_success"));
+    showSuccessMessage(t("value.copy"), "Copied to Clipboard");
     mixpanel.track("Code UserName", {UserName:code});
-
   };
 
   const avatarUri = selectedUser?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png';

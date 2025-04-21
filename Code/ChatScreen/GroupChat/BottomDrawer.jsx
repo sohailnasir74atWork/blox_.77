@@ -15,7 +15,7 @@ import { getStyles } from '../../SettingScreen/settingstyle';
 import { useLocalState } from '../../LocalGlobelStats';
 import { Alert } from 'react-native';  // ✅ Ensure Alert is imported
 import { useTranslation } from 'react-i18next';
-import { showMessage } from 'react-native-flash-message';
+import { showSuccessMessage } from '../../Helper/MessageHelper';
 import { mixpanel } from '../../AppHelper/MixPenel';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useHaptic } from '../../Helper/HepticFeedBack';
@@ -47,12 +47,7 @@ const ProfileBottomDrawer = ({ isVisible, toggleModal, startChat, selectedUser,
   const copyToClipboard = (code) => {
     triggerHapticFeedback('impactLight');
     Clipboard.setString(code); // Copies the code to the clipboard
-    showMessage({
-      message:t("value.copy"),
-      description:"Copied to Clipboard",
-      type: "success",
-    });
-    // Alert.alert(t("value.copy"), t("value.copy_success"));
+    showSuccessMessage(t("value.copy"), "Copied to Clipboard");
     mixpanel.track("Code UserName", {UserName:code});
   };
   const handleBanToggle = async () => {
@@ -83,18 +78,10 @@ const ProfileBottomDrawer = ({ isVisible, toggleModal, startChat, selectedUser,
 
               // ✅ Wait a bit before showing the confirmation (Fix MMKV Delay)
               setTimeout(() => {
-                // Alert.alert(
-                //   t("chat.success"),
-                //   isBlock
-                //     ? `${userName} ${t("chat.user_unblocked")}`
-                //     : `${userName} ${t("chat.user_blocked")}`,
-                //   [{ text: t("chat.ok") }]
-                // );
-                showMessage({
-                  message: t("home.alert.success"),
-                  description: isBlock ? `${userName} ${t("chat.user_unblocked")}` : `${userName} ${t("chat.user_blocked")}`,
-                  type: "success",
-                });
+                showSuccessMessage(
+                  t("home.alert.success"),
+                  isBlock ? `${userName} ${t("chat.user_unblocked")}` : `${userName} ${t("chat.user_blocked")}`
+                );
               }, 100); // Small delay to ensure UI updates correctly
             } catch (error) {
               console.error('❌ Error toggling ban status:', error);
