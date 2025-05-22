@@ -171,7 +171,9 @@ const ServerScreen = () => {
     const handleLinkPress = (url) => {
         // console.log(url)
         const trimmedUrl = url?.trim();
+        mixpanel.track("Server Open");
         const openLink = () => {
+        // mixpanel.track("Server Open");
           Linking.openURL(trimmedUrl).catch(err => {
             console.warn('Failed to open link:', err);
             showErrorMessage('Error', 'Failed to open link');
@@ -182,7 +184,7 @@ const ServerScreen = () => {
           InterstitialAdManager.showAd(openLink);
         } else {
           openLink();
-          mixpanel.track("Server Open");
+        //   mixpanel.track("Server Open");
         }
       };
       

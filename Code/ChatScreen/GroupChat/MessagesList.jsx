@@ -107,7 +107,7 @@ const MessagesList = ({
         translated = translated.replace(new RegExp(placeholder, 'g'), word);
       });
       mixpanel.track("Translation", { lang: targetLang });
-
+// console.log('translated', translated)
 
       return translated;
     } catch (err) {

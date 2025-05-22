@@ -1,5 +1,5 @@
 import React, {  useMemo, useRef, useState } from 'react';
-import { View, Text, Image, Modal, TouchableOpacity, Switch, StyleSheet, Alert } from 'react-native';
+import { View, Text, Image, Modal, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import Share from 'react-native-share';
@@ -13,7 +13,7 @@ import InterstitialAdManager from '../Ads/IntAd';
 const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const viewRef = useRef();
 
-    // ✅ Add state for switches
+    // ✅ Add state for badges
     const [includeProfitLoss, setIncludeProfitLoss] = useState(true);
     const [includeHasWants, setIncludeHasWants] = useState(true);
     const [includeDescription, setIncludeDescription] = useState(true);
@@ -21,19 +21,13 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const [includePrice, setIncludePrice] = useState(true);
     const [includePercentage, setIncludePercentage] = useState(true);
     const [includeAppTag, setIncludeAppTag] = useState(true);
+    const [showLeftGrid, setShowLeftGrid] = useState(true);
+    const [showRightGrid, setShowRightGrid] = useState(true);
     const {theme} = useGlobalState()
     const isDarkMode = theme === 'dark'
     const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
     const {localState} = useLocalState()
     const [showofferwall, setShowofferwall] = useState(false);
-
-
-
-
-   
-      
-    
-
 
     if (!tradeData) return null;
     // console.log(tradeData)
@@ -47,11 +41,9 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
 
     const formatName = (name) => name.replace(/\s+/g, '-');
 
-
     const callbackfunction = () => {
        handleShare()
       };
-
 
     const sharewithAds = ()=>{
        if(!localState.isPro)
@@ -68,8 +60,6 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                 quality: 0.8,
                 result: 'tmpfile',
             });
-
-
 
             await Share.open({
                 url: `file://${uri}`,
@@ -117,7 +107,23 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
         setIncludeAppTag(!includeAppTag); // Assuming this is what you intended
       };
       
-
+    const Badge = ({ label, icon, isSelected, onPress }) => (
+        <TouchableOpacity
+            style={[
+                styles.badge,
+                isSelected ? styles.badgeSelected : styles.badgeUnselected
+            ]}
+            onPress={onPress}
+        >
+            <Icon name={icon} size={12} color={isSelected ? '#fff' : '#666'} style={styles.badgeIcon} />
+            <Text style={[
+                styles.badgeText,
+                isSelected ? styles.badgeTextSelected : styles.badgeTextUnselected
+            ]}>
+                {label}
+            </Text>
+        </TouchableOpacity>
+    );
 
     return (
         <Modal transparent visible={visible} animationType="slide">
@@ -129,61 +135,67 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                         {includeHasWants && (
                             <View style={styles.tradeDetails}>
                                 {/* Has Items */}
-                                <View style={styles.gridContainer}>
-                                    {hasItemsChunks.map((row, rowIndex) => (
-                                        <View key={rowIndex} style={styles.row}>
-                                            {row.map((item, index) => (
-                                                <View key={`${item.name}-${item.type}-${index}`} style={styles.gridItem}>
-                                                    <View style={item.name !== '' && styles.top}>
-                                                        <Text style={styles.itemText}>
-                                                        {item.name !== '' ? (item.value === 0 || item.value === "N/A" ? 'Special' : item.value) : ''}
-                                                        </Text></View>
-                                                    <Image
-                                                        source={{
-                                                            uri: item.type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.name)}_Icon.webp`,
-                                                        }}
-                                                        style={styles.itemImage}
-                                                    />
-                                                    <View style={item.name !== '' && styles.bottom}>
-                                                        <Text style={styles.itemText}>
-                                                            {item.name} {item.type === 'p' && '(P)'}
-                                                        </Text></View>
-                                                </View>
-                                            ))}
-                                        </View>
-                                    ))}
-                                </View>
+                                {showLeftGrid && (
+                                    <View style={[styles.gridContainer, !showRightGrid && styles.fullWidthGrid]}>
+                                        {hasItemsChunks.map((row, rowIndex) => (
+                                            <View key={rowIndex} style={styles.row}>
+                                                {row.map((item, index) => (
+                                                    <View key={`${item.name}-${item.type}-${index}`} style={styles.gridItem}>
+                                                        <View style={item.name !== '' && styles.top}>
+                                                            <Text style={styles.itemText}>
+                                                            {item.name !== '' ? (item.value === 0 || item.value === "N/A" ? 'Special' : item.value) : ''}
+                                                            </Text></View>
+                                                        <Image
+                                                            source={{
+                                                                uri: item.type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.name)}_Icon.webp`,
+                                                            }}
+                                                            style={styles.itemImage}
+                                                        />
+                                                        <View style={item.name !== '' && styles.bottom}>
+                                                            <Text style={styles.itemText}>
+                                                                {item.name} {item.type === 'p' && '(P)'}
+                                                            </Text></View>
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
 
                                 {/* Transfer Icon */}
-                                <View style={styles.transfer}>
-                                    <Image source={require('../../assets/transfer.png')} style={styles.transferImage} />
-                                </View>
+                                {showLeftGrid && showRightGrid && (
+                                    <View style={styles.transfer}>
+                                        <Image source={require('../../assets/transfer.png')} style={styles.transferImage} />
+                                    </View>
+                                )}
 
                                 {/* Wants Items */}
-                                <View style={styles.gridContainer}>
-                                    { wantItemsChunk.map((row, rowIndex) => (
-                                        <View key={rowIndex} style={styles.row}>
-                                            {row.map((item, index) => (
-                                                <View key={`${item.name}-${item.type}-${index}`} style={styles.gridItem}>
-                                                    <View style={item.name !== '' && styles.top}>
-                                                        <Text style={styles.itemText}>
-                                                        {item.name !== '' ? (item.value === 0 || item.value === "N/A" ? 'Special' : item.value) : ''}
-                                                        </Text></View>
-                                                    <Image
-                                                        source={{
-                                                            uri: item.type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.name)}_Icon.webp`,
-                                                        }}
-                                                        style={styles.itemImage}
-                                                    />
-                                                    <View style={item.name !== '' && styles.bottom}>
-                                                        <Text style={styles.itemText}>
-                                                            {item.name} {item.type === 'p' && '(P)'}
-                                                        </Text></View>
-                                                </View>
-                                            ))}
-                                        </View>
-                                    ))}
-                                </View>
+                                {showRightGrid && (
+                                    <View style={[styles.gridContainer, !showLeftGrid && styles.fullWidthGrid]}>
+                                        {wantItemsChunk.map((row, rowIndex) => (
+                                            <View key={rowIndex} style={styles.row}>
+                                                {row.map((item, index) => (
+                                                    <View key={`${item.name}-${item.type}-${index}`} style={styles.gridItem}>
+                                                        <View style={item.name !== '' && styles.top}>
+                                                            <Text style={styles.itemText}>
+                                                            {item.name !== '' ? (item.value === 0 || item.value === "N/A" ? 'Special' : item.value) : ''}
+                                                            </Text></View>
+                                                        <Image
+                                                            source={{
+                                                                uri: item.type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.name)}_Icon.webp`,
+                                                            }}
+                                                            style={styles.itemImage}
+                                                        />
+                                                        <View style={item.name !== '' && styles.bottom}>
+                                                            <Text style={styles.itemText}>
+                                                                {item.name} {item.type === 'p' && '(P)'}
+                                                            </Text></View>
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
                             </View>
                         )}
                          
@@ -191,29 +203,35 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                         {/* Profit/Loss (Optional) */}
                         {includeProfitLoss && (
                             <View style={styles.tradeTotals}>
-                                <View style={styles.hasBackground}>
-                                    <Text style={[styles.priceText]}>Has</Text>
-                                    {includeValue && <Text style={[styles.priceText, { borderTopWidth: 1, borderTopColor: 'lightgrey' }]}>Value: {hasTotal.value.toLocaleString()}</Text>}
-                                    {includePrice && <Text style={[styles.priceText]}>Price: {hasTotal.price.toLocaleString()}</Text>}
-                                </View>
-                                <View style={styles.wantBackground}>
-                                    <Text style={[styles.priceText]}>Want</Text>
-                                    {includeValue && <Text style={[styles.priceText, { borderTopWidth: 1, borderTopColor: 'lightgrey' }]}>Value: {wantsTotal.value.toLocaleString()}</Text>}
-                                    {includePrice && <Text style={[styles.priceText]}>Price: {wantsTotal.price.toLocaleString()}</Text>}
-                                </View>
+                                {showLeftGrid && (
+                                    <View style={[styles.hasBackground, !showRightGrid && styles.fullWidthSummary]}>
+                                        <Text style={[styles.priceText]}>Has</Text>
+                                        {includeValue && <Text style={[styles.priceText, { borderTopWidth: 1, borderTopColor: 'lightgrey' }]}>Value: {hasTotal.value.toLocaleString()}</Text>}
+                                        {includePrice && <Text style={[styles.priceText]}>Price: {hasTotal.price.toLocaleString()}</Text>}
+                                    </View>
+                                )}
+                                {showRightGrid && (
+                                    <View style={[styles.wantBackground, !showLeftGrid && styles.fullWidthSummary]}>
+                                        <Text style={[styles.priceText]}>Want</Text>
+                                        {includeValue && <Text style={[styles.priceText, { borderTopWidth: 1, borderTopColor: 'lightgrey' }]}>Value: {wantsTotal.value.toLocaleString()}</Text>}
+                                        {includePrice && <Text style={[styles.priceText]}>Price: {wantsTotal.price.toLocaleString()}</Text>}
+                                    </View>
+                                )}
                             </View>
                         )}
- {includePercentage && <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%', paddingVertical:10 }}>
-                                    <Text style={[styles.priceTextProfit, { color: !isProfit ? 'green' : 'red' }]}>
-                                        {!isProfit ? 'Profit :' : 'Loss :'} {tradePercentage}%{!neutral && (
-                                            <Icon
-                                                name={isProfit ? 'arrow-down-outline' : 'arrow-up-outline'}
-                                                size={12}
-                                                color={isProfit ? 'red' : 'green'}
-                                            />
-                                        )}
-                                    </Text>
-                                </View>}
+                        {includePercentage && showLeftGrid && showRightGrid && (
+                            <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%', paddingVertical:10 }}>
+                                <Text style={[styles.priceTextProfit, { color: !isProfit ? 'green' : 'red' }]}>
+                                    {!isProfit ? 'Profit :' : 'Loss :'} {tradePercentage}%{!neutral && (
+                                        <Icon
+                                            name={isProfit ? 'arrow-down-outline' : 'arrow-up-outline'}
+                                            size={12}
+                                            color={isProfit ? 'red' : 'green'}
+                                        />
+                                    )}
+                                </Text>
+                            </View>
+                        )}
                         {/* Description (Optional) */}
                         {includeDescription && description && <Text style={styles.description}>Note: {description}</Text>}
 
@@ -229,48 +247,69 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
 
                         }
                     </ViewShot>
-                    {/* ✅ Switches Section */}
-                    <View style={styles.switchContainer}>
-                        <View style={styles.switchRow}>
-                            <Text style={styles.switchLabel}>Include %Age</Text>
-                            <Switch
-                                value={includePercentage}
-                                onValueChange={setIncludePercentage}
+
+                    {/* ✅ Badges Section */}
+                    <View style={styles.badgesContainer}>
+                        <View style={styles.badgesWrapper}>
+                            <Badge
+                                label="Left Grid"
+                                icon="grid"
+                                isSelected={showLeftGrid}
+                                onPress={() => {
+                                    if (!showLeftGrid && !showRightGrid) {
+                                        setShowLeftGrid(true);
+                                    } else {
+                                        setShowLeftGrid(!showLeftGrid);
+                                    }
+                                }}
                             />
-                        </View>
-                        <View style={styles.switchRow}>
-                            <Text style={styles.switchLabel}>Include Values</Text>
-                            <Switch
-                                value={includeValue}
-                                onValueChange={setIncludeValue}
+                            <Badge
+                                label="Right Grid"
+                                icon="grid"
+                                isSelected={showRightGrid}
+                                onPress={() => {
+                                    if (!showLeftGrid && !showRightGrid) {
+                                        setShowRightGrid(true);
+                                    } else {
+                                        setShowRightGrid(!showRightGrid);
+                                    }
+                                }}
                             />
-                        </View>
-                        <View style={styles.switchRow}>
-                            <Text style={styles.switchLabel}>Include Prices</Text>
-                            <Switch
-                                value={includePrice}
-                                onValueChange={setIncludePrice}
+                            <Badge
+                                label="Percentage"
+                                icon="trending-up"
+                                isSelected={includePercentage}
+                                onPress={() => setIncludePercentage(!includePercentage)}
                             />
-                        </View>
-                        <View style={styles.switchRow}>
-                            <Text style={styles.switchLabel}>Include Profit/Loss</Text>
-                            <Switch
-                                value={includeProfitLoss}
-                                onValueChange={setIncludeProfitLoss}
+                            <Badge
+                                label="Values"
+                                icon="analytics"
+                                isSelected={includeValue}
+                                onPress={() => setIncludeValue(!includeValue)}
                             />
-                        </View>
-                        <View style={styles.switchRow}>
-                            <Text style={styles.switchLabel}>Include Description</Text>
-                            <Switch
-                                value={includeDescription}
-                                onValueChange={setIncludeDescription}
+                            <Badge
+                                label="Prices"
+                                icon="pricetag"
+                                isSelected={includePrice}
+                                onPress={() => setIncludePrice(!includePrice)}
                             />
-                        </View>
-                        <View style={styles.switchRow}>
-                            <Text style={styles.switchLabel}>Remove Attributes</Text>
-                            <Switch
-                                value={includeAppTag}
-                                onValueChange={handleRemoveAttribute}
+                            <Badge
+                                label="Description"
+                                icon="create"
+                                isSelected={includeDescription}
+                                onPress={() => setIncludeDescription(!includeDescription)}
+                            />
+                            <Badge
+                                label="Items"
+                                icon="list"
+                                isSelected={includeHasWants}
+                                onPress={() => setIncludeHasWants(!includeHasWants)}
+                            />
+                            <Badge
+                                label="App Tag"
+                                icon="information-circle"
+                                isSelected={includeAppTag}
+                                onPress={handleRemoveAttribute}
                             />
                         </View>
                     </View>
@@ -281,12 +320,13 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                             <Text style={styles.cancelText}>Cancel</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.shareButton} onPress={sharewithAds}>
-                            <Text style={styles.cancelText}>Share</Text>
+                            <Icon name="share-social" size={20} color="#fff" />
+                            <Text style={styles.shareButtonText}>Share</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
             </View>
-            <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} track='Share'/>
+            {showofferwall && <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} />}
         </Modal>
     );
 };
@@ -341,28 +381,40 @@ StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         width: '100%',
-        padding: 5,
-
+        padding: 10,
+        marginTop: 10,
     },
     cancelButton: {
         backgroundColor: config.colors.wantBlockRed,
         paddingVertical: 10,
         paddingHorizontal: 20,
         borderRadius: 8,
-        width: '48%'
+        width: '48%',
+        alignItems: 'center',
     },
     shareButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
         backgroundColor: config.colors.hasBlockGreen,
-        paddingVertical: 10,
+        paddingVertical: 8,
         paddingHorizontal: 20,
         borderRadius: 8,
-        width: '48%'
-
+        width: '48%',
+    },
+    shareButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
+        marginLeft: 8,
     },
     gridContainer: {
         width: '49%',
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    fullWidthGrid: {
+        width: '100%',
     },
     row: {
         flexDirection: 'row',
@@ -464,7 +516,51 @@ StyleSheet.create({
         height: 40,
         resizeMode: 'contain',
     },
-
+    badgesContainer: {
+        marginTop: 15,
+        marginBottom: 10,
+        width: '100%',
+        paddingHorizontal: 10,
+    },
+    badgesWrapper: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    badge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 20,
+        // borderWidth: 1,
+        borderColor: '#ddd',
+        // minWidth: 100,
+    },
+    badgeSelected: {
+        backgroundColor: config.colors.hasBlockGreen,
+        // borderColor: config.colors.hasBlockGreen,
+    },
+    badgeUnselected: {
+        backgroundColor: isDarkMode ? '#2C2C2E' : '#F2F2F7',
+    },
+    badgeIcon: {
+        marginRight: 6,
+    },
+    badgeText: {
+        fontSize: 10,
+        fontWeight: '500',
+    },
+    badgeTextSelected: {
+        color: '#fff',
+    },
+    badgeTextUnselected: {
+        color: isDarkMode ? '#fff' : '#000',
+    },
+    fullWidthSummary: {
+        width: '100%',
+    },
 });
 
 export default ShareTradeModal;

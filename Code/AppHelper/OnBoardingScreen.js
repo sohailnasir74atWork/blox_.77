@@ -167,7 +167,7 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
           </TouchableOpacity>
           {screenIndex === 1 && !user?.id && (
             <TouchableOpacity style={styles.buttonOutline} onPress={handleGuest}>
-              <Text style={styles.buttonTextOutline}>{t("first.guest_user")}</Text>
+              <Text style={styles.buttonTextOutline}>Continue as Guest</Text>
             </TouchableOpacity>
           )}
         </View>}

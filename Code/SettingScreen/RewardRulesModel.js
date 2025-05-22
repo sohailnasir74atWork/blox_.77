@@ -31,7 +31,7 @@ const RewardRulesModal = ({ visible, onClose }) => {
               3. <Text style={styles.highlightedText}>Pro users</Text> are auto-entered—no action needed.{"\n\n"}
               4. <Text style={styles.highlightedText}>Free users</Text> earn entries via rewarded ads.{"\n\n"}
               5. <Text style={styles.highlightedText}>The top leaderboard player at month-end gets</Text> prize as well.{"\n\n"}
-              6. Rewards include <Text style={styles.highlightedText}>Robux or Fruits</Text>.{"\n\n"}
+              6. Rewards include <Text style={styles.highlightedText}>Robux, Fruits or Free Pro Subscription</Text>.{"\n\n"}
               7. Winners are chosen randomly—<Text style={styles.highlightedText}>no disputes</Text>.{"\n\n"}
               8. Claim rewards within <Text style={styles.highlightedText}>5 days</Text> of the announcement.{"\n\n"}
               9. Cheating =<Text style={styles.highlightedText}>Disqualification.</Text>

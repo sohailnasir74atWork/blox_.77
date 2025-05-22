@@ -100,66 +100,66 @@ const ValueScreen = ({ selectedTheme }) => {
     mixpanel.track("Code Drawer Open");
   }
 
-  const updateFruitData = () => {
-    if (!selectedFruit || !selectedFruit.Name) {
-      console.error("❌ No fruit selected for update or missing Name property");
-      return;
-    }
+  // const updateFruitData = () => {
+  //   if (!selectedFruit || !selectedFruit.Name) {
+  //     console.error("❌ No fruit selected for update or missing Name property");
+  //     return;
+  //   }
 
-    let localData = localState.data;
+  //   let localData = localState.data;
 
-    // Ensure localState.data is parsed correctly if it's a string
-    if (typeof localData === "string") {
-      try {
-        localData = JSON.parse(localData);
-      } catch (error) {
-        console.error("❌ Failed to parse localState.data as JSON", error, localData);
-        return;
-      }
-    }
+  //   // Ensure localState.data is parsed correctly if it's a string
+  //   if (typeof localData === "string") {
+  //     try {
+  //       localData = JSON.parse(localData);
+  //     } catch (error) {
+  //       console.error("❌ Failed to parse localState.data as JSON", error, localData);
+  //       return;
+  //     }
+  //   }
 
-    // Check again to ensure it's a valid object
-    if (!localData || typeof localData !== "object" || Array.isArray(localData)) {
-      console.error("❌ localState.data is missing or not a valid object", localData);
-      return;
-    }
+  //   // Check again to ensure it's a valid object
+  //   if (!localData || typeof localData !== "object" || Array.isArray(localData)) {
+  //     console.error("❌ localState.data is missing or not a valid object", localData);
+  //     return;
+  //   }
 
-    // Find the correct record key (case-insensitive match)
-    const recordKey = Object.keys(localData).find(key => {
-      const record = localData[key];
+  //   // Find the correct record key (case-insensitive match)
+  //   const recordKey = Object.keys(localData).find(key => {
+  //     const record = localData[key];
 
-      if (!record || !record.Name) {
-        console.warn(`⚠️ Skipping record ${key} due to missing Name field`, record);
-        return false;
-      }
+  //     if (!record || !record.Name) {
+  //       console.warn(`⚠️ Skipping record ${key} due to missing Name field`, record);
+  //       return false;
+  //     }
 
-      return record.Name.trim().toLowerCase() === selectedFruit.Name.trim().toLowerCase();
-    });
+  //     return record.Name.trim().toLowerCase() === selectedFruit.Name.trim().toLowerCase();
+  //   });
 
-    if (!recordKey) {
-      console.error(`❌ Error: Record key not found for ${selectedFruit.Name}`);
-      return;
-    }
+  //   if (!recordKey) {
+  //     console.error(`❌ Error: Record key not found for ${selectedFruit.Name}`);
+  //     return;
+  //   }
 
-    // Ensure values are valid before updating
-    const updatedValues = {
-      Value: isNaN(Number(editValuesRef.current.Value)) ? 0 : Number(editValuesRef.current.Value),
-      Permanent: isNaN(Number(editValuesRef.current.Permanent)) ? 0 : Number(editValuesRef.current.Permanent),
-      Biliprice: isNaN(Number(editValuesRef.current.Biliprice)) ? 0 : Number(editValuesRef.current.Biliprice),
-      Robuxprice: editValuesRef.current.Robuxprice || "N/A",
-    };
+  //   // Ensure values are valid before updating
+  //   const updatedValues = {
+  //     Value: isNaN(Number(editValuesRef.current.Value)) ? 0 : Number(editValuesRef.current.Value),
+  //     Permanent: isNaN(Number(editValuesRef.current.Permanent)) ? 0 : Number(editValuesRef.current.Permanent),
+  //     Biliprice: isNaN(Number(editValuesRef.current.Biliprice)) ? 0 : Number(editValuesRef.current.Biliprice),
+  //     Robuxprice: editValuesRef.current.Robuxprice || "N/A",
+  //   };
 
-    // Reference to the correct Firebase record
-    const fruitRef = ref(appdatabase, `/fruit_data/${recordKey}`);
+  //   // Reference to the correct Firebase record
+  //   const fruitRef = ref(appdatabase, `/fruit_data/${recordKey}`);
 
-    update(fruitRef, updatedValues)
-      .then(() => {
-        setIsModalVisible(false);
-      })
-      .catch((error) => {
-        console.error("❌ Error updating fruit:", error);
-      });
-  };
+  //   update(fruitRef, updatedValues)
+  //     .then(() => {
+  //       setIsModalVisible(false);
+  //     })
+  //     .catch((error) => {
+  //       console.error("❌ Error updating fruit:", error);
+  //     });
+  // };
   const applyFilter = (filter) => {
     setSelectedFilter(filter);
   };

@@ -30,7 +30,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     const [isRegisterMode, setIsRegisterMode] = useState(false);
     const [isLoading, setIsLoading] = useState(false)
     const [isLoadingSecondary, setIsLoadingSecondary] = useState(false);
-    const [robloxUsernameError, setRobloxUsernameError] = useState('');
+    // const [robloxUsernameError, setRobloxUsernameError] = useState('');
     const { triggerHapticFeedback } = useHaptic();
     const { theme, robloxUsernameRef } = useGlobalState()
     const [robloxUsernamelocal, setRobloxUsernamelocal] = useState()
@@ -57,25 +57,25 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     }, []);
     
     
-    const validateRobloxUsername = () => {
-        const name = robloxUsernameRef.current;
-        if (!name || name.trim().length === 0) {
-          setRobloxUsernameError('Roblox username is required');
-          showErrorMessage(
-            t("home.alert.error"),
-            "Please enter your Roblox username."
-          );
-          return false;
-        }
-        setRobloxUsernameError('');
-        return true;
-    };
+    // const validateRobloxUsername = () => {
+    //     const name = robloxUsernameRef.current;
+    //     if (!name || name.trim().length === 0) {
+    //       setRobloxUsernameError('Roblox username is required');
+    //       showErrorMessage(
+    //         t("home.alert.error"),
+    //         "Please enter your Roblox username."
+    //       );
+    //       return false;
+    //     }
+    //     setRobloxUsernameError('');
+    //     return true;
+    // };
       
 
     // Updated onAppleButtonPress function
     const onAppleButtonPress = useCallback(async () => {
         triggerHapticFeedback('impactLight');
-        if (!validateRobloxUsername()) return;
+        // if (!validateRobloxUsername()) return;
 
 
         try {
@@ -91,7 +91,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                 t("home.alert.success"),
                 t("signin.success_signin")
             );
-            onClose();
+            {Platform.OS !== 'ios' && onClose();}
             mixpanel.track(`Login with apple from ${screen}`);
         } catch (error) {
             showErrorMessage(
@@ -105,7 +105,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     
     const handleSignInOrRegister = async () => {
         triggerHapticFeedback('impactLight');
-        if (!validateRobloxUsername()) return;
+        // if (!validateRobloxUsername()) return;
 
     
         if (!email || !password) {
@@ -142,14 +142,12 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                     t("home.alert.success"),
                     t("signin.alert_account_created")
                 );
-                  onClose(); // Close modal after successful operation
-
+                {Platform.OS !== 'ios' && onClose();}
             } else {
                 // Handle user login
                 await auth().signInWithEmailAndPassword(email, password);
                 mixpanel.track(`Login with email from ${screen}`);
-                onClose(); // Close modal after successful operation
-
+                {Platform.OS !== 'ios' && onClose();}
                 // Alert.alert(t("signin.alert_welcome_back"), t("signin.success_signin"));
                 showSuccessMessage(
                     t("signin.alert_welcome_back"),
@@ -187,7 +185,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     };
     
     const handleGoogleSignIn = useCallback(async () => {
-        if (!validateRobloxUsername()) return;
+        // if (!validateRobloxUsername()) return;
         try {
             setIsLoading(true);
             await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
@@ -200,7 +198,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                 t("signin.alert_welcome_back"),
                 t("signin.success_signin")
             );
-            onClose()
+            {Platform.OS !== 'ios' && onClose();}
             mixpanel.track(`Login with google from ${screen}`);
 
         } catch (error) {
@@ -238,7 +236,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
   placeholderTextColor={selectedTheme.colors.text}
 /> */}
 
-<TextInput
+{/* <TextInput
   style={[
     styles.input, 
     { 
@@ -273,7 +271,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
 />
                         <View style={styles.line} />
                     </View>
-    
+     */}
                     <TextInput
                         style={[styles.input, { color: selectedTheme.colors.text }]}
                         placeholder={t("signin.placeholder_email")}
