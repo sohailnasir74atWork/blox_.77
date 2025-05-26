@@ -167,7 +167,7 @@ export const getStyles = (isDarkMode) =>
       paddingTop: 5
     },
     login: {
-      height: 60,
+      height: 30,
       justifyContent: 'center',
       color: config.colors.hasBlockGreen,
       alignSelf: 'center',

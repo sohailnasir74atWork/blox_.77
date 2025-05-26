@@ -17,7 +17,7 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../GlobelStats';
 import { getStyles } from './settingstyle';
-import { handleGetSuggestions, handleOpenFacebook, handleOpenWebsite, handleRateApp, handleShareApp, imageOptions, } from './settinghelper';
+import { handleGetSuggestions, handleOpenFacebook, handleOpenWebsite, handleRateApp, handleadoptme, handleShareApp, imageOptions, } from './settinghelper';
 import { logoutUser } from '../Firebase/UserLogics';
 import SignInDrawer from '../Firebase/SigninDrawer';
 import auth from '@react-native-firebase/auth';
@@ -496,6 +496,8 @@ const formatPlanName = (plan) => {
             </View>
           )}
         </View>
+     
+
         <Text style={styles.subtitle}>{t('settings.other_settings')}</Text>
 
         <View style={styles.cardContainer}>
@@ -507,6 +509,12 @@ const formatPlanName = (plan) => {
             <Icon name="share-social-outline" size={18} color={'white'} style={{backgroundColor:'#B76E79', padding:5, borderRadius:5}}/>
             <Text style={styles.optionText}>{t('settings.share_app')}</Text>
           </TouchableOpacity>
+          {/* <TouchableOpacity style={styles.option} onPress={() => {
+            handleGetSuggestions(user); triggerHapticFeedback('impactLight');
+          }}>
+            <Icon name="color-filter-outline" size={18} color={'white'}  style={{backgroundColor:'#066D5D', padding:5, borderRadius:5}}/>
+            <Text style={styles.optionText}>Partner with Us</Text>
+          </TouchableOpacity> */}
           <TouchableOpacity style={styles.option} onPress={() => {
             handleGetSuggestions(user); triggerHapticFeedback('impactLight');
           }}>
@@ -539,8 +547,38 @@ const formatPlanName = (plan) => {
             <Text style={styles.optionTextDelete}>{t('settings.delete_my_account')}</Text>
           </TouchableOpacity>}
 
+         
+
         </View>
-        
+        <Text style={styles.subtitle}>Our Other APPS</Text>
+       
+        <View style={styles.cardContainer}>
+
+
+<TouchableOpacity style={styles.optionLast} onPress={() => {
+  handleadoptme(); triggerHapticFeedback('impactLight');
+}}>
+ <Image 
+  source={require('../../assets/adoptme.png')} 
+  style={{ width: 40, height: 40,   borderRadius: 5 }} 
+/>
+
+  <Text style={styles.optionText}>Adopt Me Values</Text>
+</TouchableOpacity>
+
+
+
+</View>
+<Text style={styles.subtitle}>Business Enquiries
+</Text>
+
+<Text style={styles.text}>
+    For collaborations, partnerships, or other business-related queries, feel free to contact us at:{' '}
+    <TouchableOpacity onPress={() => Linking.openURL('mailto:thesolanalabs@gmail.com')}>
+      <Text style={styles.emailText}>thesolanalabs@gmail.com</Text>
+    </TouchableOpacity>
+  </Text>
+
 
       </ScrollView>
 

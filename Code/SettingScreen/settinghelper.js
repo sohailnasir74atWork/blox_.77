@@ -92,6 +92,13 @@ I would like to share the following suggestions:
     );
   };
 
+  export const handleadoptme = () => {
+    const websiteUrl = config.otherapplink;
+    Linking.openURL(websiteUrl).catch(() =>
+      Alert.alert('Error', 'Unable to open the website. Please try again later.')
+    );
+  };
+
   export const imageOptions = [
     'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
     'https://bloxfruitscalc.com/wp-content/uploads/2025/eagle.png',

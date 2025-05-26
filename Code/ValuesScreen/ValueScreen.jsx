@@ -23,6 +23,7 @@ import { mixpanel } from '../AppHelper/MixPenel';
 import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
+import { handleadoptme, handleShareApp } from '../SettingScreen/settinghelper';
 
 const ValueScreen = ({ selectedTheme }) => {
   const [searchText, setSearchText] = useState('');
@@ -164,7 +165,27 @@ const ValueScreen = ({ selectedTheme }) => {
     setSelectedFilter(filter);
   };
 
-
+  const CustomAd = () => (
+    <View style={styles.adContainer}>
+      <View style={styles.adContent}>
+        <Image
+          source={require('../../assets/adoptme.png')} // Replace with your ad icon
+          style={styles.adIcon}
+        />
+        <View>
+          <Text style={styles.adTitle}>ADOPT ME Values</Text>
+          <Text style={styles.tryNowText}>Try Our other app</Text>
+        </View>
+      </View>
+      <TouchableOpacity style={styles.downloadButton} onPress={() => {
+            handleadoptme(); triggerHapticFeedback('impactLight');
+          }}>
+        <Text style={styles.downloadButtonText}>Download</Text>
+      </TouchableOpacity>
+    </View>
+  );
+  
+  
   useEffect(() => {
     if (localState.data) {
       try {
@@ -399,6 +420,8 @@ const ValueScreen = ({ selectedTheme }) => {
           {/* <Text style={[styles.description, { color: selectedTheme.colors.text }]}>
             {t("value.description")}
           </Text> */}
+                  <CustomAd />
+
           <View style={styles.searchFilterContainer}>
             <TextInput
               style={styles.searchInput}
@@ -710,6 +733,52 @@ export const getStyles = (isDarkMode) =>
     selectedOption: {
       fontFamily: 'Lato-Bold',
       color: "#34C759",
+    },
+    adContainer: {
+      // backgroundColor: '#F5F5F5', // Light background color for the ad
+      padding: 15,
+      borderRadius: 10,
+      marginBottom: 15,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      borderWidth:1,
+
+    },
+    adContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-start', // Aligns text and image in a row
+    },
+    adIcon: {
+      width: 50,
+      height: 50,
+      borderRadius: 5,
+      marginRight: 15,
+    },
+    adTitle: {
+      fontSize: 18,
+      fontFamily: 'Lato-Bold',
+      color: '#333',
+      // marginBottom: 5, // Adds space below the title
+    },
+    tryNowText: {
+      fontSize: 14,
+      fontFamily: 'Lato-Regular',
+      color: '#6A5ACD', // Adds a distinct color for the "Try Now" text
+      // marginTop: 5, // Adds space between the title and the "Try Now" text
+    },
+    downloadButton: {
+      backgroundColor: '#34C759',
+      paddingVertical: 8,
+      paddingHorizontal: 15,
+      borderRadius: 5,
+      marginTop: 10, // Adds spacing between the text and the button
+    },
+    downloadButtonText: {
+      color: 'white',
+      fontSize: 14,
+      fontFamily: 'Lato-Bold',
     },
   });
 

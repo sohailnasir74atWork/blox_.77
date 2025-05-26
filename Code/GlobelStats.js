@@ -285,15 +285,43 @@ export const GlobalStateProvider = ({ children }) => {
       if (shouldFetchCodesData) {
         // console.log("📌 Fetching codes & data from database...");
 
-        const [xlsSnapshot, codeSnapShot] = await Promise.all([
-          get(ref(appdatabase, 'fruit_data')),
-          get(ref(appdatabase, 'codes')),
-        ]);
+        let codes = {};
+        let data = {};
+        
+        try {
+          const [codesRes, dataRes] = await Promise.all([
+            fetch('https://blox-api.b-cdn.net/codes.json'),
+            fetch('https://blox-api.b-cdn.net/data.json')
+          ]);
+        
+          const codesJson = await codesRes.json();
+          const dataJson = await dataRes.json();
+        
+          // Assign values or keep as empty object
+          codes = codesJson || {};
+          data = dataJson || {};
+        
+          // If either is empty, force fallback
+          if (!Object.keys(codes).length || !Object.keys(data).length) {
+            throw new Error('CDN data incomplete');
+          }
+        
+          // console.log('✅ Loaded codes & data from CDN');
+        
+        } catch (err) {
+          console.warn('⚠️ Fallback to Firebase:', err.message);
+        
+          const [xlsSnapshot, codeSnapShot] = await Promise.all([
+            get(ref(appdatabase, 'fruit_data')),
+            get(ref(appdatabase, 'codes')),
+          ]);
+        
+          codes = codeSnapShot.exists() ? codeSnapShot.val() : {};
+          data = xlsSnapshot.exists() ? xlsSnapshot.val() : {};
+                  // console.log(data, codes)
 
-        const codes = codeSnapShot.exists() ? codeSnapShot.val() : {};
-        const data = xlsSnapshot.exists() ? xlsSnapshot.val() : {};
-
-        // console.log(data)
+        }
+        
 
 
 

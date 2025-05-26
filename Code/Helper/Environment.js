@@ -31,7 +31,7 @@ const config = {
 
   isNoman: isNoman ? true : false,
 
-
+otherapplink: Platform.OS == 'android' ? 'https://play.google.com/store/apps/details?id=com.adoptmevaluescalc' : 'https://apps.apple.com/us/app/adoptme-values/id6745400111',
   colors: isNoman
     ? {
       primary: '#6A5ACD', // Muted grayish blue
