@@ -46,6 +46,7 @@ export const LocalStateProvider = ({ children }) => {
     showOnBoardingScreen: storage.getBoolean('showOnBoardingScreen') ?? true,
     user_name: storage.getString('user_name') || 'Anonymous',
     translationUsage: safeParseJSON('translationUsage', { count: 0, date: new Date().toDateString() }),
+    showAd1: storage.getBoolean('showAd1') ?? true,
 
   }));
 
@@ -121,7 +122,11 @@ export const LocalStateProvider = ({ children }) => {
     updateLocalState('translationUsage', updatedUsage);
   };
 
-
+  const toggleAd = () => {
+    const newAdState = !localState.showAd1;
+    updateLocalState('showAd1', newAdState);
+    return newAdState;
+  };
   // console.log(localState.data)
   // console.log(isPro)
   // Initialize RevenueCat
@@ -303,7 +308,7 @@ export const LocalStateProvider = ({ children }) => {
       restorePurchases,
       canTranslate,
       incrementTranslationCount,
-      getRemainingTranslationTries
+      getRemainingTranslationTries, toggleAd
     }),
     [localState, customerId, packages, mySubscriptions]
   );

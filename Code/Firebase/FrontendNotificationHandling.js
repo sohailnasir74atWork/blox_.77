@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import { initializeApp, getApp, getApps } from '@react-native-firebase/app';
 import { getMessaging, onMessage, setBackgroundMessageHandler } from '@react-native-firebase/messaging';
 import notifee, { AndroidImportance, EventType } from '@notifee/react-native';
+import { useLocalState } from '../LocalGlobelStats';
 
 // ✅ Ensure Firebase is initialized only once
 const firebaseConfig = { /* Your Firebase Config */ };
@@ -12,6 +13,8 @@ const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const messaging = getMessaging(app);
 
 const NotificationHandler = () => {
+  const { localState } = useLocalState()
+
   useEffect(() => {
     // ✅ Create Notification Channel
     const createNotificationChannel = async () => {
@@ -49,7 +52,15 @@ const NotificationHandler = () => {
         const { notification, data } = remoteMessage || {};
         const title = notification?.title || data?.title || null;
         const body = notification?.body || data?.body || null;
+        const senderId = data?.senderId;        
         const type = data?.taype;
+        // console.log(remoteMessage)
+        if (localState?.bannedUsers?.includes(senderId)) {
+          // console.warn(`🚫 Skipping notification from banned sender: ${senderId}`);
+
+          return;
+        }
+
 
         if (!title || !body) {
           console.warn('Notification payload is incomplete:', remoteMessage);
@@ -112,7 +123,7 @@ const NotificationHandler = () => {
       unsubscribeForeground();
       unsubscribeNotifee();
     };
-  }, []);
+  }, [localState?.bannedUsers]);
 
   return null;
 };

@@ -15,8 +15,7 @@ import MessagesList from './MessagesList';
 import MessageInput from './MessageInput';
 import { getStyles } from '../Style';
 import getAdUnitId from '../../Ads/ads';
-import { banUser, isUserOnline, makeAdmin, removeAdmin, unbanUser } from '../utils';
-import { useIsFocused, useNavigation } from '@react-navigation/native';
+import { banUser, handleDeleteLast300Messages, isUserOnline,  unbanUser } from '../utils';import { useIsFocused, useNavigation } from '@react-navigation/native';
 import ProfileBottomDrawer from './BottomDrawer';
 import leoProfanity from 'leo-profanity';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
@@ -34,7 +33,7 @@ leoProfanity.loadDictionary('en');
 const bannerAdUnitId = getAdUnitId('banner');
 const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatFocused,
   setModalVisibleChatinfo, unreadMessagesCount, fetchChats, unreadcount, setunreadcount }) => {
-  const { user, theme, onlineMembersCount, appdatabase, setUser } = useGlobalState();
+    const { user, theme, onlineMembersCount, appdatabase, setUser, isAdmin } = useGlobalState();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [replyTo, setReplyTo] = useState(null);
@@ -189,6 +188,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     // console.log('Initial loading of messages.');
     loadMessages(true); // Reset and load the latest messages
     setChatFocused(false)
+    // unbanUser("prNhc9QDnkXAF1caiFGmJwxu1N33")
   }, []);
 
   // const bannedUserIds = bannedUsers.map((user) => user.id); // Extract IDs from bannedUsers
@@ -338,7 +338,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
   const handleSendMessage = () => {
     const MAX_CHARACTERS = 250;
-    const MESSAGE_COOLDOWN = 100;
+    const MESSAGE_COOLDOWN = 3000;
     const LINK_REGEX = /(https?:\/\/[^\s]+)/g;
 
     if (!user?.id || user?.isBlock) {
@@ -384,6 +384,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         reportCount: 0,
         containsLink,
         isPro: localState.isPro,
+        isAdmin:isAdmin
+
       });
 
       setInput('');
@@ -434,10 +436,11 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                 onRefresh={handleRefresh}
                 handleLoadMore={handleLoadMore}
                 onReply={(message) => { setReplyTo(message); triggerHapticFeedback('impactLight'); }} // Pass selected message to MessageInput
+                onDeleteAllMessage={(senderId) => handleDeleteLast300Messages(senderId)}
                 banUser={banUser}
-                makeadmin={makeAdmin}
+                // makeadmin={makeAdmin}
                 // onReport={onReport}
-                removeAdmin={removeAdmin}
+                // removeAdmin={removeAdmin}
                 unbanUser={unbanUser}
                 // isOwner={isOwner}
                 isAtBottom={isAtBottom}

@@ -17,7 +17,7 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../GlobelStats';
 import { getStyles } from './settingstyle';
-import { handleGetSuggestions, handleOpenFacebook, handleOpenWebsite, handleRateApp, handleadoptme, handleShareApp, imageOptions, } from './settinghelper';
+import { handleGetSuggestions, handleOpenFacebook, handleOpenWebsite, handleRateApp, handleadoptme, handleShareApp, imageOptions, handleMM2, } from './settinghelper';
 import { logoutUser } from '../Firebase/UserLogics';
 import SignInDrawer from '../Firebase/SigninDrawer';
 import auth from '@react-native-firebase/auth';
@@ -519,7 +519,7 @@ const formatPlanName = (plan) => {
             handleGetSuggestions(user); triggerHapticFeedback('impactLight');
           }}>
             <Icon name="mail-outline" size={18} color={'white'}  style={{backgroundColor:'#566D5D', padding:5, borderRadius:5}}/>
-            <Text style={styles.optionText}>{t('settings.give_suggestions')}</Text>
+            <Text style={styles.optionText}>Contact Us</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.option} onPress={() => { handleRateApp(); triggerHapticFeedback('impactLight'); }
           }>
@@ -555,7 +555,7 @@ const formatPlanName = (plan) => {
         <View style={styles.cardContainer}>
 
 
-<TouchableOpacity style={styles.optionLast} onPress={() => {
+<TouchableOpacity style={styles.option} onPress={() => {
   handleadoptme(); triggerHapticFeedback('impactLight');
 }}>
  <Image 
@@ -565,7 +565,16 @@ const formatPlanName = (plan) => {
 
   <Text style={styles.optionText}>Adopt Me Values</Text>
 </TouchableOpacity>
+<TouchableOpacity style={styles.optionLast} onPress={() => {
+            handleMM2(); triggerHapticFeedback('impactLight');
+          }}>
+            <Image
+              source={require('../../assets/logo2.png')}
+              style={{ width: 40, height: 40, borderRadius: 5 }}
+            />
 
+            <Text style={styles.optionText}>MM2 Values</Text>
+          </TouchableOpacity>
 
 
 </View>

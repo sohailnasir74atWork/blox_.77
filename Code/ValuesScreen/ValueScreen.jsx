@@ -23,17 +23,17 @@ import { mixpanel } from '../AppHelper/MixPenel';
 import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
-import { handleadoptme, handleShareApp } from '../SettingScreen/settinghelper';
+import { handleadoptme, handleMM2 } from '../SettingScreen/settinghelper';
 
 const ValueScreen = ({ selectedTheme }) => {
   const [searchText, setSearchText] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [filterDropdownVisible, setFilterDropdownVisible] = useState(false);
-  const { analytics, appdatabase, isAdmin, reload, theme } = useGlobalState()
+  const { analytics, isAdmin, reload, theme } = useGlobalState();
+  const {localState, toggleAd} = useLocalState()
   const isDarkMode = theme === 'dark'
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
   const [filteredData, setFilteredData] = useState([]);
-  const { localState } = useLocalState()
   const [valuesData, setValuesData] = useState([]);
   const [codesData, setCodesData] = useState([]);
   const { t } = useTranslation();
@@ -48,6 +48,8 @@ const ValueScreen = ({ selectedTheme }) => {
   const [selectedFruit, setSelectedFruit] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false); // State for pull-to-refresh
+  const [showAd1, setShowAd1] = useState(localState?.showAd1);
+
 
   const editValuesRef = useRef({
     Value: '',
@@ -164,6 +166,11 @@ const ValueScreen = ({ selectedTheme }) => {
   const applyFilter = (filter) => {
     setSelectedFilter(filter);
   };
+  useEffect(() => {
+    // Toggle the ad state when the screen is mounted
+    const newAdState = toggleAd();
+    setShowAd1(newAdState);
+  }, []);
 
   const CustomAd = () => (
     <View style={styles.adContainer}>
@@ -184,8 +191,26 @@ const ValueScreen = ({ selectedTheme }) => {
       </TouchableOpacity>
     </View>
   );
-  
-  
+  const CustomAd2 = () => (
+    <View style={styles.adContainer}>
+      <View style={styles.adContent}>
+        <Image
+          source={require('../../assets/logo2.png')} // Replace with your ad icon
+          style={styles.adIcon}
+        />
+        <View>
+          <Text style={styles.adTitle}>MM2 Values</Text>
+          <Text style={styles.tryNowText}>Try Our other app</Text>
+        </View>
+      </View>
+      <TouchableOpacity style={styles.downloadButton} onPress={() => {
+        handleMM2(); triggerHapticFeedback('impactLight');
+      }}>
+        <Text style={styles.downloadButtonText}>Download</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   useEffect(() => {
     if (localState.data) {
       try {
@@ -420,7 +445,11 @@ const ValueScreen = ({ selectedTheme }) => {
           {/* <Text style={[styles.description, { color: selectedTheme.colors.text }]}>
             {t("value.description")}
           </Text> */}
-                  <CustomAd />
+                    {showAd1 ? (
+            <CustomAd />
+          ) : (
+            <CustomAd2 />
+          )}
 
           <View style={styles.searchFilterContainer}>
             <TextInput
@@ -736,7 +765,7 @@ export const getStyles = (isDarkMode) =>
     },
     adContainer: {
       // backgroundColor: '#F5F5F5', // Light background color for the ad
-      padding: 15,
+      paddingHorizontal: 15,
       borderRadius: 10,
       marginBottom: 15,
       flexDirection: 'row',
@@ -773,7 +802,7 @@ export const getStyles = (isDarkMode) =>
       paddingVertical: 8,
       paddingHorizontal: 15,
       borderRadius: 5,
-      marginTop: 10, // Adds spacing between the text and the button
+      // marginTop: 10, // Adds spacing between the text and the button
     },
     downloadButtonText: {
       color: 'white',

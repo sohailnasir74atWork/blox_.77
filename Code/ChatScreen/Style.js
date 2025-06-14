@@ -146,24 +146,27 @@ export const getStyles = (isDarkMode) =>
       textAlign: 'center',
       marginVertical: 10,
     },
-    adminContainer :{
+    adminContainer: {
       backgroundColor: config.colors.hasBlockGreen,
-      paddingHorizontal:5,
-      paddingVertical:1,
-      borderRadius:3,
+      paddingHorizontal: 5,
+      paddingVertical: 1,
+      borderRadius: 3,
       // marginHorizontal:5
     },
     admin: {
       // alignSelf: 'flex-start',
       color: 'white',
-      fontSize: 10,
+      // fontSize: 10,
       fontFamily: 'Lato-Bold',
+      // color: config.colors.primary,
+      fontSize: 9,
+      // lineHeight:10,
 
       
     },
     adminText: {
       fontSize: 12,
-      color: 'gray',
+      color: 'white',
       paddingTop: 5
     },
     login: {
@@ -279,15 +282,16 @@ export const getStyles = (isDarkMode) =>
       // overflow:'hidden',
       // flexWrap:"wrap"
     },
-    adminTextAction:{
-      backgroundColor:config.colors.wantBlockRed,
-      marginHorizontal:3,
-      paddingHorizontal:10,
-      borderRadius:3,
-      color:'white',
-      alignSelf:'center',
-      width:100
-    },
+    adminTextAction: {
+      backgroundColor: config.colors.wantBlockRed,
+      marginHorizontal: 3,
+      padding: 10,
+      borderRadius: 3,
+      color: 'white',
+      alignSelf: 'center',
+      minWidth: 150,
+      // fontSize:10
+      },
     dot: {
       color: '#bbb',
       marginHorizontal: 5,
@@ -456,5 +460,8 @@ transfer: {
   justifyContent: 'center',
   alignItems: 'center'
 },
+deleteButton:{
+  paddingVertical:5
+}
 
   });

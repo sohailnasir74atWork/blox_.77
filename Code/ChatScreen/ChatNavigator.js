@@ -51,26 +51,36 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
         }
   
         let updatedChats = [];
-        let totalUnread = 0;
+        // let totalUnread = 0;
         const fetchedData = snapshot.val();
   
-        updatedChats = Object.entries(fetchedData)
-          .filter(([chatPartnerId]) => chatPartnerId && !bannedUsers.includes(chatPartnerId))
-          .map(([chatPartnerId, chatData]) => {
-            totalUnread += chatData.unreadCount || 0;
+        updatedChats = Object.entries(fetchedData).map(([chatPartnerId, chatData]) => {
+          const isBlocked = bannedUsers?.includes(chatPartnerId);
+          const rawUnread = chatData?.unreadCount || 0;
+  
+          if (isBlocked && rawUnread > 0) {
+            // 🚫 Reset unread count in Firebase for blocked user
+            database()
+              .ref(`chat_meta_data/${user.id}/${chatPartnerId}/unreadCount`)
+              .set(0);
+          }
             return {
               chatId: chatData.chatId,
               otherUserId: chatPartnerId,
               lastMessage: chatData.lastMessage || 'No messages yet',
               lastMessageTimestamp: chatData.timestamp || 0,
-              unreadCount: chatData.unreadCount || 0,
+              unreadCount: isBlocked ? 0 : rawUnread,
               otherUserAvatar: chatData.receiverAvatar || 'https://example.com/default-avatar.jpg',
               otherUserName: chatData.receiverName || 'Anonymous',
             };
           });
   
         // ✅ Sort by latest message
-        setChats(updatedChats.sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp));
+        const sortedChats = updatedChats.sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp);
+        setChats(sortedChats);
+  
+        // ✅ Only count unblocked users
+        const totalUnread = sortedChats.reduce((sum, chat) => sum + chat.unreadCount, 0);
         setunreadcount(totalUnread);
       } catch (error) {
         console.error("❌ Error fetching chats:", error);
@@ -80,7 +90,7 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
     });
   
     return () => userChatsRef.off('value', onValueChange); // ✅ Ensures cleanup
-  }, [user]); // ✅ Added `bannedUsers` as a dependency
+  }, [user, bannedUsers]); // ✅ Added `bannedUsers` as a dependency
   
   
   

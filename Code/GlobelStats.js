@@ -7,7 +7,7 @@ import { createNewUser, firebaseConfig, registerForNotifications } from './Globe
 import { useLocalState } from './LocalGlobelStats';
 import { requestPermission } from './Helper/PermissionCheck';
 import { useColorScheme, InteractionManager } from 'react-native';
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const app = getApps();
 const auth = getAuth(app);
 const firestoreDB = getFirestore(app);
 const appdatabase = getDatabase(app);
@@ -38,7 +38,7 @@ export const GlobalStateProvider = ({ children }) => {
     rewardPoints: 0,
     isBlock: false,
     fcmToken: null,
-    lastactivity: null,
+    lastActivity: null,
     online: false,
     isPro: false
 
@@ -58,34 +58,62 @@ export const GlobalStateProvider = ({ children }) => {
   // const isAdmin = user?.id  ? user?.id == '3CAAolfaX3UE3BLTZ7ghFbNnY513' : false
   // console.log(isAdmin, user)
 
+  // const updateLocalStateAndDatabase = async (keyOrUpdates, value) => {
+  //   if (!user.id) return; // Prevent updates if user is not logged in
+
+  //   try {
+  //     const userRef = ref(appdatabase, `users/${user.id}`);
+  //     let updates = {};
+
+  //     if (typeof keyOrUpdates === 'string') {
+  //       // Single update
+  //       updates = { [keyOrUpdates]: value };
+  //     } else if (typeof keyOrUpdates === 'object') {
+  //       // Batch update
+  //       updates = keyOrUpdates;
+  //     } else {
+  //       throw new Error('Invalid arguments for update.');
+  //     }
+
+  //     // ✅ Update local state
+  //     setUser((prev) => ({ ...prev, ...updates }));
+
+
+  //     // ✅ Update Firebase database
+  //     await update(userRef, updates);
+  //   } catch (error) {
+  //     console.error('Error updating user state or database:', error);
+  //   }
+  // };
   const updateLocalStateAndDatabase = async (keyOrUpdates, value) => {
-    if (!user.id) return; // Prevent updates if user is not logged in
-
     try {
-      const userRef = ref(appdatabase, `users/${user.id}`);
       let updates = {};
-
+  
       if (typeof keyOrUpdates === 'string') {
-        // Single update
         updates = { [keyOrUpdates]: value };
+        await updateLocalState(keyOrUpdates, value); // ✅ update local storage (AsyncStorage)
       } else if (typeof keyOrUpdates === 'object') {
-        // Batch update
         updates = keyOrUpdates;
+        for (const [key, val] of Object.entries(updates)) {
+          await updateLocalState(key, val); // ✅ update local storage key by key
+        }
       } else {
         throw new Error('Invalid arguments for update.');
       }
-
-      // ✅ Update local state
+  
+      // ✅ Update in-memory user state
       setUser((prev) => ({ ...prev, ...updates }));
-
-
-      // ✅ Update Firebase database
-      await update(userRef, updates);
+  
+      // ✅ Update Firebase only if user is logged in
+      if (user?.id) {
+        const userRef = ref(appdatabase, `users/${user.id}`);
+        await update(userRef, updates);
+      }
     } catch (error) {
-      console.error('Error updating user state or database:', error);
+      console.error('❌ Error updating user state or database:', error);
     }
   };
-
+  
 
   // console.log(robloxUsernameRef?.current, 'robloxUsername_outside')
 
@@ -102,7 +130,7 @@ export const GlobalStateProvider = ({ children }) => {
       rewardPoints: 0,
       isBlock: false,
       fcmToken: null,
-      lastactivity: null,
+      lastActivity: null,
       online: false,
       isPro: false
     });
@@ -168,42 +196,42 @@ export const GlobalStateProvider = ({ children }) => {
   }, []);
 
 
- useEffect(() => {
-  const fetchAPIKeys = async () => {
-    try {
-      const apiRef = ref(appdatabase, 'api');
-      const freeRef = ref(appdatabase, 'free_translation');
+  useEffect(() => {
+    const fetchAPIKeys = async () => {
+      try {
+        const apiRef = ref(appdatabase, 'api');
+        const freeRef = ref(appdatabase, 'free_translation');
 
-      const [snapshotApi, snapshotFree] = await Promise.all([
-        get(apiRef),
-        get(freeRef),
-      ]);
+        const [snapshotApi, snapshotFree] = await Promise.all([
+          get(apiRef),
+          get(freeRef),
+        ]);
 
-      if (snapshotApi.exists()) {
-        const value = snapshotApi.val();
-        setApi(value);
-        // console.log('🔑 [Firebase] Google API Key from /api:', value);
-      } else {
-        console.warn('⚠️ No Google Translate API key found at /api');
+        if (snapshotApi.exists()) {
+          const value = snapshotApi.val();
+          setApi(value);
+          // console.log('🔑 [Firebase] Google API Key from /api:', value);
+        } else {
+          console.warn('⚠️ No Google Translate API key found at /api');
+        }
+
+        if (snapshotFree.exists()) {
+          const value = snapshotFree.val();
+          setFreeTranslation(value);
+          // console.log('🔑 [Firebase] Free Translation Key from /free_translation:', value);
+        } else {
+          console.warn('⚠️ No free translation key found at /free_translation');
+        }
+
+      } catch (error) {
+        console.error('🔥 Error fetching API keys from Firebase:', error);
       }
+    };
 
-      if (snapshotFree.exists()) {
-        const value = snapshotFree.val();
-        setFreeTranslation(value);
-        // console.log('🔑 [Firebase] Free Translation Key from /free_translation:', value);
-      } else {
-        console.warn('⚠️ No free translation key found at /free_translation');
-      }
+    fetchAPIKeys();
+  }, []);
 
-    } catch (error) {
-      console.error('🔥 Error fetching API keys from Firebase:', error);
-    }
-  };
 
-  fetchAPIKeys();
-}, []);
-
-  
 
 
   const updateUserProStatus = () => {
@@ -250,16 +278,9 @@ export const GlobalStateProvider = ({ children }) => {
 
 
   useEffect(() => {
-
-    const lastActivity = localState.lastactivity ? new Date(localState.lastactivity).getTime() : 0;
-    const now = Date.now();
-    const THREE_HOURS = 36 * 60 * 60 * 1000; // 3 hours in milliseconds
-
-    if (now - lastActivity > THREE_HOURS) {
-      updateLocalStateAndDatabase('lastactivity', new Date().toISOString());
-
-    }
-  }, [localState.lastactivity]);
+    // console.log("🕓 Saving lastActivity:", new Date().toISOString());
+    updateLocalStateAndDatabase('lastActivity', new Date().toISOString());
+  }, []);
 
 
 
@@ -271,57 +292,63 @@ export const GlobalStateProvider = ({ children }) => {
       const lastActivity = localState.lastActivity ? new Date(localState.lastActivity).getTime() : 0;
       const now = Date.now();
       const timeElapsed = now - lastActivity;
-      const TWENTY_FOUR_HOURS = refresh ? 1 * 60 * 1000 : 6 * 60 * 60 * 1000;
-      // console.log(TWENTY_FOUR_HOURS, refresh)
+
 
       // ✅ Fetch `codes & data` only if 24 hours have passed OR they are missing
-      const shouldFetchCodesData =
-        timeElapsed > TWENTY_FOUR_HOURS ||
-        !localState.codes ||
-        !Object.keys(localState.codes).length ||
-        !localState.data ||
-        !Object.keys(localState.data).length;
+      const EXPIRY_LIMIT = refresh ? 1 * 1000 : 6 * 60 * 1000; // 10s for refresh, 6min default
 
-      if (shouldFetchCodesData) {
+      const shouldFetch =
+        timeElapsed > EXPIRY_LIMIT ||
+        !localState.data ||
+        !Object.keys(localState.data).length
+
+      if (shouldFetch) {
         // console.log("📌 Fetching codes & data from database...");
 
         let codes = {};
         let data = {};
-        
+
         try {
           const [codesRes, dataRes] = await Promise.all([
-            fetch('https://blox-api.b-cdn.net/codes.json'),
-            fetch('https://blox-api.b-cdn.net/data.json')
+            fetch('https://blox-api.b-cdn.net/codes.json', {
+              method: 'GET',
+              cache: 'no-store',
+            }),
+            fetch('https://blox-api.b-cdn.net/data.json', {
+              method: 'GET',
+              cache: 'no-store',
+            })
           ]);
-        
+
           const codesJson = await codesRes.json();
           const dataJson = await dataRes.json();
-        
+
           // Assign values or keep as empty object
           codes = codesJson || {};
           data = dataJson || {};
-        
+          // console.log(data)
+
           // If either is empty, force fallback
           if (!Object.keys(codes).length || !Object.keys(data).length) {
             throw new Error('CDN data incomplete');
           }
-        
+
           // console.log('✅ Loaded codes & data from CDN');
-        
+
         } catch (err) {
           console.warn('⚠️ Fallback to Firebase:', err.message);
-        
+
           const [xlsSnapshot, codeSnapShot] = await Promise.all([
             get(ref(appdatabase, 'fruit_data')),
             get(ref(appdatabase, 'codes')),
           ]);
-        
+
           codes = codeSnapShot.exists() ? codeSnapShot.val() : {};
           data = xlsSnapshot.exists() ? xlsSnapshot.val() : {};
-                  // console.log(data, codes)
+          // console.log(data, codes)
 
         }
-        
+
 
 
 
@@ -331,7 +358,8 @@ export const GlobalStateProvider = ({ children }) => {
         await updateLocalState('data', JSON.stringify(data));
         // console.log(data)
         // ✅ Update last fetch timestamp
-        await updateLocalState('lastActivity', new Date().toISOString());
+        // await updateLocalState('lastActivity', new Date().toISOString());
+
 
         // console.log("✅ Data updated successfully.");
       } else {
@@ -358,7 +386,6 @@ export const GlobalStateProvider = ({ children }) => {
       await updateLocalState('prenormalStock', JSON.stringify(prenormalStock));
       await updateLocalState('premirageStock', JSON.stringify(premirageStock));
 
-      // console.log("✅ Stock data processed and stored successfully.");
     } catch (error) {
       console.error("❌ Error fetching stock data:", error);
     } finally {
@@ -418,7 +445,7 @@ export const GlobalStateProvider = ({ children }) => {
       reload,
       robloxUsernameRef, api
     }),
-    [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api,freeTranslation]
+    [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api, freeTranslation]
   );
 
   return (

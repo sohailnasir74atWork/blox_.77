@@ -1,4 +1,4 @@
-import { getDatabase, ref, update, get, set, onDisconnect } from '@react-native-firebase/database';
+import { getDatabase, ref, update, get, set, onDisconnect, query, orderByChild, equalTo } from '@react-native-firebase/database';
 import { Alert } from 'react-native';
 
 // Initialize the database reference
@@ -16,6 +16,7 @@ export const formatDate = (dateString) => {
 // Ban User
 export const banUser = async (userId) => {
   try {
+    await handleDeleteLast300Messages(userId)
     const database = getDatabase(); // Ensure database instance is created
     const userToUpdateRef = ref(database, `users/${userId}`); // Reference to the specific user in the "users" node
     await update(userToUpdateRef, { isBlock: true }); // Update the user's `isBlock` property
@@ -313,5 +314,44 @@ export const clearActiveChat = async (userId) => {
     await set(activeChatRef, null);
   } catch (error) {
     console.error(`❌ Failed to clear active chat for user ${userId}:`, error);
+  }
+};
+
+
+export const handleDeleteLast300Messages = async (senderId) => {
+  try {
+    // console.log('🟡 Starting delete for:', senderId);
+
+    const chatQuery = query(
+      ref(database, 'chat_new'),
+      orderByChild('senderId'),
+      equalTo(senderId)
+    );
+
+    const snapshot = await get(chatQuery);
+
+    if (!snapshot.exists()) {
+      Alert.alert('⚠️ No messages found for this user.');
+      return;
+    }
+
+    const allMessages = snapshot.val();
+    console.log('📦 Total messages fetched:', Object.keys(allMessages).length);
+
+    const sorted = Object.entries(allMessages)
+      .sort((a, b) => b[1].timestamp - a[1].timestamp)
+      .slice(0, 300);
+
+    const updates = {};
+    sorted.forEach(([key]) => {
+      updates[`chat_new/${key}`] = null;
+    });
+
+    await update(ref(database), updates);
+
+    Alert.alert('✅ Success', `Deleted ${sorted.length} messages for this user.`);
+  } catch (error) {
+    console.error('🔥 Failed to delete messages:', error);
+    Alert.alert('❌ Error', 'Could not delete messages.');
   }
 };

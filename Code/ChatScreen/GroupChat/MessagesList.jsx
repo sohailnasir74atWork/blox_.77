@@ -53,6 +53,8 @@ const MessagesList = ({
   unbanUser,
   // isOwner,
   toggleDrawer,
+  onDeleteAllMessage,
+
   setMessages
 }) => {
   const styles = getStyles(isDarkMode);
@@ -158,11 +160,14 @@ const MessagesList = ({
 
   const handleReportSuccess = (reportedMessageId) => {
     triggerHapticFeedback('impactLight');
-    setMessages((prevMessages) =>
-      prevMessages.map((msg) =>
-        msg.id === reportedMessageId ? { ...msg, isReportedByUser: true } : msg
-      )
-    );
+    setMessages(prevMessages => {
+      const updated = prevMessages.map(msg =>
+        msg?.id === reportedMessageId
+          ? { ...msg, isReportedByUser: true }
+          : msg
+      );
+      return updated;
+    });
   };
 
   const handleProfileClick = (item) => {
@@ -313,11 +318,14 @@ const MessagesList = ({
               </MenuTrigger>
               <MenuOptions>
                 <View style={styles.adminActions}>
-                  <MenuOption onSelect={() => onPinMessage(item)} style={styles.pinButton}>
+                  {/* <MenuOption onSelect={() => onPinMessage(item)} style={styles.pinButton}>
                     <Text style={styles.adminTextAction}>Pin</Text>
-                  </MenuOption>
+                  </MenuOption> */}
                   <MenuOption onSelect={() => onDeleteMessage(item.id)} style={styles.deleteButton}>
                     <Text style={styles.adminTextAction}>Delete</Text>
+                  </MenuOption>
+                  <MenuOption onSelect={() => onDeleteAllMessage(item?.senderId)} style={styles.deleteButton}>
+                    <Text style={styles.adminTextAction}>Delete All</Text>
                   </MenuOption>
                   <MenuOption onSelect={() => banUser(item.senderId)} style={styles.deleteButton}>
                     <Text style={styles.adminTextAction}>Block</Text>
@@ -325,16 +333,16 @@ const MessagesList = ({
                   <MenuOption onSelect={() => unbanUser(item.senderId)} style={styles.deleteButton}>
                     <Text style={styles.adminTextAction}>Unblock</Text>
                   </MenuOption>
-                  {isAdmin && (
+                  {/* {isAdmin && (
                     <MenuOption onSelect={() => makeadmin(item.senderId)} style={styles.deleteButton}>
                       <Text style={styles.adminTextAction}>Make Admin</Text>
                     </MenuOption>
-                  )}
-                  {isAdmin && (
+                  )} */}
+                  {/* {isAdmin && (
                     <MenuOption onSelect={() => removeAdmin(item.senderId)} style={styles.deleteButton}>
                       <Text style={styles.adminTextAction}>Remove Admin</Text>
                     </MenuOption>
-                  )}
+                  )} */}
                 </View>
               </MenuOptions>
             </Menu>
@@ -350,7 +358,7 @@ const MessagesList = ({
   return (
     <>
       <FlatList
-        data={messages}
+        data={[...new Map(messages?.map(msg => [msg.id, msg])).values()]}
         keyExtractor={(item, index) => `${item.id}-${index}`}
         renderItem={({ item, index }) => renderMessage({ item, index })}
         contentContainerStyle={styles.chatList}
