@@ -1,4 +1,4 @@
-package com.bloxfruitevalues
+package com.bloxfruitstock
 
 import android.os.Bundle
 import com.facebook.react.ReactActivity
