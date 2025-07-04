@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, FlatList, TextInput, Image,  Keyboard, Pressable, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, FlatList, TextInput, Image, Keyboard, Pressable, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import ViewShot from 'react-native-view-shot';
 import { useGlobalState } from '../GlobelStats';
@@ -24,7 +24,7 @@ import BannerAdComponent from '../Ads/bannerAds';
 const HomeScreen = ({ selectedTheme }) => {
   const { theme, user, analytics, appdatabase } = useGlobalState();
   const tradesCollection = useMemo(() => firestore().collection('trades_new'), []);
-  const initialItems = [null, null, null, null];
+  const initialItems = [null, null, null, null, null, null];
   const [hasItems, setHasItems] = useState(initialItems);
   const [fruitRecords, setFruitRecords] = useState([]);
   const [wantsItems, setWantsItems] = useState(initialItems);
@@ -33,7 +33,6 @@ const HomeScreen = ({ selectedTheme }) => {
   const [searchText, setSearchText] = useState('');
   const [hasTotal, setHasTotal] = useState({ price: 0, value: 0 });
   const [wantsTotal, setWantsTotal] = useState({ price: 0, value: 0 });
-  const [isAdVisible, setIsAdVisible] = useState(true);
   const { triggerHapticFeedback } = useHaptic();
   const { localState } = useLocalState()
   const [modalVisible, setModalVisible] = useState(false);
@@ -41,82 +40,36 @@ const HomeScreen = ({ selectedTheme }) => {
   const [isSigninDrawerVisible, setIsSigninDrawerVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { language } = useLanguage();
-  const [showNotification, setShowNotification] = useState(false);
   const [pinnedMessages, setPinnedMessages] = useState([]);
   const [lastTradeTime, setLastTradeTime] = useState(null); // 🔄 Store last trade timestamp locally
   const [openShareModel, setOpenShareModel] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState(null);
   const [type, setType] = useState(null); // 🔄 Store last trade timestamp locally
-  const platform = Platform.OS.toLowerCase();
+  const [selectedPetType, setSelectedPetType] = useState('All');
+  const [isItemDetailsModalVisible, setItemDetailsModalVisible] = useState(false);  // To control the visibility of the modal
+  const [selectedItemDetails, setSelectedItemDetails] = useState(null);  // Stores the selected item with additional data
+  const [weight, setWeight] = useState('');  // Stores the weight input
+  const [age, setAge] = useState('');  // Stores the age input
+  const [units, setUnits] = useState(1);  // Stores the age input
+  const [selectedMutations, setSelectedMutations] = useState([]);
+
+
+
+
+
   const { t } = useTranslation();
+  const CATEGORIES =
+    ['All', 'Pet', 'Gear', 'Fruit'];
   // const pinnedMessagesRef = useMemo(() => ref(appdatabase, 'pin_messages'), []);
 
 
 
-  const CURRENT_APP_VERSION = DeviceInfo.getVersion();
-  // useEffect(() => {
-  //   let isMounted = true; // ✅ Track mounted state
-  //   const checkForUpdate = async () => {
-  //     try {
-  //       const database = getDatabase();
-  //       const platformKey = Platform.OS === "ios" ? "ios_app_version" : (config.isNoman ? "noman_app_version" : 'waqas_app_version');
-  //       const versionRef = ref(database, platformKey);
-  //       const snapshot = await get(versionRef);
-  //       if (snapshot.exists() && snapshot.val().app_version !== CURRENT_APP_VERSION) {
-  //         setShowNotification(true);
-  //       } else {
-  //         setShowNotification(false);
-  //       }
-  //     } catch (error) {
-  //       console.error("🔥 Error checking for updates:", error);
-  //     }
-  //   };
-  //   checkForUpdate();
-  //   return () => {
-  //     isMounted = false; // ✅ Prevent updates after unmount
-  //   };
-  // }, []);
 
   const handleLoginSuccess = () => {
     setIsSigninDrawerVisible(false);
   };
 
- 
 
-  // useEffect(() => {
-  //   const loadPinnedMessages = async () => {
-  //     try {
-  //       const snapshot = await pinnedMessagesRef.once('value');
-  //       if (snapshot.exists()) {
-  //         const data = snapshot.val();
-  //         const parsedPinnedMessages = Object.entries(data).map(([key, value]) => ({
-  //           firebaseKey: key, // Use the actual Firebase key here
-  //           ...value,
-  //         }));
-  //         setPinnedMessages(parsedPinnedMessages); // Store the parsed messages with the Firebase key
-  //       } else {
-  //         setPinnedMessages([]); // No pinned messages
-  //       }
-  //     } catch (error) {
-  //       console.error('Error loading pinned messages:', error);
-  //       Alert.alert(t('home.alert.error'), 'Could not load pinned messages. Please try again.');
-  //     }
-  //   };
-
-  //   loadPinnedMessages();
-  //   return () => pinnedMessagesRef.off(); // ✅ Clean up Firebase reference
-
-  // }, [pinnedMessagesRef]);
-  // Run this once when the app starts
-
-
-
-
-
-  // const onClose = () => { setShowNotification(false) }
-  // const onClosePinMessage = (index) => {
-  //   setPinnedMessages((prevMessages) => prevMessages.filter((_, i) => i !== index));
-  // };
   const isDarkMode = theme === 'dark'
   const viewRef = useRef();
 
@@ -125,18 +78,10 @@ const HomeScreen = ({ selectedTheme }) => {
     setSelectedSection(null);
     setHasTotal({ price: 0, value: 0 });
     setWantsTotal({ price: 0, value: 0 });
-    setHasItems([null, null, null, null]);
-    setWantsItems([null, null, null, null]);
+    setHasItems([null, null, null, null, null, null]);
+    setWantsItems([null, null, null, null, null, null]);
   };
-  const resetTradeState = () => {
-    setHasItems([null, null, null, null]);
-    setWantsItems([null, null, null, null]);
-    setHasTotal({ price: 0, value: 0 });
-    setWantsTotal({ price: 0, value: 0 });
-    setDescription("");  // ✅ Reset description field
-    setSelectedSection(null);
-    setModalVisible(false); // ✅ Close modal after successful trade
-  };
+
 
   const handleCreateTradePress = async (type) => {
     if (!user.id & type === 'create') {
@@ -155,30 +100,30 @@ const HomeScreen = ({ selectedTheme }) => {
     } else {
       setType('share')
     }
-    const tradeRatio = wantsTotal.value / hasTotal.value;
+    // const tradeRatio = wantsTotal.value / hasTotal.value;
 
-    if (
-      tradeRatio < 0.05 &&
-      hasItems.filter(Boolean).length > 0 &&
-      wantsItems.filter(Boolean).length > 0 && type !== 'share'
-    ) {
-      showErrorMessage(
-        t("home.unfair_trade"),
-        t('home.unfair_trade_description')
-      );
-      return;
-    }
+    // if (
+    //   tradeRatio < 0.05 &&
+    //   hasItems.filter(Boolean).length > 0 &&
+    //   wantsItems.filter(Boolean).length > 0 && type !== 'share'
+    // ) {
+    //   showErrorMessage(
+    //     t("home.unfair_trade"),
+    //     t('home.unfair_trade_description')
+    //   );
+    //   return;
+    // }
 
 
-    if (tradeRatio > 1.95 && type !== 'share' &&
-      hasItems.filter(Boolean).length > 0 &&
-      wantsItems.filter(Boolean).length > 0) {
-      showErrorMessage(
-        t('home.invalid_trade'),
-        t('home.invalid_trade_description')
-      );
-      return;
-    }
+    // if (tradeRatio > 1.95 && type !== 'share' &&
+    //   hasItems.filter(Boolean).length > 0 &&
+    //   wantsItems.filter(Boolean).length > 0) {
+    //   showErrorMessage(
+    //     t('home.invalid_trade'),
+    //     t('home.invalid_trade_description')
+    //   );
+    //   return;
+    // }
 
     setModalVisible(true)
   };
@@ -199,10 +144,10 @@ const HomeScreen = ({ selectedTheme }) => {
       const database = getDatabase();
       const avgRatingSnap = await ref(database, `averageRatings/${user.id}`).once('value');
       const avgRatingData = avgRatingSnap.val();
-      
+
       const userRating = avgRatingData?.value || null;
       const ratingCount = avgRatingData?.count || 0; // 👈 total users who rated
-      
+
 
       // ✅ Build new trade object
       let newTrade = {
@@ -211,15 +156,15 @@ const HomeScreen = ({ selectedTheme }) => {
         avatar: user?.avatar || null,
         isPro: localState.isPro,
         isFeatured: false,
-        hasItems: hasItems.filter(item => item && item.Name).map(item => ({ name: item.Name, type: item.Type, value: item.Value })),
-        wantsItems: wantsItems.filter(item => item && item.Name).map(item => ({ name: item.Name, type: item.Type, value: item.Value })),
+        hasItems: hasItems,
+        wantsItems: wantsItems,
         hasTotal: { price: hasTotal?.price || 0, value: hasTotal?.value || 0 },
         wantsTotal: { price: wantsTotal?.price || 0, value: wantsTotal?.value || 0 },
         description: description || "",
         timestamp: firestore.FieldValue.serverTimestamp(),
         rating: userRating,
         ratingCount: ratingCount
-        
+
       };
       if (type === 'share') {
         setModalVisible(false); // Close modal
@@ -278,56 +223,35 @@ const HomeScreen = ({ selectedTheme }) => {
     }
   };
 
+  const handleMutationSelect = (mutation) => {
+    if (selectedMutations.includes(mutation)) {
+      setSelectedMutations(selectedMutations.filter(item => item !== mutation));
+    } else {
+      setSelectedMutations([...selectedMutations, mutation]);
+    }
+  };
+
   const adjustedData = (fruitRecords) => {
     let transformedData = [];
 
     fruitRecords.forEach((fruit) => {
       if (!fruit.name) return; // Skip invalid entries
-// console.log(fruit)
-      const permValueInvalid = fruit.permValue === 0 || fruit.permValue === "0" || fruit.permValue === "N/A";
-      const notperavailable = fruit.rarity == 'gamepass';
+
 
       // ✅ If both permValue & value exist (permValue must be valid)
-      if (fruit.permValue !== undefined && fruit.value !== undefined) {
-       if(!notperavailable){ transformedData.push({
-          Name: fruit.name,
-          Value: permValueInvalid ? 0 :fruit.permValue,
-          Type: 'p', // Permanent type
-          Price: 0
-        });}
-
+      if (fruit.id !== undefined) {
         transformedData.push({
-          Name: fruit.name,
-          Value: fruit.value,
-          Type: 'n', // Normal type
-          Price: fruit.beli || 0
-        });
+          Name: formatNameNew(fruit.name),
+          Value: fruit.value || 1,
+          Image: fruit.picture,
+          Type: fruit.category,
+          Tier: fruit.tier,
+        })
 
-        // console.log(`✅ Added ${fruit.name}: Permanent (${fruit.permValue}), Normal (${fruit.value})`);
 
-      } else if ( fruit.permValue !== undefined) {
-        // ✅ If only permValue exists (must be valid)
-        transformedData.push({
-          Name: fruit.name,
-          Value: permValueInvalid ? 0 :fruit.permValue,
-          Type: 'p', // Permanent type
-          Price: 0
-        });
-
-        // console.log(`⚠️ Only Permanent found for ${fruit.name}: ${fruit.permValue}`);
-
-      } else if (fruit.value !== undefined) {
-        // ✅ If only value exists
-        transformedData.push({
-          Name: fruit.name,
-          Value: fruit.value,
-          Type: 'n', // Normal type
-          Price: fruit.beli || 0
-        });
-
-        // console.log(`⚠️ Only Normal found for ${fruit.name}: ${fruit.value}`);
+        // console.log(`⚠️ Only Normal found for ${formatNameNew(fruit.name)}: ${fruit.value}`);
       } else {
-        console.warn(`🚨 No valid values found for ${fruit.name}, skipping!`);
+        console.warn(`🚨 No valid values found for ${formatNameNew(fruit.name)}, skipping!`);
       }
     });
 
@@ -335,7 +259,20 @@ const HomeScreen = ({ selectedTheme }) => {
   };
 
 
-
+  const formatNameNew = (name) => {
+    const formattedName = name
+      .split('_')                           // Split on underscore
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalize each word
+      .join(' ');                           // Join with space
+  
+    // If the formatted name length is greater than 5 characters, truncate it and add "..."
+    if (formattedName.length > 15) {
+      return formattedName.slice(0, 15) + '...';  // Truncate to 5 characters and append '...'
+    }
+    
+    return formattedName;  // Return the formatted name if it's 5 characters or less
+  };
+  
 
   useEffect(() => {
     let isMounted = true; // Track mounted state
@@ -350,7 +287,6 @@ const HomeScreen = ({ selectedTheme }) => {
         if (typeof localState.data === 'string') {
           parsedData = JSON.parse(localState.data);
         }
-
         // Ensure `parsedData` is a valid object before using it
         if (parsedData && typeof parsedData === 'object' && Object.keys(parsedData).length > 0) {
           const formattedData = adjustedData(Object.values(parsedData));
@@ -377,7 +313,7 @@ const HomeScreen = ({ selectedTheme }) => {
     };
   }, [localState.data]);
 
-
+  // console.log(fruitRecords, localState.data)
   const openDrawer = (section) => {
     const wantsItemCount = wantsItems.filter((item) => item !== null).length;
     triggerHapticFeedback('impactLight');
@@ -400,82 +336,161 @@ const HomeScreen = ({ selectedTheme }) => {
     setIsDrawerVisible(false);
   };
 
-  const updateTotal = (item, section, add = true, isNew = false) => {
-    // console.log(item);
+  // const updateTotal = (section) => {
+  //   let totalValue = 0;
 
-    // Convert `item.Price` and `item.Value` to numbers to prevent string concatenation
-    const price = Number(item.Price) || 0; // Ensure it's a number or default to 0
-    const value = Number(item.Value) || 0;
+  //   // Calculate total value for the section (has or wants)
+  //   const items = section === 'has' ? hasItems : wantsItems;
 
-    // Only update price if item.Type is NOT "p"
-    const priceChange = add ? price : -price;
+  //   // Loop through each item to calculate total
+  //   items.forEach(item => {
+  //     if (item !== null) {
+  //       totalValue += item.Value || 0; // Add value to total, ensuring it's a number
+  //     }
+  //   });
 
-    // Update value only if item.Type isNew
-    const valueChange = isNew ? (add ? value : -value) : 0;
+  //   // Update the total state
+  //   if (section === 'has') {
+  //     setHasTotal((prev) => ({
+  //       ...prev,
+  //       value: totalValue,  // Set new value for hasTotal
+  //       price: totalValue,  // Set price, if applicable
+  //     }));
+  //   } else {
+  //     setWantsTotal((prev) => ({
+  //       ...prev,
+  //       value: totalValue,  // Set new value for wantsTotal
+  //       price: totalValue,  // Set price, if applicable
+  //     }));
+  //   }
+  // };
 
-    if (section === 'has') {
-      setHasTotal((prev) => ({
-        price: prev.price + priceChange,
-        value: prev.value + valueChange,
-      }));
-    } else {
-      setWantsTotal((prev) => ({
-        price: prev.price + priceChange,
-        value: prev.value + valueChange,
-      }));
-    }
-  };
 
 
 
-  const formatName = (name) => {
-    let formattedName = name.replace(/^\+/, '');
-    formattedName = formattedName.replace(/\s+/g, '-');
-    return formattedName;
-  }
+
   const selectItem = (item) => {
-    // console.log(item)
-    triggerHapticFeedback('impactLight');
-    const newItem = { ...item, usePermanent: false };
-    const updateItems = selectedSection === 'has' ? [...hasItems] : [...wantsItems];
-    const nextEmptyIndex = updateItems.indexOf(null);
-    if (nextEmptyIndex !== -1) {
-      updateItems[nextEmptyIndex] = newItem;
-    } else {
-      updateItems.push(newItem);
-    }
-    if (selectedSection === 'has') {
-      setHasItems(updateItems);
-      updateTotal(newItem, 'has', true, true);
-    } else {
-      setWantsItems(updateItems);
-      updateTotal(newItem, 'wants', true, true);
-    }
-    closeDrawer();
-
+    setSelectedItemDetails(item);  // Set the selected item
+    setItemDetailsModalVisible(true); // Show the modal for input
+    setIsDrawerVisible(false);  // Close the drawer
   };
+
+  // Update Total function
+  const updateTotal = (section) => {
+    let totalValue = 0;
+
+    // Calculate total value for the section (has or wants)
+    const items = section === 'has' ? hasItems : wantsItems;
+
+    // Loop through each item to calculate total
+    items.forEach(item => {
+      if (item !== null) {
+        totalValue += item.Value * item.units || 0; // Sum the value of each item (ignoring null)
+      }
+    });
+
+    // Update the total state
+    if (section === 'has') {
+      setHasTotal({ value: totalValue }); // Update hasTotal state
+    } else {
+      setWantsTotal({ value: totalValue }); // Update wantsTotal state
+    }
+
+    // console.log(`Updated total for ${section}:`, totalValue);
+  };
+
+  useEffect(() => {
+    // Trigger total update whenever hasItems or wantsItems change
+    if (selectedSection === 'has') {
+      updateTotal('has');
+    } else if (selectedSection === 'wants') {
+      updateTotal('wants');
+    }
+  }, [hasItems, wantsItems]); // Trigger when hasItems or wantsItems change
+
+  // Item submission function
+  const handleItemDetailsSubmit = () => {
+    if (!selectedItemDetails) {
+      console.error("No item selected.");
+      return;
+    }
+
+
+
+    const updatedItem = {
+      ...selectedItemDetails,
+      weight: weight,
+      age: age,
+      units: units || 1,
+      Mutations: selectedMutations,
+    };
+
+    // console.log("Selected Section:", selectedSection);
+    // console.log("Updated Item:", updatedItem);
+
+    if (selectedSection === 'has') {
+      const updatedHasItems = [...hasItems];
+      const emptyIndex = updatedHasItems.findIndex(item => item === null); // Find the first empty slot
+
+      // console.log("Updated Has Items (before adding):", updatedHasItems);
+      // console.log("First empty index in hasItems:", emptyIndex);
+
+      if (emptyIndex !== -1) {
+        updatedHasItems[emptyIndex] = updatedItem; // Place the selected item in the first available slot
+      }
+
+      setHasItems(updatedHasItems); // Update hasItems state
+    } else if (selectedSection === 'wants') {
+      const updatedWantsItems = [...wantsItems];
+      const emptyIndex = updatedWantsItems.findIndex(item => item === null); // Find the first empty slot
+
+      // console.log("Updated Wants Items (before adding):", updatedWantsItems);
+      // console.log("First empty index in wantsItems:", emptyIndex);
+
+      if (emptyIndex !== -1) {
+        updatedWantsItems[emptyIndex] = updatedItem; // Place the selected item in the first available slot
+      }
+
+      setWantsItems(updatedWantsItems); // Update wantsItems state
+    }
+    setAge('')
+    setUnits('')
+    setWeight('')
+    setSelectedMutations([])
+    setItemDetailsModalVisible(false); // Close the modal after submitting
+  };
+
+
+
+
 
   const removeItem = (index, isHas) => {
     triggerHapticFeedback('impactLight');
-    const section = isHas ? 'has' : 'wants';
     const items = isHas ? hasItems : wantsItems;
     const updatedItems = [...items];
-    const item = updatedItems[index];
 
-    if (item) {
-      updatedItems[index] = null;
-      const filteredItems = updatedItems.filter((item, i) => item !== null || i < 4);
-      if (isHas) setHasItems(filteredItems);
-      else setWantsItems(filteredItems);
-      updateTotal(item, section, false, true);
+    updatedItems[index] = null;  // Reset the slot to null (empty)
+
+    if (isHas) {
+      setHasItems(updatedItems);
+      updateTotal('has');  // Recalculate hasTotal
+    } else {
+      setWantsItems(updatedItems);
+      updateTotal('wants');  // Recalculate wantsTotal
     }
   };
 
-  const filteredData = fruitRecords.filter((item) =>
-    item.Name.toLowerCase().includes(searchText.toLowerCase())
-  );
-
-  // console.log(filteredData)
+  const filteredData = fruitRecords
+    .filter((item) =>
+      item.Name.toLowerCase().includes(searchText.toLowerCase()) // Filter by search text
+    )
+    .filter((item) =>
+      selectedPetType === 'All' || item.Type === selectedPetType.toLowerCase() // Filter by selected category
+    );
+  const handleCategoryChange = (category) => {
+    setSelectedPetType(category);
+  };
+  // console.log(selectedPetType)
   const profitLoss = wantsTotal.value - hasTotal.value;
   const isProfit = profitLoss >= 0;
   const neutral = profitLoss === 0;
@@ -496,37 +511,22 @@ const HomeScreen = ({ selectedTheme }) => {
 
         <View style={styles.container} key={language}>
           <ScrollView showsVerticalScrollIndicator={false}>
-            {/* {showNotification && <View style={[styles.notification]}>
-              <Text style={styles.text}>A new update is available! Please update your app.</Text>
-              <TouchableOpacity onPress={onClose} style={styles.closeButtonNotification}>
-                <Icon name="close-outline" size={18} color="white" />
-
-              </TouchableOpacity>
-            </View>}
-            {pinnedMessages.length > 0 && pinnedMessages.map((message, index) => (
-              <View key={index} style={styles.notification}>
-                <Text style={styles.text}>{message.text}</Text>
-                <TouchableOpacity onPress={() => onClosePinMessage(index)} style={styles.closeButtonNotification}>
-                  <Icon name="close-outline" size={18} color="white" />
-                </TouchableOpacity>
-              </View>
-            ))} */}
 
 
 
             <ViewShot ref={viewRef} style={styles.screenshotView}>
-            {config.isNoman &&  <View style={styles.summaryContainer}>
+              {config.isNoman && <View style={styles.summaryContainer}>
                 <View style={[styles.summaryBox, styles.hasBox]}>
                   <Text style={[styles.summaryText]}>{t('home.you')}</Text>
                   <View style={{ width: '90%', backgroundColor: '#e0e0e0', height: 1, alignSelf: 'center' }} />
                   <Text style={styles.priceValue}>{t('home.value')}: {hasTotal.value?.toLocaleString()}</Text>
-                  <Text style={styles.priceValue}>{t('home.price')}: ${hasTotal.price?.toLocaleString()}</Text>
+
                 </View>
                 <View style={[styles.summaryBox, styles.wantsBox]}>
                   <Text style={styles.summaryText}>{t('home.them')}</Text>
                   <View style={{ width: '90%', backgroundColor: '#e0e0e0', height: 1, alignSelf: 'center' }} />
                   <Text style={styles.priceValue}>{t('home.value')}: {wantsTotal.value?.toLocaleString()}</Text>
-                  <Text style={styles.priceValue}>{t('home.price')}: ${wantsTotal.price?.toLocaleString()}</Text>
+
                 </View>
               </View>}
               <View style={styles.profitLossBox}>
@@ -546,29 +546,111 @@ const HomeScreen = ({ selectedTheme }) => {
 
               <Text style={[styles.sectionTitle, { color: selectedTheme.colors.text }]}>{t('home.you')}</Text>
               <View style={styles.itemRow}>
-                {/* <TouchableOpacity onPress={() => { openDrawer('has') }} style={styles.addItemBlock}>
-                  <Icon name="add-circle" size={40} color="white" />
-                  <Text style={styles.itemText}>{t('home.add_item')}</Text>
-                </TouchableOpacity> */}
 
-                {config.isNoman && hasItems?.map((item, index) => (
-                  <TouchableOpacity key={index} style={[styles.addItemBlockNew, { backgroundColor: item?.Type === 'p' ? '#FFD700' : isDarkMode ? '#34495E' : '#CCCCFF' }]} onPress={() => { openDrawer('has') }} disabled={item !== null}>
+
+                {hasItems?.map((item, index) => (
+                  <TouchableOpacity key={index} style={[styles.addItemBlockNew, { backgroundColor: item?.Type === 'p' ? '#FFD700' : isDarkMode ? '#34495E' : '#B2C6D5' }]} onPress={() => { openDrawer('has') }} disabled={item !== null}>
                     {item ? (
                       <>
+                        {item.Type === 'fruit' && item.Mutations.length > 0 && (
+                          <View style={{
+                            position: 'absolute',
+                            left: 2,
+                            top: 2,
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}>
+                            {item.Mutations.slice(0, 3).map((mutation, index) => (
+                              <View style={{
+                                backgroundColor: config.colors.secondary,
+                                paddingLeft: 3,
+                                paddingVertical: 1,
+                                borderRadius: 20,
+                                marginBottom: 2,
+                                justifyContent: 'center',
+                                alignItems: 'center'
+                              }} key={index}>
+                                <Text style={{
+                                  color: 'white',
+                                  fontWeight: 'Lato-Regular',
+                                  fontSize: 6,
+                                  alignSelf: 'center'
+                                }}>
+                                  {mutation.charAt(0)}  {/* Display only the first character */}
+                                </Text>
+                              </View>
+                            ))}
+
+                            {/* Check if there are more than 3 mutations */}
+                            {item.Mutations.length > 3 && (
+                              <View style={{
+                                backgroundColor: config.colors.secondary,
+                                paddingLeft: 2,
+                                // paddingVertical: 1,
+                                borderRadius: 20,
+                                marginBottom: 2,
+                                justifyContent: 'center',
+                                alignItems: 'center'
+                              }}>
+                                <Text style={{
+                                  color: 'white',
+                                  fontWeight: 'bold',
+                                  fontSize: 9,
+                                  alignSelf: 'center'
+                                }}>
+                                  + {/* Display "+" if there are more than 3 mutations */}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        )}
+
                         <Image
-                          source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
+                          source={{ uri: item.Image }}
                           style={[styles.itemImageOverlay,
 
                           ]}
                         />
-                        <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
-                        ]}>{item.usePermanent 
-                          ? (Number(item.Permanent) === 0 ? "Special" : Number(item.Permanent).toLocaleString()) 
-                          : (Number(item.Value) === 0 ? "Special" : Number(item.Value).toLocaleString())
-                        }</Text>
-                        <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
-                        ]}>{item.Type === 'p' && 'Perm'}  {item.Name}</Text>
+                        {/* <Text style={[styles.itemText, { color: isDarkMode ? 'white' : 'black' }
+                        ]}>{!item.Value ? "Special" : `${Number(item.Value).toLocaleString()}`}</Text> */}
+                        <Text style={[styles.itemText, { color: isDarkMode ? 'white' : 'black' }
+                        ]}> {item.units}x {item.Name}</Text>
+
+
+                        <View style={{ height: 45, width: '100%', borderBottomRightRadius: 8, borderBottomLeftRadius: 8, justifyContent: 'flex-end' }}>
+
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', paddingHorizontal: 5, paddingVertical: 2, }}>
+                            <Text style={[styles.itemText2
+                            ]}>{formatNameNew(item.Tier)}</Text>
+                            <Text style={[styles.itemText2
+                            ]}>{formatNameNew(item.Type)}</Text>
+
+
+
+                          </View>
+                          {(item.age || item.weight) && item.Type !== 'gear' && <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', paddingHorizontal: 5, paddingVertical: 2 }}>
+                            {item.weight && <Text style={[styles.itemText2
+                            ]}>{item.weight} kg</Text>}
+                            {item.age && <Text style={[styles.itemText2
+                            ]}> {item.Type === 'pet' ? 'Age' : 'Price'} {item.age}</Text>}
+
+
+
+                          </View>}
+                          {/* {item?.Type === '' && <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 5, paddingVertical: 2 }}>
+                            <Text style={[styles.itemText2
+                            ]}>200 Kg</Text>
+                            <Text style={[styles.itemText2
+                            ]}>Age: 3</Text>
+
+
+
+                          </View>} */}
+
+
+                        </View>
                         {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
+
                         <TouchableOpacity onPress={() => removeItem(index, true)} style={styles.removeButton}>
                           <Icon name="close-outline" size={18} color="white" />
                         </TouchableOpacity>
@@ -581,39 +663,7 @@ const HomeScreen = ({ selectedTheme }) => {
                     )}
                   </TouchableOpacity>
                 ))}
-                    {!config.isNoman && hasItems?.map((item, index) => (
-                  <TouchableOpacity key={index} style={[styles.addItemBlockNewNoman,]} onPress={() => { openDrawer('has') }} disabled={item !== null}>
-                    {item ? (
-                      <>
-                      <View style={{backgroundColor:'#1dc226', paddingVertical:6, borderTopLeftRadius:6, borderTopRightRadius:6}}>
-                         <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'black' : 'black') }
-                        ]}>{item.Type === 'p' && 'Perm'}  {item.Name}</Text></View>
-                        <Image
-                          source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
-                          style={[styles.itemImageOverlayNoman, {alignSelf:'center'}
 
-                          ]}
-                        />
-                        <View style={{backgroundColor:'#fe01ea', paddingVertical:6, borderBottomLeftRadius:6, borderBottomRightRadius:6}}>
-                        <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'black' : 'black') }
-                        ]}>${item.usePermanent 
-                          ? (Number(item.Permanent) === 0 ? "Special" : Number(item.Permanent).toLocaleString()) 
-                          : (Number(item.Value) === 0 ? "Special" : Number(item.Value).toLocaleString())
-                        }</Text></View>
-                     
-                        {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
-                        <TouchableOpacity onPress={() => removeItem(index, true)} style={styles.removeButton}>
-                          <Icon name="close-outline" size={18} color="white" />
-                        </TouchableOpacity>
-                      </>
-                    ) : (
-                      <View style={{flex:1, justifyContent:'center', alignItems:'center'}}>
-                        {index === lastFilledIndexHas + 1 && <Icon name="add-circle" size={30} color={isDarkMode ? "lightgrey" : 'grey' }/>}
-                        {index === lastFilledIndexHas + 1 && <Text style={[styles.itemText, {color:isDarkMode ? "lightgrey" : 'grey'}]}>{t('home.add_item')}</Text>}
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                ))}
               </View>
 
               <View style={styles.divider}>
@@ -630,99 +680,129 @@ const HomeScreen = ({ selectedTheme }) => {
                   <Icon name="add-circle" size={40} color="white" />
                   <Text style={styles.itemText}>{t('home.add_item')}</Text>
                 </TouchableOpacity> */}
-                {config.isNoman && wantsItems?.map((item, index) => (
-                  <TouchableOpacity key={index} style={[styles.addItemBlockNew, { backgroundColor: item?.Type === 'p' ? '#FFD700' : isDarkMode ? '#34495E' : '#CCCCFF' }]} onPress={() => { openDrawer('wants'); }} disabled={item !== null}>
+                {wantsItems?.map((item, index) => (
+                  <TouchableOpacity key={index} style={[styles.addItemBlockNew, { backgroundColor: item?.Type === 'p' ? '#FFD700' : isDarkMode ? '#34495E' : '#B2C6D5' }]} onPress={() => { openDrawer('wants') }} disabled={item !== null}>
                     {item ? (
                       <>
+                        {item.Type === 'fruit' && item.Mutations.length > 0 && (
+                          <View style={{
+                            position: 'absolute',
+                            left: 2,
+                            top: 2,
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}>
+                            {item.Mutations.slice(0, 3).map((mutation, index) => (
+                              <View style={{
+                                backgroundColor: config.colors.secondary,
+                                paddingLeft: 3,
+                                paddingVertical: 1,
+                                borderRadius: 20,
+                                marginBottom: 2,
+                                justifyContent: 'center',
+                                alignItems: 'center'
+                              }} key={index}>
+                                <Text style={{
+                                  color: 'white',
+                                  fontWeight: 'Lato-Regular',
+                                  fontSize: 6,
+                                  alignSelf: 'center'
+                                }}>
+                                  {mutation.charAt(0)}  {/* Display only the first character */}
+                                </Text>
+                              </View>
+                            ))}
+
+                            {/* Check if there are more than 3 mutations */}
+                            {item.Mutations.length > 3 && (
+                              <View style={{
+                                backgroundColor: config.colors.secondary,
+                                paddingLeft: 2,
+                                // paddingVertical: 1,
+                                borderRadius: 20,
+                                marginBottom: 2,
+                                justifyContent: 'center',
+                                alignItems: 'center'
+                              }}>
+                                <Text style={{
+                                  color: 'white',
+                                  fontWeight: 'bold',
+                                  fontSize: 9,
+                                  alignSelf: 'center'
+                                }}>
+                                  + {/* Display "+" if there are more than 3 mutations */}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        )}
+
                         <Image
-                          source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
-                          style={[styles.itemImageOverlay]}
+                          source={{ uri: item.Image }}
+                          style={[styles.itemImageOverlay,
+
+                          ]}
                         />
-                        <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
-                        ]}>{item.usePermanent 
-                          ? (Number(item.Permanent) === 0 ? "Special" : Number(item.Permanent).toLocaleString()) 
-                          : (Number(item.Value) === 0 ? "Special" : Number(item.Value).toLocaleString())
-                        }</Text>
-                        <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
-                        ]}>{item.Type === 'p' && 'Perm'} {item.Name}</Text>
+                        {/* <Text style={[styles.itemText, { color: isDarkMode ? 'white' : 'black' }
+                        ]}>{!item.Value ? "Special" : `${Number(item.Value).toLocaleString()}`}</Text> */}
+                        <Text style={[styles.itemText, { color: isDarkMode ? 'white' : 'black' }
+                        ]}> {item.units} x {item.Name}</Text>
+
+
+                        <View style={{ height: 45, width: '100%', borderBottomRightRadius: 8, borderBottomLeftRadius: 8, justifyContent: 'flex-end' }}>
+
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', paddingHorizontal: 5, paddingVertical: 2, }}>
+                            <Text style={[styles.itemText2
+                            ]}>{formatNameNew(item.Tier)}</Text>
+                            <Text style={[styles.itemText2
+                            ]}>{formatNameNew(item.Type)}</Text>
+
+
+
+                          </View>
+                          {(item.age || item.weight) && item.Type !== 'gear' && <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', paddingHorizontal: 5, paddingVertical: 2 }}>
+                            {item.weight && <Text style={[styles.itemText2
+                            ]}>{item.weight} kg</Text>}
+                            {item.age && <Text style={[styles.itemText2
+                            ]}> {item.Type === 'pet' ? 'Age' : 'Price'} {item.age}</Text>}
+
+
+
+                          </View>}
+                          {/* {item?.Type === '' && <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 5, paddingVertical: 2 }}>
+                            <Text style={[styles.itemText2
+                            ]}>200 Kg</Text>
+                            <Text style={[styles.itemText2
+                            ]}>Age: 3</Text>
+
+
+
+                          </View>} */}
+
+
+                        </View>
                         {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
                         <TouchableOpacity onPress={() => removeItem(index, false)} style={styles.removeButton}>
                           <Icon name="close-outline" size={18} color="white" />
                         </TouchableOpacity>
                       </>
-
                     ) : (
                       <>
                         {index === lastFilledIndexWant + 1 && <Icon name="add-circle" size={30} color="grey" />}
                         {index === lastFilledIndexWant + 1 && <Text style={styles.itemText}>{t('home.add_item')}</Text>}
                       </>
-                      // <Text style={styles.itemPlaceholder}>{t('home.empty')}</Text>
                     )}
                   </TouchableOpacity>
                 ))}
 
-{!config.isNoman && wantsItems?.map((item, index) => (
-                  <TouchableOpacity key={index} style={[styles.addItemBlockNewNoman,]} onPress={() => { openDrawer('wants') }} disabled={item !== null}>
-                    {item ? (
-                      <>
-                      <View style={{backgroundColor:'#1dc226', paddingVertical:6, borderTopLeftRadius:6, borderTopRightRadius:6}}>
-                         <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'black' : 'black') }
-                        ]}>{item.Type === 'p' && 'Perm'}  {item.Name}</Text></View>
-                        <Image
-                          source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
-                          style={[styles.itemImageOverlayNoman, {alignSelf:'center'}
 
-                          ]}
-                        />
-                        <View style={{backgroundColor:'#fe01ea', paddingVertical:6, borderBottomLeftRadius:6, borderBottomRightRadius:6}}>
-                        <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'black' : 'black') }
-                        ]}>${item.usePermanent 
-                          ? (Number(item.Permanent) === 0 ? "Special" : Number(item.Permanent).toLocaleString()) 
-                          : (Number(item.Value) === 0 ? "Special" : Number(item.Value).toLocaleString())
-                        }</Text></View>
-                     
-                        {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
-                        <TouchableOpacity onPress={() => removeItem(index, false)} style={styles.removeButton}>
-                          <Icon name="close-outline" size={18} color="white" />
-                        </TouchableOpacity>
-                      </>
-                    ) : (
-                      <View style={{flex:1, justifyContent:'center', alignItems:'center'}}>
-                        {index === lastFilledIndexWant + 1 && <Icon name="add-circle" size={30} color={isDarkMode ? "lightgrey" : 'grey'} />}
-                        {index === lastFilledIndexWant + 1 && <Text style={[styles.itemText, {color:isDarkMode ? "lightgrey" : 'grey'}]}>{t('home.add_item')}</Text>}
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                ))}
+
               </View>
-              {!config.isNoman &&  <View style={styles.summaryContainer}>
-                <View style={[styles.summaryBox, styles.hasBox]}>
-                  <View style={{ width: '90%', backgroundColor: '#e0e0e0', alignSelf: 'center', }} />
-                  <View style={{justifyContent:'space-between', flexDirection:'row' }} >
-                  <Text style={styles.priceValue}>{t('home.value')}:</Text>
-                  <Text style={styles.priceValue}>${hasTotal.value?.toLocaleString()}</Text>
-                  </View>
-                  <View style={{justifyContent:'space-between', flexDirection:'row' }}>
-                  <Text style={styles.priceValue}>{t('home.price')}:</Text>
-                  <Text style={styles.priceValue}>${hasTotal.price?.toLocaleString()}</Text>
-                  </View>
-                </View>
-                <View style={[styles.summaryBox, styles.wantsBox]}>
-                  <View style={{ width: '90%', backgroundColor: '#e0e0e0', alignSelf: 'center', }} />
-                  <View style={{justifyContent:'space-between', flexDirection:'row' }} >
-                  <Text style={styles.priceValue}>{t('home.value')}:</Text>
-                  <Text style={styles.priceValue}>${wantsTotal.value?.toLocaleString()}</Text>
-                  </View>
-                  <View style={{justifyContent:'space-between', flexDirection:'row' }}>
-                  <Text style={styles.priceValue}>{t('home.price')}:</Text>
-                  <Text style={styles.priceValue}>${wantsTotal.price?.toLocaleString()}</Text>
-                  </View>
-                </View>
-              </View>}
+
             </ViewShot>
             <View style={styles.createtrade} >
-              <TouchableOpacity style={styles.createtradeButton} onPress={() => handleCreateTradePress('create')}><Text style={{ color: 'white' }}>{t('home.create_trade')}</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.shareTradeButton} onPress={() => handleCreateTradePress('share')}><Text style={{ color: 'white' }}>{t('home.share_trade')}</Text></TouchableOpacity></View>
+              <TouchableOpacity style={styles.createtradeButton} onPress={() => handleCreateTradePress('create')}><Text style={{ color: 'white', fontSize:12, fontFamily:'Lato-Bold'  }}>{t('home.create_trade')}</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.shareTradeButton} onPress={() => handleCreateTradePress('share')}><Text style={{ color: 'white', fontSize:12, fontFamily:'Lato-Bold' }}>{t('home.share_trade')}</Text></TouchableOpacity></View>
           </ScrollView>
           <Modal
             visible={isDrawerVisible}
@@ -733,57 +813,85 @@ const HomeScreen = ({ selectedTheme }) => {
             <Pressable style={styles.modalOverlay} onPress={closeDrawer} />
             <ConditionalKeyboardWrapper>
               <View>
-
-                <View style={[styles.drawerContainer, { backgroundColor: isDarkMode ? '#3B404C' : 'white' }]}>
-
-                  <View style={{
-                    flexDirection: 'row', justifyContent: 'space-between', marginVertical: 10,
-                  }}
-
-                  >
-
-                    <TextInput
-                      style={styles.searchInput}
-                      placeholder={t('home.search_placeholder')}
-                      value={searchText}
-                      onChangeText={setSearchText}
-                      placeholderTextColor={isDarkMode ? 'white' : 'black'}
-
+              <View style={[styles.drawerContainer, { backgroundColor: isDarkMode ? '#3B404C' : 'white' }]}>
+                <View style={styles.drawerHeader}>
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder={t('home.search_placeholder')}
+                    value={searchText}
+                    onChangeText={setSearchText}
+                    placeholderTextColor={isDarkMode ? 'lightgrey' : 'grey'}
                     />
-                    <TouchableOpacity onPress={closeDrawer} style={styles.closeButton}>
-                      <Text style={styles.closeButtonText}>{t('home.close')}</Text>
-                    </TouchableOpacity></View>
-                  <FlatList
-                    onScroll={() => Keyboard.dismiss()}
-                    onTouchStart={() => Keyboard.dismiss()}
-                    keyboardShouldPersistTaps="handled" // Ensures taps o
+                  <TouchableOpacity onPress={closeDrawer} style={styles.closeButton}>
+                    <Text style={styles.closeButtonText}>{t('home.close')}</Text>
+                  </TouchableOpacity>
+                </View>
 
-                    data={filteredData}
-                    keyExtractor={(item) => item.Name}
-                    renderItem={({ item }) => (
-                      <TouchableOpacity style={[styles.itemBlock, { backgroundColor: item.Type === 'p' ? '#FFD700' : isDarkMode ? '#34495E' : '#CCCCFF' }]} onPress={() => selectItem(item)}>
-                        <>
+                <View style={[styles.drawerContent]}>
+                  {/* Category List */}
+                  <View style={styles.categoryList}>
+                    {CATEGORIES.map((category) => (
+                      <TouchableOpacity
+                        key={category}
+                        style={[
+                          styles.categoryButton,
+                          selectedPetType === category && styles.categoryButtonActive
+                        ]}
+                        onPress={() => handleCategoryChange(category)} // Update selected category
+                      >
+                        <Text
+                          style={[
+                            styles.categoryButtonText,
+                            selectedPetType === category && styles.categoryButtonTextActive
+                          ]}
+                        >
+                          {category}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <View style={styles.gridContainer}>
+
+                    {/* FlatList without ScrollView */}
+                    <FlatList
+                      data={filteredData} // Using the filtered data
+                      keyExtractor={(item) => item.Name}
+                      renderItem={({ item }) => (
+                        <TouchableOpacity
+                          style={[
+                            styles.itemBlock,
+                            { backgroundColor: item.Type === 'p' ? '#FFD700' : isDarkMode ? '#34495E' : '#B2C6D5' }
+                          ]}
+                          onPress={() => selectItem(item)}
+                        >
                           <Image
-                            source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
+                            source={{ uri: item.Image }}
                             style={[styles.itemImageOverlay]}
                           />
-                          <Text style={[[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
-                          ]]}>${Number(item.Value)?.toLocaleString()}</Text>
-                          <Text style={[[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
-                          ]]}>{item.Type === 'p' && 'Perm'} {item.Name}</Text>
-                          {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
-                        </>
-                      </TouchableOpacity>
-                    )}
-                    numColumns={3}
-                    contentContainerStyle={styles.flatListContainer}
-                    columnWrapperStyle={styles.columnWrapper}
-
-                  />
+                          <Text style={[
+                            styles.itemText,
+                            { color: isDarkMode ? 'white' : 'black' }
+                          ]}>
+                            {!item.Value ? "Special" : `${Number(item.Value).toLocaleString()}`}
+                          </Text>
+                          <Text style={[
+                            styles.itemText,
+                            { color: isDarkMode ? 'white' : 'black' }
+                          ]}>
+                            {item.Name}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                      numColumns={3}
+                      contentContainerStyle={styles.flatListContainer}
+                      columnWrapperStyle={styles.columnWrapper}
+                    /></View>
                 </View>
+              </View>
               </View>
             </ConditionalKeyboardWrapper>
           </Modal>
+
           <Modal
             visible={modalVisible}
             transparent
@@ -793,6 +901,7 @@ const HomeScreen = ({ selectedTheme }) => {
             <Pressable style={styles.modalOverlay} onPress={() => setModalVisible(false)} />
             <ConditionalKeyboardWrapper>
               <View>
+
                 <View style={[styles.drawerContainer, { backgroundColor: isDarkMode ? '#3B404C' : 'white' }]}>
                   <Text style={styles.modalMessage}>
                     {t("home.trade_description")}
@@ -801,11 +910,13 @@ const HomeScreen = ({ selectedTheme }) => {
                     {t("home.trade_description_hint")}
                   </Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, {width:'100%'}]}
                     placeholder={t("home.write_description")}
                     maxLength={40}
                     value={description}
                     onChangeText={setDescription}
+                    placeholderTextColor={isDarkMode ? 'lightgrey' : 'grey'}
+
                   />
                   <View style={styles.buttonContainer}>
                     <TouchableOpacity
@@ -826,6 +937,95 @@ const HomeScreen = ({ selectedTheme }) => {
               </View>
             </ConditionalKeyboardWrapper>
           </Modal>
+          <Modal
+            visible={isItemDetailsModalVisible}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={() => setItemDetailsModalVisible(false)} // Close modal on request
+          >
+            <Pressable style={styles.modalOverlay} onPress={() => setItemDetailsModalVisible(false)} />
+            <ConditionalKeyboardWrapper>
+              <View>
+            <View style={[styles.drawerContainer, { backgroundColor: isDarkMode ? '#3B404C' : 'white' }]}>
+              <Text style={styles.modalMessage}>Enter Item Details</Text>
+
+              {/* Display the selected item image */}
+              <Image
+                source={{ uri: selectedItemDetails?.Image }}
+                style={{ width: 100, height: 100, alignSelf: 'center' }}
+              />
+
+              {/* Input fields for weight, age, and units */}
+              <View style={styles.inputRow}>
+               {selectedItemDetails?.Type !== 'gear' && <TextInput
+                  style={styles.input}
+                  placeholder="Weight (kg)"
+                  keyboardType="numeric"
+                  value={weight}
+                  onChangeText={setWeight}  // Update weight state
+                  placeholderTextColor={isDarkMode ? 'lightgrey' : 'grey'}
+                />}
+                 {selectedItemDetails?.Type !== 'gear' && <TextInput
+                  style={styles.input}
+                  placeholder={selectedItemDetails?.Type === 'fruit' ? "Price" : "Age (years)"}
+                  keyboardType="numeric"
+                  value={age}
+                  onChangeText={setAge}  // Update age state
+                  placeholderTextColor={isDarkMode ? 'lightgrey' : 'grey'}
+
+                />}
+                <TextInput
+                  style={[styles.input, {width : selectedItemDetails?.Type == 'gear' ? '90%' : '33%'}]}
+                  placeholder="1 x Unit"
+                  value={units}
+                  keyboardType="numeric"
+                  onChangeText={setUnits}  // Update units state
+                  placeholderTextColor={isDarkMode ? 'lightgrey' : 'grey'}
+
+                />
+              </View>
+
+              {/* Show mutations if the item type is fruit */}
+              {selectedItemDetails?.Type === 'fruit' && (
+                <View style={styles.mutationContainer}>
+                  {['Gold', 'Rainbow', 'Wet', 'Chilled', 'Frozen', 'Shocked',
+                    'Chocolate', 'Moonlit', 'Bloodlit', 'Zombified', 'Celestial',
+                    'Disco', 'Plasma', 'Twisted', 'Pollinated', 'Honey Glazed',
+                    'Voidtouched'].map((mutation, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={[
+                          styles.mutationButton,
+                          selectedMutations.includes(mutation) && styles.mutationButtonSelected
+                        ]}
+                        onPress={() => handleMutationSelect(mutation)}
+                      >
+                        <Text style={styles.mutationButtonText}>{mutation}</Text>
+                      </TouchableOpacity>
+                    ))}
+                </View>
+              )}
+
+              {/* Submit Button */}
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity
+                  style={[styles.button, styles.cancelButton]}
+                  onPress={() => setItemDetailsModalVisible(false)}  // Close modal without saving
+                >
+                  <Text style={styles.buttonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.button, styles.confirmButton]}
+                  onPress={handleItemDetailsSubmit}  // Handle the submit action
+                >
+                  <Text style={styles.buttonText}>Submit</Text>
+                </TouchableOpacity>
+              </View>
+            </View></View>
+            </ConditionalKeyboardWrapper>
+          </Modal>
+
+
           <ShareTradeModal
             visible={openShareModel}
             onClose={() => setOpenShareModel(false)}
@@ -841,7 +1041,7 @@ const HomeScreen = ({ selectedTheme }) => {
           />
         </View>
       </GestureHandlerRootView>
-      {!localState.isPro && <BannerAdComponent/>}
+      {!localState.isPro && <BannerAdComponent />}
 
       {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (
@@ -884,7 +1084,7 @@ const getStyles = (isDarkMode) =>
       backgroundColor: config.colors.wantBlockRed,
     },
     summaryText: {
-      fontSize: 16,
+      fontSize: 14,
       lineHeight: 20,
       color: 'white',
       textAlign: 'center',
@@ -896,6 +1096,7 @@ const getStyles = (isDarkMode) =>
       textAlign: 'center',
       marginTop: 5,
       fontFamily: 'Lato-Bold',
+      fontSize: 14,
 
     },
     sectionTitle: {
@@ -912,33 +1113,22 @@ const getStyles = (isDarkMode) =>
 
     },
     addItemBlockNew: {
-      width: '48%',
-      height: config.isNoman ? 80 : 110,
-      backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF', // Dark: darker contrast, Light: White
+      width: '33%',
+      height: 100,
+      backgroundColor: isDarkMode ? '#34495E' : '#B2C6D5', // Dark: darker contrast, Light: White
       borderWidth: Platform.OS === 'android' ? 0 : 1,
       borderColor: 'lightgrey',
       justifyContent: 'center',
       alignItems: 'center',
-      borderRadius: 8,
-      marginBottom: 5,
+      borderRadius: 4,
+      marginBottom: 2,
 
     },
-    addItemBlockNewNoman: {
-      width: '49%',
-      height: config.isNoman ? 80 : 110,
-      backgroundColor: isDarkMode ? '#2d3337' : '#CCCCFF', // Dark: darker contrast, Light: White
-      borderWidth: Platform.OS === 'android' ? 0 : 1,
-      borderColor: 'lightgrey',
-      justifyContent: 'space-between',
-      // alignItems: 'center',
-      borderRadius: 8,
-      marginBottom: 5,
 
-    },
     addItemBlock: {
       width: '32%',
       height: 85,
-      backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF', // Dark: darker contrast, Light: White
+      backgroundColor: isDarkMode ? '#34495E' : '#B2C6D5', // Dark: darker contrast, Light: White
       justifyContent: 'center',
       alignItems: 'center',
       borderRadius: 10,
@@ -946,12 +1136,12 @@ const getStyles = (isDarkMode) =>
     },
     itemBlock: {
       width: '32%',
-      height: 110,
-      backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF', // Dark: darker contrast, Light: White
+      height: 80,
+      backgroundColor: isDarkMode ? '#34495E' : '#B2C6D5', // Dark: darker contrast, Light: White
       justifyContent: 'center',
       alignItems: 'center',
       borderRadius: 10,
-      marginBottom: 10,
+      marginBottom: 2,
       position: 'relative',
       ...(!config.isNoman && {
         borderWidth: 5,
@@ -963,7 +1153,13 @@ const getStyles = (isDarkMode) =>
       color: isDarkMode ? 'white' : 'black',
       textAlign: 'center',
       fontFamily: 'Lato-Bold',
-      fontSize: 12
+      fontSize: 10
+    },
+    itemText2: {
+      color: isDarkMode ? 'white' : 'black',
+      textAlign: 'center',
+      fontFamily: 'Lato-Bold',
+      fontSize: 9
     },
     itemPlaceholder: {
       color: '#CCC',
@@ -990,18 +1186,23 @@ const getStyles = (isDarkMode) =>
       borderTopRightRadius: 10,
       paddingHorizontal: 10,
       paddingTop: 20,
-      maxHeight: 400,
+      maxHeight: 500,
       overflow: 'hidden',
       position: 'absolute',
       bottom: 0,
       left: 0,
       right: 0,
     },
-
-    drawerTitle: {
-      fontSize: 16,
-      textAlign: 'center',
-      fontFamily: 'Lato-Bold'
+    drawerHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    gridContainer: {
+      flex: 1,
+      maxHeight: 500,
+      paddingBottom: 80,
     },
     profitLossBox: { flexDirection: 'row', justifyContent: 'center', marginVertical: 0, alignItems: 'center' },
     profitLossText: { fontSize: 14, fontFamily: 'Lato-Bold' },
@@ -1012,16 +1213,14 @@ const getStyles = (isDarkMode) =>
     },
     searchInput: {
       width: '75%',
-      borderColor: 'grey',
-      borderWidth: 1,
-      borderRadius: 5,
-      height: 48,
-      borderColor: '#333',
+      // height: 48,
+      height: 40,
+      borderColor: 'gray',
       borderWidth: 1,
       borderRadius: 5,
       paddingHorizontal: 10,
-      backgroundColor: '#fff',
-      color: '#000',
+      color: isDarkMode ? 'white' : 'black',
+      fontFamily: 'Lato-Ragular'
     },
     closeButton: {
       backgroundColor: config.colors.wantBlockRed,
@@ -1029,7 +1228,8 @@ const getStyles = (isDarkMode) =>
       borderRadius: 5,
       width: '22%',
       alignItems: 'center',
-      justifyContent: 'center'
+      justifyContent: 'center',
+      height: 40
     },
     closeButtonText: {
       color: 'white',
@@ -1039,7 +1239,7 @@ const getStyles = (isDarkMode) =>
     },
     flatListContainer: {
       justifyContent: 'space-between',
-      paddingBottom: 20
+      paddingBottom: 20,
     },
     columnWrapper: {
       flex: 1,
@@ -1050,11 +1250,6 @@ const getStyles = (isDarkMode) =>
       height: 40,
       borderRadius: 5,
     },
-    itemImageOverlayNoman: {
-      width: 50,
-      height: 50,
-      borderRadius: 5,
-    },
 
 
     screenshotView: {
@@ -1062,40 +1257,10 @@ const getStyles = (isDarkMode) =>
       flex: 1,
       // paddingVertical: 10,
     },
-    float: {
-      position: 'absolute',
-      right: 5,
-      bottom: 5,
-      // width:40,
-      zIndex: 1,
-      // height:40,
-      // backgroundColor:'red'
 
-    },
-    titleText: {
-      fontFamily: 'Lato-Regular',
-      fontSize: 10
-    },
-    loaderContainer: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    loaderText: {
-      fontSize: 16,
-      fontFamily: 'Lato-Bold',
-    },
-    noDataContainer: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: '#f9f9f9',
-    },
-    noDataText: {
-      fontSize: 16,
-      color: 'gray',
-      fontFamily: 'Lato-Bold',
-    },
+
+
+
     createtrade: {
       alignSelf: 'center',
       justifyContent: 'center',
@@ -1104,10 +1269,10 @@ const getStyles = (isDarkMode) =>
     createtradeButton: {
       backgroundColor: config.colors.hasBlockGreen,
       alignSelf: 'center',
-      padding: 10,
+      padding: 8,
       justifyContent: 'center',
       flexDirection: 'row',
-      minWidth: 120,
+      minWidth: 100,
       borderTopStartRadius: 20,
       borderBottomStartRadius: 20,
       marginRight: 1
@@ -1115,10 +1280,10 @@ const getStyles = (isDarkMode) =>
     shareTradeButton: {
       backgroundColor: config.colors.wantBlockRed,
       alignSelf: 'center',
-      padding: 10,
+      padding: 8,
       flexDirection: 'row',
       justifyContent: 'center',
-      minWidth: 120,
+      minWidth: 100,
       borderTopEndRadius: 20,
       borderBottomEndRadius: 20,
       marginLeft: 1
@@ -1172,37 +1337,110 @@ const getStyles = (isDarkMode) =>
       fontFamily: 'Lato-Bold',
     },
 
-    perm: {
-      position: 'absolute',
-      top: 2,
-      left: 10,
-      color: 'lightgrey',
-      fontFamily: 'Lato-Bold',
-      color: 'white',
-    },
-    notification: {
-      justifyContent: "space-between",
-      padding: 12,
-      paddingTop: 20,
-      backgroundColor: config.colors.secondary,
-      marginHorizontal: 10,
-      marginTop: 10,
-      borderRadius: 8
-    },
+
+
     text: {
       color: "white",
       fontSize: 12,
       fontFamily: "Lato-Regular",
       lineHeight: 12
     },
-    closeButtonNotification: {
-      marginLeft: 10,
-      padding: 5,
-      position: 'absolute',
-      top: 0,
-      right: 0
+
+    drawerContent: {
+      flex: 1,
+      flexDirection: 'row',
+    },
+    categoryList: {
+      width: '20%',
+      paddingRight: 12,
+    },
+    categoryButton: {
+      marginVertical: 4,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      backgroundColor: '#B2C6D5',
+      borderRadius: 12,
+      alignItems: 'center',
+    },
+    categoryButtonActive: {
+      backgroundColor: config.colors.primary,
+    },
+    categoryButtonText: {
+      fontSize: 10,
+      fontFamily: 'Lato-Bold',
+      color: 'black',
+    },
+    categoryButtonTextActive: {
+      color: '#fff',
+    },
+    inputRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-evenly',
+      width: '100%',
+      marginBottom: 10, // Space between the row and the next element
     },
 
+    input: {
+      height: 40,
+      borderColor: 'gray',
+      borderWidth: 1,
+      borderRadius: 5,
+      paddingHorizontal: 10,
+      marginBottom: 20,
+      color: isDarkMode ? 'white' : 'black',
+      fontFamily: 'Lato-Regular',
+      width:'32%'
+    },
+
+    buttonContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      width: '100%',
+      marginBottom: 10,
+      paddingHorizontal: 20
+    },
+    button: {
+      paddingVertical: 10,
+      paddingHorizontal: 20,
+      borderRadius: 5,
+    },
+    cancelButton: {
+      backgroundColor: config.colors.wantBlockRed,
+    },
+    confirmButton: {
+      backgroundColor: config.colors.hasBlockGreen,
+    },
+    buttonText: {
+      color: 'white',
+      fontSize: 14,
+      fontFamily: 'Lato-Bold',
+    },
+    mutationContainer: {
+      marginBottom: 20,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'space-around'
+    },
+    mutationTitle: {
+      fontSize: 16,
+      marginBottom: 10,
+    },
+    mutationButton: {
+      paddingHorizontal: 10,
+      paddingVertical: 3,
+      marginBottom: 5,
+      borderRadius: 20,
+      marginRight: 5,
+      backgroundColor: '#ccc',
+    },
+    mutationButtonSelected: {
+      backgroundColor: config.colors.hasBlockGreen,
+    },
+    mutationButtonText: {
+      textAlign: 'center',
+      color: 'white',
+      fontSize: 10
+    },
   });
 
 export default HomeScreen

@@ -13,8 +13,9 @@ export const getAppDownloadLink = () => {
   export const handleShareApp = async () => {
     try {
       const appLink = getAppDownloadLink();
+      const appName = DeviceInfo.getApplicationName();
       const shareOptions = {
-        message: `Explore the ultimate Blox Fruits value calculator! Learn about Blox Fruits, check values, and make smarter trades. Download now: ${appLink}`,
+        message: `Explore the ${appName}! Learn about Blox Fruits, check values, and make smarter trades. Download now: ${appLink}`,
         title: 'Share App',
       };
       await Share.open(shareOptions);

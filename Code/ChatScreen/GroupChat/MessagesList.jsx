@@ -239,11 +239,11 @@ const MessagesList = ({
                 customStyles={{ triggerTouchable: { activeOpacity: 1 } }}
               >
                 <View style={[
-                  item.senderId === user?.id ? styles.mymessageBubble : styles.othermessageBubble,
+                  item.senderId === (user?.id || item.isAdmin) ? styles.mymessageBubble : styles.othermessageBubble,
                   item.senderId === user?.id ? styles.myMessage : styles.otherMessage,
                   item.isReportedByUser && styles.reportedMessage,
                 ]}>
-                  <Text style={item.senderId === user?.id ? styles.myMessageText : styles.otherMessageText}>
+                  <Text style={(item.senderId === user?.id || item.isAdmin)  ? styles.myMessageText : styles.otherMessageText}>
                     <Text style={styles.userName}>{item.sender}
                       {item?.isPro && <Icon
                         name="checkmark-done-circle"

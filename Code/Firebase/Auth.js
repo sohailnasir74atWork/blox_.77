@@ -12,22 +12,22 @@ const persistenceMMKV = {
 };
 
 // Initialize Firebase App
-const firebaseConfig = {
-    apiKey: "AIzaSyDUXkQcecnhrNmeagvtRsKmDBmwz4AsRC0",
-    authDomain: "fruiteblocks.firebaseapp.com",
-    databaseURL: "https://fruiteblocks-default-rtdb.firebaseio.com",
-    projectId: "fruiteblocks",
-    storageBucket: "fruiteblocks.appspot.com",
-    messagingSenderId: "409137828081",
-    appId: Platform.select({
-      ios: "1:409137828081:ios:89f062c9951cd664f39950",
-      android: "1:409137828081:android:2b2e10b900614979f39950",
-    }),
-    measurementId: "G-C3T24PS3SF",
-  };
+// const firebaseConfig = {
+//     apiKey: "AIzaSyDUXkQcecnhrNmeagvtRsKmDBmwz4AsRC0",
+//     authDomain: "fruiteblocks.firebaseapp.com",
+//     databaseURL: "https://fruiteblocks-default-rtdb.firebaseio.com",
+//     projectId: "fruiteblocks",
+//     storageBucket: "fruiteblocks.appspot.com",
+//     messagingSenderId: "409137828081",
+//     appId: Platform.select({
+//       ios: "1:409137828081:ios:89f062c9951cd664f39950",
+//       android: "1:409137828081:android:2b2e10b900614979f39950",
+//     }),
+//     measurementId: "G-C3T24PS3SF",
+//   };
   
 
-const app = initializeApp(firebaseConfig);
+const app = true;
 
 // Initialize Firebase Auth with MMKV
 const auth = initializeAuth(app, {

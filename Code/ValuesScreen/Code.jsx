@@ -68,13 +68,19 @@ const CodesDrawer = ({ isVisible, toggleModal, codes }) => {
 
       {/* Drawer */}
       <View style={styles.drawer}>
-        <FlatList
-          data={normalizedCodes}
-          keyExtractor={(item, index) => index.toString()}
-          renderItem={renderCodeItem}
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-        />
+      <FlatList
+  data={normalizedCodes}
+  keyExtractor={(item, index) => index.toString()}
+  renderItem={renderCodeItem}
+  contentContainerStyle={styles.listContainer}
+  showsVerticalScrollIndicator={false}
+  ListEmptyComponent={
+    <View style={styles.emptyContainer}>
+      <Text style={styles.emptyText}>Currently no active code available</Text>
+    </View>
+  }
+/>
+
           
       </View>
     </Modal>
@@ -96,6 +102,7 @@ export const getStyles = (isDarkMode) =>
       bottom: 0,
       width: '100%',
       maxHeight: '60%',
+      minHeight:400
     },
     headerText: {
       fontSize: 20,
@@ -132,6 +139,16 @@ export const getStyles = (isDarkMode) =>
     },
     copyButton: {
       padding: 5,
+    },
+    emptyContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 20,
+    },
+    emptyText: {
+      fontSize: 14,
+      fontFamily: 'Lato-Regular',
+      color: isDarkMode ? '#bbb' : '#555',
     },
   });
 

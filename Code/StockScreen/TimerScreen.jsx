@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, Image, Switch, TouchableOpacity, Alert, RefreshControl } from 'react-native';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, Image, Switch, TouchableOpacity, Alert, RefreshControl, ActivityIndicator } from 'react-native';
 import { useGlobalState } from '../GlobelStats';
 import Icon from 'react-native-vector-icons/Ionicons';
 import FruitSelectionDrawer from './FruitSelectionDrawer';
@@ -15,76 +15,135 @@ import { showSuccessMessage, showWarningMessage } from '../Helper/MessageHelper'
 import { mixpanel } from '../AppHelper/MixPenel';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
+import { getDatabase } from '@react-native-firebase/database';
 
 
 const TimerScreen = ({ selectedTheme }) => {
-  const { user, updateLocalStateAndDatabase, theme,  reload } = useGlobalState();
+  const { user, updateLocalStateAndDatabase, theme, reload } = useGlobalState();
   const [hasAdBeenShown, setHasAdBeenShown] = useState(false);
   const [fruitRecords, setFruitRecords] = useState([]);
   const [isDrawerVisible, setDrawerVisible] = useState(false);
-  const [refreshing, setRefreshing] = useState(false); // State for pull-to-refresh
   const [isSigninDrawerVisible, setisSigninDrawerVisible] = useState(false);
-  const [isAdVisible, setIsAdVisible] = useState(true);
-  const [normalStock, setNormalStock] = useState([]);
-  const [mirageStock, setmirageStock] = useState([]);
-  const [prenormalStock, setPreNormalStock] = useState([]);
-  const [premirageStock, setPremirageStock] = useState([]);
   const { t } = useTranslation();
-  // const platform = Platform.OS.toLowerCase();
+  const [eggStock, setEggStock] = useState([]);
+  const [eventStock, setEventStock] = useState([]);
+  const [gearStock, setGearStock] = useState([]);
+  const [seedStock, setSeedStock] = useState([]);
+
+
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  const [lastSeenLoading, setLastSeenLoading] = useState(false);
+  const [weatherData, setWeatherData] = useState(null);
+  const [eggStockLastSeen, setEggStockLastSeen] = useState([]);
+  const [eventStockLastSeen, setEventStockLastSeen] = useState([]);
+  const [gearStockLastSeen, setGearStockLastSeen] = useState([]);
+  const [seedStockLastSeen, setSeedStockLastSeen] = useState([]);
+  const [activeTab, setActiveTab] = useState('Stock');
+
+
 
 
   const isFocused = useIsFocused();
   const [currentTime, setCurrentTime] = useState(Date.now());
   const { triggerHapticFeedback } = useHaptic();
   const { localState } = useLocalState()
-  const intervalRef = useRef(null); // Store interval reference
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000); // update every second
+    return () => clearInterval(interval);
+  }, []);
 
   const isDarkMode = theme === 'dark';
 
-
-
-  const parseJSONSafely = (data) => {
-    try {
-      return typeof data === 'string' ? JSON.parse(data) : data;
-    } catch (error) {
-      console.error("❌ JSON parse error:", error, "Raw data:", data);
-      return {};
-    }
-  };
-  
   useEffect(() => {
-    const newFruitRecords = parseJSONSafely(localState?.data);
-    const newNormalStock = parseJSONSafely(localState?.normalStock);
-    const newMirageStock = parseJSONSafely(localState?.mirageStock);
-    const newPreNormalStock = parseJSONSafely(localState?.prenormalStock);
-    const newPreMirageStock = parseJSONSafely(localState?.premirageStock);
-  
-    setFruitRecords((prev) => (JSON.stringify(prev) !== JSON.stringify(newFruitRecords) ? Object.values(newFruitRecords) : prev));
-    setNormalStock((prev) => (JSON.stringify(prev) !== JSON.stringify(newNormalStock) ? Object.values(newNormalStock) : prev));
-    setmirageStock((prev) => (JSON.stringify(prev) !== JSON.stringify(newMirageStock) ? Object.values(newMirageStock) : prev));
-    setPreNormalStock((prev) => (JSON.stringify(prev) !== JSON.stringify(newPreNormalStock) ? Object.values(newPreNormalStock) : prev));
-    setPremirageStock((prev) => (JSON.stringify(prev) !== JSON.stringify(newPreMirageStock) ? Object.values(newPreMirageStock) : prev));
-  }, [localState.data, localState.normalStock, localState.mirageStock, localState.prenormalStock, localState.premirageStock]);
-  
+    if (!isFocused) return;
+
+    if (activeTab === 'Stock') {
+      const stockRef = getDatabase().ref('/stock');
+
+      const listener = stockRef.on('value', (snapshot) => {
+        const stockData = snapshot.val();
+        if (!stockData) return;
+
+        setEggStock(stockData.egg_stock?.items || []);
+        setEventStock(stockData.event_stock?.items || []);
+        setGearStock(stockData.gear_stock?.items || []);
+        setSeedStock(stockData.seeds_stock?.items || []);
+
+        // console.log("✅ Live stock data updated.");
+      });
+
+      return () => stockRef.off('value', listener);
+    }
+
+    if (activeTab === 'Weather') {
+      fetchWeatherData();
+    }
+
+    if (activeTab === 'Last Seen') {
+      fetchLastSeenData();
+    }
+
+  }, [isFocused, activeTab]);
+
+
 
 
   const openDrawer = () => {
     triggerHapticFeedback('impactLight');
-
+  
+    // 🔒 Alert if user is not signed in
+    if (!user?.id) {
+      Alert.alert(
+        "Sign In Required",
+        "Please sign in to select fruits for reminders.",
+        [{ text: "OK", onPress: () => setisSigninDrawerVisible(true) }]
+      );
+      return;
+    }
+  
+    // ⚠️ Alert if reminders are not enabled
+    if (!user?.isSelectedReminderEnabled) {
+      Alert.alert(
+        "Enable Reminder First",
+        "Please enable the reminder toggle to select fruits.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+  
     const callbackfunction = () => {
       setHasAdBeenShown(true); // Mark the ad as shown
       setDrawerVisible(true);
     };
+  
     if (!hasAdBeenShown && !localState.isPro) {
       InterstitialAdManager.showAd(callbackfunction);
+    } else {
+      callbackfunction();
     }
-    else {
-      callbackfunction()
+  };
+  
 
+  useEffect(() => {
+    if (localState.data) {
+      try {
+        // ✅ Ensure it's a string before parsing
+        const parsedValues = typeof localState.data === 'string' ? JSON.parse(localState.data) : localState.data;
+
+        if (typeof parsedValues !== 'object' || parsedValues === null) {
+          throw new Error('Parsed data is not a valid object');
+        }
+
+        setFruitRecords(Object.values(parsedValues));
+      } catch (error) {
+        console.error("❌ Error parsing data:", error, "📝 Raw Data:", localState.data);
+        setFruitRecords([]); // Fallback to empty array
+      }
     }
-
-  }
+  }, [localState.data]);
 
   const handleLoginSuccess = () => {
     setisSigninDrawerVisible(false);
@@ -97,7 +156,7 @@ const TimerScreen = ({ selectedTheme }) => {
 
     const selectedFruits = user.selectedFruits || []; // Ensure `selectedFruits` is always an array
     const isAlreadySelected = selectedFruits.some((item) => item.name === fruit.name);
-    mixpanel.track("Select Fruit", {fruit:fruit.name});
+    mixpanel.track("Select Fruit", { fruit: fruit.name });
 
 
     // ✅ Prevent duplicate selection
@@ -129,16 +188,8 @@ const TimerScreen = ({ selectedTheme }) => {
   };
 
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await reload(); // Re-fetch stock data
-    } catch (error) {
-      console.error('Error refreshing data:', error);
-    } finally {
-      setRefreshing(false);
-    }
-  };
+
+
 
   const handleRemoveFruit = (fruit) => {
     triggerHapticFeedback('impactLight');
@@ -149,8 +200,45 @@ const TimerScreen = ({ selectedTheme }) => {
     updateLocalStateAndDatabase('selectedFruits', updatedFruits);
   };
 
+  const fetchWeatherData = async () => {
+    setWeatherLoading(true);
+    try {
+      const snapshot = await getDatabase().ref('/weather').once('value');
+      const data = snapshot.val();
+      const cleaned = Object.values(data || {}).filter(item => typeof item === 'object' && item.weather_name);
+      // console.log(cleaned)
+      setWeatherData(cleaned);
+    } catch (error) {
+      console.error("❌ Failed to fetch weather data:", error);
+    } finally {
+      setWeatherLoading(false);
+    }
+  };
+  const fetchLastSeenData = async () => {
+    setLastSeenLoading(true);
+    try {
+      const snapshot = await getDatabase().ref('/last_seen').once('value');
+      const data = snapshot.val() || {};
 
+      setEggStockLastSeen(Array.isArray(data.egg_stock) ? data.egg_stock : []);
+      setEventStockLastSeen(Array.isArray(data.event_stock) ? data.event_stock : []);
+      setGearStockLastSeen(Array.isArray(data.gear_stock) ? data.gear_stock : []);
+      setSeedStockLastSeen(Array.isArray(data.seeds_stock) ? data.seeds_stock : []);
 
+      // console.log("✅ Last seen data loaded", {
+      //   egg: data.egg_stock?.length,
+      //   event: data.event_stock?.length,
+      //   gear: data.gear_stock?.length,
+      //   seed: data.seeds_stock?.length,
+      // });
+    } catch (error) {
+      console.error("❌ Failed to fetch last seen data:", error);
+    } finally {
+      setLastSeenLoading(false);
+    }
+  };
+
+  // console.log(eggStockLastSeen, eventStockLastSeen, gearStockLastSeen)
 
 
 
@@ -176,99 +264,180 @@ const TimerScreen = ({ selectedTheme }) => {
     }
   };
 
-  const toggleSwitch2 = async () => {
-    try {
-      const permissionGranted = await requestPermission();
-      if (!permissionGranted) return;
-
-      if (user?.id == null) {
-        setisSigninDrawerVisible(true);
-      } else {
-        const currentValue = user.isSelectedReminderEnabled;
-        // Optimistically update the UI
-        updateLocalStateAndDatabase('isSelectedReminderEnabled', !currentValue);
-      }
-    } catch (error) {
-      // console.error('Error handling notification permission or sign-in:', error);
-      // Alert.alert('Error', 'Something went wrong while processing your request.');
-
+  const toggleSwitch2 = useCallback(async () => {
+    const permissionGranted = await requestPermission();
+    if (!permissionGranted) return;
+  
+    if (!user?.id) {
+      setisSigninDrawerVisible(true);
+      return;
     }
-  };
+  
+    setTimeout(() => {
+      updateLocalStateAndDatabase('isSelectedReminderEnabled', !user.isSelectedReminderEnabled);
+    }, 100);
+  }, [user?.id, user?.isSelectedReminderEnabled]);
+  
 
   // console.log(normalTimer)
 
 
-  // Format time utility
-  const formatTime = (seconds) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+
+  const getTimeLeft = (intervalMinutes) => {
+    const now = new Date();
+    const minutes = now.getMinutes();
+    const seconds = now.getSeconds();
+
+    const totalSeconds = minutes * 60 + seconds;
+    const nextInterval = Math.ceil(totalSeconds / (intervalMinutes * 60)) * (intervalMinutes * 60);
+
+    const remainingSeconds = nextInterval - totalSeconds;
+
+    const m = Math.floor(remainingSeconds / 60).toString().padStart(2, '0');
+    const s = (remainingSeconds % 60).toString().padStart(2, '0');
+
+    return `${m}m ${s}s`;
   };
 
-  // Calculate time left for stock resets
-  const calculateTimeLeft = (intervalHours) => {
-    const now = currentTime;
-    let nextReset = new Date();
-    nextReset.setHours(1, 0, 0, 0); // Base reset at 1 AM
 
-    while (nextReset <= now) {
-      nextReset.setHours(nextReset.getHours() + intervalHours);
-    }
-    return Math.floor((nextReset - now) / 1000);
+
+
+  const formatName = (name) => {
+    return name
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   };
 
-  const normalInterval = 4; // Normal stock resets every 4 hours
-  const mirageInterval = 2; // Mirage stock resets every 2 hours
-
-  const normalTimer = useMemo(() => formatTime(calculateTimeLeft(normalInterval)), [currentTime]);
-  const mirageTimer = useMemo(() => formatTime(calculateTimeLeft(mirageInterval)), [currentTime]);
 
 
 
-  useEffect(() => {
-    if (!isFocused) {
-      clearInterval(intervalRef.current); // ✅ Ensure old intervals are cleared
-      return;
-    }
+  const renderWeatherCards = (items) => {
+    return items.map((item, idx) => {
+      const localTime = item.last_seen
+        ? new Date(item.last_seen).toLocaleString(undefined, {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+          day: '2-digit',
+          month: 'short',
+        })
+        : 'Unknown';
 
-    intervalRef.current = setInterval(() => {
-      setCurrentTime(Date.now()); // ✅ Update time without forcing full re-render
-    }, 1000);
+      return (
+        <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical:1, backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff', padding:5, borderRadius:4, marginHorizontal:2 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 4 }}>
+              <Image source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2025/gog/${formatName(item.weather_name)}.png` }} style={{ width: 40, height: 40, marginRight: 6 }} />
+              <View style={{alignItems:"flex-start"}}>
+            
+            <Text style={{ fontSize: 14, color: !isDarkMode ? 'black' : '#ffffff', fontFamily:'Lato-Bold', lineHeight:16 }}>{formatName(item.weather_name)}</Text>
+            <Text
+              style={{
+                fontSize: 10,
+                color: 'white',
+                backgroundColor: item.status === 'active'
+                  ? config.colors.hasBlockGreen
+                  : config.colors.inactive || '#999', // fallback if inactive color is not defined
+                paddingHorizontal: 6,
+                // paddingVertical: 1,
+                borderRadius: 6,
+              
+                overflow: 'hidden', // ensures background applies only to text area
+                // marginLeft: 10
+              }}
+            >
+              {item.status === 'active' ? 'Active' : 'Inactive'}
+            </Text>
+            </View>
+          </View>
+          <Text style={{ fontSize: 12,color: !isDarkMode ? 'black' : '#ffffff', fontFamily:'Lato-Regular' }}>Last seen at {localTime}</Text>
+        </View>
+      );
+    });
+  };
 
-    return () => clearInterval(intervalRef.current); // ✅ Cleanup interval on unmount
-  }, [isFocused]);
 
 
-
-  
   // Render FlatList Item
-  const renderItem = ({ item, index, isLastItem }) => {
+  const renderStockItems = (title, items, stock) => {
     return (
-      <View
-        style={[
-          styles.itemContainer,
-          isLastItem && { borderBottomWidth: 0 }, // Remove bottom border for the last item
-        ]}
-      >
-        <Image
-          source={{
-            uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${item.Normal.replace(/^\+/, '').replace(/\s+/g, '-')}_Icon.webp`,
-          }}
-          style={styles.icon}
-        />
-        <Text style={[styles.name, { color: selectedTheme.colors.text }]}>{item.Normal}</Text>
-        <Text style={styles.price}>{item.price}</Text>
-        <Text style={styles.robux}>{item.value}</Text>
+      <View style={{ marginBottom: 10 }}>
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <Text style={[styles.title, { marginVertical: 5 }]}>{title}</Text>
+  
+          {stock && (
+            <Text style={{
+              fontSize: 10,
+              textAlign: 'center',
+              color: 'white',
+              backgroundColor: config.colors.hasBlockGreen,
+              paddingHorizontal: 3,
+              paddingVertical: 1,
+              borderRadius: 3
+            }}>
+              {`Time Left: ${
+                title.toLowerCase().includes('egg') || title.toLowerCase().includes('event')
+                  ? getTimeLeft(30)
+                  : getTimeLeft(5)
+              }`}
+            </Text>
+          )}
+        </View>
+  
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+          {items.map((item, index) => (
+            <View
+              key={item.id || index}
+              style={{
+                width: '49%',
+                backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+                borderRadius: 5,
+                alignItems: 'center',
+                padding: 4,
+                marginVertical: 2,
+                flexDirection: 'row',
+              }}
+            >
+              <Image
+                source={{ uri: item.picture }}
+                style={{ width: 50, height: 50, borderRadius: 5, marginRight: 5 }}
+              />
+              <View>
+                <Text style={{ fontSize: 14, color: selectedTheme.colors.text, fontFamily: 'Lato-Bold', lineHeight: 16 }}>
+                {formatName(item.name).length > 15 ? formatName(item.name).slice(0, 15) + '...' : formatName(item.name)}                </Text>
+  
+                {stock ? (
+                  <Text style={{ fontSize: 12, color: config.colors.hasBlockGreen, fontWeight: 'bold' }}>
+                    {item.num_units} Units
+                  </Text>
+                ) : (
+                  <Text style={{ fontSize: 12, color: config.colors.hasBlockGreen, fontWeight: 'bold' }}>
+                    {(() => {
+                      const totalSeconds = item.last_seen_int_seconds || 0;
+                      const hours = Math.floor(totalSeconds / 3600);
+                      const minutes = Math.floor((totalSeconds % 3600) / 60);
+                      const seconds = totalSeconds % 60;
+                      return `${hours}h ${minutes}m ${seconds}s`;
+                    })()}
+                  </Text>
+                )}
+              </View>
+            </View>
+          ))}
+        </View>
       </View>
     );
   };
-
-
-
-
-
   
+
+
+
+
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
   // console.log(state.premirageStock)
   // console.log(localState.normalStock, localState.mi)
@@ -279,16 +448,14 @@ const TimerScreen = ({ selectedTheme }) => {
           <ScrollView
             contentContainerStyle={styles.scrollViewContent}
             showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-            }
+
           >
-            <View style={{ backgroundColor: config.colors.secondary, padding: 5, borderRadius: 10, marginVertical: 10 }}>
+            {/* <View style={{ backgroundColor: config.colors.secondary, padding: 5, borderRadius: 10, marginVertical: 10 }}>
               <Text style={[styles.description]}>
                 {t("stock.description")}
-              </Text></View>
+              </Text></View> */}
             <View style={styles.reminderContainer}>
-              <View style={styles.row}>
+              {/* <View style={styles.row}>
                 <Text style={styles.title}>{t("stock.stock_updates")}</Text>
                 <View style={styles.rightSide}>
                   <Switch value={user.isReminderEnabled} onValueChange={toggleSwitch} />
@@ -299,7 +466,7 @@ const TimerScreen = ({ selectedTheme }) => {
                     style={styles.iconNew}
                   />
                 </View>
-              </View>
+              </View> */}
 
               <View style={config.isNoman ? styles.row2 : styles.row}>
                 <Text style={[styles.title]}>{t("stock.selected_fruit_notification")} {'\n'}
@@ -308,11 +475,22 @@ const TimerScreen = ({ selectedTheme }) => {
                   </Text>
                 </Text>
                 <View style={styles.rightSide}>
-                  <Switch value={user.isSelectedReminderEnabled} onValueChange={toggleSwitch2} />
+                <TouchableOpacity onPress={toggleSwitch2} style={{
+  padding: 3,
+  borderRadius: 20,
+  backgroundColor: user.isSelectedReminderEnabled ? config.colors.hasBlockGreen : '#ccc',
+}}>
+  <Icon
+    name={user.isSelectedReminderEnabled ? "notifications" : "notifications-off"}
+    size={20}
+    color="white"
+  />
+</TouchableOpacity>
+
                   <TouchableOpacity
                     onPress={openDrawer}
                     style={styles.selectedContainericon}
-                    disabled={!user.isSelectedReminderEnabled}
+                    
                   >
                     <Icon name="add" size={24} color="white" />
                   </TouchableOpacity>
@@ -321,16 +499,14 @@ const TimerScreen = ({ selectedTheme }) => {
             </View>
             <View style={styles.listContentSelected}>
               {user.selectedFruits?.map((item) => (
-                <View key={item.name || item.Name} style={styles.selectedContainer}>
+                <View key={item.name} style={styles.selectedContainer}>
                   <Image
                     source={{
-                      uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${item.name?.replace(/^\+/, '')
-                        .replace(/\s+/g, '-') || item.Name?.replace(/^\+/, '')
-                        .replace(/\s+/g, '-')}_Icon.webp`,
+                      uri: item.picture,
                     }}
                     style={styles.iconselected}
                   />
-                  <Text style={[styles.fruitText, { color: selectedTheme.colors.text }]}>{item.name || item.Name}</Text>
+                  <Text style={[styles.fruitText, { color: selectedTheme.colors.text }]}>{formatName(item.name)}</Text>
                   <TouchableOpacity onPress={() => handleRemoveFruit(item)}>
                     <Icon name="close-circle" size={24} color={config.colors.wantBlockRed} style={styles.closeIcon} />
                   </TouchableOpacity>
@@ -342,103 +518,100 @@ const TimerScreen = ({ selectedTheme }) => {
             {/* <View> */}
             {/* Normal Stock Section */}
             <View>
-              <View style={styles.headerContainer}>
-                <Text style={[styles.title, { color: selectedTheme.colors.text }]}>  {t("stock.normal_stock")}</Text>
-                <Text style={[styles.timer, { color: selectedTheme.colors.text }]}>
-                  {t("stock.reset_in")}: <Text style={styles.time}>{normalTimer}</Text>
-                </Text>
-              </View>
 
-              <View style={styles.stockContainer}>
-                {normalStock.length > 0 && normalStock[0]?.value === "Fetching..." ? (
-                  <Text style={styles.loadingText}>  {t("stock.fetching_data")}</Text>
-                ) : (
-                  normalStock.length > 0 &&
-                  normalStock.map((item, index) => {
-                    const isLastItem = index === normalStock.length - 1;
-                    return (
-                      <View key={item.id || index}>
-                        {renderItem({ item, index, isLastItem })}
-                      </View>
-                    );
-                  })
-                )}
-              </View>
+
               {/* {!localState.isPro && <MyNativeAdComponent />} */}
-
-
-              {/* Mirage Stock Section */}
-              <View style={styles.headerContainer}>
-                <Text style={[styles.title, { color: selectedTheme.colors.text }]}>  {t("stock.mirage_stock")}</Text>
-                <Text style={[styles.timer, { color: selectedTheme.colors.text }]}>
-                  {t("stock.reset_in")}: <Text style={styles.time}>{mirageTimer}</Text>
-                </Text>
-              </View>
-              <View style={styles.stockContainer}>
-                {mirageStock.length > 0 && mirageStock[0]?.value === "Fetching..." ? (
-                  <Text style={styles.loadingText}>{t("stock.fetching_data")}</Text>
-                ) : (
-                  mirageStock.length > 0 &&
-                  mirageStock.map((item, index) => {
-                    const isLastItem = index === mirageStock.length - 1;
-                    return (
-                      <View key={item.id || index}>
-                        {renderItem({ item, index, isLastItem })}
-                      </View>
-                    );
-                  })
-                )}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-around',  backgroundColor: isDarkMode? '#34495E' : 'white', padding: 5, borderRadius:4 }}>
+                {['Stock', 'Weather', 'Last Seen'].map(tab => (
+                  <TouchableOpacity
+                    key={tab}
+                    onPress={() => setActiveTab(tab)}
+                    style={{
+                      backgroundColor: activeTab === tab ? config.colors.hasBlockGreen : (isDarkMode? '#34495E' : 'white'),
+                      paddingVertical: 6,
+                      paddingHorizontal: 16,
+                      borderRadius: 5,
+                      width: '33%',
+                    }}
+                  >
+                    <Text style={{ color: activeTab === tab ? 'white' : 'lightgrey', fontWeight: 'bold', textAlign: 'center' }}>{tab}</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
 
 
+              {activeTab === 'Stock' && (
+  <>
+    {(eggStock.length === 0 &&
+      eventStock.length === 0 &&
+      gearStock.length === 0 &&
+      seedStock.length === 0) ? (
+      <ActivityIndicator
+        size="small"
+        color={config.colors.hasBlockGreen}
+        style={{ marginTop: 10 }}
+      />
+    ) : (
+      <>
+        {renderStockItems("Egg Stock", eggStock, true)}
+        {renderStockItems("Event Stock", eventStock, true)}
+        {renderStockItems("Gear Stock", gearStock, true)}
+        {renderStockItems("Seed Stock", seedStock, true)}
+      </>
+    )}
+  </>
+)}
+
+
+{activeTab === 'Weather' && (
+  <>
+    {weatherLoading ? (
+      <ActivityIndicator
+        size="small"
+        color={config.colors.hasBlockGreen}
+        style={{ marginTop: 10 }}
+      />
+    ) : (
+      weatherData && (
+        <View style={{ borderRadius: 5, marginTop: 2 }}>
+          {renderWeatherCards(weatherData)}
+        </View>
+      )
+    )}
+  </>
+)}
+
+{activeTab === 'Last Seen' && (
+  <>
+    {lastSeenLoading ? (
+      <ActivityIndicator
+        size="small"
+        color={config.colors.hasBlockGreen}
+        style={{ marginTop: 20 }}
+      />
+    ) : (
+      <View>
+        {renderStockItems("Egg Stock", eggStockLastSeen)}
+        {renderStockItems("Event Stock", eventStockLastSeen)}
+        {renderStockItems("Gear Stock", gearStockLastSeen)}
+        {renderStockItems("Seed Stock", seedStockLastSeen)}
+      </View>
+    )}
+  </>
+)}
+
+
+
+
             </View>
-            <TouchableOpacity style={styles.preContrefresh} onPress={handleRefresh}>
-              <Text style={styles.pre}>REFRESH</Text>
-            </TouchableOpacity>
-            <View style={styles.preCont}>
-              <Text style={styles.pre}>  {t("stock.previous_stock")}</Text>
-            </View>
+
+
+
+
 
 
             {/* <View> */}
             {/* Normal Stock Section */}
-            <View>
-              <View style={styles.headerContainerpre}>
-                <Text style={[styles.title, { color: selectedTheme.colors.text }]}>{t("stock.normal_stock")}</Text>
-                <Text style={[styles.timer, { color: selectedTheme.colors.text }]}>
-                  <Text style={styles.time}>00:00</Text>
-                </Text>
-              </View>
-
-              <View style={styles.stockContainerpre}>
-                {prenormalStock.length > 0 && prenormalStock.map((item, index) => {
-                  const isLastItem = index === prenormalStock.length - 1;
-                  return (
-                    <View key={item.id || index}>
-                      {renderItem({ item, index, isLastItem })}
-                    </View>
-                  );
-                })}
-              </View>
-
-              {/* Mirage Stock Section */}
-              <View style={styles.headerContainerpre}>
-                <Text style={[styles.title, { color: selectedTheme.colors.text }]}>{t("stock.mirage_stock")}</Text>
-                <Text style={[styles.timer, { color: selectedTheme.colors.text }]}>
-                  <Text style={styles.time}>00:00</Text>
-                </Text>
-              </View>
-              <View style={styles.stockContainerpre}>
-                {premirageStock.length > 0 && premirageStock.map((item, index) => {
-                  const isLastItem = index === premirageStock.length - 1;
-                  return (
-                    <View key={item.id || index}>
-                      {renderItem({ item, index, isLastItem })}
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
 
             <FruitSelectionDrawer
               visible={isDrawerVisible}
@@ -453,15 +626,15 @@ const TimerScreen = ({ selectedTheme }) => {
               onClose={handleLoginSuccess}
               selectedTheme={selectedTheme}
               message={t("stock.signin_required_message")}
-               screen='Stock'
+              screen='Stock'
             />
           </ScrollView>
         </View>
-       
+
 
       </GestureHandlerRootView>
 
-      {!localState.isPro && <BannerAdComponent/>}
+      {!localState.isPro && <BannerAdComponent />}
 
       {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (
@@ -548,7 +721,7 @@ const getStyles = (isDarkMode, user) =>
       overflow: 'hidden', // Prevents text from overflowing outside the container
       flexWrap: 'wrap', // This ensures the text wraps when it exceeds maxWidth
     },
-    title: { fontSize: 14, fontFamily: 'Lato-Bold', color: isDarkMode ? 'white' : 'black' },
+    title: { fontSize: 14, fontFamily: 'Lato-Bold', color: isDarkMode ? 'white' : 'black', lineHeight: 16, paddingHorizontal:10 },
     rightSide: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -597,7 +770,7 @@ const getStyles = (isDarkMode, user) =>
     reminderContainer: {
       flexDirection: 'column',
       backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
-      padding: 10,
+      marginTop: 10,
       borderRadius: 10
     },
     preCont: {
@@ -609,14 +782,7 @@ const getStyles = (isDarkMode, user) =>
       margin: 10,
       opacity: .3
     },
-    preContrefresh:{
-      justifyContent: 'center',
-      flex: 1,
-      padding: 20,
-      backgroundColor: config.colors.hasBlockGreen,
-      borderRadius: 10,
-      margin: 10,
-    },
+
     pre: {
       color: 'white',
       alignSelf: 'center',

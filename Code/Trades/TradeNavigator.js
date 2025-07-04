@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../Helper/Environment';
 import { useGlobalState } from '../GlobelStats';
-import ServerScreen from './Server';
+// import ServerScreen from './Server';
 import { useNavigation } from '@react-navigation/native';
 
 const Stack = createNativeStackNavigator();
@@ -37,16 +37,24 @@ const TradeRulesModal = ({ visible, onClose }) => {
             </TouchableOpacity>
           </View>
           <ScrollView showsVerticalScrollIndicator={false}>
-            <Text style={[styles.modalText, { color: isDarkMode ? '#ccc' : '#333' }]}>
-              1. Players can trade <HighlightedText text="up to 4 items" /> per trade.{"\n"}{"\n"}
-              2. A maximum of <HighlightedText text="5 trades" /> is allowed every <HighlightedText text="8 hours" />.{"\n"}{"\n"}
-              3. <HighlightedText text="Game Passes & Permanent Fruits" /> cannot be traded if the receiver already owns them.{"\n"}{"\n"}
-              4. To trade <HighlightedText text="Game Passes & Permanent Fruits" />, they must first be stored by gifting them to yourself.{"\n"}{"\n"}
-              5. The total value difference between traded fruits <HighlightedText text="cannot exceed 40%" />, but adding Robux items can increase it to <HighlightedText text="80-100%" />.{"\n"}{"\n"}
-              6. Players can store <HighlightedText text="only one of each fruit" /> unless they purchase <HighlightedText text="+1 Fruit Storage (R$ 400)" />.{"\n"}{"\n"}
-              7. Once stored in the inventory, <HighlightedText text="fruits cannot be dropped" />.{"\n"}
-            </Text>
-          </ScrollView>
+  <Text style={[styles.modalText, { color: isDarkMode ? '#ccc' : '#333' }]}>
+    <Text style={{ fontFamily: 'Lato-Bold' }}>Grow a Garden</Text> does not have an official in-game trading system.{"\n"}{"\n"}
+    All trades are user-arranged and happen outside the game, so please be cautious.{"\n"}{"\n"}
+
+    <Text style={{ fontFamily: 'Lato-Bold' }}>✅ How to Trade:</Text>{"\n"}
+    • Use the Grow a Garden Values & Trade App to check item values and create trade offers.{"\n"}
+    • Share offers with other players directly through the app or in-game chat.{"\n"}{"\n"}
+
+    <Text style={{ fontFamily: 'Lato-Bold' }}>❌ Avoid Scams:</Text>{"\n"}
+    • Never give pets or items first without full agreement.{"\n"}
+    • Avoid deals that seem too good to be true.{"\n"}
+    • Do not share your Roblox password or personal info.{"\n"}{"\n"}
+
+    Stay safe. Trade smart.{"\n"}
+    <Text style={{ fontStyle: 'italic' }}>We are not responsible for lost items.</Text>
+  </Text>
+</ScrollView>
+
           <TouchableOpacity
             style={[styles.closeButton, { backgroundColor: config.colors.primary }]}
             onPress={onClose}
@@ -89,8 +97,8 @@ export const TradeStack = ({ selectedTheme }) => {
           options={({ navigation }) => ({
             title: t("tabs.trade"),
             headerRight: () => (
-              <View style={{ flexDirection: 'row', }}>
-                <TouchableOpacity onPress={() => navigation.navigate('Server')} style={{ marginRight: 5, backgroundColor:config.colors.hasBlockGreen, borderRadius:5, flexDirection:'row', alignItems:'center', paddingHorizontal:5}}>
+              <View style={{ flexDirection: 'row', justifyContent:'flex-end', alignItems:'flex-end',}}>
+                {/* <TouchableOpacity onPress={() => navigation.navigate('Server')} style={{ marginRight: 5, backgroundColor:config.colors.hasBlockGreen, borderRadius:5, flexDirection:'row', alignItems:'center', paddingHorizontal:5}}>
                   <Image
                     source={
                       isDarkMode
@@ -109,7 +117,7 @@ export const TradeStack = ({ selectedTheme }) => {
                   />
                   <Text style={{color:'white', fontFamily:'Lato-Bold' }}>Pvt Servers</Text>
                 </TouchableOpacity>
-          
+           */}
                 <TouchableOpacity onPress={() => setModalVisible(true)} style={{ marginRight: 8 }}>
                   <Icon
                     name="information-circle-outline"
@@ -145,11 +153,11 @@ export const TradeStack = ({ selectedTheme }) => {
           }}
         />
 
-<Stack.Screen
+{/* <Stack.Screen
           name="Server"
           component={ServerScreen}
          
-        />
+        /> */}
       </Stack.Navigator>
 
       {/* Trade Rules Modal */}

@@ -1,4 +1,4 @@
-package com.bloxfruitstock
+package com.growagarden.gag
 
 import android.os.Bundle
 import com.facebook.react.ReactActivity

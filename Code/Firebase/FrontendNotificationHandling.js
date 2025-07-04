@@ -6,8 +6,7 @@ import notifee, { AndroidImportance, EventType } from '@notifee/react-native';
 import { useLocalState } from '../LocalGlobelStats';
 
 // ✅ Ensure Firebase is initialized only once
-const firebaseConfig = { /* Your Firebase Config */ };
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const app = getApps().length && getApp()
 
 // ✅ Initialize Firebase Messaging
 const messaging = getMessaging(app);

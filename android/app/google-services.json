@@ -1,194 +1,35 @@
 {
   "project_info": {
-    "project_number": "409137828081",
-    "firebase_url": "https://fruiteblocks-default-rtdb.firebaseio.com",
-    "project_id": "fruiteblocks",
-    "storage_bucket": "fruiteblocks.firebasestorage.app"
+    "project_number": "543545382684",
+    "firebase_url": "https://grow-a-garden-e801a-default-rtdb.firebaseio.com",
+    "project_id": "grow-a-garden-e801a",
+    "storage_bucket": "grow-a-garden-e801a.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:409137828081:android:2b2e10b900614979f39950",
+        "mobilesdk_app_id": "1:543545382684:android:7d8141212503d1de6bccd9",
         "android_client_info": {
-          "package_name": "com.bloxfruitevalues"
+          "package_name": "com.growagarden.gag"
         }
       },
       "oauth_client": [
         {
-          "client_id": "409137828081-cic6tf2lv18es9jkub2mc11ijjjvjmo3.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.bloxfruitevalues",
-            "certificate_hash": "cea83f7ab4ec070d2930ec28cfb9513728cc5630"
-          }
-        },
-        {
-          "client_id": "409137828081-t5asicive3eotqj5hhbtp6uvj4joaudv.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.bloxfruitevalues",
-            "certificate_hash": "d195a122f91d23f1b1ad2221fccbf09993087af1"
-          }
-        },
-        {
-          "client_id": "409137828081-ig2uul01r95lj9fu6l1jgbgrp1es9060.apps.googleusercontent.com",
+          "client_id": "543545382684-17q9rjfsob0c09mhdkkskmuhajqbh61e.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyDUXkQcecnhrNmeagvtRsKmDBmwz4AsRC0"
+          "current_key": "AIzaSyA6HZqS0xFVf5HWjbgvkTn0yTn_TeiCQvE"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "409137828081-ig2uul01r95lj9fu6l1jgbgrp1es9060.apps.googleusercontent.com",
+              "client_id": "543545382684-17q9rjfsob0c09mhdkkskmuhajqbh61e.apps.googleusercontent.com",
               "client_type": 3
-            },
-            {
-              "client_id": "409137828081-2p83ft7aje95p2njo5m5h6vdd4l86s17.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "bloxfruitevalues",
-                "app_store_id": "6737775801"
-              }
-            }
-          ]
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:409137828081:android:f8e6ca95c7fc8b39f39950",
-        "android_client_info": {
-          "package_name": "com.bloxfruitstock"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "409137828081-ee3vareg6in206fbgpplt2pg1r6vhh02.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.bloxfruitstock",
-            "certificate_hash": "724ade3150c7715988564d76e71675a6ea19d558"
-          }
-        },
-        {
-          "client_id": "409137828081-p27gabnckvpgh7o743fcbg2g3tep1193.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.bloxfruitstock",
-            "certificate_hash": "cea83f7ab4ec070d2930ec28cfb9513728cc5630"
-          }
-        },
-        {
-          "client_id": "409137828081-qdq5652rhja4crfnuhq0f9chhjukkbfn.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.bloxfruitstock",
-            "certificate_hash": "d195a122f91d23f1b1ad2221fccbf09993087af1"
-          }
-        },
-        {
-          "client_id": "409137828081-ig2uul01r95lj9fu6l1jgbgrp1es9060.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyDUXkQcecnhrNmeagvtRsKmDBmwz4AsRC0"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "409137828081-ig2uul01r95lj9fu6l1jgbgrp1es9060.apps.googleusercontent.com",
-              "client_type": 3
-            },
-            {
-              "client_id": "409137828081-2p83ft7aje95p2njo5m5h6vdd4l86s17.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "bloxfruitevalues",
-                "app_store_id": "6737775801"
-              }
-            }
-          ]
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:409137828081:android:60f507dffca82febf39950",
-        "android_client_info": {
-          "package_name": "com.fruitbloxvalues"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "409137828081-ig2uul01r95lj9fu6l1jgbgrp1es9060.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyDUXkQcecnhrNmeagvtRsKmDBmwz4AsRC0"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "409137828081-ig2uul01r95lj9fu6l1jgbgrp1es9060.apps.googleusercontent.com",
-              "client_type": 3
-            },
-            {
-              "client_id": "409137828081-2p83ft7aje95p2njo5m5h6vdd4l86s17.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "bloxfruitevalues",
-                "app_store_id": "6737775801"
-              }
-            }
-          ]
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:409137828081:android:58aa854b8a656784f39950",
-        "android_client_info": {
-          "package_name": "com.mynewapp"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "409137828081-ig2uul01r95lj9fu6l1jgbgrp1es9060.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyDUXkQcecnhrNmeagvtRsKmDBmwz4AsRC0"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "409137828081-ig2uul01r95lj9fu6l1jgbgrp1es9060.apps.googleusercontent.com",
-              "client_type": 3
-            },
-            {
-              "client_id": "409137828081-2p83ft7aje95p2njo5m5h6vdd4l86s17.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "bloxfruitevalues",
-                "app_store_id": "6737775801"
-              }
             }
           ]
         }

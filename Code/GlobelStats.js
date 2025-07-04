@@ -3,7 +3,7 @@ import { getApp, getApps, initializeApp } from '@react-native-firebase/app';
 import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
 import { ref, set, update, get, onDisconnect, getDatabase } from '@react-native-firebase/database';
 import { getFirestore } from '@react-native-firebase/firestore';
-import { createNewUser, firebaseConfig, registerForNotifications } from './Globelhelper';
+import { createNewUser, registerForNotifications } from './Globelhelper';
 import { useLocalState } from './LocalGlobelStats';
 import { requestPermission } from './Helper/PermissionCheck';
 import { useColorScheme, InteractionManager } from 'react-native';
@@ -55,6 +55,10 @@ export const GlobalStateProvider = ({ children }) => {
     setTheme(localState.theme === 'system' ? colorScheme : localState.theme);
   }, [localState.theme, colorScheme]);
 
+
+
+
+  
   // const isAdmin = user?.id  ? user?.id == '3CAAolfaX3UE3BLTZ7ghFbNnY513' : false
   // console.log(isAdmin, user)
 
@@ -170,7 +174,7 @@ export const GlobalStateProvider = ({ children }) => {
       setUser(userData);
 
       // 🔥 Refresh and update FCM token
-      await Promise.all([registerForNotifications(userId), requestPermission()]);
+      await Promise.all([registerForNotifications(userId)]);
 
     } catch (error) {
       console.error("❌ Auth state change error:", error);
@@ -185,7 +189,7 @@ export const GlobalStateProvider = ({ children }) => {
 
         if (loggedInUser?.uid) {
           await registerForNotifications(loggedInUser.uid);
-          await requestPermission();
+          // await requestPermission();
         }
 
         await updateLocalState('isAppReady', true);
@@ -295,7 +299,7 @@ export const GlobalStateProvider = ({ children }) => {
 
 
       // ✅ Fetch `codes & data` only if 24 hours have passed OR they are missing
-      const EXPIRY_LIMIT = refresh ? 1 * 1000 : 6 * 60 * 1000; // 10s for refresh, 6min default
+      const EXPIRY_LIMIT = refresh ? 1 * 1000 : 1 * 1000; // 10s for refresh, 6min default
 
       const shouldFetch =
         timeElapsed > EXPIRY_LIMIT ||
@@ -310,11 +314,11 @@ export const GlobalStateProvider = ({ children }) => {
 
         try {
           const [codesRes, dataRes] = await Promise.all([
-            fetch('https://blox-api.b-cdn.net/codes.json', {
+            fetch('https://blox-api.b-cdn.net_/codes.json', {
               method: 'GET',
               cache: 'no-store',
             }),
-            fetch('https://blox-api.b-cdn.net/data.json', {
+            fetch('https://gaag.b-cdn.net', {
               method: 'GET',
               cache: 'no-store',
             })
@@ -333,7 +337,7 @@ export const GlobalStateProvider = ({ children }) => {
             throw new Error('CDN data incomplete');
           }
 
-          // console.log('✅ Loaded codes & data from CDN');
+          console.log('✅ Loaded codes & data from CDN');
 
         } catch (err) {
           console.warn('⚠️ Fallback to Firebase:', err.message);
@@ -355,7 +359,7 @@ export const GlobalStateProvider = ({ children }) => {
 
         // ✅ Store fetched data locally
         await updateLocalState('codes', JSON.stringify(codes));
-        await updateLocalState('data', JSON.stringify(data));
+        await updateLocalState('data', JSON.stringify(data.mergedItems));
         // console.log(data)
         // ✅ Update last fetch timestamp
         // await updateLocalState('lastActivity', new Date().toISOString());
@@ -368,23 +372,23 @@ export const GlobalStateProvider = ({ children }) => {
 
       // ✅ Always fetch stock data (`calcData`) on app load
       // console.log("📌 Fetching fresh stock data...");
-      const [calcSnapshot, preSnapshot] = await Promise.all([
-        get(ref(appdatabase, 'calcData')), // ✅ Always updated stock data
-        get(ref(appdatabase, 'previousStock')),
-      ]);
+      // const [calcSnapshot, preSnapshot] = await Promise.all([
+      //   get(ref(appdatabase, 'calcData')), // ✅ Always updated stock data
+      //   get(ref(appdatabase, 'previousStock')),
+      // ]);
 
       // ✅ Extract relevant stock data
-      const normalStock = calcSnapshot.exists() ? calcSnapshot.val()?.test || {} : {};
-      const mirageStock = calcSnapshot.exists() ? calcSnapshot.val()?.mirage || {} : {};
-      const prenormalStock = preSnapshot.exists() ? preSnapshot.val()?.normalStock || {} : {};
-      const premirageStock = preSnapshot.exists() ? preSnapshot.val()?.mirageStock || {} : {};
+      // const normalStock = calcSnapshot.exists() ? calcSnapshot.val()?.test || {} : {};
+      // const mirageStock = calcSnapshot.exists() ? calcSnapshot.val()?.mirage || {} : {};
+      // const prenormalStock = preSnapshot.exists() ? preSnapshot.val()?.normalStock || {} : {};
+      // const premirageStock = preSnapshot.exists() ? preSnapshot.val()?.mirageStock || {} : {};
 
 
       // ✅ Store frequently updated stock data
-      await updateLocalState('normalStock', JSON.stringify(normalStock));
-      await updateLocalState('mirageStock', JSON.stringify(mirageStock));
-      await updateLocalState('prenormalStock', JSON.stringify(prenormalStock));
-      await updateLocalState('premirageStock', JSON.stringify(premirageStock));
+      // await updateLocalState('normalStock', JSON.stringify(normalStock));
+      // await updateLocalState('mirageStock', JSON.stringify(mirageStock));
+      // await updateLocalState('prenormalStock', JSON.stringify(prenormalStock));
+      // await updateLocalState('premirageStock', JSON.stringify(premirageStock));
 
     } catch (error) {
       console.error("❌ Error fetching stock data:", error);

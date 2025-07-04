@@ -9,12 +9,17 @@ import { showSuccessMessage } from '../../Helper/MessageHelper';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import { mixpanel } from '../../AppHelper/MixPenel';
+import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
+import { Modal, Pressable, TextInput } from 'react-native';
 
 const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers }) => {
   const { updateLocalState } = useLocalState();
   const { t } = useTranslation();
   const [isOnline, setIsOnline] = useState(false); // ✅ Add state to store online status
   const { triggerHapticFeedback } = useHaptic();
+const [showReportModal, setShowReportModal] = useState(false);
+const [alsoBlock, setAlsoBlock] = useState(false);
+
 
   const copyToClipboard = (code) => {
     triggerHapticFeedback('impactLight');
@@ -23,6 +28,15 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
     mixpanel.track("Code UserName", {UserName:code});
   };
 
+  const handleReportSubmit = async () => {
+    setShowReportModal(false);
+    if (alsoBlock && !isBanned) {
+      await updateLocalState('bannedUsers', [...bannedUsers, selectedUser?.senderId]);
+    }
+    showSuccessMessage("Success", "Report submitted successfully.");
+    setAlsoBlock(false);
+  };
+  
   const avatarUri = selectedUser?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png';
   const userName = selectedUser?.sender || 'User';
 // console.log(bannedUsers)
@@ -96,14 +110,45 @@ useEffect(() => {
         </Text>
         
       </View>
-      <TouchableOpacity onPress={handleBanToggle}>
-        <Icon
-          name={isBanned ? 'shield-checkmark-outline' : 'ban-outline'}
-          size={24}
-          color={isBanned ? config.colors.hasBlockGreen : config.colors.wantBlockRed}
-          style={styles.banIcon}
-        />
+      <Menu>
+  <MenuTrigger>
+    <Icon name="ellipsis-vertical" size={24} color={selectedTheme.colors.text} style={styles.banIcon} />
+  </MenuTrigger>
+  <MenuOptions customStyles={{ optionsContainer: { backgroundColor: selectedTheme.colors.card, padding: 5, borderRadius: 8 } }}>
+    <MenuOption onSelect={handleBanToggle}>
+      <Text style={{ paddingVertical: 4, color: selectedTheme.colors.text }}>{isBanned ? 'Unblock' : 'Block'}</Text>
+    </MenuOption>
+    <MenuOption onSelect={() => setShowReportModal(true)}>
+      <Text style={{ paddingVertical: 4, color: selectedTheme.colors.text }}>Report</Text>
+    </MenuOption>
+  </MenuOptions>
+</Menu>
+<Modal visible={showReportModal} transparent animationType="fade">
+  <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+    <View style={{ width: '85%', backgroundColor: 'white', padding: 20, borderRadius: 10 }}>
+      <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 10 }}>Report User</Text>
+      <TextInput
+        placeholder="Reason for report (optional)"
+        style={{ borderColor: '#ccc', borderWidth: 1, borderRadius: 5, padding: 8, marginBottom: 10 }}
+        multiline
+      />
+      <TouchableOpacity onPress={() => setAlsoBlock(!alsoBlock)} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+        <Icon name={alsoBlock ? 'checkbox' : 'square-outline'} size={20} color="#333" />
+        <Text style={{ marginLeft: 8 }}>Also block this user</Text>
       </TouchableOpacity>
+      <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+        <Pressable onPress={() => setShowReportModal(false)} style={{ marginRight: 16 }}>
+          <Text style={{ color: 'red' }}>Cancel</Text>
+        </Pressable>
+        <Pressable onPress={handleReportSubmit}>
+          <Text style={{ color: 'blue' }}>Submit</Text>
+        </Pressable>
+      </View>
+    </View>
+  </View>
+</Modal>
+
+
     </View>
   );
 });

@@ -18,13 +18,7 @@ export const FilterMenu = ({ selectedFilters, setSelectedFilters, analytics, pla
   const filterOptions = [
     { key: "has", label: t("trade.filter_has") },
     { key: "wants", label: t("trade.filter_wants") },
-    { key: "myTrades", label: t("trade.filter_my_trades") },
-    { key: "fairDeal", label: t("trade.filter_fair_deal") },
-    { key: "riskyDeal", label: t("trade.filter_risky_deal") },
-    { key: "bestDeal", label: t("trade.filter_best_deal") },
-    { key: "decentDeal", label: t("trade.filter_decent_deal") },
-    { key: "weakDeal", label: t("trade.filter_weak_deal") },
-    { key: "greatDeal", label: t("trade.filter_great_deal") }
+    { key: "myTrades", label: t("trade.filter_my_trades") }
   ];
 
   return (

@@ -50,6 +50,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
         {InterstitialAdManager.showAd(callbackfunction);}
         else {callbackfunction()}
     }
+    // console.log(tradeData)
 
     const handleShare = async () => {
         try {
@@ -72,24 +73,38 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
             console.error('Error sharing:', error);
         }
     };
+    const formatNameNew = (name) => {
+        // console.log(name)
+        if(!name) return
+        const formattedName = name?.split('_')                           // Split on underscore
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalize each word
+          .join(' ');                           // Join with space
+      
+        // If the formatted name length is greater than 5 characters, truncate it and add "..."
+        if (formattedName.length > 10) {
+          return formattedName.slice(0, 10) + '...';  // Truncate to 5 characters and append '...'
+        }
+        
+        return formattedName;  // Return the formatted name if it's 5 characters or less
+      };
 
     const chunkArray = (array, size) => {
         const chunkedArr = [];
-        for (let i = 0; i < array.length && i < 4; i += size) {
+        for (let i = 0; i < array.length && i < 6; i += size) {
             chunkedArr.push(array.slice(i, i + size));
         }
         return chunkedArr;
     };
     const ensureFourItems = (items) => {
         const filledItems = [...items];
-        while (filledItems.length < 4) {
+        while (filledItems.length < 6) {
             filledItems.push({ name: '', type: 'placeholder' }); // Placeholder item
         }
         return filledItems;
     };
 
-    const hasItemsChunks = chunkArray(ensureFourItems(hasItems), 2);
-    const wantItemsChunk = chunkArray(ensureFourItems(wantsItems), 2);
+    const hasItemsChunks = chunkArray(ensureFourItems(hasItems), 3);
+    const wantItemsChunk = chunkArray(ensureFourItems(wantsItems), 3);
 
     const handleRemoveAttribute = () => {
         if (!localState?.isPro) {
@@ -124,13 +139,13 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
             </Text>
         </TouchableOpacity>
     );
-
+// console.log('hasItemsChunks', hasItemsChunks)
     return (
         <Modal transparent visible={visible} animationType="slide">
             <View style={styles.modalOverlay}>
                 <View style={styles.modalContainer}>
                     {/* Trade Details */}
-                    <ViewShot ref={viewRef} style={{ backgroundColor: 'white', padding: 5, borderRadius:8,         backgroundColor:'#E8F9FF'
+                    <ViewShot ref={viewRef} style={{ backgroundColor: 'white', padding: 5, borderRadius:8,         backgroundColor:'#B2C6D5'
  }}>
                         {includeHasWants && (
                             <View style={styles.tradeDetails}>
@@ -139,21 +154,22 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                     <View style={[styles.gridContainer, !showRightGrid && styles.fullWidthGrid]}>
                                         {hasItemsChunks.map((row, rowIndex) => (
                                             <View key={rowIndex} style={styles.row}>
-                                                {row.map((item, index) => (
-                                                    <View key={`${item.name}-${item.type}-${index}`} style={styles.gridItem}>
-                                                        <View style={item.name !== '' && styles.top}>
-                                                            <Text style={styles.itemText}>
+                                                {row && row.map((item, index) => (
+                                                    <View key={`${item?.Name}-${item?.Type}-${index}`} style={styles.gridItem}>
+                                                        <View style={item?.Name !== '' && styles.top}>
+                                                            {/* <Text style={styles.itemText}>
                                                             {item.name !== '' ? (item.value === 0 || item.value === "N/A" ? 'Special' : item.value) : ''}
-                                                            </Text></View>
+                                                            </Text> */}
+                                                            </View>
                                                         <Image
                                                             source={{
-                                                                uri: item.type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.name)}_Icon.webp`,
+                                                                uri: item?.Image
                                                             }}
                                                             style={styles.itemImage}
                                                         />
-                                                        <View style={item.name !== '' && styles.bottom}>
+                                                        <View style={item?.Name !== '' && styles.bottom}>
                                                             <Text style={styles.itemText}>
-                                                                {item.name} {item.type === 'p' && '(P)'}
+                                                                {formatNameNew(item?.Name)} 
                                                             </Text></View>
                                                     </View>
                                                 ))}
@@ -174,21 +190,23 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                     <View style={[styles.gridContainer, !showLeftGrid && styles.fullWidthGrid]}>
                                         {wantItemsChunk.map((row, rowIndex) => (
                                             <View key={rowIndex} style={styles.row}>
-                                                {row.map((item, index) => (
-                                                    <View key={`${item.name}-${item.type}-${index}`} style={styles.gridItem}>
-                                                        <View style={item.name !== '' && styles.top}>
-                                                            <Text style={styles.itemText}>
-                                                            {item.name !== '' ? (item.value === 0 || item.value === "N/A" ? 'Special' : item.value) : ''}
-                                                            </Text></View>
+                                                { row.map((item, index) => (
+                                                    <View key={`${item?.Name}-${item?.Type}-${index}`} style={styles.gridItem}>
+                                                        <View style={item?.Name !== '' && styles.top}>
+                                                            {/* <Text style={styles.itemText}>
+                                                            {item.Name !== '' ? (item.value === 0 || item.value === "N/A" ? 'Special' : item.value) : ''}
+                                                            </Text> */}
+                                                            </View>
                                                         <Image
                                                             source={{
-                                                                uri: item.type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.name)}_Icon.webp`,
+                                                                uri: item?.Image
+
                                                             }}
                                                             style={styles.itemImage}
                                                         />
-                                                        <View style={item.name !== '' && styles.bottom}>
+                                                        <View style={item?.Name !== '' && styles.bottom}>
                                                             <Text style={styles.itemText}>
-                                                                {item.name} {item.type === 'p' && '(P)'}
+                                                                {formatNameNew(item?.Name)}
                                                             </Text></View>
                                                     </View>
                                                 ))}
@@ -207,14 +225,14 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                     <View style={[styles.hasBackground, !showRightGrid && styles.fullWidthSummary]}>
                                         <Text style={[styles.priceText]}>Has</Text>
                                         {includeValue && <Text style={[styles.priceText, { borderTopWidth: 1, borderTopColor: 'lightgrey' }]}>Value: {hasTotal.value.toLocaleString()}</Text>}
-                                        {includePrice && <Text style={[styles.priceText]}>Price: {hasTotal.price.toLocaleString()}</Text>}
+                                     
                                     </View>
                                 )}
                                 {showRightGrid && (
                                     <View style={[styles.wantBackground, !showLeftGrid && styles.fullWidthSummary]}>
                                         <Text style={[styles.priceText]}>Want</Text>
                                         {includeValue && <Text style={[styles.priceText, { borderTopWidth: 1, borderTopColor: 'lightgrey' }]}>Value: {wantsTotal.value.toLocaleString()}</Text>}
-                                        {includePrice && <Text style={[styles.priceText]}>Price: {wantsTotal.price.toLocaleString()}</Text>}
+                                       
                                     </View>
                                 )}
                             </View>
@@ -240,7 +258,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                 <Text style={styles.footerText}>Created with {config.appName}</Text>
 
                                 <Image
-                                    source={require('../../assets/logo.webp')} // Replace with the actual local image path
+                                    source={require('../../assets/GAG.png')} // Replace with the actual local image path
                                     style={styles.footerImage}
                                 />
                             </View>
@@ -423,14 +441,14 @@ StyleSheet.create({
         marginBottom: 4, // Space between rows
     },
     gridItem: {
-        width: '49%', // Each item takes ~45% of the row width
+        width: '33%', // Each item takes ~45% of the row width
         alignItems: 'center',
         justifyContent: 'center',
         // padding: 4,
         borderWidth: !config.isNoman ? 1 : 0, // Optional: Add border for grid feel
         borderColor: '#ccc',
         borderRadius: 6,
-        backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF',
+        backgroundColor: isDarkMode ? '#34495E' : config.colors.wantBlockRed,
     },
     itemImage: {
         width: 50,
@@ -438,12 +456,12 @@ StyleSheet.create({
         borderRadius: 8,
     },
     itemText: {
-        fontSize: 10,
-        marginTop: 3,
+        fontSize: 7,
+        // marginTop: 3,
         textAlign: 'center',
         color: 'white',
         lineHeight: 16,
-        paddingVertical: 2,
+        // paddingVertical: 2,
         fontFamily:'Lato-Bold'
 
     },
@@ -459,7 +477,7 @@ StyleSheet.create({
         // paddingHorizontal:20
     },
     bottom: {
-        backgroundColor: '#fe01ea', width: '100%', borderBottomEndRadius: 4, borderBottomStartRadius: 4
+        backgroundColor: config.colors.hasBlockGreen, width: '100%', borderBottomEndRadius: 4, borderBottomStartRadius: 4
     },
     top: {
         backgroundColor: '#1dc226', width: '100%', borderTopEndRadius: 4, borderTopStartRadius: 4

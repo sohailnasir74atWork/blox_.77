@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Appearance,
   InteractionManager,
+  Platform,
 } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -18,6 +19,7 @@ import { useLocalState } from './Code/LocalGlobelStats';
 import { AdsConsent, AdsConsentStatus } from 'react-native-google-mobile-ads';
 import MainTabs from './Code/AppHelper/MainTabs';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { getTrackingStatus, requestTrackingPermission } from 'react-native-tracking-transparency';
 import {
   MyDarkTheme,
   MyLightTheme,
@@ -26,8 +28,8 @@ import {
 import getAdUnitId from './Code/Ads/ads';
 import OnboardingScreen from './Code/AppHelper/OnBoardingScreen';
 import { useTranslation } from 'react-i18next';
-import RewardCenterScreen from './Code/SettingScreen/RewardCenter';
-import RewardRulesModal from './Code/SettingScreen/RewardRulesModel';
+// import RewardCenterScreen from './Code/SettingScreen/RewardCenter';
+// import RewardRulesModal from './Code/SettingScreen/RewardRulesModel';
 import InterstitialAdManager from './Code/Ads/IntAd';
 import AppOpenAdManager from './Code/Ads/openApp';
 import RNBootSplash from "react-native-bootsplash";
@@ -39,11 +41,16 @@ const Stack = createNativeStackNavigator();
 const setNavigationBarAppearance = (theme) => {
   if (theme === 'dark') {
     SystemNavigationBar.setNavigationColor('#000000', 'light', 'navigation');
+    SystemNavigationBar.setBarMode('dark');
   } else {
     SystemNavigationBar.setNavigationColor('#FFFFFF', 'dark', 'navigation');
+    SystemNavigationBar.setBarMode('light');
   }
 };
-
+// useEffect(() => {
+//   SystemNavigationBar.setNavigationColor('#000000', 'light', 'navigation'); // black background, light icons
+//   SystemNavigationBar.setBarMode('dark'); // forces dark mode (light icons)
+// }, []);
 // const adUnitId = getAdUnitId('openapp');
 
 function App() {
@@ -57,6 +64,8 @@ function App() {
     }
     return theme === 'dark' ? MyDarkTheme : MyLightTheme;
   }, [theme]);
+ 
+  const adShownRef = useRef(false); // useRef to persist across renders
 
 
   const { localState, updateLocalState } = useLocalState();
@@ -67,57 +76,17 @@ function App() {
 
   useEffect(() => {
     InterstitialAdManager.init();
+
   }, []);
 
 
 
   useEffect(() => {
-    const listener = Appearance.addChangeListener(({ colorScheme }) => {
-      if (theme === 'system') {
-        setNavigationBarAppearance(colorScheme);
-      }
-    });
-
-    return () => listener.remove();
+    setNavigationBarAppearance(theme); // Apply nav bar color on theme change
   }, [theme]);
 
 
-  useEffect(() => {
-    let isMounted = true;
-    let unsubscribe;
-
-    const initializeAds = async () => {
-      try {
-        await AppOpenAdManager.init();
-      } catch (error) {
-        console.error('❌ Error initializing ads:', error);
-      }
-    };
-
-    const handleAppStateChange = async (state) => {
-      if (!isMounted) return;
-
-      try {
-        if (state === 'active' && !localState?.isPro) {
-          await AppOpenAdManager.showAd();
-        }
-      } catch (error) {
-        console.error('❌ Error showing ad:', error);
-      }
-    };
-
-    initializeAds();
-    unsubscribe = AppState.addEventListener('change', handleAppStateChange);
-
-    return () => {
-      isMounted = false;
-      if (unsubscribe) {
-        unsubscribe.remove();
-      }
-      AppOpenAdManager.cleanup();
-    };
-  }, [localState?.isPro]);
-
+  
 
 
   if (loading) {
@@ -128,7 +97,23 @@ function App() {
     );
   }
 
-
+  useEffect(() => {
+    const askPermission = async () => {
+      try {
+        const status = await getTrackingStatus();
+        console.log('Initial tracking status:', status);
+  
+        if (status === 'not-determined') {
+          const newStatus = await requestTrackingPermission();
+          console.log('User response:', newStatus);
+        }
+      } catch (error) {
+        console.error('Error requesting tracking permission:', error);
+      }
+    };
+  
+    askPermission();
+  }, []);
 
 
   useEffect(() => {
@@ -190,7 +175,7 @@ function App() {
             </Stack.Screen>
 
             
-            <Stack.Screen
+            {/* <Stack.Screen
               name="Reward"
               options={{
                 title: "Reward Center",
@@ -204,7 +189,7 @@ function App() {
               }}
             >
               {() => <RewardCenterScreen selectedTheme={selectedTheme} />}
-            </Stack.Screen>
+            </Stack.Screen> */}
 
             {/* Move this outside of <Stack.Navigator> */}
 
@@ -221,17 +206,58 @@ function App() {
             </Stack.Screen>
           </Stack.Navigator>
         </NavigationContainer>
-        {modalVisible && (
+        {/* {modalVisible && (
           <RewardRulesModal visible={modalVisible} onClose={() => setModalVisible(false)} selectedTheme={selectedTheme} />
-        )}
+        )} */}
       </Animated.View>
     </SafeAreaView>
   );
 }
-
 export default function AppWrapper() {
   const { localState, updateLocalState } = useLocalState();
   const { theme } = useGlobalState();
+  const [adReady, setAdReady] = useState(false);
+  const hasShownColdStartAd = useRef(false);
+  const appState = useRef(AppState.currentState);
+
+  // STEP 1: Show ad on cold start before rendering App
+  // useEffect(() => {
+  //   if (localState.showOnBoardingScreen) return;
+
+  //   if (Platform.OS === 'android' && !hasShownColdStartAd.current) {
+  //     AppOpenAdManager.initAndShow().finally(() => {
+  //       hasShownColdStartAd.current = true;
+  //       setAdReady(true); // allow app to render
+  //     });
+  //   } else if (Platform.OS === 'ios') {
+  //     setAdReady(true); // allow app to render immediately on iOS
+  //   }
+  // }, [localState.showOnBoardingScreen]);
+
+  // STEP 2: Handle background → active transition on iOS
+  // useEffect(() => {
+  //   if (Platform.OS === 'ios') {
+  //     const subscription = AppState.addEventListener('change', nextAppState => {
+  //       const wasBackground = appState.current === 'background';
+  //       const nowActive = nextAppState === 'active';
+  //       console.log(nextAppState)
+
+  //       appState.current = nextAppState;
+
+  //       if (wasBackground && nowActive && !localState.isPro) {
+  //         AppOpenAdManager.initAndShow();
+  //       }
+  //     });
+
+  //     return () => subscription?.remove();
+  //   }
+  // }, [localState.isPro]);
+  useEffect(() => {
+    if (!localState.showOnBoardingScreen) 
+   { AppOpenAdManager.initAndShow();}
+  }, [localState.isPro]);
+
+  // STEP 3: Hide splash
   useEffect(() => {
     if (localState.isAppReady) {
       InteractionManager.runAfterInteractions(() => {
@@ -241,19 +267,26 @@ export default function AppWrapper() {
   }, [localState.isAppReady]);
 
   const selectedTheme = useMemo(() => {
-    if (!theme) {
-      console.warn("⚠️ Theme not found! Falling back to Light Theme.");
-    }
     return theme === 'dark' ? MyDarkTheme : MyLightTheme;
   }, [theme]);
 
   const handleSplashFinish = () => {
-    updateLocalState('showOnBoardingScreen', false); // ✅ Set onboarding as finished
+    updateLocalState('showOnBoardingScreen', false);
   };
 
+  // STEP 4: Show onboarding screen
   if (localState.showOnBoardingScreen) {
     return <OnboardingScreen onFinish={handleSplashFinish} selectedTheme={selectedTheme} />;
   }
 
-  return <App />
+  // STEP 5: Wait until ad is shown before rendering App
+  // if (!adReady && Platform.OS === 'android') {
+  //   return (
+  //     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: selectedTheme.colors.background }}>
+  //       <ActivityIndicator size="large" color="#1E88E5" />
+  //     </View>
+  //   );
+  // }
+
+  return <App />;
 }

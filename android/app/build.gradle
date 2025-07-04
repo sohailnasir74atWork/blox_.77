@@ -79,13 +79,13 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.bloxfruitstock"
+    namespace "com.growagarden.gag"
     defaultConfig {
-        applicationId "com.bloxfruitstock"
+        applicationId "com.growagarden.gag"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 82
-        versionName "4.2.7"
+        versionCode 3
+        versionName "1.2"
     }
     signingConfigs {
         release {

@@ -103,12 +103,12 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
           title: t('tabs.calculator'), // Translation applied here
           headerRight: () => (
             <>
-              <TouchableOpacity onPress={() => navigation.navigate('Reward')}>
+              {/* <TouchableOpacity onPress={() => navigation.navigate('Reward')}>
                 <Image
                   source={require('../../assets/trophy.webp')} // ✅ Ensure the correct path
                   style={{ width: 20, height: 20, marginRight: 16 }}
                 />
-              </TouchableOpacity>
+              </TouchableOpacity> */}
               <TouchableOpacity onPress={() => navigation.navigate('Setting')} style={{ marginRight: 16 }}>
               <Icon
                 name="settings"

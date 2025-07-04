@@ -43,7 +43,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     const isDarkMode = theme === 'dark';
     useEffect(() => {
         GoogleSignin.configure({
-            webClientId: '409137828081-ig2uul01r95lj9fu6l1jgbgrp1es9060.apps.googleusercontent.com',
+            webClientId: '543545382684-17q9rjfsob0c09mhdkkskmuhajqbh61e.apps.googleusercontent.com',
             offlineAccess: true,
         });
     }, [])
@@ -91,7 +91,9 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                 t("home.alert.success"),
                 t("signin.success_signin")
             );
-            {Platform.OS !== 'ios' && onClose();}
+            setTimeout(() => {
+                onClose();
+              }, 200);
             mixpanel.track(`Login with apple from ${screen}`);
         } catch (error) {
             showErrorMessage(
@@ -142,12 +144,16 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                     t("home.alert.success"),
                     t("signin.alert_account_created")
                 );
-                {Platform.OS !== 'ios' && onClose();}
+                setTimeout(() => {
+                    onClose();
+                  }, 200);
             } else {
                 // Handle user login
                 await auth().signInWithEmailAndPassword(email, password);
                 mixpanel.track(`Login with email from ${screen}`);
-                {Platform.OS !== 'ios' && onClose();}
+                setTimeout(() => {
+                    onClose();
+                  }, 200);
                 // Alert.alert(t("signin.alert_welcome_back"), t("signin.success_signin"));
                 showSuccessMessage(
                     t("signin.alert_welcome_back"),
@@ -198,7 +204,9 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                 t("signin.alert_welcome_back"),
                 t("signin.success_signin")
             );
-            {Platform.OS !== 'ios' && onClose();}
+            setTimeout(() => {
+                onClose();
+              }, 200);
             mixpanel.track(`Login with google from ${screen}`);
 
         } catch (error) {

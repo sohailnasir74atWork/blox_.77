@@ -18,26 +18,24 @@ import CodesDrawer from './Code';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { useLocalState } from '../LocalGlobelStats';
 import { useTranslation } from 'react-i18next';
-import { ref, update } from '@react-native-firebase/database';
 import { mixpanel } from '../AppHelper/MixPenel';
 import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
-import { handleadoptme, handleMM2 } from '../SettingScreen/settinghelper';
+import MyAppAds from '../Ads/CustomAds';
 
 const ValueScreen = ({ selectedTheme }) => {
   const [searchText, setSearchText] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [filterDropdownVisible, setFilterDropdownVisible] = useState(false);
-  const { analytics, isAdmin, reload, theme } = useGlobalState();
+  const {  reload, theme } = useGlobalState();
   const {localState, toggleAd} = useLocalState()
   const isDarkMode = theme === 'dark'
-  const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
   const [filteredData, setFilteredData] = useState([]);
   const [valuesData, setValuesData] = useState([]);
   const [codesData, setCodesData] = useState([]);
   const { t } = useTranslation();
-  const filters = ['All', 'COMMON', 'UNCOMMON', 'RARE', 'LEGENDARY', 'MYTHICAL', 'GAME PASS', 'LIMITED'];
+  const filters = ['All', 'PET', 'GEAR',  'FRUIT'];
   const displayedFilter = selectedFilter === 'PREMIUM' ? 'GAME PASS' : selectedFilter;
   const formatName = (name) => name.replace(/^\+/, '').replace(/\s+/g, '-');
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
@@ -48,8 +46,7 @@ const ValueScreen = ({ selectedTheme }) => {
   const [selectedFruit, setSelectedFruit] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false); // State for pull-to-refresh
-  const [showAd1, setShowAd1] = useState(localState?.showAd1);
-
+  const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
 
   const editValuesRef = useRef({
     Value: '',
@@ -166,51 +163,7 @@ const ValueScreen = ({ selectedTheme }) => {
   const applyFilter = (filter) => {
     setSelectedFilter(filter);
   };
-  useEffect(() => {
-    // Toggle the ad state when the screen is mounted
-    const newAdState = toggleAd();
-    setShowAd1(newAdState);
-  }, []);
-
-  const CustomAd = () => (
-    <View style={styles.adContainer}>
-      <View style={styles.adContent}>
-        <Image
-          source={require('../../assets/adoptme.png')} // Replace with your ad icon
-          style={styles.adIcon}
-        />
-        <View>
-          <Text style={styles.adTitle}>ADOPT ME Values</Text>
-          <Text style={styles.tryNowText}>Try Our other app</Text>
-        </View>
-      </View>
-      <TouchableOpacity style={styles.downloadButton} onPress={() => {
-            handleadoptme(); triggerHapticFeedback('impactLight');
-          }}>
-        <Text style={styles.downloadButtonText}>Download</Text>
-      </TouchableOpacity>
-    </View>
-  );
-  const CustomAd2 = () => (
-    <View style={styles.adContainer}>
-      <View style={styles.adContent}>
-        <Image
-          source={require('../../assets/logo2.png')} // Replace with your ad icon
-          style={styles.adIcon}
-        />
-        <View>
-          <Text style={styles.adTitle}>MM2 Values</Text>
-          <Text style={styles.tryNowText}>Try Our other app</Text>
-        </View>
-      </View>
-      <TouchableOpacity style={styles.downloadButton} onPress={() => {
-        handleMM2(); triggerHapticFeedback('impactLight');
-      }}>
-        <Text style={styles.downloadButtonText}>Download</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
+  
   useEffect(() => {
     if (localState.data) {
       try {
@@ -272,7 +225,7 @@ const ValueScreen = ({ selectedTheme }) => {
       if (!item?.name) return false;
 
       const itemType =
-        item?.rarity == 'gamepass' ? 'GAME PASS' : item?.rarity?.toUpperCase();
+        item?.category == 'gamepass' ? 'GAME PASS' : item?.category?.toUpperCase();
       return (
         item.name.toLowerCase().includes(searchText.toLowerCase()) &&
         (selectedFilter === 'All' || itemType === selectedFilter)
@@ -330,108 +283,94 @@ const ValueScreen = ({ selectedTheme }) => {
     </Modal>
   );
 
-
-
-  const renderItem = React.useCallback(({ item }) => (
-    <View style={styles.itemContainer}>
-      <View style={styles.headerContainer}>
-        <View style={styles.imageContainer}>
-          <Image
-            source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.name)}_Icon.webp` }}
-            style={styles.icon}
-            resizeMode="cover"
-          />
-
-          <View>
-            <Text style={styles.name}>{item.name}</Text>
-            <Text style={styles.value}> Robux Price: ${Number(item?.robux).toLocaleString()}</Text>
-            <Text style={styles.value}> Beli Price: ${Number(item?.beli).toLocaleString()}</Text>
-
-          </View>
-        </View>
-
-        <View>
-
-        </View>
-        <View>
-          <Text style={styles.rarity}>{item.rarity}</Text>
-        </View>
-
+  const formatNameNew = (name) => {
+    return name
+      .split('_')                        // Split on underscore
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalize each word
+      .join(' ');                        // Join with space
+  };
+  
+  const renderItem = React.useCallback(({ item }) => {
+    const { attributes = {}, value } = item;
+  
+    const formatLabel = label =>
+      label.toLowerCase().split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
+  
+    const infoRow = (label, content) => (
+      <View style={{
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        // paddingVertical: 6,
+        // borderBottomWidth: 1,
+        borderColor: '#eee',
+        flexWrap:'wrap'
+      }}>
+        <Text style={{ fontWeight: '500', fontSize: 12, color: isDarkMode ? '#fff' : '#555' }}>{label}:</Text>
+        <Text style={{ fontSize: 12, color: isDarkMode ? '#fff' : '#555'}}>{content}</Text>
       </View>
-      <View style={styles.headerContainer}>
-        <View style={styles.pointsBox}>
-          <View style={styles.rowcenter}>
-            <Text style={styles.headertext}>Value: </Text>
-            <Text style={styles.value}>${item?.value ? Number(item?.value).toLocaleString() : 'N/A'} </Text>
-          </View>
-          <View style={styles.rowcenter}>
-            <Text style={styles.headertext}>Status: </Text>
-            <Text style={styles.value}>{item?.physicalStatus ? item?.physicalStatus : 'N/A'} </Text>
-          </View>
-          <View style={styles.rowcenter}>
-            <Text style={styles.headertext}>Demand: </Text>
-            <Text style={styles.value}>{item?.demand ? item?.demand : 'N/A'} </Text>
-          </View>
-        </View>
-
-        <View style={styles.pointsBox}>
-          <View style={styles.rowcenter}>
-            <Text style={styles.headertext}>Perm Value: </Text>
-            <Text style={styles.value}>${item?.permValue ? Number(item?.permValue).toLocaleString() : 'N/A'}</Text>
-          </View>
-          <View style={styles.rowcenter}>
-            <Text style={styles.headertext}>Perm Status: </Text>
-            <Text style={styles.value}>{item?.permanentStatus ? item?.permanentStatus : 'N/A'}</Text>
-          </View>
-          <View style={styles.rowcenter}>
-            <Text style={styles.headertext}>Perm Demand: </Text>
-            <Text style={styles.value}>{item?.permDemand ? item?.permDemand : 'N/A'}</Text>
-          </View>
-
-        </View>
-
-
-      </View>
-      <View style={{ backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF', width: '100%', borderRadius: 8, padding: 10, marginTop: 10 }}>
-        <View style={styles.rowcenter}>
-          <Text style={styles.headertext}>TYPE : </Text>
-          <Text style={styles.value}>{item.type ? item.type : 'N/A'} </Text>
-        </View>
-        <View style={styles.rowcenter}>
-          <Text style={styles.headertext}>BEST USED FOR :</Text>
-          <Text style={styles.value}>{item.bestUsedFor ? item.bestUsedFor :'N/A'} </Text>
-
-        </View>
-        <View style={styles.rowcenter}>
-          {/* <Text style={styles.headertext}>AWAKENING PRICE (Fragments)</Text> */}
-        </View>
-
-        {/* <View style={styles.rowcenter}>
-  {["X", "V", "Z", "F", "C"].map((key) => {
-    const value = item.fragments?.[key.toLowerCase()] ?? "N/A"; // ✅ Prevent undefined values
-    return (
-      <Text key={key} style={[styles.value, { paddingRight: 10 }]}>{key}: {value}</Text>
     );
-  })}
-</View>
-
-<Text style={styles.value}>
-  Total Price: {Object.values(item.fragments || {}).reduce((sum, val) => sum + (val || 0), 0)}
-</Text> */}
-
-
-
-      </View>
-      {isAdmin && (
-        <TouchableOpacity onPress={() => openEditModal(item)} style={styles.editButton}>
-          <Text style={styles.editButtonText}>Edit</Text>
-        </TouchableOpacity>
-      )}
-      <View style={styles.devider}></View>
-
-    </View>
-  ));
-
+  
+    return (
+      <View style={{
+        backgroundColor: isDarkMode ? '#1f2a35' : '#ffffff',
+        // paddingVertical:6,
+        borderRadius: 8,
+        marginVertical: 3
+      }}>
+        {/* Header */}
+        
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start',  paddingHorizontal:6, paddingTop:6 }}>
+          <Image
+            source={{ uri: item.picture }}
+            style={{ width: 72, height: 72, borderRadius: 12, marginRight: 14, marginBottom:3 }}
+          />
+          <View style={{ flex: 1, alignItems:'flex-start', marginTop:15 }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: isDarkMode ? '#fff' : '#111' }}>
+              {formatNameNew(item.name)}
+            </Text>
+            <Text style={{ fontSize: 12, color: '#888' }}>{formatLabel(item.category)}</Text>
+            <Text style={{ fontSize: 12, color: '#aaa' }}>{formatLabel(item.tier)}</Text>
+          </View>
+          {value != null && (
+            <View style={{ alignItems: 'flex-end', justifyContent:'flex-end', alignItems:'flex-start' }}>
+              {/* <Text style={{ fontSize: 12, color: '#999' }}></Text> */}
+              <Text style={{ fontSize: 14, fontWeight: '600', color: isDarkMode ? '#888' : '#111' }}>Value: {value.toLocaleString()}</Text>
+            </View>
+          )}
+        </View>
+        <View style={{backgroundColor: isDarkMode ? '#34495E' : '#B2C6D5', paddingHorizontal:6, borderBottomRightRadius:8, borderBottomLeftRadius:8, paddingBottom:6}}>
+        {/* Info Table */}
+        <View style={{marginVertical:5}}>
+          {attributes.robux_price != null && infoRow("Robux Price", attributes.robux_price)}
+          {attributes.in_game_price != null && infoRow("Buy Price", Number(attributes.in_game_price).toLocaleString())}
+          {attributes.min_sale_in_game_price != null && infoRow("Min Sale Price", Number(attributes.min_sale_in_game_price).toLocaleString())}
+          {attributes.num_stock_items_min != null && attributes.num_stock_items_max != null &&
+            infoRow("Shop Amount", `${attributes.num_stock_items_min} - ${attributes.num_stock_items_max}`)}
+          {attributes.multi_harvest != null && infoRow("Multi Harvest", attributes.multi_harvest ? "Yes" : "No")}
+          {attributes.obtainable != null && infoRow("Obtainable", attributes.obtainable ? "Yes" : "No")}
+          {attributes.use && infoRow("Best Used For: ", attributes.use)}
+        </View>
+  
+        {/* Hatch Chances */}
+        {Array.isArray(attributes.hatch_chances) && attributes.hatch_chances.length > 0 && (
+          <View style={{ marginTop: 1 }}>
+            <Text style={{ fontWeight: '600', fontSize: 14, color:isDarkMode ? 'lightgrey' : '#111' }}>Hatch Chances</Text>
+            {attributes.hatch_chances.map((hc, idx) => (
+              <View key={idx} style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                // paddingVertical: 4,
+              }}>
+                <Text style={{ color: '#888',fontSize: 12  }}>{formatLabel(hc.egg)}</Text>
+                <Text style={{ color: '#888', fontSize: 12  }}>{hc.hatch_chance}%</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View></View>
+    );
+  }, [isDarkMode]);
+  
 
 
 
@@ -445,11 +384,8 @@ const ValueScreen = ({ selectedTheme }) => {
           {/* <Text style={[styles.description, { color: selectedTheme.colors.text }]}>
             {t("value.description")}
           </Text> */}
-                    {showAd1 ? (
-            <CustomAd />
-          ) : (
-            <CustomAd2 />
-          )}
+                 <MyAppAds currentAppId="gog" mode="rotate" />
+
 
           <View style={styles.searchFilterContainer}>
             <TextInput
@@ -483,7 +419,7 @@ const ValueScreen = ({ selectedTheme }) => {
               </MenuOptions>
             </Menu>
             <TouchableOpacity
-              style={[styles.filterDropdown, { backgroundColor: config.colors.primary }]}
+              style={[styles.filterDropdown, { backgroundColor: config.colors.hasBlockGreen }]}
               onPress={toggleDrawer}
             >
               <Text style={[styles.filterText, { color: 'white' }]}> {t("value.codes")}</Text>
@@ -544,7 +480,7 @@ export const getStyles = (isDarkMode) =>
     container: { paddingHorizontal: 8, marginHorizontal: 2, flex: 1 },
     searchFilterContainer: { flexDirection: 'row', marginVertical: 5, alignItems: 'center' },
     searchInput: {   height: 40,
-      borderColor: isDarkMode ? config.colors.primary : 'white',
+      borderColor: isDarkMode ? config.colors.hasBlockGreen : 'white',
       backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
 
       borderWidth: 1,
@@ -560,7 +496,7 @@ export const getStyles = (isDarkMode) =>
     filterTextOption: { fontSize: 12 },
     // itemContainer: { alignItems: 'flex-start', backgroundColor: 'red', borderRadius: 10, padding: 10, 
     //    width: '100%', marginVertical: 5 },
-    icon: { width: 50, height: 50, borderRadius: 5, marginRight: 10 },
+    icon: { width: 50, height: 50, borderRadius: 5, marginRight: 10, alignItems:'center', marginTop:-10 },
     infoContainer: { flex: 1 },
     name: {
       fontSize: 16, fontFamily: 'Lato-Bold',
@@ -630,7 +566,7 @@ export const getStyles = (isDarkMode) =>
       alignItems: 'flex-start',
       borderRadius: 10,
       paddingVertical: 10,
-      // backgroundColor: config.colors.primary,
+      // backgroundColor: config.colors.hasBlockGreen,
       width: !config.isNoman ? '99%' : '99%',
       // marginBottom: !config.isNoman ? 10 : 10,
       // ...(!config.isNoman && {
@@ -701,7 +637,7 @@ export const getStyles = (isDarkMode) =>
       marginTop: 10,
     },
     rarity: {
-      backgroundColor: '#6A5ACD',
+      backgroundColor: config.colors.hasBlockGreen,
       paddingVertical: 1
       ,
       paddingHorizontal: 5,
@@ -710,7 +646,7 @@ export const getStyles = (isDarkMode) =>
       fontSize: 12
     },
     headertext: {
-      backgroundColor: '#6A5ACD',
+      backgroundColor: config.colors.hasBlockGreen,
       paddingVertical: 1,
       paddingHorizontal: 5,
       borderRadius: 5,
@@ -724,7 +660,7 @@ export const getStyles = (isDarkMode) =>
     },
     pointsBox: {
       width: '49%', // Ensures even spacing
-      backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF', // Dark: darker contrast, Light: White
+      backgroundColor: isDarkMode ? '#34495E' : '#bdefe1', // Dark: darker contrast, Light: White
       borderRadius: 8,
       // alignItems: 'center',
       padding: 10,
@@ -735,6 +671,7 @@ export const getStyles = (isDarkMode) =>
       alignItems: 'center',
       fontSize: 12,
       marginTop: 5,
+      flexWrap:'wrap'
 
     },
     menuContainer: {
@@ -743,7 +680,7 @@ export const getStyles = (isDarkMode) =>
     filterButton: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: config.colors.primary,
+      backgroundColor: config.colors.hasBlockGreen,
       paddingVertical: 10,
       paddingHorizontal: 15,
       borderRadius: 8,
@@ -794,7 +731,7 @@ export const getStyles = (isDarkMode) =>
     tryNowText: {
       fontSize: 14,
       fontFamily: 'Lato-Regular',
-      color: '#6A5ACD', // Adds a distinct color for the "Try Now" text
+      color: config.colors.hasBlockGreen, // Adds a distinct color for the "Try Now" text
       // marginTop: 5, // Adds space between the title and the "Try Now" text
     },
     downloadButton: {

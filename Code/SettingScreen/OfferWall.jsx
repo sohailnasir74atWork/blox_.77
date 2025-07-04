@@ -214,7 +214,7 @@ import { useTranslation } from 'react-i18next';
 
           <Text style={styles.separator}> • </Text>
 
-          <TouchableOpacity onPress={()=>openLink('https://bloxfruitscalc.com/privacy-policy/')}>
+          <TouchableOpacity onPress={()=>openLink('https://grow-a-garden.app/privacy-policy')}>
             <Text style={styles.linkText}>{t('offer.privacyPolicy')}</Text>
           </TouchableOpacity>
         </View>

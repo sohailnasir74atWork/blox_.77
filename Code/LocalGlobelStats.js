@@ -47,7 +47,9 @@ export const LocalStateProvider = ({ children }) => {
     user_name: storage.getString('user_name') || 'Anonymous',
     translationUsage: safeParseJSON('translationUsage', { count: 0, date: new Date().toDateString() }),
     showAd1: storage.getBoolean('showAd1') ?? true,
+    adIndex: storage.getBoolean('adIndex') ?? true,
 
+    
   }));
 
 

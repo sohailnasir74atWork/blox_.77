@@ -27,7 +27,7 @@ const PAGE_SIZE = 100;
 
 const PrivateChatScreen = () => {
   const route = useRoute();
-  const { selectedUser, selectedTheme, bannedUsers, item } = route.params || {};
+  const { selectedUser, selectedTheme,  item } = route.params || {};
   const { user, theme, appdatabase, updateLocalStateAndDatabase } = useGlobalState();
   const [trade, setTrade] = useState(null)
   const [messages, setMessages] = useState([]);
@@ -48,7 +48,7 @@ const [rating, setRating] = useState(0);
 
 
 
-  // console.log(item)
+  // console.log(bannedUsers)
   
   useEffect(()=>{setTrade(item)}, [])
 
@@ -78,9 +78,11 @@ const [rating, setRating] = useState(0);
   
   
   const isBanned = useMemo(() => {
-    // const bannedUserIds = bannedUsers?.map((user) => user.id) || [];
-    return bannedUsers.includes(selectedUserId);
-  }, [bannedUsers, selectedUserId]);
+    return localState.bannedUsers.includes(selectedUser?.senderId);
+  }, [localState.bannedUsers, selectedUser?.senderId]);
+
+  console.log(isBanned, 'isbanned')
+
   const isDarkMode = theme === 'dark';
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
 
@@ -223,7 +225,7 @@ const handleRating = async () => {
   // console.log(selectedUser.sender)
   const groupItems = (items) => {
     const grouped = {};
-    items.forEach(({ name, type }) => {
+    items.forEach(({ Name }) => {
       const key = `${name}-${type}`;
       if (grouped[key]) {
         grouped[key].count += 1;
@@ -261,8 +263,8 @@ const handleRating = async () => {
   }, []);
   
 
-  const groupedHasItems = groupItems(trade?.hasItems || []);
-  const groupedWantsItems = groupItems(trade?.wantsItems || []);
+  const groupedHasItems = trade?.hasItems || [];
+  const groupedWantsItems = trade?.wantsItems || [];
 
 
   // Send message
@@ -375,7 +377,7 @@ const handleRating = async () => {
   }, [messagesRef]);
 
 
-
+// console.log(groupedHasItems)
 
   return (
     <>
@@ -387,77 +389,76 @@ const handleRating = async () => {
 
           <ConditionalKeyboardWrapper style={{ flex: 1 }} chatscreen={true}>
             {/* <View style={{ flex: 1 }}> */}
-              {trade && (
-                <View>
-                <View style={styles.tradeDetails}>
-                  <View style={styles.itemList}>
-                    {groupedHasItems?.map((hasItem, index) => (
-                      <View key={`${hasItem.name}-${hasItem.type}`} style={{ justifyContent: 'center', alignItems: 'center'}}>
-                        <Image
-                          source={{
-                            uri: hasItem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(hasItem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(hasItem.name)}_Icon.webp`,
-                          }}
-                          style={[styles.itemImage, { backgroundColor: hasItem.type === 'p' ? '#FFCC00' : '' }]}
-                        />
-                        <Text style={styles.names}>
-                          {hasItem.name}{hasItem.type === 'p' && " (P)"}
-                        </Text>
-                        {hasItem.count > 1 && (
-                          <View style={styles.tagcount}>
-                            <Text style={styles.tagcounttext}>{hasItem.count}</Text>
-                          </View>
-                        )}
-                      </View>
-                    ))}
-                  </View>
-                  <View style={styles.transfer}>
-                    <Image source={require('../../../assets/transfer.png')} style={styles.transferImage} />
-                  </View>
-                  <View style={styles.itemList}>
-                  {groupedWantsItems?.map((wantitem, index) => (
-                    <View key={`${wantitem.name}-${wantitem.type}`} style={{ justifyContent: 'center', alignItems: 'center'}}>
-                      <Image
-                        source={{
-                          uri: wantitem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(wantitem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(wantitem.name)}_Icon.webp`,
-                        }}
-                        style={[styles.itemImage, { backgroundColor: wantitem.type === 'p' ? '#FFCC00' : '' }]}
-                      />
-                      <Text style={styles.names}>
-                        {wantitem.name}{wantitem.type === 'p' && " (P)"}
-                      </Text>
-                      {wantitem.count > 1 && (
-                        <View style={styles.tagcount}>
-                          <Text style={styles.tagcounttext}>{wantitem.count}</Text>
-                        </View>
-                      )}
-                    </View>
-                  ))}
-                  </View>
-                 
-                </View>
-                {canRate && !hasRated && (
-  <View style={{ alignItems: 'center', marginTop: 5, }}>
-    <TouchableOpacity
-      style={{
-        backgroundColor: config.colors.primary,
-        borderRadius: 10,
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-      }}
-      onPress={() => {setShowRatingModal(true)
-      }}
-    >
-      <Text style={{ color: 'white', fontSize: 12 }}>
-        Rate Trader and Get 100 points
-      </Text>
-    </TouchableOpacity>
+            {trade && (
+  <View>
+    <View style={styles.tradeDetails}>
+      
+      {/* Has Items */}
+      <View style={styles.itemList}>
+        {groupedHasItems?.filter(item => item !== null).length > 0 ? (
+          groupedHasItems.map((hasItem, index) =>
+            hasItem !== null && (
+              <View key={index} style={{ justifyContent: 'center', alignItems: 'center' }}>
+                <Image
+                  source={{ uri: hasItem.Image }}
+                  style={styles.itemImage}
+                />
+                <Text style={styles.names}>{hasItem.Name}</Text>
+              </View>
+            )
+          )
+        ) : (
+          <Text style={styles.names}>Give Offer</Text>
+        )}
+      </View>
+
+      {/* Transfer Icon */}
+      <View style={styles.transfer}>
+        <Image source={require('../../../assets/transfer.png')} style={styles.transferImage} />
+      </View>
+
+      {/* Wants Items */}
+      <View style={styles.itemList}>
+        {groupedWantsItems?.filter(item => item !== null).length > 0 ? (
+          groupedWantsItems.map((wantitem, index) =>
+            wantitem !== null && (
+              <View key={index} style={{ justifyContent: 'center', alignItems: 'center' }}>
+                <Image
+                  source={{ uri: wantitem.Image }}
+                  style={styles.itemImage}
+                />
+                <Text style={styles.names}>{wantitem.Name}</Text>
+              </View>
+            )
+          )
+        ) : (
+          <Text style={styles.names}>Give Offer</Text>
+        )}
+      </View>
+
+    </View>
+
+    {/* Rate Trader Button */}
+    {canRate && !hasRated && (
+      <View style={{ alignItems: 'center', marginTop: 5 }}>
+        <TouchableOpacity
+          style={{
+            backgroundColor: config.colors.primary,
+            borderRadius: 10,
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+          }}
+          onPress={() => setShowRatingModal(true)}
+        >
+          <Text style={{ color: 'white', fontSize: 12 }}>
+            Rate Trader and Get 100 points
+          </Text>
+        </TouchableOpacity>
+      </View>
+    )}
   </View>
 )}
 
-
-                </View>
-
-              )}
 
               {!loading && messages.length === 0 ? (
                 <ActivityIndicator size="large" color="#1E88E5" style={{ flex: 1, justifyContent: 'center' }} />
@@ -479,16 +480,16 @@ const handleRating = async () => {
                 />
               )}
 
-              <PrivateMessageInput
+             {!isBanned && <PrivateMessageInput
                 onSend={sendMessage}
                 isBanned={isBanned}
-                bannedUsers={bannedUsers}
+                bannedUsers={localState.bannedUsers}
                 replyTo={replyTo}
                 onCancelReply={() => setReplyTo(null)}
                 input={input}
                 setInput={setInput}
                 selectedTheme={selectedTheme}
-              />
+              />}
             {/* </View>  */}
             </ConditionalKeyboardWrapper>
         </View>

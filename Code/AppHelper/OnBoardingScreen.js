@@ -21,7 +21,7 @@ import { mixpanel } from './MixPenel';
 
 const { width } = Dimensions.get('window');
 
-const icon = config.isNoman ? require('../../assets/icon.webp') : require('../../assets/logo1.png');
+const icon = config.isNoman ? require('../../assets/GAG.png') : require('../../assets/GAG.png');
 
 
 const OnboardingScreen = ({ onFinish, selectedTheme }) => {

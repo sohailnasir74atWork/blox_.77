@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Fruit Values</string>
+	<string>GAG Values</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -27,7 +27,7 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.409137828081-5hsdhsorirt9c2k9s3umlknjj15tvk6v</string>
+				<string>com.googleusercontent.apps.543545382684-ihoggnojv1vp0fnsvecfo0g7p18j89bn</string>
 			</array>
 		</dict>
 	</array>

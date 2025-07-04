@@ -360,8 +360,9 @@ export const getStyles = (isDarkMode) =>
 tradeDetails: {
   flexDirection: 'row',
   justifyContent: 'space-between',
-  backgroundColor: 'grey',
-  paddingHorizontal:10
+  backgroundColor: '#B2C6D5',
+  paddingHorizontal:10,
+  alignItems:'center'
 
 
 },
@@ -399,7 +400,7 @@ tradeTotals: {
 },
 names:{
   fontSize: 8,
-  color:'white'
+  color:'black'
 },
 priceText: {
   fontSize: 10,

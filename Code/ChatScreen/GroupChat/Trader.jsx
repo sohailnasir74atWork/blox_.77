@@ -368,7 +368,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     }
 
     const containsLink = LINK_REGEX.test(trimmedInput);
-    if (containsLink && !localState?.isPro) {
+    if (containsLink && (!localState?.isPro || isAdmin)) {
       Alert.alert(t('home.alert.error'), t('misc.proUsersOnlyLinks'));
       return;
     }
