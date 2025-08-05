@@ -10,6 +10,7 @@ import {
     ActivityIndicator,
     Platform,
     Image,
+    Alert,
 } from 'react-native';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import auth from '@react-native-firebase/auth';
@@ -21,6 +22,8 @@ import ConditionalKeyboardWrapper from '../Helper/keyboardAvoidingContainer';
 import { useTranslation } from 'react-i18next';
 import { showSuccessMessage, showErrorMessage, showWarningMessage } from '../Helper/MessageHelper';
 import { mixpanel } from '../AppHelper/MixPenel';
+import { requestPermission } from '../Helper/PermissionCheck';
+import { showMessage } from 'react-native-flash-message';
 
 
 
@@ -30,12 +33,14 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     const [isRegisterMode, setIsRegisterMode] = useState(false);
     const [isLoading, setIsLoading] = useState(false)
     const [isLoadingSecondary, setIsLoadingSecondary] = useState(false);
-    // const [robloxUsernameError, setRobloxUsernameError] = useState('');
+    const [robloxUsernameError, setRobloxUsernameError] = useState('');
     const { triggerHapticFeedback } = useHaptic();
     const { theme, robloxUsernameRef } = useGlobalState()
     const [robloxUsernamelocal, setRobloxUsernamelocal] = useState()
     useEffect(()=>{robloxUsernameRef.current = robloxUsernamelocal},[robloxUsernamelocal])
     // useEffect(()=>{setRobloxUsernamelocal()},[robloxUsernamelocal])
+    const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false); // Track forgot password mode
+
 
 
     const { t } = useTranslation();
@@ -58,6 +63,8 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     
     
     // const validateRobloxUsername = () => {
+    //     if (Platform.OS === 'ios') return true; // ✅ Skip validation on iOS
+      
     //     const name = robloxUsernameRef.current;
     //     if (!name || name.trim().length === 0) {
     //       setRobloxUsernameError('Roblox username is required');
@@ -69,8 +76,32 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     //     }
     //     setRobloxUsernameError('');
     //     return true;
-    // };
+    //   };
       
+    const handleForgotPassword = async () => {
+        if (!email) {
+            Alert.alert(t("home.alert.error"), 'Enter valid email address');
+            return;
+        }
+    
+        const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
+        if (!isValidEmail(email)) {
+            Alert.alert(t("home.alert.error"), t("signin.error_input_message"));
+            return;
+        }
+    
+        setIsLoading(true);
+        try {
+            await auth().sendPasswordResetEmail(email);
+            showSuccessMessage(t("home.alert.success"), t("signin.password_reset_email_sent"));
+            setIsForgotPasswordMode(false); // Switch back to sign-in mode after success
+        } catch (error) {
+            showErrorMessage(t("home.alert.error"), error?.message || t("signin.error_reset_password"));
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    
 
     // Updated onAppleButtonPress function
     const onAppleButtonPress = useCallback(async () => {
@@ -91,104 +122,100 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                 t("home.alert.success"),
                 t("signin.success_signin")
             );
-            setTimeout(() => {
+            if(Platform.OS !== 'ios'){setTimeout(() => {
                 onClose();
-              }, 200);
+              }, 200);}
             mixpanel.track(`Login with apple from ${screen}`);
+            await requestPermission()
         } catch (error) {
             showErrorMessage(
                 t("home.alert.error"),
                 error?.message || t("signin.error_signin_message")
             );
         }
-    }, [t, triggerHapticFeedback, onClose]);
+    }, [t, triggerHapticFeedback]);
     
     
     
+
     const handleSignInOrRegister = async () => {
-        triggerHapticFeedback('impactLight');
-        // if (!validateRobloxUsername()) return;
-
+      triggerHapticFeedback('impactLight');
     
-        if (!email || !password) {
-            // Alert.alert(t("home.alert.error"), t("signin.error_input_message"));
-            showErrorMessage(
-                t("home.alert.error"),
-                t("signin.error_input_message")
+      if (!email || !password) {
+        Alert.alert(t("home.alert.error"), t("signin.error_input_message"));
+        return;
+      }
+    
+      const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
+      if (!isValidEmail(email)) {
+        Alert.alert(t("home.alert.error"), t("signin.error_input_message"));
+        return;
+      }
+    
+      setIsLoadingSecondary(true);
+    
+      try {
+        if (isRegisterMode) {
+          // 🔐 Register new user
+          const userCredential = await auth().createUserWithEmailAndPassword(email, password);
+          const user = userCredential.user;
+    
+          if (!user.emailVerified) {
+            await user.sendEmailVerification();
+            await auth().signOut();
+    
+            Alert.alert(
+              "✅ Account Created",
+              "Please check your inbox to verify your email. If you don't see it, check the Spam or Promotions folder."
             );
             return;
-        }
+          }
     
-        const isValidEmail = (email) => /\S+@\S+\.\S+/.test(email);
+        } else {
+          // 🔐 Login existing user
+          const userCredential = await auth().signInWithEmailAndPassword(email, password);
+          const user = userCredential.user;
     
-        if (!isValidEmail(email)) {
-            // Alert.alert(t("home.alert.error"), t("signin.error_input_message"));
-            showErrorMessage(
-                t("home.alert.error"),
-                t("signin.error_input_message")
+          if (!user.emailVerified) {
+            await user.sendEmailVerification();
+            await auth().signOut();
+    
+            Alert.alert(
+              "📩 Email Not Verified",
+              "A new verification link has been sent to your email. Please check your inbox or spam folder before signing in."
             );
             return;
+          }
+    
+          // ✅ Verified user
+          mixpanel.track(`Login with email from ${screen}`);
+          Alert.alert(t("signin.alert_welcome_back"), t("signin.success_signin"));
+          await requestPermission();
+          if(Platform.OS !== 'ios'){setTimeout(() => {
+            onClose();
+          }, 200);}
         }
     
-        setIsLoadingSecondary(true); // Show loading indicator
+      } catch (error) {
+        console.error(t("signin.auth_error"), error);
     
-        try {
-            if (isRegisterMode) {
-                // Handle user registration
-                // await updateLocalState('user_name', robloxUsernamelocal)
-                await auth().createUserWithEmailAndPassword(email, password);
-                // Alert.alert(t("signin.alert_success"), t("signin.alert_account_created"));
-                mixpanel.track(`Login with email from ${screen}`);
-
-                showSuccessMessage(
-                    t("home.alert.success"),
-                    t("signin.alert_account_created")
-                );
-                setTimeout(() => {
-                    onClose();
-                  }, 200);
-            } else {
-                // Handle user login
-                await auth().signInWithEmailAndPassword(email, password);
-                mixpanel.track(`Login with email from ${screen}`);
-                setTimeout(() => {
-                    onClose();
-                  }, 200);
-                // Alert.alert(t("signin.alert_welcome_back"), t("signin.success_signin"));
-                showSuccessMessage(
-                    t("signin.alert_welcome_back"),
-                    t("signin.success_signin")
-                );
-            }
+        let errorMessage = t("signin.error_signin_message");
     
-        } catch (error) {
-            console.error(t("signin.auth_error"), error);
+        if (error?.code === 'auth/invalid-email') errorMessage = t("signin.error_invalid_email_format");
+        else if (error?.code === 'auth/user-disabled') errorMessage = t("signin.error_user_disabled");
+        else if (error?.code === 'auth/user-not-found') errorMessage = t("signin.error_user_not_found");
+        else if (error?.code === 'auth/wrong-password') errorMessage = t("signin.error_wrong_password");
+        else if (error?.code === 'auth/email-already-in-use') errorMessage = t("signin.error_email_in_use");
+        else if (error?.code === 'auth/weak-password') errorMessage = t("signin.error_weak_password");
     
-            let errorMessage = t("signin.error_signin_message");
-    
-            if (error?.code === 'auth/invalid-email') {
-                errorMessage = t("signin.error_invalid_email_format");
-            } else if (error?.code === 'auth/user-disabled') {
-                errorMessage = t("signin.error_user_disabled");
-            } else if (error?.code === 'auth/user-not-found') {
-                errorMessage = t("signin.error_user_not_found");
-            } else if (error?.code === 'auth/wrong-password') {
-                errorMessage = t("signin.error_wrong_password");
-            } else if (error?.code === 'auth/email-already-in-use') {
-                errorMessage = t("signin.error_wrong_password");
-            } else if (error?.code === 'auth/weak-password') {
-                errorMessage = t("signin.error_weak_password");
-            }
-    
-            // Alert.alert(t("signin.error_signin_message"), errorMessage);
-            showErrorMessage(
-                t("signin.error_signin_message"),
-                errorMessage
-            );
-        } finally {
-            setIsLoadingSecondary(false); // Hide loading indicator
-        }
+        Alert.alert(t("signin.error_signin_message"), errorMessage);
+      } finally {
+        setIsLoadingSecondary(false);
+      }
     };
+    
+      
+      
     
     const handleGoogleSignIn = useCallback(async () => {
         // if (!validateRobloxUsername()) return;
@@ -204,20 +231,23 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                 t("signin.alert_welcome_back"),
                 t("signin.success_signin")
             );
-            setTimeout(() => {
+            if(Platform.OS !== 'ios'){setTimeout(() => {
                 onClose();
-              }, 200);
+              }, 200);}
             mixpanel.track(`Login with google from ${screen}`);
 
         } catch (error) {
+            // console.log(error)
             showErrorMessage(
                 t("home.alert.error"),
                 error?.message || t("signin.error_signin_message")
             );
+            await requestPermission()
+
         } finally {
             setIsLoading(false);
         }
-    }, [onClose]);
+    }, []);
     
     
 
@@ -228,7 +258,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
             <Pressable onPress={() => { }}>
                 <View style={[styles.drawer, { backgroundColor: isDarkMode ? '#3B404C' : 'white' }]}>
                     <Text style={[styles.title, { color: selectedTheme.colors.text }]}>
-                        {isRegisterMode ? t("signin.title_register") : t("signin.title_signin")}
+                        {isRegisterMode ? t("signin.title_register") : isForgotPasswordMode ? 'Forget Password' : t("signin.title_signin")}
                     </Text>
                     <View>
                         <Text style={[styles.text, { color: selectedTheme.colors.text }]}>
@@ -244,32 +274,34 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
   placeholderTextColor={selectedTheme.colors.text}
 /> */}
 
-{/* <TextInput
-  style={[
-    styles.input, 
-    { 
-      color: selectedTheme.colors.text, 
-      marginBottom: robloxUsernameError ? 0 : 15,
-      borderColor: robloxUsernameError ? 'red' : 'grey'
-    }
-  ]}
-  placeholder="Roblox Username *"
-  value={robloxUsernamelocal}
-  onChangeText={(text) => {
-    setRobloxUsernamelocal(text);
-    if (robloxUsernameError) {
-      setRobloxUsernameError('');
-    }
-  }}
-  autoCapitalize="none"
-  placeholderTextColor={selectedTheme.colors.text}
-/>
-{robloxUsernameError ? (
-  <Text style={[styles.errorText, { color: 'red', marginBottom: 15 }]}>
-    {robloxUsernameError}
-  </Text>
-) : null}
-<View style={styles.container}>
+{/* {Platform.OS !== 'ios' && (
+  <>
+    <TextInput
+      style={[
+        styles.input,
+        {
+          color: selectedTheme.colors.text,
+          marginBottom: robloxUsernameError ? 0 : 15,
+          borderColor: robloxUsernameError ? 'red' : 'grey',
+        },
+      ]}
+      placeholder="Roblox Username *"
+      value={robloxUsernamelocal}
+      onChangeText={(text) => {
+        setRobloxUsernamelocal(text);
+        if (robloxUsernameError) {
+          setRobloxUsernameError('');
+        }
+      }}
+      autoCapitalize="none"
+      placeholderTextColor={selectedTheme.colors.text}
+    />
+    {robloxUsernameError ? (
+      <Text style={[styles.errorText, { color: 'red', marginBottom: 15 }]}>
+        {robloxUsernameError}
+      </Text>
+    ) : null}
+    <View style={styles.container}>
                         <View style={styles.line} />
                         <Image
   source={require('../../assets/roblox.png')}
@@ -279,8 +311,12 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
 />
                         <View style={styles.line} />
                     </View>
-     */}
-                    <TextInput
+  </>
+)} */}
+
+
+    
+                   {! isForgotPasswordMode && <TextInput
                         style={[styles.input, { color: selectedTheme.colors.text }]}
                         placeholder={t("signin.placeholder_email")}
                         value={email}
@@ -288,30 +324,67 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                         keyboardType="email-address"
                         autoCapitalize="none"
                         placeholderTextColor={selectedTheme.colors.text}
-                    />
+                    />}
     
-                    <TextInput
+                    {!isForgotPasswordMode && <TextInput
                         style={[styles.input, { color: selectedTheme.colors.text }]}
                         placeholder={t("signin.placeholder_password")}
                         value={password}
                         onChangeText={setPassword}
                         secureTextEntry
                         placeholderTextColor={selectedTheme.colors.text}
-                    />
+                    />}
+                    {isForgotPasswordMode && (
+    <TextInput
+        style={[styles.input, { color: selectedTheme.colors.text }]}
+        placeholder={t("signin.placeholder_email")}
+        value={email}
+        onChangeText={setEmail}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        placeholderTextColor={selectedTheme.colors.text}
+    />
+)}
+   <TouchableOpacity
+    style={[styles.secondaryButton, {alignItems:'flex-end', paddingBottom:10}]}
+    onPress={() => setIsForgotPasswordMode(!isForgotPasswordMode)} // Toggle mode
+>
+    <Text style={styles.secondaryButtonText}>
+        {isForgotPasswordMode ? 'Signin Mode' :'Forgetpassword Mode'}
+    </Text>
+</TouchableOpacity>
+
+{isForgotPasswordMode ? (
+    <TouchableOpacity
+        style={styles.primaryButton}
+        onPress={handleForgotPassword}
+        disabled={isLoading}
+    >
+        {isLoading ? (
+            <ActivityIndicator size="small" color="white" />
+        ) : (
+            <Text style={styles.primaryButtonText}>Send Reset Link</Text>
+        )}
+    </TouchableOpacity>
+) : (
+    <TouchableOpacity
+    style={styles.primaryButton}
+    onPress={handleSignInOrRegister}
+    disabled={isLoadingSecondary}
+>
+    {isLoadingSecondary ? (
+        <ActivityIndicator size="small" color="white" />
+    ) : (
+        <Text style={styles.primaryButtonText}>
+            {isRegisterMode ? t("signin.title_register") : t("signin.title_signin")}
+        </Text>
+    )}
+</TouchableOpacity>
+)}
+
     
-                    <TouchableOpacity
-                        style={styles.primaryButton}
-                        onPress={handleSignInOrRegister}
-                        disabled={isLoadingSecondary}
-                    >
-                        {isLoadingSecondary ? (
-                            <ActivityIndicator size="small" color="white" />
-                        ) : (
-                            <Text style={styles.primaryButtonText}>
-                                {isRegisterMode ? t("signin.title_register") : t("signin.title_signin")}
-                            </Text>
-                        )}
-                    </TouchableOpacity>
+                  
+                    
     
                     <View style={styles.container}>
                         <View style={styles.line} />
@@ -320,6 +393,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                         </Text>
                         <View style={styles.line} />
                     </View>
+                 
     
                     <TouchableOpacity
                         style={styles.googleButton}
@@ -347,7 +421,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     
                     <TouchableOpacity
                         style={styles.secondaryButton}
-                        onPress={() => setIsRegisterMode(!isRegisterMode)}
+                        onPress={() => {if(!isForgotPasswordMode) {setIsRegisterMode(!isRegisterMode)}}}
                     >
                         <Text style={styles.secondaryButtonText}>
                             {isRegisterMode ? t("signin.button_switch_signin") : t("signin.button_switch_register")}
@@ -389,7 +463,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderRadius: 5,
         paddingHorizontal: 10,
-        marginBottom: 15,
+        marginTop: 15,
     },
     primaryButton: {
         backgroundColor: '#007BFF',

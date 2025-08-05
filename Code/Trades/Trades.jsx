@@ -709,11 +709,11 @@ const TradeList = ({ route }) => {
               <Text style={styles.traderName}>
                 {item.traderName}{' '}
                 {item.isPro &&
-                  <Icon
-                    name="checkmark-done-circle"
-                    size={14}
-                    color={config.colors.hasBlockGreen}
-                  />}
+                  <Image
+                  source={require('../../assets/pro.png')} 
+                  style={{ width: 14, height: 14 }} 
+                />
+                  }
                 {item.rating ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, backgroundColor: '#ffb300', borderRadius: 5, paddingHorizontal: 4, paddingVertical: 2, marginLeft: 5 }}>
                     <Icon name="star" size={8} color="white" style={{ marginRight: 4 }} />

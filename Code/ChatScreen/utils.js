@@ -1,5 +1,6 @@
 import { getDatabase, ref, update, get, set, onDisconnect, query, orderByChild, equalTo } from '@react-native-firebase/database';
 import { Alert } from 'react-native';
+import { showMessage } from 'react-native-flash-message';
 
 // Initialize the database reference
 const database = getDatabase();
@@ -353,5 +354,65 @@ export const handleDeleteLast300Messages = async (senderId) => {
   } catch (error) {
     console.error('🔥 Failed to delete messages:', error);
     Alert.alert('❌ Error', 'Could not delete messages.');
+  }
+};
+
+
+export const banUserwithEmail = async (email) => {
+  if (!email) {
+    showMessage({
+      message: "Can't ban: Invalid or old user email.",
+      type: "danger"
+    });
+    return;
+  }
+
+  const encodeEmail =  email?.replace(/\./g, '(dot)');
+  
+
+  try {
+    const db = getDatabase();
+    const banRef = ref(db, `banned_users_by_email/${encodeEmail}`);
+    const snap = await get(banRef);
+
+    let strikeCount = 1;
+    let bannedUntil = Date.now() + 24 * 60 * 60 * 1000; // 1 day
+    // let bannedUntil = Date.now() +  1 * 60 * 1000; // 1 day
+
+    
+
+    if (snap.exists()) {
+      const data = snap.val();
+      strikeCount = data.strikeCount + 1;
+
+      if (strikeCount === 2) bannedUntil = Date.now() + 3 * 24 * 60 * 60 * 1000; // 3 days
+      //  if (strikeCount === 2) bannedUntil = Date.now() + 2  * 60 * 1000; // 3 days
+      else if (strikeCount >= 3) bannedUntil = "permanent";
+    }
+
+    await set(banRef, {
+      strikeCount,
+      bannedUntil,
+      reason: `Strike ${strikeCount}`
+    });
+
+    Alert.alert('User Banned', `Strike ${strikeCount} applied.`);
+  } catch (err) {
+    console.error('Ban error:', err);
+    Alert.alert('Error', 'Could not ban user.');
+  }
+};
+
+export const unbanUserWithEmail = async (email) => {
+  const encodeEmail = (email) => email?.replace(/\./g, '(dot)');
+  try {
+    const db = getDatabase();
+    const banRef = ref(db, `banned_users_by_email/${encodeEmail(email)}`);
+    await set(banRef, null); // Clear the ban entry
+
+    Alert.alert('User Unbanned', 'Ban has been lifted.');
+  } catch (err) {
+    console.error('Unban error:', err);
+    Alert.alert('Error', 'Could not unban user.');
   }
 };

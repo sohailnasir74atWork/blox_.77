@@ -10,6 +10,8 @@ import { TradeStack } from '../Trades/TradeNavigator';
 import { useTranslation } from 'react-i18next';
 import config from '../Helper/Environment';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
+import { DesignStack } from '../Design/DesignNavigation';
+import { useGlobalState } from '../GlobelStats';
 
 
 
@@ -32,6 +34,7 @@ const AnimatedTabIcon = React.memo(({iconName, color, size }) => {
 
 const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modalVisibleChatinfo, setModalVisibleChatinfo }) => {
   const { t } = useTranslation();
+  const {isAdmin, } = useGlobalState()
     const getTabIcon = useCallback((routeName, focused) => {
     const isNoman = config.isNoman; // ✅ Extracted to avoid repeated checks
 
@@ -60,7 +63,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
         ),
         tabBarButton: (props) => {
           const { accessibilityState, children, onPress } = props;
-          const isSelected = accessibilityState?.selected;
+          const isSelected = props?.['aria-selected'];
       
           return (
             <TouchableOpacity
@@ -103,12 +106,12 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
           title: t('tabs.calculator'), // Translation applied here
           headerRight: () => (
             <>
-              {/* <TouchableOpacity onPress={() => navigation.navigate('Reward')}>
+             {isAdmin && <TouchableOpacity onPress={() => navigation.navigate('Admin')}>
                 <Image
                   source={require('../../assets/trophy.webp')} // ✅ Ensure the correct path
                   style={{ width: 20, height: 20, marginRight: 16 }}
                 />
-              </TouchableOpacity> */}
+              </TouchableOpacity>}
               <TouchableOpacity onPress={() => navigation.navigate('Setting')} style={{ marginRight: 16 }}>
               <Icon
                 name="settings"
@@ -125,14 +128,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
         {() => <HomeScreen selectedTheme={selectedTheme} />}
       </Tab.Screen>
 
-      <Tab.Screen
-        name="Stock"
-        options={{
-          title: t('tabs.stock'), // Translation applied here
-        }}
-      >
-        {() => <TimerScreen selectedTheme={selectedTheme} />}
-      </Tab.Screen>
+      
 
       <Tab.Screen
         name="Trade"
@@ -150,7 +146,15 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
           />
         )}
       </Tab.Screen>
-
+      <Tab.Screen
+        name="Values"
+        options={{
+          title: 'Feed', 
+          headerShown:false
+        }}
+      >
+        {() => <DesignStack selectedTheme={selectedTheme} />}
+      </Tab.Screen>
       <Tab.Screen
         name="Chat"
         options={{
@@ -176,15 +180,15 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
           />
         )}
       </Tab.Screen>
-
       <Tab.Screen
-        name="Values"
+        name="Stock"
         options={{
-          title: t('tabs.values'), // Translation applied here
+          title: t('tabs.stock'), // Translation applied here
         }}
       >
-        {() => <ValueScreen selectedTheme={selectedTheme} />}
+        {() => <TimerScreen selectedTheme={selectedTheme} />}
       </Tab.Screen>
+     
     </Tab.Navigator>
   );
 });

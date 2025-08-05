@@ -154,7 +154,7 @@ export const getStyles = (isDarkMode) =>
         fontSize: 14,
         lineHeight:16,
         marginLeft: 10,
-        color:config.colors.wantBlockRed,
+        color:isDarkMode ? 'white' : '#FFE5E5',
         fontFamily:'Lato-Regular'
       },
       optionTextDelete:{

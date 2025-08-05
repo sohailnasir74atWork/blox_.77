@@ -384,7 +384,6 @@ const ValueScreen = ({ selectedTheme }) => {
           {/* <Text style={[styles.description, { color: selectedTheme.colors.text }]}>
             {t("value.description")}
           </Text> */}
-                 <MyAppAds currentAppId="gog" mode="rotate" />
 
 
           <View style={styles.searchFilterContainer}>
@@ -418,12 +417,12 @@ const ValueScreen = ({ selectedTheme }) => {
                 ))}
               </MenuOptions>
             </Menu>
-            <TouchableOpacity
+            {/* <TouchableOpacity
               style={[styles.filterDropdown, { backgroundColor: config.colors.hasBlockGreen }]}
               onPress={toggleDrawer}
             >
               <Text style={[styles.filterText, { color: 'white' }]}> {t("value.codes")}</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
 
 
@@ -457,7 +456,7 @@ const ValueScreen = ({ selectedTheme }) => {
         </View>
         <CodesDrawer isVisible={isDrawerVisible} toggleModal={toggleDrawer} codes={codesData} />
       </GestureHandlerRootView>
-      {!localState.isPro && <BannerAdComponent/>}
+      {/* {!localState.isPro && <BannerAdComponent/>} */}
 
       {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (
@@ -477,7 +476,7 @@ const ValueScreen = ({ selectedTheme }) => {
 };
 export const getStyles = (isDarkMode) =>
   StyleSheet.create({
-    container: { paddingHorizontal: 8, marginHorizontal: 2, flex: 1 },
+    container: {  marginHorizontal: 2, flex: 1,  },
     searchFilterContainer: { flexDirection: 'row', marginVertical: 5, alignItems: 'center' },
     searchInput: {   height: 40,
       borderColor: isDarkMode ? config.colors.hasBlockGreen : 'white',

@@ -16,6 +16,7 @@ import { mixpanel } from '../AppHelper/MixPenel';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
 import { getDatabase } from '@react-native-firebase/database';
+import ValueScreen from '../ValuesScreen/ValueScreen';
 
 
 const TimerScreen = ({ selectedTheme }) => {
@@ -29,15 +30,17 @@ const TimerScreen = ({ selectedTheme }) => {
   const [eventStock, setEventStock] = useState([]);
   const [gearStock, setGearStock] = useState([]);
   const [seedStock, setSeedStock] = useState([]);
+  const [cosmeticStock, setCosmeticStock] = useState([]);
+
 
 
   const [weatherLoading, setWeatherLoading] = useState(false);
-  const [lastSeenLoading, setLastSeenLoading] = useState(false);
+  // const [lastSeenLoading, setLastSeenLoading] = useState(false);
   const [weatherData, setWeatherData] = useState(null);
-  const [eggStockLastSeen, setEggStockLastSeen] = useState([]);
-  const [eventStockLastSeen, setEventStockLastSeen] = useState([]);
-  const [gearStockLastSeen, setGearStockLastSeen] = useState([]);
-  const [seedStockLastSeen, setSeedStockLastSeen] = useState([]);
+  // const [eggStockLastSeen, setEggStockLastSeen] = useState([]);
+  // const [eventStockLastSeen, setEventStockLastSeen] = useState([]);
+  // const [gearStockLastSeen, setGearStockLastSeen] = useState([]);
+  // const [seedStockLastSeen, setSeedStockLastSeen] = useState([]);
   const [activeTab, setActiveTab] = useState('Stock');
 
 
@@ -57,36 +60,68 @@ const TimerScreen = ({ selectedTheme }) => {
 
   const isDarkMode = theme === 'dark';
 
+
   useEffect(() => {
     if (!isFocused) return;
-
+  
     if (activeTab === 'Stock') {
-      const stockRef = getDatabase().ref('/stock');
-
+      const stockRef = getDatabase().ref('/stock_elv');
+  
       const listener = stockRef.on('value', (snapshot) => {
         const stockData = snapshot.val();
-        if (!stockData) return;
+        // console.log(stockData);
+  
+        if (!Array.isArray(stockData)) return;
+  
+        const seedStock = [];
+        const gearStock = [];
+        const eggStock = [];
+        const eventStock = [];
+        const cosmeticStock = [];
+  
+        stockData.forEach(item => {
+          switch (item.category) {
+            case 'seed':
+              seedStock.push(item);
+              break;
+            case 'gear':
+              gearStock.push(item);
+              break;
+            case 'egg':
+              eggStock.push(item);
+              break;
+            case 'eventshop':
+              eventStock.push(item);
+              break;
+            case 'cosmetic':
+              cosmeticStock.push(item);
+              break;
+            default:
+              break;
+          }
+        });
+  
+        setSeedStock(seedStock);
+        setGearStock(gearStock);
+        setEggStock(eggStock);
+        setEventStock(eventStock);
+        setCosmeticStock(cosmeticStock);
 
-        setEggStock(stockData.egg_stock?.items || []);
-        setEventStock(stockData.event_stock?.items || []);
-        setGearStock(stockData.gear_stock?.items || []);
-        setSeedStock(stockData.seeds_stock?.items || []);
-
-        // console.log("✅ Live stock data updated.");
       });
-
+  
       return () => stockRef.off('value', listener);
     }
-
+  
     if (activeTab === 'Weather') {
       fetchWeatherData();
     }
-
-    if (activeTab === 'Last Seen') {
-      fetchLastSeenData();
-    }
-
+  
+    // if (activeTab === 'Last Seen') {
+    //   fetchLastSeenData();
+    // }
   }, [isFocused, activeTab]);
+  
+
 
 
 
@@ -177,6 +212,7 @@ const TimerScreen = ({ selectedTheme }) => {
 
     // ✅ Add selected fruit
     const updatedFruits = [...selectedFruits, fruit];
+    console.log(selectedFruits)
     await updateLocalStateAndDatabase('selectedFruits', updatedFruits);
 
     showSuccessMessage(t("home.alert.success"), t("stock.fruit_selected"));
@@ -203,40 +239,42 @@ const TimerScreen = ({ selectedTheme }) => {
   const fetchWeatherData = async () => {
     setWeatherLoading(true);
     try {
-      const snapshot = await getDatabase().ref('/weather').once('value');
+      const snapshot = await getDatabase().ref('/weather_elv').once('value');
       const data = snapshot.val();
-      const cleaned = Object.values(data || {}).filter(item => typeof item === 'object' && item.weather_name);
+      // console.log(data)
+      // const cleaned = Object.values(data || {}).filter(item => typeof item === 'object' && item.weather_name);
       // console.log(cleaned)
-      setWeatherData(cleaned);
+      setWeatherData(data);
     } catch (error) {
       console.error("❌ Failed to fetch weather data:", error);
     } finally {
       setWeatherLoading(false);
     }
   };
-  const fetchLastSeenData = async () => {
-    setLastSeenLoading(true);
-    try {
-      const snapshot = await getDatabase().ref('/last_seen').once('value');
-      const data = snapshot.val() || {};
+  // const fetchLastSeenData = async () => {
+  //   setLastSeenLoading(true);
+  //   try {
+  //     const snapshot = await getDatabase().ref('/last_seen').once('value');
+  //     const data = snapshot.val() || {};
 
-      setEggStockLastSeen(Array.isArray(data.egg_stock) ? data.egg_stock : []);
-      setEventStockLastSeen(Array.isArray(data.event_stock) ? data.event_stock : []);
-      setGearStockLastSeen(Array.isArray(data.gear_stock) ? data.gear_stock : []);
-      setSeedStockLastSeen(Array.isArray(data.seeds_stock) ? data.seeds_stock : []);
 
-      // console.log("✅ Last seen data loaded", {
-      //   egg: data.egg_stock?.length,
-      //   event: data.event_stock?.length,
-      //   gear: data.gear_stock?.length,
-      //   seed: data.seeds_stock?.length,
-      // });
-    } catch (error) {
-      console.error("❌ Failed to fetch last seen data:", error);
-    } finally {
-      setLastSeenLoading(false);
-    }
-  };
+  //     setEggStockLastSeen(Array.isArray(data.egg_stock) ? data.egg_stock : []);
+  //     setEventStockLastSeen(Array.isArray(data.event_stock) ? data.event_stock : []);
+  //     setGearStockLastSeen(Array.isArray(data.gear_stock) ? data.gear_stock : []);
+  //     setSeedStockLastSeen(Array.isArray(data.seeds_stock) ? data.seeds_stock : []);
+
+  //     // console.log("✅ Last seen data loaded", {
+  //     //   egg: data.egg_stock?.length,
+  //     //   event: data.event_stock?.length,
+  //     //   gear: data.gear_stock?.length,
+  //     //   seed: data.seeds_stock?.length,
+  //     // });
+  //   } catch (error) {
+  //     console.error("❌ Failed to fetch last seen data:", error);
+  //   } finally {
+  //     setLastSeenLoading(false);
+  //   }
+  // };
 
   // console.log(eggStockLastSeen, eventStockLastSeen, gearStockLastSeen)
 
@@ -280,30 +318,41 @@ const TimerScreen = ({ selectedTheme }) => {
   
 
   // console.log(normalTimer)
-
-
+  // const ValueScreen = () => {
+  //   return (
+  //     <View style={{ flex: 1, backgroundColor: 'blue', justifyContent: 'center', alignItems: 'center' }}>
+  //       <Text style={{ color: 'white' }}>Value Screen</Text>
+  //     </View>
+  //   );
+  // };
 
 
   const getTimeLeft = (intervalMinutes) => {
     const now = new Date();
     const minutes = now.getMinutes();
     const seconds = now.getSeconds();
-
+  
     const totalSeconds = minutes * 60 + seconds;
     const nextInterval = Math.ceil(totalSeconds / (intervalMinutes * 60)) * (intervalMinutes * 60);
-
+  
     const remainingSeconds = nextInterval - totalSeconds;
-
-    const m = Math.floor(remainingSeconds / 60).toString().padStart(2, '0');
-    const s = (remainingSeconds % 60).toString().padStart(2, '0');
-
-    return `${m}m ${s}s`;
+  
+    const h = Math.floor(remainingSeconds / 3600);
+    const m = Math.floor((remainingSeconds % 3600) / 60);
+    const s = remainingSeconds % 60;
+  
+    if (h > 0) {
+      return `${h}h ${m}m`;
+    } else {
+      return `${m}m ${s}s`;
+    }
   };
 
 
 
 
   const formatName = (name) => {
+    if(!name) return
     return name
       .split('_')
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -328,15 +377,15 @@ const TimerScreen = ({ selectedTheme }) => {
       return (
         <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical:1, backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff', padding:5, borderRadius:4, marginHorizontal:2 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 4 }}>
-              <Image source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2025/gog/${formatName(item.weather_name)}.png` }} style={{ width: 40, height: 40, marginRight: 6 }} />
+              <Image source={{ uri: item.icon }} style={{ width: 40, height: 40, marginRight: 6 }} />
               <View style={{alignItems:"flex-start"}}>
             
-            <Text style={{ fontSize: 14, color: !isDarkMode ? 'black' : '#ffffff', fontFamily:'Lato-Bold', lineHeight:16 }}>{formatName(item.weather_name)}</Text>
+            <Text style={{ fontSize: 14, color: !isDarkMode ? 'black' : '#ffffff', fontFamily:'Lato-Bold', lineHeight:16 }}>{formatName(item.name)}</Text>
             <Text
               style={{
                 fontSize: 10,
                 color: 'white',
-                backgroundColor: item.status === 'active'
+                backgroundColor: item.active
                   ? config.colors.hasBlockGreen
                   : config.colors.inactive || '#999', // fallback if inactive color is not defined
                 paddingHorizontal: 6,
@@ -347,7 +396,7 @@ const TimerScreen = ({ selectedTheme }) => {
                 // marginLeft: 10
               }}
             >
-              {item.status === 'active' ? 'Active' : 'Inactive'}
+              {item.active ? 'Active' : 'Inactive'}
             </Text>
             </View>
           </View>
@@ -380,11 +429,15 @@ const TimerScreen = ({ selectedTheme }) => {
               paddingVertical: 1,
               borderRadius: 3
             }}>
-              {`Time Left: ${
-                title.toLowerCase().includes('egg') || title.toLowerCase().includes('event')
-                  ? getTimeLeft(30)
-                  : getTimeLeft(5)
-              }`}
+           {`Time Left: ${
+  title.toLowerCase().includes('egg') || title.toLowerCase().includes('event')
+    ? getTimeLeft(30)
+    : title.toLowerCase().includes('cosmetic')
+    ? getTimeLeft(240)
+    : getTimeLeft(5)
+}`}
+
+
             </Text>
           )}
         </View>
@@ -392,7 +445,7 @@ const TimerScreen = ({ selectedTheme }) => {
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
           {items.map((item, index) => (
             <View
-              key={item.id || index}
+              key={item.id + index || index}
               style={{
                 width: '49%',
                 backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
@@ -404,16 +457,16 @@ const TimerScreen = ({ selectedTheme }) => {
               }}
             >
               <Image
-                source={{ uri: item.picture }}
+                source={{ uri: item.icon }}
                 style={{ width: 50, height: 50, borderRadius: 5, marginRight: 5 }}
               />
               <View>
                 <Text style={{ fontSize: 14, color: selectedTheme.colors.text, fontFamily: 'Lato-Bold', lineHeight: 16 }}>
-                {formatName(item.name).length > 15 ? formatName(item.name).slice(0, 15) + '...' : formatName(item.name)}                </Text>
+                {formatName(item.display_name).length > 15 ? formatName(item.display_name).slice(0, 15) + '...' : formatName(item.display_name)}                </Text>
   
                 {stock ? (
                   <Text style={{ fontSize: 12, color: config.colors.hasBlockGreen, fontWeight: 'bold' }}>
-                    {item.num_units} Units
+                    {item.quantity} Units
                   </Text>
                 ) : (
                   <Text style={{ fontSize: 12, color: config.colors.hasBlockGreen, fontWeight: 'bold' }}>
@@ -445,11 +498,7 @@ const TimerScreen = ({ selectedTheme }) => {
     <>
       <GestureHandlerRootView>
         <View style={styles.container}>
-          <ScrollView
-            contentContainerStyle={styles.scrollViewContent}
-            showsVerticalScrollIndicator={false}
-
-          >
+         
             {/* <View style={{ backgroundColor: config.colors.secondary, padding: 5, borderRadius: 10, marginVertical: 10 }}>
               <Text style={[styles.description]}>
                 {t("stock.description")}
@@ -517,12 +566,12 @@ const TimerScreen = ({ selectedTheme }) => {
 
             {/* <View> */}
             {/* Normal Stock Section */}
-            <View>
+            <View style={{flex:1}}>
 
 
               {/* {!localState.isPro && <MyNativeAdComponent />} */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-around',  backgroundColor: isDarkMode? '#34495E' : 'white', padding: 5, borderRadius:4 }}>
-                {['Stock', 'Weather', 'Last Seen'].map(tab => (
+                {['Stock', 'Weather', 'Values'].map(tab => (
                   <TouchableOpacity
                     key={tab}
                     onPress={() => setActiveTab(tab)}
@@ -545,6 +594,7 @@ const TimerScreen = ({ selectedTheme }) => {
     {(eggStock.length === 0 &&
       eventStock.length === 0 &&
       gearStock.length === 0 &&
+      cosmeticStock.length === 0 &&
       seedStock.length === 0) ? (
       <ActivityIndicator
         size="small"
@@ -552,12 +602,13 @@ const TimerScreen = ({ selectedTheme }) => {
         style={{ marginTop: 10 }}
       />
     ) : (
-      <>
+      <ScrollView showsVerticalScrollIndicator={false}>
         {renderStockItems("Egg Stock", eggStock, true)}
         {renderStockItems("Event Stock", eventStock, true)}
         {renderStockItems("Gear Stock", gearStock, true)}
         {renderStockItems("Seed Stock", seedStock, true)}
-      </>
+        {renderStockItems("Cosmetic Stock", cosmeticStock, true)}
+        </ScrollView>
     )}
   </>
 )}
@@ -573,32 +624,19 @@ const TimerScreen = ({ selectedTheme }) => {
       />
     ) : (
       weatherData && (
-        <View style={{ borderRadius: 5, marginTop: 2 }}>
+        <ScrollView showsVerticalScrollIndicator={false}>
           {renderWeatherCards(weatherData)}
-        </View>
+        </ScrollView>
       )
     )}
   </>
 )}
 
-{activeTab === 'Last Seen' && (
-  <>
-    {lastSeenLoading ? (
-      <ActivityIndicator
-        size="small"
-        color={config.colors.hasBlockGreen}
-        style={{ marginTop: 20 }}
-      />
-    ) : (
-      <View>
-        {renderStockItems("Egg Stock", eggStockLastSeen)}
-        {renderStockItems("Event Stock", eventStockLastSeen)}
-        {renderStockItems("Gear Stock", gearStockLastSeen)}
-        {renderStockItems("Seed Stock", seedStockLastSeen)}
-      </View>
-    )}
-  </>
-)}
+{activeTab === 'Values' && (
+        <View style={{ flex: 1 }}>
+          <ValueScreen />
+        </View>
+      )}
 
 
 
@@ -628,7 +666,6 @@ const TimerScreen = ({ selectedTheme }) => {
               message={t("stock.signin_required_message")}
               screen='Stock'
             />
-          </ScrollView>
         </View>
 
 

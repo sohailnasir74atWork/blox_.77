@@ -133,11 +133,13 @@ const ProfileBottomDrawer = ({ isVisible, toggleModal, startChat, selectedUser,
                 style={styles.profileImage2}
               />
               <View style={{ justifyContent: 'center' }}>
-                <Text style={styles.drawerSubtitleUser}>{userName} {selectedUser?.isPro && <Icon
-                  name="checkmark-done-circle"
-                  size={16}
-                  color={config.colors.hasBlockGreen}
-                />}{'  '}<Icon name="copy-outline" size={16} color="#007BFF" onPress={()=>copyToClipboard(userName)}/></Text>
+                <Text style={styles.drawerSubtitleUser}>{userName} {selectedUser?.isPro && 
+                   
+                      <Image
+                      source={require('../../../assets/pro.png')} 
+                      style={{ width: 14, height: 14 }} 
+                    />}{'    '}
+                <Icon name="copy-outline" size={16} color="#007BFF" onPress={()=>copyToClipboard(userName)}/></Text>
                 
                 <Text
                   style={[

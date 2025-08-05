@@ -362,12 +362,11 @@ const formatPlanName = (plan) => {
               <Text style={!user?.id ? styles.userNameLogout : styles.userName}>
                 {!user?.id ? t("settings.login_register") : displayName}
                 {user?.isPro &&  
-        <Icon
-          name="checkmark-done-circle"
-          size={16}
-          color={config.colors.hasBlockGreen}
-          
-        />}
+        <Image
+        source={require('../../assets/pro.png')} 
+        style={{ width: 14, height: 14 }} 
+      />
+        }
               </Text>
               {!user?.id && <Text style={styles.rewardLogout}>{t('settings.login_description')}</Text>}
               {user?.id && <Text style={styles.reward}>{t("settings.my_points")}: {user?.rewardPoints || 0}</Text>}
@@ -544,7 +543,7 @@ const formatPlanName = (plan) => {
             <Text style={styles.optionTextLogout}>{t('settings.logout')}</Text>
           </TouchableOpacity>}
           {user?.id && <TouchableOpacity style={styles.optionDelete} onPress={handleDeleteUser} >
-            <Icon name="warning-outline" size={24} color={'#4B4453'} />
+            <Icon name="warning-outline" size={24} color={isDarkMode ? 'lightgrey' : '#4B4453'} />
             <Text style={styles.optionTextDelete}>{t('settings.delete_my_account')}</Text>
           </TouchableOpacity>}
 

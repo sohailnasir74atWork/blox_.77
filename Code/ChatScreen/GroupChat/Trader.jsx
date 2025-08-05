@@ -21,19 +21,20 @@ import leoProfanity from 'leo-profanity';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import { useLocalState } from '../../LocalGlobelStats';
-import { ref } from '@react-native-firebase/database';
+import { onValue, ref } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
 import { mixpanel } from '../../AppHelper/MixPenel';
 import InterstitialAdManager from '../../Ads/IntAd';
 import BannerAdComponent from '../../Ads/bannerAds';
 import { logoutUser } from '../../Firebase/UserLogics';
+import { showMessage } from 'react-native-flash-message';
 leoProfanity.add(['hell', 'shit']);
 leoProfanity.loadDictionary('en');
 
 const bannerAdUnitId = getAdUnitId('banner');
 const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatFocused,
   setModalVisibleChatinfo, unreadMessagesCount, fetchChats, unreadcount, setunreadcount }) => {
-    const { user, theme, onlineMembersCount, appdatabase, setUser, isAdmin } = useGlobalState();
+    const { user, theme, onlineMembersCount, appdatabase, setUser, isAdmin, currentUserEmail } = useGlobalState();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [replyTo, setReplyTo] = useState(null);
@@ -55,6 +56,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   const [pendingMessages, setPendingMessages] = useState([]);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const isFocused = useIsFocused();
+const [strikeInfo, setStrikeInfo] = useState(null)
 
   const flatListRef = useRef();
 
@@ -120,6 +122,9 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       timestamp: hasText ? message.timestamp || Date.now() : Date.now() - 1 * 24 * 60 * 60 * 1000,
     };
   }, []);
+
+
+  
 
   const loadMessages = useCallback(
     async (reset = false) => {
@@ -244,39 +249,33 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
 
 
+
   const handlePinMessage = async (message) => {
     try {
       const pinnedMessage = { ...message, pinnedAt: Date.now() };
       const newRef = await pinnedMessagesRef.push(pinnedMessage);
-
+  
       // Use the Firebase key for tracking the message
       setPinnedMessages((prev) => [
         ...prev,
         { firebaseKey: newRef.key, ...pinnedMessage },
       ]);
-      // console.log('Pinned message added with firebaseKey:', newRef.key);
     } catch (error) {
       console.error('Error pinning message:', error);
       Alert.alert(t('home.alert.error'), 'Could not pin the message. Please try again.');
     }
   };
-
+  
 
 
   const unpinSingleMessage = async (firebaseKey) => {
     try {
-      // console.log(`Received firebaseKey for unpinning: ${firebaseKey}`);
-
-      // Remove the message from Firebase
       const messageRef = pinnedMessagesRef.child(firebaseKey);
-      // console.log(`Firebase reference for removal: ${messageRef.toString()}`);
-      await messageRef.remove();
-      // console.log(`Message with Firebase key: ${firebaseKey} successfully removed from Firebase.`);
-
-      // Update the local state by filtering out the removed message
+      await messageRef.remove();  // Remove from Firebase
+  
+      // Update local state by filtering out the removed message
       setPinnedMessages((prev) => {
         const updatedMessages = prev.filter((msg) => msg.firebaseKey !== firebaseKey);
-        // console.log('Updated pinned messages after removal:', updatedMessages);
         return updatedMessages;
       });
     } catch (error) {
@@ -284,8 +283,21 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       Alert.alert(t('home.alert.error'), 'Could not unpin the message. Please try again.');
     }
   };
+  
 
+  useEffect(() => {
+    if (!currentUserEmail) return;
 
+    const encodedEmail = currentUserEmail.replace(/\./g, '(dot)');
+    const banRef = ref(appdatabase, `banned_users_by_email/${encodedEmail}`);
+
+    const unsubscribe = onValue(banRef, (snapshot) => {
+      const banData = snapshot.val();
+      setStrikeInfo(banData || null);
+    });
+
+    return () => unsubscribe();
+  }, [currentUserEmail]);
 
 
   const clearAllPinnedMessages = async () => {
@@ -338,12 +350,46 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
   const handleSendMessage = () => {
     const MAX_CHARACTERS = 250;
-    const MESSAGE_COOLDOWN = 3000;
+    const MESSAGE_COOLDOWN = 100;
     const LINK_REGEX = /(https?:\/\/[^\s]+)/g;
-
-    if (!user?.id || user?.isBlock) {
-      Alert.alert(t('home.alert.error'), user?.isBlock ? 'You are blocked by an Admin' : 'You must be logged in.');
+    if (!user?.id || !currentUserEmail) {
+      showMessage({
+        message: 'You are not loggedin',
+        description: 'You must be logged in to send Messages',
+        type: 'danger',
+      });
       return;
+
+    }
+
+    if (strikeInfo) {
+      const { strikeCount, bannedUntil } = strikeInfo;
+      const now = Date.now();
+
+      if (bannedUntil === 'permanent') {
+        showMessage({
+          message: '⛔ Permanently Banned',
+          description: 'You are permanently banned from sending messages.',
+          type: 'danger',
+        });
+        return;
+      }
+
+      if (typeof bannedUntil === 'number' && now < bannedUntil) {
+        const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+        showMessage({
+          message: `⚠️ Strike ${strikeCount}`,
+          description: `You are banned from chatting for ${timeLeftText} more minute(s).`,
+          type: 'warning',
+          duration: 5000,
+
+        });
+        return;
+      }
     }
 
     const trimmedInput = input.trim();
@@ -368,7 +414,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     }
 
     const containsLink = LINK_REGEX.test(trimmedInput);
-    if (containsLink && (!localState?.isPro || isAdmin)) {
+    if (containsLink && !localState?.isPro && !isAdmin) {
       Alert.alert(t('home.alert.error'), t('misc.proUsersOnlyLinks'));
       return;
     }
@@ -384,7 +430,9 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         reportCount: 0,
         containsLink,
         isPro: localState.isPro,
-        isAdmin:isAdmin
+        isAdmin: isAdmin,
+        strikeCount: strikeInfo?.strikeCount || null,
+        currentUserEmail: currentUserEmail
 
       });
 

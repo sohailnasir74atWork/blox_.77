@@ -90,7 +90,11 @@ useEffect(() => {
         <Text style={[styles.userName, { color: selectedTheme.colors.text }]}>
           {userName} 
           {selectedUser.isPro && (
-            <Icon name="checkmark-done-circle" size={16} color={config.colors.hasBlockGreen} />
+             
+                <Image
+                source={require('../../../assets/pro.png')} 
+                style={{ width: 14, height: 14 }} 
+              />
           )}
              {'  '}   <Icon name="copy-outline" size={16} color="#007BFF" onPress={()=>copyToClipboard(userName)}/>
 

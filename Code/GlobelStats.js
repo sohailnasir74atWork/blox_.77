@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { getApp, getApps, initializeApp } from '@react-native-firebase/app';
 import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
-import { ref, set, update, get, onDisconnect, getDatabase } from '@react-native-firebase/database';
+import { ref, set, update, get, onDisconnect, getDatabase, onValue } from '@react-native-firebase/database';
 import { getFirestore } from '@react-native-firebase/firestore';
 import { createNewUser, registerForNotifications } from './Globelhelper';
 import { useLocalState } from './LocalGlobelStats';
@@ -25,6 +25,7 @@ export const GlobalStateProvider = ({ children }) => {
   const [theme, setTheme] = useState(resolvedTheme);
   const [api, setApi] = useState(null);
   const [freeTranslation, setFreeTranslation] = useState(null);
+  const [currentUserEmail, setCurrentuserEmail] = useState('')
 
 
   const [isAdmin, setIsAdmin] = useState(false);
@@ -45,6 +46,7 @@ export const GlobalStateProvider = ({ children }) => {
   });
 
   const [onlineMembersCount, setOnlineMembersCount] = useState(0);
+
   const [loading, setLoading] = useState(false);
   // const [robloxUsername, setRobloxUsername] = useState('');
   const robloxUsernameRef = useRef('');
@@ -157,8 +159,10 @@ export const GlobalStateProvider = ({ children }) => {
       let userData;
 
       // console.log(loggedInUser.email)
-      const makeadmin = loggedInUser.email === 'thesolanalabs@gmail.com' || loggedInUser.email === 'mastermind@gmail.com';
+      const makeadmin = loggedInUser.email === 'thesolanalabs@gmail.com' || loggedInUser.email === 'mastermind@gmail.com' || loggedInUser.email === 'sohailnasir74@gmail.com';
       if (makeadmin) { setIsAdmin(makeadmin) }
+      setCurrentuserEmail(loggedInUser.email)
+
 
       if (snapshot.exists()) {
         userData = { ...snapshot.val(), id: userId };
@@ -447,9 +451,9 @@ export const GlobalStateProvider = ({ children }) => {
       freeTranslation,
       isAdmin,
       reload,
-      robloxUsernameRef, api
+      robloxUsernameRef, api, currentUserEmail
     }),
-    [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api, freeTranslation]
+    [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api, freeTranslation, currentUserEmail]
   );
 
   return (

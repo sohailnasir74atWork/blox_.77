@@ -22,14 +22,15 @@ const FruitSelectionDrawer = ({ visible, onClose, onSelect, data, selectedTheme 
   const { t } = useTranslation();
 
 
-  const formatName = (name) => {
-    return name
-      .split('_')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-  };
+  // const formatName = (name) => {
+  //   return name
+  //     .split('_')
+  //     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+  //     .join(' ');
+  // };
 
   const formatNameNew = (name) => {
+    console.log(name)
     const formattedName = name
       .split('_')                           // Split on underscore
       .map(word => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalize each word
@@ -51,14 +52,18 @@ const FruitSelectionDrawer = ({ visible, onClose, onSelect, data, selectedTheme 
   }, [visible]);
 
   const handleSelect = (item) => {
-    // Add or remove the item from the selected list
-    if (selectedItems?.some((selected) => selected.name === item.name)) {
-      setSelectedItems(selectedItems?.filter((selected) => selected.name !== item.name));
+    const exists = selectedItems.some((selected) => selected.name === item.name);
+  
+    if (exists) {
+      setSelectedItems(selectedItems.filter((selected) => selected.name !== item.name));
     } else {
-      setSelectedItems([...selectedItems, item]);
+      setSelectedItems([...selectedItems, { name: item.name, picture: item.picture }]);
     }
-    onSelect(item); // Notify parent about the selection
+  
+    onSelect({ name: item.name, picture: item.picture }); // Pass both to parent
   };
+  
+  
 
   const handleSearchChange = (text) => {
     setSearchText(text);

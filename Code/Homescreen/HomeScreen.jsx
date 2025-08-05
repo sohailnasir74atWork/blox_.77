@@ -549,7 +549,7 @@ const HomeScreen = ({ selectedTheme }) => {
 
 
                 {hasItems?.map((item, index) => (
-                  <TouchableOpacity key={index} style={[styles.addItemBlockNew, { backgroundColor: item?.Type === 'p' ? '#FFD700' : isDarkMode ? '#34495E' : '#B2C6D5' }]} onPress={() => { openDrawer('has') }} disabled={item !== null}>
+                  <TouchableOpacity key={index} style={[styles.addItemBlockNew, { backgroundColor: item?.Type === 'p' ? '#FFD700' : isDarkMode ? '#34495E' : '#c6c2ff' }]} onPress={() => { openDrawer('has') }} disabled={item !== null}>
                     {item ? (
                       <>
                         {item.Type === 'fruit' && item.Mutations.length > 0 && (
@@ -681,7 +681,7 @@ const HomeScreen = ({ selectedTheme }) => {
                   <Text style={styles.itemText}>{t('home.add_item')}</Text>
                 </TouchableOpacity> */}
                 {wantsItems?.map((item, index) => (
-                  <TouchableOpacity key={index} style={[styles.addItemBlockNew, { backgroundColor: item?.Type === 'p' ? '#FFD700' : isDarkMode ? '#34495E' : '#B2C6D5' }]} onPress={() => { openDrawer('wants') }} disabled={item !== null}>
+                  <TouchableOpacity key={index} style={[styles.addItemBlockNew, { backgroundColor: item?.Type === 'p' ? '#FFD700' : isDarkMode ? '#34495E' : '#c6c2ff' }]} onPress={() => { openDrawer('wants') }} disabled={item !== null}>
                     {item ? (
                       <>
                         {item.Type === 'fruit' && item.Mutations.length > 0 && (
@@ -801,8 +801,14 @@ const HomeScreen = ({ selectedTheme }) => {
 
             </ViewShot>
             <View style={styles.createtrade} >
-              <TouchableOpacity style={styles.createtradeButton} onPress={() => handleCreateTradePress('create')}><Text style={{ color: 'white', fontSize:12, fontFamily:'Lato-Bold'  }}>{t('home.create_trade')}</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.shareTradeButton} onPress={() => handleCreateTradePress('share')}><Text style={{ color: 'white', fontSize:12, fontFamily:'Lato-Bold' }}>{t('home.share_trade')}</Text></TouchableOpacity></View>
+              <TouchableOpacity style={styles.createtradeButton} onPress={() => handleCreateTradePress('create')}>
+              <Icon name="enter-outline" size={18} color="white" style={{padding:4}}/>
+              <Text style={{ color: 'white', fontSize:12, fontFamily:'Lato-Bold'  }}>{t('home.create_trade')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.shareTradeButton} onPress={() => handleCreateTradePress('share')}>
+                <Text style={{ color: 'white', fontSize:12, fontFamily:'Lato-Bold' }}>{t('home.share_trade')}</Text>
+                <Icon name="share-outline" size={18} color="white" style={{padding:4}}/>
+                </TouchableOpacity></View>
           </ScrollView>
           <Modal
             visible={isDrawerVisible}
@@ -860,7 +866,7 @@ const HomeScreen = ({ selectedTheme }) => {
                         <TouchableOpacity
                           style={[
                             styles.itemBlock,
-                            { backgroundColor: item.Type === 'p' ? '#FFD700' : isDarkMode ? '#34495E' : '#B2C6D5' }
+                            { backgroundColor: item.Type === 'p' ? '#FFD700' : isDarkMode ? '#34495E' : '#c6c2ff' }
                           ]}
                           onPress={() => selectItem(item)}
                         >
@@ -1115,7 +1121,7 @@ const getStyles = (isDarkMode) =>
     addItemBlockNew: {
       width: '33%',
       height: 100,
-      backgroundColor: isDarkMode ? '#34495E' : '#B2C6D5', // Dark: darker contrast, Light: White
+      backgroundColor: isDarkMode ? '#34495E' : '#c6c2ff', // Dark: darker contrast, Light: White
       borderWidth: Platform.OS === 'android' ? 0 : 1,
       borderColor: 'lightgrey',
       justifyContent: 'center',
@@ -1128,7 +1134,7 @@ const getStyles = (isDarkMode) =>
     addItemBlock: {
       width: '32%',
       height: 85,
-      backgroundColor: isDarkMode ? '#34495E' : '#B2C6D5', // Dark: darker contrast, Light: White
+      backgroundColor: isDarkMode ? '#34495E' : '#c6c2ff', // Dark: darker contrast, Light: White
       justifyContent: 'center',
       alignItems: 'center',
       borderRadius: 10,
@@ -1137,7 +1143,7 @@ const getStyles = (isDarkMode) =>
     itemBlock: {
       width: '32%',
       height: 80,
-      backgroundColor: isDarkMode ? '#34495E' : '#B2C6D5', // Dark: darker contrast, Light: White
+      backgroundColor: isDarkMode ? '#34495E' : '#c6c2ff', // Dark: darker contrast, Light: White
       justifyContent: 'center',
       alignItems: 'center',
       borderRadius: 10,
@@ -1275,7 +1281,8 @@ const getStyles = (isDarkMode) =>
       minWidth: 100,
       borderTopStartRadius: 20,
       borderBottomStartRadius: 20,
-      marginRight: 1
+      marginRight: 1,
+      alignItems:'center'
     },
     shareTradeButton: {
       backgroundColor: config.colors.wantBlockRed,
@@ -1286,7 +1293,8 @@ const getStyles = (isDarkMode) =>
       minWidth: 100,
       borderTopEndRadius: 20,
       borderBottomEndRadius: 20,
-      marginLeft: 1
+      marginLeft: 1,
+      alignItems:'center'
     },
 
     modalMessage: {
@@ -1358,7 +1366,7 @@ const getStyles = (isDarkMode) =>
       marginVertical: 4,
       paddingVertical: 6,
       paddingHorizontal: 12,
-      backgroundColor: '#B2C6D5',
+      backgroundColor: '#c6c2ff',
       borderRadius: 12,
       alignItems: 'center',
     },

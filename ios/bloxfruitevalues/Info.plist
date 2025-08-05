@@ -44,6 +44,11 @@
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs access to your photo library to allow you to upload and edit images.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+<string>This app uses the photo library for optional image sharing and features provided by third-party tools. No personal data is stored or shared.</string>
+
 	<key>UIAppFonts</key>
 	<array>
 		<string>AntDesign.ttf</string>
