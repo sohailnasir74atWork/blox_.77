@@ -27,13 +27,14 @@ import { mixpanel } from '../../AppHelper/MixPenel';
 import InterstitialAdManager from '../../Ads/IntAd';
 import BannerAdComponent from '../../Ads/bannerAds';
 import { logoutUser } from '../../Firebase/UserLogics';
+import { showMessage } from 'react-native-flash-message';
 leoProfanity.add(['hell', 'shit']);
 leoProfanity.loadDictionary('en');
 
 const bannerAdUnitId = getAdUnitId('banner');
 const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatFocused,
   setModalVisibleChatinfo, unreadMessagesCount, fetchChats, unreadcount, setunreadcount }) => {
-    const { user, theme, onlineMembersCount, appdatabase, setUser, isAdmin } = useGlobalState();
+    const { user, theme, onlineMembersCount, appdatabase, setUser, isAdmin, proTagBought, updateLocalStateAndDatabase, proGranted } = useGlobalState();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [replyTo, setReplyTo] = useState(null);
@@ -55,8 +56,11 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   const [pendingMessages, setPendingMessages] = useState([]);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const isFocused = useIsFocused();
+  const [selectedEmoji, setSelectedEmoji] = useState(null);
+
 
   const flatListRef = useRef();
+  const gifAllowed = user?.purchases?.[11]?.title === "Chat Emoji";
 
   useEffect(() => {
     if (isAtBottom && pendingMessages.length > 0) {
@@ -97,7 +101,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       navigation.navigate('PrivateChat', { selectedUser, selectedTheme });
       mixpanel.track("Inbox Chat");
     };
-    if (!localState.isPro) { InterstitialAdManager.showAd(callbackfunction); }
+    if (!localState.isPro || !proGranted) { InterstitialAdManager.showAd(callbackfunction); }
     else { callbackfunction() }
   };
 
@@ -112,12 +116,15 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
 
   const validateMessage = useCallback((message) => {
+    // console.log(message)
     const hasText = message?.text?.trim();
     return {
       ...message,
       sender: message.sender?.trim() || 'Anonymous',
-      text: hasText || '[No content]',
-      timestamp: hasText ? message.timestamp || Date.now() : Date.now() - 1 * 24 * 60 * 60 * 1000,
+      text: hasText || message.gif ? message.text : '[No content]', // Set message text or '[No content]'
+      timestamp:  message.timestamp,
+      gif:message.gif
+      
     };
   }, []);
 
@@ -336,59 +343,125 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     // fetchChats()
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     const MAX_CHARACTERS = 250;
     const MESSAGE_COOLDOWN = 3000;
     const LINK_REGEX = /(https?:\/\/[^\s]+)/g;
 
     if (!user?.id || user?.isBlock) {
-      Alert.alert(t('home.alert.error'), user?.isBlock ? 'You are blocked by an Admin' : 'You must be logged in.');
+      showMessage({
+        message: user?.isBlock ? 'You are blocked by an Admin' : 'You must be logged in.',
+        type: 'warning',
+        icon: 'warning',
+        backgroundColor: 'grey',
+        color: 'white',
+      });
       return;
     }
 
     const trimmedInput = input.trim();
-    if (!trimmedInput) {
-      Alert.alert(t('home.alert.error'), 'Message cannot be empty.');
-      return;
-    }
+    // if (!trimmedInput) {
+    //   Alert.alert(t('home.alert.error'), 'Message cannot be empty.');
+    //   return;
+    // }
 
     if (leoProfanity.check(trimmedInput)) {
-      Alert.alert(t('home.alert.error'), t('misc.inappropriateLanguage'));
+      showMessage({
+        message: t('misc.inappropriateLanguage'),
+        type: 'danger',
+        icon: 'danger',
+        backgroundColor: 'red',
+        color: 'white',
+      });
       return;
     }
-
     if (trimmedInput.length > MAX_CHARACTERS) {
-      Alert.alert(t('home.alert.error'), t('misc.messageTooLong'));
+      showMessage({
+        message: t('misc.messageTooLong'),
+        type: 'warning',
+        icon: 'warning',
+        backgroundColor: 'orange',
+        color: 'white',
+      });
       return;
     }
 
     if (isCooldown) {
-      Alert.alert(t('home.alert.error'), t('misc.sendingTooQuickly'));
+      showMessage({
+        message: t('misc.sendingTooQuickly'),
+        type: 'warning',
+        icon: 'warning',
+        backgroundColor: 'orange',
+        color: 'white',
+      });
       return;
     }
 
     const containsLink = LINK_REGEX.test(trimmedInput);
-    if (containsLink && !localState?.isPro) {
-      Alert.alert(t('home.alert.error'), t('misc.proUsersOnlyLinks'));
-      return;
-    }
+    const hasLinkSharingPrivilege =
+  !!user?.purchases?.[8] && (
+    !user.purchases[8].expiresAt || 
+    user.purchases[8].expiresAt > Date.now()
+  );
+// console.log(hasLinkSharingPrivilege)
+// ✅ ALLOW if Pro OR Admin OR has Link Sharing
+if (containsLink) {
+  if (!localState?.isPro && !isAdmin && !hasLinkSharingPrivilege) {
+    Alert.alert(t('home.alert.error'), t('misc.proUsersOnlyLinks'));
+    return;
+  }
+
+  if (hasLinkSharingPrivilege && user?.purchases?.[8]?.allowed > 0) {
+    // User has allowed link share left, proceed and decrement the count
+    const updatedPurchases = { ...user.purchases };
+    updatedPurchases[8].allowed -= 1;
+    // console.log(updatedPurchases, updatedPurchases[8].allowed);
+
+    // Update the user's purchase data in the database
+    await updateLocalStateAndDatabase({
+      [`purchases/${8}`]: updatedPurchases[8],
+    });
+  } else {
+    showMessage({
+      message: 'Your free link purchase has expired or you have used all 10 links. Kindly repurchase to continue sharing links.',
+      type: 'warning',
+      icon: 'warning',
+      backgroundColor: 'orange',
+      color: 'white',
+    });
+    return;
+  }
+}
 
     try {
-      ref(appdatabase, 'chat_new').push({
-        text: trimmedInput,
-        timestamp: Date.now(),
-        sender: user.displayName || 'Anonymous',
-        senderId: user.id,
-        avatar: user.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
-        replyTo: replyTo ? { id: replyTo.id, text: replyTo.text } : null,
-        reportCount: 0,
-        containsLink,
-        isPro: localState.isPro,
-        isAdmin:isAdmin
-
-      });
+      const styleObj =
+      user?.purchases &&
+      Object.values(user.purchases).find(p => p?.id === 9 && p.style)?.style;
+    
+    const iconArr =
+      user?.purchases &&
+      Object.values(user.purchases).find(p => p?.id === 10 && Array.isArray(p.icons))?.icons;
+    
+    ref(appdatabase, 'chat_new').push({
+      text: trimmedInput == '' ? '.' :trimmedInput  ,
+      timestamp: Date.now(),
+      sender: user.displayName || 'Anonymous',
+      senderId: user.id,
+      avatar: user.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+      replyTo: replyTo ? { id: replyTo.id, text: replyTo?.text } : null,
+      reportCount: 0,
+      containsLink,
+      isPro: localState.isPro,
+      proGranted: proGranted || proTagBought,
+      style: styleObj || null,
+      icons: iconArr || [],
+      isAdmin:isAdmin,
+      gif: selectedEmoji || null
+    });
+    
 
       setInput('');
+      setSelectedEmoji(null);
       setReplyTo(null);
       setIsCooldown(true);
       setTimeout(() => setIsCooldown(false), MESSAGE_COOLDOWN);
@@ -447,6 +520,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                 setIsAtBottom={setIsAtBottom}
                 toggleDrawer={toggleDrawer}
                 setMessages={setMessages}
+               
               />
             )}
             {user.id ? (
@@ -457,6 +531,9 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                 selectedTheme={selectedTheme}
                 replyTo={replyTo} // Pass reply context to MessageInput
                 onCancelReply={() => setReplyTo(null)} // Clear reply context
+                gifAllowed={gifAllowed}
+                selectedEmoji={selectedEmoji}
+                setSelectedEmoji={setSelectedEmoji}
               />
             ) : (
               <TouchableOpacity
@@ -488,9 +565,9 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
           bannedUsers={bannedUsers}
         />
       </GestureHandlerRootView>
-      {!localState.isPro && <BannerAdComponent />}
+      {(!localState.isPro || !proGranted) && <BannerAdComponent />}
 
-      {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
+      {/* {(!localState.isPro || !proGranted) && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (
           <BannerAd
             unitId={bannerAdUnitId}

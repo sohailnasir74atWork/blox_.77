@@ -34,6 +34,8 @@ import { useLanguage } from '../Translation/LanguageProvider';
 import { useTranslation } from 'react-i18next';
 import { showSuccessMessage, showErrorMessage } from '../Helper/MessageHelper';
 import { setAppLanguage } from '../../i18n';
+import StyledUsernamePreview from './Store/StyledName';
+import StyledDisplayName from './Store/NameDisplayReUser';
 
 
 export default function SettingsScreen({ selectedTheme }) {
@@ -75,6 +77,20 @@ export default function SettingsScreen({ selectedTheme }) {
     { code: "ru", label: t("settings.languages.ru"), flag: "🇷🇺" },
     { code: "ar", label: t("settings.languages.ar"), flag: "🇸🇦" }
   ];
+  const iconMap = {
+    camping: require('../../assets/Icons/camping.png'),
+    dinamite: require('../../assets/Icons/dinamite.png'),
+    fire: require('../../assets/Icons/fire.png'),
+    grenade: require('../../assets/Icons/grenade.png'),
+    'handheld-game': require('../../assets/Icons/handheld-game.png'),
+    'paw-print': require('../../assets/Icons/paw-print.png'),
+    play: require('../../assets/Icons/play.png'),
+    'shooting-star': require('../../assets/Icons/shooting-star.png'),
+    smile: require('../../assets/Icons/smile.png'),
+    symbol: require('../../assets/Icons/symbol.png'),
+    'treasure-map': require('../../assets/Icons/treasure-map.png'),
+  };
+  
 
 
   const isDarkMode = theme === 'dark';
@@ -334,9 +350,9 @@ const handleSelect = (lang) => {
 const formatPlanName = (plan) => {
   // console.log(plan, 'plan');
 
-  if (plan === 'MONTHLY' || plan === 'Blox_values_199_1m') return '1 MONTH';
-  if (plan === 'QUARTERLY' || plan === 'Blox_values_499_3m') return '3 MONTHS';
-  if (plan === 'YEARLY' || plan === 'Blox_values_999_1y') return '1 YEAR';
+  if (plan === 'monthly:monthly' || plan === 'Blox_values_199_1m') return '1 MONTH';
+  if (plan === 'quarterly:quarterly' || plan === 'Blox_values_499_3m') return '3 MONTHS';
+  if (plan === 'yearly:yearly' || plan === 'Blox_values_999_1y') return '1 YEAR';
 
   return 'Anonymous Plan';
 };
@@ -358,18 +374,45 @@ const formatPlanName = (plan) => {
               style={styles.profileImage}
             />
             <TouchableOpacity onPress={user?.id ? () => { } : () => { setOpenSignin(true) }} disabled={user?.id !== null}>
-              <Text style={!user?.id ? styles.userNameLogout : styles.userName}>
-                {!user?.id ? t("settings.login_register") : displayName}
-                {user?.isPro &&  
-        <Icon
-          name="checkmark-done-circle"
-          size={16}
-          color={config.colors.hasBlockGreen}
-          
-        />}
-              </Text>
+            {!user?.id ? (
+  <Text style={styles.userNameLogout}>
+    {t('settings.login_register')}
+  </Text>
+) : (
+  <View style={{ flexDirection: 'column' }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      {/* Styled name if available */}
+      {user?.id &&
+     
+        <StyledDisplayName
+        user={user}
+        localState={localState}
+        displayName={user?.displayName || 'Guest'}
+        fontSize={16}
+        lineHeight={20}
+        marginVertical={1}
+      />
+     }
+
+      {/* Pro badges */}
+      {/* {localState?.isPro && (
+        <Image
+          source={require('../../assets/pro.png')}
+          style={{ width: 18, height: 18, marginLeft: 4 }}
+        />
+      )}
+      {localState?.proGranted && (
+        <Image
+          source={require('../../assets/progranted.png')}
+          style={{ width: 18, height: 18, marginLeft: 4 }}
+        />
+      )} */}
+    </View>
+  </View>
+)}
+
               {!user?.id && <Text style={styles.rewardLogout}>{t('settings.login_description')}</Text>}
-              {user?.id && <Text style={styles.reward}>{t("settings.my_points")}: {user?.rewardPoints || 0}</Text>}
+              {user?.id && <Text style={styles.reward}>My Coins: {user?.coins || 0}</Text>}
             </TouchableOpacity>
           </View>
           <TouchableOpacity onPress={handleProfileUpdate}>
@@ -378,8 +421,14 @@ const formatPlanName = (plan) => {
         </View>
       </View>
 
+     
+
       {/* Options Section */}
       <ScrollView showsVerticalScrollIndicator={false}>
+         {/* Purchases Section */}
+    
+
+
         <Text style={styles.subtitle}>{t('settings.app_settings')}</Text>
         <View style={styles.cardContainer}>
           <View style={styles.option} onPress={() => {

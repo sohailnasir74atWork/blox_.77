@@ -393,5 +393,48 @@ export const getStyles = (isDarkMode, config) =>
             width: 30,
             marginRight: 10,
             borderRadius:15
-        }
+        },
+        tabBar: {
+            flexDirection: 'row',
+            justifyContent: 'space-around',
+            // marginBottom: 20,
+            borderRadius:12,
+            backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF',
+            padding:5,
+            marginBottom:5
+           
+          },
+          tabButtonLeft: {
+            paddingVertical: 15,
+            // backgroundColor: '#ccc',
+            // borderRadius: 5,
+            width:'50%',
+            borderRadius:12,
+            // borderTopRightRadius:12
+        
+          },
+          tabButtonRight: {
+            paddingVertical: 15,
+            // backgroundColor: '#ccc',
+            // borderRadius: 5,
+            width:'50%',
+            // borderTopLeftRadius:12,
+            borderRadius:12
+        
+          },
+          tabText: {
+            fontSize: 16,
+            color: 'grey',
+            alignSelf:'center',
+            fontFamily:'Lato-Bold'
+          },
+          tabTextActive: {
+            fontSize: 16,
+            color: 'white',
+            alignSelf:'center',
+            fontFamily:'Lato-Bold'
+          },
+          activeTab: {
+            backgroundColor: config.colors.primary,
+          },
     });

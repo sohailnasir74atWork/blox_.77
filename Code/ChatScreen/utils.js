@@ -336,7 +336,7 @@ export const handleDeleteLast300Messages = async (senderId) => {
     }
 
     const allMessages = snapshot.val();
-    console.log('📦 Total messages fetched:', Object.keys(allMessages).length);
+    // console.log('📦 Total messages fetched:', Object.keys(allMessages).length);
 
     const sorted = Object.entries(allMessages)
       .sort((a, b) => b[1].timestamp - a[1].timestamp)

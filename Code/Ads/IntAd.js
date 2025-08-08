@@ -36,10 +36,10 @@ class InterstitialAdManager {
       AdEventType.ERROR,
       (error) => {
         this.isAdLoaded = false;
-        console.error('[AdManager] Ad failed to load ❌', error);
+        // console.error('[AdManager] Ad failed to load ❌', error);
   
         if (this.retryCount < this.maxRetries) {
-          const delay = Math.pow(2, this.retryCount) * 1000; // 1s, 2s, 4s, etc.
+          const delay = Math.pow(2, this.retryCount) * 10000; // 1s, 2s, 4s, etc.
           // console.log(`[AdManager] Retrying to load ad in ${delay}ms...`);
           setTimeout(() => {
             this.retryCount += 1;

@@ -29,7 +29,7 @@ const ValueScreen = ({ selectedTheme }) => {
   const [searchText, setSearchText] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [filterDropdownVisible, setFilterDropdownVisible] = useState(false);
-  const { analytics, isAdmin, reload, theme } = useGlobalState();
+  const { analytics, isAdmin, reload, theme, proGranted } = useGlobalState();
   const {localState, toggleAd} = useLocalState()
   const isDarkMode = theme === 'dark'
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
@@ -93,7 +93,7 @@ const ValueScreen = ({ selectedTheme }) => {
       setIsDrawerVisible(!isDrawerVisible);
     };
 
-    if (!hasAdBeenShown && !localState.isPro) {
+    if (!hasAdBeenShown && (!localState.isPro && !proGranted)) {
       InterstitialAdManager.showAd(callbackfunction);
     }
     else {
@@ -521,7 +521,7 @@ const ValueScreen = ({ selectedTheme }) => {
         </View>
         <CodesDrawer isVisible={isDrawerVisible} toggleModal={toggleDrawer} codes={codesData} />
       </GestureHandlerRootView>
-      {!localState.isPro && <BannerAdComponent/>}
+      {/* {(!localState.isPro && !proGranted) && <BannerAdComponent/>} */}
 
       {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (
@@ -541,7 +541,7 @@ const ValueScreen = ({ selectedTheme }) => {
 };
 export const getStyles = (isDarkMode) =>
   StyleSheet.create({
-    container: { paddingHorizontal: 8, marginHorizontal: 2, flex: 1 },
+    container: { paddingHorizontal: 8, marginHorizontal: 2, flex: 1, paddingTop:10 },
     searchFilterContainer: { flexDirection: 'row', marginVertical: 5, alignItems: 'center' },
     searchInput: {   height: 40,
       borderColor: isDarkMode ? config.colors.primary : 'white',

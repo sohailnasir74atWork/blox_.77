@@ -1,5 +1,5 @@
-import React, {  useCallback } from 'react';
-import {  Image, TouchableOpacity } from 'react-native';
+import React, { useCallback } from 'react';
+import { Image, TouchableOpacity, View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Ionicons';
 import HomeScreen from '../Homescreen/HomeScreen';
@@ -10,37 +10,40 @@ import { TradeStack } from '../Trades/TradeNavigator';
 import { useTranslation } from 'react-i18next';
 import config from '../Helper/Environment';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
+import BouncingCartIcon from './CartIcon';
+import TopLevelStockComponent from '../StockScreen/StockNavigator';
+import RewardCenterScreen from '../SettingScreen/RewardCenter';
 
 
 
 const Tab = createBottomTabNavigator();
 
-const AnimatedTabIcon = React.memo(({iconName, color, size }) => {
+const AnimatedTabIcon = React.memo(({ iconName, color, size }) => {
 
 
 
   return (
-      <FontAwesome
-        name={iconName}
-        size={size}
-        color={color}
-        solid={true}
-      />
+    <FontAwesome
+      name={iconName}
+      size={size}
+      color={color}
+      solid={true}
+    />
   );
 });
 
 
 const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modalVisibleChatinfo, setModalVisibleChatinfo }) => {
   const { t } = useTranslation();
-    const getTabIcon = useCallback((routeName, focused) => {
-    const isNoman = config.isNoman; // ✅ Extracted to avoid repeated checks
+  
+  const getTabIcon = useCallback((routeName, focused) => {
 
     const icons = {
       Calculator: ['house', 'house'], // Solid icons look same for focused/unfocused
       Stock: ['cart-shopping', 'cart-shopping'],
       Trade: ['handshake', 'handshake'],
       Chat: ['envelope', 'envelope'],
-      Values: ['chart-simple', 'chart-simple'],
+      Values: ['sack-dollar', 'sack-dollar'],
     };
 
     return icons[routeName] ? (focused ? icons[routeName][0] : icons[routeName][1]) : 'alert-circle-outline';
@@ -53,15 +56,15 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
         tabBarIcon: ({ focused, color, size }) => (
           <AnimatedTabIcon
             focused={focused}
-            iconName={getTabIcon(route.name, focused)}
-            color={focused ? config.colors.primary : config.colors.primary}
+            iconName={getTabIcon(route.name)}
+            color={config.colors.primary}
             size={18}
           />
         ),
         tabBarButton: (props) => {
-          const { accessibilityState, children, onPress } = props;
-          const isSelected = accessibilityState?.selected;
-      
+          const { children, onPress } = props;
+          const isSelected = props['aria-selected'];
+
           return (
             <TouchableOpacity
               onPress={onPress}
@@ -71,9 +74,9 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
                 backgroundColor: isSelected ? config.colors.primary + '42' : 'transparent',
                 borderRadius: 12,
                 marginHorizontal: 4,
-                marginVertical:2,
-                justifyContent:'center',
-                alignItems:'center'
+                marginVertical: 2,
+                justifyContent: 'center',
+                alignItems: 'center'
               }}
             >
               {children}
@@ -102,24 +105,28 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
         options={({ navigation }) => ({
           title: t('tabs.calculator'), // Translation applied here
           headerRight: () => (
-            <>
-              <TouchableOpacity onPress={() => navigation.navigate('Reward')}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {/* <TouchableOpacity style={{ marginRight: 12 }} onPress={() => navigation.navigate('Store')}>
+                <BouncingCartIcon />
+              </TouchableOpacity> */}
+          
+              {/* <TouchableOpacity onPress={() => navigation.navigate('Reward')}>
                 <Image
-                  source={require('../../assets/trophy.webp')} // ✅ Ensure the correct path
+                  source={require('../../assets/trophy.webp')}
                   style={{ width: 20, height: 20, marginRight: 16 }}
                 />
-              </TouchableOpacity>
+              </TouchableOpacity> */}
+          
               <TouchableOpacity onPress={() => navigation.navigate('Setting')} style={{ marginRight: 16 }}>
-              <Icon
-                name="settings"
-                size={24}
-                color={selectedTheme.colors.text}
-              />
+                <Icon
+                  name="settings"
+                  size={24}
+                  color={selectedTheme.colors.text}
+                />
               </TouchableOpacity>
-            </>
-
-
-          ),
+            </View>
+          )
+          ,
         })}
       >
         {() => <HomeScreen selectedTheme={selectedTheme} />}
@@ -128,10 +135,10 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
       <Tab.Screen
         name="Stock"
         options={{
-          title: t('tabs.stock'), // Translation applied here
+          title: 'Stocks', // Translation applied here
         }}
       >
-        {() => <TimerScreen selectedTheme={selectedTheme} />}
+        {() => <TopLevelStockComponent selectedTheme={selectedTheme} />}
       </Tab.Screen>
 
       <Tab.Screen
@@ -180,10 +187,10 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
       <Tab.Screen
         name="Values"
         options={{
-          title: t('tabs.values'), // Translation applied here
+          title: 'Rewards', // Translation applied here
         }}
       >
-        {() => <ValueScreen selectedTheme={selectedTheme} />}
+        {() => <RewardCenterScreen selectedTheme={selectedTheme} />}
       </Tab.Screen>
     </Tab.Navigator>
   );

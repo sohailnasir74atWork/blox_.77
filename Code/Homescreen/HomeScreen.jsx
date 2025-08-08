@@ -22,7 +22,7 @@ import BannerAdComponent from '../Ads/bannerAds';
 
 
 const HomeScreen = ({ selectedTheme }) => {
-  const { theme, user, analytics, appdatabase } = useGlobalState();
+  const { theme, user, proGranted, proTagBought } = useGlobalState();
   const tradesCollection = useMemo(() => firestore().collection('trades_new'), []);
   const initialItems = [null, null, null, null];
   const [hasItems, setHasItems] = useState(initialItems);
@@ -158,7 +158,7 @@ const HomeScreen = ({ selectedTheme }) => {
     const tradeRatio = wantsTotal.value / hasTotal.value;
 
     if (
-      tradeRatio < 0.05 &&
+      tradeRatio < 0.005 &&
       hasItems.filter(Boolean).length > 0 &&
       wantsItems.filter(Boolean).length > 0 && type !== 'share'
     ) {
@@ -170,7 +170,7 @@ const HomeScreen = ({ selectedTheme }) => {
     }
 
 
-    if (tradeRatio > 1.95 && type !== 'share' &&
+    if (tradeRatio > 2.95 && type !== 'share' &&
       hasItems.filter(Boolean).length > 0 &&
       wantsItems.filter(Boolean).length > 0) {
       showErrorMessage(
@@ -202,14 +202,23 @@ const HomeScreen = ({ selectedTheme }) => {
       
       const userRating = avgRatingData?.value || null;
       const ratingCount = avgRatingData?.count || 0; // 👈 total users who rated
+      const styleObj = 
+      (user?.purchases && 
+        Object.values(user.purchases).find(p => p?.id === 9 && p.style)?.style) ?? {}; 
+    
+    const iconArr = 
+      (user?.purchases && 
+        Object.values(user.purchases).find(p => p?.id === 10 && Array.isArray(p.icons))?.icons) ?? [];
+    
       
-
+      // console.log(iconArr, styleObj)
       // ✅ Build new trade object
       let newTrade = {
         userId: user?.id || "Anonymous",
         traderName: user?.displayName || "Anonymous",
         avatar: user?.avatar || null,
         isPro: localState.isPro,
+        isProGranted:proGranted ,
         isFeatured: false,
         hasItems: hasItems.filter(item => item && item.Name).map(item => ({ name: item.Name, type: item.Type, value: item.Value })),
         wantsItems: wantsItems.filter(item => item && item.Name).map(item => ({ name: item.Name, type: item.Type, value: item.Value })),
@@ -218,9 +227,12 @@ const HomeScreen = ({ selectedTheme }) => {
         description: description || "",
         timestamp: firestore.FieldValue.serverTimestamp(),
         rating: userRating,
-        ratingCount: ratingCount
-        
+        ratingCount: ratingCount,
+        style: styleObj || {},
+        icons: iconArr || [],
+        proTagBought:proTagBought || false
       };
+      // console.log(newTrade, 'new')
       if (type === 'share') {
         setModalVisible(false); // Close modal
         setSelectedTrade(newTrade);
@@ -260,7 +272,7 @@ const HomeScreen = ({ selectedTheme }) => {
         setLastTradeTime(now);
         mixpanel.track("Trade Created", { user: user?.id });
 
-        if (!localState.isPro) {
+        if(!localState.isPro && proGranted) {
           InterstitialAdManager.showAd(callbackfunction);
         } else {
           callbackfunction()
@@ -333,6 +345,7 @@ const HomeScreen = ({ selectedTheme }) => {
 
     return transformedData;
   };
+  // console.log('test')
 
 
 
@@ -387,7 +400,7 @@ const HomeScreen = ({ selectedTheme }) => {
       setIsDrawerVisible(true);
     };
 
-    if (section === 'wants' && wantsItemCount === 1 && !localState.isPro) {
+    if (section === 'wants' && wantsItemCount === 1 && (!localState.isPro && proGranted)) {
       InterstitialAdManager.showAd(callbackfunction);
     } else {
       callbackfunction(); // No ad needed
@@ -841,7 +854,7 @@ const HomeScreen = ({ selectedTheme }) => {
           />
         </View>
       </GestureHandlerRootView>
-      {!localState.isPro && <BannerAdComponent/>}
+      {(!localState.isPro || !proGranted) && <BannerAdComponent/>}
 
       {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (

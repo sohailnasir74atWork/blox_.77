@@ -18,7 +18,7 @@ import BannerAdComponent from '../Ads/bannerAds';
 
 
 const TimerScreen = ({ selectedTheme }) => {
-  const { user, updateLocalStateAndDatabase, theme,  reload } = useGlobalState();
+  const { user, updateLocalStateAndDatabase, theme,  reload , stockNotifierPurchase, proGranted} = useGlobalState();
   const [hasAdBeenShown, setHasAdBeenShown] = useState(false);
   const [fruitRecords, setFruitRecords] = useState([]);
   const [isDrawerVisible, setDrawerVisible] = useState(false);
@@ -76,7 +76,7 @@ const TimerScreen = ({ selectedTheme }) => {
       setHasAdBeenShown(true); // Mark the ad as shown
       setDrawerVisible(true);
     };
-    if (!hasAdBeenShown && !localState.isPro) {
+    if (!hasAdBeenShown && (!localState.isPro && proGranted)) {
       InterstitialAdManager.showAd(callbackfunction);
     }
     else {
@@ -107,10 +107,10 @@ const TimerScreen = ({ selectedTheme }) => {
     }
 
     // ✅ Restriction: Free users can select up to 3 fruits, Pro users have no limit
-    if (!localState.isPro && selectedFruits.length >= 4) {
+    if ((!localState.isPro && proGranted && !stockNotifierPurchase) && selectedFruits.length >= 2) {
       Alert.alert(
         "Selection Limit Reached",
-        "You can only select up to 4 fruits as a free user. Upgrade to Pro to select more.",
+        "You can only select up to 2 fruits as a free user. Upgrade to Pro or purchse notifier to select more.",
         [{ text: "OK", onPress: () => { } }]
       );
       return;
@@ -283,10 +283,10 @@ const TimerScreen = ({ selectedTheme }) => {
               <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
             }
           >
-            <View style={{ backgroundColor: config.colors.secondary, padding: 5, borderRadius: 10, marginVertical: 10 }}>
+            {/* <View style={{ backgroundColor: config.colors.secondary, padding: 5, borderRadius: 10, marginVertical: 10 }}>
               <Text style={[styles.description]}>
                 {t("stock.description")}
-              </Text></View>
+              </Text></View> */}
             <View style={styles.reminderContainer}>
               <View style={styles.row}>
                 <Text style={styles.title}>{t("stock.stock_updates")}</Text>
@@ -461,7 +461,7 @@ const TimerScreen = ({ selectedTheme }) => {
 
       </GestureHandlerRootView>
 
-      {!localState.isPro && <BannerAdComponent/>}
+      {(!localState.isPro && proGranted) && <BannerAdComponent/>}
 
       {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (
@@ -598,7 +598,8 @@ const getStyles = (isDarkMode, user) =>
       flexDirection: 'column',
       backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
       padding: 10,
-      borderRadius: 10
+      borderRadius: 10,
+      marginTop:10
     },
     preCont: {
       justifyContent: 'center',

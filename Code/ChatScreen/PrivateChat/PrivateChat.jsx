@@ -493,7 +493,7 @@ const handleRating = async () => {
             </ConditionalKeyboardWrapper>
         </View>
       </GestureHandlerRootView>
-      {!localState.isPro && <BannerAdComponent/>}
+      {/* {!localState.isPro && <BannerAdComponent/>} */}
       {showRatingModal && (
   <View
     style={{

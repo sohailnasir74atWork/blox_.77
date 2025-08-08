@@ -41,6 +41,12 @@ import { useTranslation } from 'react-i18next';
       }).start();
   }, [visible]);
 
+  const monthlyPrice = packages.filter(n => n.product.subscriptionPeriod === "P1M")
+  .map(n => ({
+    monthlyPrice: n.product.priceString,
+  }));
+
+// console.log();
 
     useEffect(() => {
       if (visible) {
@@ -92,16 +98,50 @@ import { useTranslation } from 'react-i18next';
     const tremofsvc = Platform.OS === 'android' ? 'https://play.google.com/about/play-terms/index.html' : 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'
 
     const benefits = [
-      { icon: 'shield-checkmark', label: t('offer.adsFree'), color: '#4CAF50' }, // Green
-      { icon: 'swap-horizontal', label: t('offer.unlimitedTrade'), color: '#FF9800' }, // Orange
-      // { icon: 'chatbubbles', label: t('offer.unlimitedChat'), color: '#2196F3' }, // Blue
-      { icon: 'notifications', label: t('offer.unlimitedAlerts'), color: '#9C27B0' }, // Purple
-      { icon: 'trending-up', label: t('offer.priorityListing'), color: '#E91E63' }, // Pink
-      { icon: 'checkmark-done-circle', label: t('offer.proTag'), color: config.colors.hasBlockGreen },
-      // { icon: 'star', label: t('offer.featureListing'), color: '#FFD700' },
-      // { icon: 'language', label: 'You can select multiple languages', color: config.colors.wantBlockRed },
-      { icon: 'trophy', label: 'Win prizes on every weekend', color: 'red' }    
+      { 
+        icon: 'swap-horizontal', 
+        label: 'Unlimited Trading', 
+        color: '#FF9800', 
+        description: 'Trade freely with no limits.'
+      }, // Orange
+      { 
+        icon: 'notifications', 
+        label: 'Instant Alerts', 
+        color: '#9C27B0', 
+        description: 'Get instant notifications for your trades and updates.'
+      }, // Purple
+      { 
+        icon: 'shield-checkmark', 
+        label: 'No Ads', 
+        color: '#4CAF50', 
+        description: 'Enjoy without interruptions from ads.'
+      }, // Green
+      { 
+        icon: 'trending-up', 
+        label: 'Priority Listing', 
+        color: '#E91E63', 
+        description: 'Your trades get top priority in listings.'
+      }, // Pink
+      { 
+        icon: 'checkmark-done-circle', 
+        label: 'Pro Tag', 
+        color: config.colors.hasBlockGreen, 
+        description: 'Show off your pro status with a special tag.'
+      }, // Green
+      { 
+        icon: 'gift', 
+        label: 'Free Store Items', 
+        color: '#FF5722', 
+        description: 'Get free items from the store every month.'
+      }, // Red
+      { 
+        icon: 'cart', 
+        label: 'Stock Alerts', 
+        color: '#FFB300', 
+        description: 'Get notified when your favorite fruit is back in stock.'
+      } // Yellow
     ];
+    
     const calculateDiscount = (monthlyPrice, quarterlyPrice, annualPrice) => {
       if (!monthlyPrice || !quarterlyPrice || !annualPrice) return {};
     
@@ -135,13 +175,13 @@ import { useTranslation } from 'react-i18next';
             <Text style={styles.title}>GO PRO 
               {/* <Ionicons name="checkmark-done-circle" size={26} color={config.colors.hasBlockGreen}  style={styles.icon}/> */}
             </Text>
-            <Text style={styles.subtitle}>{t('offer.subtitle')}</Text>
+            <Text style={styles.subtitle}>{`${t('offer.subtitle')} ${monthlyPrice[0] && monthlyPrice[0].monthlyPrice.slice(0,-3)}!`}</Text>
 
             <View style={styles.benefitsContainer}>
               {benefits.map((benefit, index) => (
                 <View key={index} style={styles.benefitItem}>
                   <Ionicons name={benefit.icon} size={20} color={benefit.color} />
-                  <Text style={styles.benefit}>{benefit.label}</Text>
+                  <Text style={styles.benefit}>{benefit.description}</Text>
                 </View>
               ))}
             </View>
@@ -175,9 +215,11 @@ import { useTranslation } from 'react-i18next';
               {isSelected && <Ionicons name="checkmark-circle" size={20} color={config.colors.hasBlockGreen}  style={styles.icon}/>}
             {!isSelected && <Ionicons name="ellipse-outline" size={20} color={config.colors.hasBlockGreen} style={styles.icon}/>}
           </Text>
-                    <Text style={styles.planPrice}>{product.priceString}/{pkg.packageType === 'ANNUAL' ? 'Year' :
+                    <Text style={styles.planPrice}>{product.priceString.slice(0,-3)}
+                      {/* /{pkg.packageType === 'ANNUAL' ? 'Year' :
             pkg.packageType === 'THREE_MONTH' ? '3 Months' : 
-            'Month'}</Text>
+            'Month'} */}
+            </Text>
                     <Text style={styles.cancelAnytime}>{t('offer.cancelAnytime')}</Text>
                   </TouchableOpacity>
                 );
@@ -251,7 +293,7 @@ import { useTranslation } from 'react-i18next';
         textAlign: 'center',
         color: 'gray',
         marginVertical: 10,
-        fontFamily: 'Lato-Regular', // Corrected
+        fontFamily: 'Lato-Bold', // Corrected
         color: isDarkMode ? '#fff' : '#000',
       },
       benefitsContainer: {
@@ -286,7 +328,7 @@ import { useTranslation } from 'react-i18next';
         marginHorizontal: 5,
         justifyContent: 'flex-end',
         width: '30%',
-        minHeight: 100,
+        minHeight: 110,
         paddingBottom:10
       },
       selectedPlan: {
@@ -294,15 +336,15 @@ import { useTranslation } from 'react-i18next';
         borderWidth: 2,
       },
       planTitle: {
-        fontSize: 10,
+        fontSize: 12,
         fontFamily: 'Lato-Bold', // Corrected
         color: isDarkMode ? 'white' : '#333',
       },
       planPrice: {
-        fontSize: 10,
+        fontSize: 18,
         color: config.colors.hasBlockGreen,
         marginVertical: 5,
-        fontFamily: 'Lato-Regular', // Corrected
+        fontFamily: 'Lato-Bold', // Corrected
       },
       discountBox: {
         backgroundColor: config.colors.hasBlockGreen,
@@ -361,9 +403,9 @@ import { useTranslation } from 'react-i18next';
         color: isDarkMode ? 'lightgrey' : '#333',
         alignSelf:'center'
       },
-      icon: {
-        margin: 10
-      },
+      // icon: {
+      //   position:'absolute'
+      // },
       containerfooter: {
         alignItems: 'center',
         marginTop: 10,

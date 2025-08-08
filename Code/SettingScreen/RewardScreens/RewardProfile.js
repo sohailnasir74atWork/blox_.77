@@ -1,90 +1,137 @@
 import React, { useEffect } from 'react';
-import { View, Text, TouchableOpacity, Image } from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet, useColorScheme } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { get, ref } from '@react-native-firebase/database';
 import config from '../../Helper/Environment';
+import StyledDisplayName from '../Store/NameDisplayReUser';
+import { useLocalState } from '../../LocalGlobelStats';
+import { useGlobalState } from '../../GlobelStats';
 
-const UserProfileSection = ({ 
-    user, 
-    currentUser, 
-    setOpenSignin, 
-    handleClaimReward, 
-    latestWinner, 
-    styles,
-    hasClaimed, 
-    setHasClaimed,
-    appdatabase // 🔥 Pass Firebase database instance
+const UserProfileSection = ({
+  user,
+  currentUser,
+  setOpenSignin,
+  setHasClaimed,
+  appdatabase, // Firebase database instance
 }) => {
+  const {theme} = useGlobalState()  
+  const isDarkMode = theme === 'dark'
+  const styles = getStyles(isDarkMode);
+  const {localState} = useLocalState()
 
-    useEffect(() => {
-        const checkClaimStatus = async () => {
-            if (!currentUser?.id) return;
+  useEffect(() => {
+    const checkClaimStatus = async () => {
+      if (!currentUser?.id) return;
 
-            try {
-                const claimRef = ref(appdatabase, `/reward/${currentUser.id}`);
-                const snapshot = await get(claimRef);
-                setHasClaimed(snapshot.exists()); // 🔥 Update state if reward has been claimed
-            } catch (error) {
-                console.error("Error checking claim status:", error);
-            }
-        };
+      try {
+        const claimRef = ref(appdatabase, `/reward/${currentUser.id}`);
+        const snapshot = await get(claimRef);
+        setHasClaimed(snapshot.exists());
+      } catch (error) {
+        console.error('Error checking claim status:', error);
+      }
+    };
 
-        checkClaimStatus();
-    }, [currentUser?.id, appdatabase]); // ✅ Runs when user logs in or database updates
+    checkClaimStatus();
+  }, [currentUser?.id, appdatabase]);
 
-    return (
-        <View style={styles.userSection}>
-            <Image
-                source={{ uri: currentUser?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/placeholder.png' }}
-                style={styles.profilePic}
-            />
-            
-            <TouchableOpacity 
-                style={{ flex: 1 }} 
-                disabled={currentUser?.id !== null} 
-                onPress={() => setOpenSignin(true)}
-            >
-                <Text style={currentUser?.id ? styles.userName : styles.userNameLogout}>
-                    {currentUser?.id ? currentUser?.displayName || 'Anonymous' : 'Login / Register'}
-                    {currentUser?.id && user.isPro && (
-                        <Icon name="checkmark-done-circle" size={16} color={config.colors.hasBlockGreen} />
-                    )}
-                </Text>
-                <Text style={styles.userStatus}>
-                    {!currentUser?.id
-                        ? 'Login to participate'
-                        : user.isPro
-                            ? 'Pro Member'
-                            : 'Enroll & Win Prize'}
-                </Text>
-            </TouchableOpacity>
+  // console.log(currentUser, 'cu')
 
-            {/* If user is not logged in, show nothing */}
-            {!currentUser || !currentUser.id ? (
-                <></>
-            ) : latestWinner?.id === currentUser?.id ? (
-                // If user is the latest winner, show "Claim Reward" or "Claimed" based on status
-                <TouchableOpacity 
-    style={[styles.claimButton]} 
-    onPress={async () => {
-        const success = await handleClaimReward();
-        if (success) setHasClaimed(true); // ✅ Immediately update UI
-    }} 
-    disabled={hasClaimed} // 🔥 Disable button if claimed
->
-    <Text style={styles.claimText}>{hasClaimed ? "In Process" : "Claim Reward"}</Text>
-</TouchableOpacity>
+  return (
+    <View style={styles.userSection}>
+      <Image
+        source={{
+          uri:
+            currentUser?.avatar ||
+            'https://bloxfruitscalc.com/wp-content/uploads/2025/placeholder.png',
+        }}
+        style={styles.profilePic}
+      />
 
-            ) : (
-                // If user is Pro, show "Auto Enrolled"
-                user.isPro && (
-                    <View style={[styles.participateButton, { backgroundColor: config.colors.hasBlockGreen, opacity:.5 }]}>
-                        <Text style={styles.participateText}>Auto Enrolled</Text>
-                    </View>
-                )
-            )}
-        </View>
-    );
+      <TouchableOpacity
+        style={{ flex: 1 }}
+        disabled={currentUser?.id !== null}
+        onPress={() => setOpenSignin(true)}
+      >
+        {currentUser.id  &&
+        <StyledDisplayName
+        user={currentUser}
+        localState={localState}
+        displayName={currentUser?.displayName || currentUser?.displayname || 'Guest'}
+        fontSize={16}
+        lineHeight={16}
+        marginVertical={1}
+      />}
+    
+
+{!currentUser?.id  && <Text style={styles.userNameLogout}>
+          {'Login / Register'}{' '}
+         
+        </Text>}
+        <Text style={styles.userStatus}>
+          {!currentUser?.id
+            ? 'Login to participate'
+            : user?.isPro
+            ? 'Pro Member'
+            : 'Free Member'}
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.claimButton} disabled={true}>
+        <Text style={styles.claimText}>{user?.coins || 0}</Text>
+        <Image source={require('../../../assets/money-bag.png')} style={{ width: 15, height: 15, marginLeft:5 }} />
+      </TouchableOpacity>
+    </View>
+  );
 };
+
+const getStyles = (isDarkMode) =>
+  StyleSheet.create({
+    userSection: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: isDarkMode ? '#2c3e50' : '#f2f2f7',
+      padding: 10,
+      borderRadius: 10,
+      marginBottom: 10,
+    },
+    profilePic: {
+      width: 50,
+      height: 50,
+      borderRadius: 25,
+      marginRight: 10,
+      borderWidth: 1,
+      borderColor: '#ccc',
+    },
+    userName: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: isDarkMode ? '#fff' : '#000',
+    },
+    userNameLogout: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: '#007BFF',
+    },
+    userStatus: {
+      fontSize: 13,
+      color: isDarkMode ? '#ccc' : '#555',
+    },
+    claimButton: {
+      backgroundColor: '#6A5ACD',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 8,
+      marginLeft: 10,
+      flexDirection:'row',
+      // justifyContent:'center',
+      alignItems:'center'
+    },
+    claimText: {
+      color: '#fff',
+      fontWeight: 'bold',
+      fontSize: 13,
+    },
+  });
 
 export default UserProfileSection;

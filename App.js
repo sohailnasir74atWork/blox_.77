@@ -32,6 +32,8 @@ import InterstitialAdManager from './Code/Ads/IntAd';
 import AppOpenAdManager from './Code/Ads/openApp';
 import RNBootSplash from "react-native-bootsplash";
 import SystemNavigationBar from 'react-native-system-navigation-bar';
+import CoinStore from './Code/SettingScreen/Store/Store';
+import AppUpdateChecker from './Code/AppHelper/InAppUpdateChecker';
 
 
 
@@ -47,7 +49,7 @@ const setNavigationBarAppearance = (theme) => {
 // const adUnitId = getAdUnitId('openapp');
 
 function App() {
-  const { theme } = useGlobalState();
+  const { theme} = useGlobalState();
   const { t } = useTranslation();
 
   const selectedTheme = useMemo(() => {
@@ -82,41 +84,41 @@ function App() {
   }, [theme]);
 
 
-  useEffect(() => {
-    let isMounted = true;
-    let unsubscribe;
+  // useEffect(() => {
+  //   let isMounted = true;
+  //   let unsubscribe;
 
-    const initializeAds = async () => {
-      try {
-        await AppOpenAdManager.init();
-      } catch (error) {
-        console.error('❌ Error initializing ads:', error);
-      }
-    };
+  //   const initializeAds = async () => {
+  //     try {
+  //       await AppOpenAdManager.init();
+  //     } catch (error) {
+  //       console.error('❌ Error initializing ads:', error);
+  //     }
+  //   };
 
-    const handleAppStateChange = async (state) => {
-      if (!isMounted) return;
+  //   const handleAppStateChange = async (state) => {
+  //     if (!isMounted) return;
 
-      try {
-        if (state === 'active' && !localState?.isPro) {
-          await AppOpenAdManager.showAd();
-        }
-      } catch (error) {
-        console.error('❌ Error showing ad:', error);
-      }
-    };
+  //     try {
+  //       if (state === 'active' && !localState?.isPro) {
+  //         await AppOpenAdManager.showAd();
+  //       }
+  //     } catch (error) {
+  //       console.error('❌ Error showing ad:', error);
+  //     }
+  //   };
 
-    initializeAds();
-    unsubscribe = AppState.addEventListener('change', handleAppStateChange);
+  //   initializeAds();
+  //   unsubscribe = AppState.addEventListener('change', handleAppStateChange);
 
-    return () => {
-      isMounted = false;
-      if (unsubscribe) {
-        unsubscribe.remove();
-      }
-      AppOpenAdManager.cleanup();
-    };
-  }, [localState?.isPro]);
+  //   return () => {
+  //     isMounted = false;
+  //     if (unsubscribe) {
+  //       unsubscribe.remove();
+  //     }
+  //     AppOpenAdManager.cleanup();
+  //   };
+  // }, [localState?.isPro]);
 
 
 
@@ -190,7 +192,7 @@ function App() {
             </Stack.Screen>
 
             
-            <Stack.Screen
+            {/* <Stack.Screen
               name="Reward"
               options={{
                 title: "Reward Center",
@@ -204,7 +206,23 @@ function App() {
               }}
             >
               {() => <RewardCenterScreen selectedTheme={selectedTheme} />}
-            </Stack.Screen>
+            </Stack.Screen> */}
+
+            {/* <Stack.Screen
+              name="Store"
+              options={{
+                title: "Coin Store",
+                headerStyle: { backgroundColor: selectedTheme.colors.background },
+                headerTintColor: selectedTheme.colors.text,
+                headerRight: () => (
+                  <TouchableOpacity onPress={() => setModalVisible(true)} style={{ marginRight: 16 }}>
+                    <Icon name="information-circle-outline" size={24} color={selectedTheme.colors.text} />
+                  </TouchableOpacity>
+                ),
+              }}
+            >
+              {() => <CoinStore selectedTheme={selectedTheme} />}
+            </Stack.Screen> */}
 
             {/* Move this outside of <Stack.Navigator> */}
 
@@ -220,6 +238,7 @@ function App() {
               {() => <SettingsScreen selectedTheme={selectedTheme} />}
             </Stack.Screen>
           </Stack.Navigator>
+          <AppUpdateChecker />
         </NavigationContainer>
         {modalVisible && (
           <RewardRulesModal visible={modalVisible} onClose={() => setModalVisible(false)} selectedTheme={selectedTheme} />
@@ -231,7 +250,43 @@ function App() {
 
 export default function AppWrapper() {
   const { localState, updateLocalState } = useLocalState();
-  const { theme } = useGlobalState();
+  const { theme, proGranted } = useGlobalState();
+  const hasShownColdStartAd = useRef(false);
+  const appState = useRef(AppState.currentState);
+
+  // useEffect(() => {
+  //   if (localState.showOnBoardingScreen) return;
+
+  //   // ✅ Android: Show cold start ad only once
+  //   if (Platform.OS === 'android' && !hasShownColdStartAd.current) {
+  //     AppOpenAdManager.initAndShow();
+  //     hasShownColdStartAd.current = true;
+  //   }
+
+  //   // ✅ iOS: Listen for background → active transition
+  //   if (Platform.OS === 'ios') {
+  //     const subscription = AppState.addEventListener('change', nextAppState => {
+  //       const wasBackground = appState.current === 'background';
+  //       const nowActive = nextAppState === 'active';
+
+  //       appState.current = nextAppState;
+
+  //       if (wasBackground && nowActive && !localState.isPro) {
+  //         AppOpenAdManager.initAndShow();
+  //       }
+  //     });
+
+  //     return () => subscription?.remove();
+  //   }
+
+  // }, [localState.isPro]);
+
+  // ✅ Hide splash after UI ready
+
+  useEffect(() => {
+    if (!localState.showOnBoardingScreen) 
+   { (!localState.isPro && !proGranted) && AppOpenAdManager.initAndShow();}
+  }, [localState.isPro, proGranted]);
   useEffect(() => {
     if (localState.isAppReady) {
       InteractionManager.runAfterInteractions(() => {
@@ -241,19 +296,16 @@ export default function AppWrapper() {
   }, [localState.isAppReady]);
 
   const selectedTheme = useMemo(() => {
-    if (!theme) {
-      console.warn("⚠️ Theme not found! Falling back to Light Theme.");
-    }
     return theme === 'dark' ? MyDarkTheme : MyLightTheme;
   }, [theme]);
 
   const handleSplashFinish = () => {
-    updateLocalState('showOnBoardingScreen', false); // ✅ Set onboarding as finished
+    updateLocalState('showOnBoardingScreen', false);
   };
 
   if (localState.showOnBoardingScreen) {
     return <OnboardingScreen onFinish={handleSplashFinish} selectedTheme={selectedTheme} />;
   }
 
-  return <App />
+  return <App />;
 }

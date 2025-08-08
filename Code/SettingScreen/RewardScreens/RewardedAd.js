@@ -11,15 +11,17 @@ import { getStyles } from '../settingstyle';
 import getAdUnitId from '../../Ads/ads';
 import { useTranslation } from 'react-i18next';
 import { useGlobalState } from '../../GlobelStats';
+import { showMessage } from 'react-native-flash-message';
 
 const adUnitId = getAdUnitId('rewarded');
 
 const RewardedAdComponent = ({
   user,
   appdatabase,
-  updateLocalStateAndDatabase,
   isAdsDrawerVisible,
   setIsAdsDrawerVisible,
+  handleAdComplete,
+  pendingCoinReward
 }) => {
   const { t } = useTranslation();
   const { theme } = useGlobalState();
@@ -28,7 +30,6 @@ const RewardedAdComponent = ({
 
   const [loaded, setLoaded] = useState(false);
   const [lastRewardTime, setLastRewardTime] = useState(user?.lastRewardtime || 0);
-
   const rewardedAdRef = useRef(null);
 
   const loadRewardedAd = () => {
@@ -43,22 +44,31 @@ const RewardedAdComponent = ({
     });
 
     newAd.addAdEventListener(RewardedAdEventType.EARNED_REWARD, async () => {
-      await updateUserPoints(user?.id, 100);
+      const reward = pendingCoinReward?.coins || 5;
+      // await updateUserPoints(user?.id, reward);
+
       const now = Date.now();
-      updateLocalStateAndDatabase('lastRewardtime', now);
-      setLastRewardTime(now);
-      Alert.alert(t('settings.reward_granted'), t('settings.reward_granted_message'));
+
+      if (handleAdComplete) handleAdComplete();
+      showMessage({
+        message: `You earned ${reward} coins!`,  // Corrected the message syntax
+        type: "success",  // Use lowercase for the type
+        icon: "success",  // Use lowercase for the icon
+        // backgroundColor: config.colors.hasBlockGreen,  // Customize color if needed
+        // color: 'white',  // Customize text color if needed
+    });
+    
+      // Alert.alert(t('settings.reward_granted'), `You earned ${reward} coins!`);
     });
 
     newAd.addAdEventListener(AdEventType.CLOSED, () => {
       setLoaded(false);
-      loadRewardedAd(); // preload next ad immediately
+      loadRewardedAd();
     });
 
     newAd.addAdEventListener(AdEventType.ERROR, () => {
       setLoaded(false);
-      // retry after short delay
-      setTimeout(() => loadRewardedAd(), 5000);
+      setTimeout(() => loadRewardedAd(), 1000);
     });
 
     newAd.load();
@@ -67,57 +77,74 @@ const RewardedAdComponent = ({
   useEffect(() => {
     loadRewardedAd();
     return () => {
-      if (rewardedAdRef.current)   rewardedAdRef.current = null; // optional, just clear the ref
-
+      if (rewardedAdRef.current) rewardedAdRef.current = null;
     };
   }, [user?.id]);
 
-  const getUserPoints = async (userId) => {
-    if (!userId) return 0;
-    try {
-      const snapshot = await get(ref(appdatabase, `/users/${userId}/rewardPoints`));
-      return snapshot.exists() ? snapshot.val() : 0;
-    } catch {
-      return 0;
-    }
-  };
+  // const getUserPoints = async (userId) => {
+  //   if (!userId) return 0;
+  //   try {
+  //     const snapshot = await get(ref(appdatabase, `/users/${userId}/rewardPoints`));
+  //     return snapshot.exists() ? snapshot.val() : 0;
+  //   } catch {
+  //     return 0;
+  //   }
+  // };
 
-  const updateUserPoints = async (userId, pointsToAdd) => {
-    if (!userId) return;
-    try {
-      const latestPoints = await getUserPoints(userId);
-      const newPoints = latestPoints + pointsToAdd;
-      await update(ref(appdatabase, `/users/${userId}`), { rewardPoints: newPoints });
-      updateLocalStateAndDatabase('rewardPoints', newPoints);
-    } catch {}
-  };
-
+  // const updateUserPoints = async (userId, pointsToAdd) => {
+  //   if (!userId) return;
+  //   try {
+  //     const latestPoints = await getUserPoints(userId);
+  //     const newPoints = latestPoints + pointsToAdd;
+  //     await update(ref(appdatabase, `/users/${userId}`), { rewardPoints: newPoints });
+  //     updateLocalStateAndDatabase('rewardPoints', newPoints);
+  //   } catch (error) {
+  //     console.error('Error updating points:', error);
+  //   }
+  // };
   const showAd = async () => {
-    setIsAdsDrawerVisible(false);
     const now = Date.now();
     const remainingMs = 30 * 1000 - (now - lastRewardTime);
-
+  
     if (remainingMs > 0) {
       const seconds = Math.ceil(remainingMs / 1000);
       const mins = Math.floor(seconds / 60);
       const secs = seconds % 60;
+  
       showWarningMessage(
         t('settings.not_eligible_for_reward'),
         `Ad will be available in ${mins > 0 ? `${mins}m ${secs}s` : `${secs}s`}`
       );
       return;
     }
-
+  
+    const reward = pendingCoinReward?.coins || 5;
+  
+    const grantCoinsDirectly = async () => {
+      const userRef = ref(appdatabase, `/users/${user?.id}/coins`);
+      const currentSnapshot = await get(userRef);
+      const currentCoins = currentSnapshot.exists() ? currentSnapshot.val() : 0;
+      await update(ref(appdatabase, `/users/${user?.id}`), {
+        coins: currentCoins + reward,
+        lastRewardtime: Date.now(),
+      });
+      if (handleAdComplete) handleAdComplete();
+      Alert.alert(t('settings.reward_granted'), `You earned ${reward} coins!`);
+    };
+  
     if (rewardedAdRef.current?.loaded) {
       try {
-        rewardedAdRef.current.show();
+        setTimeout(() => {
+          rewardedAdRef.current.show();
+        }, 150); // allow state to stabilize
       } catch {
-        showErrorMessage(t('settings.ad_not_ready'), '');
+        await grantCoinsDirectly();
       }
     } else {
-      showErrorMessage(t('settings.ad_not_ready'), '');
+      await grantCoinsDirectly();
     }
   };
+  
 
   return (
     <Modal animationType="slide" transparent={true} visible={isAdsDrawerVisible}>

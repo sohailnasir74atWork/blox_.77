@@ -87,5 +87,7 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>NSPhotoLibraryUsageDescription</key>
+<string>This app needs access to your photo library to save and share images you create.</string>
 </dict>
 </plist>

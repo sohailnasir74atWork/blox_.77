@@ -45,7 +45,7 @@ const PrivateMessageList = ({
   onReportSubmit,
   loading
 }) => {
-  const { theme, isAdmin, api, freeTranslation } = useGlobalState();
+  const { theme, isAdmin, api, freeTranslation, proGranted } = useGlobalState();
   const isDarkMode = theme === 'dark';
   const styles = getStyles(isDarkMode);
   const { t } = useTranslation();
@@ -126,7 +126,7 @@ const PrivateMessageList = ({
   };
 
   const handleTranslate = async (item) => {
-    const isUnlimited = freeTranslation || localState.isPro;
+    const isUnlimited = freeTranslation || (!localState.isPro && proGranted);
   
     if (!isUnlimited && !canTranslate()) {
       Alert.alert('Limit Reached', 'You can only translate 20 messages per day.');

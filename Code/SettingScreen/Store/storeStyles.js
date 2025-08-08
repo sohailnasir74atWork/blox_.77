@@ -1,0 +1,131 @@
+import { StyleSheet } from 'react-native';
+import config from '../../Helper/Environment';
+
+export const getStyles = (isDark) => StyleSheet.create({
+    container: {
+        flex: 1,
+        marginVertical: 8,
+        backgroundColor: isDark ? '#121212' : '#f0f4ff',
+    },
+    itemBox: {
+        width: '49%',
+        backgroundColor: isDark ? '#34495E' : '#CCCCFF',
+        borderRadius: 8,
+        padding: 8,
+        marginBottom: 8,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+        position: 'relative',
+    },
+    popularBadge: {
+        position: 'absolute',
+        top: 3,
+        right: 3,
+        backgroundColor: '#e91e63',
+        paddingHorizontal: 4,
+        paddingVertical: 1,
+        borderRadius: 3,
+    },
+    sold: {
+        position: 'absolute',
+        top: 3,
+        left: 3,
+        paddingHorizontal: 4,
+        paddingVertical: 1,
+        borderRadius: 3,
+    },
+    popularText: {
+        fontSize: 9,
+        color: '#fff',
+        fontFamily: 'Lato-Bold',
+    },
+    soldText: {
+        fontSize: 9,
+        color: isDark ? 'lightgrey' : config.colors.primary,
+        fontFamily: 'Lato-Bold',
+    },
+    itemTitle: {
+        fontSize: 14,
+        fontFamily: 'Lato-Bold',
+        color: isDark ? '#f0f0f0' : '#1a1a1a',
+        textAlign: 'center',
+        lineHeight:16
+    },
+    itemNote: {
+        fontSize: 12,
+        color: isDark ? '#bbbbbb' : '#555',
+        textAlign: 'center',
+    },
+    statusAvailable: {
+        backgroundColor: config.colors.hasBlockGreen,
+        borderRadius: 10,
+        paddingHorizontal: 6,
+        paddingVertical: 3,
+        color: 'white',
+        fontSize: 10,
+        marginTop: 3,
+        fontFamily: 'Lato-Regular',
+        lineHeight: 10,
+    },
+    statusUnAvailable: {
+        backgroundColor: 'grey',
+        borderRadius: 10,
+        paddingHorizontal: 6,
+        paddingVertical: 3,
+        color: 'white',
+        fontSize: 10,
+        marginTop: 3,
+        fontFamily: 'Lato-Regular',
+        lineHeight: 10,
+    },
+    modalContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        padding: 20,
+    },
+    modalContent: {
+        backgroundColor: isDark ? '#34495E' : '#CCCCFF',
+        borderRadius: 12,
+        padding: 24,
+        alignItems: 'center',
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontFamily: 'Lato-Bold',
+        marginBottom: 10,
+        lineHeight:24
+    },
+    modalCost: {
+        fontSize: 16,
+        marginBottom: 4,
+        color: '#444',
+        fontFamily: 'Lato-Regular',
+    },
+    modalNote: {
+        marginBottom: 12,
+        fontSize: 13,
+        color: '#666',
+        textAlign: 'center',
+        fontFamily: 'Lato-Regular',
+    },
+    confirmButton: {
+        backgroundColor: '#6A5ACD',
+        paddingVertical: 10,
+        paddingHorizontal: 24,
+        borderRadius: 10,
+    },
+    buyText: {
+        color: '#fff',
+        fontFamily: 'Lato-Bold',
+        fontSize: 16,
+    },
+    cancelText: {
+        marginTop: 12,
+        color: '#999',
+        fontFamily: 'Lato-Regular',
+    },
+}); 

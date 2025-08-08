@@ -68,19 +68,20 @@ export const getStyles = (isDarkMode) =>
 
     },
     myMessageText: {
-      fontSize: 12,
+      fontSize: 13,
       color: isDarkMode ? 'white' : 'black',
       backgroundColor: isDarkMode ? config.colors.primary : 'lightgreen',
       paddingVertical: 5,
       paddingHorizontal: 10,
       borderRadius: 10,
       fontFamily: 'Lato-Regular',
-      lineHeight:14,
+      // lineHeight:14,
+      // flexDirection:'row'
 
 
     },
     otherMessageText: {
-      fontSize: 12,
+      fontSize: 13,
       color: isDarkMode ? 'white' : 'black',
       backgroundColor: isDarkMode ? '#34495E' : 'white',
       paddingHorizontal: 10,
@@ -89,7 +90,35 @@ export const getStyles = (isDarkMode) =>
       paddingBottom: 5,
       fontFamily: 'Lato-Regular',
       paddingRight:20,
-      lineHeight:14,
+      // lineHeight:14,
+      
+      // backgroundColor:'red'
+
+
+    },
+    myMessageTextOnly: {
+      fontSize: 13,
+      color: isDarkMode ? 'white' : 'black',
+      // backgroundColor: isDarkMode ? config.colors.primary : 'lightgreen',
+      // paddingVertical: 5,
+      // paddingHorizontal: 10,
+      // borderRadius: 10,
+      // fontFamily: 'Lato-Regular',
+      // lineHeight:14,
+
+
+    },
+    otherMessageTextOnly: {
+      fontSize: 13,
+      color: isDarkMode ? 'white' : 'black',
+      // backgroundColor: isDarkMode ? '#34495E' : 'white',
+      // paddingHorizontal: 10,
+      // // lineHeight: 20,
+      // borderRadius: 10,
+      // paddingBottom: 5,
+      // fontFamily: 'Lato-Regular',
+      // paddingRight:20,
+      // lineHeight:14,
       // backgroundColor:'red'
 
 
@@ -151,6 +180,7 @@ export const getStyles = (isDarkMode) =>
       paddingHorizontal: 5,
       paddingVertical: 1,
       borderRadius: 3,
+      width:40
       // marginHorizontal:5
     },
     admin: {
@@ -160,6 +190,7 @@ export const getStyles = (isDarkMode) =>
       fontFamily: 'Lato-Bold',
       // color: config.colors.primary,
       fontSize: 9,
+      lineHeight:12
       // lineHeight:10,
 
       
@@ -271,8 +302,8 @@ export const getStyles = (isDarkMode) =>
     },
 
     userName: {
-      color: '#bbb',
-      fontSize: 8,
+      color: '#aaa',
+      fontSize: 10,
 
     },
     adminActions: {

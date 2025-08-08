@@ -22,7 +22,7 @@ import { mixpanel } from '../AppHelper/MixPenel';
 
 
 const ServerScreen = () => {
-    const { user, appdatabase, theme } = useGlobalState();
+    const { user, appdatabase, theme, proGranted } = useGlobalState();
     const [userServers, setUserServers] = useState([]);
     const [adminServer, setAdminServer] = useState([]);
     const [link, setLink] = useState('');
@@ -138,7 +138,7 @@ const ServerScreen = () => {
         })
             .then(() => {
                 // 👇 Show ad with callback
-                if (!localState.isPro && InterstitialAdManager) {
+                if ((!localState.isPro && proGrantedd) && InterstitialAdManager) {
                     InterstitialAdManager.showAd(callbackfunction);
                 } else {
                     callbackfunction();
@@ -180,7 +180,7 @@ const ServerScreen = () => {
           });
         };
       
-        if (!localState.isPro) {
+        if (!localState.isPro && proGranted) {
           InterstitialAdManager.showAd(openLink);
         } else {
           openLink();
@@ -302,7 +302,7 @@ const ServerScreen = () => {
                         {/* <Icon name="plus" size={24} color="#fff" /> */}
                     </TouchableOpacity></>
             )}
-            {!localState.isPro && <BannerAdComponent />}
+            {(!localState.isPro && proGranted) && <BannerAdComponent />}
 
 
             <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
