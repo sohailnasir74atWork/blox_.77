@@ -34,9 +34,14 @@ import InterstitialAdManager from './Code/Ads/IntAd';
 import AppOpenAdManager from './Code/Ads/openApp';
 import RNBootSplash from "react-native-bootsplash";
 import SystemNavigationBar from 'react-native-system-navigation-bar';
+<<<<<<< HEAD
 import AdminUnbanScreen from './Code/AppHelper/AdminDashboard.js';
 import { checkForUpdate } from './Code/AppHelper/InAppUpdateChecker.js';
 import config from './Code/Helper/Environment.js';
+=======
+import CoinStore from './Code/SettingScreen/Store/Store';
+import AppUpdateChecker from './Code/AppHelper/InAppUpdateChecker';
+>>>>>>> f99f5c4 (hh)
 
 
 
@@ -52,7 +57,7 @@ const setNavigationBarAppearance = (theme) => {
 };
 
 function App() {
-  const { theme } = useGlobalState();
+  const { theme} = useGlobalState();
   const { t } = useTranslation();
 
   const selectedTheme = useMemo(() => {
@@ -86,7 +91,46 @@ function App() {
   }, [theme]);
 
 
+<<<<<<< HEAD
   
+=======
+  // useEffect(() => {
+  //   let isMounted = true;
+  //   let unsubscribe;
+
+  //   const initializeAds = async () => {
+  //     try {
+  //       await AppOpenAdManager.init();
+  //     } catch (error) {
+  //       console.error('❌ Error initializing ads:', error);
+  //     }
+  //   };
+
+  //   const handleAppStateChange = async (state) => {
+  //     if (!isMounted) return;
+
+  //     try {
+  //       if (state === 'active' && !localState?.isPro) {
+  //         await AppOpenAdManager.showAd();
+  //       }
+  //     } catch (error) {
+  //       console.error('❌ Error showing ad:', error);
+  //     }
+  //   };
+
+  //   initializeAds();
+  //   unsubscribe = AppState.addEventListener('change', handleAppStateChange);
+
+  //   return () => {
+  //     isMounted = false;
+  //     if (unsubscribe) {
+  //       unsubscribe.remove();
+  //     }
+  //     AppOpenAdManager.cleanup();
+  //   };
+  // }, [localState?.isPro]);
+
+>>>>>>> f99f5c4 (hh)
 
 
   if (loading) {
@@ -175,8 +219,13 @@ function App() {
             </Stack.Screen>
 
             
+<<<<<<< HEAD
             <Stack.Screen
               name="Admin"
+=======
+            {/* <Stack.Screen
+              name="Reward"
+>>>>>>> f99f5c4 (hh)
               options={{
                 title: "Admin Dashboard",
                 headerStyle: { backgroundColor: selectedTheme.colors.background },
@@ -188,8 +237,29 @@ function App() {
                 ),
               }}
             >
+<<<<<<< HEAD
               {() => <AdminUnbanScreen selectedTheme={selectedTheme} />}
             </Stack.Screen>
+=======
+              {() => <RewardCenterScreen selectedTheme={selectedTheme} />}
+            </Stack.Screen> */}
+
+            {/* <Stack.Screen
+              name="Store"
+              options={{
+                title: "Coin Store",
+                headerStyle: { backgroundColor: selectedTheme.colors.background },
+                headerTintColor: selectedTheme.colors.text,
+                headerRight: () => (
+                  <TouchableOpacity onPress={() => setModalVisible(true)} style={{ marginRight: 16 }}>
+                    <Icon name="information-circle-outline" size={24} color={selectedTheme.colors.text} />
+                  </TouchableOpacity>
+                ),
+              }}
+            >
+              {() => <CoinStore selectedTheme={selectedTheme} />}
+            </Stack.Screen> */}
+>>>>>>> f99f5c4 (hh)
 
             {/* Move this outside of <Stack.Navigator> */}
 
@@ -205,6 +275,7 @@ function App() {
               {() => <SettingsScreen selectedTheme={selectedTheme} />}
             </Stack.Screen>
           </Stack.Navigator>
+          <AppUpdateChecker />
         </NavigationContainer>
        
       </Animated.View>
@@ -213,6 +284,7 @@ function App() {
 }
 export default function AppWrapper() {
   const { localState, updateLocalState } = useLocalState();
+<<<<<<< HEAD
   const { theme } = useGlobalState();
   const [adReady, setAdReady] = useState(false);
   const hasShownColdStartAd = useRef(false);
@@ -225,6 +297,45 @@ export default function AppWrapper() {
   }, [localState.isPro]);
 
   // STEP 3: Hide splash
+=======
+  const { theme, proGranted } = useGlobalState();
+  const hasShownColdStartAd = useRef(false);
+  const appState = useRef(AppState.currentState);
+
+  // useEffect(() => {
+  //   if (localState.showOnBoardingScreen) return;
+
+  //   // ✅ Android: Show cold start ad only once
+  //   if (Platform.OS === 'android' && !hasShownColdStartAd.current) {
+  //     AppOpenAdManager.initAndShow();
+  //     hasShownColdStartAd.current = true;
+  //   }
+
+  //   // ✅ iOS: Listen for background → active transition
+  //   if (Platform.OS === 'ios') {
+  //     const subscription = AppState.addEventListener('change', nextAppState => {
+  //       const wasBackground = appState.current === 'background';
+  //       const nowActive = nextAppState === 'active';
+
+  //       appState.current = nextAppState;
+
+  //       if (wasBackground && nowActive && !localState.isPro) {
+  //         AppOpenAdManager.initAndShow();
+  //       }
+  //     });
+
+  //     return () => subscription?.remove();
+  //   }
+
+  // }, [localState.isPro]);
+
+  // ✅ Hide splash after UI ready
+
+  useEffect(() => {
+    if (!localState.showOnBoardingScreen) 
+   { (!localState.isPro && !proGranted) && AppOpenAdManager.initAndShow();}
+  }, [localState.isPro, proGranted]);
+>>>>>>> f99f5c4 (hh)
   useEffect(() => {
     if (localState.isAppReady) {
       InteractionManager.runAfterInteractions(() => {
@@ -246,6 +357,11 @@ export default function AppWrapper() {
     return <OnboardingScreen onFinish={handleSplashFinish} selectedTheme={selectedTheme} />;
   }
 
+<<<<<<< HEAD
 
   return <App />;
 }
+=======
+  return <App />;
+}
+>>>>>>> f99f5c4 (hh)

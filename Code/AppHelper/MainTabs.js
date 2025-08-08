@@ -1,5 +1,10 @@
+<<<<<<< HEAD
 import React, {  useCallback } from 'react';
 import {  Image, StyleSheet, TouchableOpacity, View } from 'react-native';
+=======
+import React, { useCallback } from 'react';
+import { Image, TouchableOpacity, View } from 'react-native';
+>>>>>>> f99f5c4 (hh)
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Ionicons';
 import HomeScreen from '../Homescreen/HomeScreen';
@@ -10,9 +15,15 @@ import { TradeStack } from '../Trades/TradeNavigator';
 import { useTranslation } from 'react-i18next';
 import config from '../Helper/Environment';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
+<<<<<<< HEAD
 import { DesignStack } from '../Design/DesignNavigation';
 import { useGlobalState } from '../GlobelStats';
 import LinearGradient from 'react-native-linear-gradient';
+=======
+import BouncingCartIcon from './CartIcon';
+import TopLevelStockComponent from '../StockScreen/StockNavigator';
+import RewardCenterScreen from '../SettingScreen/RewardCenter';
+>>>>>>> f99f5c4 (hh)
 
 
 
@@ -69,46 +80,114 @@ function CalculatorStackScreen({ selectedTheme, isAdmin, navigation }) {
 }
 
 
-const AnimatedTabIcon = React.memo(({iconName, color, size }) => {
+const AnimatedTabIcon = React.memo(({ iconName, color, size }) => {
 
 
 
   return (
-      <FontAwesome
-        name={iconName}
-        size={size}
-        color={color}
-        solid={true}
-      />
+    <FontAwesome
+      name={iconName}
+      size={size}
+      color={color}
+      solid={true}
+    />
   );
 });
 
 
 const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modalVisibleChatinfo, setModalVisibleChatinfo }) => {
   const { t } = useTranslation();
+<<<<<<< HEAD
   const { isAdmin } = useGlobalState();
+=======
+  
+  const getTabIcon = useCallback((routeName, focused) => {
+>>>>>>> f99f5c4 (hh)
 
   const getTabIcon = useCallback((routeName, focused) => {
     const icons = {
+<<<<<<< HEAD
       Calculator: config.isNoman ? ['house', 'house'] :['paper-plane', 'paper-plane'], // Solid icons look same for focused/unfocused
       Stock:  config.isNoman ? ['cart-shopping', 'cart-shopping'] : ['bag-shopping', 'bag-shopping'],
       Trade: config.isNoman ? ['handshake', 'handshake'] : ['business-time', 'business-time'],
       Chat: config.isNoman ? ['envelope', 'envelope'] : ['user-group', 'user-group'],
       Values: config.isNoman ? ['chart-simple', 'chart-simple'] : ['chart-simple', 'chart-simple'],
       Settings: config.isNoman ? ['gear', 'gear'] : ['gear', 'gear'],
+=======
+      Calculator: ['house', 'house'], // Solid icons look same for focused/unfocused
+      Stock: ['cart-shopping', 'cart-shopping'],
+      Trade: ['handshake', 'handshake'],
+      Chat: ['envelope', 'envelope'],
+      Values: ['sack-dollar', 'sack-dollar'],
+>>>>>>> f99f5c4 (hh)
     };
     return icons[routeName] ? (focused ? icons[routeName][0] : icons[routeName][1]) : 'alert-circle-outline';
   }, []);
   
 
+<<<<<<< HEAD
   // Sequence of tabs based on isNoman
   const renderTabs = config.isNoman ? (
     <>
+=======
+
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => (
+          <AnimatedTabIcon
+            focused={focused}
+            iconName={getTabIcon(route.name)}
+            color={config.colors.primary}
+            size={18}
+          />
+        ),
+        tabBarButton: (props) => {
+          const { children, onPress } = props;
+          const isSelected = props['aria-selected'];
+
+          return (
+            <TouchableOpacity
+              onPress={onPress}
+              activeOpacity={0.9}
+              style={{
+                flex: 1,
+                backgroundColor: isSelected ? config.colors.primary + '42' : 'transparent',
+                borderRadius: 12,
+                marginHorizontal: 4,
+                marginVertical: 2,
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}
+            >
+              {children}
+            </TouchableOpacity>
+          );
+        },
+        tabBarStyle: {
+          height: 50,
+          backgroundColor: selectedTheme.colors.background,
+        },
+        tabBarLabelStyle: {
+          fontSize: 9, // 👈 Your custom label font size
+          fontFamily: 'Lato-Bold', // Optional: Custom font family
+        },
+        tabBarActiveTintColor: config.colors.primary,
+        tabBarInactiveTintColor: selectedTheme.colors.text,
+        headerStyle: {
+          backgroundColor: selectedTheme.colors.background,
+        },
+        headerTintColor: selectedTheme.colors.text,
+        headerTitleStyle: { fontFamily: 'Lato-Bold', fontSize: 24 },
+      })}
+    >
+>>>>>>> f99f5c4 (hh)
       <Tab.Screen
         name="Calculator"
         options={({ navigation }) => ({
           title: t('tabs.calculator'),
           headerRight: () => (
+<<<<<<< HEAD
             <>
               {isAdmin && (
                 <TouchableOpacity onPress={() => navigation.navigate('Admin')}>
@@ -123,12 +202,48 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
               </TouchableOpacity>
             </>
           ),
+=======
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {/* <TouchableOpacity style={{ marginRight: 12 }} onPress={() => navigation.navigate('Store')}>
+                <BouncingCartIcon />
+              </TouchableOpacity> */}
+          
+              {/* <TouchableOpacity onPress={() => navigation.navigate('Reward')}>
+                <Image
+                  source={require('../../assets/trophy.webp')}
+                  style={{ width: 20, height: 20, marginRight: 16 }}
+                />
+              </TouchableOpacity> */}
+          
+              <TouchableOpacity onPress={() => navigation.navigate('Setting')} style={{ marginRight: 16 }}>
+                <Icon
+                  name="settings"
+                  size={24}
+                  color={selectedTheme.colors.text}
+                />
+              </TouchableOpacity>
+            </View>
+          )
+          ,
+>>>>>>> f99f5c4 (hh)
         })}
       >
         {() => <HomeScreen selectedTheme={selectedTheme} />}
       </Tab.Screen>
 
       <Tab.Screen
+<<<<<<< HEAD
+=======
+        name="Stock"
+        options={{
+          title: 'Stocks', // Translation applied here
+        }}
+      >
+        {() => <TopLevelStockComponent selectedTheme={selectedTheme} />}
+      </Tab.Screen>
+
+      <Tab.Screen
+>>>>>>> f99f5c4 (hh)
         name="Trade"
         options={{
           headerShown: false,
@@ -183,10 +298,17 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
       <Tab.Screen
         name="Stock"
         options={{
+<<<<<<< HEAD
           title: t('tabs.stock'),
         }}
       >
         {() => <TimerScreen selectedTheme={selectedTheme} />}
+=======
+          title: 'Rewards', // Translation applied here
+        }}
+      >
+        {() => <RewardCenterScreen selectedTheme={selectedTheme} />}
+>>>>>>> f99f5c4 (hh)
       </Tab.Screen>
     </>
   ) : (

@@ -28,7 +28,11 @@ const ValueScreen = ({ selectedTheme }) => {
   const [searchText, setSearchText] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [filterDropdownVisible, setFilterDropdownVisible] = useState(false);
+<<<<<<< HEAD
   const {  reload, theme } = useGlobalState();
+=======
+  const { analytics, isAdmin, reload, theme, proGranted } = useGlobalState();
+>>>>>>> f99f5c4 (hh)
   const {localState, toggleAd} = useLocalState()
   const isDarkMode = theme === 'dark'
   const [filteredData, setFilteredData] = useState([]);
@@ -90,7 +94,7 @@ const ValueScreen = ({ selectedTheme }) => {
       setIsDrawerVisible(!isDrawerVisible);
     };
 
-    if (!hasAdBeenShown && !localState.isPro) {
+    if (!hasAdBeenShown && (!localState.isPro && !proGranted)) {
       InterstitialAdManager.showAd(callbackfunction);
     }
     else {
@@ -456,7 +460,11 @@ const ValueScreen = ({ selectedTheme }) => {
         </View>
         <CodesDrawer isVisible={isDrawerVisible} toggleModal={toggleDrawer} codes={codesData} />
       </GestureHandlerRootView>
+<<<<<<< HEAD
       {/* {!localState.isPro && <BannerAdComponent/>} */}
+=======
+      {/* {(!localState.isPro && !proGranted) && <BannerAdComponent/>} */}
+>>>>>>> f99f5c4 (hh)
 
       {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (
@@ -476,7 +484,11 @@ const ValueScreen = ({ selectedTheme }) => {
 };
 export const getStyles = (isDarkMode) =>
   StyleSheet.create({
+<<<<<<< HEAD
     container: {  marginHorizontal: 2, flex: 1,  },
+=======
+    container: { paddingHorizontal: 8, marginHorizontal: 2, flex: 1, paddingTop:10 },
+>>>>>>> f99f5c4 (hh)
     searchFilterContainer: { flexDirection: 'row', marginVertical: 5, alignItems: 'center' },
     searchInput: {   height: 40,
       borderColor: isDarkMode ? config.colors.hasBlockGreen : 'white',

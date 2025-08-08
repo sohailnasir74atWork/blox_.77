@@ -23,7 +23,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const [includeAppTag, setIncludeAppTag] = useState(true);
     const [showLeftGrid, setShowLeftGrid] = useState(true);
     const [showRightGrid, setShowRightGrid] = useState(true);
-    const {theme} = useGlobalState()
+    const {theme, proGranted} = useGlobalState()
     const isDarkMode = theme === 'dark'
     const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
     const {localState} = useLocalState()
@@ -46,7 +46,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
       };
 
     const sharewithAds = ()=>{
-       if(!localState.isPro)
+       if(!localState.isPro && proGranted)
         {InterstitialAdManager.showAd(callbackfunction);}
         else {callbackfunction()}
     }

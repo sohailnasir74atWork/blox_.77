@@ -22,7 +22,7 @@ import BannerAdComponent from '../Ads/bannerAds';
 
 
 const HomeScreen = ({ selectedTheme }) => {
-  const { theme, user, analytics, appdatabase } = useGlobalState();
+  const { theme, user, proGranted, proTagBought } = useGlobalState();
   const tradesCollection = useMemo(() => firestore().collection('trades_new'), []);
   const baseGridSize = !config.isNoman ? 6 : 8;
   const extraRowSize = !config.isNoman ? 3 : 4;
@@ -106,6 +106,7 @@ const HomeScreen = ({ selectedTheme }) => {
     }
     // const tradeRatio = wantsTotal.value / hasTotal.value;
 
+<<<<<<< HEAD
     // if (
     //   tradeRatio < 0.05 &&
     //   hasItems.filter(Boolean).length > 0 &&
@@ -128,6 +129,30 @@ const HomeScreen = ({ selectedTheme }) => {
     //   );
     //   return;
     // }
+=======
+    if (
+      tradeRatio < 0.005 &&
+      hasItems.filter(Boolean).length > 0 &&
+      wantsItems.filter(Boolean).length > 0 && type !== 'share'
+    ) {
+      showErrorMessage(
+        t("home.unfair_trade"),
+        t('home.unfair_trade_description')
+      );
+      return;
+    }
+
+
+    if (tradeRatio > 2.95 && type !== 'share' &&
+      hasItems.filter(Boolean).length > 0 &&
+      wantsItems.filter(Boolean).length > 0) {
+      showErrorMessage(
+        t('home.invalid_trade'),
+        t('home.invalid_trade_description')
+      );
+      return;
+    }
+>>>>>>> f99f5c4 (hh)
 
     setModalVisible(true)
   };
@@ -151,14 +176,28 @@ const HomeScreen = ({ selectedTheme }) => {
 
       const userRating = avgRatingData?.value || null;
       const ratingCount = avgRatingData?.count || 0; // 👈 total users who rated
+<<<<<<< HEAD
 
 
+=======
+      const styleObj = 
+      (user?.purchases && 
+        Object.values(user.purchases).find(p => p?.id === 9 && p.style)?.style) ?? {}; 
+    
+    const iconArr = 
+      (user?.purchases && 
+        Object.values(user.purchases).find(p => p?.id === 10 && Array.isArray(p.icons))?.icons) ?? [];
+    
+      
+      // console.log(iconArr, styleObj)
+>>>>>>> f99f5c4 (hh)
       // ✅ Build new trade object
       let newTrade = {
         userId: user?.id || "Anonymous",
         traderName: user?.displayName || "Anonymous",
         avatar: user?.avatar || null,
         isPro: localState.isPro,
+        isProGranted:proGranted ,
         isFeatured: false,
         hasItems: hasItems,
         wantsItems: wantsItems,
@@ -167,10 +206,19 @@ const HomeScreen = ({ selectedTheme }) => {
         description: description || "",
         timestamp: firestore.FieldValue.serverTimestamp(),
         rating: userRating,
+<<<<<<< HEAD
         ratingCount: ratingCount
 
       };
       // console.log(newTrade)
+=======
+        ratingCount: ratingCount,
+        style: styleObj || {},
+        icons: iconArr || [],
+        proTagBought:proTagBought || false
+      };
+      // console.log(newTrade, 'new')
+>>>>>>> f99f5c4 (hh)
       if (type === 'share') {
         setModalVisible(false); // Close modal
         setSelectedTrade(newTrade);
@@ -209,7 +257,7 @@ const HomeScreen = ({ selectedTheme }) => {
         setLastTradeTime(now);
         mixpanel.track("Trade Created", { user: user?.id });
 
-        if (!localState.isPro) {
+        if(!localState.isPro && proGranted) {
           InterstitialAdManager.showAd(callbackfunction);
           // setModalVisible(false); // Close modal
         } else {
@@ -264,6 +312,7 @@ const HomeScreen = ({ selectedTheme }) => {
 
     return transformedData;
   };
+<<<<<<< HEAD
   function formatLargeNumber(num) {
     if (num == null || isNaN(num)) return num;
   
@@ -295,6 +344,9 @@ const HomeScreen = ({ selectedTheme }) => {
   }
   
   
+=======
+  // console.log('test')
+>>>>>>> f99f5c4 (hh)
 
 
   const formatNameNew = (name) => {
@@ -363,7 +415,7 @@ const HomeScreen = ({ selectedTheme }) => {
       setIsDrawerVisible(true);
     };
 
-    if (section === 'wants' && wantsItemCount === 1 && !localState.isPro) {
+    if (section === 'wants' && wantsItemCount === 1 && (!localState.isPro && proGranted)) {
       InterstitialAdManager.showAd(callbackfunction);
     } else {
       callbackfunction(); // No ad needed
@@ -1103,7 +1155,11 @@ useEffect(() => {
           />
         </View>
       </GestureHandlerRootView>
+<<<<<<< HEAD
       {!localState.isPro && <BannerAdComponent />}
+=======
+      {(!localState.isPro || !proGranted) && <BannerAdComponent/>}
+>>>>>>> f99f5c4 (hh)
 
       {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (

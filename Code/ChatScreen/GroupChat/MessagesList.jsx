@@ -25,7 +25,11 @@ import axios from 'axios';
 import { useLocalState } from '../../LocalGlobelStats';
 import { getDeviceLanguage } from '../../../i18n';
 import { mixpanel } from '../../AppHelper/MixPenel';
+<<<<<<< HEAD
 import { banUserwithEmail, unbanUserWithEmail } from '../utils';
+=======
+import StyledUsernamePreview from '../../SettingScreen/Store/StyledName';
+>>>>>>> f99f5c4 (hh)
 const FRUIT_KEYWORDS = [
   'rocket', 'spin', 'chop', 'spring', 'bomb', 'spike', 'blade',
   'smoke', 'flame', 'ice', 'sand', 'dark', 'diamond', 'falcon',
@@ -34,6 +38,22 @@ const FRUIT_KEYWORDS = [
   'phoenix', 'gravity', 'shadow', 'venom', 'control', 'spirit', 'dough',
   'gas', 'dragon', 'leopard', 'kitsune', 'mammoth', 't-rex', 'yeti', 'perm', 'west', 'east', 'gamepass', 'skin', 'chromatic', 'permanent', 'Fruit Storage', 'game pass', 'Eagle', 'Creation', 'gamepass'
 ];
+
+
+const iconMap = {
+  camping: require('../../../assets/Icons/camping.png'),
+  dinamite: require('../../../assets/Icons/dinamite.png'),
+  fire: require('../../../assets/Icons/fire.png'),
+  grenade: require('../../../assets/Icons/grenade.png'),
+  'handheld-game': require('../../../assets/Icons/handheld-game.png'),
+  'paw-print': require('../../../assets/Icons/paw-print.png'),
+  play: require('../../../assets/Icons/play.png'),
+  'shooting-star': require('../../../assets/Icons/shooting-star.png'),
+  smile: require('../../../assets/Icons/smile.png'),
+  symbol: require('../../../assets/Icons/symbol.png'),
+  'treasure-map': require('../../../assets/Icons/treasure-map.png'),
+};
+
 
 const MessagesList = ({
   messages,
@@ -66,17 +86,17 @@ const MessagesList = ({
   // const [isAtBottom, setIsAtBottom] = useState(true);
   const { t } = useTranslation();
   // const { language, changeLanguage } = useLanguage();
-  const { isAdmin, api, freeTranslation } = useGlobalState()
+  const { isAdmin, api, freeTranslation , proGranted} = useGlobalState()
   const { canTranslate, incrementTranslationCount, getRemainingTranslationTries, localState } = useLocalState();
   const deviceLanguage = useMemo(() => getDeviceLanguage(), []);
 
   const handleCopy = (message) => {
-    Clipboard.setString(message.text);
+    Clipboard.setString(message?.text);
     triggerHapticFeedback('impactLight');
     showSuccessMessage('Success', 'Message Copied');
   };
 
-
+// console.log(messages)
 
   const translateText = async (text, targetLang = deviceLanguage) => {
     const placeholders = {};
@@ -111,7 +131,7 @@ const MessagesList = ({
         translated = translated.replace(new RegExp(placeholder, 'g'), word);
       });
       mixpanel.track("Translation", { lang: targetLang });
-// console.log('translated', translated)
+      // console.log('translated', translated)
 
       return translated;
     } catch (err) {
@@ -121,14 +141,14 @@ const MessagesList = ({
   };
 
   const handleTranslate = async (item) => {
-    const isUnlimited = freeTranslation || localState.isPro;
+    const isUnlimited = freeTranslation || (!localState.isPro && !proGranted);
 
     if (!isUnlimited && !canTranslate()) {
       Alert.alert('Limit Reached', 'You can only translate 20 messages per day.');
       return;
     }
 
-    const translated = await translateText(item.text, deviceLanguage);
+    const translated = await translateText(item?.text, deviceLanguage);
 
     if (translated) {
       if (!isUnlimited) incrementTranslationCount();
@@ -201,7 +221,7 @@ const MessagesList = ({
         <View
           style={[
             item.senderId === user?.id ? styles.mymessageBubble : styles.othermessageBubble,
-            item.senderId === user?.id ? styles.myMessage : styles.otherMessage, item.isReportedByUser && styles.reportedMessage,
+            (item.senderId === user?.id || item.isAdmin) ? styles.myMessage : styles.otherMessage, item.isReportedByUser && styles.reportedMessage,
           ]}
         >
           <View
@@ -224,16 +244,14 @@ const MessagesList = ({
           </View>
 
           <View style={styles.messageTextBox}>
-            {/* Render reply context if present */}
             {item.replyTo && (
               <View style={styles.replyContainer}>
                 <Text style={styles.replyText}>
-                  Replying to: {'\n'}{item.replyTo.text || '[Deleted message]'}
+                  Replying to: {'\n'}{item?.replyTo?.text || '[Deleted message]'}
                 </Text>
               </View>
             )}
 
-            {/* Render main message */}
 
             <Menu>
               <MenuTrigger
@@ -245,6 +263,7 @@ const MessagesList = ({
                   item.senderId === user?.id ? styles.myMessage : styles.otherMessage,
                   item.isReportedByUser && styles.reportedMessage,
                 ]}>
+<<<<<<< HEAD
                   <Text style={[item.senderId === user?.id ? styles.myMessageText : styles.otherMessageText, isAdmin && item.strikeCount === 1
                     ? { backgroundColor: 'pink' }
                     : item.strikeCount >= 2
@@ -257,18 +276,60 @@ const MessagesList = ({
                       style={{ width: 14, height: 14 }} 
                     />}{'    '}
                     </Text>
+=======
+                  <View style={item.senderId === user?.id ? styles.myMessageText : styles.otherMessageText}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                      {item?.style ? (
+                        <StyledUsernamePreview
+                          text={item.sender}
+                          variant={item.style.variant}
+                          options={item.style}
+                          fontSize={14}
+                          lineHeight={18}
+                          marginVertical={0}
+                        />
+                      ) : (
+                        <Text style={styles.userName}>{item.sender}</Text>
+                      )}
+                      {item?.isPro && (
+                        <Image
+                          source={require('../../../assets/pro.png')}
+                          style={{ width: 16, height: 16, marginLeft: 2 }}
+                        />
+                      )}
+                      {item?.proGranted && (
+                        <Image
+                          source={require('../../../assets/progranted.png')}
+                          style={{ width: 16, height: 16, marginLeft: 2 }}
+                        />
+                      )}
+                      {Array.isArray(item.icons) && item.icons.slice(0, 4).map(iconKey => (
+                        <Image
+                          key={iconKey}
+                          source={iconMap[iconKey]}
+                          style={{ width: 16, height: 16, marginLeft: 2, resizeMode: 'contain' }}
+                        />
+                      ))}
+
+
+                    </View>
+
+>>>>>>> f99f5c4 (hh)
 
                     {(!!item.isAdmin) &&
                       <View style={styles.adminContainer}>
                         <Text style={styles.admin}>{t("chat.admin")}</Text>
                       </View>}
-                    {'\n'}
-                    {parseMessageText(item?.text)}
+                    {/* {'\n'} */}
+
+                    {item.gif && <View><Image src={item.gif} style={{ height: 50, width: 50, resizeMode: 'contain' }} /></View>}
+                    {/* {'\n'} */}
+                    <Text style={item.senderId === user?.id ? styles.myMessageTextOnly : styles.otherMessageTextOnly}>{parseMessageText(item?.text)}</Text>
 
 
 
 
-                  </Text>
+                  </View>
                 </View>
               </MenuTrigger>
               <MenuOptions customStyles={{
@@ -301,7 +362,6 @@ const MessagesList = ({
           </View>
 
 
-          {/* Admin Actions or Timestamp */}
 
 
           <View style={{ flex: 1, justifyContent: 'flex-end' }}>

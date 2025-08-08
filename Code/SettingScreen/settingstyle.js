@@ -200,6 +200,7 @@ export const getStyles = (isDarkMode) =>
         fontFamily:'Lato-Regular',
         fontSize:10,
         color: isDarkMode ? '#fff' : '#000',
+        lineHeight:12
 
       },
       selectedText:{
@@ -245,16 +246,25 @@ export const getStyles = (isDarkMode) =>
       option_menu:{
         padding:10
       },
+<<<<<<< HEAD
       textlink: {
         fontSize: 12,
         color: 'black', // Regular text color
         paddingHorizontal:10
       },
+=======
+      // text: {
+      //   fontSize: 12,
+      //   color: 'black', // Regular text color
+      //   paddingHorizontal:10
+      // },
+>>>>>>> f99f5c4 (hh)
       emailText: {
         fontSize: 12,
         color: 'lightblue', // Blue color to make it look like a dlink
         textDecorationLine: 'underline', // Underline to signify it as a link
         lineHeight:10
       },
+      
     });
   

@@ -22,7 +22,11 @@ import SelectWeatherDrawer from './SelectWeatherdrwer';
 
 
 const TimerScreen = ({ selectedTheme }) => {
+<<<<<<< HEAD
   const { user, updateLocalStateAndDatabase, theme, reload } = useGlobalState();
+=======
+  const { user, updateLocalStateAndDatabase, theme,  reload , stockNotifierPurchase, proGranted} = useGlobalState();
+>>>>>>> f99f5c4 (hh)
   const [hasAdBeenShown, setHasAdBeenShown] = useState(false);
   const [fruitRecords, setFruitRecords] = useState([]);
   const [isDrawerVisible, setDrawerVisible] = useState(false);
@@ -204,8 +208,12 @@ console.log(stockItems)
       setHasAdBeenShown(true); // Mark the ad as shown
       setDrawerVisible(true);
     };
+<<<<<<< HEAD
   
     if (!hasAdBeenShown && !localState.isPro) {
+=======
+    if (!hasAdBeenShown && (!localState.isPro && proGranted)) {
+>>>>>>> f99f5c4 (hh)
       InterstitialAdManager.showAd(callbackfunction);
     } else {
       callbackfunction();
@@ -303,10 +311,10 @@ console.log(stockItems)
     }
 
     // ✅ Restriction: Free users can select up to 3 fruits, Pro users have no limit
-    if (!localState.isPro && selectedFruits.length >= 4) {
+    if ((!localState.isPro && proGranted && !stockNotifierPurchase) && selectedFruits.length >= 2) {
       Alert.alert(
         "Selection Limit Reached",
-        "You can only select up to 4 fruits as a free user. Upgrade to Pro to select more.",
+        "You can only select up to 2 fruits as a free user. Upgrade to Pro or purchse notifier to select more.",
         [{ text: "OK", onPress: () => { } }]
       );
       return;
@@ -659,11 +667,22 @@ console.log(stockItems)
     <>
       <GestureHandlerRootView>
         <View style={styles.container}>
+<<<<<<< HEAD
          
+=======
+          <ScrollView
+            contentContainerStyle={styles.scrollViewContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+            }
+          >
+>>>>>>> f99f5c4 (hh)
             {/* <View style={{ backgroundColor: config.colors.secondary, padding: 5, borderRadius: 10, marginVertical: 10 }}>
               <Text style={[styles.description]}>
                 {t("stock.description")}
               </Text></View> */}
+<<<<<<< HEAD
            <View style={styles.reminderContainer}>
   <GradientContainer isNoman={config.isNoman} style={styles.row}>
     <View style={config.isNoman ? styles.row2 : styles.row}>
@@ -692,6 +711,21 @@ console.log(stockItems)
             color="white"
           />
         </TouchableOpacity>
+=======
+            <View style={styles.reminderContainer}>
+              <View style={styles.row}>
+                <Text style={styles.title}>{t("stock.stock_updates")}</Text>
+                <View style={styles.rightSide}>
+                  <Switch value={user.isReminderEnabled} onValueChange={toggleSwitch} />
+                  <Icon
+                    name={user.isReminderEnabled ? "notifications" : "notifications-outline"}
+                    size={24}
+                    color={user.isReminderEnabled ? config.colors.hasBlockGreen : config.colors.primary}
+                    style={styles.iconNew}
+                  />
+                </View>
+              </View>
+>>>>>>> f99f5c4 (hh)
 
         <TouchableOpacity
           onPress={activeTab === 'Stock' ? openDrawer : openDrawerWeather}
@@ -851,7 +885,11 @@ console.log(stockItems)
 
       </GestureHandlerRootView>
 
+<<<<<<< HEAD
       {!localState.isPro && <BannerAdComponent />}
+=======
+      {(!localState.isPro && proGranted) && <BannerAdComponent/>}
+>>>>>>> f99f5c4 (hh)
 
       {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (
@@ -990,8 +1028,15 @@ const getStyles = (isDarkMode, user) =>
     },
     reminderContainer: {
       flexDirection: 'column',
+<<<<<<< HEAD
       // backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
       marginTop: 10,
+=======
+      backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+      padding: 10,
+      borderRadius: 10,
+      marginTop:10
+>>>>>>> f99f5c4 (hh)
     },
     preCont: {
       justifyContent: 'center',

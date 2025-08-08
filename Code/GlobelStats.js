@@ -26,7 +26,11 @@ export const GlobalStateProvider = ({ children }) => {
   const [theme, setTheme] = useState(resolvedTheme);
   const [api, setApi] = useState(null);
   const [freeTranslation, setFreeTranslation] = useState(null);
+<<<<<<< HEAD
   const [currentUserEmail, setCurrentuserEmail] = useState('')
+=======
+  const [proGranted, setProGranted] = useState(false)
+>>>>>>> f99f5c4 (hh)
 
 
   const [isAdmin, setIsAdmin] = useState(false);
@@ -42,13 +46,17 @@ export const GlobalStateProvider = ({ children }) => {
     fcmToken: null,
     lastActivity: null,
     online: false,
-    isPro: false
+    isPro: false,
+    coins:null
 
   });
 
   const [onlineMembersCount, setOnlineMembersCount] = useState(0);
 
   const [loading, setLoading] = useState(false);
+  const [proTagBought, setProTagBought] = useState(false);
+  const [stockNotifierPurchase, setStockNotifierPurchase] = useState(false);
+
   // const [robloxUsername, setRobloxUsername] = useState('');
   const robloxUsernameRef = useRef('');
 
@@ -93,26 +101,76 @@ export const GlobalStateProvider = ({ children }) => {
   //     console.error('Error updating user state or database:', error);
   //   }
   // };
+
+
+
+  useEffect(() => {
+    if (!user?.id || !user?.purchases || typeof user.purchases !== 'object') return;
+  
+    const now = Date.now();
+  
+    const proTagPurchase = Object.values(user.purchases || {}).find(p => p?.id === 0);
+    const isProTagValid = proTagPurchase && proTagPurchase.expiresAt > now;
+    setProTagBought(isProTagValid);
+  
+    const stockNotifierPurchase = Object.values(user.purchases || {}).find(p => p?.id === 4);
+    const isStockNotifierValid = stockNotifierPurchase && stockNotifierPurchase.expiresAt > now;
+    setStockNotifierPurchase(isStockNotifierValid);
+  
+    const isProActive = Object.values(user.purchases || {}).some(p => {
+      if (!p || !p.title) return false;
+      const { title, expiresAt } = p;
+      const isPro = title === 'Pro Membership (Weekly)' || title === 'Pro Membership (Monthly)';
+      return isPro && expiresAt && expiresAt > now;
+    });
+  
+    setProGranted(isProActive);
+  }, [user?.id, user?.purchases]);
+  
+
+  // console.log('bought', proTagBought)
+
   const updateLocalStateAndDatabase = async (keyOrUpdates, value) => {
     try {
       let updates = {};
   
       if (typeof keyOrUpdates === 'string') {
         updates = { [keyOrUpdates]: value };
-        await updateLocalState(keyOrUpdates, value); // ✅ update local storage (AsyncStorage)
       } else if (typeof keyOrUpdates === 'object') {
         updates = keyOrUpdates;
-        for (const [key, val] of Object.entries(updates)) {
-          await updateLocalState(key, val); // ✅ update local storage key by key
-        }
       } else {
         throw new Error('Invalid arguments for update.');
       }
   
-      // ✅ Update in-memory user state
-      setUser((prev) => ({ ...prev, ...updates }));
+      // Update AsyncStorage (localState) only for top-level keys
+      for (const [key, val] of Object.entries(updates)) {
+        if (!key.includes('/')) {
+          await updateLocalState(key, val);
+        }
+      }
   
-      // ✅ Update Firebase only if user is logged in
+      // Update in-memory user state for top-level keys only
+      setUser((prev) => {
+        const newUser = { ...prev };
+      
+        for (const [path, val] of Object.entries(updates)) {
+          if (!path.includes('/')) {
+            newUser[path] = val;
+          } else {
+            const keys = path.split('/');
+            let target = newUser;
+            for (let i = 0; i < keys.length - 1; i++) {
+              if (!target[keys[i]]) target[keys[i]] = {};
+              target = target[keys[i]];
+            }
+            target[keys[keys.length - 1]] = val;
+          }
+        }
+      
+        return newUser;
+      });      
+  
+      // Update Firebase for all keys (supports nested paths)
       if (user?.id) {
         const userRef = ref(appdatabase, `users/${user.id}`);
         await update(userRef, updates);
@@ -122,7 +180,8 @@ export const GlobalStateProvider = ({ children }) => {
     }
   };
   
-
+  
+// console.log(user)
   // console.log(robloxUsernameRef?.current, 'robloxUsername_outside')
 
 
@@ -140,7 +199,9 @@ export const GlobalStateProvider = ({ children }) => {
       fcmToken: null,
       lastActivity: null,
       online: false,
-      isPro: false
+      isPro: false,
+      coins:null
+
     });
   }, []); // No dependencies, so it never re-creates
 
@@ -446,9 +507,16 @@ export const GlobalStateProvider = ({ children }) => {
       freeTranslation,
       isAdmin,
       reload,
+<<<<<<< HEAD
       robloxUsernameRef, api, currentUserEmail
     }),
     [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api, freeTranslation, currentUserEmail]
+=======
+      robloxUsernameRef, api,   proTagBought, stockNotifierPurchase, proGranted
+
+    }),
+    [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api, freeTranslation, proTagBought]
+>>>>>>> f99f5c4 (hh)
   );
 
   return (

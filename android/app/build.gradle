@@ -84,6 +84,7 @@ android {
         applicationId "com.stocknotifier.gag"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
+<<<<<<< HEAD
         versionCode 8
         versionName "1.7"
    ndk {
@@ -98,6 +99,10 @@ android {
             // ensure no dependency sneaks x86/x86_64 libs back in
             excludes += ["**/x86/**", "**/x86_64/**"]
         }
+=======
+        versionCode 70
+        versionName "3.2.9"
+>>>>>>> f99f5c4 (hh)
     }
     signingConfigs {
         release {

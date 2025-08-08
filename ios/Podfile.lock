@@ -1450,8 +1450,13 @@ PODS:
   - PromisesObjC (2.4.0)
   - PromisesSwift (2.4.0):
     - PromisesObjC (= 2.4.0)
+<<<<<<< HEAD
   - PurchasesHybridCommon (14.2.0):
     - RevenueCat (= 5.32.0)
+=======
+  - PurchasesHybridCommon (14.0.2):
+    - RevenueCat (= 5.30.0)
+>>>>>>> f99f5c4 (hh)
   - RCT-Folly (2024.11.18.00):
     - boost
     - DoubleConversion
@@ -3091,6 +3096,7 @@ PODS:
     - React-jsiexecutor
     - React-RCTFBReactNativeSpec
     - ReactCommon/turbomodule/core
+<<<<<<< HEAD
     - SocketRocket
   - react-native-compressor (1.12.0):
     - boost
@@ -3101,6 +3107,13 @@ PODS:
     - hermes-engine
     - RCT-Folly
     - RCT-Folly/Fabric
+=======
+  - react-native-cameraroll (7.10.1):
+    - DoubleConversion
+    - glog
+    - hermes-engine
+    - RCT-Folly (= 2024.11.18.00)
+>>>>>>> f99f5c4 (hh)
     - RCTRequired
     - RCTTypeSafety
     - React-Core
@@ -3108,17 +3121,24 @@ PODS:
     - React-Fabric
     - React-featureflags
     - React-graphics
+<<<<<<< HEAD
     - React-hermes
     - React-ImageManager
     - React-jsi
     - React-NativeModulesApple
     - React-RCTFabric
     - React-renderercss
+=======
+    - React-ImageManager
+    - React-NativeModulesApple
+    - React-RCTFabric
+>>>>>>> f99f5c4 (hh)
     - React-rendererdebug
     - React-utils
     - ReactCodegen
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
+<<<<<<< HEAD
     - SocketRocket
     - Yoga
   - react-native-image-picker (8.2.1):
@@ -3149,11 +3169,16 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - SocketRocket
+=======
+>>>>>>> f99f5c4 (hh)
     - Yoga
   - react-native-in-app-review (4.3.5):
     - React-Core
   - react-native-mmkv (3.3.0):
+<<<<<<< HEAD
     - boost
+=======
+>>>>>>> f99f5c4 (hh)
     - DoubleConversion
     - fast_float
     - fmt
@@ -3181,8 +3206,12 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
+<<<<<<< HEAD
   - react-native-safe-area-context (5.6.0):
     - boost
+=======
+  - react-native-safe-area-context (5.5.1):
+>>>>>>> f99f5c4 (hh)
     - DoubleConversion
     - fast_float
     - fmt
@@ -3199,9 +3228,14 @@ PODS:
     - React-graphics
     - React-hermes
     - React-ImageManager
+<<<<<<< HEAD
     - React-jsi
     - react-native-safe-area-context/common (= 5.6.0)
     - react-native-safe-area-context/fabric (= 5.6.0)
+=======
+    - react-native-safe-area-context/common (= 5.5.1)
+    - react-native-safe-area-context/fabric (= 5.5.1)
+>>>>>>> f99f5c4 (hh)
     - React-NativeModulesApple
     - React-RCTFabric
     - React-renderercss
@@ -3212,8 +3246,12 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
+<<<<<<< HEAD
   - react-native-safe-area-context/common (5.6.0):
     - boost
+=======
+  - react-native-safe-area-context/common (5.5.1):
+>>>>>>> f99f5c4 (hh)
     - DoubleConversion
     - fast_float
     - fmt
@@ -3241,8 +3279,12 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
+<<<<<<< HEAD
   - react-native-safe-area-context/fabric (5.6.0):
     - boost
+=======
+  - react-native-safe-area-context/fabric (5.5.1):
+>>>>>>> f99f5c4 (hh)
     - DoubleConversion
     - fast_float
     - fmt
@@ -3777,11 +3819,18 @@ PODS:
     - React-utils (= 0.80.2)
     - SocketRocket
   - RecaptchaInterop (101.0.0)
+<<<<<<< HEAD
   - RevenueCat (5.32.0)
   - RNAppleAuthentication (2.4.1):
     - React-Core
   - RNBootSplash (6.3.10):
     - boost
+=======
+  - RevenueCat (5.30.0)
+  - RNAppleAuthentication (2.4.1):
+    - React-Core
+  - RNBootSplash (6.3.10):
+>>>>>>> f99f5c4 (hh)
     - DoubleConversion
     - fast_float
     - fmt
@@ -3810,7 +3859,10 @@ PODS:
     - SocketRocket
     - Yoga
   - RNCClipboard (1.16.3):
+<<<<<<< HEAD
     - boost
+=======
+>>>>>>> f99f5c4 (hh)
     - DoubleConversion
     - fast_float
     - fmt
@@ -3867,8 +3919,12 @@ PODS:
     - RNFBApp
   - RNFS (2.20.0):
     - React-Core
+<<<<<<< HEAD
   - RNGestureHandler (2.28.0):
     - boost
+=======
+  - RNGestureHandler (2.27.1):
+>>>>>>> f99f5c4 (hh)
     - DoubleConversion
     - fast_float
     - fmt
@@ -3929,7 +3985,10 @@ PODS:
     - SocketRocket
     - Yoga
   - RNGoogleSignin (13.3.1):
+<<<<<<< HEAD
     - boost
+=======
+>>>>>>> f99f5c4 (hh)
     - DoubleConversion
     - fast_float
     - fmt
@@ -3958,8 +4017,12 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
+<<<<<<< HEAD
   - RNLocalize (3.5.1):
     - boost
+=======
+  - RNLocalize (3.4.2):
+>>>>>>> f99f5c4 (hh)
     - DoubleConversion
     - fast_float
     - fmt
@@ -3992,8 +4055,34 @@ PODS:
     - RNNotifee/NotifeeCore (= 9.1.8)
   - RNNotifee/NotifeeCore (9.1.8):
     - React-Core
+<<<<<<< HEAD
   - RNPurchases (8.11.10):
     - PurchasesHybridCommon (= 14.2.0)
+=======
+  - RNPermissions (5.4.1):
+    - DoubleConversion
+    - glog
+    - hermes-engine
+    - RCT-Folly (= 2024.11.18.00)
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - Yoga
+  - RNPurchases (8.11.8):
+    - PurchasesHybridCommon (= 14.0.2)
+>>>>>>> f99f5c4 (hh)
     - React-Core
   - RNReactNativeHapticFeedback (2.3.3):
     - boost
@@ -4002,8 +4091,33 @@ PODS:
     - fmt
     - glog
     - hermes-engine
+<<<<<<< HEAD
     - RCT-Folly
     - RCT-Folly/Fabric
+=======
+    - RCT-Folly (= 2024.11.18.00)
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - Yoga
+  - RNReanimated (3.18.0):
+    - DoubleConversion
+    - glog
+    - hermes-engine
+    - RCT-Folly (= 2024.11.18.00)
+>>>>>>> f99f5c4 (hh)
     - RCTRequired
     - RCTTypeSafety
     - React-Core
@@ -4022,10 +4136,17 @@ PODS:
     - ReactCodegen
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
+<<<<<<< HEAD
     - SocketRocket
     - Yoga
   - RNReanimated (3.19.1):
     - boost
+=======
+    - RNReanimated/reanimated (= 3.18.0)
+    - RNReanimated/worklets (= 3.18.0)
+    - Yoga
+  - RNReanimated/reanimated (3.18.0):
+>>>>>>> f99f5c4 (hh)
     - DoubleConversion
     - fast_float
     - fmt
@@ -4051,12 +4172,18 @@ PODS:
     - ReactCodegen
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
+<<<<<<< HEAD
     - RNReanimated/reanimated (= 3.19.1)
     - RNReanimated/worklets (= 3.19.1)
     - SocketRocket
     - Yoga
   - RNReanimated/reanimated (3.19.1):
     - boost
+=======
+    - RNReanimated/reanimated/apple (= 3.18.0)
+    - Yoga
+  - RNReanimated/reanimated/apple (3.18.0):
+>>>>>>> f99f5c4 (hh)
     - DoubleConversion
     - fast_float
     - fmt
@@ -4085,8 +4212,12 @@ PODS:
     - RNReanimated/reanimated/apple (= 3.19.1)
     - SocketRocket
     - Yoga
+<<<<<<< HEAD
   - RNReanimated/reanimated/apple (3.19.1):
     - boost
+=======
+  - RNReanimated/worklets (3.18.0):
+>>>>>>> f99f5c4 (hh)
     - DoubleConversion
     - fast_float
     - fmt
@@ -4112,10 +4243,16 @@ PODS:
     - ReactCodegen
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
+<<<<<<< HEAD
     - SocketRocket
     - Yoga
   - RNReanimated/worklets (3.19.1):
     - boost
+=======
+    - RNReanimated/worklets/apple (= 3.18.0)
+    - Yoga
+  - RNReanimated/worklets/apple (3.18.0):
+>>>>>>> f99f5c4 (hh)
     - DoubleConversion
     - fast_float
     - fmt
@@ -4144,8 +4281,12 @@ PODS:
     - RNReanimated/worklets/apple (= 3.19.1)
     - SocketRocket
     - Yoga
+<<<<<<< HEAD
   - RNReanimated/worklets/apple (3.19.1):
     - boost
+=======
+  - RNScreens (4.11.1):
+>>>>>>> f99f5c4 (hh)
     - DoubleConversion
     - fast_float
     - fmt
@@ -4201,11 +4342,17 @@ PODS:
     - ReactCodegen
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
+<<<<<<< HEAD
     - RNScreens/common (= 4.14.1)
     - SocketRocket
     - Yoga
   - RNScreens/common (4.14.1):
     - boost
+=======
+    - RNScreens/common (= 4.11.1)
+    - Yoga
+  - RNScreens/common (4.11.1):
+>>>>>>> f99f5c4 (hh)
     - DoubleConversion
     - fast_float
     - fmt
@@ -4234,8 +4381,12 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
+<<<<<<< HEAD
   - RNShare (12.2.0):
     - boost
+=======
+  - RNShare (12.1.0):
+>>>>>>> f99f5c4 (hh)
     - DoubleConversion
     - fast_float
     - fmt
@@ -4338,8 +4489,12 @@ DEPENDENCIES:
   - React-logger (from `../node_modules/react-native/ReactCommon/logger`)
   - React-Mapbuffer (from `../node_modules/react-native/ReactCommon`)
   - React-microtasksnativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
+<<<<<<< HEAD
   - react-native-compressor (from `../node_modules/react-native-compressor`)
   - react-native-image-picker (from `../node_modules/react-native-image-picker`)
+=======
+  - "react-native-cameraroll (from `../node_modules/@react-native-camera-roll/camera-roll`)"
+>>>>>>> f99f5c4 (hh)
   - react-native-in-app-review (from `../node_modules/react-native-in-app-review`)
   - react-native-mmkv (from `../node_modules/react-native-mmkv`)
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
@@ -4392,6 +4547,7 @@ DEPENDENCIES:
   - "RNGoogleSignin (from `../node_modules/@react-native-google-signin/google-signin`)"
   - RNLocalize (from `../node_modules/react-native-localize`)
   - "RNNotifee (from `../node_modules/@notifee/react-native`)"
+  - RNPermissions (from `../node_modules/react-native-permissions`)
   - RNPurchases (from `../node_modules/react-native-purchases`)
   - RNReactNativeHapticFeedback (from `../node_modules/react-native-haptic-feedback`)
   - RNReanimated (from `../node_modules/react-native-reanimated`)
@@ -4525,10 +4681,15 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon"
   React-microtasksnativemodule:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/microtasks"
+<<<<<<< HEAD
   react-native-compressor:
     :path: "../node_modules/react-native-compressor"
   react-native-image-picker:
     :path: "../node_modules/react-native-image-picker"
+=======
+  react-native-cameraroll:
+    :path: "../node_modules/@react-native-camera-roll/camera-roll"
+>>>>>>> f99f5c4 (hh)
   react-native-in-app-review:
     :path: "../node_modules/react-native-in-app-review"
   react-native-mmkv:
@@ -4633,6 +4794,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-localize"
   RNNotifee:
     :path: "../node_modules/@notifee/react-native"
+  RNPermissions:
+    :path: "../node_modules/react-native-permissions"
   RNPurchases:
     :path: "../node_modules/react-native-purchases"
   RNReactNativeHapticFeedback:
@@ -4690,6 +4853,7 @@ SPEC CHECKSUMS:
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   PromisesSwift: 9d77319bbe72ebf6d872900551f7eeba9bce2851
+<<<<<<< HEAD
   PurchasesHybridCommon: f1650b33e9a1dd04d5e8a40dfe757f39e63f935c
   RCT-Folly: 59ec0ac1f2f39672a0c6e6cecdd39383b764646f
   RCTDeprecation: 300c5eb91114d4339b0bb39505d0f4824d7299b7
@@ -4767,6 +4931,77 @@ SPEC CHECKSUMS:
   RNAppleAuthentication: b2d8b5ccba86b5b1e55a1a2e858f7ac6d8a21816
   RNBootSplash: cb295b78e1105e6088a3bd680c3260c612833b9a
   RNCClipboard: f09308447254536ab20b243607766796efdf210c
+=======
+  PurchasesHybridCommon: e1dbc7e7105c0845444cf82cf9d7c85eb9dbf918
+  RCT-Folly: 36fe2295e44b10d831836cc0d1daec5f8abcf809
+  RCTDeprecation: 85b72250b63cfb54f29ca96ceb108cb9ef3c2079
+  RCTRequired: 567cb8f5d42b990331bfd93faad1d8999b1c1736
+  RCTTypeSafety: 5e57924492a5e0a762654f814dd018953274eca9
+  React: 53c9bd6f974c5dd019ee466e46477eb679149c38
+  React-callinvoker: d6484472c1c742917b51338525336d6a74ab8a9f
+  React-Core: 043aaf319142ecc02db6fffccb780186e6e7462a
+  React-CoreModules: abe0b2089368e420b7beaa5e140771181e2f6edb
+  React-cxxreact: 8b678dd36228089b6ee19d62f2bfb8935ea1c63b
+  React-debug: af25f71a2ea800559f591ef9e9e6495a206c4f7c
+  React-defaultsnativemodule: 7883e6ef963ee6a6346eb43b73967919029f1033
+  React-domnativemodule: eafabfac38103187bfd0bc8b4c64d1ebc35444c2
+  React-Fabric: 72038b554a0e4791432a7c161e6ea52bdc854d7c
+  React-FabricComponents: 47e25c62a3fdc4d6630dc44f41c5552a80202a2a
+  React-FabricImage: 95c3a49e22cc8c5c33cf282287c73cf261edd104
+  React-featureflags: 05545ed41078babfec20095fd7825f029709cde6
+  React-featureflagsnativemodule: 75f805793e3feb0dea7055e92540624965543de9
+  React-graphics: e33b1bff03c62a7293991bcc28ceb946740bae0f
+  React-hermes: c07c778ab9cb80a943116ef4574087e8570206cf
+  React-idlecallbacksnativemodule: f800ae00e3427cbf0ae1f7d880ccbbe8ffea5e16
+  React-ImageManager: ca548168b2efedd1e017dc6d715f5e0028eb446a
+  React-jserrorhandler: 8a7c11b5691b798c9b25b8e4cfbda02742828602
+  React-jsi: 1c901c8f6e8d4555b6a5747c5a5b7c7cf757da71
+  React-jsiexecutor: d59faf2904bb0bd1daec18bc59731623e79a74eb
+  React-jsinspector: eb7486a37a90aa2e896d7c67d7ea04c1c466b4ef
+  React-jsitracing: a417d71b554e891ccab72510f9482e6c53d0b09a
+  React-logger: 5320a2acb25baa566cda59b611231929dd3ed7fc
+  React-Mapbuffer: 9af3695e354816d30d4429992714e0c8cefac25f
+  React-microtasksnativemodule: ab4c1c9d4841e71a4116f167a4cd3f8dc1ab50ba
+  react-native-cameraroll: a81233e6818de274e8ffe7ae0d836bc255297d2e
+  react-native-in-app-review: cf4a29c5a1d6bb28dd0d15f1fb1faa25e265bfb5
+  react-native-mmkv: 18c8689b9d4d86c7792d567b1add405defb60131
+  react-native-safe-area-context: 8f49152d936d4e0b37d586368afde3b8d6af7f9a
+  react-native-view-shot: 9c87d7878e64b8dc9c14675c2362747e0850c93b
+  React-nativeconfig: 75658bde8f977492f668e94ae8eb9c0dfef7ed94
+  React-NativeModulesApple: 1bd9fa09c40204ac489acbe7da239efa4aa47244
+  React-perflogger: a0f49e229d1252d683102df60d2392229ece5837
+  React-performancetimeline: d0fb47dfc5d55ec6b7c4a79c83912ff59bb8df51
+  React-RCTActionSheet: 150cfe1df4275db2251a2a4a1b22be3294e94ef7
+  React-RCTAnimation: 67a303df28e0981f58a26968b3c15252a6b277b8
+  React-RCTAppDelegate: 1a35f04ca974e3a6cf3f0cdf367c98d86d7078bd
+  React-RCTBlob: 2ccb60fd765ed41292c495e4374eaf7c23a3c81c
+  React-RCTFabric: 276fd2153fcd46d1a52b4292313b5ab042a451c5
+  React-RCTFBReactNativeSpec: 8ba5f519a51adb1feda2bc27beddd04b693b18f2
+  React-RCTImage: f235db428b4c98cbb1ad6304f826695f19e82c57
+  React-RCTLinking: 523a01769de55660743d6332157dfb4dbad817b8
+  React-RCTNetwork: d99ee5bf1f15ad8521d30c9da477906d7fb00110
+  React-RCTSettings: 4165a44c6f51787980634bd522f3b379ee8531a6
+  React-RCTText: 462ab8d4f2f180be83e3983307ce5ef5fa58210e
+  React-RCTVibration: ca784cb7e30c21852d4b78b1621bfa11940ab061
+  React-rendererconsistency: 28f87593201bca785e0bbdc94bff4d92ee2d32ee
+  React-rendererdebug: c3121b6c4f0873ad2cf1bb63947c0a8a0ae8a1ab
+  React-rncore: df9c0360d3f28371a103921890e20c309c906407
+  React-RuntimeApple: 4b8060742249e0ede1e186e3df656cea119ac9da
+  React-RuntimeCore: c622d85e3fd6f60ccb7f54bb0d583a85dc1dff25
+  React-runtimeexecutor: e6e7af01f9989f931289250ee9060604bc0f0144
+  React-RuntimeHermes: 5062f63b39a375c63909c16b33bbc24e2c8e7cf6
+  React-runtimescheduler: b6788737ee06eec93c63a2cda4b20c5ca916f5b5
+  React-timing: dfac299d2afa69272d469c8e5fd4d4328fe41d1e
+  React-utils: 280b2ed61cfb45ad94fc8e86d7be402689714962
+  ReactAppDependencyProvider: 8955603808eb24bbfde3511d2bcc8362d1d5860e
+  ReactCodegen: 29ce81e823688a8dc66e1d2cf081b97216718fa8
+  ReactCommon: ad39e4549e2920b3b065a28603921a75619d0639
+  RecaptchaInterop: 11e0b637842dfb48308d242afc3f448062325aba
+  RevenueCat: 16058ecaa0b868e04cc7cf53a5de3fe0b96ca7d1
+  RNAppleAuthentication: b2d8b5ccba86b5b1e55a1a2e858f7ac6d8a21816
+  RNBootSplash: 0eb1d41f03b401085c2be577957b0a8e0b7a615b
+  RNCClipboard: 4d8c76e488f1491e5235901b7028ff53a678bd94
+>>>>>>> f99f5c4 (hh)
   RNDeviceInfo: feea80a690d2bde1fe51461cf548039258bd03f2
   RNFBApp: fda4a8b08fe31bea8492808106aa638d1bb595b7
   RNFBAuth: 35ace098dada86a3f77f48ee0168ee1a3b246e2a
@@ -4775,6 +5010,7 @@ SPEC CHECKSUMS:
   RNFBFirestore: ef824a9284ede001ff6a55ffda1fb169da00a809
   RNFBMessaging: 099972ab397d61815f32610514b0573d1db2b1e1
   RNFS: 4ac0f0ea233904cb798630b3c077808c06931688
+<<<<<<< HEAD
   RNGestureHandler: 8c4c3ff641284e689208dc01e51d5c1e6807cf3c
   RNGoogleMobileAds: dfbb6dd83005543501b87c8a97f45d39f257958e
   RNGoogleSignin: 43b78cae5212d08c2ec631e70471d4288f6d47db
@@ -4786,6 +5022,20 @@ SPEC CHECKSUMS:
   RNScreens: 19742633a9a5c09b7bea3ac0cddb96695048de77
   RNShare: 0891bf652830fc11404c0b9d8ac9192d6e1ae557
   RNVectorIcons: 0e8833406efa1e777fbcb433b8c62db21143c182
+=======
+  RNGestureHandler: ef6d5e1895e92003da0d1330c0969680c67e2e2e
+  RNGoogleMobileAds: 543668d8581051d5b282d978cafac6cbacbae662
+  RNGoogleSignin: f82fc09f9a6a1c49d1801faf8d5de3e5299aadb6
+  RNLocalize: 0052126bb87b02c92449cb20844cec207d273b3b
+  RNNotifee: 4a6ee5c7deaf00e005050052d73ee6315dff7ec9
+  RNPermissions: a4fdcc4e491981d12b75c9a00d040c8ee29c28b2
+  RNPurchases: e5d6987aa4fc8cd36ec223b4347b813ba3fe3440
+  RNReactNativeHapticFeedback: a49e613d48d721c99cad9689a490554104c22154
+  RNReanimated: b3358b08f92ab850db74249e1f144d6b1a459cf4
+  RNScreens: 39b2b81ef7e0d93386810ac7c1860b6248bb1e15
+  RNShare: aad87c89af2df40103db61f320822dc79259ec45
+  RNVectorIcons: f3e9354fca73876447d183d4b18955e52cd3695c
+>>>>>>> f99f5c4 (hh)
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: ce248fb32065c9b00451491b06607f1c25b2f1ed
 

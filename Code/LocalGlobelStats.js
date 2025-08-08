@@ -6,7 +6,11 @@ import config from './Helper/Environment';
 import { useTranslation } from 'react-i18next';
 import { InteractionManager } from 'react-native';
 import { mixpanel } from './AppHelper/MixPenel';
+<<<<<<< HEAD
 import { showErrorMessage, showSuccessMessage } from './Helper/MessageHelper';
+=======
+import { showSuccessMessage } from './Helper/MessageHelper';
+>>>>>>> f99f5c4 (hh)
 
 const storage = new MMKV();
 const LocalStateContext = createContext();
@@ -49,7 +53,11 @@ export const LocalStateProvider = ({ children }) => {
     user_name: storage.getString('user_name') || 'Anonymous',
     translationUsage: safeParseJSON('translationUsage', { count: 0, date: new Date().toDateString() }),
     showAd1: storage.getBoolean('showAd1') ?? true,
+<<<<<<< HEAD
     adIndex: storage.getBoolean('adIndex') ?? true,
+=======
+    // proGranted: storage.getBoolean('proGranted') ?? false,
+>>>>>>> f99f5c4 (hh)
 
     
   }));
@@ -193,8 +201,6 @@ export const LocalStateProvider = ({ children }) => {
         (key) => key.toLowerCase() === 'pro'
       );
       const proStatus = !!(proKey && entitlements[proKey]);
-
-      updateLocalState('isPro', proStatus);
       setMySubscriptions(
         proStatus
           ? customerInfo.activeSubscriptions.map((plan) => ({
@@ -222,12 +228,15 @@ export const LocalStateProvider = ({ children }) => {
 
       // console.log(customerInfo.activeSubscriptions)
       const proStatus = !!(proKey && entitlements[proKey]);
-      if (proStatus) {
-        updateLocalState('isPro', proStatus); // Persist Pro status in MMKV
+      
+      // console.log(proStatus, 'activePlansWithExpiryactivePlansWithExpiryactivePlansWithExpiryactivePlansWithExpiry', customerInfo)
+      if (proStatus !== null) {
+        // updateLocalState('isPro', proStatus); // Persist Pro status in MMKV
         const activePlansWithExpiry = customerInfo.activeSubscriptions.map((subscription) => ({
           plan: subscription,
           expiry: customerInfo.allExpirationDates[subscription],
         }));
+       
         setMySubscriptions(activePlansWithExpiry);
       }
     } catch (error) {

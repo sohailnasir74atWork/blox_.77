@@ -19,18 +19,36 @@ import { mixpanel } from '../AppHelper/MixPenel';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
+<<<<<<< HEAD
 import LinearGradient from 'react-native-linear-gradient';
 
+=======
+import StyledUsernamePreview from '../SettingScreen/Store/StyledName';
+>>>>>>> f99f5c4 (hh)
 
 // Initialize dayjs plugins
 dayjs.extend(relativeTime);
+const iconMap = {
+  "camping": require("../../assets/Icons/camping.png"),
+  "dinamite": require("../../assets/Icons/dinamite.png"),
+  "fire": require("../../assets/Icons/fire.png"),
+  "grenade": require("../../assets/Icons/grenade.png"),
+  "handheld-game": require("../../assets/Icons/handheld-game.png"),
+  "paw-print": require("../../assets/Icons/paw-print.png"),
+  "play": require("../../assets/Icons/play.png"),
+  "shooting-star": require("../../assets/Icons/shooting-star.png"),
+  "smile": require("../../assets/Icons/smile.png"),
+  "symbol": require("../../assets/Icons/symbol.png"),
+  "treasure-map": require("../../assets/Icons/treasure-map.png"),
+};
+
 
 
 const TradeList = ({ route }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAdVisible, setIsAdVisible] = useState(true);
   const { selectedTheme } = route.params
-  const { user, analytics, updateLocalStateAndDatabase, appdatabase } = useGlobalState()
+  const { user, analytics, updateLocalStateAndDatabase, proGranted } = useGlobalState()
   const [trades, setTrades] = useState([]);
   const [filteredTrades, setFilteredTrades] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -40,6 +58,21 @@ const TradeList = ({ route }) => {
   const [showofferwall, setShowofferwall] = useState(false);
   const [remainingFeaturedTrades, setRemainingFeaturedTrades] = useState([]);
   const [openShareModel, setOpenShareModel] = useState(false);
+
+  // Check if user has featured listing purchase
+  const purchasesArr = Array.isArray(user?.purchases)
+  ? user.purchases
+  : Object.values(user?.purchases || {});
+
+const now = Date.now();
+
+const isFeaturedPurchase = purchasesArr.some((purchase) => {
+  if (purchase?.id !== "4" || !purchase?.title) return false;
+  if (purchase?.expiresAt && now > purchase.expiresAt) return false; // Expired
+  return true;
+});
+
+// console.log(isFeaturedPurchase, 'isFeaturedPurchase');
 
 
 
@@ -51,7 +84,7 @@ const TradeList = ({ route }) => {
   const { localState, updateLocalState } = useLocalState()
   const navigation = useNavigation()
   const { theme } = useGlobalState()
-  const [isProStatus, setIsProStatus] = useState(localState.isPro);
+  const [isProStatus, setIsProStatus] = useState(localState.isPro || proGranted);
   const { t } = useTranslation();
   const platform = Platform.OS.toLowerCase();
   const isDarkMode = theme === 'dark'
@@ -60,13 +93,19 @@ const TradeList = ({ route }) => {
  
 
 
+<<<<<<< HEAD
 
   const [selectedFilters, setSelectedFilters] = useState(['has']);
+=======
+// console.log('pro', isProStatus)
+
+  const [selectedFilters, setSelectedFilters] = useState([]);
+>>>>>>> f99f5c4 (hh)
 
   useEffect(() => {
     // console.log(localState.isPro, 'from trade model'); // ✅ Check if isPro is updated
-    setIsProStatus(localState.isPro); // ✅ Force update state and trigger re-render
-  }, [localState.isPro]);
+    setIsProStatus(localState.isPro || proGranted); // ✅ Force update state and trigger re-render
+  }, [localState.isPro, proGranted]);
 
   const formatNameNew = (name) => {
     if (!name) return
@@ -346,7 +385,7 @@ const TradeList = ({ route }) => {
   // console.log(isProStatus, 'from trade model')
 
   const handleMakeFeatureTrade = async (item) => {
-    if (!isProStatus) {
+    if (!isProStatus && !isFeaturedPurchase) {
       Alert.alert(
         t("trade.feature_pro_only_title"),
         t("trade.feature_pro_only_message"),
@@ -360,6 +399,8 @@ const TradeList = ({ route }) => {
       );
       return;
     }
+
+
 
     try {
       // 🔐 Check from Firestore how many featured trades user already has
@@ -739,7 +780,41 @@ const TradeList = ({ route }) => {
     const groupedWantsItems = item.wantsItems || [];
     // console.log(groupedHasItems)
 
+<<<<<<< HEAD
   
+=======
+    const handleChatNavigation = async () => {
+
+      const callbackfunction = () => {
+        if (!user?.id) {
+          setIsSigninDrawerVisible(true);
+          return;
+        }
+        mixpanel.track("Inbox Trade");
+        navigation.navigate('PrivateChatTrade', {
+          selectedUser: {
+            senderId: item.userId,
+            sender: item.traderName,
+            avatar: item.avatar,
+          },
+          item,
+        });
+      };
+
+      try {
+        // const isOnline = await isUserOnline(item.userId)
+
+
+        if (!localState.isPro && !proGranted) { InterstitialAdManager.showAd(callbackfunction); }
+        else { callbackfunction() }
+
+
+      } catch (error) {
+        console.error('Error navigating to PrivateChat:', error);
+        Alert.alert('Error', 'Unable to navigate to the chat. Please try again later.');
+      }
+    };
+>>>>>>> f99f5c4 (hh)
 
     return (
       <>
@@ -747,6 +822,7 @@ const TradeList = ({ route }) => {
          
 
         {item.isFeatured && <View style={styles.tag}></View>}
+<<<<<<< HEAD
        
         <View style={styles.tradeHeader}>
           <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={() => handleTradePress(item)}>
@@ -761,20 +837,60 @@ const TradeList = ({ route }) => {
                   style={{ width: 14, height: 14 }} 
                 />
                   }
+=======
+
+        <View style={styles.tradeHeader}>
+          <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', flex:1  }} onPress={handleChatNavigation}>
+            <Image source={{ uri: item.avatar }} style={styles.itemImageUser} />
+
+            <View style={{  marginLeft: 5 }}>
+              <View style={styles.traderName}>
+              {(item?.style && Object.keys(item?.style).length > 0) ? (
+    <StyledUsernamePreview
+      text={item.traderName}
+      variant={item.style.variant}
+      options={item.style}
+      fontSize={14}
+      lineHeight={16}
+      marginVertical={0}
+    />
+  ) : (
+    <Text style={styles.traderName}>{item.traderName}</Text>
+  )}
+  {item?.isPro && (
+    <Image
+      source={require('../../assets/pro.png')}
+      style={{ width: 16, height: 16, marginLeft: 2 }}
+    />
+  )}
+  {(item?.isProGranted || item.proTagBought) && (
+    <Image
+      source={require('../../assets/progranted.png')}
+      style={{ width: 16, height: 16, marginLeft: 2 }}
+    />
+  )}
+  {Array.isArray(item.icons) && item.icons.slice(0, 4).map(iconKey => (
+    <Image
+      key={iconKey}
+      source={iconMap[iconKey]}
+      style={{ width: 16, height: 16, marginLeft: 4, resizeMode: 'contain' }}
+    />
+  ))}
+>>>>>>> f99f5c4 (hh)
                 {item.rating ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, backgroundColor: '#ffb300', borderRadius: 5, paddingHorizontal: 4, paddingVertical: 2, marginLeft: 5 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center',  backgroundColor: '#ffb300', borderRadius: 5, paddingHorizontal: 4, paddingVertical: 1, marginLeft: 5 }}>
                     <Icon name="star" size={8} color="white" style={{ marginRight: 4 }} />
                     <Text style={{ fontSize: 8, color: 'white' }}>{parseFloat(item.rating).toFixed(1)}({item.ratingCount})</Text>
                   </View>
                 ) : (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, backgroundColor: '#888', borderRadius: 5, paddingHorizontal: 2, paddingVertical: 1, marginLeft: 5 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center',  backgroundColor: '#888', borderRadius: 5, paddingHorizontal: 2, paddingVertical: 1, marginLeft: 5 }}>
                     <Icon name="star-outline" size={8} color="white" style={{ marginRight: 4 }} />
                     <Text style={{ fontSize: 8, color: 'white' }}>N/A</Text>
                   </View>
                 )}
 
 
-              </Text>
+              </View>
 
               {/* Rating Info */}
 
@@ -783,7 +899,11 @@ const TradeList = ({ route }) => {
             </View>
           </TouchableOpacity>
 
+<<<<<<< HEAD
           <View>
+=======
+          <View style={{ flexDirection: 'row', }}>
+>>>>>>> f99f5c4 (hh)
             {/* {(groupedHasItems.length > 0 && groupedWantsItems.length > 0) &&  <View style={[styles.dealContainer, { backgroundColor: deal.color }]}>
               <Text style={styles.dealText}>
 
@@ -995,7 +1115,7 @@ const TradeList = ({ route }) => {
 
       />
      
-      {!localState.isPro && <BannerAdComponent />}
+      {(!localState.isPro && !proGranted) && <BannerAdComponent />}
 
       {/* {!isProStatus && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (
@@ -1063,8 +1183,10 @@ const getStyles = (isDarkMode) =>
     },
     traderName: {
       fontFamily: 'Lato-Bold',
-      fontSize: 8,
+      fontSize: 10,
       color: isDarkMode ? 'white' : "black",
+    flexDirection:'row',
+    alignItems:'baseline'
 
     },
     tradeTime: {
@@ -1099,11 +1221,11 @@ const getStyles = (isDarkMode) =>
 
     },
     itemImageUser: {
-      width: 20,
-      height: 20,
+      width: 25,
+      height: 25,
       // marginRight: 5,
       borderRadius: 15,
-      marginRight: 5,
+      // marginRight: 5,
       backgroundColor: 'white'
     },
     transferImage: {

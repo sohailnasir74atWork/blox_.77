@@ -14,6 +14,7 @@ const adUnits = {
     rewarded:TestIds.REWARDED,
     openapp:TestIds.APP_OPEN,
     native:TestIds.NATIVE,
+    reward_int:TestIds.REWARDED_INTERSTITIAL
   },
   android: {
     banner: config.andriodBanner,       
@@ -21,6 +22,7 @@ const adUnits = {
     rewarded:config.andriodRewarded,
     openapp:config.andriodOpenApp,
     native:config.andriodNative,
+    reward_int:config.andriodRewarded_int
   },
   ios: {
     banner: config.IOsBanner,      
@@ -28,6 +30,7 @@ const adUnits = {
     rewarded:config.IOsRewarded,
     openapp:config.IOsOpenApp,
     native:config.IOsNative,
+    reward_int:config.andriodRewarded_int_ios
   },
   
 };

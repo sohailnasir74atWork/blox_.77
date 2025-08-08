@@ -107,7 +107,9 @@ import { getDatabase, ref, get, set } from '@react-native-firebase/database';
       fcmToken:null,
       lastactivity:null,
       online:false,
-      isPro:false
+      isPro:false,
+      coins:null
+
 
   });
   
@@ -126,7 +128,9 @@ export const resetUserState = (setUser) => {
         fcmToken:null,
         lastactivity:null,
         online:false,
-        isPro:false
+        isPro:false,
+        coins:null
+
 
 
     });
