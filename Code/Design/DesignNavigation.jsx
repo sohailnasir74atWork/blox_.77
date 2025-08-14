@@ -57,7 +57,7 @@ export const DesignStack = ({ selectedTheme }) => {
         name="DesignScreen"
         component={DesignFeedScreen}
         initialParams={sharedParams}
-        options={{ headerShown: false, title:'House Hub' }}
+        options={{ headerShown: false, title:'Feed' }}
       />
       <Stack.Screen
         name="PrivateChatDesign"

@@ -412,17 +412,17 @@ const TradeList = ({ route }) => {
 
 
 
-  const formatValue = (value) => {
-    if (value >= 1_000_000_000) {
-      return `${(value / 1_000_000_000).toFixed(1)}B`; // Billions
-    } else if (value >= 1_000_000) {
-      return `${(value / 1_000_000).toFixed(1)}M`; // Millions
-    } else if (value >= 1_000) {
-      return `${(value / 1_000).toFixed(1)}K`; // Thousands
-    } else {
-      return value.toLocaleString(); // Default formatting
-    }
-  };
+  // const formatValue = (value) => {
+  //   if (value >= 1_000_000_000) {
+  //     return `${(value / 1_000_000_000).toFixed(1)}B`; // Billions
+  //   } else if (value >= 1_000_000) {
+  //     return `${(value / 1_000_000).toFixed(1)}M`; // Millions
+  //   } else if (value >= 1_000) {
+  //     return `${(value / 1_000).toFixed(1)}K`; // Thousands
+  //   } else {
+  //     return value.toLocaleString(); // Default formatting
+  //   }
+  // };
   const fetchMoreTrades = useCallback(async () => {
     if (!hasMore || !lastDoc) return;
 
@@ -556,7 +556,36 @@ const TradeList = ({ route }) => {
     }
   }, []);
 
-
+  function formatLargeNumber(num) {
+    if (num == null || isNaN(num)) return num;
+  
+    const absNum = Math.abs(num);
+  
+    // Units for thousand, million, billion, trillion, quadrillion, etc.
+    const units = [
+      { value: 1e3,  symbol: 'K' },   // thousand
+      { value: 1e6,  symbol: 'M' },   // million
+      { value: 1e9,  symbol: 'B' },   // billion
+      { value: 1e12, symbol: 'T' },   // trillion
+      { value: 1e15, symbol: 'Q' },   // quadrillion
+      { value: 1e18, symbol: 'Qt' },  // quintillion
+      { value: 1e21, symbol: 'Sx' },  // sextillion
+      { value: 1e24, symbol: 'Sp' },  // septillion
+      { value: 1e27, symbol: 'Oc' },  // octillion
+      { value: 1e30, symbol: 'No' },  // nonillion
+      { value: 1e33, symbol: 'Dc' }   // decillion
+    ];
+  
+    for (let i = units.length - 1; i >= 0; i--) {
+      const unit = units[i];
+      if (absNum >= unit.value) {
+        return (num / unit.value).toFixed(2).replace(/\.00$/, '') + unit.symbol;
+      }
+    }
+  
+    return num.toString();
+  }
+  
   
   const mergeFeaturedWithNormal = (featuredTrades, normalTrades) => {
     // Input validation
@@ -828,7 +857,7 @@ const TradeList = ({ route }) => {
         </View>
         <View style={styles.tradeTotals}>
           {groupedHasItems.length > 0 && <Text style={[styles.priceText, styles.hasBackground]}>
-            {t("trade.price_has")} {formatValue(item.hasTotal.value)}
+            {t("trade.price_has")} {formatLargeNumber(item.hasTotal.value)}
           </Text>}
           <View style={styles.transfer}>
             {(groupedHasItems.length > 0 && groupedWantsItems.length > 0) && <Text style={[styles.priceTextProfit, { color: !isProfit ? config.colors.hasBlockGreen : config.colors.wantBlockRed }]}>
@@ -843,7 +872,7 @@ const TradeList = ({ route }) => {
             </Text>}
           </View>
           {groupedWantsItems.length > 0 && <Text style={[styles.priceText, styles.wantBackground]}>
-            {t("trade.price_want")} {formatValue(item.wantsTotal.value)}
+            {t("trade.price_want")} {formatLargeNumber(item.wantsTotal.value)}
           </Text>}
         </View>
 

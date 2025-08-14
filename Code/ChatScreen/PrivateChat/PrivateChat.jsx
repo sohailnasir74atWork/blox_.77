@@ -81,7 +81,7 @@ const [rating, setRating] = useState(0);
     return localState.bannedUsers.includes(selectedUser?.senderId);
   }, [localState.bannedUsers, selectedUser?.senderId]);
 
-  console.log(isBanned, 'isbanned')
+  // console.log(isBanned, 'isbanned')
 
   const isDarkMode = theme === 'dark';
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);

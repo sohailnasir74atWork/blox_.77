@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,16 +17,21 @@ import { useGlobalState } from '../../GlobelStats';
 import { useLocalState } from '../../LocalGlobelStats';
 import InterstitialAdManager from '../../Ads/IntAd';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
+import { onValue, ref } from '@react-native-firebase/database';
+import { showMessage } from 'react-native-flash-message';
 
 const CLOUD_NAME = 'djtqw0jb5';
 const UPLOAD_PRESET = 'my_upload';
 const MAX_IMAGES = 4;
 
+
 const UploadModal = ({ visible, onClose, onUpload, user }) => {
   const [desc, setDesc] = useState('');
   const [imageUris, setImageUris] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedTags, setSelectedTags] = useState(['Hot Take']);
+  const [selectedTags, setSelectedTags] = useState(['Discussion']);
+  const {currentUserEmail, appdatabase} = useGlobalState();
+  const [strikeInfo, setStrikeInfo] = useState(null)
   // const [budget, setBudget] = useState('');
   const { theme } = useGlobalState();
   const isDark = theme === 'dark';
@@ -35,6 +40,22 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
   const toggleTag = useCallback((tag) => {
     setSelectedTags([tag]);
   }, []);
+
+  useEffect(() => {
+    if (!currentUserEmail) return;
+
+    const encodedEmail = currentUserEmail.replace(/\./g, '(dot)');
+    const banRef = ref(appdatabase, `banned_users_by_email_post/${encodedEmail}`);
+
+    const unsubscribe = onValue(banRef, (snapshot) => {
+      const banData = snapshot.val();
+      setStrikeInfo(banData || null);
+    });
+
+    return () => unsubscribe();
+  }, [currentUserEmail]);
+
+  // console.log(currentUserEmail)
   
 
 const pickAndCompress = useCallback(async () => {
@@ -102,49 +123,55 @@ const pickAndCompress = useCallback(async () => {
 
   const handleSubmit = useCallback(() => {
     if (!user?.id) return;
+if (!currentUserEmail) {
+   Alert.alert('Missing Email', 'Could not detect your account email. Please re-login.');
+   return;
+}
   
-    if (!desc || imageUris.length === 0) {
-      return Alert.alert('Missing Info', 'Please add a description and at least one image.');
+    if (!desc && imageUris.length === 0) {
+      return Alert.alert('Missing Info', 'Please add a description or at least one image.');
     }
-    // if (strikeInfo) {
-    //   const { strikeCount, bannedUntil } = strikeInfo;
-    //   const now = Date.now();
+    if (strikeInfo) {
+      const { strikeCount, bannedUntil } = strikeInfo;
+      console.log('strick')
+      const now = Date.now();
 
-    //   if (bannedUntil === 'permanent') {
-    //     showMessage({
-    //       message: '⛔ Permanently Banned',
-    //       description: 'You are permanently banned from creating posts.',
-    //       type: 'danger',
-    //     });
-    //     return;
-    //   }
+      if (bannedUntil === 'permanent') {
+        showMessage({
+          message: '⛔ Permanently Banned',
+          description: 'You are permanently banned from sending messages.',
+          type: 'danger',
+        });
+        return;
+      }
 
-    //   if (typeof bannedUntil === 'number' && now < bannedUntil) {
-    //     const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
-    //     const hours = Math.floor(totalMinutes / 60);
-    //     const minutes = totalMinutes % 60;
-    //     const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+      if (typeof bannedUntil === 'number' && now < bannedUntil) {
+        const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 
-    //     showMessage({
-    //       message: `⚠️ Strike ${strikeCount}`,
-    //       description: `You are banned for ${timeLeftText} more minute(s).`,
-    //       type: 'warning',
-    //       duration: 5000,
+        showMessage({
+          message: `⚠️ Strike ${strikeCount}`,
+          description: `You are banned from chatting for ${timeLeftText} more minute(s).`,
+          type: 'warning',
+          duration: 5000,
 
-    //     });
-    //     return;
-    //   }
-    // }
-  
+        });
+        return;
+      }
+    }
+    
     // Extract core logic into a callback
     const callbackfunction = async () => {
       try {
         setLoading(true);
         const uploadedUrls = await uploadToCloudinary();
-        await onUpload(desc, uploadedUrls, selectedTags);
+        // console.log('[UploadModal] submitting with email:', currentUserEmail);
+        await onUpload(desc, uploadedUrls, selectedTags, currentUserEmail);
         setDesc('');
         setImageUris([]);
-        setSelectedTags(['Showcase']);
+        setSelectedTags(['Discussion']);
         // setBudget('');
         onClose();
       } catch (err) {
@@ -174,7 +201,7 @@ const pickAndCompress = useCallback(async () => {
       }, 500);
     });
   
-  }, [user?.id, desc, imageUris, selectedTags, uploadToCloudinary, onUpload, onClose, useLocalState.isPro]);
+  }, [user?.id, desc, imageUris, selectedTags, uploadToCloudinary, onUpload, onClose, useLocalState.isPro, currentUserEmail]);
   
 
   const themedStyles = getStyles(isDark);
@@ -200,18 +227,7 @@ const pickAndCompress = useCallback(async () => {
           />
 
           <View style={themedStyles.tagSelector}>
-          {[
-  'Hot Take',         // 🧨 Opinions that might spark debate
-  'Showcase',         // 🌟 Showing off garden, fruits, or flexes
-  'Discussion',       // 💬 Starting a general chat or opinion post
-  'Looking to Trade', // 🔄 Trade inquiries or offers
-  'Unpopular Opinion',// 😬 Spicy or different viewpoints
-  'Bug or Glitch',    // 🐞 Reporting issues or funny bugs
-  'Event Reaction',   // 🗓️ Feedback or thoughts on a new update
-  'Flex or Fake?',    // 🤔 Suspicious or exaggerated showcase
-  'Scam Alert',       // 🚨 Warning others about scams or fake trades
-  'Rare Find',        // 🔍 Found something unique or surprising
-].map((tag) => (
+          {['Scam Alert', 'Looking for Trade', 'Discussion', 'Real or Fake', 'Need Help', 'Misc'].map((tag) => (
   <TouchableOpacity
     key={tag}
     style={[

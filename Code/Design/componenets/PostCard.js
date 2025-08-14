@@ -13,6 +13,7 @@ import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-m
 import { showMessage } from 'react-native-flash-message';
 import ReportModal from './ReportModal';
 import dayjs from 'dayjs';
+import { get, getDatabase, ref, set } from '@react-native-firebase/database';
 
 const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete }) => {
   const navigation = useNavigation();
@@ -25,31 +26,59 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete }) =
   const isDark = theme === 'dark';
   const getTagColor = (tag) => {
     switch (tag.toLowerCase()) {
-      case 'hot take':
-        return '#FF453A'; // Fiery Red
-      case 'showcase':
-        return '#007AFF'; // Blue
-      case 'discussion':
-        return '#5AC8FA'; // Light Blue
-      case 'looking to trade':
-        return '#FFCC00'; // Yellow
-      case 'unpopular opinion':
-        return '#FF9500'; // Orange
-      case 'bug or glitch':
-        return '#AF52DE'; // Purple
-      case 'event reaction':
-        return '#5856D6'; // Indigo
-      case 'flex or fake?':
-        return '#FFD60A'; // Gold
       case 'scam alert':
-        return '#D70015'; // Danger Red
-      case 'rare find':
-        return '#00C7BE'; // Teal
+        return '#FF3B30'; // Bright red
+      case 'looking for trade':
+        return '#34C759'; // Vibrant green
+      case 'discussion':
+        return '#5AC8FA'; // Sky blue
+      case 'real or fake':
+        return '#AF52DE'; // Purple
+      case 'need help':
+        return '#FF9500'; // Orange
+      case 'misc.':
+        return '#8E8E93'; // Neutral gray
       default:
-        return config.colors.primary; // Fallback for unexpected tags
+        return config.colors.primary; // Fallback
+    }
+  };
+  const banUserwithEmail = async (email) => {
+    const encodeEmail = (email) => email.replace(/\./g, '(dot)');
+  
+    try {
+      const db = getDatabase();
+      const banRef = ref(db, `banned_users_by_email_post/${encodeEmail(email)}`);
+      const snap = await get(banRef);
+  
+      let strikeCount = 1;
+      let bannedUntil = Date.now() + 24 * 60 * 60 * 1000; // 1 day
+      // let bannedUntil = Date.now() +  1 * 60 * 1000; // 1 day
+  
+      
+  
+      if (snap.exists()) {
+        const data = snap.val();
+        strikeCount = data.strikeCount + 1;
+  
+        if (strikeCount === 2) bannedUntil = Date.now() + 3 * 24 * 60 * 60 * 1000; // 3 days
+        //  if (strikeCount === 2) bannedUntil = Date.now() + 2  * 60 * 1000; // 3 days
+        else if (strikeCount >= 3) bannedUntil = "permanent";
+      }
+  
+      await set(banRef, {
+        strikeCount,
+        bannedUntil,
+        reason: `Strike ${strikeCount}`
+      });
+  
+      Alert.alert('User Banned', `Strike ${strikeCount} applied.`);
+    } catch (err) {
+      console.error('Ban error:', err);
+      Alert.alert('Error', 'Could not ban user.');
     }
   };
   
+ 
 
   const handleChatNavigation = useCallback(() => {
     const callback = () => {
@@ -71,6 +100,10 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete }) =
         item,
       });
     };
+
+
+
+
 
     if (!localState?.isPro) {
       InterstitialAdManager.showAd(callback);
@@ -122,14 +155,19 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete }) =
  </View>
 </MenuOption>
 
+
   )}
+ {isAdmin && <MenuOption onSelect={()=>banUserwithEmail(item.email)}>
+  <Text>Ban User</Text>
+  
+  </MenuOption>}
 </MenuOptions>
 
   </Menu>
 </View>
 
 
-      <Text style={themedStyles.desc}>{item.desc}</Text>
+      <Text style={themedStyles.desc}>{item?.desc}</Text>
 
       {/* {(item.selectedTags?.length > 0 || item.budget) && (
         <View style={themedStyles.metaInfoRow}>
@@ -159,7 +197,7 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete }) =
     {/* Image block as-is */}
     <View style={themedStyles.shadowWrapper}>
     <View style={themedStyles.imageContainer}>
-      {item.imageUrl.length === 1 ? (
+      {item?.imageUrl.length === 1 ? (
         <TouchableOpacity
           onPress={() =>
             navigation.navigate('ImageViewerScreen', {
@@ -168,17 +206,17 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete }) =
             })
           }
         >
-          <Image source={{ uri: item.imageUrl[0] }} style={themedStyles.singleImage} />
+          <Image source={{ uri: item?.imageUrl[0] }} style={themedStyles.singleImage} />
         </TouchableOpacity>
       ) : (
         <View style={themedStyles.multiImageGrid}>
-          {item.imageUrl.slice(0, 4).map((url, idx) => (
+          {item?.imageUrl.slice(0, 4).map((url, idx) => (
             <TouchableOpacity
               key={idx}
               style={themedStyles.gridImage}
               onPress={() =>
                 navigation.navigate('ImageViewerScreen', {
-                  images: item.imageUrl,
+                  images: item?.imageUrl,
                   initialIndex: idx,
                 })
               }

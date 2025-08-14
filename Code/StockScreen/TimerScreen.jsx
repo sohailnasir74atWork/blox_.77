@@ -34,6 +34,7 @@ const TimerScreen = ({ selectedTheme }) => {
 
 
 
+
   const [weatherLoading, setWeatherLoading] = useState(false);
   // const [lastSeenLoading, setLastSeenLoading] = useState(false);
   const [weatherData, setWeatherData] = useState(null);
@@ -212,7 +213,7 @@ const TimerScreen = ({ selectedTheme }) => {
 
     // ✅ Add selected fruit
     const updatedFruits = [...selectedFruits, fruit];
-    console.log(selectedFruits)
+    // console.log(selectedFruits)
     await updateLocalStateAndDatabase('selectedFruits', updatedFruits);
 
     showSuccessMessage(t("home.alert.success"), t("stock.fruit_selected"));
@@ -239,7 +240,7 @@ const TimerScreen = ({ selectedTheme }) => {
   const fetchWeatherData = async () => {
     setWeatherLoading(true);
     try {
-      const snapshot = await getDatabase().ref('/weather_elv').once('value');
+      const snapshot = await getDatabase().ref('/weather_elv_new').once('value');
       const data = snapshot.val();
       // console.log(data)
       // const cleaned = Object.values(data || {}).filter(item => typeof item === 'object' && item.weather_name);
@@ -363,9 +364,10 @@ const TimerScreen = ({ selectedTheme }) => {
 
 
   const renderWeatherCards = (items) => {
-    return items.map((item, idx) => {
-      const localTime = item.last_seen
-        ? new Date(item.last_seen).toLocaleString(undefined, {
+    console.log('item', items)
+    // return items.map((item, idx) => {
+      const localTime = items.lastUpdated
+        ? new Date(items.lastUpdated).toLocaleString(undefined, {
           hour: '2-digit',
           minute: '2-digit',
           hour12: true,
@@ -375,17 +377,17 @@ const TimerScreen = ({ selectedTheme }) => {
         : 'Unknown';
 
       return (
-        <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical:1, backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff', padding:5, borderRadius:4, marginHorizontal:2 }}>
+        <View  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical:1, backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff', padding:5, borderRadius:4, marginHorizontal:2 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 4 }}>
-              <Image source={{ uri: item.icon }} style={{ width: 40, height: 40, marginRight: 6 }} />
+              {/* <Image source={{ uri: item.icon }} style={{ width: 40, height: 40, marginRight: 6 }} /> */}
               <View style={{alignItems:"flex-start"}}>
             
-            <Text style={{ fontSize: 14, color: !isDarkMode ? 'black' : '#ffffff', fontFamily:'Lato-Bold', lineHeight:16 }}>{formatName(item.name)}</Text>
+            <Text style={{ fontSize: 14, color: !isDarkMode ? 'black' : '#ffffff', fontFamily:'Lato-Bold', lineHeight:16 }}>{formatName(items.type)}</Text>
             <Text
               style={{
                 fontSize: 10,
                 color: 'white',
-                backgroundColor: item.active
+                backgroundColor: items.active
                   ? config.colors.hasBlockGreen
                   : config.colors.inactive || '#999', // fallback if inactive color is not defined
                 paddingHorizontal: 6,
@@ -396,14 +398,14 @@ const TimerScreen = ({ selectedTheme }) => {
                 // marginLeft: 10
               }}
             >
-              {item.active ? 'Active' : 'Inactive'}
+              {items.active ? 'Active' : 'Inactive'}
             </Text>
             </View>
           </View>
           <Text style={{ fontSize: 12,color: !isDarkMode ? 'black' : '#ffffff', fontFamily:'Lato-Regular' }}>Last seen at {localTime}</Text>
         </View>
       );
-    });
+    // });
   };
 
 
@@ -571,7 +573,7 @@ const TimerScreen = ({ selectedTheme }) => {
 
               {/* {!localState.isPro && <MyNativeAdComponent />} */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-around',  backgroundColor: isDarkMode? '#34495E' : 'white', padding: 5, borderRadius:4 }}>
-                {['Stock', 'Weather', 'Values'].map(tab => (
+                {['Stock', 'Weather'].map(tab => (
                   <TouchableOpacity
                     key={tab}
                     onPress={() => setActiveTab(tab)}
@@ -580,7 +582,7 @@ const TimerScreen = ({ selectedTheme }) => {
                       paddingVertical: 6,
                       paddingHorizontal: 16,
                       borderRadius: 5,
-                      width: '33%',
+                      width: '50%',
                     }}
                   >
                     <Text style={{ color: activeTab === tab ? 'white' : 'lightgrey', fontWeight: 'bold', textAlign: 'center' }}>{tab}</Text>

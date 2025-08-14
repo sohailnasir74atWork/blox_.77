@@ -313,31 +313,25 @@ export const GlobalStateProvider = ({ children }) => {
       if (shouldFetch) {
         // console.log("📌 Fetching codes & data from database...");
 
-        let codes = {};
         let data = {};
 
         try {
-          const [codesRes, dataRes] = await Promise.all([
-            fetch('https://blox-api.b-cdn.net_/codes.json', {
-              method: 'GET',
-              cache: 'no-store',
-            }),
-            fetch('https://gaag.b-cdn.net', {
+          const [dataRes] = await Promise.all([
+            fetch('https://gagelvnew.b-cdn.net', {
               method: 'GET',
               cache: 'no-store',
             })
           ]);
 
-          const codesJson = await codesRes.json();
           const dataJson = await dataRes.json();
 
           // Assign values or keep as empty object
-          codes = codesJson || {};
+          // codes = codesJson || {};
           data = dataJson || {};
           // console.log(data)
 
           // If either is empty, force fallback
-          if (!Object.keys(codes).length || !Object.keys(data).length) {
+          if (!Object.keys(data).length) {
             throw new Error('CDN data incomplete');
           }
 
@@ -347,11 +341,10 @@ export const GlobalStateProvider = ({ children }) => {
           console.warn('⚠️ Fallback to Firebase:', err.message);
 
           const [xlsSnapshot, codeSnapShot] = await Promise.all([
-            get(ref(appdatabase, 'fruit_data')),
-            get(ref(appdatabase, 'codes')),
+            get(ref(appdatabase, 'data_elv_new'))
           ]);
 
-          codes = codeSnapShot.exists() ? codeSnapShot.val() : {};
+          // codes = codeSnapShot.exists() ? codeSnapShot.val() : {};
           data = xlsSnapshot.exists() ? xlsSnapshot.val() : {};
           // console.log(data, codes)
 
@@ -362,8 +355,8 @@ export const GlobalStateProvider = ({ children }) => {
 
 
         // ✅ Store fetched data locally
-        await updateLocalState('codes', JSON.stringify(codes));
-        await updateLocalState('data', JSON.stringify(data.mergedItems));
+        // await updateLocalState('codes', JSON.stringify(codes));
+        await updateLocalState('data', JSON.stringify(data));
         // console.log(data)
         // ✅ Update last fetch timestamp
         // await updateLocalState('lastActivity', new Date().toISOString());

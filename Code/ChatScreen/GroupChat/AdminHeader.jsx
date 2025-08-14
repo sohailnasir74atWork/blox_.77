@@ -125,7 +125,19 @@ const AdminHeader = ({
           )}
         </View>
       </View>
+      <View style={{
+        flexDirection: 'row', justifyContent: 'space-between', padding: 10, alignItems: 'center', borderBottomWidth: .3, borderBottomColor: 'lightgrey',
+      }}>
+        <Text style={{ fontSize: 12, color: isDarkMode ? 'white' : 'black' }}>🚫 No Spamming ❌ No Abuse 🛑 Be Civil & Polite 😊
+        </Text>
+        <TouchableOpacity onPress={() => { setModalVisibleChatinfo(true); triggerHapticFeedback('impactLight'); }}>
 
+          <Icon name="information-circle-outline" size={20} color={config.colors.primary} style={{ marginRight: 10 }} />
+          {/* <Text style={{ fontSize: 16, color: config.colors.text || '#000' }}>
+                      {t("chat.chat_rules")}
+                    </Text> */}
+        </TouchableOpacity>
+      </View>
       {/* Displaying truncated pinned messages */}
       {uniquePinnedMessages.length > 0 && (
         <View style={styles.pinnedContainer}>

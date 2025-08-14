@@ -56,7 +56,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   const [pendingMessages, setPendingMessages] = useState([]);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const isFocused = useIsFocused();
-const [strikeInfo, setStrikeInfo] = useState(null)
+const [strikeInfo, setStrikeInfo] = useState(null);
+const [reachedEnd, setReachedEnd] = useState(false); 
 
   const flatListRef = useRef();
 
@@ -125,69 +126,67 @@ const [strikeInfo, setStrikeInfo] = useState(null)
 
 
   
-
   const loadMessages = useCallback(
     async (reset = false) => {
       try {
         if (reset) {
-          // console.log('Resetting messages and loading the latest ones.');
+          // console.log('[loadMessages] Resetting messages...');
           setLoading(true);
-          setLastLoadedKey(null); // Reset pagination key
+          setLastLoadedKey(null);
         }
-
-        // console.log(`Fetching messages. Reset: ${reset}, LastLoadedKey: ${lastLoadedKey}`);
-
+  
+        // console.log(`[loadMessages] Fetching messages... reset: ${reset}, lastLoadedKey: ${lastLoadedKey}`);
+  
         const messageQuery = reset
           ? chatRef.orderByKey().limitToLast(PAGE_SIZE)
           : chatRef.orderByKey().endAt(lastLoadedKey).limitToLast(PAGE_SIZE);
-
+  
         const snapshot = await messageQuery.once('value');
         const data = snapshot.val() || {};
-
-        // if (developmentMode) {
-        //   const dataSize = JSON.stringify(data).length / 1024;
-        //   console.log(`🚀 Downloaded group chat data: ${dataSize.toFixed(2)} KB from load messages`);
-        // }
-
-        // console.log(`Fetched ${Object.keys(data).length} messages from Firebase.`);
-
-        // const bannedUserIds = bannedUsers?.map((user) => user.id) || [];
-        // console.log('Banned User IDs:', bannedUserIds);
-
+  
         const parsedMessages = Object.entries(data)
           .map(([key, value]) => validateMessage({ id: key, ...value }))
           .filter((msg) => !bannedUsers.includes(msg.senderId))
-          .sort((a, b) => b.timestamp - a.timestamp); // Descending order
-
-        // console.log('Parsed Messages:', parsedMessages);
-
-        if (parsedMessages.length === 0 && !reset) {
-          // console.log('No more messages to load.');
-          setLastLoadedKey(null);
+          .sort((a, b) => b.timestamp - a.timestamp);
+  
+        if (!reset && parsedMessages[parsedMessages.length - 1]?.id === lastLoadedKey) {
+          // console.log(`[loadMessages] Removing duplicate key: ${lastLoadedKey}`);
+          parsedMessages.pop();
+        }
+  
+        if (parsedMessages.length === 0) {
+          console.log('[loadMessages] Reached end of messages, not loading more.');
           return;
         }
-
+  
         if (reset) {
           setMessages(parsedMessages);
-          // console.log('Resetting messages:', parsedMessages);
+          console.log(`[loadMessages] Loaded ${parsedMessages.length} messages (reset)`);
         } else {
           setMessages((prev) => [...prev, ...parsedMessages]);
-          // console.log('Appending messages:', parsedMessages);
+          // console.log(`[loadMessages] Appending ${parsedMessages.length} messages`);
         }
-
-        if (parsedMessages.length > 0) {
-          // Use the last key from the newly fetched messages
-          setLastLoadedKey(parsedMessages[parsedMessages.length - 1].id);
-          // console.log('Updated LastLoadedKey:', parsedMessages[parsedMessages.length - 1].id);
+  
+        const newLastKey = parsedMessages[parsedMessages.length - 1]?.id;
+  
+        if (newLastKey === lastLoadedKey) {
+          // console.log(`[loadMessages] Reached end of list or same key: ${lastLoadedKey}`);
+          return;
         }
+  
+        setLastLoadedKey(newLastKey);
+        // console.log(`[loadMessages] New lastLoadedKey: ${newLastKey}`);
       } catch (error) {
-        // console.error('Error loading messages:', error);
+        console.error('[loadMessages] Error loading messages:', error);
       } finally {
         if (reset) setLoading(false);
       }
     },
     [chatRef, lastLoadedKey, validateMessage, bannedUsers]
   );
+  
+  
+  
 
   useEffect(() => {
     // console.log('Initial loading of messages.');

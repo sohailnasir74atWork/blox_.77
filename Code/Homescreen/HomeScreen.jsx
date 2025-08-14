@@ -24,10 +24,14 @@ import BannerAdComponent from '../Ads/bannerAds';
 const HomeScreen = ({ selectedTheme }) => {
   const { theme, user, analytics, appdatabase } = useGlobalState();
   const tradesCollection = useMemo(() => firestore().collection('trades_new'), []);
-  const initialItems = [null, null, null, null, null, null];
-  const [hasItems, setHasItems] = useState(initialItems);
+  const baseGridSize = 8;
+  const extraRowSize = 4;
+  const [hasItems, setHasItems] = useState(Array(baseGridSize).fill(null));
+  const [wantsItems, setWantsItems] = useState(Array(baseGridSize).fill(null));
+  
+  // const [hasItems, setHasItems] = useState(initialItems);
   const [fruitRecords, setFruitRecords] = useState([]);
-  const [wantsItems, setWantsItems] = useState(initialItems);
+  // const [wantsItems, setWantsItems] = useState(initialItems);
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
   const [selectedSection, setSelectedSection] = useState(null);
   const [searchText, setSearchText] = useState('');
@@ -78,8 +82,8 @@ const HomeScreen = ({ selectedTheme }) => {
     setSelectedSection(null);
     setHasTotal({ price: 0, value: 0 });
     setWantsTotal({ price: 0, value: 0 });
-    setHasItems([null, null, null, null, null, null]);
-    setWantsItems([null, null, null, null, null, null]);
+    setHasItems(Array(baseGridSize).fill(null));
+    setWantsItems(Array(baseGridSize).fill(null));
   };
 
 
@@ -166,6 +170,7 @@ const HomeScreen = ({ selectedTheme }) => {
         ratingCount: ratingCount
 
       };
+      // console.log(newTrade)
       if (type === 'share') {
         setModalVisible(false); // Close modal
         setSelectedTrade(newTrade);
@@ -193,7 +198,6 @@ const HomeScreen = ({ selectedTheme }) => {
         await tradesCollection.add(newTrade);
         // console.log("🎉 Trade successfully submitted!");
 
-        setModalVisible(false); // Close modal
         const callbackfunction = () => {
           showSuccessMessage(
             t("home.alert.success"),
@@ -207,6 +211,7 @@ const HomeScreen = ({ selectedTheme }) => {
 
         if (!localState.isPro) {
           InterstitialAdManager.showAd(callbackfunction);
+          // setModalVisible(false); // Close modal
         } else {
           callbackfunction()
         }
@@ -219,7 +224,9 @@ const HomeScreen = ({ selectedTheme }) => {
       );
     } finally {
       // console.log("🔄 Resetting submission state...");
+     
       setIsSubmitting(false); // Reset submission state
+     
     }
   };
 
@@ -243,9 +250,9 @@ const HomeScreen = ({ selectedTheme }) => {
         transformedData.push({
           Name: formatNameNew(fruit.name),
           Value: fruit.value || 1,
-          Image: fruit.picture,
-          Type: fruit.category,
-          Tier: fruit.tier,
+          Image: fruit.image ||fruit.picture,
+          Type: fruit.category || 'Pet',
+          Tier: fruit.tier || 'N/A',
         })
 
 
@@ -257,6 +264,37 @@ const HomeScreen = ({ selectedTheme }) => {
 
     return transformedData;
   };
+  function formatLargeNumber(num) {
+    if (num == null || isNaN(num)) return num;
+  
+    const absNum = Math.abs(num);
+  
+    // Units for thousand, million, billion, trillion, quadrillion, etc.
+    const units = [
+      { value: 1e3,  symbol: 'K' },   // thousand
+      { value: 1e6,  symbol: 'M' },   // million
+      { value: 1e9,  symbol: 'B' },   // billion
+      { value: 1e12, symbol: 'T' },   // trillion
+      { value: 1e15, symbol: 'Q' },   // quadrillion
+      { value: 1e18, symbol: 'Qt' },  // quintillion
+      { value: 1e21, symbol: 'Sx' },  // sextillion
+      { value: 1e24, symbol: 'Sp' },  // septillion
+      { value: 1e27, symbol: 'Oc' },  // octillion
+      { value: 1e30, symbol: 'No' },  // nonillion
+      { value: 1e33, symbol: 'Dc' }   // decillion
+    ];
+  
+    for (let i = units.length - 1; i >= 0; i--) {
+      const unit = units[i];
+      if (absNum >= unit.value) {
+        return (num / unit.value).toFixed(2).replace(/\.00$/, '') + unit.symbol;
+      }
+    }
+  
+    return num.toString();
+  }
+  
+  
 
 
   const formatNameNew = (name) => {
@@ -266,8 +304,8 @@ const HomeScreen = ({ selectedTheme }) => {
       .join(' ');                           // Join with space
   
     // If the formatted name length is greater than 5 characters, truncate it and add "..."
-    if (formattedName.length > 15) {
-      return formattedName.slice(0, 15) + '...';  // Truncate to 5 characters and append '...'
+    if (formattedName.length > 12) {
+      return formattedName.slice(0, 12) + '...';  // Truncate to 5 characters and append '...'
     }
     
     return formattedName;  // Return the formatted name if it's 5 characters or less
@@ -279,9 +317,11 @@ const HomeScreen = ({ selectedTheme }) => {
 
     const parseAndSetData = () => {
       if (!localState.data) return;
+     
 
       try {
         let parsedData = localState.data;
+        // console.log(parsedData)
 
         // Ensure `localState.data` is always an object
         if (typeof localState.data === 'string') {
@@ -430,29 +470,35 @@ const HomeScreen = ({ selectedTheme }) => {
 
     if (selectedSection === 'has') {
       const updatedHasItems = [...hasItems];
-      const emptyIndex = updatedHasItems.findIndex(item => item === null); // Find the first empty slot
-
-      // console.log("Updated Has Items (before adding):", updatedHasItems);
-      // console.log("First empty index in hasItems:", emptyIndex);
-
+      const emptyIndex = updatedHasItems.findIndex(item => item === null);
+    
       if (emptyIndex !== -1) {
-        updatedHasItems[emptyIndex] = updatedItem; // Place the selected item in the first available slot
+        updatedHasItems[emptyIndex] = updatedItem;
+    
+        // 🔄 Add one more row (4 slots) if 8 items are filled
+        const filledCount = updatedHasItems.filter(item => item !== null).length;
+        if (filledCount === baseGridSize && updatedHasItems.length === baseGridSize) {
+          updatedHasItems.push(...Array(extraRowSize).fill(null));
+        }
       }
-
-      setHasItems(updatedHasItems); // Update hasItems state
+    
+      setHasItems(updatedHasItems);
     } else if (selectedSection === 'wants') {
       const updatedWantsItems = [...wantsItems];
-      const emptyIndex = updatedWantsItems.findIndex(item => item === null); // Find the first empty slot
-
-      // console.log("Updated Wants Items (before adding):", updatedWantsItems);
-      // console.log("First empty index in wantsItems:", emptyIndex);
-
+      const emptyIndex = updatedWantsItems.findIndex(item => item === null);
+    
       if (emptyIndex !== -1) {
-        updatedWantsItems[emptyIndex] = updatedItem; // Place the selected item in the first available slot
+        updatedWantsItems[emptyIndex] = updatedItem;
+    
+        const filledCount = updatedWantsItems.filter(item => item !== null).length;
+        if (filledCount === baseGridSize && updatedWantsItems.length === baseGridSize) {
+          updatedWantsItems.push(...Array(extraRowSize).fill(null));
+        }
       }
-
-      setWantsItems(updatedWantsItems); // Update wantsItems state
+    
+      setWantsItems(updatedWantsItems);
     }
+    
     setAge('')
     setUnits('')
     setWeight('')
@@ -464,30 +510,48 @@ const HomeScreen = ({ selectedTheme }) => {
 
 
 
-  const removeItem = (index, isHas) => {
-    triggerHapticFeedback('impactLight');
-    const items = isHas ? hasItems : wantsItems;
-    const updatedItems = [...items];
+// 1) Drop manual updateTotal() calls in removeItem
+const removeItem = (index, isHas) => {
+  triggerHapticFeedback('impactLight');
+  if (isHas) {
+    setHasItems(prev => {
+      const next = [...prev];
+      if (index >= 0 && index < next.length) next[index] = null;
+      return next;
+    });
+  } else {
+    setWantsItems(prev => {
+      const next = [...prev];
+      if (index >= 0 && index < next.length) next[index] = null;
+      return next;
+    });
+  }
+};
 
-    updatedItems[index] = null;  // Reset the slot to null (empty)
+// 2) One reducer for totals
+const sumList = (arr=[]) =>
+  arr.filter(Boolean).reduce((acc, item) => {
+    const v = Number(item?.Value) || 0;
+    const u = Number(item?.units) || 1;   // ← ensure numeric units
+    return acc + v * u;
+  }, 0);
 
-    if (isHas) {
-      setHasItems(updatedItems);
-      updateTotal('has');  // Recalculate hasTotal
-    } else {
-      setWantsItems(updatedItems);
-      updateTotal('wants');  // Recalculate wantsTotal
-    }
-  };
+// 3) Recompute BOTH sides on any change
+useEffect(() => {
+  setHasTotal({ value: sumList(hasItems), price: sumList(hasItems) });
+  setWantsTotal({ value: sumList(wantsItems), price: sumList(wantsItems) });
+}, [hasItems, wantsItems]);
+
 
   const filteredData = fruitRecords
     .filter((item) =>
       item.Name.toLowerCase().includes(searchText.toLowerCase()) // Filter by search text
     )
     .filter((item) =>
-      selectedPetType === 'All' || item.Type === selectedPetType.toLowerCase() // Filter by selected category
+      item.Type !== 'petold' // Filter by selected category
     );
   const handleCategoryChange = (category) => {
+
     setSelectedPetType(category);
   };
   // console.log(selectedPetType)
@@ -503,7 +567,7 @@ const HomeScreen = ({ selectedTheme }) => {
   const lastFilledIndexHas = hasItems.reduce((lastIndex, item, index) => (item ? index : lastIndex), -1);
   const lastFilledIndexWant = wantsItems.reduce((lastIndex, item, index) => (item ? index : lastIndex), -1);
 
-
+// console.log(selectedPetType)
 
   return (
     <>
@@ -519,13 +583,13 @@ const HomeScreen = ({ selectedTheme }) => {
                 <View style={[styles.summaryBox, styles.hasBox]}>
                   <Text style={[styles.summaryText]}>{t('home.you')}</Text>
                   <View style={{ width: '90%', backgroundColor: '#e0e0e0', height: 1, alignSelf: 'center' }} />
-                  <Text style={styles.priceValue}>{t('home.value')}: {hasTotal.value?.toLocaleString()}</Text>
+                  <Text style={styles.priceValue}>{t('home.value')}: {formatLargeNumber(hasTotal.value).toLocaleString()}</Text>
 
                 </View>
                 <View style={[styles.summaryBox, styles.wantsBox]}>
                   <Text style={styles.summaryText}>{t('home.them')}</Text>
                   <View style={{ width: '90%', backgroundColor: '#e0e0e0', height: 1, alignSelf: 'center' }} />
-                  <Text style={styles.priceValue}>{t('home.value')}: {wantsTotal.value?.toLocaleString()}</Text>
+                  <Text style={styles.priceValue}>{t('home.value')}: {formatLargeNumber(wantsTotal.value).toLocaleString()}</Text>
 
                 </View>
               </View>}
@@ -534,7 +598,7 @@ const HomeScreen = ({ selectedTheme }) => {
                   {isProfit ? t('home.profit') : t('home.loss')}:
                 </Text>
                 <Text style={[styles.profitLossValue, { color: isProfit ? config.colors.hasBlockGreen : config.colors.wantBlockRed }]}>
-                  ${Math.abs(profitLoss).toLocaleString()} ({profitPercentage}%)
+                  ${formatLargeNumber(Math.abs(profitLoss)).toLocaleString()} ({profitPercentage}%)
                 </Text>
                 {!neutral && <Icon
                   name={isProfit ? 'arrow-up-outline' : 'arrow-down-outline'}
@@ -617,18 +681,18 @@ const HomeScreen = ({ selectedTheme }) => {
                         ]}> {item.units}x {item.Name}</Text>
 
 
-                        <View style={{ height: 45, width: '100%', borderBottomRightRadius: 8, borderBottomLeftRadius: 8, justifyContent: 'flex-end' }}>
+                        <View style={{  width: '100%', borderBottomRightRadius: 8, borderBottomLeftRadius: 8, justifyContent: 'flex-end' }}>
 
-                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', paddingHorizontal: 5, paddingVertical: 2, }}>
-                            <Text style={[styles.itemText2
+                          {/* <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', paddingHorizontal: 5, paddingVertical: 2, }}> */}
+                            {/* <Text style={[styles.itemText2
                             ]}>{formatNameNew(item.Tier)}</Text>
                             <Text style={[styles.itemText2
-                            ]}>{formatNameNew(item.Type)}</Text>
+                            ]}>{formatNameNew(item.Type)}</Text> */}
 
 
 
-                          </View>
-                          {(item.age || item.weight) && item.Type !== 'gear' && <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', paddingHorizontal: 5, paddingVertical: 2 }}>
+                          {/* </View> */}
+                          {/* {(item.age || item.weight) && item.Type !== 'gear' && <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', paddingHorizontal: 5, paddingVertical: 2 }}>
                             {item.weight && <Text style={[styles.itemText2
                             ]}>{item.weight} kg</Text>}
                             {item.age && <Text style={[styles.itemText2
@@ -636,7 +700,7 @@ const HomeScreen = ({ selectedTheme }) => {
 
 
 
-                          </View>}
+                          </View>} */}
                           {/* {item?.Type === '' && <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 5, paddingVertical: 2 }}>
                             <Text style={[styles.itemText2
                             ]}>200 Kg</Text>
@@ -652,7 +716,7 @@ const HomeScreen = ({ selectedTheme }) => {
                         {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
 
                         <TouchableOpacity onPress={() => removeItem(index, true)} style={styles.removeButton}>
-                          <Icon name="close-outline" size={18} color="white" />
+                          <Icon name="close-outline" size={14} color="white" />
                         </TouchableOpacity>
                       </>
                     ) : (
@@ -749,7 +813,7 @@ const HomeScreen = ({ selectedTheme }) => {
                         ]}> {item.units} x {item.Name}</Text>
 
 
-                        <View style={{ height: 45, width: '100%', borderBottomRightRadius: 8, borderBottomLeftRadius: 8, justifyContent: 'flex-end' }}>
+                        {/* <View style={{ height: 45, width: '100%', borderBottomRightRadius: 8, borderBottomLeftRadius: 8, justifyContent: 'flex-end' }}>
 
                           <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', paddingHorizontal: 5, paddingVertical: 2, }}>
                             <Text style={[styles.itemText2
@@ -769,21 +833,13 @@ const HomeScreen = ({ selectedTheme }) => {
 
 
                           </View>}
-                          {/* {item?.Type === '' && <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 5, paddingVertical: 2 }}>
-                            <Text style={[styles.itemText2
-                            ]}>200 Kg</Text>
-                            <Text style={[styles.itemText2
-                            ]}>Age: 3</Text>
+                    
 
 
-
-                          </View>} */}
-
-
-                        </View>
+                        </View> */}
                         {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
                         <TouchableOpacity onPress={() => removeItem(index, false)} style={styles.removeButton}>
-                          <Icon name="close-outline" size={18} color="white" />
+                          <Icon name="close-outline" size={14} color="white" />
                         </TouchableOpacity>
                       </>
                     ) : (
@@ -835,7 +891,7 @@ const HomeScreen = ({ selectedTheme }) => {
 
                 <View style={[styles.drawerContent]}>
                   {/* Category List */}
-                  <View style={styles.categoryList}>
+                  {/* <View style={styles.categoryList}>
                     {CATEGORIES.map((category) => (
                       <TouchableOpacity
                         key={category}
@@ -855,13 +911,13 @@ const HomeScreen = ({ selectedTheme }) => {
                         </Text>
                       </TouchableOpacity>
                     ))}
-                  </View>
+                  </View> */}
                   <View style={styles.gridContainer}>
 
                     {/* FlatList without ScrollView */}
                     <FlatList
                       data={filteredData} // Using the filtered data
-                      keyExtractor={(item) => item.Name}
+                      keyExtractor={(item, index) => item.Name}
                       renderItem={({ item }) => (
                         <TouchableOpacity
                           style={[
@@ -878,7 +934,7 @@ const HomeScreen = ({ selectedTheme }) => {
                             styles.itemText,
                             { color: isDarkMode ? 'white' : 'black' }
                           ]}>
-                            {!item.Value ? "Special" : `${Number(item.Value).toLocaleString()}`}
+                           { formatLargeNumber(item.Value).toLocaleString()}
                           </Text>
                           <Text style={[
                             styles.itemText,
@@ -1116,18 +1172,23 @@ const getStyles = (isDarkMode) =>
       flexWrap: 'wrap',
       justifyContent: 'space-between',
       marginBottom: 5,
+      borderRadius:2,
+      backgroundColor:config.colors.primary,
+      padding:2
 
     },
     addItemBlockNew: {
-      width: '33%',
-      height: 100,
+      width: '25%',
+      height: 80,
       backgroundColor: isDarkMode ? '#34495E' : '#c6c2ff', // Dark: darker contrast, Light: White
       borderWidth: Platform.OS === 'android' ? 0 : 1,
       borderColor: 'lightgrey',
       justifyContent: 'center',
       alignItems: 'center',
-      borderRadius: 4,
-      marginBottom: 2,
+      // borderRadius: 4,
+      // marginBottom: 2,
+      borderWidth:.5,
+      borderColor:'black'
 
     },
 
@@ -1142,7 +1203,7 @@ const getStyles = (isDarkMode) =>
     },
     itemBlock: {
       width: '32%',
-      height: 80,
+      height: 90,
       backgroundColor: isDarkMode ? '#34495E' : '#c6c2ff', // Dark: darker contrast, Light: White
       justifyContent: 'center',
       alignItems: 'center',
@@ -1175,7 +1236,7 @@ const getStyles = (isDarkMode) =>
       position: 'absolute',
       top: 2,
       right: 2,
-      backgroundColor: config.colors.wantBlockRed,
+      backgroundColor: '#ff4d6d',
       borderRadius: 50,
       opacity: .7
     },
@@ -1252,8 +1313,8 @@ const getStyles = (isDarkMode) =>
       justifyContent: 'space-around',
     },
     itemImageOverlay: {
-      width: 40,
-      height: 40,
+      width: 60,
+      height: 60,
       borderRadius: 5,
     },
 

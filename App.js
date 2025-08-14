@@ -34,8 +34,8 @@ import InterstitialAdManager from './Code/Ads/IntAd';
 import AppOpenAdManager from './Code/Ads/openApp';
 import RNBootSplash from "react-native-bootsplash";
 import SystemNavigationBar from 'react-native-system-navigation-bar';
-import { checkForUpdate } from './Code/AppHelper/InAppUpdateChecker.js';
 import AdminUnbanScreen from './Code/AppHelper/AdminDashboard.js';
+import { checkForUpdate } from './Code/AppHelper/InAppUpdateChecker.js';
 
 
 

@@ -30,7 +30,7 @@ const FruitSelectionDrawer = ({ visible, onClose, onSelect, data, selectedTheme 
   // };
 
   const formatNameNew = (name) => {
-    console.log(name)
+    // console.log(name)
     const formattedName = name
       .split('_')                           // Split on underscore
       .map(word => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalize each word

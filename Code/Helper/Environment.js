@@ -25,8 +25,8 @@ const config = {
 
   supportEmail: isNoman ? 'thesolanalabs@gmail.com' : 'mindfusionio.help@gmail.com',
   andriodShareLink: isNoman ? 'https://play.google.com/store/apps/details?id=com.growagarden.gag' : 'https://play.google.com/store/apps/details?id=com.bloxfruitstock',
-  IOsShareLink: isNoman ? 'https://apps.apple.com/us/app/app-name/id6737775801' : '',
-  IOsShareLink: isNoman ? 'https://apps.apple.com/us/app/app-name/id6737775801' : '',
+  IOsShareLink: isNoman ? 'https://apps.apple.com/us/app/app-name/id6747990898' : '',
+  IOsShareLink: isNoman ? 'https://apps.apple.com/us/app/app-name/id6747990898' : '',
   webSite: isNoman ? 'https://grow-a-garden.app/' : 'https://bloxfruitvalue.today',
 
   isNoman: isNoman ? true : false,

@@ -73,6 +73,35 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
             console.error('Error sharing:', error);
         }
     };
+    function formatLargeNumber(num) {
+        if (num == null || isNaN(num)) return num;
+      
+        const absNum = Math.abs(num);
+      
+        // Units for thousand, million, billion, trillion, quadrillion, etc.
+        const units = [
+          { value: 1e3,  symbol: 'K' },   // thousand
+          { value: 1e6,  symbol: 'M' },   // million
+          { value: 1e9,  symbol: 'B' },   // billion
+          { value: 1e12, symbol: 'T' },   // trillion
+          { value: 1e15, symbol: 'Q' },   // quadrillion
+          { value: 1e18, symbol: 'Qt' },  // quintillion
+          { value: 1e21, symbol: 'Sx' },  // sextillion
+          { value: 1e24, symbol: 'Sp' },  // septillion
+          { value: 1e27, symbol: 'Oc' },  // octillion
+          { value: 1e30, symbol: 'No' },  // nonillion
+          { value: 1e33, symbol: 'Dc' }   // decillion
+        ];
+      
+        for (let i = units.length - 1; i >= 0; i--) {
+          const unit = units[i];
+          if (absNum >= unit.value) {
+            return (num / unit.value).toFixed(2).replace(/\.00$/, '') + unit.symbol;
+          }
+        }
+      
+        return num.toString();
+      }
     const formatNameNew = (name) => {
         // console.log(name)
         if(!name) return
@@ -90,16 +119,16 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
 
     const chunkArray = (array, size) => {
         const chunkedArr = [];
-        for (let i = 0; i < array.length && i < 6; i += size) {
+        for (let i = 0; i < array.length; i += size) {
             chunkedArr.push(array.slice(i, i + size));
         }
         return chunkedArr;
     };
     const ensureFourItems = (items) => {
         const filledItems = [...items];
-        while (filledItems.length < 6) {
+        // while (filledItems.length < 12) {
             filledItems.push({ name: '', type: 'placeholder' }); // Placeholder item
-        }
+        // }
         return filledItems;
     };
 
@@ -224,14 +253,14 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                 {showLeftGrid && (
                                     <View style={[styles.hasBackground, !showRightGrid && styles.fullWidthSummary]}>
                                         <Text style={[styles.priceText]}>Has</Text>
-                                        {includeValue && <Text style={[styles.priceText, { borderTopWidth: 1, borderTopColor: 'lightgrey' }]}>Value: {hasTotal.value.toLocaleString()}</Text>}
+                                        {includeValue && <Text style={[styles.priceText, { borderTopWidth: 1, borderTopColor: 'lightgrey' }]}>Value: {formatLargeNumber(hasTotal.value).toLocaleString()}</Text>}
                                      
                                     </View>
                                 )}
                                 {showRightGrid && (
                                     <View style={[styles.wantBackground, !showLeftGrid && styles.fullWidthSummary]}>
                                         <Text style={[styles.priceText]}>Want</Text>
-                                        {includeValue && <Text style={[styles.priceText, { borderTopWidth: 1, borderTopColor: 'lightgrey' }]}>Value: {wantsTotal.value.toLocaleString()}</Text>}
+                                        {includeValue && <Text style={[styles.priceText, { borderTopWidth: 1, borderTopColor: 'lightgrey' }]}>Value: {formatLargeNumber(wantsTotal.value).toLocaleString()}</Text>}
                                        
                                     </View>
                                 )}
