@@ -26,7 +26,7 @@ export function useAd() {
     const unsubscribeEarned = rewardedInterstitial.addAdEventListener(
       RewardedAdEventType.EARNED_REWARD,
       (reward) => {
-        console.log('User earned reward of', reward);
+        // console.log('User earned reward of', reward);
       }
     );
 
@@ -60,7 +60,7 @@ export function useAd() {
         console.error('Error showing the ad: ', err);
       });
     } else {
-      console.log('Ad is not ready yet.');
+      // console.log('Ad is not ready yet.');
     }
   };
 

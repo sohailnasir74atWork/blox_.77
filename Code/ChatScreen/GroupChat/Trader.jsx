@@ -21,7 +21,7 @@ import leoProfanity from 'leo-profanity';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import { useLocalState } from '../../LocalGlobelStats';
-import { ref } from '@react-native-firebase/database';
+import { onValue, ref } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
 import { mixpanel } from '../../AppHelper/MixPenel';
 import InterstitialAdManager from '../../Ads/IntAd';
@@ -31,10 +31,11 @@ import { showMessage } from 'react-native-flash-message';
 leoProfanity.add(['hell', 'shit']);
 leoProfanity.loadDictionary('en');
 
+
 const bannerAdUnitId = getAdUnitId('banner');
 const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatFocused,
   setModalVisibleChatinfo, unreadMessagesCount, fetchChats, unreadcount, setunreadcount }) => {
-    const { user, theme, onlineMembersCount, appdatabase, setUser, isAdmin, proTagBought, updateLocalStateAndDatabase, proGranted } = useGlobalState();
+    const { user, theme, onlineMembersCount, appdatabase, setUser, isAdmin, proTagBought, currentUserEmail, proGranted } = useGlobalState();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [replyTo, setReplyTo] = useState(null);
@@ -57,6 +58,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   const [isAtBottom, setIsAtBottom] = useState(true);
   const isFocused = useIsFocused();
   const [selectedEmoji, setSelectedEmoji] = useState(null);
+  const [strikeInfo, setStrikeInfo] = useState(null);
+
 
 
   const flatListRef = useRef();
@@ -113,7 +116,19 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   const styles = useMemo(() => getStyles(theme === 'dark'), [theme]);
 
 
+  useEffect(() => {
+    if (!currentUserEmail) return;
 
+    const encodedEmail = currentUserEmail.replace(/\./g, '(dot)');
+    const banRef = ref(appdatabase, `banned_users_by_email/${encodedEmail}`);
+
+    const unsubscribe = onValue(banRef, (snapshot) => {
+      const banData = snapshot.val();
+      setStrikeInfo(banData || null);
+    });
+
+    return () => unsubscribe();
+  }, [currentUserEmail]);
 
   const validateMessage = useCallback((message) => {
     // console.log(message)
@@ -343,125 +358,95 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     // fetchChats()
   };
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = () => {
     const MAX_CHARACTERS = 250;
-    const MESSAGE_COOLDOWN = 3000;
+    const MESSAGE_COOLDOWN = 100;
     const LINK_REGEX = /(https?:\/\/[^\s]+)/g;
-
-    if (!user?.id || user?.isBlock) {
+    if (!user?.id || !currentUserEmail) {
       showMessage({
-        message: user?.isBlock ? 'You are blocked by an Admin' : 'You must be logged in.',
-        type: 'warning',
-        icon: 'warning',
-        backgroundColor: 'grey',
-        color: 'white',
+        message: 'You are not loggedin',
+        description: 'You must be logged in to send Messages',
+        type: 'danger',
       });
       return;
+
+    }
+
+    if (strikeInfo) {
+      const { strikeCount, bannedUntil } = strikeInfo;
+      const now = Date.now();
+
+      if (bannedUntil === 'permanent') {
+        showMessage({
+          message: '⛔ Permanently Banned',
+          description: 'You are permanently banned from sending messages.',
+          type: 'danger',
+        });
+        return;
+      }
+
+      if (typeof bannedUntil === 'number' && now < bannedUntil) {
+        const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+        showMessage({
+          message: `⚠️ Strike ${strikeCount}`,
+          description: `You are banned from chatting for ${timeLeftText} more minute(s).`,
+          type: 'warning',
+          duration: 5000,
+
+        });
+        return;
+      }
     }
 
     const trimmedInput = input.trim();
-    // if (!trimmedInput) {
-    //   Alert.alert(t('home.alert.error'), 'Message cannot be empty.');
-    //   return;
-    // }
-
-    if (leoProfanity.check(trimmedInput)) {
-      showMessage({
-        message: t('misc.inappropriateLanguage'),
-        type: 'danger',
-        icon: 'danger',
-        backgroundColor: 'red',
-        color: 'white',
-      });
+    if (!trimmedInput) {
+      Alert.alert(t('home.alert.error'), 'Message cannot be empty.');
       return;
     }
+
+    if (leoProfanity.check(trimmedInput)) {
+      Alert.alert(t('home.alert.error'), t('misc.inappropriateLanguage'));
+      return;
+    }
+
     if (trimmedInput.length > MAX_CHARACTERS) {
-      showMessage({
-        message: t('misc.messageTooLong'),
-        type: 'warning',
-        icon: 'warning',
-        backgroundColor: 'orange',
-        color: 'white',
-      });
+      Alert.alert(t('home.alert.error'), t('misc.messageTooLong'));
       return;
     }
 
     if (isCooldown) {
-      showMessage({
-        message: t('misc.sendingTooQuickly'),
-        type: 'warning',
-        icon: 'warning',
-        backgroundColor: 'orange',
-        color: 'white',
-      });
+      Alert.alert(t('home.alert.error'), t('misc.sendingTooQuickly'));
       return;
     }
 
     const containsLink = LINK_REGEX.test(trimmedInput);
-    const hasLinkSharingPrivilege =
-  !!user?.purchases?.[8] && (
-    !user.purchases[8].expiresAt || 
-    user.purchases[8].expiresAt > Date.now()
-  );
-// console.log(hasLinkSharingPrivilege)
-// ✅ ALLOW if Pro OR Admin OR has Link Sharing
-if (containsLink) {
-  if (!localState?.isPro && !isAdmin && !hasLinkSharingPrivilege) {
-    Alert.alert(t('home.alert.error'), t('misc.proUsersOnlyLinks'));
-    return;
-  }
-
-  if (hasLinkSharingPrivilege && user?.purchases?.[8]?.allowed > 0) {
-    // User has allowed link share left, proceed and decrement the count
-    const updatedPurchases = { ...user.purchases };
-    updatedPurchases[8].allowed -= 1;
-    // console.log(updatedPurchases, updatedPurchases[8].allowed);
-
-    // Update the user's purchase data in the database
-    await updateLocalStateAndDatabase({
-      [`purchases/${8}`]: updatedPurchases[8],
-    });
-  } else {
-    showMessage({
-      message: 'Your free link purchase has expired or you have used all 10 links. Kindly repurchase to continue sharing links.',
-      type: 'warning',
-      icon: 'warning',
-      backgroundColor: 'orange',
-      color: 'white',
-    });
-    return;
-  }
-}
+    if (containsLink && !localState?.isPro && !isAdmin) {
+      Alert.alert(t('home.alert.error'), t('misc.proUsersOnlyLinks'));
+      return;
+    }
 
     try {
-      const styleObj =
-      user?.purchases &&
-      Object.values(user.purchases).find(p => p?.id === 9 && p.style)?.style;
-    
-    const iconArr =
-      user?.purchases &&
-      Object.values(user.purchases).find(p => p?.id === 10 && Array.isArray(p.icons))?.icons;
-    
-    ref(appdatabase, 'chat_new').push({
-      text: trimmedInput == '' ? '.' :trimmedInput  ,
-      timestamp: Date.now(),
-      sender: user.displayName || 'Anonymous',
-      senderId: user.id,
-      avatar: user.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
-      replyTo: replyTo ? { id: replyTo.id, text: replyTo?.text } : null,
-      reportCount: 0,
-      containsLink,
-      isPro: localState.isPro,
-      proGranted: proGranted || proTagBought,
-      style: styleObj || null,
-      icons: iconArr || [],
-      isAdmin:isAdmin,
-      gif: selectedEmoji || null
-    });
-    
+      ref(appdatabase, 'chat_new').push({
+        text: trimmedInput,
+        timestamp: Date.now(),
+        sender: user.displayName || 'Anonymous',
+        senderId: user.id,
+        avatar: user.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+        replyTo: replyTo ? { id: replyTo.id, text: replyTo.text } : null,
+        reportCount: 0,
+        containsLink,
+        isPro: localState.isPro,
+        isAdmin: isAdmin,
+        strikeCount: strikeInfo?.strikeCount || null,
+        currentUserEmail: currentUserEmail
+
+      });
 
       setInput('');
-      setSelectedEmoji(null);
       setReplyTo(null);
       setIsCooldown(true);
       setTimeout(() => setIsCooldown(false), MESSAGE_COOLDOWN);
@@ -478,9 +463,9 @@ if (containsLink) {
 
         <View style={styles.container}>
           <AdminHeader
-            pinnedMessages={pinnedMessages}
-            onClearPin={clearAllPinnedMessages}
-            onUnpinMessage={unpinSingleMessage}
+           pinnedMessages={pinnedMessages}
+           onClearPin={clearAllPinnedMessages}
+           onUnpinMessage={unpinSingleMessage}
             // isAdmin={isAdmin}
             selectedTheme={selectedTheme}
             onlineMembersCount={onlineMembersCount}
@@ -520,6 +505,7 @@ if (containsLink) {
                 setIsAtBottom={setIsAtBottom}
                 toggleDrawer={toggleDrawer}
                 setMessages={setMessages}
+
                
               />
             )}

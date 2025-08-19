@@ -1,85 +1,98 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Animated,
-   Modal,
+  Modal,
   Linking,
-  Platform
+  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../../GlobelStats';
 import { ScrollView } from 'react-native-gesture-handler';
 import config from '../../Helper/Environment';
-import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { rulesde, rulesen, rulesfil, rulesfr, rulesid, rulespt, rulesru, rulesvi } from '../utils';
-import i18n from '../../../i18n';
+import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
+import ChatRulesModal from './ChatRuleModel';
+
+// Regular expression to detect URLs in the message
+const URL_REGEX = /(https?:\/\/[^\s]+)/g;
 
 const AdminHeader = ({
   selectedTheme,
   modalVisibleChatinfo,
-  setModalVisibleChatinfo, triggerHapticFeedback, unreadcount, setunreadcount
-
+  setModalVisibleChatinfo,
+  triggerHapticFeedback,
+  unreadcount,
+  setunreadcount,
+  pinnedMessages,
+  onUnpinMessage
 }) => {
-  const [expanded, setExpanded] = useState(false);
-  const [randomBase, setRandomBase] = useState(0); // Random base for online count
-  const animatedHeight = useRef(new Animated.Value(60)).current;
-  const [contentHeight, setContentHeight] = useState(0);
-  const { theme, analytics } = useGlobalState();
+  const { theme, user, isAdmin } = useGlobalState();
   const isDarkMode = theme === 'dark';
-  const { user } = useGlobalState()
-  const navigation = useNavigation()
-  const [onlineUsers, setOnlineUsers] = useState(0);
+  const navigation = useNavigation();
   const { t } = useTranslation();
-  const platform = Platform.OS.toLowerCase();
+  const [pinMessageOpen, setPinMessageOpen] = useState(false)
 
-  const getLocalizedRules = (lang) => {
-    switch (lang) {
-      case 'de':
-        return rulesde;
-      case 'vi':
-        return rulesvi;
-      case 'id':
-        return rulesid;
-      case 'fr':
-        return rulesfr;
-      case 'fil':
-        return rulesfil;
-      case 'ru':
-        return rulesru;
-      case 'pt':
-        return rulespt;
-      default:
-        return rulesen; // Default to English
+  const styles = getStyles(isDarkMode);
+
+  // Function to detect and wrap URLs with clickable text
+  const renderMessageWithLinks = (message) => {
+    const parts = message.split(URL_REGEX);
+    return parts.map((part, index) => {
+      if (URL_REGEX.test(part)) {
+        // This part is a URL, make it clickable and underlined
+        return (
+          <Text
+            key={index}
+            style={[styles.pinnedText, { textDecorationLine: 'underline', color: 'blue' }]}
+            onPress={() => Linking.openURL(part)}
+          >
+            {part}
+          </Text>
+        );
+      }
+      return <Text key={index} style={styles.pinnedText}>{part}</Text>;
+    });
+  };
+
+  // Filter out duplicate pinned messages based on firebaseKey
+  const uniquePinnedMessages = Array.from(
+    new Map(pinnedMessages.map((msg) => [msg.firebaseKey, msg])).values()
+  );
+
+  const unbanUserWithEmailPost = async (email) => {
+    const encodeEmail = (email) => email.replace(/\./g, '(dot)');
+    try {
+      const db = getDatabase();
+      const banRef = ref(db, `banned_users_by_email_post/${encodeEmail(email)}`);
+      await set(banRef, null); // Clear the ban entry
+  
+      Alert.alert('User Unbanned', 'Ban has been lifted.');
+    } catch (err) {
+      console.error('Unban error:', err);
+      Alert.alert('Error', 'Could not unban user.');
     }
   };
-  const rules = getLocalizedRules(i18n.language);
-  useEffect(() => {
-    // Generate a random number between 30 and 50
-    const randomOnlineCount = Math.floor(Math.random() * (50 - 30 + 1)) + 30;
-    setOnlineUsers(randomOnlineCount);
-  }, []);
 
-
-  const styles = getStyles(isDarkMode)
   return (
     <View>
-      <View style={{ height: 50 }}>
-        <View style={styles.stackContainer}>
-          <View><Text style={styles.stackHeader}>{t("chat.community_chat")}</Text></View>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {user?.id && <View style={styles.iconContainer}>
+      <View style={styles.stackContainer}>
+        <View style={{ paddingVertical: 10 }}><Text style={styles.stackHeader}>Community Chat</Text></View>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          {user?.id && (
+            <View style={styles.iconContainer}>
               <Icon
                 name="chatbox-outline"
                 size={24}
                 color={selectedTheme.colors.text}
                 style={styles.icon2}
                 onPress={() => {
-                  navigation.navigate('Inbox'); triggerHapticFeedback('impactLight'); setunreadcount(0); 
+                  navigation.navigate('Inbox');
+                  triggerHapticFeedback('impactLight');
+                  setunreadcount(0);
                 }}
               />
               {unreadcount > 0 && (
@@ -87,229 +100,184 @@ const AdminHeader = ({
                   <Text style={styles.badgeText}>{unreadcount > 9 ? '9+' : unreadcount}</Text>
                 </View>
               )}
-            </View>}
-
-            {user.id && <Menu>
+            </View>
+          )}
+          {user.id && (
+            <Menu>
               <MenuTrigger>
-                <Icon
-                  name="ellipsis-vertical-outline"
-                  size={24}
-                  color={config.colors.primary}
-
-                />
+                <Icon name="ellipsis-vertical-outline" size={24} color={config.colors.primary} />
               </MenuTrigger>
               <MenuOptions
                 customStyles={{
                   optionsContainer: {
-                    marginTop: 8, // Space between menu trigger and options
+                    marginTop: 8,
                     borderRadius: 8,
-                    width: 220, // Adjust width as needed
+                    width: 220,
                     padding: 5,
-                    // margin:120,
-                    backgroundColor: config.colors.background || '#fff', // Adjust for theme
+                    backgroundColor: config.colors.background || '#fff',
                   },
                 }}
               >
-                <MenuOption onSelect={() => { setModalVisibleChatinfo((prev) => !prev); triggerHapticFeedback('impactLight'); }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', padding: 10 }}>
-                    <Icon
-                      name="information-circle-outline"
-                      size={20}
-                      color={config.colors.primary}
-                      style={{ marginRight: 10 }}
-                    />
-                    <Text style={{ fontSize: 16, color: config.colors.text || '#000' }}>
-                      {t("chat.chat_rules")}
-                    </Text>
-                  </View>
-                </MenuOption>
-                <View
-                  style={{
-                    height: 1,
-                    backgroundColor: '#ccc',
-                    marginHorizontal: 10,
-                  }}
-                />
+
                 <MenuOption onSelect={() => navigation?.navigate('BlockedUsers')}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', padding: 10 }}>
-                    <Icon
-                      name="ban-outline"
-                      size={20}
-                      color={config.colors.primary}
-                      style={{ marginRight: 10 }}
-                    />
+                    <Icon name="ban-outline" size={20} color={config.colors.primary} style={{ marginRight: 10 }} />
                     <Text style={{ fontSize: 16, color: config.colors.text || '#000' }}>
                       {t("chat.blocked_users")}
                     </Text>
                   </View>
                 </MenuOption>
               </MenuOptions>
-            </Menu>}
-          </View>
-
+            </Menu>
+          )}
         </View>
-
-
-
       </View>
-      <View
-        style={[
-          styles.headerContainer,
-          {
-            backgroundColor: selectedTheme.colors.background,
-            // height: animatedHeight,
-            borderColor: isDarkMode ? '#333333' : '#cccccc',
-          },
-        ]}
-        // {...panResponder.panHandlers}
-      >
-        <TouchableOpacity
-        style={styles.button}
-        onPress={() => setModalVisibleChatinfo(true)}
-      >
+      <View style={{
+        flexDirection: 'row', justifyContent: 'space-between', padding: 10, alignItems: 'center', borderBottomWidth: .3, borderBottomColor: 'lightgrey',
+      }}>
+        <Text style={{ fontSize: 12, color: isDarkMode ? 'white' : 'black' }}>🚫 No Spamming ❌ No Abuse 🛑 Be Civil & Polite 😊
+        </Text>
+        <TouchableOpacity onPress={() => { setModalVisibleChatinfo(true); triggerHapticFeedback('impactLight'); }}>
+
+          <Icon name="information-circle-outline" size={20} color={config.colors.primary} style={{ marginRight: 10 }} />
+          {/* <Text style={{ fontSize: 16, color: config.colors.text || '#000' }}>
+                      {t("chat.chat_rules")}
+                    </Text> */}
         </TouchableOpacity>
-       
+      </View>
 
+      {/* Displaying truncated pinned messages */}
+      {uniquePinnedMessages.length > 0 && (
+        <View style={styles.pinnedContainer}>
+          {uniquePinnedMessages.slice(0, 1).map((msg) => (
+            <View key={msg.firebaseKey} style={styles.singlePinnedMessage}>
+              <View>
+                <Text style={styles.pinnedTextheader}>Pin Message</Text>
+                <Text style={styles.pinnedText}>
+                  {msg.text.replace(/\n/g, ' ').length > 40 ?
+                    msg.text.replace(/\n/g, ' ').substring(0, 40) + '...' :
+                    msg.text.replace(/\n/g, ' ')}
+                </Text>
 
-        <Modal
-          animationType="slide"
-          transparent={true}
-          visible={modalVisibleChatinfo}
-          onRequestClose={() => setModalVisibleChatinfo(false)}
-        >
-          <View style={styles.modalContainer}>
-            <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Chat Rules</Text>
-
-                {rules.map((rule, index) => {
-                  if (rule.includes("Terms of Service and Privacy Policy")) {
-                    const beforeText = rule.split("Terms of Service and Privacy Policy")[0];
-                    return (
-                      <Text key={index} style={styles.ruleText}>
-                        {index + 1}. {beforeText}
-                        <Text
-                          style={{ color: config.colors.hasBlockGreen, textDecorationLine: 'underline' }}
-                          onPress={() => Linking.openURL("https://bloxfruitscalc.com/privacy-policy/")}
-                        >
-                          Terms of Service and Privacy Policy
-                        </Text>
-                      </Text>
-                    );
-                  }
-
-                  return (
-                    <Text key={index} style={styles.ruleText}>
-                      {index + 1}. {rule} <View style={{ height: 8 }} />
-                    </Text>
-                  );
-                })}
-
-                {/* Close button */}
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  onPress={() => setModalVisibleChatinfo(false)}
-                >
-                  <Text style={styles.closeButtonText}>{t("chat.got_it")}</Text>
-                </TouchableOpacity>
               </View>
-            </ScrollView>
-          </View>
-        </Modal>
+              <TouchableOpacity onPress={() => setPinMessageOpen(true)} style={{ justifyContent: 'center' }}>
+                <Icon name="chevron-forward-outline" size={20} color={config.colors.primary} style={styles.pinIcon} />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
 
-      </View></View>
+      {/* Modal for showing all pinned messages */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={pinMessageOpen}
+        onRequestClose={() => setPinMessageOpen(false)}
+      >
+        <View style={styles.modalContainer}>
+          <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', minWidth: 320 }}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Pin Messages</Text>
+              {uniquePinnedMessages.map((msg) => (
+                <View key={msg.firebaseKey} style={styles.singlePinnedMessageModal}>
+                  {renderMessageWithLinks(msg.text)}
+                  {isAdmin && (
+                    <TouchableOpacity onPress={() => onUnpinMessage(msg.firebaseKey)} style={{ backgroundColor: config.colors.primary, marginVertical: 3 }}>
+                      <Text style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 5, color: 'white' }}>Delete</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setPinMessageOpen(false)}
+              >
+                <Text style={styles.closeButtonText}>{t("chat.got_it")}</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+      <ChatRulesModal
+        visible={modalVisibleChatinfo}
+        onClose={() => setModalVisibleChatinfo(false)}
+        isDarkMode={isDarkMode}
+      />
+    </View>
   );
 };
 
 export const getStyles = (isDarkMode) =>
   StyleSheet.create({
-    headerContainer: {
-      overflow: 'hidden',
-      borderBottomWidth: 1,
-      // borderTopWidth: 1,
-      marginBottom: 10,
-    },
-    topRow: {
+    stackContainer: {
+      justifyContent: 'space-between',
       flexDirection: 'row',
-      justifyContent: 'flex-end',
       alignItems: 'center',
       paddingHorizontal: 10,
+      // paddingTop: Platform.OS === 'android' ? 60 : 0,
+
+
+      // paddingVertical: 10,
+
+
+      borderBottomWidth: 0.3,
+      borderBottomColor: 'lightgrey',
     },
-    bottomRow: {
-      flexDirection: 'row',
-      justifyContent: 'flex-end',
-      alignItems: 'center',
-      paddingHorizontal: 10,
-    },
-    onlineText: {
-      fontSize: 10,
-      fontFamily: 'Lato-Regular',
-      paddingBottom:5
+    stackHeader: {
+      fontFamily: 'Lato-Bold',
+      fontSize: 24,
+      lineHeight: 24,
+      color: isDarkMode ? 'white' : 'black',
     },
     pinnedContainer: {
-      paddingHorizontal: 10,
-      paddingVertical: 10,
+      // paddingHorizontal: 10,
+      // paddingVertical: 1,
+      borderBottomWidth: 0.3,
+      borderBottomColor: 'lightgrey',
     },
     singlePinnedMessage: {
       flexDirection: 'row',
-      alignItems: 'center',
       justifyContent: 'space-between',
-      marginBottom: 5,
-      lineHeight: 24
-    },
-    pinnedText: {
-      fontSize: 14,
-      paddingRight: 20,
-      lineHeight: 24,
-      fontFamily: 'Lato-Regular',
-      flex: 1,
-      marginBottom: 10,
+      paddingVertical: 5,
+      borderBottomWidth: 0.2,
+      paddingHorizontal: 10,
 
     },
-    noPinnedContainer: {
-      alignItems: 'center',
-      justifyContent: 'center',
+    singlePinnedMessageModal: {
+      justifyContent: 'space-between',
+      lineHeight: 24,
+      paddingVertical: 10,
+      borderBottomWidth: 0.2,
     },
-    noPinnedText: {
-      fontSize: 14,
-      fontStyle: 'italic',
-    },
-    clearIcon: {
-      marginLeft: 10,
-    },
-    clearAllButton: {
-      marginTop: 10,
-      alignSelf: 'flex-start',
-    },
-    clearAllText: {
+    pinnedTextheader: {
       fontSize: 12,
-      fontFamily: 'Lato-Bold',
-      color: config.colors.hasBlockGreen,
+      paddingRight: 20,
+      fontFamily: 'Lato-Regular',
+      color: config.colors.primary,
     },
-    arrowButton: {
-      alignSelf: 'center',
-      position: 'absolute',
-      bottom: -5,
+    pinnedText: {
+      fontSize: 12,
+      fontFamily: 'Lato-Regular',
+      color: isDarkMode ? 'white' : 'black'
     },
-    icon: {
-      alignSelf: 'left',
-      position: 'absolute',
-      marginLeft: 5
-      // bottom: -5,
+    pinIcon: {
+      marginLeft: 10,
+      // alignItems:'center',
+      // backgroundColor:'red'
     },
     modalContainer: {
       flex: 1,
-      justifyContent: 'center', // Centers vertically
-      alignItems: 'center', // Centers horizontally
-      backgroundColor: 'rgba(0, 0, 0, 0.5)', // Darkened background
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      width: '100%',
     },
     modalContent: {
-      width: '90%', // Width of the modal content
+      width: '95%',
       backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
       borderRadius: 10,
       padding: 20,
-      // maxHeight: '85%', // To prevent overflow
-      margin: 'auto'
     },
     modalTitle: {
       fontSize: 20,
@@ -328,26 +296,6 @@ export const getStyles = (isDarkMode) =>
       color: '#fff',
       fontSize: 16,
       fontFamily: 'Lato-Bold',
-    },
-    ruleText: {
-      fontFamily: 'Lato-Regular',
-      color: isDarkMode ? 'white' : 'black',
-      lineHeight: 16,
-      fontSize: 12,
-      marginBottom: 10,
-    },
-    stackContainer: {
-      justifyContent: 'space-between', flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10
-    },
-    stackHeader: {
-      fontFamily: 'Lato-Bold', fontSize: 24, lineHeight: 24, color: isDarkMode ? 'white' : 'black',
-    },
-    icon: {
-      marginRight: 15,
-    },
-    icon2: {
-      marginRight: 15,
-      marginTop: 3,
     },
     badge: {
       position: 'absolute',

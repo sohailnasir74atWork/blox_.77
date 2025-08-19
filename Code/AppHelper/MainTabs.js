@@ -13,21 +13,20 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import BouncingCartIcon from './CartIcon';
 import TopLevelStockComponent from '../StockScreen/StockNavigator';
 import RewardCenterScreen from '../SettingScreen/RewardCenter';
+import DesignStack from '../Design/DesignNavigation';
+import { useGlobalState } from '../GlobelStats';
 
 
 
 const Tab = createBottomTabNavigator();
 
-const AnimatedTabIcon = React.memo(({ iconName, color, size }) => {
-
-
-
+const AnimatedTabIcon = React.memo(({ iconName, color, size, focused }) => {
   return (
     <FontAwesome
       name={iconName}
       size={size}
       color={color}
-      solid={true}
+      solid={focused}
     />
   );
 });
@@ -35,6 +34,8 @@ const AnimatedTabIcon = React.memo(({ iconName, color, size }) => {
 
 const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modalVisibleChatinfo, setModalVisibleChatinfo }) => {
   const { t } = useTranslation();
+  const {isAdmin, } = useGlobalState()
+
   
   const getTabIcon = useCallback((routeName, focused) => {
 
@@ -44,6 +45,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
       Trade: ['handshake', 'handshake'],
       Chat: ['envelope', 'envelope'],
       Values: ['sack-dollar', 'sack-dollar'],
+      Designs: ['chart-simple', 'chart-simple'],
     };
 
     return icons[routeName] ? (focused ? icons[routeName][0] : icons[routeName][1]) : 'alert-circle-outline';
@@ -58,12 +60,12 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
             focused={focused}
             iconName={getTabIcon(route.name)}
             color={config.colors.primary}
-            size={18}
+            size={14}
           />
         ),
         tabBarButton: (props) => {
           const { children, onPress } = props;
-          const isSelected = props['aria-selected'];
+          const isSelected = props?.['aria-selected'];
 
           return (
             <TouchableOpacity
@@ -110,12 +112,12 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
                 <BouncingCartIcon />
               </TouchableOpacity> */}
           
-              {/* <TouchableOpacity onPress={() => navigation.navigate('Reward')}>
+          {isAdmin && <TouchableOpacity onPress={() => navigation.navigate('Admin')}>
                 <Image
-                  source={require('../../assets/trophy.webp')}
+                  source={require('../../assets/trophy.webp')} // ✅ Ensure the correct path
                   style={{ width: 20, height: 20, marginRight: 16 }}
                 />
-              </TouchableOpacity> */}
+              </TouchableOpacity>}
           
               <TouchableOpacity onPress={() => navigation.navigate('Setting')} style={{ marginRight: 16 }}>
                 <Icon
@@ -156,6 +158,15 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
             setModalVisibleChatinfo={setModalVisibleChatinfo}
           />
         )}
+      </Tab.Screen>
+      <Tab.Screen
+        name="Designs"
+        options={{
+          title: 'Feed', // Translation applied here
+          headerShown: false
+        }}
+      >
+        {() => <DesignStack selectedTheme={selectedTheme} />}
       </Tab.Screen>
 
       <Tab.Screen

@@ -26,6 +26,8 @@ export const GlobalStateProvider = ({ children }) => {
   const [api, setApi] = useState(null);
   const [freeTranslation, setFreeTranslation] = useState(null);
   const [proGranted, setProGranted] = useState(false)
+  const [currentUserEmail, setCurrentuserEmail] = useState('')
+
 
 
   const [isAdmin, setIsAdmin] = useState(false);
@@ -211,8 +213,10 @@ export const GlobalStateProvider = ({ children }) => {
       let userData;
 
       // console.log(loggedInUser.email)
-      const makeadmin = loggedInUser.email === 'thesolanalabs@gmail.com' || loggedInUser.email === 'mastermind@gmail.com';
+      const makeadmin = loggedInUser.email === 'thesolanalabs@gmail.com' || loggedInUser.email === 'sohailnasir74@gmail.com';
       if (makeadmin) { setIsAdmin(makeadmin) }
+      setCurrentuserEmail(loggedInUser.email)
+
 
       if (snapshot.exists()) {
         userData = { ...snapshot.val(), id: userId };
@@ -501,10 +505,10 @@ export const GlobalStateProvider = ({ children }) => {
       freeTranslation,
       isAdmin,
       reload,
-      robloxUsernameRef, api,   proTagBought, stockNotifierPurchase, proGranted
+      robloxUsernameRef, api,   proTagBought, stockNotifierPurchase, proGranted, currentUserEmail
 
     }),
-    [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api, freeTranslation, proTagBought]
+    [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api, freeTranslation, proTagBought, currentUserEmail]
   );
 
   return (

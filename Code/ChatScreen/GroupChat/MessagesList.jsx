@@ -26,6 +26,7 @@ import { useLocalState } from '../../LocalGlobelStats';
 import { getDeviceLanguage } from '../../../i18n';
 import { mixpanel } from '../../AppHelper/MixPenel';
 import StyledUsernamePreview from '../../SettingScreen/Store/StyledName';
+import { banUserwithEmail, unbanUserWithEmail } from '../utils';
 const FRUIT_KEYWORDS = [
   'rocket', 'spin', 'chop', 'spring', 'bomb', 'spike', 'blade',
   'smoke', 'flame', 'ice', 'sand', 'dark', 'diamond', 'falcon',
@@ -254,11 +255,15 @@ const MessagesList = ({
                 customStyles={{ triggerTouchable: { activeOpacity: 1 } }}
               >
                 <View style={[
-                  item.senderId === user?.id ? styles.mymessageBubble : styles.othermessageBubble,
+                  item.senderId === (user?.id || item.isAdmin) ? styles.mymessageBubble : styles.othermessageBubble,
                   item.senderId === user?.id ? styles.myMessage : styles.otherMessage,
                   item.isReportedByUser && styles.reportedMessage,
                 ]}>
-                  <View style={item.senderId === user?.id ? styles.myMessageText : styles.otherMessageText}>
+                  <View style={[item.senderId === user?.id ? styles.myMessageText : styles.otherMessageText, isAdmin && item.strikeCount === 1
+                    ? { backgroundColor: 'pink' }
+                    : item.strikeCount >= 2
+                      ? { backgroundColor: 'red' }
+                      : null,]}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
                       {item?.style ? (
                         <StyledUsernamePreview
@@ -373,11 +378,14 @@ const MessagesList = ({
                   <MenuOption onSelect={() => onDeleteAllMessage(item?.senderId)} style={styles.deleteButton}>
                     <Text style={styles.adminTextAction}>Delete All</Text>
                   </MenuOption>
-                  <MenuOption onSelect={() => banUser(item.senderId)} style={styles.deleteButton}>
+                  <MenuOption onSelect={() => banUserwithEmail(item.currentUserEmail)} style={styles.deleteButton}>
                     <Text style={styles.adminTextAction}>Block</Text>
                   </MenuOption>
-                  <MenuOption onSelect={() => unbanUser(item.senderId)} style={styles.deleteButton}>
+                  <MenuOption onSelect={() => unbanUserWithEmail(item.currentUserEmail)} style={styles.deleteButton}>
                     <Text style={styles.adminTextAction}>Unblock</Text>
+                  </MenuOption>
+                  <MenuOption onSelect={() => onPinMessage(item)} style={styles.deleteButton}>
+                    <Text style={styles.adminTextAction}>Pin Message</Text>
                   </MenuOption>
                   {/* {isAdmin && (
                     <MenuOption onSelect={() => makeadmin(item.senderId)} style={styles.deleteButton}>

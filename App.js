@@ -34,6 +34,8 @@ import RNBootSplash from "react-native-bootsplash";
 import SystemNavigationBar from 'react-native-system-navigation-bar';
 import CoinStore from './Code/SettingScreen/Store/Store';
 import AppUpdateChecker from './Code/AppHelper/InAppUpdateChecker';
+import AdminUnbanScreen from './Code/AppHelper/AdminDashboard';
+import { checkForUpdate } from './Code/AppHelper/InAppUpdateCheck';
 
 
 
@@ -69,6 +71,7 @@ function App() {
 
   useEffect(() => {
     InterstitialAdManager.init();
+    checkForUpdate()
   }, []);
 
 
@@ -192,10 +195,10 @@ function App() {
             </Stack.Screen>
 
             
-            {/* <Stack.Screen
-              name="Reward"
+            <Stack.Screen
+              name="Admin"
               options={{
-                title: "Reward Center",
+                title: "Admin Dashboard",
                 headerStyle: { backgroundColor: selectedTheme.colors.background },
                 headerTintColor: selectedTheme.colors.text,
                 headerRight: () => (
@@ -205,8 +208,8 @@ function App() {
                 ),
               }}
             >
-              {() => <RewardCenterScreen selectedTheme={selectedTheme} />}
-            </Stack.Screen> */}
+              {() => <AdminUnbanScreen selectedTheme={selectedTheme} />}
+            </Stack.Screen>
 
             {/* <Stack.Screen
               name="Store"
