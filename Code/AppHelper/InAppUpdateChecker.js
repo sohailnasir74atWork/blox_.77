@@ -68,12 +68,12 @@ const AppUpdateChecker = () => {
       }
 
       if (Platform.OS === 'android') {
-        console.log('[Update Check] Starting Android update check...');
+        // console.log('[Update Check] Starting Android update check...');
         try {
           if (!inAppUpdates) throw new Error('InAppUpdates not initialized');
 
           const result = await inAppUpdates.checkNeedsUpdate();
-          console.log('[Update Check] Result:', result);
+          // console.log('[Update Check] Result:', result);
 
           if (result?.shouldUpdate) {
             await inAppUpdates.startUpdate({
@@ -83,7 +83,7 @@ const AppUpdateChecker = () => {
                   : InAppUpdates.UPDATE_TYPE.FLEXIBLE,
             });
           } else {
-            console.log('[Update Check] No update needed.');
+            // console.log('[Update Check] No update needed.');
           }
         } catch (err) {
           console.error('[Update Check] Android update check failed:', err?.message || err);

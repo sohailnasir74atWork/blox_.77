@@ -29,7 +29,11 @@ import { mixpanel } from '../../AppHelper/MixPenel';
 import { banUserwithEmail, unbanUserWithEmail } from '../utils';
 =======
 import StyledUsernamePreview from '../../SettingScreen/Store/StyledName';
+<<<<<<< HEAD
 >>>>>>> f99f5c4 (hh)
+=======
+import { banUserwithEmail, unbanUserWithEmail } from '../utils';
+>>>>>>> 7d3c677 (updated to api level 35 before)
 const FRUIT_KEYWORDS = [
   'rocket', 'spin', 'chop', 'spring', 'bomb', 'spike', 'blade',
   'smoke', 'flame', 'ice', 'sand', 'dark', 'diamond', 'falcon',
@@ -264,11 +268,16 @@ const MessagesList = ({
                   item.isReportedByUser && styles.reportedMessage,
                 ]}>
 <<<<<<< HEAD
+<<<<<<< HEAD
                   <Text style={[item.senderId === user?.id ? styles.myMessageText : styles.otherMessageText, isAdmin && item.strikeCount === 1
+=======
+                  <View style={[item.senderId === user?.id ? styles.myMessageText : styles.otherMessageText, isAdmin && item.strikeCount === 1
+>>>>>>> 7d3c677 (updated to api level 35 before)
                     ? { backgroundColor: 'pink' }
                     : item.strikeCount >= 2
                       ? { backgroundColor: 'red' }
                       : null,]}>
+<<<<<<< HEAD
                     <Text style={styles.userName}>{item.sender}
                     {item?.isPro && 
                       <Image
@@ -278,6 +287,8 @@ const MessagesList = ({
                     </Text>
 =======
                   <View style={item.senderId === user?.id ? styles.myMessageText : styles.otherMessageText}>
+=======
+>>>>>>> 7d3c677 (updated to api level 35 before)
                     <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
                       {item?.style ? (
                         <StyledUsernamePreview

@@ -30,7 +30,12 @@ export const GlobalStateProvider = ({ children }) => {
   const [currentUserEmail, setCurrentuserEmail] = useState('')
 =======
   const [proGranted, setProGranted] = useState(false)
+<<<<<<< HEAD
 >>>>>>> f99f5c4 (hh)
+=======
+  const [currentUserEmail, setCurrentuserEmail] = useState('')
+
+>>>>>>> 7d3c677 (updated to api level 35 before)
 
 
   const [isAdmin, setIsAdmin] = useState(false);
@@ -222,7 +227,11 @@ export const GlobalStateProvider = ({ children }) => {
       let userData;
 
       // console.log(loggedInUser.email)
+<<<<<<< HEAD
       const makeadmin = loggedInUser.email === 'thesolanalabs@gmail.com' || loggedInUser.email === 'mastermind@gmail.com' || loggedInUser.email === 'sohailnasir74@gmail.com';
+=======
+      const makeadmin = loggedInUser.email === 'thesolanalabs@gmail.com' || loggedInUser.email === 'sohailnasir74@gmail.com';
+>>>>>>> 7d3c677 (updated to api level 35 before)
       if (makeadmin) { setIsAdmin(makeadmin) }
       setCurrentuserEmail(loggedInUser.email)
 
@@ -508,6 +517,7 @@ export const GlobalStateProvider = ({ children }) => {
       isAdmin,
       reload,
 <<<<<<< HEAD
+<<<<<<< HEAD
       robloxUsernameRef, api, currentUserEmail
     }),
     [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api, freeTranslation, currentUserEmail]
@@ -517,6 +527,12 @@ export const GlobalStateProvider = ({ children }) => {
     }),
     [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api, freeTranslation, proTagBought]
 >>>>>>> f99f5c4 (hh)
+=======
+      robloxUsernameRef, api,   proTagBought, stockNotifierPurchase, proGranted, currentUserEmail
+
+    }),
+    [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api, freeTranslation, proTagBought, currentUserEmail]
+>>>>>>> 7d3c677 (updated to api level 35 before)
   );
 
   return (

@@ -19,6 +19,7 @@ import InterstitialAdManager from '../../Ads/IntAd';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import { onValue, ref } from '@react-native-firebase/database';
 import { showMessage } from 'react-native-flash-message';
+<<<<<<< HEAD
 import RNFS from 'react-native-fs';
 
 
@@ -32,6 +33,13 @@ const BUNNY_ACCESS_KEY   = '1b7e1a85-dff7-4a98-ba701fc7f9b9-6542-46e2'; // ← r
 const BUNNY_CDN_BASE     = 'https://pull-gag.b-cdn.net';
 
 
+=======
+
+const CLOUD_NAME = 'dqwcl9oxz';
+const UPLOAD_PRESET = 'my_uploads';
+const MAX_IMAGES = 4;
+
+>>>>>>> 7d3c677 (updated to api level 35 before)
 const UploadModal = ({ visible, onClose, onUpload, user }) => {
   const [desc, setDesc] = useState('');
   const [imageUris, setImageUris] = useState([]);
@@ -62,7 +70,11 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
     return () => unsubscribe();
   }, [currentUserEmail]);
 
+<<<<<<< HEAD
   // console.log(currentUserEmail)show
+=======
+  // console.log(currentUserEmail)
+>>>>>>> 7d3c677 (updated to api level 35 before)
   
 
 const pickAndCompress = useCallback(async () => {
@@ -77,8 +89,13 @@ const pickAndCompress = useCallback(async () => {
     for (const asset of result.assets) {
       try {
         const uri = await CompressorImage.compress(asset.uri, {
+<<<<<<< HEAD
           maxWidth: 400,
           quality: 0.6,
+=======
+          maxWidth: 800,
+          quality: 0.7,
+>>>>>>> 7d3c677 (updated to api level 35 before)
         });
         compressed.push(uri);
       } catch (error) {
@@ -98,6 +115,7 @@ const pickAndCompress = useCallback(async () => {
 
   
 
+<<<<<<< HEAD
   // const uploadToCloudinary = useCallback(async () => {
   //   const urls = [];
 
@@ -172,6 +190,37 @@ const pickAndCompress = useCallback(async () => {
     return urls;
   }, [imageUris, user?.id]);
   
+=======
+  const uploadToCloudinary = useCallback(async () => {
+    const urls = [];
+
+    for (const uri of imageUris) {
+      try {
+        const data = new FormData();
+        data.append('file', {
+          uri,
+          type: 'image/jpeg',
+          name: 'upload.jpg',
+        });
+        data.append('upload_preset', UPLOAD_PRESET);
+
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+          method: 'POST',
+          body: data,
+        });
+
+        const json = await res.json();
+        if (json?.secure_url) {
+          urls.push(json.secure_url);
+        }
+      } catch (e) {
+        console.error('Cloudinary upload error:', e);
+      }
+    }
+
+    return urls;
+  }, [imageUris]);
+>>>>>>> 7d3c677 (updated to api level 35 before)
 
   const handleSubmit = useCallback(() => {
     if (!user?.id) return;
@@ -185,7 +234,11 @@ if (!currentUserEmail) {
     }
     if (strikeInfo) {
       const { strikeCount, bannedUntil } = strikeInfo;
+<<<<<<< HEAD
       // console.log('strick')
+=======
+      console.log('strick')
+>>>>>>> 7d3c677 (updated to api level 35 before)
       const now = Date.now();
 
       if (bannedUntil === 'permanent') {
@@ -218,7 +271,11 @@ if (!currentUserEmail) {
     const callbackfunction = async () => {
       try {
         setLoading(true);
+<<<<<<< HEAD
         const uploadedUrls = await uploadToBunny();
+=======
+        const uploadedUrls = await uploadToCloudinary();
+>>>>>>> 7d3c677 (updated to api level 35 before)
         // console.log('[UploadModal] submitting with email:', currentUserEmail);
         await onUpload(desc, uploadedUrls, selectedTags, currentUserEmail);
         setDesc('');
@@ -226,6 +283,7 @@ if (!currentUserEmail) {
         setSelectedTags(['Discussion']);
         // setBudget('');
         onClose();
+<<<<<<< HEAD
         showMessage({
           message: 'Success',
           description: 'Post created successfully',
@@ -234,6 +292,10 @@ if (!currentUserEmail) {
       } catch (err) {
         Alert.alert('Upload Failed', 'Something went wrong. Try again.', err);
         console.log(err)
+=======
+      } catch (err) {
+        Alert.alert('Upload Failed', 'Something went wrong. Try again.');
+>>>>>>> 7d3c677 (updated to api level 35 before)
       } finally {
         setLoading(false);
       }
@@ -259,7 +321,11 @@ if (!currentUserEmail) {
       }, 500);
     });
   
+<<<<<<< HEAD
   }, [user?.id, desc, imageUris, selectedTags, uploadToBunny, onUpload, onClose, localState.isPro, currentUserEmail]);
+=======
+  }, [user?.id, desc, imageUris, selectedTags, uploadToCloudinary, onUpload, onClose, useLocalState.isPro, currentUserEmail]);
+>>>>>>> 7d3c677 (updated to api level 35 before)
   
 
   const themedStyles = getStyles(isDark);

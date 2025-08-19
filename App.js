@@ -41,7 +41,12 @@ import config from './Code/Helper/Environment.js';
 =======
 import CoinStore from './Code/SettingScreen/Store/Store';
 import AppUpdateChecker from './Code/AppHelper/InAppUpdateChecker';
+<<<<<<< HEAD
 >>>>>>> f99f5c4 (hh)
+=======
+import AdminUnbanScreen from './Code/AppHelper/AdminDashboard';
+import { checkForUpdate } from './Code/AppHelper/InAppUpdateCheck';
+>>>>>>> 7d3c677 (updated to api level 35 before)
 
 
 
@@ -80,8 +85,11 @@ function App() {
   useEffect(() => {
     InterstitialAdManager.init();
     checkForUpdate()
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> 7d3c677 (updated to api level 35 before)
   }, []);
 
 
@@ -220,12 +228,17 @@ function App() {
 
             
 <<<<<<< HEAD
+<<<<<<< HEAD
             <Stack.Screen
               name="Admin"
 =======
             {/* <Stack.Screen
               name="Reward"
 >>>>>>> f99f5c4 (hh)
+=======
+            <Stack.Screen
+              name="Admin"
+>>>>>>> 7d3c677 (updated to api level 35 before)
               options={{
                 title: "Admin Dashboard",
                 headerStyle: { backgroundColor: selectedTheme.colors.background },
@@ -238,11 +251,16 @@ function App() {
               }}
             >
 <<<<<<< HEAD
+<<<<<<< HEAD
               {() => <AdminUnbanScreen selectedTheme={selectedTheme} />}
             </Stack.Screen>
 =======
               {() => <RewardCenterScreen selectedTheme={selectedTheme} />}
             </Stack.Screen> */}
+=======
+              {() => <AdminUnbanScreen selectedTheme={selectedTheme} />}
+            </Stack.Screen>
+>>>>>>> 7d3c677 (updated to api level 35 before)
 
             {/* <Stack.Screen
               name="Store"

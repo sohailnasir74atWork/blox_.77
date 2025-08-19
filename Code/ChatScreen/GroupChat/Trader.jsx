@@ -31,14 +31,19 @@ import { showMessage } from 'react-native-flash-message';
 leoProfanity.add(['hell', 'shit']);
 leoProfanity.loadDictionary('en');
 
+
 const bannerAdUnitId = getAdUnitId('banner');
 const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatFocused,
   setModalVisibleChatinfo, unreadMessagesCount, fetchChats, unreadcount, setunreadcount }) => {
+<<<<<<< HEAD
 <<<<<<< HEAD
     const { user, theme, onlineMembersCount, appdatabase, setUser, isAdmin, currentUserEmail } = useGlobalState();
 =======
     const { user, theme, onlineMembersCount, appdatabase, setUser, isAdmin, proTagBought, updateLocalStateAndDatabase, proGranted } = useGlobalState();
 >>>>>>> f99f5c4 (hh)
+=======
+    const { user, theme, onlineMembersCount, appdatabase, setUser, isAdmin, proTagBought, currentUserEmail, proGranted } = useGlobalState();
+>>>>>>> 7d3c677 (updated to api level 35 before)
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [replyTo, setReplyTo] = useState(null);
@@ -95,6 +100,8 @@ const [reachedEnd, setReachedEnd] = useState(false);
   }, []);
 =======
   const [selectedEmoji, setSelectedEmoji] = useState(null);
+  const [strikeInfo, setStrikeInfo] = useState(null);
+
 
 
   const flatListRef = useRef();
@@ -152,7 +159,19 @@ const [reachedEnd, setReachedEnd] = useState(false);
   const styles = useMemo(() => getStyles(theme === 'dark'), [theme]);
 
 
+  useEffect(() => {
+    if (!currentUserEmail) return;
 
+    const encodedEmail = currentUserEmail.replace(/\./g, '(dot)');
+    const banRef = ref(appdatabase, `banned_users_by_email/${encodedEmail}`);
+
+    const unsubscribe = onValue(banRef, (snapshot) => {
+      const banData = snapshot.val();
+      setStrikeInfo(banData || null);
+    });
+
+    return () => unsubscribe();
+  }, [currentUserEmail]);
 
   const validateMessage = useCallback((message) => {
     // console.log(message)
@@ -395,8 +414,9 @@ const [reachedEnd, setReachedEnd] = useState(false);
     // fetchChats()
   };
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = () => {
     const MAX_CHARACTERS = 250;
+<<<<<<< HEAD
     const MESSAGE_COOLDOWN = 2000;
     const LINK_REGEX = /(https?:\/\/[^\s]+)/g;
 <<<<<<< HEAD
@@ -415,6 +435,15 @@ const [reachedEnd, setReachedEnd] = useState(false);
         backgroundColor: 'grey',
         color: 'white',
 >>>>>>> f99f5c4 (hh)
+=======
+    const MESSAGE_COOLDOWN = 100;
+    const LINK_REGEX = /(https?:\/\/[^\s]+)/g;
+    if (!user?.id || !currentUserEmail) {
+      showMessage({
+        message: 'You are not loggedin',
+        description: 'You must be logged in to send Messages',
+        type: 'danger',
+>>>>>>> 7d3c677 (updated to api level 35 before)
       });
       return;
 
@@ -451,49 +480,36 @@ const [reachedEnd, setReachedEnd] = useState(false);
     }
 
     const trimmedInput = input.trim();
-    // if (!trimmedInput) {
-    //   Alert.alert(t('home.alert.error'), 'Message cannot be empty.');
-    //   return;
-    // }
-
-    if (leoProfanity.check(trimmedInput)) {
-      showMessage({
-        message: t('misc.inappropriateLanguage'),
-        type: 'danger',
-        icon: 'danger',
-        backgroundColor: 'red',
-        color: 'white',
-      });
+    if (!trimmedInput) {
+      Alert.alert(t('home.alert.error'), 'Message cannot be empty.');
       return;
     }
+
+    if (leoProfanity.check(trimmedInput)) {
+      Alert.alert(t('home.alert.error'), t('misc.inappropriateLanguage'));
+      return;
+    }
+
     if (trimmedInput.length > MAX_CHARACTERS) {
-      showMessage({
-        message: t('misc.messageTooLong'),
-        type: 'warning',
-        icon: 'warning',
-        backgroundColor: 'orange',
-        color: 'white',
-      });
+      Alert.alert(t('home.alert.error'), t('misc.messageTooLong'));
       return;
     }
 
     if (isCooldown) {
-      showMessage({
-        message: t('misc.sendingTooQuickly'),
-        type: 'warning',
-        icon: 'warning',
-        backgroundColor: 'orange',
-        color: 'white',
-      });
+      Alert.alert(t('home.alert.error'), t('misc.sendingTooQuickly'));
       return;
     }
 
     const containsLink = LINK_REGEX.test(trimmedInput);
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 7d3c677 (updated to api level 35 before)
     if (containsLink && !localState?.isPro && !isAdmin) {
       Alert.alert(t('home.alert.error'), t('misc.proUsersOnlyLinks'));
       return;
     }
+<<<<<<< HEAD
 
     try {
       ref(appdatabase, 'chat_new').push({
@@ -574,9 +590,27 @@ if (containsLink) {
     });
     
 >>>>>>> f99f5c4 (hh)
+=======
+
+    try {
+      ref(appdatabase, 'chat_new').push({
+        text: trimmedInput,
+        timestamp: Date.now(),
+        sender: user.displayName || 'Anonymous',
+        senderId: user.id,
+        avatar: user.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+        replyTo: replyTo ? { id: replyTo.id, text: replyTo.text } : null,
+        reportCount: 0,
+        containsLink,
+        isPro: localState.isPro,
+        isAdmin: isAdmin,
+        strikeCount: strikeInfo?.strikeCount || null,
+        currentUserEmail: currentUserEmail
+
+      });
+>>>>>>> 7d3c677 (updated to api level 35 before)
 
       setInput('');
-      setSelectedEmoji(null);
       setReplyTo(null);
       setIsCooldown(true);
       setTimeout(() => setIsCooldown(false), MESSAGE_COOLDOWN);
@@ -593,9 +627,9 @@ if (containsLink) {
 
         <View style={styles.container}>
           <AdminHeader
-            pinnedMessages={pinnedMessages}
-            onClearPin={clearAllPinnedMessages}
-            onUnpinMessage={unpinSingleMessage}
+           pinnedMessages={pinnedMessages}
+           onClearPin={clearAllPinnedMessages}
+           onUnpinMessage={unpinSingleMessage}
             // isAdmin={isAdmin}
             selectedTheme={selectedTheme}
             onlineMembersCount={onlineMembersCount}
@@ -635,6 +669,7 @@ if (containsLink) {
                 setIsAtBottom={setIsAtBottom}
                 toggleDrawer={toggleDrawer}
                 setMessages={setMessages}
+
                
               />
             )}

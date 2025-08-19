@@ -15,8 +15,12 @@ import config from '../../Helper/Environment';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
+<<<<<<< HEAD
 import ChatRulesModal from './ChatRuleModal';
 import LinearGradient from 'react-native-linear-gradient';
+=======
+import ChatRulesModal from './ChatRuleModel';
+>>>>>>> 7d3c677 (updated to api level 35 before)
 
 // Regular expression to detect URLs in the message
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
@@ -24,11 +28,19 @@ const URL_REGEX = /(https?:\/\/[^\s]+)/g;
 const AdminHeader = ({
   selectedTheme,
   modalVisibleChatinfo,
+<<<<<<< HEAD
   setModalVisibleChatinfo, 
   triggerHapticFeedback, 
   unreadcount, 
   setunreadcount, 
   pinnedMessages, 
+=======
+  setModalVisibleChatinfo,
+  triggerHapticFeedback,
+  unreadcount,
+  setunreadcount,
+  pinnedMessages,
+>>>>>>> 7d3c677 (updated to api level 35 before)
   onUnpinMessage
 }) => {
   const { theme, user, isAdmin } = useGlobalState();
@@ -64,6 +76,7 @@ const AdminHeader = ({
     new Map(pinnedMessages.map((msg) => [msg.firebaseKey, msg])).values()
   );
 
+<<<<<<< HEAD
   const GradientContainer = ({ isNoman, children, style }) => {
     if (!isNoman) {
       return (
@@ -76,13 +89,32 @@ const AdminHeader = ({
       );
     } else {
       return <View style={style}>{children}</View>;
+=======
+  const unbanUserWithEmailPost = async (email) => {
+    const encodeEmail = (email) => email.replace(/\./g, '(dot)');
+    try {
+      const db = getDatabase();
+      const banRef = ref(db, `banned_users_by_email_post/${encodeEmail(email)}`);
+      await set(banRef, null); // Clear the ban entry
+  
+      Alert.alert('User Unbanned', 'Ban has been lifted.');
+    } catch (err) {
+      console.error('Unban error:', err);
+      Alert.alert('Error', 'Could not unban user.');
+>>>>>>> 7d3c677 (updated to api level 35 before)
     }
   };
 
   return (
+<<<<<<< HEAD
     <GradientContainer isNoman={config.isNoman}>
       <View style={styles.stackContainer}>
         <View style={{paddingVertical:10}}><Text style={styles.stackHeader}>Community Chat</Text></View>
+=======
+    <View>
+      <View style={styles.stackContainer}>
+        <View style={{ paddingVertical: 10 }}><Text style={styles.stackHeader}>Community Chat</Text></View>
+>>>>>>> 7d3c677 (updated to api level 35 before)
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           {user?.id && (
             <View style={styles.iconContainer}>
@@ -120,6 +152,7 @@ const AdminHeader = ({
                   },
                 }}
               >
+<<<<<<< HEAD
                 <MenuOption onSelect={() => { setModalVisibleChatinfo(true); triggerHapticFeedback('impactLight'); }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', padding: 10 }}>
                     <Icon name="information-circle-outline" size={20} color={config.colors.primary} style={{ marginRight: 10 }} />
@@ -128,6 +161,9 @@ const AdminHeader = ({
                     </Text>
                   </View>
                 </MenuOption>
+=======
+
+>>>>>>> 7d3c677 (updated to api level 35 before)
                 <MenuOption onSelect={() => navigation?.navigate('BlockedUsers')}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', padding: 10 }}>
                     <Icon name="ban-outline" size={20} color={config.colors.primary} style={{ marginRight: 10 }} />
@@ -154,6 +190,7 @@ const AdminHeader = ({
                     </Text> */}
         </TouchableOpacity>
       </View>
+<<<<<<< HEAD
       {/* Displaying truncated pinned messages */}
       {uniquePinnedMessages.length > 0 && (
         <View style={styles.pinnedContainer}>
@@ -169,6 +206,24 @@ const AdminHeader = ({
 
               </View>
               <TouchableOpacity onPress={() => setPinMessageOpen(true)} style={{ justifyContent:'center'}}>
+=======
+
+      {/* Displaying truncated pinned messages */}
+      {uniquePinnedMessages.length > 0 && (
+        <View style={styles.pinnedContainer}>
+          {uniquePinnedMessages.slice(0, 1).map((msg) => (
+            <View key={msg.firebaseKey} style={styles.singlePinnedMessage}>
+              <View>
+                <Text style={styles.pinnedTextheader}>Pin Message</Text>
+                <Text style={styles.pinnedText}>
+                  {msg.text.replace(/\n/g, ' ').length > 40 ?
+                    msg.text.replace(/\n/g, ' ').substring(0, 40) + '...' :
+                    msg.text.replace(/\n/g, ' ')}
+                </Text>
+
+              </View>
+              <TouchableOpacity onPress={() => setPinMessageOpen(true)} style={{ justifyContent: 'center' }}>
+>>>>>>> 7d3c677 (updated to api level 35 before)
                 <Icon name="chevron-forward-outline" size={20} color={config.colors.primary} style={styles.pinIcon} />
               </TouchableOpacity>
             </View>
@@ -184,12 +239,20 @@ const AdminHeader = ({
         onRequestClose={() => setPinMessageOpen(false)}
       >
         <View style={styles.modalContainer}>
+<<<<<<< HEAD
           <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' , minWidth:320}}>
+=======
+          <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', minWidth: 320 }}>
+>>>>>>> 7d3c677 (updated to api level 35 before)
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Pin Messages</Text>
               {uniquePinnedMessages.map((msg) => (
                 <View key={msg.firebaseKey} style={styles.singlePinnedMessageModal}>
+<<<<<<< HEAD
                   {renderMessageWithLinks(msg.text)} 
+=======
+                  {renderMessageWithLinks(msg.text)}
+>>>>>>> 7d3c677 (updated to api level 35 before)
                   {isAdmin && (
                     <TouchableOpacity onPress={() => onUnpinMessage(msg.firebaseKey)} style={{ backgroundColor: config.colors.primary, marginVertical: 3 }}>
                       <Text style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 5, color: 'white' }}>Delete</Text>
@@ -208,11 +271,19 @@ const AdminHeader = ({
         </View>
       </Modal>
       <ChatRulesModal
+<<<<<<< HEAD
   visible={modalVisibleChatinfo}
   onClose={() => setModalVisibleChatinfo(false)}
   isDarkMode={isDarkMode}
 />
     </GradientContainer>
+=======
+        visible={modalVisibleChatinfo}
+        onClose={() => setModalVisibleChatinfo(false)}
+        isDarkMode={isDarkMode}
+      />
+    </View>
+>>>>>>> 7d3c677 (updated to api level 35 before)
   );
 };
 
@@ -223,12 +294,21 @@ export const getStyles = (isDarkMode) =>
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 10,
+<<<<<<< HEAD
       paddingTop: Platform.OS === 'android' ? 60 : 0,
+=======
+      // paddingTop: Platform.OS === 'android' ? 60 : 0,
+
+>>>>>>> 7d3c677 (updated to api level 35 before)
 
       // paddingVertical: 10,
 
 
+<<<<<<< HEAD
       borderBottomWidth: 0.5,
+=======
+      borderBottomWidth: 0.3,
+>>>>>>> 7d3c677 (updated to api level 35 before)
       borderBottomColor: 'lightgrey',
     },
     stackHeader: {
@@ -238,9 +318,15 @@ export const getStyles = (isDarkMode) =>
       color: isDarkMode ? 'white' : 'black',
     },
     pinnedContainer: {
+<<<<<<< HEAD
       paddingHorizontal: 10,
       // paddingVertical: 1,
       borderBottomWidth: 0.5,
+=======
+      // paddingHorizontal: 10,
+      // paddingVertical: 1,
+      borderBottomWidth: 0.3,
+>>>>>>> 7d3c677 (updated to api level 35 before)
       borderBottomColor: 'lightgrey',
     },
     singlePinnedMessage: {
@@ -248,6 +334,11 @@ export const getStyles = (isDarkMode) =>
       justifyContent: 'space-between',
       paddingVertical: 5,
       borderBottomWidth: 0.2,
+<<<<<<< HEAD
+=======
+      paddingHorizontal: 10,
+
+>>>>>>> 7d3c677 (updated to api level 35 before)
     },
     singlePinnedMessageModal: {
       justifyContent: 'space-between',
@@ -256,6 +347,7 @@ export const getStyles = (isDarkMode) =>
       borderBottomWidth: 0.2,
     },
     pinnedTextheader: {
+<<<<<<< HEAD
       fontSize: 12,
       paddingRight: 20,
       fontFamily: 'Lato-Regular',
@@ -266,6 +358,18 @@ export const getStyles = (isDarkMode) =>
       fontFamily: 'Lato-Regular',
       color:isDarkMode ? 'white' : 'black'
     },
+=======
+      fontSize: 12,
+      paddingRight: 20,
+      fontFamily: 'Lato-Regular',
+      color: config.colors.primary,
+    },
+    pinnedText: {
+      fontSize: 12,
+      fontFamily: 'Lato-Regular',
+      color: isDarkMode ? 'white' : 'black'
+    },
+>>>>>>> 7d3c677 (updated to api level 35 before)
     pinIcon: {
       marginLeft: 10,
       // alignItems:'center',

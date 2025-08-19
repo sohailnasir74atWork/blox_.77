@@ -357,6 +357,7 @@ export const handleDeleteLast300Messages = async (senderId) => {
   }
 };
 
+<<<<<<< HEAD
 
 export const banUserwithEmail = async (email) => {
   if (!email) {
@@ -373,6 +374,14 @@ export const banUserwithEmail = async (email) => {
   try {
     const db = getDatabase();
     const banRef = ref(db, `banned_users_by_email/${encodeEmail}`);
+=======
+export const banUserwithEmail = async (email) => {
+  const encodeEmail = (email) => email.replace(/\./g, '(dot)');
+
+  try {
+    const db = getDatabase();
+    const banRef = ref(db, `banned_users_by_email/${encodeEmail(email)}`);
+>>>>>>> 7d3c677 (updated to api level 35 before)
     const snap = await get(banRef);
 
     let strikeCount = 1;
@@ -404,7 +413,11 @@ export const banUserwithEmail = async (email) => {
 };
 
 export const unbanUserWithEmail = async (email) => {
+<<<<<<< HEAD
   const encodeEmail = (email) => email?.replace(/\./g, '(dot)');
+=======
+  const encodeEmail = (email) => email.replace(/\./g, '(dot)');
+>>>>>>> 7d3c677 (updated to api level 35 before)
   try {
     const db = getDatabase();
     const banRef = ref(db, `banned_users_by_email/${encodeEmail(email)}`);

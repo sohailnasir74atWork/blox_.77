@@ -429,10 +429,14 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = bloxfruitevalues/bloxfruitevalues.entitlements;
 <<<<<<< HEAD
+<<<<<<< HEAD
 				CURRENT_PROJECT_VERSION = 8;
 =======
 				CURRENT_PROJECT_VERSION = 48;
 >>>>>>> f99f5c4 (hh)
+=======
+				CURRENT_PROJECT_VERSION = 49;
+>>>>>>> 7d3c677 (updated to api level 35 before)
 				DEVELOPMENT_TEAM = P32FX5FC6Z;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = bloxfruitevalues/Info.plist;
@@ -443,10 +447,14 @@
 					"@executable_path/Frameworks",
 				);
 <<<<<<< HEAD
+<<<<<<< HEAD
 				MARKETING_VERSION = 1.7;
 =======
 				MARKETING_VERSION = 4.0.218;
 >>>>>>> f99f5c4 (hh)
+=======
+				MARKETING_VERSION = 4.0.219;
+>>>>>>> 7d3c677 (updated to api level 35 before)
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -474,10 +482,14 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = bloxfruitevalues/bloxfruitevalues.entitlements;
 <<<<<<< HEAD
+<<<<<<< HEAD
 				CURRENT_PROJECT_VERSION = 8;
 =======
 				CURRENT_PROJECT_VERSION = 48;
 >>>>>>> f99f5c4 (hh)
+=======
+				CURRENT_PROJECT_VERSION = 49;
+>>>>>>> 7d3c677 (updated to api level 35 before)
 				DEVELOPMENT_TEAM = P32FX5FC6Z;
 				INFOPLIST_FILE = bloxfruitevalues/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Grow a Garden Trade & Values";
@@ -487,10 +499,14 @@
 					"@executable_path/Frameworks",
 				);
 <<<<<<< HEAD
+<<<<<<< HEAD
 				MARKETING_VERSION = 1.7;
 =======
 				MARKETING_VERSION = 4.0.218;
 >>>>>>> f99f5c4 (hh)
+=======
+				MARKETING_VERSION = 4.0.219;
+>>>>>>> 7d3c677 (updated to api level 35 before)
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",

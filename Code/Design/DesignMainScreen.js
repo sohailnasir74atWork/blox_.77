@@ -388,12 +388,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     // backgroundColor: '#fff',
+<<<<<<< HEAD
     paddingTop: Platform.OS === 'android' ? 60 : 0
+=======
+    // paddingTop: Platform.OS === 'android' ? 60 : 0
+>>>>>>> 7d3c677 (updated to api level 35 before)
 
   },
   darkContainer: {
     backgroundColor: '#121212',
+<<<<<<< HEAD
     paddingTop: Platform.OS === 'android' ? 60 : 0
+=======
+    // paddingTop: Platform.OS === 'android' ? 60 : 0
+>>>>>>> 7d3c677 (updated to api level 35 before)
 
   },
   fab: {

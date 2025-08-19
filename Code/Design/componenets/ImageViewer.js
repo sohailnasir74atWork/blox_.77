@@ -57,13 +57,21 @@ const ImageViewerScreen = ({ route }) => {
 const styles = StyleSheet.create({
   slide: {
     width,
+<<<<<<< HEAD
     height:'100%',
+=======
+    height,
+>>>>>>> 7d3c677 (updated to api level 35 before)
     justifyContent: 'center',
     alignItems: 'center',
   },
   image: {
     width,
+<<<<<<< HEAD
     height:'100%',
+=======
+    height,
+>>>>>>> 7d3c677 (updated to api level 35 before)
     resizeMode: 'contain',
   },
 });
