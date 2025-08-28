@@ -24,8 +24,8 @@ import BannerAdComponent from '../Ads/bannerAds';
 const HomeScreen = ({ selectedTheme }) => {
   const { theme, user, analytics, appdatabase } = useGlobalState();
   const tradesCollection = useMemo(() => firestore().collection('trades_new'), []);
-  const baseGridSize = 8;
-  const extraRowSize = 4;
+  const baseGridSize = !config.isNoman ? 6 : 8;
+  const extraRowSize = !config.isNoman ? 3 : 4;
   const [hasItems, setHasItems] = useState(Array(baseGridSize).fill(null));
   const [wantsItems, setWantsItems] = useState(Array(baseGridSize).fill(null));
   
@@ -1125,7 +1125,7 @@ const getStyles = (isDarkMode) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
+      backgroundColor: !config.isNoman ? '#192f5d' : isDarkMode ? '#121212' : '#f2f2f7',
       paddingBottom: 5,
     },
 
@@ -1178,8 +1178,8 @@ const getStyles = (isDarkMode) =>
 
     },
     addItemBlockNew: {
-      width: '25%',
-      height: 80,
+      width: config.isNoman ? '25%' : '33%',
+      height: config.isNoman ? 80: 100,
       backgroundColor: isDarkMode ? '#34495E' : '#c6c2ff', // Dark: darker contrast, Light: White
       borderWidth: Platform.OS === 'android' ? 0 : 1,
       borderColor: 'lightgrey',
@@ -1211,7 +1211,7 @@ const getStyles = (isDarkMode) =>
       marginBottom: 2,
       position: 'relative',
       ...(!config.isNoman && {
-        borderWidth: 5,
+        borderWidth: 1,
         borderColor: config.colors.hasBlockGreen,
       }),
     },
@@ -1313,8 +1313,8 @@ const getStyles = (isDarkMode) =>
       justifyContent: 'space-around',
     },
     itemImageOverlay: {
-      width: 60,
-      height: 60,
+      width: config.isNoman ?  60 : 80,
+      height: config.isNoman ?  60 : 80,
       borderRadius: 5,
     },
 

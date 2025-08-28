@@ -16,6 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
 import ChatRulesModal from './ChatRuleModal';
+import LinearGradient from 'react-native-linear-gradient';
 
 // Regular expression to detect URLs in the message
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
@@ -63,8 +64,23 @@ const AdminHeader = ({
     new Map(pinnedMessages.map((msg) => [msg.firebaseKey, msg])).values()
   );
 
+  const GradientContainer = ({ isNoman, children, style }) => {
+    if (!isNoman) {
+      return (
+        <LinearGradient
+          colors={['#4c669f', '#3b5998', '#192f51']} // Gradient colors
+          style={style}
+        >
+          {children}
+        </LinearGradient>
+      );
+    } else {
+      return <View style={style}>{children}</View>;
+    }
+  };
+
   return (
-    <View>
+    <GradientContainer isNoman={config.isNoman}>
       <View style={styles.stackContainer}>
         <View style={{paddingVertical:10}}><Text style={styles.stackHeader}>Community Chat</Text></View>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -196,7 +212,7 @@ const AdminHeader = ({
   onClose={() => setModalVisibleChatinfo(false)}
   isDarkMode={isDarkMode}
 />
-    </View>
+    </GradientContainer>
   );
 };
 
@@ -207,7 +223,7 @@ export const getStyles = (isDarkMode) =>
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 10,
-      paddingTop:Platform.OS === 'andriod' ? 60 : 0,
+      paddingTop: Platform.OS === 'android' ? 60 : 0,
 
       // paddingVertical: 10,
 

@@ -19,6 +19,7 @@ import { mixpanel } from '../AppHelper/MixPenel';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
+import LinearGradient from 'react-native-linear-gradient';
 
 
 // Initialize dayjs plugins
@@ -81,6 +82,23 @@ const TradeList = ({ route }) => {
     
     return formattedName;  // Return the formatted name if it's 5 characters or less
   };
+
+  const GradientContainer = ({ isNoman, children, style }) => {
+    if (!isNoman) {
+      return (
+        <LinearGradient
+          colors={['#4c669f', '#3b5998', '#192f51']} // Gradient colors
+          style={style}
+        >
+          {children}
+        </LinearGradient>
+      );
+    } else {
+      return <View style={style}>{children}</View>;
+    }
+  };
+
+  
   const TradeDetailsModal = ({ onClose, item }) => {
     const navigation = useNavigation();
     const { user } = useGlobalState();
@@ -93,7 +111,7 @@ const TradeList = ({ route }) => {
       if (!item) return null;
   
       return (
-        <View style={styles.itemCard}>
+        <GradientContainer style={styles.itemCard} isNoman={config.isNoman}>
           <Image source={{ uri: item?.Image }} style={styles.itemImage} />
           <Text style={styles.itemName}>
             {item?.units}x {formatNameNew(item?.Name)}
@@ -119,7 +137,7 @@ const TradeList = ({ route }) => {
               ))}
             </View>
           )}
-        </View>
+        </GradientContainer>
       );
     };
   
@@ -725,7 +743,7 @@ const TradeList = ({ route }) => {
 
     return (
       <>
-      <View style={[styles.tradeItem, item.isFeatured && { backgroundColor: isDarkMode ? '#34495E' : 'rgba(245, 222, 179, 0.6)' }]}>
+      <GradientContainer isNoman={config.isNoman} style={[styles.tradeItem, item.isFeatured && { backgroundColor: isDarkMode ? '#34495E' : 'rgba(245, 222, 179, 0.6)' }]}>
          
 
         {item.isFeatured && <View style={styles.tag}></View>}
@@ -914,12 +932,12 @@ const TradeList = ({ route }) => {
           tradeData={selectedTrade}
         /> */}
 
-      </View></>
+      </GradientContainer></>
     );
   };
 
   if (loading) {
-    return <ActivityIndicator style={styles.loader} size="large" color="#007BFF" />;
+    return <View style={{flex:1,backgroundColor:!config.isNoman && '#192f51'}}><ActivityIndicator style={styles.loader} size="large" color="#007BFF" /></View>;
   }
 
 
@@ -1001,7 +1019,7 @@ const getStyles = (isDarkMode) =>
   StyleSheet.create({
     container: {
       paddingHorizontal: 8,
-      backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
+      backgroundColor: !config.isNoman ? '#192f51' : isDarkMode ? '#121212' : '#f2f2f7',
       flex: 1,
     },
     tradeItem: {
@@ -1011,7 +1029,7 @@ const getStyles = (isDarkMode) =>
       backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
 
       borderRadius: 10, // Smooth rounded corners
-      borderWidth: !config.isNoman ? 3 : 0,
+      // borderWidth: !config.isNoman ? 1 : 0,
       borderColor: config.colors.hasBlockGreen,
     },
 
@@ -1225,18 +1243,18 @@ const getStyles = (isDarkMode) =>
       marginTop: 10
     },
     tag: {
-      backgroundColor: config.colors.hasBlockGreen,
+      backgroundColor: '#DAA520',
       position: 'absolute',
       top: 0,
       left: 0,
-      height: 15, // Increased height for a better rounded effect
-      width: 15,  // Increased width for proportion
+      height: 12, // Increased height for a better rounded effect
+      width: 12,  // Increased width for proportion
       borderTopLeftRadius: 10,  // Increased to make it more curved
       borderBottomRightRadius: 30, // Further increased for more curve
     }
 ,
 modalContainer: {
-  backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
+  backgroundColor: !config.isNoman ? '#192f51' :  isDarkMode ? '#121212' : '#f2f2f7',
   position: 'absolute',
   top: 0,
   bottom: 0,

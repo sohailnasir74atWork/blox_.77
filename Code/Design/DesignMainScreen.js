@@ -388,12 +388,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     // backgroundColor: '#fff',
-    // paddingTop: Platform.OS === 'android' ? 60 : 0
+    paddingTop: Platform.OS === 'android' ? 60 : 0
 
   },
   darkContainer: {
     backgroundColor: '#121212',
-    // paddingTop: Platform.OS === 'android' ? 60 : 0
+    paddingTop: Platform.OS === 'android' ? 60 : 0
 
   },
   fab: {

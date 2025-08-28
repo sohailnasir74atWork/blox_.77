@@ -17,6 +17,7 @@ import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
 import { getDatabase } from '@react-native-firebase/database';
 import ValueScreen from '../ValuesScreen/ValueScreen';
+import LinearGradient from 'react-native-linear-gradient';
 
 
 const TimerScreen = ({ selectedTheme }) => {
@@ -132,11 +133,12 @@ const TimerScreen = ({ selectedTheme }) => {
   
     // 🔒 Alert if user is not signed in
     if (!user?.id) {
-      Alert.alert(
-        "Sign In Required",
-        "Please sign in to select fruits for reminders.",
-        [{ text: "OK", onPress: () => setisSigninDrawerVisible(true) }]
-      );
+      // Alert.alert(
+      //   "Sign In Required",
+      //   "Please sign in to select fruits for reminders.",
+      //   [{ text: "OK", onPress: () => setisSigninDrawerVisible(true) }]
+      // );
+      setisSigninDrawerVisible(true);
       return;
     }
   
@@ -350,7 +352,20 @@ const TimerScreen = ({ selectedTheme }) => {
   };
 
 
-
+  const GradientContainer = ({ isNoman, children, style }) => {
+    if (!isNoman) {
+      return (
+        <LinearGradient
+          colors={['#4c669f', '#3b5998', '#192f51']} // Gradient colors
+          style={style}
+        >
+          {children}
+        </LinearGradient>
+      );
+    } else {
+      return <View style={style}>{children}</View>;
+    }
+  };
 
   const formatName = (name) => {
     if(!name) return
@@ -377,7 +392,7 @@ const TimerScreen = ({ selectedTheme }) => {
         : 'Unknown';
 
       return (
-        <View  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical:1, backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff', padding:5, borderRadius:4, marginHorizontal:2 }}>
+        <GradientContainer isNoman={config.isNoman} style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical:10, backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff', padding:5, borderRadius:4, marginHorizontal:2 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 4 }}>
               {/* <Image source={{ uri: item.icon }} style={{ width: 40, height: 40, marginRight: 6 }} /> */}
               <View style={{alignItems:"flex-start"}}>
@@ -388,7 +403,7 @@ const TimerScreen = ({ selectedTheme }) => {
                 fontSize: 10,
                 color: 'white',
                 backgroundColor: items.active
-                  ? config.colors.hasBlockGreen
+                  ? 'lightpink'
                   : config.colors.inactive || '#999', // fallback if inactive color is not defined
                 paddingHorizontal: 6,
                 // paddingVertical: 1,
@@ -403,7 +418,7 @@ const TimerScreen = ({ selectedTheme }) => {
             </View>
           </View>
           <Text style={{ fontSize: 12,color: !isDarkMode ? 'black' : '#ffffff', fontFamily:'Lato-Regular' }}>Last seen at {localTime}</Text>
-        </View>
+        </GradientContainer>
       );
     // });
   };
@@ -413,6 +428,7 @@ const TimerScreen = ({ selectedTheme }) => {
   // Render FlatList Item
   const renderStockItems = (title, items, stock) => {
     return (
+     
       <View style={{ marginBottom: 10 }}>
         <View style={{
           flexDirection: 'row',
@@ -446,11 +462,12 @@ const TimerScreen = ({ selectedTheme }) => {
   
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
           {items.map((item, index) => (
-            <View
+            <GradientContainer
+            isNoman={config.isNoman}
               key={item.id + index || index}
               style={{
                 width: '49%',
-                backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+                backgroundColor: isDarkMode  ? '#1e1e1e' : '#ffffff',
                 borderRadius: 5,
                 alignItems: 'center',
                 padding: 4,
@@ -467,11 +484,11 @@ const TimerScreen = ({ selectedTheme }) => {
                 {formatName(item.display_name).length > 15 ? formatName(item.display_name).slice(0, 15) + '...' : formatName(item.display_name)}                </Text>
   
                 {stock ? (
-                  <Text style={{ fontSize: 12, color: config.colors.hasBlockGreen, fontWeight: 'bold' }}>
+                  <Text style={{ fontSize: 12, color: config.isNoman ? config.colors.secondary : 'lightpink', fontWeight: 'bold' }}>
                     {item.quantity} Units
                   </Text>
                 ) : (
-                  <Text style={{ fontSize: 12, color: config.colors.hasBlockGreen, fontWeight: 'bold' }}>
+                  <Text style={{ fontSize: 12, color: config.isNoman ? config.colors.secondary : 'lightpink', fontWeight: 'bold' }}>
                     {(() => {
                       const totalSeconds = item.last_seen_int_seconds || 0;
                       const hours = Math.floor(totalSeconds / 3600);
@@ -482,7 +499,7 @@ const TimerScreen = ({ selectedTheme }) => {
                   </Text>
                 )}
               </View>
-            </View>
+            </GradientContainer>
           ))}
         </View>
       </View>
@@ -505,52 +522,50 @@ const TimerScreen = ({ selectedTheme }) => {
               <Text style={[styles.description]}>
                 {t("stock.description")}
               </Text></View> */}
-            <View style={styles.reminderContainer}>
-              {/* <View style={styles.row}>
-                <Text style={styles.title}>{t("stock.stock_updates")}</Text>
-                <View style={styles.rightSide}>
-                  <Switch value={user.isReminderEnabled} onValueChange={toggleSwitch} />
-                  <Icon
-                    name={user.isReminderEnabled ? "notifications" : "notifications-outline"}
-                    size={24}
-                    color={user.isReminderEnabled ? config.colors.hasBlockGreen : config.colors.primary}
-                    style={styles.iconNew}
-                  />
-                </View>
-              </View> */}
+           <View style={styles.reminderContainer}>
+  <GradientContainer isNoman={config.isNoman} style={styles.row}>
+    <View style={config.isNoman ? styles.row2 : styles.row}>
+      <View>
+        <Text style={[styles.title, {alignSelf: !config.isNoman && 'center' }]}>
+          Selected Fruit Notifier
+        </Text>
+        <Text style={styles.footer}>
+          {t("stock.selected_fruit_notification_description")}
+        </Text>
+      </View>
+      <View style={styles.rightSide}>
+        <TouchableOpacity
+          onPress={toggleSwitch2}
+          style={{
+            padding: 3,
+            borderRadius: 20,
+            backgroundColor: user.isSelectedReminderEnabled
+              ? config.colors.hasBlockGreen
+              : '#ccc',
+          }}
+        >
+          <Icon
+            name={user.isSelectedReminderEnabled ? "notifications" : "notifications-off"}
+            size={20}
+            color="white"
+          />
+        </TouchableOpacity>
 
-              <View style={config.isNoman ? styles.row2 : styles.row}>
-                <Text style={[styles.title]}>{t("stock.selected_fruit_notification")} {'\n'}
-                  <Text style={styles.footer}>
-                    {t("stock.selected_fruit_notification_description")}
-                  </Text>
-                </Text>
-                <View style={styles.rightSide}>
-                <TouchableOpacity onPress={toggleSwitch2} style={{
-  padding: 3,
-  borderRadius: 20,
-  backgroundColor: user.isSelectedReminderEnabled ? config.colors.hasBlockGreen : '#ccc',
-}}>
-  <Icon
-    name={user.isSelectedReminderEnabled ? "notifications" : "notifications-off"}
-    size={20}
-    color="white"
-  />
-</TouchableOpacity>
+        <TouchableOpacity
+          onPress={openDrawer}
+          style={styles.selectedContainericon}
+        >
+          <Icon name="add" size={24} color="white" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  </GradientContainer>
+</View>
 
-                  <TouchableOpacity
-                    onPress={openDrawer}
-                    style={styles.selectedContainericon}
-                    
-                  >
-                    <Icon name="add" size={24} color="white" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
             <View style={styles.listContentSelected}>
               {user.selectedFruits?.map((item) => (
-                <View key={item.name} style={styles.selectedContainer}>
+                
+                <GradientContainer key={item.name} style={styles.selectedContainer} isNoman={config.isNoman}>
                   <Image
                     source={{
                       uri: item.picture,
@@ -559,9 +574,9 @@ const TimerScreen = ({ selectedTheme }) => {
                   />
                   <Text style={[styles.fruitText, { color: selectedTheme.colors.text }]}>{formatName(item.name)}</Text>
                   <TouchableOpacity onPress={() => handleRemoveFruit(item)}>
-                    <Icon name="close-circle" size={24} color={config.colors.wantBlockRed} style={styles.closeIcon} />
+                    <Icon name="close-circle" size={24} color={'#ff4d6d'}  />
                   </TouchableOpacity>
-                </View>
+                </GradientContainer>
               ))}
             </View>
             {/* <MyNativeAdComponent/> */}
@@ -697,7 +712,7 @@ const TimerScreen = ({ selectedTheme }) => {
 const getStyles = (isDarkMode, user) =>
   StyleSheet.create({
     container: {
-      flex: 1, paddingHorizontal: 10, backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
+      flex: 1, paddingHorizontal: 10, backgroundColor: isDarkMode ? '#192f5d' : '#f2f2f7',
     },
     description: { fontSize: 14, lineHeight: 18, marginVertical: 10, fontFamily: 'Lato-Regular', color: 'white' },
     headerContainer: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 10, paddingHorizontal: 10 },
@@ -742,13 +757,16 @@ const getStyles = (isDarkMode, user) =>
     },
     row: {
       flexDirection: !config.isNoman ? 'column' : 'row',
-      width: !config.isNoman ? '100%' : '100%',
+      // width: !config.isNoman ? '100%' : '100%',
       justifyContent: !config.isNoman ? 'center' : 'space-between',
       alignItems: 'center',
-      padding: 10,
-      paddingVertical: 10,
+      // padding: 10,
+      paddingVertical: config.isNoman ? 0 : 5,
       borderColor: isDarkMode ? '#333333' : '#cccccc',
-      borderBottomWidth: 1
+      borderBottomWidth: config.isNoman ? 1: 0,
+      // backgroundColor:'red',
+      borderRadius:10
+
     },
     row2: {
       flexDirection: !config.isNoman ? 'column' : 'row',
@@ -759,8 +777,9 @@ const getStyles = (isDarkMode, user) =>
       paddingVertical: 10,
       overflow: 'hidden', // Prevents text from overflowing outside the container
       flexWrap: 'wrap', // This ensures the text wraps when it exceeds maxWidth
+
     },
-    title: { fontSize: 14, fontFamily: 'Lato-Bold', color: isDarkMode ? 'white' : 'black', lineHeight: 16, paddingHorizontal:10 },
+    title: { fontSize: 14, fontFamily: 'Lato-Bold', color: isDarkMode ? 'white' : 'black', lineHeight: 16,  },
     rightSide: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -808,9 +827,8 @@ const getStyles = (isDarkMode, user) =>
     },
     reminderContainer: {
       flexDirection: 'column',
-      backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+      // backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
       marginTop: 10,
-      borderRadius: 10
     },
     preCont: {
       justifyContent: 'center',
@@ -829,12 +847,13 @@ const getStyles = (isDarkMode, user) =>
     },
     footer: {
       fontFamily: 'Lato-Regular',
+      color:isDarkMode ? 'white' : 'black',
       fontSize: 8,
       lineHeight: 12,
       // width: 100, // Ensures the text stays within this width
       overflow: 'hidden', // Prevents text from overflowing outside the container
       flexWrap: 'wrap', // This ensures the text wraps when it exceeds maxWidth
-      textAlign: 'left', // Adjust alignment as needed
+      // textAlign: 'center', // Adjust alignment as needed
     }
     ,
     loadingText: {
@@ -842,7 +861,18 @@ const getStyles = (isDarkMode, user) =>
       fontSize: 14,
       alignSelf: 'center',
       color: config.colors.hasBlockGreen
-    }
+    },
+    gradientBackground: {
+      // flex: 1,
+      // padding: 20,
+      // borderRadius: 10,
+    },
+    regularBackground: {
+      flex: 1,
+      backgroundColor: '#f0f0f0',  // Solid background when isNoman is false
+      padding: 20,
+      borderRadius: 10,
+    },
   });
 
 export default TimerScreen;

@@ -35,6 +35,7 @@ import { useTranslation } from 'react-i18next';
 import { showSuccessMessage, showErrorMessage } from '../Helper/MessageHelper';
 import { setAppLanguage } from '../../i18n';
 import MyAppAds from '../Ads/CustomAds';
+import LinearGradient from 'react-native-linear-gradient';
 
 
 export default function SettingsScreen({ selectedTheme }) {
@@ -76,7 +77,20 @@ export default function SettingsScreen({ selectedTheme }) {
     { code: "ru", label: t("settings.languages.ru"), flag: "🇷🇺" },
     { code: "ar", label: t("settings.languages.ar"), flag: "🇸🇦" }
   ];
-
+  const GradientContainer = ({ isNoman, children, style }) => {
+    if (!isNoman) {
+      return (
+        <LinearGradient
+          colors={['#192f51', '#3b5998', '#192f51']} // Gradient colors
+          style={style}
+        >
+          {children}
+        </LinearGradient>
+      );
+    } else {
+      return <View style={style}>{children}</View>;
+    }
+  };
 
   const isDarkMode = theme === 'dark';
   useEffect(() => {
@@ -347,7 +361,7 @@ const formatPlanName = (plan) => {
   return (
     <View style={styles.container}>
       {/* User Profile Section */}
-      <View style={styles.cardContainer}>
+      <GradientContainer isNoman={config.isNoman} style={styles.cardContainer}>
         <View style={styles.optionuserName}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Image
@@ -376,12 +390,12 @@ const formatPlanName = (plan) => {
             {user?.id && <Icon name="create" size={24} color={'#566D5D'} />}
           </TouchableOpacity>
         </View>
-      </View>
+      </GradientContainer>
 
       {/* Options Section */}
       <ScrollView showsVerticalScrollIndicator={false}>
         <Text style={styles.subtitle}>{t('settings.app_settings')}</Text>
-        <View style={styles.cardContainer}>
+        <GradientContainer isNoman={config.isNoman} style={styles.cardContainer}>
           <View style={styles.option} onPress={() => {
             handleShareApp(); triggerHapticFeedback('impactLight');
           }}>
@@ -408,7 +422,7 @@ const formatPlanName = (plan) => {
 
           </View>
 
-          <View style={styles.optionLast} onPress={() => {
+         {config.isNoman && <View style={styles.optionLast} onPress={() => {
             handleShareApp(); triggerHapticFeedback('impactLight');
           }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
@@ -438,11 +452,11 @@ const formatPlanName = (plan) => {
                 ))}
               </View>
             </View>
-          </View>
-        </View>
+          </View>}
+        </GradientContainer >
 
         <Text style={styles.subtitle}>{t('settings.language_settings')}</Text>
-        <View style={styles.cardContainer}>
+        <GradientContainer isNoman={config.isNoman} style={styles.cardContainer}>
           <View style={[styles.optionLast, { flexDirection: 'row', justifyContent: 'space-between' }]}>
             <View style={{ flexDirection: 'row', }}>
           <Icon name="language-outline" size={18} color={'white'} style={{backgroundColor:'purple', padding:5, borderRadius:5}}/>
@@ -467,16 +481,16 @@ const formatPlanName = (plan) => {
               </MenuOptions>
             </Menu>
           </View>
-        </View>
+        </GradientContainer>
 
 
         <Text style={styles.subtitle}>{t('settings.pro_subscription')}</Text>
-        <View style={[styles.cardContainer, {backgroundColor:'#FFD700'}]}>
+        <GradientContainer isNoman={config.isNoman} style={[styles.cardContainer, {backgroundColor:'#FFD700'}]}>
 
           <TouchableOpacity style={[styles.optionLast]} onPress={() => { setShowofferWall(true);     
  }}>
             <Icon name="prism-outline" size={18} color={'white'} style={{backgroundColor:config.colors.hasBlockGreen, padding:5, borderRadius:5}}/>
-            <Text style={[styles.optionText, {color:'black'}]}>
+            <Text style={[styles.optionText, {color:config.isNoman && 'black'}]}>
             {t('settings.active_plan')} : {localState.isPro ? t('settings.paid') : t('settings.free')}
             </Text>
           </TouchableOpacity>
@@ -495,12 +509,12 @@ const formatPlanName = (plan) => {
 
             </View>
           )}
-        </View>
+        </GradientContainer>
      
 
         <Text style={styles.subtitle}>{t('settings.other_settings')}</Text>
 
-        <View style={styles.cardContainer}>
+        <GradientContainer isNoman={config.isNoman} style={styles.cardContainer}>
 
 
           <TouchableOpacity style={styles.option} onPress={() => {
@@ -549,25 +563,25 @@ const formatPlanName = (plan) => {
 
          
 
-        </View>
-        <Text style={styles.subtitle}>Our Other APPS</Text>
+        </GradientContainer>
+       {config.isNoman  && <Text style={styles.subtitle}>Our Other APPS</Text>}
 
        
-        <View style={styles.cardContainer}>
+      {config.isNoman  &&  <View style={styles.cardContainer}>
 
         <MyAppAds currentAppId="gog" mode="all" />
 
 
 
 
-</View>
+</View>}
 <Text style={styles.subtitle}>Business Enquiries
 </Text>
 
 <Text style={styles.text}>
     For collaborations, partnerships, or other business-related queries, feel free to contact us at:{' '}
-    <TouchableOpacity onPress={() => Linking.openURL('mailto:thesolanalabs@gmail.com')}>
-      <Text style={styles.emailText}>thesolanalabs@gmail.com</Text>
+    <TouchableOpacity onPress={() => Linking.openURL('mailto:mindfusionio.help@gmail.com')}>
+      <Text style={styles.emailText}>mindfusionio.help@gmail.com</Text>
     </TouchableOpacity>
   </Text>
 

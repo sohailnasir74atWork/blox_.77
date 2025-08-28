@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next';
 import {  GestureHandlerRootView } from 'react-native-gesture-handler';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { mixpanel } from './MixPenel';
+import LinearGradient from 'react-native-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
@@ -48,7 +49,20 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
   //   { code: "ar", label: t("settings.languages.ar"), flag: "🇸🇦" }
 
   // ];
-
+  const GradientContainer = ({ isNoman, children, style }) => {
+    if (!isNoman) {
+      return (
+        <LinearGradient
+          colors={['#192f51', '#3b5998', '#192f51']} // Gradient colors
+          style={style}
+        >
+          {children}
+        </LinearGradient>
+      );
+    } else {
+      return <View style={style}>{children}</View>;
+    }
+  };
   const handleNext = () => {
     if (screenIndex === 0) {
       mixpanel.track("New Install");
@@ -119,8 +133,8 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
               <View style={styles.sliderContainer}>{renderSlider(translateX3, thirdSliderImages)}</View></View> */}
             <View>
               {/* <View style={styles.spacer}></View> */}
-              <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>{t("first.welcome_title")}</Text>
-              <Text style={[styles.text, { color: isDarkMode ? '#ccc' : '#666' }]}>{t("first.welcome_text")}</Text>
+              <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>{config.isNoman ? 'GAG Trade & Values' : 'Grow a Garden Live Stock'}</Text>
+              <Text style={[styles.text, { color: isDarkMode ? '#ccc' : '#666' }]}>{config.isNoman ? t("first.welcome_text") : 'Track stock update and get notified'}</Text>
             </View>
           </View>
         );
@@ -143,7 +157,7 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
                 </Text>
               )}
 
-              <Text style={[styles.text, { color: isDarkMode ? '#ccc' : '#666' }]}>{t("first.get_notified_text")}</Text></View>
+              <Text style={[styles.text, { color: isDarkMode ? '#ccc' : '#666' }]}>{config.isNoman ? t("first.get_notified_text") : 'Get instant stock alerts, track rotations, build watchlists, and never miss a drop'}</Text></View>
           </View>
 
         );
@@ -156,7 +170,7 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
 
   return (
     <GestureHandlerRootView>
-      <View style={[styles.container, { backgroundColor: isDarkMode ? '#121212' : '#f2f2f7' }]}>
+      <GradientContainer isNoman={config.isNoman} style={[styles.container, { backgroundColor: isDarkMode ? '#121212' : '#f2f2f7' }]}>
         <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={isDarkMode ? '#121212' : '#f2f2f7'} />
         {renderScreen()}
 
@@ -198,7 +212,7 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
           <Ionicons name="close" size={34} color={isDarkMode ? '#ccc' : '#666'} style={styles.skipButton} onPress={() => { setLanguageModalVisible(false) }} />
         </Modal>
 
-      </View>
+      </GradientContainer>
     </GestureHandlerRootView>
   );
 };
@@ -219,7 +233,7 @@ const styles = StyleSheet.create({
   image: { width: 50, height: 50, margin: 10, borderRadius: 10 },
   bottomContainer: {
     position: 'absolute',
-    bottom: 10,
+    bottom: 40,
     width: '100%',
     alignItems: 'center',
   },

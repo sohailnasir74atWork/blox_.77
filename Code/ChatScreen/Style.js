@@ -6,7 +6,7 @@ export const getStyles = (isDarkMode) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
+      backgroundColor: !config.isNoman ? '#192f5d' : isDarkMode ? '#121212' : '#f2f2f7',
     },
     loader: {
       flex: 1,

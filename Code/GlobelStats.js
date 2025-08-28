@@ -7,6 +7,7 @@ import { createNewUser, registerForNotifications } from './Globelhelper';
 import { useLocalState } from './LocalGlobelStats';
 import { requestPermission } from './Helper/PermissionCheck';
 import { useColorScheme, InteractionManager } from 'react-native';
+import config from './Helper/Environment';
 const app = getApps();
 const auth = getAuth(app);
 const firestoreDB = getFirestore(app);
@@ -54,7 +55,8 @@ export const GlobalStateProvider = ({ children }) => {
 
   // Track theme changes
   useEffect(() => {
-    setTheme(localState.theme === 'system' ? colorScheme : localState.theme);
+    if(config.isNoman){setTheme(localState.theme === 'system' ? colorScheme : localState.theme);}
+    else {setTheme('dark')}
   }, [localState.theme, colorScheme]);
 
 

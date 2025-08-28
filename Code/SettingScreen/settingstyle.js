@@ -5,8 +5,9 @@ export const getStyles = (isDarkMode) =>
     StyleSheet.create({
       container: {
         flex: 1,
-        backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
+        backgroundColor: !config.isNoman ? '#192f51' :  isDarkMode ? '#121212' : '#f2f2f7',
         padding: 8,
+        paddingBottom:40
       },
       cardContainer: {
         backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',

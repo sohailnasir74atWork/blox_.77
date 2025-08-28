@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View } from 'react-native';
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 import getAdUnitId from './ads'; // update path to your ads config
+import config from '../Helper/Environment';
 
 const BannerAdComponent = ({ adType = 'banner', visible = true }) => {
   const [isAdVisible, setIsAdVisible] = useState(true);
@@ -10,7 +11,7 @@ const BannerAdComponent = ({ adType = 'banner', visible = true }) => {
   if (!visible || !isAdVisible) return null;
 
   return (
-    <View style={{ alignItems: 'center' }}>
+    <View style={{ alignItems: 'center', backgroundColor: !config.isNoman && '#192f51' }}>
       <BannerAd
         unitId={unitId}
         size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}

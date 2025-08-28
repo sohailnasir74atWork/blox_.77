@@ -53,14 +53,15 @@ const FruitSelectionDrawer = ({ visible, onClose, onSelect, data, selectedTheme 
 
   const handleSelect = (item) => {
     const exists = selectedItems.some((selected) => selected.name === item.name);
+    // console.log(item)
   
     if (exists) {
       setSelectedItems(selectedItems.filter((selected) => selected.name !== item.name));
     } else {
-      setSelectedItems([...selectedItems, { name: item.name, picture: item.picture }]);
+      setSelectedItems([...selectedItems, { name: item.name, picture: item.picture  || item.image }]);
     }
   
-    onSelect({ name: item.name, picture: item.picture }); // Pass both to parent
+    onSelect({ name: item.name, picture: item.picture  || item.image}); // Pass both to parent
   };
   
   
@@ -107,7 +108,7 @@ const FruitSelectionDrawer = ({ visible, onClose, onSelect, data, selectedTheme 
               >
                 <Image
                   source={{
-                    uri: item.picture
+                    uri: item.picture || item.image
                   }}
                   style={styles.icon}
                 />

@@ -36,6 +36,7 @@ import RNBootSplash from "react-native-bootsplash";
 import SystemNavigationBar from 'react-native-system-navigation-bar';
 import AdminUnbanScreen from './Code/AppHelper/AdminDashboard.js';
 import { checkForUpdate } from './Code/AppHelper/InAppUpdateChecker.js';
+import config from './Code/Helper/Environment.js';
 
 
 
@@ -49,11 +50,6 @@ const setNavigationBarAppearance = (theme) => {
     SystemNavigationBar.setBarMode('light');
   }
 };
-// useEffect(() => {
-//   SystemNavigationBar.setNavigationColor('#000000', 'light', 'navigation'); // black background, light icons
-//   SystemNavigationBar.setBarMode('dark'); // forces dark mode (light icons)
-// }, []);
-// const adUnitId = getAdUnitId('openapp');
 
 function App() {
   const { theme } = useGlobalState();
@@ -202,7 +198,7 @@ function App() {
               name="Setting"
               options={{
                 title: t('tabs.settings'),
-                headerStyle: { backgroundColor: selectedTheme.colors.background },
+                headerStyle: { backgroundColor: !config.isNoman ? '#192f51' : selectedTheme.colors.background },
                 headerTintColor: selectedTheme.colors.text,
               }}
             >
@@ -210,9 +206,7 @@ function App() {
             </Stack.Screen>
           </Stack.Navigator>
         </NavigationContainer>
-        {/* {modalVisible && (
-          <RewardRulesModal visible={modalVisible} onClose={() => setModalVisible(false)} selectedTheme={selectedTheme} />
-        )} */}
+       
       </Animated.View>
     </SafeAreaView>
   );
@@ -224,38 +218,7 @@ export default function AppWrapper() {
   const hasShownColdStartAd = useRef(false);
   const appState = useRef(AppState.currentState);
 
-  // STEP 1: Show ad on cold start before rendering App
-  // useEffect(() => {
-  //   if (localState.showOnBoardingScreen) return;
-
-  //   if (Platform.OS === 'android' && !hasShownColdStartAd.current) {
-  //     AppOpenAdManager.initAndShow().finally(() => {
-  //       hasShownColdStartAd.current = true;
-  //       setAdReady(true); // allow app to render
-  //     });
-  //   } else if (Platform.OS === 'ios') {
-  //     setAdReady(true); // allow app to render immediately on iOS
-  //   }
-  // }, [localState.showOnBoardingScreen]);
-
-  // STEP 2: Handle background → active transition on iOS
-  // useEffect(() => {
-  //   if (Platform.OS === 'ios') {
-  //     const subscription = AppState.addEventListener('change', nextAppState => {
-  //       const wasBackground = appState.current === 'background';
-  //       const nowActive = nextAppState === 'active';
-  //       console.log(nextAppState)
-
-  //       appState.current = nextAppState;
-
-  //       if (wasBackground && nowActive && !localState.isPro) {
-  //         AppOpenAdManager.initAndShow();
-  //       }
-  //     });
-
-  //     return () => subscription?.remove();
-  //   }
-  // }, [localState.isPro]);
+  
   useEffect(() => {
     if (!localState.showOnBoardingScreen) 
    { AppOpenAdManager.initAndShow();}
@@ -283,14 +246,6 @@ export default function AppWrapper() {
     return <OnboardingScreen onFinish={handleSplashFinish} selectedTheme={selectedTheme} />;
   }
 
-  // STEP 5: Wait until ad is shown before rendering App
-  // if (!adReady && Platform.OS === 'android') {
-  //   return (
-  //     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: selectedTheme.colors.background }}>
-  //       <ActivityIndicator size="large" color="#1E88E5" />
-  //     </View>
-  //   );
-  // }
 
   return <App />;
 }

@@ -260,7 +260,7 @@ const ServerScreen = () => {
 
 
     return (
-        <View style={{ flex: 1, paddingHorizontal: 12, paddingTop: 12 }}>
+        <View style={{ flex: 1, paddingHorizontal: 12, paddingTop: 12, backgroundColor: !config.isNoman ? '#192f5d' :''}}>
             {loading ? (
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                     <ActivityIndicator size="large" color={config.colors.primary} />
@@ -360,10 +360,10 @@ const getStyles = (isDarkMode) =>
             marginBottom: 12,
         },
         admincard: {
-            padding: 10,
+            padding: 20,
             backgroundColor: '#FFD700',
             borderRadius: 12,
-            width: '48%',
+            width: '95%',
             alignItems: 'center',
             textAlign: 'center'
         },

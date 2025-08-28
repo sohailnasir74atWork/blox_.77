@@ -191,7 +191,7 @@ const getStyles = (isDarkMode) =>
     container: {
       flex: 1,
       padding: 10,
-      backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
+      backgroundColor: !config.isNoman ? '#192f51' : isDarkMode ? '#121212' : '#f2f2f7',
 
     },
     itemContainer: {

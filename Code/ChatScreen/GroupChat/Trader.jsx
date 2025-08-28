@@ -60,7 +60,34 @@ const [strikeInfo, setStrikeInfo] = useState(null);
 const [reachedEnd, setReachedEnd] = useState(false); 
 
   const flatListRef = useRef();
-
+  useEffect(() => {
+    const fetchPinnedMessages = async () => {
+      try {
+        const snapshot = await pinnedMessagesRef.once('value');
+        const pinnedMessagesData = snapshot.val() || {};
+  
+        // Transform data into an array and update pinned messages state
+        const pinnedMessagesArray = Object.entries(pinnedMessagesData).map(([key, value]) => ({
+          firebaseKey: key,
+          ...value,
+        }));
+  
+        setPinnedMessages(pinnedMessagesArray);
+      } catch (error) {
+        console.error('Error loading pinned messages:', error);
+      }
+    };
+  
+    fetchPinnedMessages();  // Fetch pinned messages initially
+  
+    // Listen to real-time updates on pinned messages
+    const listener = pinnedMessagesRef.on('child_added', (snapshot) => {
+      const newPinnedMessage = { firebaseKey: snapshot.key, ...snapshot.val() };
+      setPinnedMessages((prev) => [...prev, newPinnedMessage]);
+    });
+  
+    return () => pinnedMessagesRef.off('child_added', listener); // Cleanup listener
+  }, []);
   useEffect(() => {
     if (isAtBottom && pendingMessages.length > 0) {
       // console.log("✅ User scrolled to bottom. Releasing held messages...");
@@ -119,8 +146,8 @@ const [reachedEnd, setReachedEnd] = useState(false);
     return {
       ...message,
       sender: message.sender?.trim() || 'Anonymous',
-      text: hasText || '[No content]',
-      timestamp: hasText ? message.timestamp || Date.now() : Date.now() - 1 * 24 * 60 * 60 * 1000,
+      text: hasText || '.',
+      timestamp: message.timestamp
     };
   }, []);
 
@@ -161,7 +188,7 @@ const [reachedEnd, setReachedEnd] = useState(false);
   
         if (reset) {
           setMessages(parsedMessages);
-          console.log(`[loadMessages] Loaded ${parsedMessages.length} messages (reset)`);
+          // console.log(`[loadMessages] Loaded ${parsedMessages.length} messages (reset)`);
         } else {
           setMessages((prev) => [...prev, ...parsedMessages]);
           // console.log(`[loadMessages] Appending ${parsedMessages.length} messages`);
@@ -349,7 +376,7 @@ const [reachedEnd, setReachedEnd] = useState(false);
 
   const handleSendMessage = () => {
     const MAX_CHARACTERS = 250;
-    const MESSAGE_COOLDOWN = 100;
+    const MESSAGE_COOLDOWN = 2000;
     const LINK_REGEX = /(https?:\/\/[^\s]+)/g;
     if (!user?.id || !currentUserEmail) {
       showMessage({

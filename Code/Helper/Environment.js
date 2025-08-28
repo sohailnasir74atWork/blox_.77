@@ -44,10 +44,10 @@ const config = {
       black:'black'
     }
     : {
-      primary: '#697565', // Deep navy blue
-      secondary: '#457B9D', // Muted teal
-      hasBlockGreen: '#B8860B', // Light mint green
-      wantBlockRed: '#E63946', // Warm, soft red
+      primary: '#8F87F1', // Deep navy blue
+      secondary: '#8F87F1', // Muted teal
+      hasBlockGreen: '#8F87F1', // Light mint green
+      wantBlockRed: '#ff4d6d', // Warm, soft red
       backgroundLight: '#f2f2f7',
       backgroundDark: '#121212',
        white:'white',

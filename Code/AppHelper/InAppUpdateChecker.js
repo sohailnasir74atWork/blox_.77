@@ -1,4 +1,3 @@
-// updateCheck.ts
 import { Platform, Linking } from 'react-native';
 import SpInAppUpdates, { IAUUpdateKind } from 'sp-react-native-in-app-updates';
 import DeviceInfo from 'react-native-device-info';
@@ -16,6 +15,7 @@ export const checkForUpdate = async () => {
   if (__DEV__) return;
 
   try {
+    // ---------- Android ----------
     if (Platform.OS === 'android') {
       if (!ANDROID_UPDATER) return;
       const result = await ANDROID_UPDATER.checkNeedsUpdate();
@@ -25,16 +25,16 @@ export const checkForUpdate = async () => {
       return;
     }
 
-    // ---------- iOS logic via Realtime Database ----------
-    const db = getDatabase();
-    const snap = await get(ref(db, 'ios_version'));
-    const remoteVersion = String(snap.val() ?? '').trim();
-    const localVersion = DeviceInfo.getVersion(); // CFBundleShortVersionString
+    // ---------- iOS ----------
+    const snap = await get(ref(getDatabase(), 'ios_version'));
+    const remoteValue = String(snap.val() ?? '').trim().toLowerCase();
+    if (!remoteValue) return;
 
-    if (!remoteVersion) return;
+    // skip if backend flag says under review
+    if (remoteValue === 'underreview') return;
 
-    // If ANY mismatch, redirect to App Store
-    if (remoteVersion !== localVersion) {
+    const localVersion = DeviceInfo.getVersion();
+    if (remoteValue !== localVersion) {
       try {
         await Linking.openURL(IOS_STORE_DEEPLINK);
       } catch {

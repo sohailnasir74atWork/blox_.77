@@ -9,6 +9,7 @@ import BlockedUsersScreen from './PrivateChat/BlockUserList';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { useLocalState } from '../LocalGlobelStats';
 import database from '@react-native-firebase/database';
+import config from '../Helper/Environment';
 
 const Stack = createNativeStackNavigator();
 
@@ -30,7 +31,7 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
 
 
   const headerOptions = useMemo(() => ({
-    headerStyle: { backgroundColor: selectedTheme.colors.background },
+    headerStyle: { backgroundColor: !config.isNoman ? '#192f51' : selectedTheme.colors.background },
     headerTintColor: selectedTheme.colors.text,
     headerTitleStyle: { fontFamily: 'Lato-Bold', fontSize: 24 },
   }), [selectedTheme]);
