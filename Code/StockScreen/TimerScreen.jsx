@@ -15,9 +15,10 @@ import { showSuccessMessage, showWarningMessage } from '../Helper/MessageHelper'
 import { mixpanel } from '../AppHelper/MixPenel';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
-import { getDatabase } from '@react-native-firebase/database';
+import { get, getDatabase, ref } from '@react-native-firebase/database';
 import ValueScreen from '../ValuesScreen/ValueScreen';
 import LinearGradient from 'react-native-linear-gradient';
+import SelectWeatherDrawer from './SelectWeatherdrwer';
 
 
 const TimerScreen = ({ selectedTheme }) => {
@@ -25,6 +26,7 @@ const TimerScreen = ({ selectedTheme }) => {
   const [hasAdBeenShown, setHasAdBeenShown] = useState(false);
   const [fruitRecords, setFruitRecords] = useState([]);
   const [isDrawerVisible, setDrawerVisible] = useState(false);
+  const [isDrawerVisibleWeather, setDrawerVisibleWeather] = useState(false);
   const [isSigninDrawerVisible, setisSigninDrawerVisible] = useState(false);
   const { t } = useTranslation();
   const [eggStock, setEggStock] = useState([]);
@@ -32,6 +34,8 @@ const TimerScreen = ({ selectedTheme }) => {
   const [gearStock, setGearStock] = useState([]);
   const [seedStock, setSeedStock] = useState([]);
   const [cosmeticStock, setCosmeticStock] = useState([]);
+  const [stockItems, setStockItems] = useState([]);
+  const [allWeather, setallWeather] = useState([]);
 
 
 
@@ -62,12 +66,25 @@ const TimerScreen = ({ selectedTheme }) => {
 
   const isDarkMode = theme === 'dark';
 
+  useEffect(() => {
+    if(!user.id) return
+    if(!user.isReminderEnabled) return
+    const db = getDatabase();
+    const stockRef = ref(db, '/stock_item');
+    get(stockRef).then((snapshot) => {
+      const obj = snapshot.val() || {};
+      const list = Object.entries(obj).map(([id, v]) => ({ id, ...v }));
+      setStockItems(list);
+    });
+  }, []);
+  
 
   useEffect(() => {
     if (!isFocused) return;
   
     if (activeTab === 'Stock') {
       const stockRef = getDatabase().ref('/stock_elv');
+
   
       const listener = stockRef.on('value', (snapshot) => {
         const stockData = snapshot.val();
@@ -113,17 +130,29 @@ const TimerScreen = ({ selectedTheme }) => {
   
       return () => stockRef.off('value', listener);
     }
-  
     if (activeTab === 'Weather') {
+     if(allWeather.length===0){ const db = getDatabase();
+      const stockRef = ref(db, '/all_weathers');
+    
+      get(stockRef).then((snapshot) => {
+        if (snapshot.exists()) {
+          const allWeatherData = snapshot.val();
+          setallWeather(Object.values(allWeatherData)); 
+        } else {
+          console.log("No data available");
+        }
+      }).catch((error) => {
+        console.error("Error fetching weather data:", error);
+      });}
+    
       fetchWeatherData();
     }
-  
     // if (activeTab === 'Last Seen') {
     //   fetchLastSeenData();
     // }
   }, [isFocused, activeTab]);
   
-
+console.log(allWeather)
 
 
 
@@ -163,31 +192,82 @@ const TimerScreen = ({ selectedTheme }) => {
       callbackfunction();
     }
   };
+  const openDrawerWeather = () => {
+    triggerHapticFeedback('impactLight');
+  
+    // 🔒 Alert if user is not signed in
+    if (!user?.id) {
+      // Alert.alert(
+      //   "Sign In Required",
+      //   "Please sign in to select fruits for reminders.",
+      //   [{ text: "OK", onPress: () => setisSigninDrawerVisible(true) }]
+      // );
+      setisSigninDrawerVisible(true);
+      return;
+    }
+  
+    // ⚠️ Alert if reminders are not enabled
+    if (!user?.isSelectedReminderEnabled) {
+      Alert.alert(
+        "Enable Reminder First",
+        "Please enable the reminder toggle to select fruits.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+  
+    const callbackfunction = () => {
+      setHasAdBeenShown(true); // Mark the ad as shown
+      setDrawerVisibleWeather(true);
+    };
+  
+    if (!hasAdBeenShown && !localState.isPro) {
+      InterstitialAdManager.showAd(callbackfunction);
+    } else {
+      callbackfunction();
+    }
+  };
   
 
   useEffect(() => {
-    if (localState.data) {
+    // always a safe array
+    const safeStock = Array.isArray(stockItems) ? stockItems : [];
+  
+    if (localState?.data) {
       try {
-        // ✅ Ensure it's a string before parsing
-        const parsedValues = typeof localState.data === 'string' ? JSON.parse(localState.data) : localState.data;
-
-        if (typeof parsedValues !== 'object' || parsedValues === null) {
-          throw new Error('Parsed data is not a valid object');
+        const parsed = typeof localState.data === 'string'
+          ? JSON.parse(localState.data)
+          : localState.data;
+  
+        if (parsed == null || typeof parsed !== 'object') {
+          throw new Error('Parsed data is not a valid object/array');
         }
-
-        setFruitRecords(Object.values(parsedValues));
-      } catch (error) {
-        console.error("❌ Error parsing data:", error, "📝 Raw Data:", localState.data);
-        setFruitRecords([]); // Fallback to empty array
+  
+        const parsedList = Array.isArray(parsed) ? parsed : Object.values(parsed);
+  
+        // ✅ put stock items FIRST, then the parsed list
+        const combined = [...safeStock, ...parsedList];
+  
+        setFruitRecords(combined);
+      } catch (err) {
+        console.error("❌ Error parsing data:", err, "📝 Raw Data:", localState.data);
+        // show only stock items if parsing fails
+        setFruitRecords(safeStock);
       }
+    } else {
+      // if no localState.data yet, show only stock items
+      setFruitRecords(safeStock);
     }
-  }, [localState.data]);
+  }, [localState?.data, stockItems]);
+  
 
   const handleLoginSuccess = () => {
     setisSigninDrawerVisible(false);
   };
 
   const closeDrawer = () => setDrawerVisible(false);
+  const closeDrawerWeather = () => setDrawerVisibleWeather(false);
+
 
   const handleFruitSelect = async (fruit) => {
     triggerHapticFeedback('impactLight');
@@ -225,7 +305,42 @@ const TimerScreen = ({ selectedTheme }) => {
       closeDrawer();
     }, 300);
   };
+  const handleSelectWeather = async (fruit) => {
+    triggerHapticFeedback('impactLight');
 
+    const selectedWeather = user.selectedWeather || []; // Ensure `selectedFruits` is always an array
+    const isAlreadySelected = selectedWeather.some((item) => item === fruit);
+    // mixpanel.track("Select Fruit", { fruit: fruit.name });
+
+
+    // ✅ Prevent duplicate selection
+    if (isAlreadySelected) {
+      showWarningMessage(t("settings.notice"), t("stock.already_selected"));
+      return;
+    }
+
+    // ✅ Restriction: Free users can select up to 3 fruits, Pro users have no limit
+    if (!localState.isPro && selectedWeather.length >= 3) {
+      Alert.alert(
+        "Selection Limit Reached",
+        "You can only select up to 3 Weathers as a free user. Upgrade to Pro to select more.",
+        [{ text: "OK", onPress: () => { } }]
+      );
+      return;
+    }
+
+    // ✅ Add selected fruit
+    const updatedWeather = [...selectedWeather, fruit];
+    // console.log(selectedFruits)
+    await updateLocalStateAndDatabase('selectedWeather', updatedWeather);
+
+    showSuccessMessage(t("home.alert.success"), t("stock.fruit_selected"));
+
+    // ✅ Ensure drawer closes after updates
+    setTimeout(() => {
+      closeDrawer();
+    }, 300);
+  };
 
 
 
@@ -237,6 +352,14 @@ const TimerScreen = ({ selectedTheme }) => {
     // Remove the selected fruit and update state/database
     const updatedFruits = selectedFruits.filter((item) => item.name !== fruit.name);
     updateLocalStateAndDatabase('selectedFruits', updatedFruits);
+  };
+  const handleRemoveWeather = (fruit) => {
+    triggerHapticFeedback('impactLight');
+    const selectedWeather = user.selectedWeather || []; // Ensure `selectedFruits` is always an array
+
+    // Remove the selected fruit and update state/database
+    const updatedweather = selectedWeather.filter((item) => item !== fruit);
+    updateLocalStateAndDatabase('selectedWeather', updatedweather);
   };
 
   const fetchWeatherData = async () => {
@@ -283,27 +406,27 @@ const TimerScreen = ({ selectedTheme }) => {
 
 
 
-  const toggleSwitch = async () => {
-    // updateLocalStateAndDatabase('owner', true)
+  // const toggleSwitch = async () => {
+  //   // updateLocalStateAndDatabase('owner', true)
 
-    try {
-      const permissionGranted = await requestPermission();
-      if (!permissionGranted) return;
+  //   try {
+  //     const permissionGranted = await requestPermission();
+  //     if (!permissionGranted) return;
 
-      if (user.id == null) {
-        setisSigninDrawerVisible(true);
-      } else {
-        const currentValue = user.isReminderEnabled;
+  //     if (user.id == null) {
+  //       setisSigninDrawerVisible(true);
+  //     } else {
+  //       const currentValue = user.isReminderEnabled;
 
 
-        // Optimistically update the UI
-        updateLocalStateAndDatabase('isReminderEnabled', !currentValue);
-      }
-    } catch (error) {
-      // console.error('Error handling notification permission or sign-in:', error);
-      // Alert.alert('Error', 'Something went wrong while processing your request.');
-    }
-  };
+  //       // Optimistically update the UI
+  //       updateLocalStateAndDatabase('isReminderEnabled', !currentValue);
+  //     }
+  //   } catch (error) {
+  //     // console.error('Error handling notification permission or sign-in:', error);
+  //     // Alert.alert('Error', 'Something went wrong while processing your request.');
+  //   }
+  // };
 
   const toggleSwitch2 = useCallback(async () => {
     const permissionGranted = await requestPermission();
@@ -328,7 +451,7 @@ const TimerScreen = ({ selectedTheme }) => {
   //     </View>
   //   );
   // };
-
+// console.log(user.selectedFruits)
 
   const getTimeLeft = (intervalMinutes) => {
     const now = new Date();
@@ -379,7 +502,7 @@ const TimerScreen = ({ selectedTheme }) => {
 
 
   const renderWeatherCards = (items) => {
-    console.log('item', items)
+    // console.log('item', items)
     // return items.map((item, idx) => {
       const localTime = items.lastUpdated
         ? new Date(items.lastUpdated).toLocaleString(undefined, {
@@ -527,10 +650,10 @@ const TimerScreen = ({ selectedTheme }) => {
     <View style={config.isNoman ? styles.row2 : styles.row}>
       <View>
         <Text style={[styles.title, {alignSelf: !config.isNoman && 'center' }]}>
-          Selected Fruit Notifier
+          {activeTab === 'Stock' ? 'Selected Fruit Notifier':'Selected Weather Notifier'}
         </Text>
         <Text style={styles.footer}>
-          {t("stock.selected_fruit_notification_description")}
+        {activeTab === 'Stock' ? t("stock.selected_fruit_notification_description") : 'You will be notified when selected weather become active'}
         </Text>
       </View>
       <View style={styles.rightSide}>
@@ -552,7 +675,7 @@ const TimerScreen = ({ selectedTheme }) => {
         </TouchableOpacity>
 
         <TouchableOpacity
-          onPress={openDrawer}
+          onPress={activeTab === 'Stock' ? openDrawer : openDrawerWeather}
           style={styles.selectedContainericon}
         >
           <Icon name="add" size={24} color="white" />
@@ -562,23 +685,7 @@ const TimerScreen = ({ selectedTheme }) => {
   </GradientContainer>
 </View>
 
-            <View style={styles.listContentSelected}>
-              {user.selectedFruits?.map((item) => (
-                
-                <GradientContainer key={item.name} style={styles.selectedContainer} isNoman={config.isNoman}>
-                  <Image
-                    source={{
-                      uri: item.picture,
-                    }}
-                    style={styles.iconselected}
-                  />
-                  <Text style={[styles.fruitText, { color: selectedTheme.colors.text }]}>{formatName(item.name)}</Text>
-                  <TouchableOpacity onPress={() => handleRemoveFruit(item)}>
-                    <Icon name="close-circle" size={24} color={'#ff4d6d'}  />
-                  </TouchableOpacity>
-                </GradientContainer>
-              ))}
-            </View>
+          
             {/* <MyNativeAdComponent/> */}
 
             {/* <View> */}
@@ -608,6 +715,23 @@ const TimerScreen = ({ selectedTheme }) => {
 
               {activeTab === 'Stock' && (
   <>
+    <View style={styles.listContentSelected}>
+              {user.selectedFruits?.map((item) => (
+                
+                <GradientContainer key={item.name} style={styles.selectedContainer} isNoman={config.isNoman}>
+                  <Image
+                    source={{
+                      uri: item.picture,
+                    }}
+                    style={styles.iconselected}
+                  />
+                  <Text style={[styles.fruitText, { color: selectedTheme.colors.text }]}>{formatName(item.name)}</Text>
+                  <TouchableOpacity onPress={() => handleRemoveFruit(item)}>
+                    <Icon name="close-circle" size={24} color={'#ff4d6d'}  />
+                  </TouchableOpacity>
+                </GradientContainer>
+              ))}
+            </View>
     {(eggStock.length === 0 &&
       eventStock.length === 0 &&
       gearStock.length === 0 &&
@@ -642,6 +766,18 @@ const TimerScreen = ({ selectedTheme }) => {
     ) : (
       weatherData && (
         <ScrollView showsVerticalScrollIndicator={false}>
+          {user.selectedWeather && <View style={styles.listContentSelected}>
+              {user.selectedWeather?.map((item, index) => (
+                
+                <GradientContainer key={`${item}_&{index}`} style={styles.selectedContainer} isNoman={config.isNoman}>
+                 
+                  <Text style={[styles.fruitText, { color: selectedTheme.colors.text }]}>{item}</Text>
+                  <TouchableOpacity onPress={() => handleRemoveWeather(item)}>
+                    <Icon name="close-circle" size={24} color={'#ff4d6d'}  />
+                  </TouchableOpacity>
+                </GradientContainer>
+              ))}
+            </View>}
           {renderWeatherCards(weatherData)}
         </ScrollView>
       )
@@ -675,6 +811,14 @@ const TimerScreen = ({ selectedTheme }) => {
               data={fruitRecords}
               selectedTheme={selectedTheme}
             />
+
+        <SelectWeatherDrawer
+              visible={isDrawerVisibleWeather}
+              onClose={closeDrawerWeather}
+              onSelect={handleSelectWeather}
+              data={allWeather}
+              selectedTheme={selectedTheme}
+            />      
 
             <SigninDrawer
               visible={isSigninDrawerVisible}

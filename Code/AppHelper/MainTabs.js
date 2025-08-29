@@ -68,7 +68,7 @@ function CalculatorStackScreen({ selectedTheme, isAdmin, navigation }) {
                   />
                 </TouchableOpacity>
               )}
-              <TouchableOpacity onPress={() => navigation.navigate('Setting')} style={{ marginRight: 16 }}>
+              <TouchableOpacity onPress={() => navigation.navigate('Setting')} style={{  padding:16 }}>
                 <Icon name="settings" size={24} color="white" />
               </TouchableOpacity>
             </>

@@ -857,14 +857,14 @@ useEffect(() => {
 
             </ViewShot>
             <View style={styles.createtrade} >
-              <TouchableOpacity style={styles.createtradeButton} onPress={() => handleCreateTradePress('create')}>
+              <TouchableOpacity style={config.isNoman ? styles.createtradeButton : styles.createtradeButtoniSnOMAN} onPress={() => handleCreateTradePress('create')}>
               <Icon name="enter-outline" size={18} color="white" style={{padding:4}}/>
               <Text style={{ color: 'white', fontSize:12, fontFamily:'Lato-Bold'  }}>{t('home.create_trade')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.shareTradeButton} onPress={() => handleCreateTradePress('share')}>
+             {config.isNoman && <TouchableOpacity style={styles.shareTradeButton} onPress={() => handleCreateTradePress('share')}>
                 <Text style={{ color: 'white', fontSize:12, fontFamily:'Lato-Bold' }}>{t('home.share_trade')}</Text>
                 <Icon name="share-outline" size={18} color="white" style={{padding:4}}/>
-                </TouchableOpacity></View>
+                </TouchableOpacity>}</View>
           </ScrollView>
           <Modal
             visible={isDrawerVisible}
@@ -1203,7 +1203,7 @@ const getStyles = (isDarkMode) =>
     },
     itemBlock: {
       width: '32%',
-      height: 90,
+      height: config.isNoman ? 90 : 110,
       backgroundColor: isDarkMode ? '#34495E' : '#c6c2ff', // Dark: darker contrast, Light: White
       justifyContent: 'center',
       alignItems: 'center',
@@ -1342,6 +1342,17 @@ const getStyles = (isDarkMode) =>
       minWidth: 100,
       borderTopStartRadius: 20,
       borderBottomStartRadius: 20,
+      marginRight: 1,
+      alignItems:'center'
+    },
+    createtradeButtoniSnOMAN: {
+      backgroundColor: config.colors.hasBlockGreen,
+      alignSelf: 'center',
+      padding: 8,
+      justifyContent: 'center',
+      flexDirection: 'row',
+      minWidth: 200,
+      borderRadius: 20,
       marginRight: 1,
       alignItems:'center'
     },
