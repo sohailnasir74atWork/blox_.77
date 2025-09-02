@@ -31,11 +31,11 @@ function CreateTradeWithHeaderGradient(props) {
   return (
     <View style={{ flex: 1 , backgroundColor:'#192f5d'}}>
       {/* Gradient behind the transparent header */}
-      {/* <LinearGradient
+      <LinearGradient
         colors={['#4c669f', '#3b5998', '#192f5d']}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, height: gradientHeight }}
         pointerEvents="none"
-      /> */}
+      />
       {/* Push content below the header */}
       <View style={{ height: 110 }} />
       <TimerScreen selectedTheme={props.selectedTheme} {...props} />
@@ -208,6 +208,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
   options={{
     title: 'Create Trade',
     headerShown: false, // hide tab header; the stack header will show
+    
   }}
 >
   {({ navigation }) => (
