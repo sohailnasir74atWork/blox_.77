@@ -20,6 +20,7 @@ const Tab = createBottomTabNavigator();
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import SettingsScreen from '../SettingScreen/Setting';
 
 const CalcStack = createNativeStackNavigator();
 
@@ -58,21 +59,7 @@ function CalculatorStackScreen({ selectedTheme, isAdmin, navigation }) {
         options={{
           title: 'Live Stock',
           headerTitleAlign: 'center',
-          headerRight: () => (
-            <>
-              {isAdmin && (
-                <TouchableOpacity onPress={() => navigation.navigate('Admin')}>
-                  <Image
-                    source={require('../../assets/trophy.webp')}
-                    style={{ width: 20, height: 20, marginRight: 16 }}
-                  />
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity onPress={() => navigation.navigate('Setting')} style={{  padding:16 }}>
-                <Icon name="settings" size={24} color="white" />
-              </TouchableOpacity>
-            </>
-          ),
+         
         }}
       >
         {() => <CreateTradeWithHeaderGradient selectedTheme={selectedTheme} />}
@@ -108,6 +95,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
       Trade: config.isNoman ? ['handshake', 'handshake'] : ['business-time', 'business-time'],
       Chat: config.isNoman ? ['envelope', 'envelope'] : ['user-group', 'user-group'],
       Values: config.isNoman ? ['chart-simple', 'chart-simple'] : ['chart-simple', 'chart-simple'],
+      Settings: config.isNoman ? ['gear', 'gear'] : ['gear', 'gear'],
     };
     return icons[routeName] ? (focused ? icons[routeName][0] : icons[routeName][1]) : 'alert-circle-outline';
   }, []);
@@ -279,6 +267,24 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
             setModalVisibleChatinfo={setModalVisibleChatinfo}
           />
         )}
+      </Tab.Screen>
+      <Tab.Screen
+        name="Settings"
+        options={{
+          title: 'Setting',
+          headerTitleStyle:{color:'white', fontSize:24, fontFamily:'Lato-Bold'},
+          headerBackground: () => (
+            // Use Linear Gradient for the header background
+            <LinearGradient
+            colors={['#4c669f', '#3b5998', '#192f5d']}  // Set gradient colors
+            style={styles.headerBackground}  // Apply styles to the gradient
+          />
+          ),
+          headerTitleAlign: 'center', // Center the title in the header
+        }}
+        
+      >
+        {() => <SettingsScreen selectedTheme={selectedTheme} />}
       </Tab.Screen>
 
      

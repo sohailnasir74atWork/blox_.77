@@ -124,7 +124,8 @@ export const TradeStack = ({ selectedTheme }) => {
           initialParams={{ bannedUsers, selectedTheme }}
           options={({ navigation }) => ({
             title: 'Trading Feed',
-            headerRight: () => (
+            headerTitleAlign:config.isNoman ? 'left' : 'center',
+            headerRight: config.isNoman ? () => (
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <TouchableOpacity
                   onPress={() => navigation.navigate('Server')}
@@ -152,7 +153,7 @@ export const TradeStack = ({ selectedTheme }) => {
                   <Icon name="information-circle-outline" size={24} color={!config.isNoman ? 'white'  :selectedTheme.colors.Text} />
                 </TouchableOpacity>
               </View>
-            ),
+            ) : null,
           })}
         />
 

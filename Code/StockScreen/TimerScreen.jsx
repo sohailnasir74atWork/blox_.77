@@ -37,7 +37,7 @@ const TimerScreen = ({ selectedTheme }) => {
   const [stockItems, setStockItems] = useState([]);
   const [allWeather, setallWeather] = useState([]);
 
-
+console.log(stockItems)
 
 
   const [weatherLoading, setWeatherLoading] = useState(false);
@@ -67,16 +67,35 @@ const TimerScreen = ({ selectedTheme }) => {
   const isDarkMode = theme === 'dark';
 
   useEffect(() => {
-    if(!user.id) return
-    if(!user.isReminderEnabled) return
-    const db = getDatabase();
-    const stockRef = ref(db, '/stock_item');
-    get(stockRef).then((snapshot) => {
-      const obj = snapshot.val() || {};
-      const list = Object.entries(obj).map(([id, v]) => ({ id, ...v }));
-      setStockItems(list);
-    });
-  }, []);
+    if (!user?.id) return;
+    if (!user?.isSelectedReminderEnabled) return;
+
+    const fetchData = async () => {
+      try {
+        const [dataRes] = await Promise.all([
+          fetch("https://stock-item-select.b-cdn.net/", {
+            method: "GET",
+            cache: "no-store",
+          }),
+        ]);
+
+        const dataJson = await dataRes.json();
+        const data = dataJson || {};
+
+        const list = Object.entries(data).map(([id, v]) => ({
+          id,
+          ...v,
+        }));
+
+        setStockItems(list);
+      } catch (err) {
+        console.error("Error fetching stock items:", err);
+      }
+    };
+
+    fetchData();
+  }, [user?.id, user?.isSelectedReminderEnabled]);
+
   
 
   useEffect(() => {
@@ -152,7 +171,7 @@ const TimerScreen = ({ selectedTheme }) => {
     // }
   }, [isFocused, activeTab]);
   
-console.log(allWeather)
+// console.log(allWeather)
 
 
 
