@@ -6,6 +6,14 @@ const isNoman = false; // Toggle this to switch configurations
 //waqas app id = ca-app-pub-3701208411582706~4267174419
 // noman pkgName= com.growagarden.gag
 //waqas pkgName = com.bloxfruitstock
+
+
+                                                                           
+// npx react-native-bootsplash generate ./assets/icon.png \
+//   --platforms=android,ios \
+//   --background=FFFFFF \
+//   --logo-width=160
+
 const rev_cat_id = Platform.OS === 'ios' ? 'appl_EYTCVKCRICllCBhSNlffYgsgSqw' : 'goog_XsLCbrZoWWDgEwfILSZifwEdyoq'
 
 const config = {
