@@ -7,6 +7,7 @@ const isNoman = false; // Toggle this to switch configurations
 // noman pkgName= com.growagarden.gag
 //waqas pkgName = com.bloxfruitstock
 
+// npx icon-set-creator create ./assets/icon.png                                              
 
                                                                            
 // npx react-native-bootsplash generate ./assets/icon.png \

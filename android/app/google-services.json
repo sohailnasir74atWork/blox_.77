@@ -15,6 +15,30 @@
       },
       "oauth_client": [
         {
+          "client_id": "543545382684-93po6q00gt0j1mei8qne4odkvm3k1i8f.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.growagarden.gag",
+            "certificate_hash": "cea83f7ab4ec070d2930ec28cfb9513728cc5630"
+          }
+        },
+        {
+          "client_id": "543545382684-r1pno5ahg9in36ach3jcli2g52q78o7j.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.growagarden.gag",
+            "certificate_hash": "d195a122f91d23f1b1ad2221fccbf09993087af1"
+          }
+        },
+        {
+          "client_id": "543545382684-vdvjfi65po0ck5qmoo1ma0utl332rrhg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.growagarden.gag",
+            "certificate_hash": "c256ab8aab431912036000d9c399ab8a4c2b31f2"
+          }
+        },
+        {
           "client_id": "543545382684-17q9rjfsob0c09mhdkkskmuhajqbh61e.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -30,6 +54,49 @@
             {
               "client_id": "543545382684-17q9rjfsob0c09mhdkkskmuhajqbh61e.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "543545382684-ihoggnojv1vp0fnsvecfo0g7p18j89bn.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.growagarden.gag"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:543545382684:android:e3b1dd1bc70108626bccd9",
+        "android_client_info": {
+          "package_name": "com.stocknotifier.gag"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "543545382684-17q9rjfsob0c09mhdkkskmuhajqbh61e.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA6HZqS0xFVf5HWjbgvkTn0yTn_TeiCQvE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "543545382684-17q9rjfsob0c09mhdkkskmuhajqbh61e.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "543545382684-ihoggnojv1vp0fnsvecfo0g7p18j89bn.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.growagarden.gag"
+              }
             }
           ]
         }
