@@ -78,7 +78,7 @@ export const LocalStateProvider = ({ children }) => {
     }
   }, [localState.data]);
 
-  // console.log(localState.isPro)
+  console.log(localState.isPro)
   // Update local state and MMKV storage
   const updateLocalState = (key, value) => {
     setLocalState((prevState) => ({
@@ -222,7 +222,7 @@ export const LocalStateProvider = ({ children }) => {
       
       // console.log(proStatus, 'activePlansWithExpiryactivePlansWithExpiryactivePlansWithExpiryactivePlansWithExpiry', customerInfo)
       if (proStatus !== null) {
-        // updateLocalState('isPro', proStatus); // Persist Pro status in MMKV
+        updateLocalState('isPro', proStatus); // Persist Pro status in MMKV
         const activePlansWithExpiry = customerInfo.activeSubscriptions.map((subscription) => ({
           plan: subscription,
           expiry: customerInfo.allExpirationDates[subscription],

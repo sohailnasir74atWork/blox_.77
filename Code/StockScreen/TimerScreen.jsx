@@ -461,7 +461,8 @@ const TimerScreen = ({ selectedTheme }) => {
 
       </GestureHandlerRootView>
 
-      {(!localState.isPro && proGranted) && <BannerAdComponent/>}
+      {/* {(!localState.isPro && !proGranted) && <BannerAdComponent />} */}
+
 
       {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (

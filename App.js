@@ -33,9 +33,10 @@ import AppOpenAdManager from './Code/Ads/openApp';
 import RNBootSplash from "react-native-bootsplash";
 import SystemNavigationBar from 'react-native-system-navigation-bar';
 import CoinStore from './Code/SettingScreen/Store/Store';
-import AppUpdateChecker from './Code/AppHelper/InAppUpdateChecker';
+// import AppUpdateChecker from './Code/AppHelper/InAppUpdateChecker';
 import AdminUnbanScreen from './Code/AppHelper/AdminDashboard';
 import { checkForUpdate } from './Code/AppHelper/InAppUpdateCheck';
+// import { initAds } from './Code/Ads/Adinit';
 
 
 
@@ -72,6 +73,7 @@ function App() {
   useEffect(() => {
     InterstitialAdManager.init();
     checkForUpdate()
+    // initAds()
   }, []);
 
 
@@ -241,7 +243,7 @@ function App() {
               {() => <SettingsScreen selectedTheme={selectedTheme} />}
             </Stack.Screen>
           </Stack.Navigator>
-          <AppUpdateChecker />
+          {/* <AppUpdateChecker /> */}
         </NavigationContainer>
         {modalVisible && (
           <RewardRulesModal visible={modalVisible} onClose={() => setModalVisible(false)} selectedTheme={selectedTheme} />

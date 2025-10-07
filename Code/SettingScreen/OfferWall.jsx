@@ -175,7 +175,7 @@ import { useTranslation } from 'react-i18next';
             <Text style={styles.title}>GO PRO 
               {/* <Ionicons name="checkmark-done-circle" size={26} color={config.colors.hasBlockGreen}  style={styles.icon}/> */}
             </Text>
-            <Text style={styles.subtitle}>{`${t('offer.subtitle')} ${monthlyPrice[0] && monthlyPrice[0].monthlyPrice.slice(0,-3)}!`}</Text>
+            <Text style={styles.subtitle}>{`${t('offer.subtitle')} ${monthlyPrice[0] && monthlyPrice[0].monthlyPrice}!`}</Text>
 
             <View style={styles.benefitsContainer}>
               {benefits.map((benefit, index) => (
@@ -215,7 +215,7 @@ import { useTranslation } from 'react-i18next';
               {isSelected && <Ionicons name="checkmark-circle" size={20} color={config.colors.hasBlockGreen}  style={styles.icon}/>}
             {!isSelected && <Ionicons name="ellipse-outline" size={20} color={config.colors.hasBlockGreen} style={styles.icon}/>}
           </Text>
-                    <Text style={styles.planPrice}>{product.priceString.slice(0,-3)}
+                    <Text style={styles.planPrice}>{product.priceString}
                       {/* /{pkg.packageType === 'ANNUAL' ? 'Year' :
             pkg.packageType === 'THREE_MONTH' ? '3 Months' : 
             'Month'} */}
@@ -341,7 +341,7 @@ import { useTranslation } from 'react-i18next';
         color: isDarkMode ? 'white' : '#333',
       },
       planPrice: {
-        fontSize: 18,
+        fontSize: 14,
         color: config.colors.hasBlockGreen,
         marginVertical: 5,
         fontFamily: 'Lato-Bold', // Corrected

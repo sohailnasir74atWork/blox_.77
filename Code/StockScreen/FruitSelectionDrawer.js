@@ -36,7 +36,7 @@ const FruitSelectionDrawer = ({ visible, onClose, onSelect, data, selectedTheme 
     } else {
       setSelectedItems([...selectedItems, item]);
     }
-    onSelect(item); // Notify parent about the selection
+    onSelect({ name: item.name});
   };
 
   const handleSearchChange = (text) => {

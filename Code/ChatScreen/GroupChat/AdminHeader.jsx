@@ -215,7 +215,7 @@ export const getStyles = (isDarkMode) =>
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 10,
-      // paddingTop: Platform.OS === 'android' ? 60 : 0,
+      paddingTop: Platform.OS === 'android' ? 60 : 0,
 
 
       // paddingVertical: 10,
@@ -229,6 +229,7 @@ export const getStyles = (isDarkMode) =>
       fontSize: 24,
       lineHeight: 24,
       color: isDarkMode ? 'white' : 'black',
+      
     },
     pinnedContainer: {
       // paddingHorizontal: 10,

@@ -234,10 +234,22 @@ const HomeScreen = ({ selectedTheme }) => {
       };
       // console.log(newTrade, 'new')
       if (type === 'share') {
-        setModalVisible(false); // Close modal
+        const callbackfunction = () => {
+          showSuccessMessage(
+            t("home.alert.success"),
+            "Your trade has been share successfully!"
+          );
+        };
+        if (Platform.OS === 'android')
+          {setModalVisible(false)} 
         setSelectedTrade(newTrade);
         setOpenShareModel(true)
         mixpanel.track("Start Sharing");
+        if(!localState.isPro && !proGranted) {
+          InterstitialAdManager.showAd(callbackfunction);
+        } else {
+          callbackfunction()
+        }
 
       } else {
 
@@ -260,7 +272,8 @@ const HomeScreen = ({ selectedTheme }) => {
         await tradesCollection.add(newTrade);
         // console.log("🎉 Trade successfully submitted!");
 
-        setModalVisible(false); // Close modal
+        if (Platform.OS === 'android')
+          {setModalVisible(false)} 
         const callbackfunction = () => {
           showSuccessMessage(
             t("home.alert.success"),
@@ -272,7 +285,7 @@ const HomeScreen = ({ selectedTheme }) => {
         setLastTradeTime(now);
         mixpanel.track("Trade Created", { user: user?.id });
 
-        if(!localState.isPro && proGranted) {
+        if(!localState.isPro && !proGranted) {
           InterstitialAdManager.showAd(callbackfunction);
         } else {
           callbackfunction()
@@ -734,8 +747,14 @@ const HomeScreen = ({ selectedTheme }) => {
               </View>}
             </ViewShot>
             <View style={styles.createtrade} >
-              <TouchableOpacity style={styles.createtradeButton} onPress={() => handleCreateTradePress('create')}><Text style={{ color: 'white' }}>{t('home.create_trade')}</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.shareTradeButton} onPress={() => handleCreateTradePress('share')}><Text style={{ color: 'white' }}>{t('home.share_trade')}</Text></TouchableOpacity></View>
+              <TouchableOpacity style={styles.createtradeButton} onPress={() => handleCreateTradePress('create')}>
+              <Icon name="enter-outline" size={18} color="white" style={{padding:4}}/>
+              <Text style={{ color: 'white', fontSize:12, fontFamily:'Lato-Bold'  }}>{t('home.create_trade')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.shareTradeButton} onPress={() => handleCreateTradePress('share')}>
+                <Text style={{ color: 'white', fontSize:12, fontFamily:'Lato-Bold' }}>{t('home.share_trade')}</Text>
+                <Icon name="share-outline" size={18} color="white" style={{padding:4}}/>
+                </TouchableOpacity></View>
           </ScrollView>
           <Modal
             visible={isDrawerVisible}
@@ -854,7 +873,8 @@ const HomeScreen = ({ selectedTheme }) => {
           />
         </View>
       </GestureHandlerRootView>
-      {(!localState.isPro || !proGranted) && <BannerAdComponent/>}
+      {(!localState.isPro && !proGranted) && <BannerAdComponent />}
+
 
       {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (
@@ -1117,24 +1137,27 @@ const getStyles = (isDarkMode) =>
     createtradeButton: {
       backgroundColor: config.colors.hasBlockGreen,
       alignSelf: 'center',
-      padding: 10,
+      padding: 5,
       justifyContent: 'center',
       flexDirection: 'row',
       minWidth: 120,
       borderTopStartRadius: 20,
       borderBottomStartRadius: 20,
-      marginRight: 1
+      marginRight: 1,
+      alignItems:'center'
     },
     shareTradeButton: {
       backgroundColor: config.colors.wantBlockRed,
       alignSelf: 'center',
-      padding: 10,
+      padding: 5,
       flexDirection: 'row',
       justifyContent: 'center',
       minWidth: 120,
       borderTopEndRadius: 20,
       borderBottomEndRadius: 20,
-      marginLeft: 1
+      marginLeft: 1,
+      alignItems:'center'
+
     },
 
     modalMessage: {

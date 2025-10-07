@@ -41,7 +41,7 @@ export default function DailyCheckIn({
   
     // Reset if the user missed a claim (skipped day)
     const updated = last && last !== todayFormatted ? [] : saved;
-    console.log(updated, last, todayFormatted, saved);
+    // console.log(updated, last, todayFormatted, saved);
   
     setClaimedDates(updated);
   }, [user?.id]);

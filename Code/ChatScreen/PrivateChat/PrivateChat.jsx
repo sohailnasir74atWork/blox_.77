@@ -385,7 +385,7 @@ const handleRating = async () => {
 
         <View style={styles.container}>
 
-          <ConditionalKeyboardWrapper style={{ flex: 1 }} chatscreen={true}>
+          <ConditionalKeyboardWrapper style={{ flex: 1 }} privatechatscreen={true}>
             {/* <View style={{ flex: 1 }}> */}
               {trade && (
                 <View>
@@ -478,6 +478,7 @@ const handleRating = async () => {
                   onReply={(message) => setReplyTo(message)}
                 />
               )}
+      {!localState.isPro && <BannerAdComponent/>}
 
               <PrivateMessageInput
                 onSend={sendMessage}
@@ -493,7 +494,6 @@ const handleRating = async () => {
             </ConditionalKeyboardWrapper>
         </View>
       </GestureHandlerRootView>
-      {/* {!localState.isPro && <BannerAdComponent/>} */}
       {showRatingModal && (
   <View
     style={{

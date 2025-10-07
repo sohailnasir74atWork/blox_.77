@@ -19,10 +19,18 @@ import InterstitialAdManager from '../../Ads/IntAd';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import { onValue, ref } from '@react-native-firebase/database';
 import { showMessage } from 'react-native-flash-message';
+import RNFS from 'react-native-fs';
 
-const CLOUD_NAME = 'dqwcl9oxz';
-const UPLOAD_PRESET = 'my_uploads';
+
+const CLOUD_NAME = 'djtqw0jb5';
+const UPLOAD_PRESET = 'my_upload';
 const MAX_IMAGES = 4;
+
+const BUNNY_STORAGE_HOST = 'storage.bunnycdn.com';     // or your regional host
+const BUNNY_STORAGE_ZONE = 'post-gag';
+const BUNNY_ACCESS_KEY   = '1b7e1a85-dff7-4a98-ba701fc7f9b9-6542-46e2'; // ← rotate this later
+const BUNNY_CDN_BASE     = 'https://pull-gag.b-cdn.net';
+
 
 const UploadModal = ({ visible, onClose, onUpload, user }) => {
   const [desc, setDesc] = useState('');
@@ -54,7 +62,7 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
     return () => unsubscribe();
   }, [currentUserEmail]);
 
-  // console.log(currentUserEmail)
+  // console.log(currentUserEmail)show
   
 
 const pickAndCompress = useCallback(async () => {
@@ -69,8 +77,8 @@ const pickAndCompress = useCallback(async () => {
     for (const asset of result.assets) {
       try {
         const uri = await CompressorImage.compress(asset.uri, {
-          maxWidth: 800,
-          quality: 0.7,
+          maxWidth: 400,
+          quality: 0.6,
         });
         compressed.push(uri);
       } catch (error) {
@@ -90,35 +98,80 @@ const pickAndCompress = useCallback(async () => {
 
   
 
-  const uploadToCloudinary = useCallback(async () => {
-    const urls = [];
+  // const uploadToCloudinary = useCallback(async () => {
+  //   const urls = [];
 
+  //   for (const uri of imageUris) {
+  //     try {
+  //       const data = new FormData();
+  //       data.append('file', {
+  //         uri,
+  //         type: 'image/jpeg',
+  //         name: 'upload.jpg',
+  //       });
+  //       data.append('upload_preset', UPLOAD_PRESET);
+
+  //       const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+  //         method: 'POST',
+  //         body: data,
+  //       });
+
+  //       const json = await res.json();
+  //       if (json?.secure_url) {
+  //         urls.push(json.secure_url);
+  //       }
+  //     } catch (e) {
+  //       console.error('Cloudinary upload error:', e);
+  //     }
+  //   }
+
+  //   return urls;
+  // }, [imageUris]);
+  const uploadToBunny = useCallback(async () => {
+    const urls = [];
+    const userId = user?.id ?? 'anon';
+  
     for (const uri of imageUris) {
       try {
-        const data = new FormData();
-        data.append('file', {
-          uri,
-          type: 'image/jpeg',
-          name: 'upload.jpg',
+        const filename   = `${Date.now()}-${Math.floor(Math.random() * 1e6)}.jpg`;
+        const remotePath = `uploads/${encodeURIComponent(userId)}/${encodeURIComponent(filename)}`;
+        const uploadUrl  = `https://${BUNNY_STORAGE_HOST}/${BUNNY_STORAGE_ZONE}/${remotePath}`;
+  
+        // Read file as base64 then convert to raw bytes
+        const base64 = await RNFS.readFile(uri.replace('file://', ''), 'base64');
+  
+        // base64 -> Uint8Array (works reliably on RN 0.77)
+        const binary = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+  
+        // PUT raw bytes
+        const res = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'AccessKey': BUNNY_ACCESS_KEY,
+            'Content-Type': 'application/octet-stream',
+            // Content-Length is optional; let fetch set it
+          },
+          body: binary,
         });
-        data.append('upload_preset', UPLOAD_PRESET);
-
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-          method: 'POST',
-          body: data,
-        });
-
-        const json = await res.json();
-        if (json?.secure_url) {
-          urls.push(json.secure_url);
+  
+        const txt = await res.text().catch(() => '');
+        // console.log('[Bunny PUT]', res.status, txt?.slice(0, 200));
+  
+        if (!res.ok) {
+          throw new Error(`Bunny upload failed ${res.status}: ${txt}`);
         }
+  
+        // Public CDN URL to display
+        urls.push(`${BUNNY_CDN_BASE}/${decodeURIComponent(remotePath)}`);
       } catch (e) {
-        console.error('Cloudinary upload error:', e);
+        console.warn('[Bunny ERROR]', e?.message || e);
+        throw e; // bubble up so your Alert shows
       }
     }
-
+  
     return urls;
-  }, [imageUris]);
+  }, [imageUris, user?.id]);
+  
 
   const handleSubmit = useCallback(() => {
     if (!user?.id) return;
@@ -132,7 +185,7 @@ if (!currentUserEmail) {
     }
     if (strikeInfo) {
       const { strikeCount, bannedUntil } = strikeInfo;
-      console.log('strick')
+      // console.log('strick')
       const now = Date.now();
 
       if (bannedUntil === 'permanent') {
@@ -165,7 +218,7 @@ if (!currentUserEmail) {
     const callbackfunction = async () => {
       try {
         setLoading(true);
-        const uploadedUrls = await uploadToCloudinary();
+        const uploadedUrls = await uploadToBunny();
         // console.log('[UploadModal] submitting with email:', currentUserEmail);
         await onUpload(desc, uploadedUrls, selectedTags, currentUserEmail);
         setDesc('');
@@ -173,8 +226,14 @@ if (!currentUserEmail) {
         setSelectedTags(['Discussion']);
         // setBudget('');
         onClose();
+        showMessage({
+          message: 'Success',
+          description: 'Post created successfully',
+          type: 'success',
+        });
       } catch (err) {
-        Alert.alert('Upload Failed', 'Something went wrong. Try again.');
+        Alert.alert('Upload Failed', 'Something went wrong. Try again.', err);
+        console.log(err)
       } finally {
         setLoading(false);
       }
@@ -200,7 +259,7 @@ if (!currentUserEmail) {
       }, 500);
     });
   
-  }, [user?.id, desc, imageUris, selectedTags, uploadToCloudinary, onUpload, onClose, useLocalState.isPro, currentUserEmail]);
+  }, [user?.id, desc, imageUris, selectedTags, uploadToBunny, onUpload, onClose, localState.isPro, currentUserEmail]);
   
 
   const themedStyles = getStyles(isDark);

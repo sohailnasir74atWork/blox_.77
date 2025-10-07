@@ -13,7 +13,7 @@ const adUnits = {
     interstitial: TestIds.INTERSTITIAL,
     rewarded:TestIds.REWARDED,
     openapp:TestIds.APP_OPEN,
-    native:TestIds.NATIVE,
+    native:'ca-app-pub-3940256099942544/2247696110',
     reward_int:TestIds.REWARDED_INTERSTITIAL
   },
   android: {

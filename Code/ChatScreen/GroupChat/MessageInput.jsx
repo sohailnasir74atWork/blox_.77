@@ -168,9 +168,9 @@ const MessageInput = ({
 
 
 
-        <TouchableOpacity onPress={() => setShowEmojiPopup(true)} style={styles.gifButton}>
+        {/* <TouchableOpacity onPress={() => setShowEmojiPopup(true)} style={styles.gifButton}>
           <Text style={{ fontSize: 25 }}>😊</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
 
         {/* Send Button */}

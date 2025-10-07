@@ -56,10 +56,11 @@ const ImageViewerScreen = ({ route }) => {
 
 const styles = StyleSheet.create({
   slide: {
-    width,
-    height,
+    // width,
+    // height,
     justifyContent: 'center',
     alignItems: 'center',
+    fkex:1
   },
   image: {
     width,

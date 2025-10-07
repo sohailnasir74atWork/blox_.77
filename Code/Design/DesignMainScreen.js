@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   Text,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/FontAwesome';
 import firestore from '@react-native-firebase/firestore';
 import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
 
@@ -19,8 +18,10 @@ import UploadModal from './componenets/UploadModal';
 import SignInDrawer from '../Firebase/SigninDrawer';
 import config from '../Helper/Environment';
 import { Platform } from 'react-native';
-import BannerAdComponent from '../Ads/bannerAds';
 import { showMessage } from 'react-native-flash-message';
+import { nativeAdPool } from '../Ads/NativeAdPool';
+import SingleNativeAd from '../Ads/SingleNative';
+import InterstitialAdManager from '../Ads/IntAd';
 
 
 const availableTags = ['Scam Alert', 'Looking for Trade', 'Discussion', 'Real or Fake', 'Need Help', 'Misc'];
@@ -43,8 +44,21 @@ const DesignFeedScreen = ({ route }) => {
   const [filterMyPosts, setFilterMyPosts] = useState(false);
   const [myPosts, setMyPosts] = useState([]);
   const [selectedTag, setSelectedTag] = useState(null);
+  const AD_FREQUENCY = 5;
 
-
+  function interleaveAds(items, showAds) {
+     if (!showAds) return items;
+      const out = [];
+     let real = 0;
+    for (let i = 0; i < items.length; i++) {
+       out.push(items[i]);
+        real++;
+        if (real > 0 && real % AD_FREQUENCY === 0) {
+          out.push({ __type: 'ad', id: `ad-${i}` });
+        }
+     }
+    return out;
+     }
   // console.log('mainscreen')
   const fetchMyPosts = async (tag = null) => {
     if (!user?.id) return;
@@ -75,7 +89,10 @@ const DesignFeedScreen = ({ route }) => {
   };
   
 
-
+  useEffect(() => {
+    nativeAdPool.fillIfNeeded();
+    return () => nativeAdPool.destroyAll();
+  }, []);
 
 
   const fetchPostsByTag = async (tag) => {
@@ -217,6 +234,12 @@ const DesignFeedScreen = ({ route }) => {
     if (initialLoading) {
       return <View style={[styles.skeletonPost, isDarkMode && { backgroundColor: '#444' }]} />;
     }
+      // if (item?.__type === 'ad') {
+      //    return <NativeFeedAd mediaHeight={220} />;
+      //  }
+       if (item?.__type === 'ad') {
+         return <View style={{flex:1}}><SingleNativeAd  /></View>;
+       }
 
     return (
       <PostCard
@@ -231,14 +254,23 @@ const DesignFeedScreen = ({ route }) => {
     );
   };
 
-  const dataToRender = initialLoading
-    ? skeletonArray
-    : filterMyPosts
-      ? myPosts
-      : posts;
+  // const dataToRender = initialLoading
+  //   ? skeletonArray
+  //   : filterMyPosts
+  //     ? myPosts
+  //     : posts;
+      const baseList = initialLoading ? skeletonArray : (filterMyPosts ? myPosts : posts);
+     const dataToRender = initialLoading
+        ? skeletonArray
+        : interleaveAds(baseList, !localState?.isPro);
 
   const keyExtractor = (item, index) =>
-    initialLoading ? `skeleton-${index}` : item?.id || `post-${index}`;
+    // initialLoading ? `skeleton-${index}` : item?.id || `post-${index}`;
+   initialLoading
+  ? `skeleton-${index}`
+   : item?.__type === 'ad'
+      ? item.id
+      : `${item?.id}_${index}}` || `post-${index}`;
 
   return (
     <View style={[styles.container, isDarkMode && styles.darkContainer]}>
@@ -258,12 +290,23 @@ const DesignFeedScreen = ({ route }) => {
           <MenuOptions customStyles={{ optionsContainer: { width: 200 } }}>
             {/* All Posts */}
             <MenuOption
-              onSelect={() => {
-                setFilterMyPosts(false);
-                setSelectedTag(null);
-                fetchInitialPosts();
-              }}
-            >
+  onSelect={() => {
+    const handleAction = () => {
+      setFilterMyPosts(false);
+      setSelectedTag(null);
+      fetchInitialPosts();
+    };
+
+    if (!localState.isPro) {
+      // Make sure InterstitialAdManager.showAd supports a callback
+      InterstitialAdManager.showAd(handleAction);
+    } else {
+      handleAction();
+    }
+  }
+  }
+>
+
               <View style={styles.menuItem}>
                 <Text style={[styles.menuText, !filterMyPosts && !selectedTag && styles.selectedText]}>
                   All Posts
@@ -275,9 +318,18 @@ const DesignFeedScreen = ({ route }) => {
             {/* My Posts */}
             <MenuOption
               onSelect={() => {
-                setFilterMyPosts(true);
-                setSelectedTag(null);
-                fetchMyPosts();
+                const handleAction = () => {
+                  setFilterMyPosts(true);
+                  setSelectedTag(null);
+                  fetchMyPosts();
+                };
+              
+                if (!localState.isPro) {
+                  // Make sure InterstitialAdManager.showAd supports a callback
+                  InterstitialAdManager.showAd(handleAction);
+                } else {
+                  handleAction();
+                }
               }}
             >
               <View style={styles.menuItem}>
@@ -298,9 +350,19 @@ const DesignFeedScreen = ({ route }) => {
               <MenuOption
                 key={index}
                 onSelect={() => {
-                  setFilterMyPosts(false);
-                  setSelectedTag(tag);
-                  fetchPostsByTag(tag);
+                  const handleAction = () => {
+                    setFilterMyPosts(false);
+                    setSelectedTag(tag);
+                    fetchPostsByTag(tag);
+                  };
+                  if (!localState.isPro) {
+                    // Make sure InterstitialAdManager.showAd supports a callback
+                    InterstitialAdManager.showAd(handleAction);
+                  } else {
+                    handleAction();
+                  }
+                
+                
                 }}
               >
                 <View style={styles.menuItem}>
@@ -378,7 +440,7 @@ const DesignFeedScreen = ({ route }) => {
         screen="Design"
         message="Sign in to upload designs"
       />
-      {!localState.isPro && <BannerAdComponent />}
+      {/* {!localState.isPro && <BannerAdComponent />} */}
 
     </View>
   );
@@ -388,17 +450,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     // backgroundColor: '#fff',
-    // paddingTop: Platform.OS === 'android' ? 60 : 0
+    paddingTop: Platform.OS === 'android' ? 60 : 0
 
   },
   darkContainer: {
     backgroundColor: '#121212',
-    // paddingTop: Platform.OS === 'android' ? 60 : 0
+    paddingTop: Platform.OS === 'android' ? 60 : 0
 
   },
   fab: {
     position: 'absolute',
-    bottom: 65,
+    bottom: 5,
     right: 10,
     // backgroundColor: config.colors.primary,
     width: 60,

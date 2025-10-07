@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
   image: { width: 50, height: 50, margin: 10, borderRadius: 10 },
   bottomContainer: {
     position: 'absolute',
-    bottom: 10,
+    bottom: 60,
     width: '100%',
     alignItems: 'center',
   },
