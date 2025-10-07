@@ -176,7 +176,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
           );
         },
         tabBarStyle: {
-          height: 50,
+          // height: 50,
           backgroundColor: selectedTheme.colors.background,
         },
         tabBarLabelStyle: {

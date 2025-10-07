@@ -43,7 +43,7 @@ const TopLevelStockComponent = ({ selectedTheme }) => {
       {activeTab === 'Stock' && <TimerScreen selectedTheme={ selectedTheme } />}
       {activeTab === 'Values & Codes' && <ValueScreen selectedTheme={ selectedTheme }  />}
       {/* {activeTab === 'Code' && <CodeComponent />} */}
-      {(!localState.isPro || !proGranted) && <BannerAdComponent/>}
+      {(!localState.isPro && !proGranted) && <BannerAdComponent/>}
     </View>
   );
 };

@@ -86,6 +86,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
         versionCode 8
         versionName "1.7"
    ndk {
@@ -108,6 +109,10 @@ android {
         versionCode 75
         versionName "3.3.1"
 >>>>>>> 7d3c677 (updated to api level 35 before)
+=======
+        versionCode 80
+        versionName "3.3.6"
+>>>>>>> 6ff4a10 (commit)
     }
     signingConfigs {
         release {

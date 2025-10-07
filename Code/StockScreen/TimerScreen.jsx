@@ -886,10 +886,15 @@ console.log(stockItems)
       </GestureHandlerRootView>
 
 <<<<<<< HEAD
+<<<<<<< HEAD
       {!localState.isPro && <BannerAdComponent />}
 =======
       {(!localState.isPro && proGranted) && <BannerAdComponent/>}
 >>>>>>> f99f5c4 (hh)
+=======
+      {/* {(!localState.isPro && !proGranted) && <BannerAdComponent />} */}
+
+>>>>>>> 6ff4a10 (commit)
 
       {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (

@@ -60,8 +60,12 @@ const FruitSelectionDrawer = ({ visible, onClose, onSelect, data, selectedTheme 
     } else {
       setSelectedItems([...selectedItems, { name: item.name, picture: item.picture  || item.image }]);
     }
+<<<<<<< HEAD
   
     onSelect({ name: item.name, picture: item.picture  || item.image}); // Pass both to parent
+=======
+    onSelect({ name: item.name});
+>>>>>>> 6ff4a10 (commit)
   };
   
   

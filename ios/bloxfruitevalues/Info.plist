@@ -45,7 +45,11 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
 	<key>NSPhotoLibraryUsageDescription</key>
+<<<<<<< HEAD
 	<string>This app uses the photo library for optional image sharing and features provided by third-party tools. No personal data is stored or shared.</string>
+=======
+	<string>This app needs access to your photo library to save and share images you create.</string>
+>>>>>>> 6ff4a10 (commit)
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UIAppFonts</key>
@@ -91,7 +95,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
-	<key>NSPhotoLibraryUsageDescription</key>
-<string>This app needs access to your photo library to save and share images you create.</string>
 </dict>
 </plist>

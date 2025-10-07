@@ -20,6 +20,7 @@ import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import { onValue, ref } from '@react-native-firebase/database';
 import { showMessage } from 'react-native-flash-message';
 <<<<<<< HEAD
+<<<<<<< HEAD
 import RNFS from 'react-native-fs';
 
 
@@ -34,12 +35,25 @@ const BUNNY_CDN_BASE     = 'https://pull-gag.b-cdn.net';
 
 
 =======
+=======
+import RNFS from 'react-native-fs';
+>>>>>>> 6ff4a10 (commit)
 
-const CLOUD_NAME = 'dqwcl9oxz';
-const UPLOAD_PRESET = 'my_uploads';
+
+const CLOUD_NAME = 'djtqw0jb5';
+const UPLOAD_PRESET = 'my_upload';
 const MAX_IMAGES = 4;
 
+<<<<<<< HEAD
 >>>>>>> 7d3c677 (updated to api level 35 before)
+=======
+const BUNNY_STORAGE_HOST = 'storage.bunnycdn.com';     // or your regional host
+const BUNNY_STORAGE_ZONE = 'post-gag';
+const BUNNY_ACCESS_KEY   = '1b7e1a85-dff7-4a98-ba701fc7f9b9-6542-46e2'; // ← rotate this later
+const BUNNY_CDN_BASE     = 'https://pull-gag.b-cdn.net';
+
+
+>>>>>>> 6ff4a10 (commit)
 const UploadModal = ({ visible, onClose, onUpload, user }) => {
   const [desc, setDesc] = useState('');
   const [imageUris, setImageUris] = useState([]);
@@ -71,10 +85,14 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
   }, [currentUserEmail]);
 
 <<<<<<< HEAD
+<<<<<<< HEAD
   // console.log(currentUserEmail)show
 =======
   // console.log(currentUserEmail)
 >>>>>>> 7d3c677 (updated to api level 35 before)
+=======
+  // console.log(currentUserEmail)show
+>>>>>>> 6ff4a10 (commit)
   
 
 const pickAndCompress = useCallback(async () => {
@@ -90,12 +108,17 @@ const pickAndCompress = useCallback(async () => {
       try {
         const uri = await CompressorImage.compress(asset.uri, {
 <<<<<<< HEAD
+<<<<<<< HEAD
           maxWidth: 400,
           quality: 0.6,
 =======
           maxWidth: 800,
           quality: 0.7,
 >>>>>>> 7d3c677 (updated to api level 35 before)
+=======
+          maxWidth: 400,
+          quality: 0.6,
+>>>>>>> 6ff4a10 (commit)
         });
         compressed.push(uri);
       } catch (error) {
@@ -115,6 +138,7 @@ const pickAndCompress = useCallback(async () => {
 
   
 
+<<<<<<< HEAD
 <<<<<<< HEAD
   // const uploadToCloudinary = useCallback(async () => {
   //   const urls = [];
@@ -193,34 +217,87 @@ const pickAndCompress = useCallback(async () => {
 =======
   const uploadToCloudinary = useCallback(async () => {
     const urls = [];
+=======
+  // const uploadToCloudinary = useCallback(async () => {
+  //   const urls = [];
+>>>>>>> 6ff4a10 (commit)
 
+  //   for (const uri of imageUris) {
+  //     try {
+  //       const data = new FormData();
+  //       data.append('file', {
+  //         uri,
+  //         type: 'image/jpeg',
+  //         name: 'upload.jpg',
+  //       });
+  //       data.append('upload_preset', UPLOAD_PRESET);
+
+  //       const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+  //         method: 'POST',
+  //         body: data,
+  //       });
+
+  //       const json = await res.json();
+  //       if (json?.secure_url) {
+  //         urls.push(json.secure_url);
+  //       }
+  //     } catch (e) {
+  //       console.error('Cloudinary upload error:', e);
+  //     }
+  //   }
+
+  //   return urls;
+  // }, [imageUris]);
+  const uploadToBunny = useCallback(async () => {
+    const urls = [];
+    const userId = user?.id ?? 'anon';
+  
     for (const uri of imageUris) {
       try {
-        const data = new FormData();
-        data.append('file', {
-          uri,
-          type: 'image/jpeg',
-          name: 'upload.jpg',
+        const filename   = `${Date.now()}-${Math.floor(Math.random() * 1e6)}.jpg`;
+        const remotePath = `uploads/${encodeURIComponent(userId)}/${encodeURIComponent(filename)}`;
+        const uploadUrl  = `https://${BUNNY_STORAGE_HOST}/${BUNNY_STORAGE_ZONE}/${remotePath}`;
+  
+        // Read file as base64 then convert to raw bytes
+        const base64 = await RNFS.readFile(uri.replace('file://', ''), 'base64');
+  
+        // base64 -> Uint8Array (works reliably on RN 0.77)
+        const binary = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+  
+        // PUT raw bytes
+        const res = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'AccessKey': BUNNY_ACCESS_KEY,
+            'Content-Type': 'application/octet-stream',
+            // Content-Length is optional; let fetch set it
+          },
+          body: binary,
         });
-        data.append('upload_preset', UPLOAD_PRESET);
-
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-          method: 'POST',
-          body: data,
-        });
-
-        const json = await res.json();
-        if (json?.secure_url) {
-          urls.push(json.secure_url);
+  
+        const txt = await res.text().catch(() => '');
+        // console.log('[Bunny PUT]', res.status, txt?.slice(0, 200));
+  
+        if (!res.ok) {
+          throw new Error(`Bunny upload failed ${res.status}: ${txt}`);
         }
+  
+        // Public CDN URL to display
+        urls.push(`${BUNNY_CDN_BASE}/${decodeURIComponent(remotePath)}`);
       } catch (e) {
-        console.error('Cloudinary upload error:', e);
+        console.warn('[Bunny ERROR]', e?.message || e);
+        throw e; // bubble up so your Alert shows
       }
     }
-
+  
     return urls;
+<<<<<<< HEAD
   }, [imageUris]);
 >>>>>>> 7d3c677 (updated to api level 35 before)
+=======
+  }, [imageUris, user?.id]);
+  
+>>>>>>> 6ff4a10 (commit)
 
   const handleSubmit = useCallback(() => {
     if (!user?.id) return;
@@ -235,10 +312,14 @@ if (!currentUserEmail) {
     if (strikeInfo) {
       const { strikeCount, bannedUntil } = strikeInfo;
 <<<<<<< HEAD
+<<<<<<< HEAD
       // console.log('strick')
 =======
       console.log('strick')
 >>>>>>> 7d3c677 (updated to api level 35 before)
+=======
+      // console.log('strick')
+>>>>>>> 6ff4a10 (commit)
       const now = Date.now();
 
       if (bannedUntil === 'permanent') {
@@ -272,10 +353,14 @@ if (!currentUserEmail) {
       try {
         setLoading(true);
 <<<<<<< HEAD
+<<<<<<< HEAD
         const uploadedUrls = await uploadToBunny();
 =======
         const uploadedUrls = await uploadToCloudinary();
 >>>>>>> 7d3c677 (updated to api level 35 before)
+=======
+        const uploadedUrls = await uploadToBunny();
+>>>>>>> 6ff4a10 (commit)
         // console.log('[UploadModal] submitting with email:', currentUserEmail);
         await onUpload(desc, uploadedUrls, selectedTags, currentUserEmail);
         setDesc('');
@@ -284,11 +369,15 @@ if (!currentUserEmail) {
         // setBudget('');
         onClose();
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 6ff4a10 (commit)
         showMessage({
           message: 'Success',
           description: 'Post created successfully',
           type: 'success',
         });
+<<<<<<< HEAD
       } catch (err) {
         Alert.alert('Upload Failed', 'Something went wrong. Try again.', err);
         console.log(err)
@@ -296,6 +385,11 @@ if (!currentUserEmail) {
       } catch (err) {
         Alert.alert('Upload Failed', 'Something went wrong. Try again.');
 >>>>>>> 7d3c677 (updated to api level 35 before)
+=======
+      } catch (err) {
+        Alert.alert('Upload Failed', 'Something went wrong. Try again.', err);
+        console.log(err)
+>>>>>>> 6ff4a10 (commit)
       } finally {
         setLoading(false);
       }
@@ -322,10 +416,14 @@ if (!currentUserEmail) {
     });
   
 <<<<<<< HEAD
+<<<<<<< HEAD
   }, [user?.id, desc, imageUris, selectedTags, uploadToBunny, onUpload, onClose, localState.isPro, currentUserEmail]);
 =======
   }, [user?.id, desc, imageUris, selectedTags, uploadToCloudinary, onUpload, onClose, useLocalState.isPro, currentUserEmail]);
 >>>>>>> 7d3c677 (updated to api level 35 before)
+=======
+  }, [user?.id, desc, imageUris, selectedTags, uploadToBunny, onUpload, onClose, localState.isPro, currentUserEmail]);
+>>>>>>> 6ff4a10 (commit)
   
 
   const themedStyles = getStyles(isDark);

@@ -40,6 +40,7 @@ import { checkForUpdate } from './Code/AppHelper/InAppUpdateChecker.js';
 import config from './Code/Helper/Environment.js';
 =======
 import CoinStore from './Code/SettingScreen/Store/Store';
+<<<<<<< HEAD
 import AppUpdateChecker from './Code/AppHelper/InAppUpdateChecker';
 <<<<<<< HEAD
 >>>>>>> f99f5c4 (hh)
@@ -47,6 +48,12 @@ import AppUpdateChecker from './Code/AppHelper/InAppUpdateChecker';
 import AdminUnbanScreen from './Code/AppHelper/AdminDashboard';
 import { checkForUpdate } from './Code/AppHelper/InAppUpdateCheck';
 >>>>>>> 7d3c677 (updated to api level 35 before)
+=======
+// import AppUpdateChecker from './Code/AppHelper/InAppUpdateChecker';
+import AdminUnbanScreen from './Code/AppHelper/AdminDashboard';
+import { checkForUpdate } from './Code/AppHelper/InAppUpdateCheck';
+// import { initAds } from './Code/Ads/Adinit';
+>>>>>>> 6ff4a10 (commit)
 
 
 
@@ -86,10 +93,14 @@ function App() {
     InterstitialAdManager.init();
     checkForUpdate()
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 
 =======
 >>>>>>> 7d3c677 (updated to api level 35 before)
+=======
+    // initAds()
+>>>>>>> 6ff4a10 (commit)
   }, []);
 
 
@@ -293,7 +304,7 @@ function App() {
               {() => <SettingsScreen selectedTheme={selectedTheme} />}
             </Stack.Screen>
           </Stack.Navigator>
-          <AppUpdateChecker />
+          {/* <AppUpdateChecker /> */}
         </NavigationContainer>
        
       </Animated.View>

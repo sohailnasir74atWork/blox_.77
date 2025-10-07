@@ -295,9 +295,13 @@ export const getStyles = (isDarkMode) =>
       alignItems: 'center',
       paddingHorizontal: 10,
 <<<<<<< HEAD
+<<<<<<< HEAD
       paddingTop: Platform.OS === 'android' ? 60 : 0,
 =======
       // paddingTop: Platform.OS === 'android' ? 60 : 0,
+=======
+      paddingTop: Platform.OS === 'android' ? 60 : 0,
+>>>>>>> 6ff4a10 (commit)
 
 >>>>>>> 7d3c677 (updated to api level 35 before)
 
@@ -316,6 +320,7 @@ export const getStyles = (isDarkMode) =>
       fontSize: 24,
       lineHeight: 24,
       color: isDarkMode ? 'white' : 'black',
+      
     },
     pinnedContainer: {
 <<<<<<< HEAD

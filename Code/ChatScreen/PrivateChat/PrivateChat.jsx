@@ -496,9 +496,12 @@ const handleRating = async () => {
         </View>
       </GestureHandlerRootView>
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
       {/* {!localState.isPro && <BannerAdComponent/>} */}
 >>>>>>> f99f5c4 (hh)
+=======
+>>>>>>> 6ff4a10 (commit)
       {showRatingModal && (
   <View
     style={{

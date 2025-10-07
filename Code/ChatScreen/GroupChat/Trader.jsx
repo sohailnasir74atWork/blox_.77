@@ -106,6 +106,34 @@ const [reachedEnd, setReachedEnd] = useState(false);
 
   const flatListRef = useRef();
   const gifAllowed = user?.purchases?.[11]?.title === "Chat Emoji";
+  useEffect(() => {
+    const fetchPinnedMessages = async () => {
+      try {
+        const snapshot = await pinnedMessagesRef.once('value');
+        const pinnedMessagesData = snapshot.val() || {};
+  
+        // Transform data into an array and update pinned messages state
+        const pinnedMessagesArray = Object.entries(pinnedMessagesData).map(([key, value]) => ({
+          firebaseKey: key,
+          ...value,
+        }));
+  
+        setPinnedMessages(pinnedMessagesArray);
+      } catch (error) {
+        console.error('Error loading pinned messages:', error);
+      }
+    };
+  
+    fetchPinnedMessages();  // Fetch pinned messages initially
+  
+    // Listen to real-time updates on pinned messages
+    const listener = pinnedMessagesRef.on('child_added', (snapshot) => {
+      const newPinnedMessage = { firebaseKey: snapshot.key, ...snapshot.val() };
+      setPinnedMessages((prev) => [...prev, newPinnedMessage]);
+    });
+  
+    return () => pinnedMessagesRef.off('child_added', listener); // Cleanup listener
+  }, []);
 
 >>>>>>> f99f5c4 (hh)
   useEffect(() => {
@@ -147,7 +175,7 @@ const [reachedEnd, setReachedEnd] = useState(false);
       navigation.navigate('PrivateChat', { selectedUser, selectedTheme });
       mixpanel.track("Inbox Chat");
     };
-    if (!localState.isPro || !proGranted) { InterstitialAdManager.showAd(callbackfunction); }
+    if (!localState.isPro && !proGranted) { InterstitialAdManager.showAd(callbackfunction); }
     else { callbackfunction() }
   };
 
@@ -252,8 +280,11 @@ const [reachedEnd, setReachedEnd] = useState(false);
     [chatRef, lastLoadedKey, validateMessage, bannedUsers]
   );
   
+<<<<<<< HEAD
   
   
+=======
+>>>>>>> 6ff4a10 (commit)
 
   useEffect(() => {
     // console.log('Initial loading of messages.');
@@ -417,6 +448,7 @@ const [reachedEnd, setReachedEnd] = useState(false);
   const handleSendMessage = () => {
     const MAX_CHARACTERS = 250;
 <<<<<<< HEAD
+<<<<<<< HEAD
     const MESSAGE_COOLDOWN = 2000;
     const LINK_REGEX = /(https?:\/\/[^\s]+)/g;
 <<<<<<< HEAD
@@ -437,6 +469,9 @@ const [reachedEnd, setReachedEnd] = useState(false);
 >>>>>>> f99f5c4 (hh)
 =======
     const MESSAGE_COOLDOWN = 100;
+=======
+    const MESSAGE_COOLDOWN = 2000;
+>>>>>>> 6ff4a10 (commit)
     const LINK_REGEX = /(https?:\/\/[^\s]+)/g;
     if (!user?.id || !currentUserEmail) {
       showMessage({
@@ -673,6 +708,8 @@ if (containsLink) {
                
               />
             )}
+                  {(!localState.isPro && !proGranted) && <BannerAdComponent />}
+
             {user.id ? (
               <MessageInput
                 input={input}
@@ -715,7 +752,6 @@ if (containsLink) {
           bannedUsers={bannedUsers}
         />
       </GestureHandlerRootView>
-      {(!localState.isPro || !proGranted) && <BannerAdComponent />}
 
       {/* {(!localState.isPro || !proGranted) && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (

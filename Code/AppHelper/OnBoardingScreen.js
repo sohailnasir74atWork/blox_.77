@@ -233,7 +233,11 @@ const styles = StyleSheet.create({
   image: { width: 50, height: 50, margin: 10, borderRadius: 10 },
   bottomContainer: {
     position: 'absolute',
+<<<<<<< HEAD
     bottom: 40,
+=======
+    bottom: 60,
+>>>>>>> 6ff4a10 (commit)
     width: '100%',
     alignItems: 'center',
   },

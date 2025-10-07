@@ -220,10 +220,22 @@ const HomeScreen = ({ selectedTheme }) => {
       // console.log(newTrade, 'new')
 >>>>>>> f99f5c4 (hh)
       if (type === 'share') {
-        setModalVisible(false); // Close modal
+        const callbackfunction = () => {
+          showSuccessMessage(
+            t("home.alert.success"),
+            "Your trade has been share successfully!"
+          );
+        };
+        if (Platform.OS === 'android')
+          {setModalVisible(false)} 
         setSelectedTrade(newTrade);
         setOpenShareModel(true)
         mixpanel.track("Start Sharing");
+        if(!localState.isPro && !proGranted) {
+          InterstitialAdManager.showAd(callbackfunction);
+        } else {
+          callbackfunction()
+        }
 
       } else {
 
@@ -246,6 +258,11 @@ const HomeScreen = ({ selectedTheme }) => {
         await tradesCollection.add(newTrade);
         // console.log("🎉 Trade successfully submitted!");
 
+<<<<<<< HEAD
+=======
+        if (Platform.OS === 'android')
+          {setModalVisible(false)} 
+>>>>>>> 6ff4a10 (commit)
         const callbackfunction = () => {
           showSuccessMessage(
             t("home.alert.success"),
@@ -257,7 +274,7 @@ const HomeScreen = ({ selectedTheme }) => {
         setLastTradeTime(now);
         mixpanel.track("Trade Created", { user: user?.id });
 
-        if(!localState.isPro && proGranted) {
+        if(!localState.isPro && !proGranted) {
           InterstitialAdManager.showAd(callbackfunction);
           // setModalVisible(false); // Close modal
         } else {
@@ -909,6 +926,7 @@ useEffect(() => {
 
             </ViewShot>
             <View style={styles.createtrade} >
+<<<<<<< HEAD
               <TouchableOpacity style={config.isNoman ? styles.createtradeButton : styles.createtradeButtoniSnOMAN} onPress={() => handleCreateTradePress('create')}>
               <Icon name="enter-outline" size={18} color="white" style={{padding:4}}/>
               <Text style={{ color: 'white', fontSize:12, fontFamily:'Lato-Bold'  }}>{t('home.create_trade')}</Text>
@@ -917,6 +935,16 @@ useEffect(() => {
                 <Text style={{ color: 'white', fontSize:12, fontFamily:'Lato-Bold' }}>{t('home.share_trade')}</Text>
                 <Icon name="share-outline" size={18} color="white" style={{padding:4}}/>
                 </TouchableOpacity>}</View>
+=======
+              <TouchableOpacity style={styles.createtradeButton} onPress={() => handleCreateTradePress('create')}>
+              <Icon name="enter-outline" size={18} color="white" style={{padding:4}}/>
+              <Text style={{ color: 'white', fontSize:12, fontFamily:'Lato-Bold'  }}>{t('home.create_trade')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.shareTradeButton} onPress={() => handleCreateTradePress('share')}>
+                <Text style={{ color: 'white', fontSize:12, fontFamily:'Lato-Bold' }}>{t('home.share_trade')}</Text>
+                <Icon name="share-outline" size={18} color="white" style={{padding:4}}/>
+                </TouchableOpacity></View>
+>>>>>>> 6ff4a10 (commit)
           </ScrollView>
           <Modal
             visible={isDrawerVisible}
@@ -1156,10 +1184,15 @@ useEffect(() => {
         </View>
       </GestureHandlerRootView>
 <<<<<<< HEAD
+<<<<<<< HEAD
       {!localState.isPro && <BannerAdComponent />}
 =======
       {(!localState.isPro || !proGranted) && <BannerAdComponent/>}
 >>>>>>> f99f5c4 (hh)
+=======
+      {(!localState.isPro && !proGranted) && <BannerAdComponent />}
+
+>>>>>>> 6ff4a10 (commit)
 
       {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (
@@ -1392,7 +1425,11 @@ const getStyles = (isDarkMode) =>
     createtradeButton: {
       backgroundColor: config.colors.hasBlockGreen,
       alignSelf: 'center',
+<<<<<<< HEAD
       padding: 8,
+=======
+      padding: 5,
+>>>>>>> 6ff4a10 (commit)
       justifyContent: 'center',
       flexDirection: 'row',
       minWidth: 100,
@@ -1400,6 +1437,7 @@ const getStyles = (isDarkMode) =>
       borderBottomStartRadius: 20,
       marginRight: 1,
       alignItems:'center'
+<<<<<<< HEAD
     },
     createtradeButtoniSnOMAN: {
       backgroundColor: config.colors.hasBlockGreen,
@@ -1411,11 +1449,17 @@ const getStyles = (isDarkMode) =>
       borderRadius: 20,
       marginRight: 1,
       alignItems:'center'
+=======
+>>>>>>> 6ff4a10 (commit)
     },
     shareTradeButton: {
       backgroundColor: config.colors.wantBlockRed,
       alignSelf: 'center',
+<<<<<<< HEAD
       padding: 8,
+=======
+      padding: 5,
+>>>>>>> 6ff4a10 (commit)
       flexDirection: 'row',
       justifyContent: 'center',
       minWidth: 100,
@@ -1423,6 +1467,10 @@ const getStyles = (isDarkMode) =>
       borderBottomEndRadius: 20,
       marginLeft: 1,
       alignItems:'center'
+<<<<<<< HEAD
+=======
+
+>>>>>>> 6ff4a10 (commit)
     },
 
     modalMessage: {

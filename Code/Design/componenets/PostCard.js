@@ -14,6 +14,7 @@ import { showMessage } from 'react-native-flash-message';
 import ReportModal from './ReportModal';
 import dayjs from 'dayjs';
 import { get, getDatabase, ref, set } from '@react-native-firebase/database';
+import NativeFeedAd from '../../Ads/NativeFeedAd';
 
 const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete }) => {
   const navigation = useNavigation();
@@ -259,7 +260,7 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete }) =
         postId={item.id}
         appdatabase={appdatabase}
       />
-
+      {/* <NativeFeedAd /> */}
     
     </View>
   );

@@ -25,7 +25,11 @@ const ConditionalKeyboardWrapper = ({ children, style, chatscreen = false, priva
       ? 70
       : keyboardVisible
         ? 0
+<<<<<<< HEAD
         : 70
+=======
+        : 0
+>>>>>>> 6ff4a10 (commit)
     : 110;
 
 

@@ -22,6 +22,7 @@ import { useLocalState } from '../../LocalGlobelStats';
 import axios from 'axios';
 import { getDeviceLanguage } from '../../../i18n';
 import { mixpanel } from '../../AppHelper/MixPenel';
+import ScamSafetyBox from './Scamwarning.js';
 
 const FRUIT_KEYWORDS = [
   'rocket', 'spin', 'chop', 'spring', 'bomb', 'spike', 'blade',
@@ -219,6 +220,8 @@ const PrivateMessageList = ({
       {loading && messages.length === 0 ? (
         <ActivityIndicator size="large" color="#1E88E5" style={styles.loader} />
       ) : (
+        <View>
+          <ScamSafetyBox/>
         <FlatList
           data={filteredMessages}
           removeClippedSubviews={false} 
@@ -234,6 +237,7 @@ const PrivateMessageList = ({
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         />
+        </View>
       )}
       <ReportPopup
         visible={showReportPopup}
