@@ -4,6 +4,7 @@ const isNoman = false; // Toggle this to switch configurations
 
 // noman app id = ca-app-pub-5740215782746766~2003215297 
 //waqas app id = ca-app-pub-3701208411582706~6049471125
+
 // noman pkgName= com.growagarden.gag
 //waqas pkgName = com.stocknotifier.gag
 
@@ -37,7 +38,7 @@ const config = {
   IOsOpenApp: isNoman ? 'ca-app-pub-5740215782746766/2989828057' : '',
   IOsNative: isNoman ? '' : '',
 
-  apiKey: isNoman ? rev_cat_id : 'goog_hNbzYuzixIbRtuJzgHltVeZzYos',
+  apiKey: isNoman ? rev_cat_id : 'goog_OvpCwHeXQfAoldFagQLRenbvtiO',
 
   supportEmail: isNoman ? 'thesolanalabs@gmail.com' : 'mindfusionio.help@gmail.com',
   andriodShareLink: isNoman ? 'https://play.google.com/store/apps/details?id=com.growagarden.gag' : 'https://play.google.com/store/apps/details?id=com.stocknotifier.gag',

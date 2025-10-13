@@ -1,4 +1,4 @@
-package com.growagarden.gag
+package com.stocknotifier.gag
 
 import android.os.Bundle
 import com.facebook.react.ReactActivity
