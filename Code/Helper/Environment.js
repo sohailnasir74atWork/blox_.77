@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 
-const isNoman = false; // Toggle this to switch configurations
+const isNoman = true; // Toggle this to switch configurations
 
 // noman app id = ca-app-pub-5740215782746766~2003215297 
 //waqas app id = ca-app-pub-3701208411582706~6049471125
