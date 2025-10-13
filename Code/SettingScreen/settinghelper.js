@@ -24,7 +24,60 @@ export const getAppDownloadLink = () => {
   };
   
 
+  export const handleReport = async (user) => {
+    try {
+      // ✅ Get App Details
+      const appName = DeviceInfo.getApplicationName();
+      const appVersion = DeviceInfo.getVersion();
+      const platform = Platform.OS; // "ios" or "android"
   
+      // ✅ Get User & RevenueCat ID
+      const userId = user?.id || 'Guest'; // Default to Guest if not logged in
+      const revenueCatInfo = await Purchases.getCustomerInfo();
+      const revenueCatUserId = revenueCatInfo?.originalAppUserId || 'Anonymous';
+  
+      // ✅ Construct Email Body
+      const email = 'how2techxyz@gmail.com';
+      const subject = `Report About Abusive Content (${appName})`;
+      const body = `Hi team,
+  
+  I would like to report ...
+  
+  ---
+  
+  📌 App Name: ${appName}  
+  📌 App Version: ${appVersion}  
+  📌 User ID: ${userId}  
+  📌 RC ID: ${revenueCatUserId}  
+  📌 Platform: ${platform}  
+  
+  ---`;
+  
+      const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  
+      // ✅ Open email client
+      Linking.openURL(mailtoUrl).catch(() =>
+        Alert.alert('Error', 'Unable to open the email client. Please try again later.')
+      );
+    } catch (error) {
+      console.error('❌ Error opening feedback email:', error);
+      Alert.alert('Error', 'Could not prepare the email. Please try again.');
+    }
+  };
+
+  export const handleOpenPrivacy = () => {
+    const websiteUrl = 'https://bloxfruitscalc.com/privacy-policy/';
+    Linking.openURL(websiteUrl).catch(() =>
+      Alert.alert('Error', 'Unable to open the website. Please try again later.')
+    );
+  };
+
+  export const handleOpenChild = () => {
+    const websiteUrl = 'https://bloxfruitscalc.com/hild-safety-standards-policy/';
+    Linking.openURL(websiteUrl).catch(() =>
+      Alert.alert('Error', 'Unable to open the website. Please try again later.')
+    );
+  };
 
 export const handleGetSuggestions = async (user) => {
   try {

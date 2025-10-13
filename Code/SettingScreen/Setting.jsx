@@ -17,7 +17,7 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../GlobelStats';
 import { getStyles } from './settingstyle';
-import { handleGetSuggestions, handleOpenFacebook, handleOpenWebsite, handleRateApp, handleadoptme, handleShareApp, imageOptions, handleMM2, } from './settinghelper';
+import { handleGetSuggestions, handleOpenFacebook, handleOpenWebsite, handleRateApp, handleadoptme, handleShareApp, imageOptions, handleBloxFruit, handleRefresh, handleReport, handleOpenPrivacy, handleOpenChild} from './settinghelper';
 import { logoutUser } from '../Firebase/UserLogics';
 import SignInDrawer from '../Firebase/SigninDrawer';
 import auth from '@react-native-firebase/auth';
@@ -570,6 +570,12 @@ const formatPlanName = (plan) => {
             <Icon name="mail-outline" size={18} color={'white'}  style={{backgroundColor:'#566D5D', padding:5, borderRadius:5}}/>
             <Text style={styles.optionText}>Contact Us</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={styles.option} onPress={() => {
+            handleReport(user); triggerHapticFeedback('impactLight');
+          }}>
+            <Icon name="warning" size={18} color={'pink'}  style={{backgroundColor:'#566D5D', padding:5, borderRadius:5}}/>
+            <Text style={styles.optionText}>Report Abusive Content</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.option} onPress={() => { handleRateApp(); triggerHapticFeedback('impactLight'); }
           }>
             <Icon name="star-outline" size={18} color={'white'} style={{backgroundColor:'#A2B38B', padding:5, borderRadius:5}}/>
@@ -586,6 +592,18 @@ const formatPlanName = (plan) => {
           }}>
             <Icon name="link-outline" size={18} color={'white'}  style={{backgroundColor:'#4B4453', padding:5, borderRadius:5}}/>
             <Text style={styles.optionText}>{t('settings.visit_website')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={user?.id ? styles.option : styles.optionLast} onPress={() => {
+            handleOpenPrivacy(); triggerHapticFeedback('impactLight');
+          }}>
+            <Icon name="link-outline" size={18} color={'white'}  style={{backgroundColor:'green', padding:5, borderRadius:5}}/>
+            <Text style={styles.optionText}>Privacy Policy</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={user?.id ? styles.option : styles.optionLast} onPress={() => {
+            handleOpenChild(); triggerHapticFeedback('impactLight');
+          }}>
+            <Icon name="link-outline" size={18} color={'white'}  style={{backgroundColor:'blue', padding:5, borderRadius:5}}/>
+            <Text style={styles.optionText}>Child Safety Standards</Text>
           </TouchableOpacity>
           {user?.id && <TouchableOpacity style={styles.option} onPress={handleLogout} >
             <Icon name="person-outline" size={18} color={'white'} style={{backgroundColor:'#4B4453', padding:5, borderRadius:5}} />
