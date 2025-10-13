@@ -22,7 +22,7 @@ import LinearGradient from 'react-native-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
-const icon = config.isNoman ? require('../../assets/GAG.png') : require('../../assets/GAG.png');
+const icon = config.isNoman ? require('../../assets/GAG.png') : require('../../assets/icon.png');
 
 
 const OnboardingScreen = ({ onFinish, selectedTheme }) => {
