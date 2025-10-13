@@ -365,9 +365,9 @@ const MessagesList = ({
               </MenuOptions>
             </Menu>
 
-            {(item.reportCount > 0 || item.isReportedByUser) && (
+            {/* {(item.reportCount > 0 || item.isReportedByUser) && (
               <Text style={styles.reportIcon}>Reported</Text>
-            )}
+            )} */}
 
 
           </View>

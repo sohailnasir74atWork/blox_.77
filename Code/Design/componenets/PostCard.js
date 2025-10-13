@@ -169,6 +169,8 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete }) =
 
 
       <Text style={themedStyles.desc}>{item?.desc}</Text>
+      {Array.isArray(item.imageUrl) && item.imageUrl.length < 1  && <ReportModal visible={showReportModal} onClose={() => setShowReportModal(false)} item={item}/>}
+
 
       {/* {(item.selectedTags?.length > 0 || item.budget) && (
         <View style={themedStyles.metaInfoRow}>
@@ -229,7 +231,7 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete }) =
       )}
     </View>
     </View>
-    <ReportModal visible={showReportModal} onClose={() => setShowReportModal(false)} />
+    <ReportModal visible={showReportModal} onClose={() => setShowReportModal(false)} item={item}/>
 
   </View>
 )}
