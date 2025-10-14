@@ -552,7 +552,11 @@
 					"-ObjC",
 					"-lc++",
 				);
+<<<<<<< HEAD
 				PRODUCT_BUNDLE_IDENTIFIER = com.growagarden.gag;
+=======
+				PRODUCT_BUNDLE_IDENTIFIER = com.bloxfruitstock;
+>>>>>>> 8b44f57 (new app changes)
 				PRODUCT_NAME = bloxfruitevalues;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -616,7 +620,11 @@
 					"-ObjC",
 					"-lc++",
 				);
+<<<<<<< HEAD
 				PRODUCT_BUNDLE_IDENTIFIER = com.growagarden.gag;
+=======
+				PRODUCT_BUNDLE_IDENTIFIER = com.bloxfruitstock;
+>>>>>>> 8b44f57 (new app changes)
 				PRODUCT_NAME = bloxfruitevalues;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;

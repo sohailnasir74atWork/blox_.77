@@ -288,8 +288,13 @@
         "block": "Block User"
     },
     "first": {
+<<<<<<< HEAD
         "welcome_title": "Welcome to GAG Trade & Values",
         "welcome_text": "Track values & optimize your trades.",
+=======
+        "welcome_title": "Welcome to Blox Fruit Stock",
+        "welcome_text": "Track fruit stock & optimize your trades.",
+>>>>>>> 8b44f57 (new app changes)
         "signin_or_guest": "Signin or Continue as Guest",
         "guest_user": "Guest User",
         "signin": "Signin",

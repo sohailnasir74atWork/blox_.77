@@ -1,3 +1,7 @@
 <resources>
+<<<<<<< HEAD
     <string name="app_name">GAG Notifier</string>
+=======
+    <string name="app_name">Blox Fruit Stock</string>
+>>>>>>> 8b44f57 (new app changes)
 </resources>

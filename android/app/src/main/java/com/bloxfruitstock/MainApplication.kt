@@ -1,4 +1,8 @@
+<<<<<<< HEAD:android/app/src/main/java/com/bloxfruitevalues/MainApplication.kt
 package com.stocknotifier.gag
+=======
+package com.bloxfruitstock
+>>>>>>> 8b44f57 (new app changes):android/app/src/main/java/com/bloxfruitstock/MainApplication.kt
 
 import android.app.Application
 import com.facebook.react.PackageList

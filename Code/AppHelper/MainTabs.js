@@ -315,8 +315,13 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
         )}
       </Tab.Screen>
 
+<<<<<<< HEAD
       <Tab.Screen
         name="Stock"
+=======
+      {/* <Tab.Screen
+        name="Values"
+>>>>>>> 8b44f57 (new app changes)
         options={{
 <<<<<<< HEAD
           title: t('tabs.stock'),
@@ -328,6 +333,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
         }}
       >
         {() => <RewardCenterScreen selectedTheme={selectedTheme} />}
+<<<<<<< HEAD
 >>>>>>> f99f5c4 (hh)
       </Tab.Screen>
     </>
@@ -489,6 +495,9 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
       })}
     >
       {renderTabs}
+=======
+      </Tab.Screen> */}
+>>>>>>> 8b44f57 (new app changes)
     </Tab.Navigator>
   );
 });
