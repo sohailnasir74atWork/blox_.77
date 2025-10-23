@@ -291,7 +291,7 @@ export const isUserOnline = async (userId) => {
 export const setActiveChat = async (userId, chatId) => {
   const database = getDatabase();
   const activeChatRef = ref(database, `/activeChats/${userId}`);
-  const unreadRef = ref(database, `/private_chat_new/${chatId}/unread/${userId}`);
+  const unreadRef = ref(database, `/private_messages/${chatId}/unread/${userId}`);
 
   try {
     await set(activeChatRef, chatId);

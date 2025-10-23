@@ -165,7 +165,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       ...message,
       sender: message.sender?.trim() || 'Anonymous',
       text: hasText || message.gif ? message.text : '[No content]', // Set message text or '[No content]'
-      timestamp:  message.timestamp,
+      timestamp: hasText ? message.timestamp || Date.now() : Date.now(),
       gif:message.gif
       
     };
@@ -449,7 +449,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     }
 
     const containsLink = LINK_REGEX.test(trimmedInput);
-    if (containsLink && !localState?.isPro && !isAdmin) {
+    if (containsLink  && !isAdmin) {
       Alert.alert(t('home.alert.error'), t('misc.proUsersOnlyLinks'));
       return;
     }
