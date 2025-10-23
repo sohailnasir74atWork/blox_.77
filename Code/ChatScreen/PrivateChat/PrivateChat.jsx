@@ -184,7 +184,7 @@ const handleRating = async () => {
 }
 
 
-  // const messageRef = useMemo(() => ref(appdatabase, `private_chat_new/${chatKey}/messages`), [chatKey]);
+
 
   const messagesRef = useMemo(() => database().ref(`private_messages/${chatKey}/messages`), [chatKey]);
   // console.log(selecte÷dUser)
@@ -479,7 +479,10 @@ const handleRating = async () => {
                   onReply={(message) => setReplyTo(message)}
                 />
               )}
+                    </ConditionalKeyboardWrapper>
+
       {!localState.isPro && <BannerAdComponent/>}
+
 
              {!isBanned && <PrivateMessageInput
                 onSend={sendMessage}
@@ -492,7 +495,6 @@ const handleRating = async () => {
                 selectedTheme={selectedTheme}
               />}
             {/* </View>  */}
-            </ConditionalKeyboardWrapper>
         </View>
       </GestureHandlerRootView>
       {showRatingModal && (

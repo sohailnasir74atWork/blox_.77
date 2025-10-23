@@ -1,38 +1,44 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { KeyboardAvoidingView, Keyboard, Platform } from 'react-native';
 
-const ConditionalKeyboardWrapper = ({ children, style, chatscreen = false, privatechatscreen=false }) => {
+const ConditionalKeyboardWrapper = ({
+  children,
+  style,
+  chatscreen = false,
+  privatechatscreen = false,
+  privateOffset = 240,
+  chatOffsetIOS = 70,
+  defaultOffset = 110,
+}) => {
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const isIOS = Platform.OS === 'ios';
 
   useEffect(() => {
-    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
-      setKeyboardVisible(true);
-    });
-    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
-      setKeyboardVisible(false);
-    });
-
+    const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
     return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
+      showSub.remove();
+      hideSub.remove();
     };
   }, []);
 
-  const verticalOffset = privatechatscreen && keyboardVisible
-  ? 120
-  : chatscreen
-    ? Platform.OS === 'ios'
-      ? 70
-      : keyboardVisible
-        ? 0
-        : 70
-    : 110;
+  const keyboardVerticalOffset = useMemo(() => {
+    if (!keyboardVisible) return 0;
 
+    if (privatechatscreen) return privateOffset;
+    if (chatscreen) return isIOS ? chatOffsetIOS : 20;
+    return defaultOffset;
+  }, [keyboardVisible, privatechatscreen, chatscreen, isIOS, privateOffset, chatOffsetIOS, defaultOffset]);
+
+  const behavior = useMemo(() => {
+    if (!keyboardVisible) return undefined;
+    return isIOS ? 'padding' : 'height';
+  }, [keyboardVisible, isIOS]);
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={verticalOffset}
+      behavior={behavior}
+      keyboardVerticalOffset={keyboardVerticalOffset}
       style={style}
     >
       {children}

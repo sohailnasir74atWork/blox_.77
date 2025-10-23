@@ -215,7 +215,7 @@ const PrivateMessageList = ({
   };
 
   return (
-    <View style={[styles.container]}>
+    <View style={{paddingBottom:260}}>
       {loading && messages.length === 0 ? (
         <ActivityIndicator size="large" color="#1E88E5" style={styles.loader} />
       ) : (

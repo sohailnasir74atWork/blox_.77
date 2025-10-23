@@ -147,7 +147,7 @@ const [reachedEnd, setReachedEnd] = useState(false);
       ...message,
       sender: message.sender?.trim() || 'Anonymous',
       text: hasText || '.',
-      timestamp: message.timestamp
+      timestamp: hasText ? message.timestamp || Date.now() : Date.now(),
     };
   }, []);
 
@@ -440,7 +440,7 @@ const [reachedEnd, setReachedEnd] = useState(false);
     }
 
     const containsLink = LINK_REGEX.test(trimmedInput);
-    if (containsLink && !localState?.isPro && !isAdmin) {
+    if (containsLink  && !isAdmin) {
       Alert.alert(t('home.alert.error'), t('misc.proUsersOnlyLinks'));
       return;
     }
@@ -523,6 +523,7 @@ const [reachedEnd, setReachedEnd] = useState(false);
                 setMessages={setMessages}
               />
             )}
+              {!localState.isPro && <BannerAdComponent />}
             {user.id ? (
               <MessageInput
                 input={input}
@@ -562,7 +563,7 @@ const [reachedEnd, setReachedEnd] = useState(false);
           bannedUsers={bannedUsers}
         />
       </GestureHandlerRootView>
-      {!localState.isPro && <BannerAdComponent />}
+    
 
       {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
         {isAdVisible && (
