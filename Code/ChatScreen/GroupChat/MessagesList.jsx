@@ -137,10 +137,11 @@ const MessagesList = ({
   };
 
   const handleTranslate = async (item) => {
-    const isUnlimited = freeTranslation || (!localState.isPro && !proGranted);
+    const isUnlimited = freeTranslation || (localState.isPro);
+    // console.log(isUnlimited, 'isunlimited')
 
     if (!isUnlimited && !canTranslate()) {
-      Alert.alert('Limit Reached', 'You can only translate 20 messages per day.');
+      Alert.alert('Limit Reached', 'You can only translate 5 messages per day.');
       return;
     }
 
@@ -214,7 +215,7 @@ const MessagesList = ({
         )}
 
         {/* Render the message */}
-        <View
+      { !item.isReportedByUser &&  <View
           style={[
             item.senderId === user?.id ? styles.mymessageBubble : styles.othermessageBubble,
             (item.senderId === user?.id || item.isAdmin) ? styles.myMessage : styles.otherMessage, item.isReportedByUser && styles.reportedMessage,
@@ -403,7 +404,7 @@ const MessagesList = ({
           )}
 
 
-        </View>
+        </View>}
 
       </View>
     );

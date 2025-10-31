@@ -78,7 +78,7 @@ export const LocalStateProvider = ({ children }) => {
     }
   }, [localState.data]);
 
-  console.log(localState.isPro)
+  // console.log(localState.isPro)
   // Update local state and MMKV storage
   const updateLocalState = (key, value) => {
     setLocalState((prevState) => ({
@@ -110,7 +110,7 @@ export const LocalStateProvider = ({ children }) => {
       return true;
     }
 
-    return count < 20;
+    return count < 5;
   };
 
   const incrementTranslationCount = () => {
@@ -295,7 +295,7 @@ export const LocalStateProvider = ({ children }) => {
   const getRemainingTranslationTries = () => {
     const today = new Date().toDateString();
     const { count = 0, date = today } = localState.translationUsage || {};
-    return date === today ? 20 - count : 20;
+    return date === today ? 5 - count : 5;
   };
 
 

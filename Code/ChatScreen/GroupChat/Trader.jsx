@@ -21,7 +21,7 @@ import leoProfanity from 'leo-profanity';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import { useLocalState } from '../../LocalGlobelStats';
-import { onValue, ref } from '@react-native-firebase/database';
+import database, { onValue, ref } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
 import { mixpanel } from '../../AppHelper/MixPenel';
 import InterstitialAdManager from '../../Ads/IntAd';
@@ -159,17 +159,29 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   }, [currentUserEmail]);
 
   const validateMessage = useCallback((message) => {
-    // console.log(message)
-    const hasText = message?.text?.trim();
+    const hasText = !!message?.text?.trim();
+    const hasGif  = !!message?.gif;
+  
+    // If no content at all → delete from DB and skip locally
+    if (!hasText && !hasGif) {
+      try {
+        const sanitizedId = message?.id?.replace(/^chat_new-?/, '');
+        if (sanitizedId) {
+          remove(ref(appdatabase, `chat_new/${sanitizedId}`));
+        }
+      } catch (_) {}
+      return null; // <-- drop this message in UI state
+    }
+  
     return {
       ...message,
-      sender: message.sender?.trim() || 'Anonymous',
-      text: hasText || message.gif ? message.text : '[No content]', // Set message text or '[No content]'
-      timestamp: hasText ? message.timestamp || Date.now() : Date.now(),
-      gif:message.gif
-      
+      sender: message?.sender?.trim() || 'Anonymous',
+      text: hasText ? message.text.trim() : '', // keep empty string for GIF-only messages
+      timestamp: Number(message?.timestamp) || Date.now(), // or serverNow() if you prefer
+      gif: message?.gif ?? null,
     };
-  }, []);
+  }, [appdatabase]);
+  
 
   const loadMessages = useCallback(
     async (reset = false) => {
@@ -190,9 +202,10 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         const data = snapshot.val() || {};
   
         const parsedMessages = Object.entries(data)
-          .map(([key, value]) => validateMessage({ id: key, ...value }))
-          .filter((msg) => !bannedUsers.includes(msg.senderId))
-          .sort((a, b) => b.timestamp - a.timestamp);
+        .map(([key, value]) => validateMessage({ id: key, ...value }))
+        .filter(Boolean) // <-- drop nulls
+        .filter((msg) => !bannedUsers.includes(msg.senderId))
+        .sort((a, b) => b.timestamp - a.timestamp);
   
         if (!reset && parsedMessages[parsedMessages.length - 1]?.id === lastLoadedKey) {
           // console.log(`[loadMessages] Removing duplicate key: ${lastLoadedKey}`);
@@ -200,7 +213,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         }
   
         if (parsedMessages.length === 0) {
-          console.log('[loadMessages] Reached end of messages, not loading more.');
+          // console.log('[loadMessages] Reached end of messages, not loading more.');
           return;
         }
   
@@ -244,6 +257,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     if(!isFocused) return
     const listener = chatRef.limitToLast(1).on('child_added', (snapshot) => {
       const newMessage = validateMessage({ id: snapshot.key, ...snapshot.val() });
+      if (!newMessage) return; 
 
       setMessages((prev) => {
         const seenKeys = new Set(prev.map((msg) => msg.id));
@@ -457,7 +471,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     try {
       ref(appdatabase, 'chat_new').push({
         text: trimmedInput,
-        timestamp: Date.now(),
+        timestamp: database.ServerValue.TIMESTAMP,
         sender: user.displayName || 'Anonymous',
         senderId: user.id,
         avatar: user.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',

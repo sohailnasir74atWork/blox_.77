@@ -279,6 +279,7 @@ export const GlobalStateProvider = ({ children }) => {
 
         if (snapshotFree.exists()) {
           const value = snapshotFree.val();
+          // console.log('chec', value)
           setFreeTranslation(value);
           // console.log('🔑 [Firebase] Free Translation Key from /free_translation:', value);
         } else {

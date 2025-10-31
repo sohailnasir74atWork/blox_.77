@@ -14,7 +14,7 @@ const AppUpdateChecker = () => {
   useEffect(() => {
     const checkForUpdate = async () => {
       if (__DEV__) {
-        console.log('[Update Check] Skipped in development mode.');
+        // console.log('[Update Check] Skipped in development mode.');
         return;
       }
 
