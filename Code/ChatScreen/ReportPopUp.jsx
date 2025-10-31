@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useGlobalState } from "../GlobelStats";
 import config from "../Helper/Environment";
-import { ref, get, update } from "@react-native-firebase/database";
+import { ref, get, update, remove } from "@react-native-firebase/database";
 import { useTranslation } from "react-i18next";
 
 const ReportPopup = ({ visible, message, onClose }) => {
@@ -24,46 +24,51 @@ const ReportPopup = ({ visible, message, onClose }) => {
   const { t } = useTranslation();
 
   const handleSubmit = () => {
-    const sanitizedId = message.id.startsWith("chat-") ? message.id.replace("chat-", "") : message.id;
-
+    const sanitizedId = message.id.startsWith("chat-")
+      ? message.id.replace("chat-", "")
+      : message.id;
   
     if (!sanitizedId) {
       Alert.alert("Error", "Invalid message. Unable to report.");
       return;
     }
   
-    setLoading(true); // Start loader
-// console.log(sanitizedId)
+    setLoading(true);
     const messageRef = ref(appdatabase, `chat_new/${sanitizedId}`);
   
     get(messageRef)
       .then((snapshot) => {
-        let updatedReportCount = 1;
-        if (snapshot.exists()) {
-          const messageData = snapshot.val();
-          // if (developmentMode) {
-          //   const dataSize = JSON.stringify(messageData).length / 1024; 
-          //   console.log(`🚀 Downloaded chat data: ${dataSize.toFixed(2)} KB from report messages`);
-          // }
-          updatedReportCount = (messageData?.reportCount || 0) + 1;
-        }
+        if (!snapshot.exists()) throw new Error("Message not found");
   
-        return update(messageRef, { reportCount: updatedReportCount });
+        const data = snapshot.val();
+        const reportCount = Number(data?.reportCount || 0);
+  
+        if (reportCount >= 1) {
+          // ✅ Second report: delete the message
+          return remove(messageRef).then(() => ({ action: "deleted" }));
+        } else {
+          // ✅ First report: set to 1 (don’t increment beyond this)
+          return update(messageRef, { reportCount: 1 }).then(() => ({ action: "reported" }));
+        }
       })
-      .then(() => {
-        setLoading(false); // Stop loader
-        Alert.alert(
-          t("chat.report_submitted"),
-          t("chat.report_submitted_message")
-        );
-        onClose(true); // Pass `true` to indicate success
+      .then((res) => {
+        setLoading(false);
+        if (res?.action === "deleted") {
+          Alert.alert(t("chat.report_submitted"), t("chat.report_submitted_message"));
+        } else {
+          Alert.alert(t("chat.report_submitted"), t("chat.report_submitted_message"));
+        }
+        onClose(true);
       })
       .catch((error) => {
         console.error("Error reporting message:", error);
-        setLoading(false); // Stop loader
-        // Alert.alert("Error", "Failed to submit the report. Please try again.");
+        setLoading(false);
+        Alert.alert("Error", "Failed to submit the report. Please try again.");
       });
   };
+
+  
+  
   
   
 

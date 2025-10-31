@@ -295,7 +295,7 @@ export const LocalStateProvider = ({ children }) => {
   const getRemainingTranslationTries = () => {
     const today = new Date().toDateString();
     const { count = 0, date = today } = localState.translationUsage || {};
-    return date === today ? 20 - count : 20;
+    return date === today ? 5 - count : 5;
   };
 
 

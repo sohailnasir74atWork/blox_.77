@@ -124,7 +124,7 @@ const MessagesList = ({
     const isUnlimited = freeTranslation || localState.isPro;
 
     if (!isUnlimited && !canTranslate()) {
-      Alert.alert('Limit Reached', 'You can only translate 20 messages per day.');
+      Alert.alert('Limit Reached', 'You can only translate 5 messages per day.');
       return;
     }
 
@@ -198,7 +198,7 @@ const MessagesList = ({
         )}
 
         {/* Render the message */}
-        <View
+     {!item.isReportedByUser &&   <View
           style={[
             item.senderId === user?.id ? styles.mymessageBubble : styles.othermessageBubble,
             item.senderId === user?.id ? styles.myMessage : styles.otherMessage, item.isReportedByUser && styles.reportedMessage,
@@ -358,7 +358,7 @@ const MessagesList = ({
           )}
 
 
-        </View>
+        </View>}
 
       </View>
     );

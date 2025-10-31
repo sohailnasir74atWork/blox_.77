@@ -129,7 +129,7 @@ const PrivateMessageList = ({
     const isUnlimited = freeTranslation || localState.isPro;
   
     if (!isUnlimited && !canTranslate()) {
-      Alert.alert('Limit Reached', 'You can only translate 20 messages per day.');
+      Alert.alert('Limit Reached', 'You can only translate 5 messages per day.');
       return;
     }
   
