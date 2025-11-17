@@ -9,7 +9,6 @@
 <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
 <!-- Billing -->
-<uses-permission android:name="com.android.vending.BILLING" />
 
 <!-- Storage (Backward Compatibility) -->
 <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />

@@ -1,28 +1,41 @@
-import React, { useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
-import getAdUnitId from './ads'; // update path to your ads config
+import getAdUnitId from './ads';
 
-const BannerAdComponent = ({ adType = 'banner', visible = true }) => {
-  const [isAdVisible, setIsAdVisible] = useState(true);
+const BannerAdComponent = ({ adType = 'banner', visible = true, requestOptions }) => {
   const unitId = getAdUnitId(adType);
+  const [reloadKey, setReloadKey] = useState(0);
+  const retryTimer = useRef(null);
 
-  if (!visible || !isAdVisible) return null;
+  const scheduleRetry = useCallback(() => {
+    if (retryTimer.current) return;
+    retryTimer.current = setTimeout(() => {
+      retryTimer.current = null;
+      setReloadKey((k) => k + 1); // remounts BannerAd -> reloads
+    }, 15000); // 15s backoff; adjust as you like
+  }, []);
+
+  if (!visible) return null;
 
   return (
-    <View style={{ alignItems: 'center' }}>
+    <View style={{ width: '100%', alignItems: 'center' }}>
       <BannerAd
+        key={reloadKey}
         unitId={unitId}
         size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-        // requestOptions={{ requestNonPersonalizedAdsOnly: true }}
+        requestOptions={requestOptions /* e.g., { requestNonPersonalizedAdsOnly: false } */}
         onAdLoaded={() => {
-        //   console.log('[BannerAd] Loaded ✅');
-          setIsAdVisible(true);
+          if (retryTimer.current) { clearTimeout(retryTimer.current); retryTimer.current = null; }
         }}
-        onAdFailedToLoad={(error) => {
-        //   console.log('[BannerAd] Failed to load ❌', error);
-          setIsAdVisible(false);
+        onAdFailedToLoad={(err) => {
+          // keep it mounted; let SDK retry and also schedule our own retry
+          // console.log('Banner failed', err);
+          scheduleRetry();
         }}
+        onAdOpened={() => {}}
+        onAdClosed={() => {}}
+        onAdImpression={() => {}}
       />
     </View>
   );

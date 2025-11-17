@@ -15,7 +15,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import SettingsScreen from './Code/SettingScreen/Setting';
 import { useGlobalState } from './Code/GlobelStats';
 import { useLocalState } from './Code/LocalGlobelStats';
-import { AdsConsent, AdsConsentStatus } from 'react-native-google-mobile-ads';
+import { AdsConsent, AdsConsentStatus, MobileAds } from 'react-native-google-mobile-ads';
 import MainTabs from './Code/AppHelper/MainTabs';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {
@@ -63,7 +63,7 @@ function App() {
     return theme === 'dark' ? MyDarkTheme : MyLightTheme;
   }, [theme]);
 
-
+ 
   const { localState, updateLocalState } = useLocalState();
   const [chatFocused, setChatFocused] = useState(true);
   const [modalVisibleChatinfo, setModalVisibleChatinfo] = useState(false)
@@ -135,11 +135,11 @@ function App() {
     );
   }
 
-
+  
 
 
   useEffect(() => {
-
+   
     const { reviewCount } = localState;
     if (reviewCount % 6 === 0 && reviewCount > 0) {
       requestReview();
@@ -151,10 +151,14 @@ function App() {
   const saveConsentStatus = (status) => {
     updateLocalState('consentStatus', status);
   };
-
+  // async function initAds() {
+   
+  // }
   const handleUserConsent = async () => {
     try {
       const consentInfo = await AdsConsent.requestInfoUpdate();
+      await MobileAds().initialize();  
+      // await MobileAds().openAdInspector();
 
       if (
         consentInfo.status === AdsConsentStatus.OBTAINED ||

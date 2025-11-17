@@ -379,7 +379,7 @@ const MessagesList = ({
                   <MenuOption onSelect={() => onDeleteAllMessage(item?.senderId)} style={styles.deleteButton}>
                     <Text style={styles.adminTextAction}>Delete All</Text>
                   </MenuOption>
-                  <MenuOption onSelect={() => banUserwithEmail(item.currentUserEmail)} style={styles.deleteButton}>
+                  <MenuOption onSelect={() => banUserwithEmail(item.currentUserEmail, item.isAdmin)} style={styles.deleteButton}>
                     <Text style={styles.adminTextAction}>Block</Text>
                   </MenuOption>
                   <MenuOption onSelect={() => unbanUserWithEmail(item.currentUserEmail)} style={styles.deleteButton}>
@@ -423,8 +423,8 @@ const MessagesList = ({
         removeClippedSubviews={false}
         onScroll={({ nativeEvent }) => {
           const { contentOffset } = nativeEvent;
-          const atBottom = contentOffset.y <= 40;
-          // console.log("✅ isAtBottom (detected):", atBottom);
+          const atBottom = contentOffset.y <= 60;
+          console.log("✅ isAtBottom (detected):", atBottom);
           setIsAtBottom(atBottom);
         }}
         onEndReachedThreshold={0.1}

@@ -19,9 +19,10 @@ import SignInDrawer from '../Firebase/SigninDrawer';
 import config from '../Helper/Environment';
 import { Platform } from 'react-native';
 import { showMessage } from 'react-native-flash-message';
-import { nativeAdPool } from '../Ads/NativeAdPool';
+// import { nativeAdPool } from '../Ads/NativeAdPool';
 import SingleNativeAd from '../Ads/SingleNative';
 import InterstitialAdManager from '../Ads/IntAd';
+import BannerAdComponent from '../Ads/bannerAds';
 
 
 const availableTags = ['Scam Alert', 'Looking for Trade', 'Discussion', 'Real or Fake', 'Need Help', 'Misc'];
@@ -94,11 +95,35 @@ const DesignFeedScreen = ({ route }) => {
     }
   };
   
+  const deleteUsersLatestPosts = async (userId, n = 15) => {
+    if (!userId) throw new Error('userId is required');
+  
+    const q = firestore()
+      .collection('designPosts')
+      .where('userId', '==', userId)
+      .orderBy('createdAt', 'desc')
+      .limit(n);
 
-  useEffect(() => {
-    nativeAdPool.fillIfNeeded();
-    return () => nativeAdPool.destroyAll();
-  }, []);
+      // console.log(q)
+  
+    const snap = await q.get();
+    if (snap.empty) return [];
+  
+    const batch = firestore().batch();
+    const ids = [];
+  
+    snap.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+      ids.push(doc.id);
+    });
+  
+    await batch.commit();
+    return ids;
+  };
+  // useEffect(() => {
+  //   nativeAdPool.fillIfNeeded();
+  //   return () => nativeAdPool.destroyAll();
+  // }, []);
 
 
   const fetchPostsByTag = async (tag) => {
@@ -256,6 +281,7 @@ const DesignFeedScreen = ({ route }) => {
         localState={localState}
         appdatabase={appdatabase}
         onDelete={handleDeletePost}
+        onDeleteAll={deleteUsersLatestPosts}
 
       />
     );
@@ -457,7 +483,7 @@ const DesignFeedScreen = ({ route }) => {
         screen="Design"
         message="Sign in to upload designs"
       />
-      {/* {!localState.isPro && <BannerAdComponent />} */}
+      {!localState.isPro && <BannerAdComponent />}
 
     </View>
   );

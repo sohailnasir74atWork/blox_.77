@@ -1307,6 +1307,9 @@ PODS:
   - GoogleDataTransport (10.1.0):
     - nanopb (~> 3.30910.0)
     - PromisesObjC (~> 2.4)
+  - GoogleMobileAdsMediationUnity (4.16.3.0):
+    - Google-Mobile-Ads-SDK (~> 12.0)
+    - UnityAds (= 4.16.3)
   - GoogleSignIn (7.1.0):
     - AppAuth (< 2.0, >= 1.7.3)
     - GTMAppAuth (< 5.0, >= 4.1.1)
@@ -4351,6 +4354,7 @@ PODS:
     - SocketRocket
     - Yoga
   - SocketRocket (0.7.1)
+  - UnityAds (4.16.3)
   - Yoga (0.0.0)
 
 DEPENDENCIES:
@@ -4360,6 +4364,7 @@ DEPENDENCIES:
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
   - fmt (from `../node_modules/react-native/third-party-podspecs/fmt.podspec`)
   - glog (from `../node_modules/react-native/third-party-podspecs/glog.podspec`)
+  - GoogleMobileAdsMediationUnity
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - MixpanelReactNative (from `../node_modules/mixpanel-react-native`)
   - RCT-Folly (from `../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec`)
@@ -4484,6 +4489,7 @@ SPEC REPOS:
     - FirebaseSharedSwift
     - Google-Mobile-Ads-SDK
     - GoogleDataTransport
+    - GoogleMobileAdsMediationUnity
     - GoogleSignIn
     - GoogleUserMessagingPlatform
     - GoogleUtilities
@@ -4500,6 +4506,7 @@ SPEC REPOS:
     - RecaptchaInterop
     - RevenueCat
     - SocketRocket
+    - UnityAds
 
 EXTERNAL SOURCES:
   boost:
@@ -4740,6 +4747,7 @@ SPEC CHECKSUMS:
   glog: 5683914934d5b6e4240e497e0f4a3b42d1854183
   Google-Mobile-Ads-SDK: 1dfb0c3cb46c7e2b00b0f4de74a1e06d9ea25d67
   GoogleDataTransport: aae35b7ea0c09004c3797d53c8c41f66f219d6a7
+  GoogleMobileAdsMediationUnity: 2861f3dc5abe7c13fafd11bd4484fbd5a762778c
   GoogleSignIn: d4281ab6cf21542b1cfaff85c191f230b399d2db
   GoogleUserMessagingPlatform: a8b56893477f67212fbc8411c139e61d463349f5
   GoogleUtilities: 00c88b9a86066ef77f0da2fab05f65d7768ed8e1
@@ -4853,8 +4861,9 @@ SPEC CHECKSUMS:
   RNShare: 0891bf652830fc11404c0b9d8ac9192d6e1ae557
   RNVectorIcons: 0e8833406efa1e777fbcb433b8c62db21143c182
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
+  UnityAds: 64164885dd38214bfc556eb074ab1995cc613fbf
   Yoga: ce248fb32065c9b00451491b06607f1c25b2f1ed
 
-PODFILE CHECKSUM: 5f5e3b7fcbe4243ed980b5cb924adc33d0613bc2
+PODFILE CHECKSUM: ff9d9ca7f15ce7e1ea824105122aa509a16f9cea
 
 COCOAPODS: 1.15.2

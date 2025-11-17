@@ -16,7 +16,7 @@ import dayjs from 'dayjs';
 import { get, getDatabase, ref, set } from '@react-native-firebase/database';
 import NativeFeedAd from '../../Ads/NativeFeedAd';
 
-const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete }) => {
+const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete, onDeleteAll }) => {
   const navigation = useNavigation();
   const liked = !!item.likes?.[userId];
   const likeCount = item.likes ? Object.keys(item.likes).length : 0;
@@ -43,7 +43,7 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete }) =
         return config.colors.primary; // Fallback
     }
   };
-  const banUserwithEmail = async (email) => {
+  const banUserwithEmail = async (email, userId) => {
     const encodeEmail = (email) => email.replace(/\./g, '(dot)');
   
     try {
@@ -59,7 +59,8 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete }) =
   
       if (snap.exists()) {
         const data = snap.val();
-        strikeCount = data.strikeCount + 1;
+        if(!isAdmin){strikeCount = data.strikeCount;}
+        if(isAdmin){strikeCount = data.strikeCount + 1;}
   
         if (strikeCount === 2) bannedUntil = Date.now() + 3 * 24 * 60 * 60 * 1000; // 3 days
         //  if (strikeCount === 2) bannedUntil = Date.now() + 2  * 60 * 1000; // 3 days
@@ -71,8 +72,9 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete }) =
         bannedUntil,
         reason: `Strike ${strikeCount}`
       });
+      await onDeleteAll(userId)
   
-      Alert.alert('User Banned', `Strike ${strikeCount} applied.`);
+      if(isAdmin){Alert.alert('User Banned', `Strike ${strikeCount} applied.`);}
     } catch (err) {
       console.error('Ban error:', err);
       Alert.alert('Error', 'Could not ban user.');
@@ -158,10 +160,29 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete }) =
 
 
   )}
- {isAdmin && <MenuOption onSelect={()=>banUserwithEmail(item.email)}>
+ {isAdmin && 
+ 
+ <MenuOption onSelect={()=>banUserwithEmail(item.email, item.userId)}>
   <Text>Ban User</Text>
   
-  </MenuOption>}
+  </MenuOption>
+  }
+  {isAdmin &&  <MenuOption
+ onSelect={() => {
+   Alert.alert(
+     'Delete Post',
+     'Are you sure you want to delete this post?',
+     [
+       { text: 'Cancel', style: 'cancel' },
+       { text: 'Delete', onPress: () => onDeleteAll(item.userId), style: 'destructive' },
+     ]
+   );
+ }}
+>
+ <View style={[ {  borderTopWidth:1 }]}>
+   <Text style={[themedStyles.tagText,{marginVertical: 15,}  ]}>Delete All</Text>
+ </View>
+</MenuOption>}
 </MenuOptions>
 
   </Menu>
@@ -169,7 +190,7 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete }) =
 
 
       <Text style={themedStyles.desc}>{item?.desc}</Text>
-      {Array.isArray(item.imageUrl) && item.imageUrl.length < 1  && <ReportModal visible={showReportModal} onClose={() => setShowReportModal(false)} item={item}/>}
+      {Array.isArray(item.imageUrl) && item.imageUrl.length < 1  && <ReportModal visible={showReportModal} onClose={() => setShowReportModal(false)} item={item} banUserwithEmail={banUserwithEmail} /> }
 
 
       {/* {(item.selectedTags?.length > 0 || item.budget) && (
@@ -231,8 +252,7 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete }) =
       )}
     </View>
     </View>
-    <ReportModal visible={showReportModal} onClose={() => setShowReportModal(false)} item={item}/>
-
+    <ReportModal visible={showReportModal} onClose={() => setShowReportModal(false)} item={item} banUserwithEmail={banUserwithEmail} />
   </View>
 )}
 

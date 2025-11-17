@@ -13,6 +13,7 @@ import { useGlobalState } from "../GlobelStats";
 import config from "../Helper/Environment";
 import { ref, get, update, remove } from "@react-native-firebase/database";
 import { useTranslation } from "react-i18next";
+import { banUserwithEmail } from "./utils";
 
 const ReportPopup = ({ visible, message, onClose }) => {
   const [selectedReason, setSelectedReason] = useState("Spam");
@@ -27,7 +28,8 @@ const ReportPopup = ({ visible, message, onClose }) => {
     const sanitizedId = message.id.startsWith("chat-")
       ? message.id.replace("chat-", "")
       : message.id;
-  
+
+  // console.log(message)
     if (!sanitizedId) {
       Alert.alert("Error", "Invalid message. Unable to report.");
       return;
@@ -42,9 +44,11 @@ const ReportPopup = ({ visible, message, onClose }) => {
   
         const data = snapshot.val();
         const reportCount = Number(data?.reportCount || 0);
+        // console.log('report count', reportCount)
   
         if (reportCount >= 1) {
           // ✅ Second report: delete the message
+          banUserwithEmail(message.currentUserEmail)
           return remove(messageRef).then(() => ({ action: "deleted" }));
         } else {
           // ✅ First report: set to 1 (don’t increment beyond this)

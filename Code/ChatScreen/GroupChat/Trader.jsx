@@ -21,13 +21,14 @@ import leoProfanity from 'leo-profanity';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import { useLocalState } from '../../LocalGlobelStats';
-import database, { onValue, ref } from '@react-native-firebase/database';
+import database, { onValue, ref, remove } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
 import { mixpanel } from '../../AppHelper/MixPenel';
 import InterstitialAdManager from '../../Ads/IntAd';
 import BannerAdComponent from '../../Ads/bannerAds';
 import { logoutUser } from '../../Firebase/UserLogics';
 import { showMessage } from 'react-native-flash-message';
+import { queryEqual } from '@react-native-firebase/firestore';
 leoProfanity.add(['hell', 'shit']);
 leoProfanity.loadDictionary('en');
 
@@ -136,8 +137,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     else { callbackfunction() }
   };
 
-  const chatRef = useMemo(() => ref(appdatabase, 'chat_new'), []);
-  const pinnedMessagesRef = useMemo(() => ref(appdatabase, 'pin_messages'), []);
+  const chatRef = useMemo(() => ref(appdatabase, 'chat_new'), [appdatabase]);
+  const pinnedMessagesRef = useMemo(() => ref(appdatabase, 'pin_messages'), [appdatabase]);
 
   // const isAdmin = user?.admin || false;
   // const isOwner = user?.owner || false;
@@ -202,10 +203,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         const data = snapshot.val() || {};
   
         const parsedMessages = Object.entries(data)
-        .map(([key, value]) => validateMessage({ id: key, ...value }))
-        .filter(Boolean) // <-- drop nulls
-        .filter((msg) => !bannedUsers.includes(msg.senderId))
-        .sort((a, b) => b.timestamp - a.timestamp);
+      .map(([key, value]) => validateMessage({ id: key, ...value })).filter(Boolean).filter((msg) => !bannedUsers.includes(msg.senderId)).sort((a, b) => b.timestamp - a.timestamp);
   
         if (!reset && parsedMessages[parsedMessages.length - 1]?.id === lastLoadedKey) {
           // console.log(`[loadMessages] Removing duplicate key: ${lastLoadedKey}`);
@@ -254,30 +252,27 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   // const bannedUserIds = bannedUsers.map((user) => user.id); // Extract IDs from bannedUsers
 
   useEffect(() => {
-    if(!isFocused) return
-    const listener = chatRef.limitToLast(1).on('child_added', (snapshot) => {
+    if (!isFocused) return;
+  
+    const q = chatRef.orderByKey().limitToLast(1);
+    // console.log(q)
+
+    const cb = (snapshot) => {
       const newMessage = validateMessage({ id: snapshot.key, ...snapshot.val() });
-      if (!newMessage) return; 
-
+      if (!newMessage) return;
+  
       setMessages((prev) => {
-        const seenKeys = new Set(prev.map((msg) => msg.id));
-        if (seenKeys.has(newMessage.id)) return prev;
-
-        if (isAtBottom) {
-          // Insert immediately
-          // console.log("📥 User is at bottom, adding message now");
-          return [newMessage, ...prev];
-        } else {
-          // Hold in pending
-          // console.log("⏳ Holding new message, user not at bottom");
-          setPendingMessages((prevPending) => [newMessage, ...prevPending]);
-          return prev;
-        }
+        const seen = new Set(prev.map(m => m.id));
+        if (seen.has(newMessage.id)) return prev;
+  
+        return isAtBottom ? [newMessage, ...prev] : (setPendingMessages(p => [newMessage, ...p]), prev);
       });
-    });
-
-    return () => chatRef.off('child_added', listener);
+    };
+  
+    q.on('child_added', cb);
+    return () => q.off('child_added', cb);
   }, [chatRef, validateMessage, isAtBottom, isFocused]);
+  
 
 
 
@@ -399,7 +394,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
   const handleSendMessage = () => {
     const MAX_CHARACTERS = 250;
-    const MESSAGE_COOLDOWN = 2000;
+    const MESSAGE_COOLDOWN = 5000;
     const LINK_REGEX = /(https?:\/\/[^\s]+)/g;
     if (!user?.id || !currentUserEmail) {
       showMessage({

@@ -6,7 +6,7 @@ const ConditionalKeyboardWrapper = ({
   style,
   chatscreen = false,
   privatechatscreen = false,
-  privateOffset = 220,
+  privateOffset = 240,
   chatOffsetIOS = 70,
   defaultOffset = 110,
 }) => {
@@ -26,7 +26,7 @@ const ConditionalKeyboardWrapper = ({
     if (!keyboardVisible) return 0;
 
     if (privatechatscreen) return privateOffset;
-    if (chatscreen) return isIOS ? chatOffsetIOS : 0;
+    if (chatscreen) return isIOS ? chatOffsetIOS : 20;
     return defaultOffset;
   }, [keyboardVisible, privatechatscreen, chatscreen, isIOS, privateOffset, chatOffsetIOS, defaultOffset]);
 
