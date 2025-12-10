@@ -11,8 +11,18 @@ import {
   Alert,
   useColorScheme,
 } from 'react-native';
-import firestore from '@react-native-firebase/firestore';
-import { useGlobalState } from '../../GlobelStats';
+import {
+  collection,
+ doc,
+ query,
+ orderBy,
+ onSnapshot,
+ addDoc,
+ updateDoc,
+ serverTimestamp,
+ increment,
+ } from '@react-native-firebase/firestore';
+ import { useGlobalState } from '../../GlobelStats';
 import { useLocalState } from '../../LocalGlobelStats';
 import { useNavigation } from '@react-navigation/native';
 import InterstitialAdManager from '../../Ads/IntAd';
@@ -25,29 +35,28 @@ const CommentModal = ({ visible, onClose, postId }) => {
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState([]);
   const inputRef = useRef(null);
-  const { user, theme } = useGlobalState();
+  const { user, theme, firestoreDB } = useGlobalState();
   const { localState } = useLocalState();
   const navigation = useNavigation();
   const isDarkMode = theme === 'dark';
 
   useEffect(() => {
-    if (!postId) return;
+    if (!postId || !firestoreDB) return;
 
-    const unsubscribe = firestore()
-      .collection('designPosts')
-      .doc(postId)
-      .collection('comments')
-      .orderBy('createdAt', 'desc')
-      .onSnapshot(snapshot => {
-        const commentsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setComments(commentsData);
-      });
+    const commentsRef = collection(firestoreDB, 'designPosts', postId, 'comments');
+    const q = query(commentsRef, orderBy('createdAt', 'desc'));
+
+    const unsubscribe = onSnapshot(q, snapshot => {
+      const commentsData = snapshot.docs.map(d => ({
+        id: d.id,
+        ...d.data(),
+      }));
+      setComments(commentsData);
+    });
 
     return () => unsubscribe();
-  }, [postId]);
+  }, [postId, firestoreDB]);
+
 
   const handleChatNavigation = useCallback((comment) => {
     const callback = () => {
@@ -79,24 +88,31 @@ const CommentModal = ({ visible, onClose, postId }) => {
 
   const handleAddComment = useCallback(async () => {
     const text = commentText.trim();
-    if (!text) return;
+    if (!text || !firestoreDB) return;
+    if (!firestoreDB || !postId) {
+      console.error('Missing firestoreDB or postId', { firestoreDB, postId });
+      Alert.alert('Error', 'Cannot post comment right now. Please try again.');
+      return;
+    }
 
     const comment = {
       userId: user.id,
       displayName: user.displayName || 'Guest User',
       avatar: user.avatar,
       text,
-      createdAt: firestore.FieldValue.serverTimestamp(),
+      createdAt: serverTimestamp(),
+
     };
 
     try {
-      const postRef = firestore().collection('designPosts').doc(postId);
+      const commentsRef = collection(firestoreDB, 'designPosts', postId, 'comments');
+      const postRef = doc(firestoreDB, 'designPosts', postId);
 
-      await postRef.collection('comments').add(comment);
-      await postRef.update({
-        commentCount: firestore.FieldValue.increment(1),
+     await addDoc(commentsRef, comment);
+      await updateDoc(postRef, {
+        commentCount: increment(1),
       });
-
+      
       setCommentText('');
       inputRef.current?.focus();
     } catch (error) {

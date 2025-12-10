@@ -23,20 +23,16 @@ import {
   MyLightTheme,
   requestReview,
 } from './Code/AppHelper/AppHelperFunction';
-import getAdUnitId from './Code/Ads/ads';
 import OnboardingScreen from './Code/AppHelper/OnBoardingScreen';
 import { useTranslation } from 'react-i18next';
-import RewardCenterScreen from './Code/SettingScreen/RewardCenter';
 import RewardRulesModal from './Code/SettingScreen/RewardRulesModel';
 import InterstitialAdManager from './Code/Ads/IntAd';
 import AppOpenAdManager from './Code/Ads/openApp';
 import RNBootSplash from "react-native-bootsplash";
 import SystemNavigationBar from 'react-native-system-navigation-bar';
-import CoinStore from './Code/SettingScreen/Store/Store';
-// import AppUpdateChecker from './Code/AppHelper/InAppUpdateChecker';
 import AdminUnbanScreen from './Code/AppHelper/AdminDashboard';
 import { checkForUpdate } from './Code/AppHelper/InAppUpdateCheck';
-// import { initAds } from './Code/Ads/Adinit';
+import SubscriptionScreen from './Code/SettingScreen/OfferWall';
 
 
 
@@ -52,7 +48,7 @@ const setNavigationBarAppearance = (theme) => {
 // const adUnitId = getAdUnitId('openapp');
 
 function App() {
-  const { theme} = useGlobalState();
+  const { theme, single_offer_wall} = useGlobalState();
   const { t } = useTranslation();
 
   const selectedTheme = useMemo(() => {
@@ -69,6 +65,8 @@ function App() {
   const [modalVisibleChatinfo, setModalVisibleChatinfo] = useState(false)
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
+  const [showofferwall, setShowofferwall] = useState(false);
+
 
   useEffect(() => {
     InterstitialAdManager.init();
@@ -142,9 +140,14 @@ function App() {
    
     const { reviewCount } = localState;
     if (reviewCount % 6 === 0 && reviewCount > 0) {
+
       requestReview();
     }
+    if (reviewCount % 15 === 0 && reviewCount > 0) {
 
+      setShowofferwall(true)
+    }
+    
     updateLocalState('reviewCount', Number(reviewCount) + 1);
   }, []);
 
@@ -246,12 +249,14 @@ function App() {
             >
               {() => <SettingsScreen selectedTheme={selectedTheme} />}
             </Stack.Screen>
+           
           </Stack.Navigator>
           {/* <AppUpdateChecker /> */}
         </NavigationContainer>
         {modalVisible && (
           <RewardRulesModal visible={modalVisible} onClose={() => setModalVisible(false)} selectedTheme={selectedTheme} />
         )}
+         <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} track='Home' showoffer={!single_offer_wall}   oneWallOnly={single_offer_wall}/>
       </Animated.View>
     </SafeAreaView>
   );

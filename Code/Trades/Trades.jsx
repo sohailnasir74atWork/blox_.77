@@ -10,7 +10,6 @@ import { FilterMenu } from './tradeHelpers';
 import ReportTradePopup from './ReportTradePopUp';
 import SignInDrawer from '../Firebase/SigninDrawer';
 import { useLocalState } from '../LocalGlobelStats';
-import firestore from '@react-native-firebase/firestore';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useTranslation } from 'react-i18next';
 import { showSuccessMessage, showErrorMessage } from '../Helper/MessageHelper';
@@ -20,6 +19,21 @@ import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import StyledUsernamePreview from '../SettingScreen/Store/StyledName';
+import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
+import { isUserOnline } from '../ChatScreen/utils';
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  limit,
+  orderBy,
+  Timestamp,
+  where,
+  query,
+  startAfter,
+  updateDoc,
+} from '@react-native-firebase/firestore';
 
 // Initialize dayjs plugins
 dayjs.extend(relativeTime);
@@ -43,7 +57,7 @@ const TradeList = ({ route }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAdVisible, setIsAdVisible] = useState(true);
   const { selectedTheme } = route.params
-  const { user, analytics, updateLocalStateAndDatabase, proGranted } = useGlobalState()
+  const { user, analytics, single_offer_wall, proGranted } = useGlobalState()
   const [trades, setTrades] = useState([]);
   const [filteredTrades, setFilteredTrades] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -53,7 +67,9 @@ const TradeList = ({ route }) => {
   const [showofferwall, setShowofferwall] = useState(false);
   const [remainingFeaturedTrades, setRemainingFeaturedTrades] = useState([]);
   const [openShareModel, setOpenShareModel] = useState(false);
-
+  const [isDrawerVisible, setIsDrawerVisible] = useState(false);
+  const [bannedUsers, setBannedUsers] = useState([]);
+  const [isOnline, setIsOnline] = useState(false);
   // Check if user has featured listing purchase
   const purchasesArr = Array.isArray(user?.purchases)
   ? user.purchases
@@ -78,7 +94,7 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
   const [selectedTrade, setSelectedTrade] = useState(null);
   const { localState, updateLocalState } = useLocalState()
   const navigation = useNavigation()
-  const { theme } = useGlobalState()
+  const { theme , firestoreDB} = useGlobalState()
   const [isProStatus, setIsProStatus] = useState(localState.isPro || proGranted);
   const { t } = useTranslation();
   const platform = Platform.OS.toLowerCase();
@@ -92,8 +108,7 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
 
 // console.log('pro', isProStatus)
 
-  const [selectedFilters, setSelectedFilters] = useState([]);
-
+const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
   useEffect(() => {
     // console.log(localState.isPro, 'from trade model'); // ✅ Check if isPro is updated
     setIsProStatus(localState.isPro || proGranted); // ✅ Force update state and trigger re-render
@@ -163,7 +178,11 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
   }, [searchQuery, trades, selectedFilters]);
 
 
+  useEffect(() => {
+    if (!user?.id) return;
+    setBannedUsers(localState.bannedUsers)
 
+  }, [user?.id, localState.bannedUsers]);
   const getTradeDeal = (hasTotal, wantsTotal) => {
     if (hasTotal.value <= 0) {
       return { label: "trade.unknown_deal", color: "#8E8E93" }; // ⚠️ Unknown deal (invalid input)
@@ -202,7 +221,8 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
             try {
               const tradeId = item.id.startsWith("featured-") ? item.id.replace("featured-", "") : item.id;
 
-              await firestore().collection("trades_new").doc(tradeId).delete();
+              await deleteDoc(doc(firestoreDB, "trades_new", tradeId));
+
 
               if (item.isFeatured) {
                 const currentFeaturedData = localState.featuredCount || { count: 0, time: null };
@@ -227,7 +247,7 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
         },
       ]
     );
-  }, [t, localState.featuredCount]);
+  }, [t, localState.featuredCount, firestoreDB]);
 
 
 
@@ -257,13 +277,15 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
 
     try {
       // 🔐 Check from Firestore how many featured trades user already has
-      const oneDayAgo = firestore.Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
-      const featuredSnapshot = await firestore()
-        .collection("trades_new")
-        .where("userId", "==", user.id)
-        .where("isFeatured", "==", true)
-        .where("featuredUntil", ">", oneDayAgo)
-        .get();
+      const oneDayAgo = Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
+      const featuredSnapshot = await getDocs(
+        query(
+          collection(firestoreDB, "trades_new"),
+          where("userId", "==", user.id),
+          where("isFeatured", "==", true),
+          where("featuredUntil", ">", oneDayAgo)
+        )
+      );
 
       if (featuredSnapshot.size >= 2) {
         Alert.alert(
@@ -283,10 +305,15 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
             text: t("feature"),
             onPress: async () => {
               try {
-                await firestore().collection("trades_new").doc(item.id).update({
-                  isFeatured: true,
-                  featuredUntil: firestore.Timestamp.fromDate(new Date(Date.now() + 24 * 60 * 60 * 1000)),
-                });
+                await updateDoc(
+                  doc(firestoreDB, "trades_new", item.id),
+                  {
+                    isFeatured: true,
+                    featuredUntil: Timestamp.fromDate(
+                      new Date(Date.now() + 24 * 60 * 60 * 1000)
+                    ),
+                  }
+                );
 
                 const newFeaturedCount = (localState.featuredCount?.count || 0) + 1;
                 updateLocalState("featuredCount", {
@@ -340,21 +367,23 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
 
     try {
       // ✅ Fetch more normal trades
-      const normalTradesQuery = await firestore()
-        .collection('trades_new')
-        .where('isFeatured', '==', false)
-        .orderBy('timestamp', 'desc')
-        .startAfter(lastDoc)
-        .limit(PAGE_SIZE)
-        .get();
+      const normalTradesQuerySnap = await getDocs(
+        query(
+          collection(firestoreDB, 'trades_new'),
+          where('isFeatured', '==', false),
+          orderBy('timestamp', 'desc'),
+          startAfter(lastDoc),
+          limit(PAGE_SIZE)
+        )
+      );
 
-      const newNormalTrades = normalTradesQuery.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
+      const newNormalTrades = normalTradesQuerySnap.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
       }));
-
+  
       if (newNormalTrades.length === 0) {
-        setHasMore(false); // ✅ Stop pagination if no more trades exist
+        setHasMore(false);
         return;
       }
 
@@ -366,12 +395,14 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
       const mergedTrades = mergeFeaturedWithNormal(newFeaturedTrades, newNormalTrades);
 
       setTrades((prevTrades) => [...prevTrades, ...mergedTrades]);
-      setLastDoc(normalTradesQuery.docs[normalTradesQuery.docs.length - 1]); // ✅ Update last doc
-      setHasMore(newNormalTrades.length === PAGE_SIZE);
+      setLastDoc(
+        normalTradesQuerySnap.docs[normalTradesQuerySnap.docs.length - 1]
+      );    
+            setHasMore(newNormalTrades.length === PAGE_SIZE);
     } catch (error) {
       console.error('❌ Error fetching more trades:', error);
     }
-  }, [lastDoc, hasMore, remainingFeaturedTrades]);
+  }, [lastDoc, hasMore, remainingFeaturedTrades, firestoreDB]);
 
 
 
@@ -399,6 +430,36 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
   }, []); // ✅ Runs only on app load
 
 
+  const selectedUser = {
+    senderId: selectedTrade?.userId,
+    sender: selectedTrade?.traderName,
+    avatar: selectedTrade?.avatar,
+  }
+  const handleChatNavigation2 = async () => {
+    
+
+    const callbackfunction = () => {
+      mixpanel.track("Inbox Trade");
+      navigation.navigate('PrivateChatTrade', {
+        selectedUser: selectedUser,
+        item:selectedTrade,
+        
+      });
+    };
+
+    try {
+      // const isOnline = await isUserOnline(item.userId)
+
+
+      if (!localState.isPro) { InterstitialAdManager.showAd(callbackfunction); }
+      else { callbackfunction() }
+
+
+    } catch (error) {
+      console.error('Error navigating to PrivateChat:', error);
+      Alert.alert('Error', 'Unable to navigate to the chat. Please try again later.');
+    }
+  };
 
 
 
@@ -420,32 +481,38 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
     setLoading(true);
     try {
       // ✅ Fetch latest normal trades
-      const normalTradesQuery = await firestore()
-        .collection('trades_new')
-        .orderBy('isFeatured')
-        .where('isFeatured', '!=', true) // Get only non-featured trades
-        .orderBy('timestamp', 'desc')
-        .limit(PAGE_SIZE)
-        .get();
-
-      const normalTrades = normalTradesQuery.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
+      // const normalTradesQuery = await firestore()
+      const normalTradesQuerySnap = await getDocs(
+        query(
+          collection(firestoreDB, 'trades_new'),
+          orderBy('isFeatured'),
+          where('isFeatured', '!=', true),
+          orderBy('timestamp', 'desc'),
+          limit(PAGE_SIZE)
+        )
+      );
+  
+      const normalTrades = normalTradesQuerySnap.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
       }));
 
       // ✅ Fetch only valid featured trades (NOT expired)
-      const featuredQuerySnapshot = await firestore()
-        .collection('trades_new')
-        .where('isFeatured', '==', true)
-        .where('featuredUntil', '>', firestore.Timestamp.now()) // ✅ Only fetch active featured trades
-        .orderBy('featuredUntil', 'desc')
-        .get();
+     const featuredQuerySnapshot = await getDocs(
+        query(
+          collection(firestoreDB, 'trades_new'),
+          where('isFeatured', '==', true),
+          where('featuredUntil', '>', Timestamp.now()),
+          orderBy('featuredUntil', 'desc')
+        )
+      );
+  
 
       let featuredTrades = [];
       if (!featuredQuerySnapshot.empty) {
-        featuredTrades = featuredQuerySnapshot.docs.map((doc) => ({
-          id: `featured-${doc.id}`, // ✅ Unique keys for featured trades
-          ...doc.data(),
+        featuredTrades = featuredQuerySnapshot.docs.map((docSnap) => ({
+          id: `featured-${docSnap.id}`,
+          ...docSnap.data(),
         }));
       }
       // console.log('✅ Featured trades:', featuredTrades.length);
@@ -461,14 +528,16 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
 
       // ✅ Update state
       setTrades(mergedTrades);
-      setLastDoc(normalTradesQuery.docs[normalTradesQuery.docs.length - 1]); // ✅ Save last doc for pagination
+      setLastDoc(
+        normalTradesQuerySnap.docs[normalTradesQuerySnap.docs.length - 1]
+      );
       setHasMore(normalTrades.length === PAGE_SIZE);
     } catch (error) {
       console.error('❌ Error fetching trades:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [firestoreDB]);
 
 
   // const captureAndSave = async () => {
@@ -602,6 +671,27 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
     }
   }, [user?.id]);
 
+  const closeProfileDrawer = async () => {
+    setIsDrawerVisible(false);
+  };
+  const handleOpenProfile = async(item)=>{
+    // console.log('open')
+    if (!user?.id) {
+      setIsSigninDrawerVisible(true);
+      return;
+    }
+    setSelectedTrade(item)
+
+    try {
+      const online = await isUserOnline(item?.userId);
+      setIsOnline(online);
+    } catch (error) {
+      console.error('🔥 Error checking online status:', error);
+      setIsOnline(false);
+    }
+    setIsDrawerVisible(true)
+  }
+// console.log(isDrawerVisible)
 
   const renderTextWithUsername = (description) => {
     const parts = description.split(/(@\w+)/g); // Split text by @username pattern
@@ -710,7 +800,7 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
         {item.isFeatured && <View style={styles.tag}></View>}
 
         <View style={styles.tradeHeader}>
-          <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', flex:1  }} onPress={handleChatNavigation}>
+          <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', flex:1  }} onPress={()=>handleOpenProfile(item)}>
             <Image source={{ uri: item.avatar }} style={styles.itemImageUser} />
 
             <View style={{  marginLeft: 5 }}>
@@ -780,7 +870,8 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
         name='message'
          size={18}
               color={config.colors.primary}
-              onPress={handleChatNavigation}
+              onPress={()=>handleOpenProfile(item)}
+
         solid={false}
       />
             {/* <Icon
@@ -815,7 +906,7 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
                 </View>
               ))
             ) : (
-              <TouchableOpacity style={styles.dealContainerSingle} onPress={handleChatNavigation}>
+              <TouchableOpacity style={styles.dealContainerSingle} onPress={()=>handleOpenProfile(item)}>
                 <Text style={styles.dealText}>Give offer</Text>
               </TouchableOpacity>
             )}
@@ -880,32 +971,27 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
         {item.description && <Text style={styles.description}>{renderTextWithUsername(item.description)}
         </Text>}
         {item.userId === user.id && (<View style={styles.footer}>
-          {!item.isFeatured && <Icon
-            name="rocket"
-            size={24}
-            color={config.colors.primary}
-            onPress={() => handleMakeFeatureTrade(item)}
-            style={{ marginRight: 20 }}
-          />}
+          {!item.isFeatured &&
+                <TouchableOpacity  onPress={() => handleMakeFeatureTrade(item)} style={[styles.boost, {backgroundColor:'purple'}]}>
+                <Text
+                 
+                 
+                  
+                 
+                  style={{  color:'white', fontFamily:'Lato-Regular' }}
+                >BOOST IT</Text>
+                </TouchableOpacity>}
+       <TouchableOpacity  onPress={() => handleDelete(item)} style={[styles.boost, {backgroundColor:'black'}]}>
+       <Text
+                 
+                 
+                 color={config.colors.secondary}
+                
+                 style={{ color:'white', fontFamily:'Lato-Regular' }}
+               >DELETE IT</Text>
+                </TouchableOpacity>
 
-          <Icon
-            name="close-circle"
-            size={24}
-            color={config.colors.wantBlockRed}
-            style={{ marginRight: 20 }}
-            onPress={() => handleDelete(item)}
-          />
-          <Icon
-            name="share-social"
-            size={24}
-            color={config.colors.primary}
-            onPress={() => {
-              setSelectedTrade(item); // ✅ Set the selected trade
-              setOpenShareModel(true); // ✅ Then open the modal
-            }}
-          />
-
-
+              
 
         </View>)}
         {/* <ShareTradeModal
@@ -986,8 +1072,15 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
           />
         )}
       </View>} */}
-      <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} track='Trade' />
-
+      <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} track='Trade'   oneWallOnly={single_offer_wall}      />
+      <ProfileBottomDrawer
+          isVisible={isDrawerVisible}
+          toggleModal={closeProfileDrawer}  
+          startChat={handleChatNavigation2}
+          selectedUser={selectedUser}
+          isOnline={isOnline}
+          bannedUsers={bannedUsers}
+        />
     </View>
   );
 };
@@ -1213,12 +1306,13 @@ const getStyles = (isDarkMode) =>
     },
     footer: {
       flexDirection: 'row',
-      justifyContent: 'center',
+      justifyContent: 'flex-start',
       borderTopWidth: 1,
-      borderColor: 'lightgrey',
-      paddingHorizontal: 30,
+      backgroundColor:'#F5A327',
+      // paddingHorizontal: 30,
       paddingTop: 5,
-      marginTop: 10
+      marginTop: 10,
+      borderTopColor:config.colors.hasBlockGreen
     },
     tag: {
       backgroundColor: config.colors.hasBlockGreen,
@@ -1229,6 +1323,9 @@ const getStyles = (isDarkMode) =>
       width: 15,  // Increased width for proportion
       borderTopLeftRadius: 10,  // Increased to make it more curved
       borderBottomRightRadius: 30, // Further increased for more curve
+    },
+    boost:{
+      justifyContent:'flex-start', paddingVertical:2, paddingHorizontal:5, borderRadius:3, alignItems:'center', margin:4
     }
 
   });

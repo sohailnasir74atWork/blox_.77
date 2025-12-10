@@ -27,7 +27,7 @@ const icon = config.isNoman ? require('../../assets/icon.webp') : require('../..
 const OnboardingScreen = ({ onFinish, selectedTheme }) => {
   const [screenIndex, setScreenIndex] = useState(0);
   const [openSignin, setOpenSignin] = useState(false);
-  const { theme, user, analytics } = useGlobalState();
+  const { theme, user, analytics, single_offer_wall } = useGlobalState();
   const isDarkMode = theme === 'dark' || selectedTheme === 'dark';
   const { language, changeLanguage } = useLanguage();
   const { t } = useTranslation();
@@ -148,7 +148,7 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
 
         );
       case 2:
-        return <SubscriptionScreen visible={true} onClose={onFinish} track='On Boarding'/>;
+        return <SubscriptionScreen visible={true} onClose={onFinish} track='On Boarding' showoffer={!single_offer_wall} oneWallOnly={single_offer_wall}/>;
       default:
         return null;
     }

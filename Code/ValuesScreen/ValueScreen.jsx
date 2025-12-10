@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -25,7 +25,7 @@ import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
 import { handleadoptme, handleMM2 } from '../SettingScreen/settinghelper';
 
-const ValueScreen = ({ selectedTheme }) => {
+const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruits, onRequestClose, fromSetting, ownedPets, setOwnedPets, wishlistPets, setWishlistPets, owned }) => {
   const [searchText, setSearchText] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [filterDropdownVisible, setFilterDropdownVisible] = useState(false);
@@ -172,44 +172,44 @@ const ValueScreen = ({ selectedTheme }) => {
     setShowAd1(newAdState);
   }, []);
 
-  const CustomAd = () => (
-    <View style={styles.adContainer}>
-      <View style={styles.adContent}>
-        <Image
-          source={require('../../assets/adoptme.png')} // Replace with your ad icon
-          style={styles.adIcon}
-        />
-        <View>
-          <Text style={styles.adTitle}>ADOPT ME Values</Text>
-          <Text style={styles.tryNowText}>Try Our other app</Text>
-        </View>
-      </View>
-      <TouchableOpacity style={styles.downloadButton} onPress={() => {
-            handleadoptme(); triggerHapticFeedback('impactLight');
-          }}>
-        <Text style={styles.downloadButtonText}>Download</Text>
-      </TouchableOpacity>
-    </View>
-  );
-  const CustomAd2 = () => (
-    <View style={styles.adContainer}>
-      <View style={styles.adContent}>
-        <Image
-          source={require('../../assets/logo2.png')} // Replace with your ad icon
-          style={styles.adIcon}
-        />
-        <View>
-          <Text style={styles.adTitle}>MM2 Values</Text>
-          <Text style={styles.tryNowText}>Try Our other app</Text>
-        </View>
-      </View>
-      <TouchableOpacity style={styles.downloadButton} onPress={() => {
-        handleMM2(); triggerHapticFeedback('impactLight');
-      }}>
-        <Text style={styles.downloadButtonText}>Download</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  // const CustomAd = () => (
+  //   <View style={styles.adContainer}>
+  //     <View style={styles.adContent}>
+  //       <Image
+  //         source={require('../../assets/adoptme.png')} // Replace with your ad icon
+  //         style={styles.adIcon}
+  //       />
+  //       <View>
+  //         <Text style={styles.adTitle}>ADOPT ME Values</Text>
+  //         <Text style={styles.tryNowText}>Try Our other app</Text>
+  //       </View>
+  //     </View>
+  //     <TouchableOpacity style={styles.downloadButton} onPress={() => {
+  //           handleadoptme(); triggerHapticFeedback('impactLight');
+  //         }}>
+  //       <Text style={styles.downloadButtonText}>Download</Text>
+  //     </TouchableOpacity>
+  //   </View>
+  // );
+  // const CustomAd2 = () => (
+  //   <View style={styles.adContainer}>
+  //     <View style={styles.adContent}>
+  //       <Image
+  //         source={require('../../assets/logo2.png')} // Replace with your ad icon
+  //         style={styles.adIcon}
+  //       />
+  //       <View>
+  //         <Text style={styles.adTitle}>MM2 Values</Text>
+  //         <Text style={styles.tryNowText}>Try Our other app</Text>
+  //       </View>
+  //     </View>
+  //     <TouchableOpacity style={styles.downloadButton} onPress={() => {
+  //       handleMM2(); triggerHapticFeedback('impactLight');
+  //     }}>
+  //       <Text style={styles.downloadButtonText}>Download</Text>
+  //     </TouchableOpacity>
+  //   </View>
+  // );
 
   useEffect(() => {
     if (localState.data) {
@@ -281,59 +281,109 @@ const ValueScreen = ({ selectedTheme }) => {
 
     setFilteredData(filtered);
   }, [valuesData, searchText, selectedFilter]);
-  const EditFruitModal = () => (
-    <Modal visible={isModalVisible} transparent={true} animationType="slide">
-      <View style={styles.modalContainer}>
-        <Text style={styles.modalTitle}>Edit {selectedFruit?.name}</Text>
+  // const EditFruitModal = () => (
+  //   <Modal visible={isModalVisible} transparent={true} animationType="slide">
+  //     <View style={styles.modalContainer}>
+  //       <Text style={styles.modalTitle}>Edit {selectedFruit?.name}</Text>
 
-        <TextInput
-          style={styles.input}
-          defaultValue={editValuesRef.current.Value}
-          onChangeText={(text) => (editValuesRef.current.Value = text)}
-          keyboardType="numeric"
-          placeholder="Value"
-        />
+  //       <TextInput
+  //         style={styles.input}
+  //         defaultValue={editValuesRef.current.Value}
+  //         onChangeText={(text) => (editValuesRef.current.Value = text)}
+  //         keyboardType="numeric"
+  //         placeholder="Value"
+  //       />
 
-        <TextInput
-          style={styles.input}
-          defaultValue={editValuesRef.current.Permanent}
-          onChangeText={(text) => (editValuesRef.current.Permanent = text)}
-          keyboardType="numeric"
-          placeholder="Permanent Value"
-        />
+  //       <TextInput
+  //         style={styles.input}
+  //         defaultValue={editValuesRef.current.Permanent}
+  //         onChangeText={(text) => (editValuesRef.current.Permanent = text)}
+  //         keyboardType="numeric"
+  //         placeholder="Permanent Value"
+  //       />
 
-        <TextInput
-          style={styles.input}
-          defaultValue={editValuesRef.current.Biliprice}
-          onChangeText={(text) => (editValuesRef.current.Biliprice = text)}
-          keyboardType="numeric"
-          placeholder="Beli Price"
-        />
+  //       <TextInput
+  //         style={styles.input}
+  //         defaultValue={editValuesRef.current.Biliprice}
+  //         onChangeText={(text) => (editValuesRef.current.Biliprice = text)}
+  //         keyboardType="numeric"
+  //         placeholder="Beli Price"
+  //       />
 
-        <TextInput
-          style={styles.input}
-          defaultValue={editValuesRef.current.Robuxprice}
-          onChangeText={(text) => (editValuesRef.current.Robuxprice = text)}
-          keyboardType="default"
-          placeholder="Robux Price"
-        />
+  //       <TextInput
+  //         style={styles.input}
+  //         defaultValue={editValuesRef.current.Robuxprice}
+  //         onChangeText={(text) => (editValuesRef.current.Robuxprice = text)}
+  //         keyboardType="default"
+  //         placeholder="Robux Price"
+  //       />
 
 
-        <TouchableOpacity style={styles.saveButton}>
-          <Text style={styles.saveButtonText}>Save Changes</Text>
-        </TouchableOpacity>
+  //       <TouchableOpacity style={styles.saveButton}>
+  //         <Text style={styles.saveButtonText}>Save Changes</Text>
+  //       </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => setIsModalVisible(false)} style={styles.cencelButton}>
-          <Text style={styles.saveButtonText}>Cancel</Text>
-        </TouchableOpacity>
-      </View>
-    </Modal>
+  //       <TouchableOpacity onPress={() => setIsModalVisible(false)} style={styles.cencelButton}>
+  //         <Text style={styles.saveButtonText}>Cancel</Text>
+  //       </TouchableOpacity>
+  //     </View>
+  //   </Modal>
+  // );
+
+  const selectedList = useMemo(() => {
+    if (fromChat) {
+      return selectedFruits || [];
+    }
+    if (fromSetting) {
+      return owned ? (ownedPets || []) : (wishlistPets || []);
+    }
+    return [];
+  }, [fromChat, fromSetting, owned, selectedFruits, ownedPets, wishlistPets]);
+
+  const handleRemoveSelected = useCallback(
+    (index) => {
+      if (fromChat) {
+        setSelectedFruits?.((prev = []) => prev.filter((_, i) => i !== index));
+      } else if (fromSetting) {
+        if (owned) {
+          setOwnedPets?.((prev = []) => prev.filter((_, i) => i !== index));
+        } else {
+          setWishlistPets?.((prev = []) => prev.filter((_, i) => i !== index));
+        }
+      }
+    },
+    [fromChat, fromSetting, owned, setSelectedFruits, setOwnedPets, setWishlistPets]
   );
+  const handlePress = (item, type) => {
+    // console.log(type)
+    const fruitObj = {
+      // Name: item.Name ?? item.name,
+      name: item.name,
+      value: type === 'n' ? Number(item.value) : Number(item.permValue),
+      type:type,
+      // valueType: itemSelection.valueType,
+      // imag/eUrl,
+      id: item.id,
+    };
 
+    // 👉 From chat: always add another copy
+    if (fromChat) {
+      setSelectedFruits(prev => [...(prev || []), fruitObj]);
+    }
+
+    // 👉 From settings: always add another copy
+    if (fromSetting) {
+      if (owned) {
+        setOwnedPets(prev => [...(prev || []), fruitObj]);
+      } else {
+        setWishlistPets(prev => [...(prev || []), fruitObj]);
+      }
+    }
+  };
 
 
   const renderItem = React.useCallback(({ item }) => (
-    <View style={styles.itemContainer}>
+    <View style={styles.itemContainer} disabled={!fromChat && !fromSetting}>
       <View style={styles.headerContainer}>
         <View style={styles.imageContainer}>
           <Image
@@ -392,7 +442,7 @@ const ValueScreen = ({ selectedTheme }) => {
 
 
       </View>
-      <View style={{ backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF', width: '100%', borderRadius: 8, padding: 10, marginTop: 10 }}>
+     {!fromChat && !fromSetting && <View style={{ backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF', width: '100%', borderRadius: 8, padding: 10, marginTop: 10 }}>
         <View style={styles.rowcenter}>
           <Text style={styles.headertext}>TYPE : </Text>
           <Text style={styles.value}>{item.type ? item.type : 'N/A'} </Text>
@@ -421,12 +471,20 @@ const ValueScreen = ({ selectedTheme }) => {
 
 
 
-      </View>
-      {isAdmin && (
-        <TouchableOpacity onPress={() => openEditModal(item)} style={styles.editButton}>
-          <Text style={styles.editButtonText}>Edit</Text>
+      </View>}
+     {(fromChat || fromSetting) && <View style={styles.headerContainer}>
+        <TouchableOpacity style={[styles.pointsBox, {backgroundColor:config.colors.hasBlockGreen }]} onPress={()=>handlePress(item, 'n')}>
+         <Text style={{fontFamily:'Lato-Bold', alignSelf:'center'}}>Select Normal</Text>
         </TouchableOpacity>
-      )}
+
+        <TouchableOpacity style={[styles.pointsBox, {backgroundColor : '#FFD700'}]} onPress={()=>handlePress(item, 'p')}>
+         <Text style={{fontFamily:'Lato-Bold', alignSelf:'center'}}>Select Permenenet</Text>
+        </TouchableOpacity>
+
+
+
+      </View>}
+   
       <View style={styles.devider}></View>
 
     </View>
@@ -445,10 +503,57 @@ const ValueScreen = ({ selectedTheme }) => {
           {/* <Text style={[styles.description, { color: selectedTheme.colors.text }]}>
             {t("value.description")}
           </Text> */}
-                    {showAd1 ? (
+                    {/* {showAd1 ? (
             <CustomAd />
           ) : (
             <CustomAd2 />
+          )} */}
+
+{(fromChat || fromSetting) && selectedList?.length > 0 && (
+            <View style={styles.selectedPetsSection}>
+              <View style={styles.selectedPetsHeader}>
+                <Text style={styles.selectedPetsTitle}>
+                  {fromChat
+                    ? 'Selected pets'
+                    : owned
+                      ? 'Owned pets'
+                      : 'Wishlist'}
+                </Text>
+
+                <Text style={styles.selectedPetsCount}>
+                  {selectedList.length}
+                </Text>
+              </View>
+
+              <FlatList
+                horizontal
+                data={selectedList}
+                keyExtractor={(item, index) => `${item.id || item.name}-${index}`}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.selectedPetsList}
+                renderItem={({ item, index }) => (
+                  <TouchableOpacity style={styles.selectedPetCard} onPress={() => handleRemoveSelected(index)}>
+                    <Image
+                      source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/${item.type === 'n' ? '09' : '08'}/${formatName(item.name)}_Icon.webp` }}
+                      style={styles.selectedPetImage}
+                    />
+                    <Text
+                      style={styles.selectedPetName}
+                      numberOfLines={1}
+                    >
+                      {item.name}
+                    </Text>
+
+                    <View
+                      style={styles.removePetButton}
+
+                    >
+                      <Icon name="close" size={8} color="#fff" />
+                    </View>
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
           )}
 
           <View style={styles.searchFilterContainer}>
@@ -459,7 +564,7 @@ const ValueScreen = ({ selectedTheme }) => {
               onChangeText={handleSearchChange}
 
             />
-            <Menu>
+            {!fromChat && !fromSetting && <Menu>
               <MenuTrigger onPress={() => {}}>
                 <View style={styles.filterButton}>
                   <Text style={styles.filterText}>{displayedFilter}</Text>
@@ -481,13 +586,21 @@ const ValueScreen = ({ selectedTheme }) => {
                   </MenuOption>
                 ))}
               </MenuOptions>
-            </Menu>
-            <TouchableOpacity
+            </Menu>}
+            {!fromChat && !fromSetting && <TouchableOpacity
               style={[styles.filterDropdown, { backgroundColor: config.colors.primary }]}
               onPress={toggleDrawer}
             >
               <Text style={[styles.filterText, { color: 'white' }]}> {t("value.codes")}</Text>
-            </TouchableOpacity>
+            </TouchableOpacity>}
+            {selectedFruits?.length > 0 && <TouchableOpacity
+              style={[styles.filterButton, { backgroundColor: 'purple' }]}
+              onPress={onRequestClose}
+            >
+              <Text style={styles.filterText}>
+                Done
+              </Text>
+            </TouchableOpacity>}
           </View>
 
 
@@ -509,7 +622,7 @@ const ValueScreen = ({ selectedTheme }) => {
                 onRefresh={handleRefresh}
               // columnWrapperStyle={!config.isNoman ? styles.columnWrapper : styles.columnWrapper}
               />
-              {isModalVisible && selectedFruit && <EditFruitModal />}
+              {/* {isModalVisible && selectedFruit && <EditFruitModal />} */}
             </>
           ) : (
             <Text style={[styles.description, { textAlign: 'center', marginTop: 20, color: 'gray' }]}>
@@ -809,6 +922,69 @@ export const getStyles = (isDarkMode) =>
       fontSize: 14,
       fontFamily: 'Lato-Bold',
     },
+    selectedPetsSection: {
+      paddingHorizontal: 8,
+      paddingTop: 4,
+      paddingBottom: 2,
+    },
+    selectedPetsHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 4,
+    },
+    selectedPetsTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: isDarkMode ? '#ffffff' : '#111827',
+    },
+    selectedPetsCount: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: isDarkMode ? '#9ca3af' : '#6b7280',
+    },
+    selectedPetsList: {
+      paddingVertical: 4,
+    },
+    selectedPetCard: {
+      width: 40,
+      marginRight: 8,
+      borderRadius: 10,
+      padding: 6,
+      backgroundColor: isDarkMode ? '#1f2933' : '#ffffff',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
+      justifyContent:'center',
+      alignItems:'center'
+    },
+    selectedPetImage: {
+      width: 20,
+      height: 20,
+      borderRadius: 8,
+      marginBottom: 1,
+      backgroundColor: isDarkMode ? '#111827' : '#f3f4f6',
+    },
+    selectedPetName: {
+      fontSize: 8,
+      fontWeight: '500',
+      color: isDarkMode ? '#e5e7eb' : '#111827',
+    },
+    removePetButton: {
+      position: 'absolute',
+      top: 1,
+      right: 1,
+      width: 10,
+      height: 10,
+      borderRadius: 9,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: 'rgba(0,0,0,0.6)',
+    },
+  
   });
+
 
 export default ValueScreen;

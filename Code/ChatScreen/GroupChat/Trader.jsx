@@ -28,7 +28,8 @@ import InterstitialAdManager from '../../Ads/IntAd';
 import BannerAdComponent from '../../Ads/bannerAds';
 import { logoutUser } from '../../Firebase/UserLogics';
 import { showMessage } from 'react-native-flash-message';
-import { queryEqual } from '@react-native-firebase/firestore';
+import PetModal from '../PrivateChat/PetsModel';
+
 leoProfanity.add(['hell', 'shit']);
 leoProfanity.loadDictionary('en');
 
@@ -60,11 +61,13 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   const isFocused = useIsFocused();
   const [selectedEmoji, setSelectedEmoji] = useState(null);
   const [strikeInfo, setStrikeInfo] = useState(null);
-
+  const [petModalVisible, setPetModalVisible] = useState(false);
+  const [selectedFruits, setSelectedFruits] = useState([]); 
+  
 
 
   const flatListRef = useRef();
-  const gifAllowed = user?.purchases?.[11]?.title === "Chat Emoji";
+  const gifAllowed = true;
   useEffect(() => {
     const fetchPinnedMessages = async () => {
       try {
@@ -93,6 +96,25 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   
     return () => pinnedMessagesRef.off('child_added', listener); // Cleanup listener
   }, []);
+  const openProfileDrawer = async (userData) => {
+    if (!userData) return;
+  
+    setSelectedUser(userData);
+    setIsDrawerVisible(true);
+  
+    try {
+      const online = await isUserOnline(userData.senderId);
+      setIsOnline(online);
+    } catch (error) {
+      console.error('🔥 Error checking online status:', error);
+      setIsOnline(false);
+    }
+  };
+  
+  // close when tapping overlay / close button
+  const closeProfileDrawer = () => {
+    setIsDrawerVisible(false);
+  };
 
   useEffect(() => {
     if (isAtBottom && pendingMessages.length > 0) {
@@ -159,29 +181,35 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     return () => unsubscribe();
   }, [currentUserEmail]);
 
-  const validateMessage = useCallback((message) => {
-    const hasText = !!message?.text?.trim();
-    const hasGif  = !!message?.gif;
+  const validateMessage = useCallback(
+    (message) => {
+      const hasText   = !!message?.text?.trim();
+      const hasGif    = !!message?.gif;
+      const hasFruits =  !! Array.isArray(message?.fruits) && message.fruits.length > 0;
   
-    // If no content at all → delete from DB and skip locally
-    if (!hasText && !hasGif) {
-      try {
-        const sanitizedId = message?.id?.replace(/^chat_new-?/, '');
-        if (sanitizedId) {
-          remove(ref(appdatabase, `chat_new/${sanitizedId}`));
-        }
-      } catch (_) {}
-      return null; // <-- drop this message in UI state
-    }
+      // If no content at all → delete from DB and skip locally
+      if (!hasText && !hasGif && !hasFruits) {   // 👈 changed line
+        try {
+          const sanitizedId = message?.id?.replace(/^chat_new-?/, '');
+          if (sanitizedId) {
+            remove(ref(appdatabase, `chat_new/${sanitizedId}`));
+          }
+        } catch (_) {}
+        return null;
+      }
   
-    return {
-      ...message,
-      sender: message?.sender?.trim() || 'Anonymous',
-      text: hasText ? message.text.trim() : '', // keep empty string for GIF-only messages
-      timestamp: Number(message?.timestamp) || Date.now(), // or serverNow() if you prefer
-      gif: message?.gif ?? null,
-    };
-  }, [appdatabase]);
+      return {
+        ...message,
+        sender: message?.sender?.trim() || 'Anonymous',
+        text: hasText ? message.text.trim() : '', // empty string is fine for GIF/fruit only
+        timestamp: Number(message?.timestamp) || Date.now(),
+        gif: message?.gif ?? null,
+        fruits: hasFruits ? message.fruits : [],  // 👈 extra safety
+      };
+    },
+    [appdatabase],
+  );
+  
   
 
   const loadMessages = useCallback(
@@ -392,7 +420,12 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     // fetchChats()
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = (replyToArg, trimmedInputArg, fruits, emojiUrl) => {
+    const hasEmoji  = !!emojiUrl;
+
+    console.log(emojiUrl)
+
+    const hasFruits = Array.isArray(fruits) && fruits.length > 0;
     const MAX_CHARACTERS = 250;
     const MESSAGE_COOLDOWN = 5000;
     const LINK_REGEX = /(https?:\/\/[^\s]+)/g;
@@ -435,14 +468,13 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         return;
       }
     }
-
-    const trimmedInput = input.trim();
-    if (!trimmedInput) {
+    const trimmedInput = (trimmedInputArg || '').trim();
+        if (!trimmedInput && !hasFruits && !emojiUrl) {
       Alert.alert(t('home.alert.error'), 'Message cannot be empty.');
       return;
     }
 
-    if (leoProfanity.check(trimmedInput)) {
+    if (trimmedInput && leoProfanity.check(trimmedInput)) {
       Alert.alert(t('home.alert.error'), t('misc.inappropriateLanguage'));
       return;
     }
@@ -457,26 +489,39 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       return;
     }
 
-    const containsLink = LINK_REGEX.test(trimmedInput);
+    const containsLink = trimmedInput ? LINK_REGEX.test(trimmedInput) : false;
     if (containsLink  && !isAdmin) {
       Alert.alert(t('home.alert.error'), t('misc.proUsersOnlyLinks'));
       return;
     }
+    // console.log(trimmedInput, fruits, hasFruits)
 
     try {
-      ref(appdatabase, 'chat_new').push({
-        text: trimmedInput,
+        ref(appdatabase, 'chat_new').push({
+        text: trimmedInput || null,
         timestamp: database.ServerValue.TIMESTAMP,
         sender: user.displayName || 'Anonymous',
         senderId: user.id,
         avatar: user.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
-        replyTo: replyTo ? { id: replyTo.id, text: replyTo.text } : null,
+        replyTo: replyToArg
+        ? {
+            id: replyToArg.id,
+            text: replyToArg.text || '',
+            gif: replyToArg.gif || null,
+            hasFruits: Array.isArray(replyToArg.fruits) && replyToArg.fruits.length > 0,
+            fruitsCount: Array.isArray(replyToArg.fruits) ? replyToArg.fruits.length : 0,
+          }
+        : null,      
         reportCount: 0,
         containsLink,
         isPro: localState.isPro,
-        isAdmin: isAdmin,
+        isAdmin: !!isAdmin,
         strikeCount: strikeInfo?.strikeCount || null,
-        currentUserEmail: currentUserEmail
+        currentUserEmail: currentUserEmail,
+        fruits: hasFruits ? fruits : [],
+        gif: hasEmoji ? emojiUrl : null,
+        flage: user.flage ? user.flage : null
+
 
       });
 
@@ -490,7 +535,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     }
   };
 
-  // console.log(isPro)
+  // console.log(user.flage)
   return (
     <>
       <GestureHandlerRootView>
@@ -537,8 +582,10 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                 // isOwner={isOwner}
                 isAtBottom={isAtBottom}
                 setIsAtBottom={setIsAtBottom}
-                toggleDrawer={toggleDrawer}
+                // toggleDrawer={toggleDrawer}
                 setMessages={setMessages}
+                toggleDrawer={openProfileDrawer}
+
 
                
               />
@@ -553,6 +600,10 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                 selectedTheme={selectedTheme}
                 replyTo={replyTo} // Pass reply context to MessageInput
                 onCancelReply={() => setReplyTo(null)} // Clear reply context
+                petModalVisible={petModalVisible}
+                setPetModalVisible={setPetModalVisible}
+                selectedFruits={selectedFruits}
+                setSelectedFruits={setSelectedFruits}
                 gifAllowed={gifAllowed}
                 selectedEmoji={selectedEmoji}
                 setSelectedEmoji={setSelectedEmoji}
@@ -567,6 +618,17 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                 <Text style={styles.loginText}>{t('misc.loginToStartChat')}</Text>
               </TouchableOpacity>
             )}
+             <PetModal
+               fromChat={true}
+      visible={petModalVisible}
+      onClose={() => setPetModalVisible(false)}
+        selectedFruits={selectedFruits}
+        setSelectedFruits={setSelectedFruits}
+
+
+
+      
+    />
           </ConditionalKeyboardWrapper>
 
           <SignInDrawer
@@ -580,7 +642,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         </View>
         <ProfileBottomDrawer
           isVisible={isDrawerVisible}
-          toggleModal={toggleDrawer}
+          toggleModal={closeProfileDrawer}  
           startChat={startPrivateChat}
           selectedUser={selectedUser}
           isOnline={isOnline}

@@ -1,24 +1,21 @@
-import  { useEffect } from 'react';
+// Code/Firebase/FrontendNotificationHandling.js
+
+import { useEffect } from 'react';
 import { Platform } from 'react-native';
-import { initializeApp, getApp, getApps } from '@react-native-firebase/app';
-import { getMessaging, onMessage, setBackgroundMessageHandler } from '@react-native-firebase/messaging';
+import { getMessaging, onMessage } from '@react-native-firebase/messaging';
 import notifee, { AndroidImportance, EventType } from '@notifee/react-native';
 import { useLocalState } from '../LocalGlobelStats';
 
-// ✅ Ensure Firebase is initialized only once
-const firebaseConfig = { /* Your Firebase Config */ };
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-
-// ✅ Initialize Firebase Messaging
-const messaging = getMessaging(app);
+// ✅ Messaging instance for default app
+const messaging = getMessaging();
 
 const NotificationHandler = () => {
-  const { localState } = useLocalState()
+  const { localState } = useLocalState();
 
   useEffect(() => {
-    // ✅ Create Notification Channel
-    const createNotificationChannel = async () => {
+    const setup = async () => {
       try {
+        // Android: create channel once
         if (Platform.OS === 'android') {
           await notifee.createChannel({
             id: 'default',
@@ -30,19 +27,24 @@ const NotificationHandler = () => {
           });
         }
       } catch (error) {
-        console.error('Error creating notification channel:', error);
+        // console.error('[Notification] createChannel error:', error);
       }
     };
 
-    createNotificationChannel();
+    setup();
 
     let isProcessingNotification = false;
 
-    // ✅ Function to Process Notifications
     const processNotification = async (remoteMessage) => {
-      // console.log(remoteMessage)
+      if (!remoteMessage) {
+        // console.warn('[Notification] remoteMessage is null/undefined');
+        return;
+      }
+
+      // console.log('[FCM] Received message in foreground:', remoteMessage);
+
       if (isProcessingNotification) {
-        console.warn('Already processing a notification. Skipping...');
+        // console.warn('[Notification] Already processing, skipping…');
         return;
       }
 
@@ -52,33 +54,24 @@ const NotificationHandler = () => {
         const { notification, data } = remoteMessage || {};
         const title = notification?.title || data?.title || null;
         const body = notification?.body || data?.body || null;
-        const senderId = data?.senderId;        
+        const senderId = data?.senderId;
         const type = data?.taype;
-        // console.log(remoteMessage)
-        if (localState?.bannedUsers?.includes(senderId)) {
-          // console.warn(`🚫 Skipping notification from banned sender: ${senderId}`);
 
+        if (localState?.bannedUsers?.includes(senderId)) {
+          // console.log('[Notification] Sender is banned, skipping:', senderId);
           return;
         }
-
 
         if (!title || !body) {
-          console.warn('Notification payload is incomplete:', remoteMessage);
+          // console.warn('[Notification] Incomplete payload:', remoteMessage);
           return;
         }
-
-        const capitalizeFruits = (fruits) =>
-          fruits
-            ?.split(',')
-            .map((fruit) => fruit.trim().charAt(0).toUpperCase() + fruit.trim().slice(1))
-            .join(', ') || '';
 
         let notificationTitle = title;
         let notificationBody = body;
 
         if (type === 'selectedFruits') {
-          notificationTitle = title;
-          notificationBody = body;
+          // keep as is
         } else if (type === 'stockUpdate') {
           notificationTitle = 'Stock Update';
           notificationBody = 'Stocks have been updated!';
@@ -95,29 +88,26 @@ const NotificationHandler = () => {
           },
         });
       } catch (error) {
-        console.error('Error processing notification:', error);
+        // console.error('[Notification] Error processing notification:', error);
       } finally {
         isProcessingNotification = false;
       }
     };
 
-    // ✅ Foreground Notification Listener
+    // ✅ Foreground listener (modular)
     const unsubscribeForeground = onMessage(messaging, async (remoteMessage) => {
       await processNotification(remoteMessage);
     });
-    // ✅ Background Notification Handler
-    setBackgroundMessageHandler(messaging, async (remoteMessage) => {
-      await processNotification(remoteMessage);
-    });
 
-    // ✅ Handle Notification Clicks
-    const unsubscribeNotifee = notifee.onForegroundEvent(async ({ type, detail }) => {
-      if (type === EventType.PRESS) {
-        // console.log('Notification clicked:', detail.notification);
-        // Handle navigation or other actions here
-        // Alert.alert('Notification Clicked', 'You interacted with the notification!');
-      }
-    });
+    // ✅ Handle Notifee notification clicks (foreground)
+    const unsubscribeNotifee = notifee.onForegroundEvent(
+      async ({ type, detail }) => {
+        if (type === EventType.PRESS) {
+          // console.log('Notification clicked:', detail.notification);
+          // handle navigation if you want
+        }
+      },
+    );
 
     return () => {
       unsubscribeForeground();

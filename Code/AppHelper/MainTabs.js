@@ -12,9 +12,9 @@ import config from '../Helper/Environment';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import BouncingCartIcon from './CartIcon';
 import TopLevelStockComponent from '../StockScreen/StockNavigator';
-import RewardCenterScreen from '../SettingScreen/RewardCenter';
 import DesignStack from '../Design/DesignNavigation';
 import { useGlobalState } from '../GlobelStats';
+import CustomTopTabs from '../ValuesScreen/TopTabs';
 
 
 
@@ -44,7 +44,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
       Stock: ['cart-shopping', 'cart-shopping'],
       Trade: ['handshake', 'handshake'],
       Chat: ['envelope', 'envelope'],
-      Values: ['sack-dollar', 'sack-dollar'],
+      Values: ['angles-right', 'angles-right'],
       Designs: ['chart-simple', 'chart-simple'],
     };
 
@@ -198,10 +198,10 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
       <Tab.Screen
         name="Values"
         options={{
-          title: 'Rewards', // Translation applied here
+          title: 'More', // Translation applied here
         }}
       >
-        {() => <RewardCenterScreen selectedTheme={selectedTheme} />}
+        {() => <CustomTopTabs selectedTheme={selectedTheme} />}
       </Tab.Screen>
     </Tab.Navigator>
   );

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { getApp, getApps, initializeApp } from '@react-native-firebase/app';
+import {  getApps } from '@react-native-firebase/app';
 import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
 import { ref, set, update, get, onDisconnect, getDatabase } from '@react-native-firebase/database';
 import { getFirestore } from '@react-native-firebase/firestore';
@@ -7,6 +7,7 @@ import { createNewUser, firebaseConfig, registerForNotifications } from './Globe
 import { useLocalState } from './LocalGlobelStats';
 import { requestPermission } from './Helper/PermissionCheck';
 import { useColorScheme, InteractionManager } from 'react-native';
+import { getFlag } from './Helper/CountryCheck';
 const app = getApps();
 const auth = getAuth(app);
 const firestoreDB = getFirestore(app);
@@ -27,6 +28,10 @@ export const GlobalStateProvider = ({ children }) => {
   const [freeTranslation, setFreeTranslation] = useState(null);
   const [proGranted, setProGranted] = useState(false)
   const [currentUserEmail, setCurrentuserEmail] = useState('')
+  const [single_offer_wall, setSingle_offer_wall] = useState(false)
+
+
+  
 
 
 
@@ -44,7 +49,9 @@ export const GlobalStateProvider = ({ children }) => {
     lastActivity: null,
     online: false,
     isPro: false,
-    coins:null
+    coins:null,
+    createdAt:null
+
 
   });
 
@@ -191,7 +198,9 @@ export const GlobalStateProvider = ({ children }) => {
       lastActivity: null,
       online: false,
       isPro: false,
-      coins:null
+      coins:null,
+      createdAt:null
+
 
     });
   }, []); // No dependencies, so it never re-creates
@@ -219,13 +228,22 @@ export const GlobalStateProvider = ({ children }) => {
 
 
       if (snapshot.exists()) {
-        userData = { ...snapshot.val(), id: userId };
-        // console.log(userData, 'userData')
+        const existing = snapshot.val();
+        userData = { 
+          ...existing,
+          id: userId,
+          createdAt: existing.createdAt || Date.now()   // fallback if missing
+        };
+                // console.log(userData, 'userData')
 
 
       } else {
         // console.log(robloxUsernameRef?.current, 'robloxUsername_inside')
-        userData = createNewUser(userId, loggedInUser, robloxUsernameRef?.current);
+        userData = {
+          ...createNewUser(userId, loggedInUser, robloxUsernameRef?.current),
+          createdAt: Date.now()
+        };
+      
         await set(userRef, userData);
       }
       // console.log(userData, 'user')
@@ -238,6 +256,28 @@ export const GlobalStateProvider = ({ children }) => {
       console.error("❌ Auth state change error:", error);
     }
   }, [appdatabase, resetUserState]); // ✅ Uses memoized resetUserState
+
+  useEffect(() => {
+    if (!user?.id) return;
+  
+    const run = async () => {
+      try {
+        console.log('Registering push token for user:', user.id);
+        await registerForNotifications(user.id);
+      } catch (e) {
+        console.log('registerForNotifications error', e);
+      }
+    };
+  
+    run();
+  }, [user?.id]);
+
+  useEffect(()=>{
+    // console.log(user)
+    if(!isAdmin)
+    updateLocalStateAndDatabase({flage:getFlag()})
+    // getFlag()
+  },[user.id])
 
   // ✅ Ensure useEffect runs only when necessary
   useEffect(() => {
@@ -262,10 +302,12 @@ export const GlobalStateProvider = ({ children }) => {
     const fetchAPIKeys = async () => {
       try {
         const apiRef = ref(appdatabase, 'api');
+        const paywallSecondOnlyFlagRef = ref(appdatabase, 'single_offer_wall');
         const freeRef = ref(appdatabase, 'free_translation');
 
-        const [snapshotApi, snapshotFree] = await Promise.all([
+        const [snapshotApi, paywallSecondOnlyFlag,  snapshotFree] = await Promise.all([
           get(apiRef),
+          get(paywallSecondOnlyFlagRef),
           get(freeRef),
         ]);
 
@@ -281,6 +323,14 @@ export const GlobalStateProvider = ({ children }) => {
           const value = snapshotFree.val();
           // console.log('chec', value)
           setFreeTranslation(value);
+          // console.log('🔑 [Firebase] Free Translation Key from /free_translation:', value);
+        } else {
+          console.warn('⚠️ No free translation key found at /free_translation');
+        }
+        if (paywallSecondOnlyFlag.exists()) {
+          const value = paywallSecondOnlyFlag.val();
+          // console.log('chec', value)
+          setSingle_offer_wall(value);
           // console.log('🔑 [Firebase] Free Translation Key from /free_translation:', value);
         } else {
           console.warn('⚠️ No free translation key found at /free_translation');
@@ -493,6 +543,7 @@ export const GlobalStateProvider = ({ children }) => {
 
   const contextValue = useMemo(
     () => ({
+ auth, 
       user,
       onlineMembersCount,
       firestoreDB,
@@ -506,10 +557,10 @@ export const GlobalStateProvider = ({ children }) => {
       freeTranslation,
       isAdmin,
       reload,
-      robloxUsernameRef, api,   proTagBought, stockNotifierPurchase, proGranted, currentUserEmail
+      robloxUsernameRef, api,   proTagBought, stockNotifierPurchase, proGranted, currentUserEmail, single_offer_wall
 
     }),
-    [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api, freeTranslation, proTagBought, currentUserEmail]
+    [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api, freeTranslation, proTagBought, currentUserEmail, auth, ]
   );
 
   return (

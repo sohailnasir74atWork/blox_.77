@@ -20,6 +20,8 @@ export const getStyles = (isDarkMode) =>
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 15,
+        paddingVertical:5,
+
       },
       profileImage: {
         width: 60,
@@ -122,17 +124,28 @@ export const getStyles = (isDarkMode) =>
       saveButton: {
         backgroundColor: config.colors.primary,
         paddingVertical: 15,
-        borderRadius: 20,
-        marginTop: 20,
+        borderRadius: 10,
+        marginTop: 10,
       },
       saveButtonText: {
         color: '#fff',
         textAlign: 'center',
       },
+      saveButtonProfile: {
+        borderWidth:2,
+        borderColor: config.colors.primary,
+        paddingVertical: 15,
+        borderRadius: 20,
+        marginTop: 20,
+      },
+      saveButtonTextProfile: {
+        // color: '#fff',
+        textAlign: 'center',
+      },
       drawerSubtitle:{
         color: isDarkMode ? '#fff' : '#000',
         fontFamily:'Lato-Bold',
-        marginBottom:10
+        marginBottom:5
       },
       drawerSubtitleUser:{
         color: isDarkMode ? '#fff' : '#000',
@@ -255,6 +268,96 @@ export const getStyles = (isDarkMode) =>
         color: 'blue', // Blue color to make it look like a link
         textDecorationLine: 'underline', // Underline to signify it as a link
       },
+      petsSection: {
+        marginTop: 12,
+        // flexDirection: 'row',
+        justifyContent: 'space-between',
+        gap: 10,
+        // flex: 1,
+
+      },
       
+      petsColumn: {
+        // flex: 1,
+        paddingHorizontal:20,
+        paddingVertical:10
+      },
+      
+      petsHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 4,
+        
+      },
+      
+      petsTitle: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: isDarkMode ? '#F9FAFB' : '#111827',
+      },
+      
+      petsActionText: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#4A90E2',
+      },
+      
+      petsEmptyText: {
+        fontSize: 11,
+        color: isDarkMode ? '#9CA3AF' : '#6B7280',
+      },
+      
+      petsAvatarRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 4,
+        marginTop: 2,
+      },
+      
+      petBubble: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: isDarkMode ? '#4B5563' : '#E5E7EB',
+      },
+      
+      petImageSmall: {
+        width: '100%',
+        height: '100%',
+      },
+      
+      moreBubble: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: isDarkMode ? '#374151' : '#E5E7EB',
+        justifyContent: 'center',
+        alignItems: 'center',
+      },
+      
+      moreBubbleText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: isDarkMode ? '#F9FAFB' : '#111827',
+      },
+      imageOptionWrapper: {
+        marginRight: 8,
+        padding: 2,
+        borderRadius: 999,
+      },
+      imageOptionSelected: {
+        borderWidth: 2,
+        borderColor: '#4CAF50',
+      },
+      imageOption: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+      },
+    
     });
   

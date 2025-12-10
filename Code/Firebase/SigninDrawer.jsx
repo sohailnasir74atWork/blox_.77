@@ -13,7 +13,6 @@ import {
     Alert,
 } from 'react-native';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import auth from '@react-native-firebase/auth';
 import Icon from 'react-native-vector-icons/FontAwesome'; // Ensure FontAwesome is installed
 import appleAuth, { AppleButton } from '@invertase/react-native-apple-authentication';
 import { useHaptic } from '../Helper/HepticFeedBack';
@@ -23,8 +22,17 @@ import { useTranslation } from 'react-i18next';
 import { showSuccessMessage, showErrorMessage, showWarningMessage } from '../Helper/MessageHelper';
 import { mixpanel } from '../AppHelper/MixPenel';
 import { requestPermission } from '../Helper/PermissionCheck';
-import { showMessage } from 'react-native-flash-message';
-
+import { getApp } from '@react-native-firebase/app';
+import {
+  getAuth,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithCredential,
+  GoogleAuthProvider,
+  AppleAuthProvider,
+  signOut,
+} from '@react-native-firebase/auth';
 
 
 const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
@@ -34,6 +42,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     const [isLoading, setIsLoading] = useState(false)
     const [isLoadingSecondary, setIsLoadingSecondary] = useState(false);
     const [robloxUsernameError, setRobloxUsernameError] = useState('');
+    
     const { triggerHapticFeedback } = useHaptic();
     const { theme, robloxUsernameRef } = useGlobalState()
     const [robloxUsernamelocal, setRobloxUsernamelocal] = useState()
@@ -45,6 +54,13 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
 
     const { t } = useTranslation();
     // const appdatabase = getDatabase(app);
+    const app = getApp();
+    const auth = getAuth(app);
+
+    useEffect(() => {
+        robloxUsernameRef.current = robloxUsernamelocal;
+      }, [robloxUsernamelocal, robloxUsernameRef]);
+      
     const isDarkMode = theme === 'dark';
     useEffect(() => {
         GoogleSignin.configure({
@@ -56,11 +72,14 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
         if (!appleAuth.isSupported) return;
     
         return appleAuth.onCredentialRevoked(async () => {
-            await auth().signOut();
-            showWarningMessage("Session Expired", "Please sign in again.");
+          try {
+            await signOut(auth);
+            showWarningMessage('Session Expired', 'Please sign in again.');
+          } catch (e) {
+            console.error('Error during signOut on Apple revoke:', e);
+          }
         });
-    }, []);
-    
+      }, [auth]);
     
     // const validateRobloxUsername = () => {
     //     if (Platform.OS === 'ios') return true; // ✅ Skip validation on iOS
@@ -92,7 +111,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     
         setIsLoading(true);
         try {
-            await auth().sendPasswordResetEmail(email);
+            await sendPasswordResetEmail(auth, email);
             showSuccessMessage(t("home.alert.success"), t("signin.password_reset_email_sent"));
             setIsForgotPasswordMode(false); // Switch back to sign-in mode after success
         } catch (error) {
@@ -117,7 +136,9 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     
             if (!identityToken) throw new Error(t("signin.error_apple_token"));
     
-            await auth().signInWithCredential(auth.AppleAuthProvider.credential(identityToken, nonce));
+            const appleCredential = AppleAuthProvider.credential(identityToken, nonce);
+            await signInWithCredential(auth, appleCredential);
+
             showSuccessMessage(
                 t("home.alert.success"),
                 t("signin.success_signin")
@@ -133,7 +154,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                 error?.message || t("signin.error_signin_message")
             );
         }
-    }, [t, triggerHapticFeedback]);
+    }, [auth, t, triggerHapticFeedback, onClose, screen]);
     
     
     
@@ -157,12 +178,12 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
       try {
         if (isRegisterMode) {
           // 🔐 Register new user
-          const userCredential = await auth().createUserWithEmailAndPassword(email, password);
+          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
           const user = userCredential.user;
     
           if (!user.emailVerified) {
             await user.sendEmailVerification();
-            await auth().signOut();
+            await signOut(auth);
     
             Alert.alert(
               "✅ Account Created",
@@ -173,12 +194,12 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     
         } else {
           // 🔐 Login existing user
-          const userCredential = await auth().signInWithEmailAndPassword(email, password);
+          const userCredential = await signInWithEmailAndPassword(auth, email, password);
           const user = userCredential.user;
     
           if (!user.emailVerified) {
             await user.sendEmailVerification();
-            await auth().signOut();
+            await signOut(auth);
     
             Alert.alert(
               "📩 Email Not Verified",
@@ -218,7 +239,8 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
       
     
     const handleGoogleSignIn = useCallback(async () => {
-        // if (!validateRobloxUsername()) return;
+        triggerHapticFeedback('impactLight');
+
         try {
             setIsLoading(true);
             await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
@@ -226,7 +248,9 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
             const idToken = signInResult?.idToken || signInResult?.data?.idToken;
             if (!idToken) throw new Error(t("signin.error_signin_message"));
     
-            await auth().signInWithCredential(auth.GoogleAuthProvider.credential(idToken));
+            const googleCredential = GoogleAuthProvider.credential(idToken);
+      await signInWithCredential(auth, googleCredential);
+      
             showSuccessMessage(
                 t("signin.alert_welcome_back"),
                 t("signin.success_signin")
@@ -235,6 +259,8 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                 onClose();
               }, 200);}
             mixpanel.track(`Login with google from ${screen}`);
+            await requestPermission();
+
 
         } catch (error) {
             // console.log(error)
@@ -242,7 +268,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                 t("home.alert.error"),
                 error?.message || t("signin.error_signin_message")
             );
-            await requestPermission()
+            // await requestPermission()
 
         } finally {
             setIsLoading(false);

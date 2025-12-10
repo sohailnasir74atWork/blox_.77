@@ -1307,9 +1307,9 @@ PODS:
   - GoogleDataTransport (10.1.0):
     - nanopb (~> 3.30910.0)
     - PromisesObjC (~> 2.4)
-  - GoogleMobileAdsMediationUnity (4.16.3.0):
+  - GoogleMobileAdsMediationUnity (4.16.4.0):
     - Google-Mobile-Ads-SDK (~> 12.0)
-    - UnityAds (= 4.16.3)
+    - UnityAds (= 4.16.4)
   - GoogleSignIn (7.1.0):
     - AppAuth (< 2.0, >= 1.7.3)
     - GTMAppAuth (< 5.0, >= 4.1.1)
@@ -1453,8 +1453,11 @@ PODS:
   - PromisesObjC (2.4.0)
   - PromisesSwift (2.4.0):
     - PromisesObjC (= 2.4.0)
-  - PurchasesHybridCommon (14.3.0):
-    - RevenueCat (= 5.32.0)
+  - PurchasesHybridCommon (17.21.2):
+    - RevenueCat (= 5.49.2)
+  - PurchasesHybridCommonUI (17.21.2):
+    - PurchasesHybridCommon (= 17.21.2)
+    - RevenueCatUI (= 5.49.2)
   - RCT-Folly (2024.11.18.00):
     - boost
     - DoubleConversion
@@ -3809,7 +3812,9 @@ PODS:
     - React-utils (= 0.80.2)
     - SocketRocket
   - RecaptchaInterop (101.0.0)
-  - RevenueCat (5.32.0)
+  - RevenueCat (5.49.2)
+  - RevenueCatUI (5.49.2):
+    - RevenueCat (= 5.49.2)
   - RNAppleAuthentication (2.4.1):
     - React-Core
   - RNBootSplash (6.3.11):
@@ -4024,6 +4029,9 @@ PODS:
     - RNNotifee/NotifeeCore (= 9.1.8)
   - RNNotifee/NotifeeCore (9.1.8):
     - React-Core
+  - RNPaywalls (9.6.9):
+    - PurchasesHybridCommonUI (= 17.21.2)
+    - React-Core
   - RNPermissions (5.4.2):
     - boost
     - DoubleConversion
@@ -4053,8 +4061,8 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
-  - RNPurchases (8.12.0):
-    - PurchasesHybridCommon (= 14.3.0)
+  - RNPurchases (9.6.9):
+    - PurchasesHybridCommon (= 17.21.2)
     - React-Core
   - RNReactNativeHapticFeedback (2.3.3):
     - boost
@@ -4354,7 +4362,7 @@ PODS:
     - SocketRocket
     - Yoga
   - SocketRocket (0.7.1)
-  - UnityAds (4.16.3)
+  - UnityAds (4.16.4)
   - Yoga (0.0.0)
 
 DEPENDENCIES:
@@ -4456,6 +4464,7 @@ DEPENDENCIES:
   - "RNGoogleSignin (from `../node_modules/@react-native-google-signin/google-signin`)"
   - RNLocalize (from `../node_modules/react-native-localize`)
   - "RNNotifee (from `../node_modules/@notifee/react-native`)"
+  - RNPaywalls (from `../node_modules/react-native-purchases-ui`)
   - RNPermissions (from `../node_modules/react-native-permissions`)
   - RNPurchases (from `../node_modules/react-native-purchases`)
   - RNReactNativeHapticFeedback (from `../node_modules/react-native-haptic-feedback`)
@@ -4503,8 +4512,10 @@ SPEC REPOS:
     - PromisesObjC
     - PromisesSwift
     - PurchasesHybridCommon
+    - PurchasesHybridCommonUI
     - RecaptchaInterop
     - RevenueCat
+    - RevenueCatUI
     - SocketRocket
     - UnityAds
 
@@ -4702,6 +4713,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-localize"
   RNNotifee:
     :path: "../node_modules/@notifee/react-native"
+  RNPaywalls:
+    :path: "../node_modules/react-native-purchases-ui"
   RNPermissions:
     :path: "../node_modules/react-native-permissions"
   RNPurchases:
@@ -4747,7 +4760,7 @@ SPEC CHECKSUMS:
   glog: 5683914934d5b6e4240e497e0f4a3b42d1854183
   Google-Mobile-Ads-SDK: 1dfb0c3cb46c7e2b00b0f4de74a1e06d9ea25d67
   GoogleDataTransport: aae35b7ea0c09004c3797d53c8c41f66f219d6a7
-  GoogleMobileAdsMediationUnity: 2861f3dc5abe7c13fafd11bd4484fbd5a762778c
+  GoogleMobileAdsMediationUnity: 51cf06b418e7ff22e74b8e08524e2d0076c1de84
   GoogleSignIn: d4281ab6cf21542b1cfaff85c191f230b399d2db
   GoogleUserMessagingPlatform: a8b56893477f67212fbc8411c139e61d463349f5
   GoogleUtilities: 00c88b9a86066ef77f0da2fab05f65d7768ed8e1
@@ -4762,7 +4775,8 @@ SPEC CHECKSUMS:
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   PromisesSwift: 9d77319bbe72ebf6d872900551f7eeba9bce2851
-  PurchasesHybridCommon: 7f0944cc5411bdcd1ea5d69affa6a6f9aaf87b13
+  PurchasesHybridCommon: 71c94158ff8985657d37d5f3be05602881227619
+  PurchasesHybridCommonUI: c490142361da500ea8fe2f75cd6d56df0f7e3152
   RCT-Folly: 59ec0ac1f2f39672a0c6e6cecdd39383b764646f
   RCTDeprecation: 300c5eb91114d4339b0bb39505d0f4824d7299b7
   RCTRequired: e0446b01093475b7082fbeee5d1ef4ad1fe20ac4
@@ -4836,7 +4850,8 @@ SPEC CHECKSUMS:
   ReactCodegen: f8ae44cfcb65af88f409f4b094b879591232f12c
   ReactCommon: a237545f08f598b8b37dc3a9163c1c4b85817b0b
   RecaptchaInterop: 11e0b637842dfb48308d242afc3f448062325aba
-  RevenueCat: 7e1d0768fb287c9983173c9b28e39ccbeeb828a9
+  RevenueCat: d185cbff8be9425b5835042afd6889389bb756c8
+  RevenueCatUI: 3d17f9f0bf7ed299c1671552378086ceeff308fd
   RNAppleAuthentication: b2d8b5ccba86b5b1e55a1a2e858f7ac6d8a21816
   RNBootSplash: bffbd17d1c271398b93112f9120dc8a4d40d3b3c
   RNCClipboard: f09308447254536ab20b243607766796efdf210c
@@ -4853,15 +4868,16 @@ SPEC CHECKSUMS:
   RNGoogleSignin: 43b78cae5212d08c2ec631e70471d4288f6d47db
   RNLocalize: df55d15e0343a821b9f244dc2ec0a3dae71de5b7
   RNNotifee: 4a6ee5c7deaf00e005050052d73ee6315dff7ec9
+  RNPaywalls: f16eec65af5b2d371029569731536243cf1f6c37
   RNPermissions: a11fb299b553fc10416724dc1e734d0205c19452
-  RNPurchases: 7016ce5c482c4a56fc7cb8709e8ba42637766c56
+  RNPurchases: 8a21795ad71f932dca9f48e9560924a3c64878c6
   RNReactNativeHapticFeedback: 8bd4a2ba7c3daeb5d2acfceb8b61743f203076d0
   RNReanimated: 0069fb631ffd37e3be4f85a59356cee00292fa9d
   RNScreens: 60d1c0156a216d2b8ddc5f8cb4ffd546f9488be9
   RNShare: 0891bf652830fc11404c0b9d8ac9192d6e1ae557
   RNVectorIcons: 0e8833406efa1e777fbcb433b8c62db21143c182
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
-  UnityAds: 64164885dd38214bfc556eb074ab1995cc613fbf
+  UnityAds: 91a5d786c1e79fcbf702c525af4700158aeb36c8
   Yoga: ce248fb32065c9b00451491b06607f1c25b2f1ed
 
 PODFILE CHECKSUM: ff9d9ca7f15ce7e1ea824105122aa509a16f9cea

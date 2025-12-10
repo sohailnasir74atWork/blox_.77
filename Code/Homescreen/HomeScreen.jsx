@@ -10,7 +10,6 @@ import { useHaptic } from '../Helper/HepticFeedBack';
 import { getDatabase, ref } from '@react-native-firebase/database';
 import { useLocalState } from '../LocalGlobelStats';
 import SignInDrawer from '../Firebase/SigninDrawer';
-import firestore from '@react-native-firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../Translation/LanguageProvider';
 import { showSuccessMessage, showErrorMessage } from '../Helper/MessageHelper';
@@ -19,12 +18,14 @@ import ShareTradeModal from '../Trades/SharetradeModel';
 import { mixpanel } from '../AppHelper/MixPenel';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
+import { addDoc, collection, serverTimestamp } from '@react-native-firebase/firestore';
+import SubscriptionScreen from '../SettingScreen/OfferWall';
 
 
 const HomeScreen = ({ selectedTheme }) => {
-  const { theme, user, proGranted, proTagBought } = useGlobalState();
-  const tradesCollection = useMemo(() => firestore().collection('trades_new'), []);
-  const initialItems = [null, null, null, null];
+  const { theme, user, proGranted, proTagBought , firestoreDB, single_offer_wall} = useGlobalState();
+  const tradesCollection = collection(firestoreDB, 'trades_new');
+    const initialItems = [null, null, null, null];
   const [hasItems, setHasItems] = useState(initialItems);
   const [fruitRecords, setFruitRecords] = useState([]);
   const [wantsItems, setWantsItems] = useState(initialItems);
@@ -51,8 +52,9 @@ const HomeScreen = ({ selectedTheme }) => {
   const { t } = useTranslation();
   // const pinnedMessagesRef = useMemo(() => ref(appdatabase, 'pin_messages'), []);
 
+  const [showofferwall, setShowofferwall] = useState(false);
 
-
+  
   const CURRENT_APP_VERSION = DeviceInfo.getVersion();
   // useEffect(() => {
   //   let isMounted = true; // ✅ Track mounted state
@@ -202,6 +204,8 @@ const HomeScreen = ({ selectedTheme }) => {
       
       const userRating = avgRatingData?.value || null;
       const ratingCount = avgRatingData?.count || 0; // 👈 total users who rated
+      const now = serverTimestamp();
+
       const styleObj = 
       (user?.purchases && 
         Object.values(user.purchases).find(p => p?.id === 9 && p.style)?.style) ?? {}; 
@@ -225,12 +229,13 @@ const HomeScreen = ({ selectedTheme }) => {
         hasTotal: { price: hasTotal?.price || 0, value: hasTotal?.value || 0 },
         wantsTotal: { price: wantsTotal?.price || 0, value: wantsTotal?.value || 0 },
         description: description || "",
-        timestamp: firestore.FieldValue.serverTimestamp(),
+        timestamp: now,
         rating: userRating,
         ratingCount: ratingCount,
         style: styleObj || {},
         icons: iconArr || [],
-        proTagBought:proTagBought || false
+        proTagBought:proTagBought || false,
+        flage:user?.flage
       };
       // console.log(newTrade, 'new')
       if (type === 'share') {
@@ -269,7 +274,7 @@ const HomeScreen = ({ selectedTheme }) => {
         // console.log("✅ No duplicate trade found. Proceeding with submission...");
 
         // ✅ Submit trade
-        await tradesCollection.add(newTrade);
+        await addDoc(tradesCollection, newTrade);
         // console.log("🎉 Trade successfully submitted!");
 
         if (Platform.OS === 'android')
@@ -414,7 +419,7 @@ const HomeScreen = ({ selectedTheme }) => {
     };
 
     if (section === 'wants' && wantsItemCount === 1 && (!localState.isPro && proGranted)) {
-      InterstitialAdManager.showAd(callbackfunction);
+      callbackfunction(); // No ad needed
     } else {
       callbackfunction(); // No ad needed
     }
@@ -755,6 +760,34 @@ const HomeScreen = ({ selectedTheme }) => {
                 <Text style={{ color: 'white', fontSize:12, fontFamily:'Lato-Bold' }}>{t('home.share_trade')}</Text>
                 <Icon name="share-outline" size={18} color="white" style={{padding:4}}/>
                 </TouchableOpacity></View>
+                {!localState.isPro &&  <View style={styles.createtradeAds}>
+  <TouchableOpacity
+    style={styles.removeAdsButton}
+    activeOpacity={0.9}
+    onPress={()=>{setShowofferwall(true)}}
+  >
+    <View style={styles.removeAdsContent}>
+      {/* Crown icon / image */}
+      <View style={styles.crownWrapper}>
+        {/* <Icon name="trophy" size={18} color="#3b2500" /> */}
+       
+        <Image
+          source={require('../../assets/pro.png')}
+          style={{ width: 20, height: 20 }}
+          resizeMode="contain"
+        />
+        
+      </View>
+
+      <View style={styles.removeAdsTextWrapper}>
+        <Text style={styles.removeAdsTitle}>Remove Ads</Text>
+        {/* <Text style={styles.removeAdsSubtitle}>Unlock a clean experience</Text> */}
+      </View>
+    </View>
+  </TouchableOpacity
+  >
+
+</View>}
           </ScrollView>
           <Modal
             visible={isDrawerVisible}
@@ -856,6 +889,7 @@ const HomeScreen = ({ selectedTheme }) => {
                   </View>
                 </View>
               </View>
+             
             </ConditionalKeyboardWrapper>
           </Modal>
           <ShareTradeModal
@@ -872,6 +906,8 @@ const HomeScreen = ({ selectedTheme }) => {
 
           />
         </View>
+        <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} track='Remove Ads'   oneWallOnly={single_offer_wall}/>
+     
       </GestureHandlerRootView>
       {(!localState.isPro && !proGranted) && <BannerAdComponent />}
 
@@ -1237,6 +1273,61 @@ const getStyles = (isDarkMode) =>
       position: 'absolute',
       top: 0,
       right: 0
+    },
+    createtradeAds: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      flex:1,
+      justifyContent:'center',
+      alignItems:'center',
+    },
+    
+    removeAdsButton: {
+      borderRadius: 999,
+      paddingVertical: 5,
+      paddingHorizontal: 10,
+      backgroundColor: '#fbbf24', // warm gold
+      shadowColor: '#000',
+      shadowOpacity: 0.15,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 4,
+      // minWidth:244
+      marginTop:20
+
+    },
+    
+    removeAdsContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    
+    crownWrapper: {
+      width: 25,
+      height: 25,
+      borderRadius: 12,
+      backgroundColor: '#fde68a',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 8,
+    },
+    
+    removeAdsTextWrapper: {
+      flexDirection: 'column',
+    },
+    
+    removeAdsTitle: {
+      color: '#1f2933',
+      fontSize: 12,
+      fontFamily: 'Lato-Bold',
+    },
+    
+    removeAdsSubtitle: {
+      color: '#374151',
+      fontSize: 10,
+      fontFamily: 'Lato-Regular',
+      opacity: 0.9,
     },
 
   });

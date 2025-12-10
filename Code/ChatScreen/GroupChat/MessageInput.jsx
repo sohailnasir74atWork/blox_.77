@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocalState } from '../../LocalGlobelStats';
 import InterstitialAdManager from '../../Ads/IntAd';
 import { showMessage } from 'react-native-flash-message';
+import { useGlobalState } from '../../GlobelStats';
 
 const Emojies = [
   'e1.png',
@@ -38,6 +39,9 @@ const MessageInput = ({
   selectedEmoji, // The selected Emoji state
   setSelectedEmoji, // Function to set selected Emoji
   gifAllowed, // new prop to check if GIFs/Emojis are allowed
+  setPetModalVisible,
+  selectedFruits,
+  setSelectedFruits,
 }) => {
   const styles = getStyles(selectedTheme.colors.text === 'white');
   const [isSending, setIsSending] = useState(false);
@@ -46,42 +50,58 @@ const MessageInput = ({
   const { t } = useTranslation();
   const { localState } = useLocalState();
   const [loadingImage, setLoadingImage] = useState(false);
+  const { theme } = useGlobalState();
+  const isDark = theme === 'dark';
+  // const gifAllowed = true
+
 
   const [showEmojiPopup, setShowEmojiPopup] = useState(false); // To show the emoji selection popup
   const [showGifPopup, setShowGifPopup] = useState(false); // To show GIF selection popup
+  const hasFruits = Array.isArray(selectedFruits) && selectedFruits.length > 0;
+  const hasContent = (input || '').trim().length > 0 || hasFruits || selectedEmoji;
 
-  const handleSend = async () => {
+
+
+
+  const handleSend = async (emojiArg) => {
     triggerHapticFeedback('impactLight');
-    const trimmedInput = input.trim();
-    // if (!trimmedInput || isSending ) return; // Prevent empty messages or multiple sends
+  
+    const trimmedInput = (input || '').trim();
+    const emojiFromArg = typeof emojiArg === 'string' ? emojiArg : undefined;
+    const emojiToSend  = emojiFromArg || selectedEmoji || null;
+    const hasEmoji     = !!emojiToSend;
+    const fruits       = hasFruits ? [...selectedFruits] : [];
+  
+    if (!trimmedInput && !hasFruits && !hasEmoji) return;
+    if (isSending) return;
+  
     setIsSending(true);
-
-    const callbackfunction = () => {
-      setIsSending(false)
-    };
-
+  
+    const adCallback = () => setIsSending(false);
+  
     try {
-      await handleSendMessage(replyTo, trimmedInput);
+      await handleSendMessage(replyTo, trimmedInput, fruits, emojiToSend);
+  
       setInput('');
-      if (selectedEmoji) setSelectedEmoji(''); // Clear selected emoji after sending message
+      setSelectedFruits([]);
+      if (selectedEmoji) setSelectedEmoji(null);
       if (onCancelReply) onCancelReply();
-
-      // Increment message count
-      setMessageCount(prevCount => {
-        const newCount = prevCount + 1;
-        if ((!localState.isPro) && newCount % 15 === 0) {
-          // Show ad only if user is NOT pro
-          InterstitialAdManager.showAd(callbackfunction);
-        } else {
-          setIsSending(false);
-        }
-        return newCount;
-      });
+  
+      const newCount = messageCount + 1;
+      setMessageCount(newCount);
+  
+      if (!localState?.isPro && newCount % 5 === 0) {
+        InterstitialAdManager.showAd(adCallback);
+      } else {
+        setIsSending(false);
+      }
     } catch (error) {
       console.error('Error sending message:', error);
       setIsSending(false);
     }
   };
+  
+  
   const handleImageLoad = () => {
     setLoadingImage(false); // Image has finished loading
   };
@@ -91,24 +111,20 @@ const MessageInput = ({
   };
 
   // Emoji selection function
-  const selectEmoji = (emoji) => {
-    if (gifAllowed || localState.isPro) {
-      // If GIFs/Emojis are allowed, toggle the emoji selection
-      if (selectedEmoji === emoji) {
-        setSelectedEmoji(null); // Deselect if the same emoji is clicked again
-      } else {
-        setSelectedEmoji(emoji); // Set the selected emoji
-      }
-      setShowEmojiPopup(false); // Close the emoji popup
+  const selectEmoji = (emojiUrl) => {
+    if (gifAllowed) {
+      setSelectedEmoji(emojiUrl);
+      handleSend(emojiUrl);
+       setShowEmojiPopup(false);   // close picker
     } else {
-      // Show message if GIFs/Emojis are not allowed
       showMessage({
         message: "You need to purchase this item from the store in the reward section.",
         type: "info",
-        duration: 3000, // Show the message for 3 seconds
+        duration: 3000,
       });
     }
   };
+  
 
   // GIF selection function
 
@@ -128,8 +144,20 @@ const MessageInput = ({
       )}
 
       <View style={styles.inputContainer}>
+      <TouchableOpacity
+          style={[styles.sendButton, { marginRight: 3, paddingHorizontal: 3 }]}
+          onPress={() => setPetModalVisible && setPetModalVisible(true)}
+          disabled={isSending }
+          >
+          <Icon
+            name="logo-octocat"
+            size={20}
+            color={isDark ? '#FFF' : '#000'}
+          />
+        </TouchableOpacity>
+
         <TextInput
-          style={[styles.input, { color: selectedTheme.colors.text, paddingLeft: selectedEmoji && 50 }]}
+          style={[styles.input, { color: selectedTheme.colors.text }]}
           placeholder={t("chat.type_message")}
           placeholderTextColor="#888"
           value={input} // The input text, no emojis/GIFs added here
@@ -138,7 +166,7 @@ const MessageInput = ({
         />
 
 
-        {(selectedEmoji) && (
+        {/* {(selectedEmoji) && (
           <TouchableOpacity style={{
             position: 'absolute',
             left: 3,
@@ -160,7 +188,7 @@ const MessageInput = ({
               onLoad={handleImageLoad}
             />
           </TouchableOpacity>
-        )}
+        )} */}
 
 
 
@@ -168,9 +196,9 @@ const MessageInput = ({
 
 
 
-        {/* <TouchableOpacity onPress={() => setShowEmojiPopup(true)} style={styles.gifButton}>
+        <TouchableOpacity onPress={() => setShowEmojiPopup(true)} style={styles.gifButton}>
           <Text style={{ fontSize: 25 }}>😊</Text>
-        </TouchableOpacity> */}
+        </TouchableOpacity>
 
 
         {/* Send Button */}
@@ -179,18 +207,42 @@ const MessageInput = ({
             styles.sendButton,
             {
               backgroundColor:
-                input.trim() || selectedEmoji && !isSending
-                  ? '#1E88E5' // If there's text or emoji selected and no sending in progress
-                  : config.colors.primary, // Default color if not enabled
+                hasContent && !isSending ? '#1E88E5' : config.colors.primary,
             },
           ]}
-          onPress={handleSend}
-          disabled={!(input.trim() || selectedEmoji) || isSending}
-        >
+          onPress={()=>handleSend()}
+          disabled={isSending || !hasContent}
+          >
           <Text style={styles.sendButtonText}>{isSending ? t("chat.sending") : t("chat.send")}</Text>
         </TouchableOpacity>
-      </View>
 
+      </View>
+   
+    {hasFruits && (
+        <View
+          style={{
+            paddingHorizontal: 10,
+            paddingTop: 4,
+            flexDirection: 'row',
+            alignItems: 'center',
+          }}
+        >
+          <Text style={{ color: isDark ? '#ccc' : '#555', fontSize: 12 }}>
+            {selectedFruits.length} pet(s) selected
+          </Text>
+
+          <TouchableOpacity
+            onPress={() => setSelectedFruits([])}
+            style={{ marginLeft: 8 }}
+          >
+            <Icon
+              name="close-circle"
+              size={18}
+              color={isDark ? '#ccc' : '#555'}
+            />
+          </TouchableOpacity>
+        </View>
+      )}
       {/* Emoji Popup Modal */}
     {/* Emoji Popup Modal */}
 <Modal visible={showEmojiPopup} transparent animationType="slide">

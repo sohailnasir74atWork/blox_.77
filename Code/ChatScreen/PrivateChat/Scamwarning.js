@@ -1,4 +1,3 @@
-// ScamSafetyBox.tsx
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useGlobalState } from '../../GlobelStats';
@@ -22,22 +21,22 @@ export default function ScamSafetyBox() {
 const getStyles = (isDark) =>
   StyleSheet.create({
     box: {
-      padding: 12,
-      margin: 10,
+      padding: 4,
+      margin: 4,
       borderRadius: 12,
       borderWidth: 1,
-      backgroundColor: isDark ? '#0B1220' : '#FFF7ED', // dark navy vs warm subtle
-      borderColor: isDark ? '#334155' : '#FDBA74',      // slate vs orange-300
+      backgroundColor: isDark ? '#0B1220' : '#FFF7ED', 
+      borderColor: isDark ? '#334155' : '#FDBA74',    
     },
     title: {
-      fontSize: 12,
+      fontSize: 11,
       fontWeight: '800',
-      color: isDark ? '#FDE68A' : '#9A3412',            // amber-200 vs brown
+      color: isDark ? '#FDE68A' : '#9A3412',            
       marginBottom: 6,
     },
     item: {
-      fontSize: 10,
-      color: isDark ? '#E2E8F0' : '#7C2D12',            // slate-200 vs brown-900
-      marginTop: 2,
+      fontSize: 9,
+      color: isDark ? '#E2E8F0' : '#7C2D12',           
+    //   marginTop: 2,
     },
   });

@@ -67,6 +67,8 @@ export const TradeStack = ({ selectedTheme }) => {
   const { theme } = useGlobalState();
   const isDarkMode = theme === 'dark';
   const navigation = useNavigation()
+  const [isDrawerVisible, setIsDrawerVisible] = useState(false);
+
 
 
   const headerOptions = useMemo(
@@ -124,7 +126,7 @@ export const TradeStack = ({ selectedTheme }) => {
         />
 
         {/* Private Chat Screen */}
-        <Stack.Screen
+        {/* <Stack.Screen
           name="PrivateChatTrade"
           component={PrivateChatScreen}
           initialParams={{ bannedUsers }}
@@ -143,7 +145,32 @@ export const TradeStack = ({ selectedTheme }) => {
               ),
             };
           }}
-        />
+        /> */}
+
+<Stack.Screen
+  name="PrivateChatTrade"
+  options={({ route }) => ({
+    headerTitle: () => (
+      <PrivateChatHeader
+        selectedUser={route.params?.selectedUser}
+        selectedTheme={selectedTheme}
+        bannedUsers={bannedUsers}
+        isDrawerVisible={isDrawerVisible}
+        setIsDrawerVisible={setIsDrawerVisible}
+      />
+    ),
+  })}
+>
+  {(props) => (
+    <PrivateChatScreen
+      {...props}
+      bannedUsers={bannedUsers}
+      isDrawerVisible={isDrawerVisible}
+      setIsDrawerVisible={setIsDrawerVisible}
+    />
+  )}
+</Stack.Screen>
+
 
 <Stack.Screen
           name="Server"

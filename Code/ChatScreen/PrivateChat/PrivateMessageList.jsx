@@ -9,6 +9,8 @@ import {
   Vibration,
   Keyboard,
   Alert,
+  StyleSheet,
+  TouchableOpacity,  
 } from 'react-native';
 import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
 import { useGlobalState } from '../../GlobelStats';
@@ -22,7 +24,6 @@ import { useLocalState } from '../../LocalGlobelStats';
 import axios from 'axios';
 import { getDeviceLanguage } from '../../../i18n';
 import { mixpanel } from '../../AppHelper/MixPenel';
-import ScamSafetyBox from './Scamwarning.js';
 
 const FRUIT_KEYWORDS = [
   'rocket', 'spin', 'chop', 'spring', 'bomb', 'spike', 'blade',
@@ -32,6 +33,9 @@ const FRUIT_KEYWORDS = [
   'phoenix', 'gravity', 'shadow', 'venom', 'control', 'spirit', 'dough',
   'gas', 'dragon', 'leopard', 'kitsune', 'mammoth', 't-rex', 'yeti', 'perm', 'west', 'east', 'gamepass', 'skin', 'chromatic', 'permanent', 'Fruit Storage', 'game pass', 'Eagle', 'Creation',  'gamepass'
 ];
+import ScamSafetyBox from './Scamwarning';
+import { useNavigation } from '@react-navigation/native';
+import config from '../../Helper/Environment';
 
 const PrivateMessageList = ({
   messages,
@@ -44,11 +48,25 @@ const PrivateMessageList = ({
   isBanned,
   onReply,
   onReportSubmit,
-  loading
+  loading,
+  canRate,
+  hasRated,
+  setShowRatingModal,
 }) => {
   const { theme, isAdmin, api, freeTranslation, proGranted } = useGlobalState();
   const isDarkMode = theme === 'dark';
   const styles = getStyles(isDarkMode);
+  const fruitColors = useMemo(
+    () => ({
+      wrapperBg: isDarkMode ? '#0f172a55' : '#e5e7eb55',
+      name:      isDarkMode ? '#f9fafb' : '#111827',
+      value:     isDarkMode ? '#e5e7eb' : '#4b5563',
+      divider:   isDarkMode ? '#ffffff22' : '#00000011',
+      totalLabel:isDarkMode ? '#e5e7eb' : '#4b5563',
+      totalValue:isDarkMode ? '#f97373' : '#b91c1c',
+    }),
+    [isDarkMode],
+  );
   const { t } = useTranslation();
   const deviceLanguage = useMemo(() => getDeviceLanguage(), []);
 
@@ -58,6 +76,7 @@ const PrivateMessageList = ({
   const { triggerHapticFeedback } = useHaptic();
   const { canTranslate, incrementTranslationCount, getRemainingTranslationTries, localState } = useLocalState();
 
+  const navigation = useNavigation()
 
   const handleCopy = (message) => {
     Clipboard.setString(message?.text ?? '');
@@ -66,9 +85,9 @@ const PrivateMessageList = ({
   };
 
   // Filter messages: Keep only user's messages if `isBanned` is true
-  const filteredMessages = isBanned
-    ? messages.filter((message) => message.senderId === userId)
-    : messages;
+  // const filteredMessages = isBanned
+  //   ? messages.filter((message) => message.senderId === userId)
+  //   : messages;
 
   // Open the report popup
   const handleReport = (message) => {
@@ -161,9 +180,17 @@ const PrivateMessageList = ({
     // console.log(item, isMyMessage);
     // console.log('Selected User Avatar:', selectedUser?.avatar);
     const avatarUri = item.senderId !== userId
-      ? selectedUser?.avatar || (console.warn('Missing senderAvatar, using default'), 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png')
-      : user?.avatar || (console.warn('Missing receiverAvatar, using default'), 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png');
+      ? selectedUser?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png'
+      : user?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png';
+      const fruits = Array.isArray(item.fruits) ? item.fruits : [];
+      const hasFruits = fruits.length > 0;
+      const totalFruitValue = hasFruits
+        ? fruits.reduce((sum, f) => sum + (Number(f.value) || 0), 0)
+        : 0;
 
+        const formatName = (name) => name.replace(/^\+/, '').replace(/\s+/g, '-');
+
+    
     return (
       <View
         style={
@@ -179,13 +206,109 @@ const PrivateMessageList = ({
         />
         {/* Message Content */}
         <Menu>
+        {item.imageUrl && (
+  <View style={{ marginBottom: 4 }}>
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onPress={() =>
+        navigation.navigate('ImageViewerScreenChat', {
+          // if your viewer expects an array of images:
+          images: [item.imageUrl],
+          initialIndex: 0, // only one image here
+        })
+      }
+    >
+      <Image
+        source={{ uri: item.imageUrl }}
+        style={styles.chatImage}
+      />
+    </TouchableOpacity>
+  </View>
+)}
           <MenuTrigger
             onLongPress={() => Vibration.vibrate(50)}
             customStyles={{ triggerTouchable: { activeOpacity: 1 } }}
           >
-            <Text style={isMyMessage ? styles.myMessageText : styles.otherMessageText}>
-              {item.text}
+          {hasFruits && (
+  <View
+    style={[
+      fruitStyles.fruitsWrapper,
+      { backgroundColor: fruitColors.wrapperBg },
+    ]}
+  >
+    {fruits.map((fruit, index )=> {
+      const valueType = (fruit.valueType || 'd').toLowerCase(); // 'd' | 'n' | 'm'
+
+      let valueBadgeStyle = fruitStyles.badgeDefault;
+      if (valueType === 'n') valueBadgeStyle = fruitStyles.badgeNeon;
+      if (valueType === 'm') valueBadgeStyle = fruitStyles.badgeMega;
+
+      return (
+        <View
+          key={`${fruit.id || fruit.name}-${index}`}
+          style={fruitStyles.fruitCard}
+        >
+          <Image
+            source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/${fruit.type === 'n' ? '09' : '08'}/${formatName(fruit.name)}_Icon.webp` }}
+            style={fruitStyles.fruitImage}
+          />
+
+          <View style={fruitStyles.fruitInfo}>
+            <Text
+              style={[fruitStyles.fruitName, { color: fruitColors.name }]}
+              numberOfLines={1}
+            >
+              {`${fruit.name || fruit.Name}  `}
             </Text>
+
+            <Text
+              style={[fruitStyles.fruitValue, { color: fruitColors.value }]}
+            >
+              · Value: {Number(fruit.value || 0).toLocaleString()}
+              {/* {fruit.category
+                ? `  ·  ${String(fruit.category).toUpperCase()}  `
+                : ''} */}{' '}
+            </Text>
+
+          
+          </View>
+        </View>
+      );
+    })}
+
+    {/* ✅ Total row – only if more than one fruit */}
+    {fruits.length > 1 && (
+      <View
+        style={[
+          fruitStyles.totalRow,
+          { borderTopColor: fruitColors.divider },
+        ]}
+      >
+        <Text
+          style={[fruitStyles.totalLabel, { color: fruitColors.totalLabel }]}
+        >
+          Total:
+        </Text>
+        <Text
+          style={[fruitStyles.totalValue, { color: fruitColors.totalValue }]}
+        >
+          {totalFruitValue.toLocaleString()}
+        </Text>
+      </View>
+    )}
+  </View>
+)}
+
+  
+            {/* Normal text (can be empty if only fruits) */}
+            {!!item.text && (
+              <Text
+                style={isMyMessage ? styles.myMessageText : styles.otherMessageText}
+              >
+                {item.text}
+              </Text>
+            )}
+
           </MenuTrigger>
           <MenuOptions customStyles={{
             optionsContainer: styles.menuoptions,
@@ -216,14 +339,33 @@ const PrivateMessageList = ({
   };
 
   return (
-    <View style={{paddingBottom:260}}>
+    <View style={styles.container}>
       {loading && messages.length === 0 ? (
         <ActivityIndicator size="large" color="#1E88E5" style={styles.loader} />
       ) : (
-        <View>
-          <ScamSafetyBox/>
+        <View style={{paddingBottom:140}}>  
+        <>   
+        <ScamSafetyBox/>
+        {canRate && 
+         (
+                  <View style={{ alignItems: 'center', marginTop: 1, paddingBottom:10 }}>
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: config.colors.primary,
+                        borderRadius: 4,
+                        paddingHorizontal: 5,
+                        paddingVertical: 4,
+                      }}
+                      onPress={() => setShowRatingModal(true)}
+                    >
+                      <Text style={{ color: 'white', fontSize: 12 }}>
+                        {!hasRated ? `Rate Trader and Get 100 points` : `Update your review`}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
         <FlatList
-          data={filteredMessages}
+          data={messages}
           removeClippedSubviews={false} 
           keyExtractor={(item) => item.id}
           renderItem={renderMessage} // Pass the render function directly
@@ -233,10 +375,12 @@ const PrivateMessageList = ({
           onScroll={() => Keyboard.dismiss()}
           onTouchStart={() => Keyboard.dismiss()}
           keyboardShouldPersistTaps="handled" // Ensures taps o
+          // onTouchStart={() => Keyboard.dismiss()}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         />
+        </>     
         </View>
       )}
       <ReportPopup
@@ -248,5 +392,103 @@ const PrivateMessageList = ({
     </View>
   );
 };
+
+export const fruitStyles = StyleSheet.create({
+  fruitsWrapper: {
+    marginTop: 1,
+    // gap: 1,
+    backgroundColor: '#1E293B15', // subtle blue-ish bg
+    padding: 4,
+    borderRadius: 8,
+
+  },
+  fruitCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent:'flex-start',
+    marginBottom:3,
+
+    flex:1,
+
+
+  },
+  fruitImage: {
+    width: 20,
+    height: 20,
+    borderRadius: 2,
+    marginRight: 2,
+    backgroundColor: '#0002',
+  },
+  fruitInfo: {
+    // flex: 1,
+    flexDirection:'row',
+    justifyContent:'flex-start',
+    // backgroundColor:'red',
+    alignItems:'center',
+  },
+  fruitName: {
+    fontSize: 12,
+    fontWeight: '500',
+    // color: '#fff',
+  },
+  fruitValue: {
+    fontSize: 11,
+    // color: '#e5e5e5',
+    marginTop: 2,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    // marginTop: 4,
+  },
+  badge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    // minWidth: 16,
+    // justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badgeText: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  badgeDefault: {
+    backgroundColor: '#FF6666', // D
+  },
+  badgeNeon: {
+    backgroundColor: '#2ecc71', // N
+  },
+  badgeMega: {
+    backgroundColor: '#9b59b6', // M
+  },
+  badgeFly: {
+    backgroundColor: '#3498db', // F
+  },
+  badgeRide: {
+    backgroundColor: '#e74c3c', // R
+  },
+  totalRow: {
+    flexDirection: 'row',
+    // justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#ffffff22',
+  },
+  totalLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#888',
+  },
+  totalValue: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FF6666',
+  },
+});
 
 export default memo(PrivateMessageList);

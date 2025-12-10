@@ -494,5 +494,21 @@ transfer: {
 deleteButton:{
   paddingVertical:5
 }
+,
+chatImage: {
+  width: 200,
+  height: 200,
+  borderRadius: 8,
+  marginBottom: 4,
+},
+saveButtonTextProfile:{
+  color: isDarkMode ? 'white' : "black",
+
+},
+highlightedMessage: {
+  backgroundColor: '#fef3c7',      // soft yellow
+  borderColor: '#f59e0b',
+  borderWidth: 1,
+},
 
   });

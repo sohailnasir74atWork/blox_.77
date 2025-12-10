@@ -7,7 +7,25 @@ import {
   ActivityIndicator,
   Text,
 } from 'react-native';
-import firestore from '@react-native-firebase/firestore';
+import { 
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  limit,
+  startAfter,
+  serverTimestamp,
+  updateDoc,
+  deleteDoc,
+  onSnapshot,
+  addDoc,
+  writeBatch,
+  deleteField,       
+
+} from '@react-native-firebase/firestore';
 import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
 
 import { useGlobalState } from '../GlobelStats';
@@ -30,7 +48,7 @@ const availableTags = ['Scam Alert', 'Looking for Trade', 'Discussion', 'Real or
 
 const DesignFeedScreen = ({ route }) => {
   const { selectedTheme } = route.params;
-  const { appdatabase, user, theme } = useGlobalState();
+  const { appdatabase, user, theme, firestoreDB } = useGlobalState();
   const { localState } = useLocalState();
   const isDarkMode = theme === 'dark';
 
@@ -72,17 +90,24 @@ const DesignFeedScreen = ({ route }) => {
     // console.log('📦 Fetching My Posts...');
     setInitialLoading(true);
     try {
-      let query = firestore()
-        .collection('designPosts')
-        .where('userId', '==', user.id)
-        .orderBy('createdAt', 'desc');
-  
+      let q = query(
+        collection(firestoreDB, 'designPosts'),
+        where('userId', '==', user.id),
+        orderBy('createdAt', 'desc')
+      );
+      
       if (tag) {
-        query = query.where('selectedTags', 'array-contains', tag);
+        q = query(
+          collection(firestoreDB, 'designPosts'),
+          where('userId', '==', user.id),
+          where('selectedTags', 'array-contains', tag),
+          orderBy('createdAt', 'desc')
+        );
+        
       }
   
-      const snapshot = await query.get();
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       // console.log('✅ My Posts fetched:', data.length);
       setMyPosts(data);
       setHasMore(snapshot.docs.length > 0);
@@ -98,25 +123,26 @@ const DesignFeedScreen = ({ route }) => {
   const deleteUsersLatestPosts = async (userId, n = 15) => {
     if (!userId) throw new Error('userId is required');
   
-    const q = firestore()
-      .collection('designPosts')
-      .where('userId', '==', userId)
-      .orderBy('createdAt', 'desc')
-      .limit(n);
+    const q = query(
+      collection(firestoreDB, 'designPosts'),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc'),
+      limit(n)
+    );
 
       // console.log(q)
   
-    const snap = await q.get();
-    if (snap.empty) return [];
+      const snap = await getDocs(q);
+      if (snap.empty) return [];
   
-    const batch = firestore().batch();
-    const ids = [];
+      const batch = writeBatch(firestoreDB);
+      const ids = [];
   
-    snap.docs.forEach((doc) => {
-      batch.delete(doc.ref);
-      ids.push(doc.id);
-    });
-  
+      snap.docs.forEach(d => {
+        batch.delete(d.ref);
+        ids.push(d.id);
+      });
+
     await batch.commit();
     return ids;
   };
@@ -130,12 +156,15 @@ const DesignFeedScreen = ({ route }) => {
     try {
       setInitialLoading(true);
 
-      const snapshot = await firestore()
-        .collection('designPosts')
-        .where('selectedTags', 'array-contains', tag)
-        .orderBy('createdAt', 'desc')
-        .limit(5)
-        .get();
+      const q = query(
+        collection(firestoreDB, 'designPosts'),
+        where('selectedTags', 'array-contains', tag),
+        orderBy('createdAt', 'desc'),
+        limit(5)
+      );
+      
+      const snapshot = await getDocs(q);
+      
 
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setPosts(data);
@@ -153,7 +182,7 @@ const DesignFeedScreen = ({ route }) => {
   const skeletonArray = useMemo(() => Array.from({ length: 5 }), []);
   const handleDeletePost = async (postId) => {
     try {
-      await firestore().collection('designPosts').doc(postId).delete();
+      await deleteDoc(doc(firestoreDB, 'designPosts', postId));
       setPosts(prev => prev.filter(p => p.id !== postId));
       showMessage({ message: 'Post deleted', type: 'success' });
     } catch (err) {
@@ -165,11 +194,13 @@ const DesignFeedScreen = ({ route }) => {
 
   const fetchInitialPosts = async () => {
     try {
-      const snapshot = await firestore()
-        .collection('designPosts')
-        .orderBy('createdAt', 'desc')
-        .limit(5)
-        .get();
+      const q = query(
+        collection(firestoreDB, 'designPosts'),
+        orderBy('createdAt', 'desc'),
+        limit(5)
+      );
+      
+      const snapshot = await getDocs(q);
 
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setPosts(data);
@@ -190,21 +221,23 @@ const DesignFeedScreen = ({ route }) => {
     if (posts.length === 0) return;
 
     const unsubscribers = posts.map(post =>
-      firestore()
-        .collection('designPosts')
-        .doc(post.id)
-        .onSnapshot(doc => {
-          if (doc.exists) {
-            const updatedPost = { id: doc.id, ...doc.data() };
+      onSnapshot(doc(firestoreDB, 'designPosts', post.id), snap => {
+        if (!snap.exists) return;   // 👈 modular API uses exists()
+  
+        const updatedPost = { id: snap.id, ...snap.data() };
             setPosts(prev =>
               prev.map(p => (p.id === updatedPost.id ? updatedPost : p))
             );
-          }
+          
         })
     );
 
     return () => {
-      unsubscribers.forEach(unsub => unsub());
+      unsubscribers.forEach(unsub => {
+        if (typeof unsub === 'function') {
+          unsub();
+        }
+      });
     };
   }, [JSON.stringify(posts.map(p => p.id))]); // Triggers when post IDs change
 
@@ -213,17 +246,27 @@ const DesignFeedScreen = ({ route }) => {
 
     setLoadingMore(true);
     try {
-      let query = firestore()
-        .collection('designPosts')
-        .orderBy('createdAt', 'desc')
-        .startAfter(lastVisibleDoc)
-        .limit(10);
+      let q;
 
       if (selectedTag) {
-        query = query.where('selectedTags', 'array-contains', selectedTag);
+        q = query(
+          collection(firestoreDB, 'designPosts'),
+          where('selectedTags', 'array-contains', selectedTag),
+          orderBy('createdAt', 'desc'),
+          startAfter(lastVisibleDoc),
+          limit(10)
+        );
+      } else {
+        // without tag filter
+        q = query(
+          collection(firestoreDB, 'designPosts'),
+          orderBy('createdAt', 'desc'),
+          startAfter(lastVisibleDoc),
+          limit(10)
+        );
       }
 
-      const snapshot = await query.get();
+      const snapshot = await getDocs(q);
       const newPosts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setPosts(prev => [...prev, ...newPosts]);
       setLastVisibleDoc(snapshot.docs[snapshot.docs.length - 1]);
@@ -237,11 +280,11 @@ const DesignFeedScreen = ({ route }) => {
 
 
   const handleLike = async (post) => {
-    const postRef = firestore().collection('designPosts').doc(post.id);
+    const postRef = doc(firestoreDB, 'designPosts', post.id);
     const alreadyLiked = !!post.likes?.[user.id];
 
-    await postRef.update({
-      [`likes.${user.id}`]: alreadyLiked ? firestore.FieldValue.delete() : true,
+    await updateDoc(postRef, {
+      [`likes.${user.id}`]: alreadyLiked ? deleteField() : true
     });
   };
 
@@ -253,13 +296,14 @@ const DesignFeedScreen = ({ route }) => {
       userId: user.id,
       displayName: user.displayName,
       avatar: user.avatar,
-      createdAt: firestore.FieldValue.serverTimestamp(),
+      createdAt: serverTimestamp(),
       likes: {},
       selectedTags,
       email:currentUserEmail,
-      report:false
+      report:false,
+      flage:user?.flage
     };
-    await firestore().collection('designPosts').add(post);
+    await addDoc(collection(firestoreDB, 'designPosts'), post);
   };
 
   const renderItem = ({ item, index }) => {
@@ -503,7 +547,7 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 5,
+    bottom: 60,
     right: 10,
     // backgroundColor: config.colors.primary,
     width: 60,

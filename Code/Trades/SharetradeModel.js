@@ -23,7 +23,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const [includeAppTag, setIncludeAppTag] = useState(true);
     const [showLeftGrid, setShowLeftGrid] = useState(true);
     const [showRightGrid, setShowRightGrid] = useState(true);
-    const {theme, proGranted} = useGlobalState()
+    const {theme, proGranted, single_offer_wall} = useGlobalState()
     const isDarkMode = theme === 'dark'
     const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
     const {localState} = useLocalState()
@@ -326,7 +326,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                     </View>
                 </View>
             </View>
-            {showofferwall && <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} />}
+            {showofferwall && <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)}   oneWallOnly={single_offer_wall}            />}
         </Modal>
     );
 };

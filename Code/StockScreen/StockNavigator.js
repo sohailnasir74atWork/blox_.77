@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import config from '../Helper/Environment';
 import TimerScreen from './TimerScreen';
-import ValueScreen from '../ValuesScreen/ValueScreen';
+// import ValueScreen from '../ValuesScreen/ValueScreen';
 import { useGlobalState } from '../GlobelStats';
 import BannerAdComponent from '../Ads/bannerAds';
 import { useLocalState } from '../LocalGlobelStats';
@@ -18,7 +18,7 @@ const TopLevelStockComponent = ({ selectedTheme }) => {
   return (
     <View style={styles.container}>
       {/* Tab Buttons */}
-      <View style={styles.tabs}>
+      {/* <View style={styles.tabs}>
         <TouchableOpacity
           style={[styles.tabButton, activeTab === 'Stock' && styles.activeTab]}
           onPress={() => setActiveTab('Stock')}
@@ -31,17 +31,12 @@ const TopLevelStockComponent = ({ selectedTheme }) => {
         >
           <Text style={[styles.tabText, activeTab === 'Values & Codes' && styles.tabTextActive]}>Values & Codes</Text>
         </TouchableOpacity>
-        {/* <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'Code' && styles.activeTab]}
-          onPress={() => setActiveTab('Code')}
-        >
-          <Text style={[styles.tabText, activeTab === 'Code' && styles.tabTextActive]}>Code</Text>
-        </TouchableOpacity> */}
-      </View>
+      
+      </View> */}
 
       {/* Tab Content */}
       {activeTab === 'Stock' && <TimerScreen selectedTheme={ selectedTheme } />}
-      {activeTab === 'Values & Codes' && <ValueScreen selectedTheme={ selectedTheme }  />}
+      {/* {activeTab === 'Values & Codes' && <ValueScreen selectedTheme={ selectedTheme }  />} */}
       {/* {activeTab === 'Code' && <CodeComponent />} */}
       {(!localState.isPro && !proGranted) && <BannerAdComponent/>}
     </View>

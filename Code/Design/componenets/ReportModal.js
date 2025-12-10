@@ -155,7 +155,7 @@ const ReportModal = ({ visible, onClose, item, banUserwithEmail }) => {
             <View className="buttonsRow" style={styles.buttonsRow}>
               <TouchableOpacity
                 onPress={handleSubmit}
-                style={[styles.submitButton, submitting && { opacity: 0.6 }]}
+                style={[styles.submitButton, submitting && { opacity: 0.8 }]}
                 disabled={submitting}
               >
                 <Text style={styles.buttonText}>{submitting ? 'Submitting…' : 'Submit'}</Text>

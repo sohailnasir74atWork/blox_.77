@@ -10,7 +10,7 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import { mixpanel } from '../../AppHelper/MixPenel';
 
-const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers }) => {
+const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers, isDrawerVisible, setIsDrawerVisible }) => {
   const { updateLocalState } = useLocalState();
   const { t } = useTranslation();
   const [isOnline, setIsOnline] = useState(false); // ✅ Add state to store online status
@@ -71,8 +71,11 @@ useEffect(() => {
 
   return (
     <View style={styles.container}>
-      <Image source={{ uri: avatarUri }} style={styles.avatar} />
-      <View style={styles.infoContainer}>
+    <TouchableOpacity onPress={() => setIsDrawerVisible(true)}>
+  <Image source={{ uri: avatarUri }} style={styles.avatar} />
+</TouchableOpacity>
+
+      <TouchableOpacity style={styles.infoContainer} onPress={() => setIsDrawerVisible(true)}>
         <Text style={[styles.userName, { color: selectedTheme.colors.text }]}>
           {userName} 
           {selectedUser.isPro && (
@@ -95,7 +98,7 @@ useEffect(() => {
           {isOnline ? 'Online' : 'Offline'}
         </Text>
         
-      </View>
+      </TouchableOpacity>
       <TouchableOpacity onPress={handleBanToggle}>
         <Icon
           name={isBanned ? 'shield-checkmark-outline' : 'ban-outline'}
