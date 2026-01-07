@@ -24,7 +24,7 @@ import {
     private notify() { this.listeners.forEach(l => l()); }
   
     private async loadOne(index: number) {
-      console.log(`[NativeAdPool] → loadOne(${index}) with unitId=${AD_UNIT_ID}`);
+      // console.log(`[NativeAdPool] → loadOne(${index}) with unitId=${AD_UNIT_ID}`);
   
       // Per docs: set options like aspectRatio / adChoicesPlacement on the REQUEST
       const ad = NativeAd.createForAdRequest(AD_UNIT_ID, {
@@ -36,19 +36,19 @@ import {
   
       return await new Promise<NativeAd>((resolve, reject) => {
         const offLoaded = ad.addAdEventListener(NativeAdEventType.LOADED, () => {
-          console.log(`[NativeAdPool] ✓ LOADED (#${index})`);
+          // console.log(`[NativeAdPool] ✓ LOADED (#${index})`);
           offLoaded.remove(); offError.remove();
           resolve(ad);
         });
         const offError = ad.addAdEventListener(NativeAdEventType.ERROR, (err: any) => {
-          console.warn(`[NativeAdPool] ✗ ERROR (#${index}) code=${err?.code} msg=${err?.message}`);
+          // console.warn(`[NativeAdPool] ✗ ERROR (#${index}) code=${err?.code} msg=${err?.message}`);
           offLoaded.remove(); offError.remove();
           try { ad.destroy(); } catch {}
           reject(err);
         });
-  
+
         const timeout = setTimeout(() => {
-          console.warn(`[NativeAdPool] ⏱ TIMEOUT (#${index})`);
+          // console.warn(`[NativeAdPool] ⏱ TIMEOUT (#${index})`);
           try { offLoaded.remove(); offError.remove(); ad.destroy(); } catch {}
           reject(new Error('native_ad_load_timeout'));
         }, 8000);
@@ -59,12 +59,12 @@ import {
   
     async fillIfNeeded() {
       if (this.isFilling || this.pool.length >= this.max) {
-        console.log('[NativeAdPool] Skip fill. isFilling:', this.isFilling, 'pool:', this.pool.length);
+        // console.log('[NativeAdPool] Skip fill. isFilling:', this.isFilling, 'pool:', this.pool.length);
         return;
       }
-  
+
       this.isFilling = true;
-      console.log('[NativeAdPool] Filling… pool:', this.pool.length, 'target:', this.max);
+      // console.log('[NativeAdPool] Filling… pool:', this.pool.length, 'target:', this.max);
   
       const missing = this.max - this.pool.length;
       let loaded = 0;
@@ -75,12 +75,12 @@ import {
             const ad = await this.loadOne(i + 1);
             this.pool.push(ad);
             loaded++;
-            console.log('[NativeAdPool] pushed. pool now =', this.pool.length);
+            // console.log('[NativeAdPool] pushed. pool now =', this.pool.length);
           } catch (err: any) {
-            console.warn('[NativeAdPool] loadOne failed; continuing. reason:', err?.message || err);
+            // console.warn('[NativeAdPool] loadOne failed; continuing. reason:', err?.message || err);
           }
         }
-        console.log(`[NativeAdPool] Fill done. loaded=${loaded}/${missing} pool=${this.pool.length}`);
+        // console.log(`[NativeAdPool] Fill done. loaded=${loaded}/${missing} pool=${this.pool.length}`);
         this.notify();
       } finally {
         this.isFilling = false;
@@ -89,13 +89,13 @@ import {
   
     take(): NativeAd | undefined {
       const ad = this.pool.shift();
-      console.log('[NativeAdPool] take() →', ad ? 'ad' : 'none', 'remaining:', this.pool.length);
+      // console.log('[NativeAdPool] take() →', ad ? 'ad' : 'none', 'remaining:', this.pool.length);
       this.fillIfNeeded(); // top-up
       return ad;
     }
-  
+
     destroyAll() {
-      console.log('[NativeAdPool] destroyAll count=', this.pool.length);
+      // console.log('[NativeAdPool] destroyAll count=', this.pool.length);
       this.pool.forEach(a => { try { a.destroy(); } catch {} });
       this.pool = [];
     }

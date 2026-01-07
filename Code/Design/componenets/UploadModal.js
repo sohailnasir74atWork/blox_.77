@@ -17,9 +17,9 @@ import { useGlobalState } from '../../GlobelStats';
 import { useLocalState } from '../../LocalGlobelStats';
 import InterstitialAdManager from '../../Ads/IntAd';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
-import { onValue, ref } from '@react-native-firebase/database';
 import { showMessage } from 'react-native-flash-message';
 import RNFS from 'react-native-fs';
+import { validateContent } from '../../Helper/ContentModeration';
 
 
 const CLOUD_NAME = 'djtqw0jb5';
@@ -37,8 +37,8 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
   const [imageUris, setImageUris] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedTags, setSelectedTags] = useState(['Discussion']);
-  const {currentUserEmail, appdatabase} = useGlobalState();
-  const [strikeInfo, setStrikeInfo] = useState(null)
+  // ✅ Use global strikeInfo from GlobelStats (no duplicate listener = saves Firebase reads)
+  const {currentUserEmail, strikeInfo} = useGlobalState();
   // const [budget, setBudget] = useState('');
   const { theme } = useGlobalState();
   const isDark = theme === 'dark';
@@ -48,19 +48,15 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
     setSelectedTags([tag]);
   }, []);
 
+  // Reset form and loading state when modal closes
   useEffect(() => {
-    if (!currentUserEmail) return;
-
-    const encodedEmail = currentUserEmail.replace(/\./g, '(dot)');
-    const banRef = ref(appdatabase, `banned_users_by_email_post/${encodedEmail}`);
-
-    const unsubscribe = onValue(banRef, (snapshot) => {
-      const banData = snapshot.val();
-      setStrikeInfo(banData || null);
-    });
-
-    return () => unsubscribe();
-  }, [currentUserEmail]);
+    if (!visible) {
+      setLoading(false);
+      setDesc('');
+      setImageUris([]);
+      setSelectedTags(['Discussion']);
+    }
+  }, [visible]);
 
   // console.log(currentUserEmail)show
   
@@ -78,7 +74,7 @@ const pickAndCompress = useCallback(async () => {
       try {
         const uri = await CompressorImage.compress(asset.uri, {
           maxWidth: 400,
-          quality: 0.6,
+          quality: 1,
         });
         compressed.push(uri);
       } catch (error) {
@@ -130,15 +126,19 @@ const pickAndCompress = useCallback(async () => {
   const uploadToBunny = useCallback(async () => {
     const urls = [];
     const userId = user?.id ?? 'anon';
+    const baseTimestamp = Date.now();
   
-    for (const uri of imageUris) {
+    for (let i = 0; i < imageUris.length; i++) {
+      const uri = imageUris[i];
       try {
-        const filename   = `${Date.now()}-${Math.floor(Math.random() * 1e6)}.jpg`;
+        // Add index to filename to ensure uniqueness for multiple images
+        const filename = `${baseTimestamp}-${i}-${Math.floor(Math.random() * 1e6)}.jpg`;
         const remotePath = `uploads/${encodeURIComponent(userId)}/${encodeURIComponent(filename)}`;
-        const uploadUrl  = `https://${BUNNY_STORAGE_HOST}/${BUNNY_STORAGE_ZONE}/${remotePath}`;
+        const uploadUrl = `https://${BUNNY_STORAGE_HOST}/${BUNNY_STORAGE_ZONE}/${remotePath}`;
   
         // Read file as base64 then convert to raw bytes
-        const base64 = await RNFS.readFile(uri.replace('file://', ''), 'base64');
+        const filePath = uri.replace('file://', '');
+        const base64 = await RNFS.readFile(filePath, 'base64');
   
         // base64 -> Uint8Array (works reliably on RN 0.77)
         const binary = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
@@ -155,16 +155,16 @@ const pickAndCompress = useCallback(async () => {
         });
   
         const txt = await res.text().catch(() => '');
-        // console.log('[Bunny PUT]', res.status, txt?.slice(0, 200));
   
         if (!res.ok) {
           throw new Error(`Bunny upload failed ${res.status}: ${txt}`);
         }
   
         // Public CDN URL to display
-        urls.push(`${BUNNY_CDN_BASE}/${decodeURIComponent(remotePath)}`);
+        const cdnUrl = `${BUNNY_CDN_BASE}/${decodeURIComponent(remotePath)}`;
+        urls.push(cdnUrl);
       } catch (e) {
-        console.warn('[Bunny ERROR]', e?.message || e);
+        console.error(`[Bunny ERROR for image ${i + 1}]`, e?.message || e);
         throw e; // bubble up so your Alert shows
       }
     }
@@ -174,14 +174,28 @@ const pickAndCompress = useCallback(async () => {
   
 
   const handleSubmit = useCallback(() => {
+    // ✅ Prevent multiple submissions - check loading state first
+    if (loading) return;
+    
     if (!user?.id) return;
-if (!currentUserEmail) {
-   Alert.alert('Missing Email', 'Could not detect your account email. Please re-login.');
-   return;
-}
+    if (!currentUserEmail) {
+      Alert.alert('Missing Email', 'Could not detect your account email. Please re-login.');
+      return;
+    }
   
-    if (!desc && imageUris.length === 0) {
-      return Alert.alert('Missing Info', 'Please add a description or at least one image.');
+    // ✅ Tags are mandatory
+    if (!selectedTags || selectedTags.length === 0) {
+      return Alert.alert('Missing Tag', 'Please select at least one tag.');
+    }
+    
+    // ✅ Content moderation: Check description for inappropriate content
+    const trimmedDesc = (desc || '').trim();
+    if (trimmedDesc) {
+      const contentValidation = validateContent(trimmedDesc);
+      if (!contentValidation.isValid) {
+        Alert.alert('Content Not Allowed', contentValidation.reason || 'Your post contains inappropriate content.');
+        return;
+      }
     }
     if (strikeInfo) {
       const { strikeCount, bannedUntil } = strikeInfo;
@@ -214,27 +228,29 @@ if (!currentUserEmail) {
       }
     }
     
+    // ✅ Set loading IMMEDIATELY to prevent multiple clicks
+    setLoading(true);
+    
     // Extract core logic into a callback
     const callbackfunction = async () => {
       try {
-        setLoading(true);
-        const uploadedUrls = await uploadToBunny();
-        // console.log('[UploadModal] submitting with email:', currentUserEmail);
+        // ✅ Images are optional - only upload if images are selected
+        let uploadedUrls = [];
+        if (imageUris.length > 0) {
+          uploadedUrls = await uploadToBunny();
+        }
+        
         await onUpload(desc, uploadedUrls, selectedTags, currentUserEmail);
+        
+        // ✅ Clear form after successful upload
         setDesc('');
         setImageUris([]);
         setSelectedTags(['Discussion']);
-        // setBudget('');
+        setLoading(false);
         onClose();
-        showMessage({
-          message: 'Success',
-          description: 'Post created successfully',
-          type: 'success',
-        });
       } catch (err) {
-        Alert.alert('Upload Failed', 'Something went wrong. Try again.', err);
-        console.log(err)
-      } finally {
+        console.error('[UploadModal] Error:', err);
+        Alert.alert('Upload Failed', err?.message || 'Something went wrong. Please try again.');
         setLoading(false);
       }
     };
@@ -259,7 +275,7 @@ if (!currentUserEmail) {
       }, 500);
     });
   
-  }, [user?.id, desc, imageUris, selectedTags, uploadToBunny, onUpload, onClose, localState.isPro, currentUserEmail]);
+  }, [loading, user?.id, desc, imageUris, selectedTags, uploadToBunny, onUpload, onClose, localState.isPro, currentUserEmail, strikeInfo]);
   
 
   const themedStyles = getStyles(isDark);
@@ -282,6 +298,7 @@ if (!currentUserEmail) {
             value={desc}
             onChangeText={setDesc}
             multiline
+            editable={!loading}
           />
 
           <View style={themedStyles.tagSelector}>
@@ -291,14 +308,17 @@ if (!currentUserEmail) {
     style={[
       themedStyles.tagButton,
       selectedTags.includes(tag) && themedStyles.tagButtonSelected,
+      loading && themedStyles.tagButtonDisabled,
     ]}
-    onPress={() => toggleTag(tag)}
+    onPress={() => !loading && toggleTag(tag)}
+    disabled={loading}
   >
     <Text
       style={{
         color: selectedTags.includes(tag) ? '#fff' : isDark ? '#eee' : '#333',
         fontSize: 12,
         fontFamily: 'Lato-Bold',
+        opacity: loading ? 0.5 : 1,
       }}
     >
       {tag}
@@ -316,7 +336,11 @@ if (!currentUserEmail) {
             onChangeText={setBudget}
           /> */}
 
-          <TouchableOpacity style={themedStyles.imagePicker} onPress={pickAndCompress}>
+          <TouchableOpacity 
+            style={[themedStyles.imagePicker, loading && themedStyles.imagePickerDisabled]} 
+            onPress={pickAndCompress}
+            disabled={loading}
+          >
             {imageUris.length > 0 ? (
               <View style={themedStyles.imageGrid}>
                 {imageUris.map((uri, idx) => (
@@ -324,11 +348,15 @@ if (!currentUserEmail) {
                 ))}
               </View>
             ) : (
-              <Text style={{ color: isDark ? '#aaa' : '#333' }}>Upload up to 4 images</Text>
+              <Text style={{ color: isDark ? '#aaa' : '#333', opacity: loading ? 0.5 : 1 }}>Upload up to 4 images</Text>
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity style={themedStyles.uploadBtn} onPress={handleSubmit} disabled={loading}>
+          <TouchableOpacity 
+            style={[themedStyles.uploadBtn, loading && themedStyles.uploadBtnDisabled]} 
+            onPress={handleSubmit} 
+            disabled={loading}
+          >
             {loading ? <ActivityIndicator color="#fff" /> : <Text style={themedStyles.btnText}>Submit</Text>}
           </TouchableOpacity>
 
@@ -388,6 +416,9 @@ const getStyles = (isDark) =>
       backgroundColor: config.colors.primary,
       borderColor: config.colors.primary,
     },
+    tagButtonDisabled: {
+      opacity: 0.5,
+    },
     imagePicker: {
       alignItems: 'center',
       justifyContent: 'center',
@@ -397,6 +428,9 @@ const getStyles = (isDark) =>
       borderRadius: 6,
       marginBottom: 10,
       padding: 10,
+    },
+    imagePickerDisabled: {
+      opacity: 0.5,
     },
     imageGrid: {
       flexDirection: 'row',
@@ -415,6 +449,9 @@ const getStyles = (isDark) =>
       padding: 12,
       alignItems: 'center',
       borderRadius: 6,
+    },
+    uploadBtnDisabled: {
+      opacity: 0.6,
     },
     cancelBtn: {
       marginTop: 10,

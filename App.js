@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   StatusBar,
@@ -50,22 +50,23 @@ const setNavigationBarAppearance = (theme) => {
 function App() {
   const { theme, single_offer_wall} = useGlobalState();
   const { t } = useTranslation();
-
-  const selectedTheme = useMemo(() => {
-    if (!theme && !localState.warnedAboutTheme) {
-      console.warn("⚠️ Theme not found! Falling back to Light Theme.");
-      updateLocalState('warnedAboutTheme', true); // Prevent future warnings
-    }
-    return theme === 'dark' ? MyDarkTheme : MyLightTheme;
-  }, [theme]);
-
- 
   const { localState, updateLocalState } = useLocalState();
+  
   const [chatFocused, setChatFocused] = useState(true);
   const [modalVisibleChatinfo, setModalVisibleChatinfo] = useState(false)
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [showofferwall, setShowofferwall] = useState(false);
+
+  // ✅ Fixed: Use ref to prevent infinite loop when updating warnedAboutTheme
+  const warnedAboutThemeRef = React.useRef(false);
+  const selectedTheme = useMemo(() => {
+    if (!theme && !warnedAboutThemeRef.current && !localState?.warnedAboutTheme) {
+      warnedAboutThemeRef.current = true;
+      updateLocalState('warnedAboutTheme', true);
+    }
+    return theme === 'dark' ? MyDarkTheme : MyLightTheme;
+  }, [theme, localState?.warnedAboutTheme]); // ✅ Removed updateLocalState from deps
 
 
   useEffect(() => {
@@ -136,28 +137,45 @@ function App() {
   
 
 
+  // ✅ Fixed: Use ref to track if reviewCount was updated to prevent infinite loop
+  const reviewCountUpdatedRef = React.useRef(false);
   useEffect(() => {
-   
-    const { reviewCount } = localState;
-    if (reviewCount % 6 === 0 && reviewCount > 0) {
-
-      requestReview();
+    // ✅ Only update reviewCount once on mount, not on every reviewCount change
+    if (!reviewCountUpdatedRef.current) {
+      const { reviewCount } = localState || {};
+      if (reviewCount !== undefined) {
+        reviewCountUpdatedRef.current = true;
+        updateLocalState('reviewCount', Number(reviewCount) + 1);
+      }
     }
-    if (reviewCount % 15 === 0 && reviewCount > 0) {
+  }, []); // ✅ Empty deps - only run once on mount
 
-      setShowofferwall(true)
+  // ✅ Separate useEffect for review request - only runs when reviewCount changes
+  useEffect(() => {
+    const { reviewCount } = localState || {};
+    if (reviewCount && reviewCount % 6 === 0 && reviewCount > 0) {
+      try {
+        requestReview();
+      } catch (error) {
+        // ✅ Silently handle errors to prevent crashes
+      }
     }
-    
-    updateLocalState('reviewCount', Number(reviewCount) + 1);
-  }, []);
+    if (reviewCount && reviewCount % 15 === 0 && reviewCount > 0) {
+      setShowofferwall(true);
+    }
+  }, [localState?.reviewCount]); // ✅ Only depend on reviewCount, not updateLocalState
 
-  const saveConsentStatus = (status) => {
-    updateLocalState('consentStatus', status);
-  };
-  // async function initAds() {
-   
-  // }
-  const handleUserConsent = async () => {
+  // ✅ Memoize saveConsentStatus to prevent recreation - use ref to avoid dependency
+  const updateLocalStateRef = React.useRef(updateLocalState);
+  React.useEffect(() => {
+    updateLocalStateRef.current = updateLocalState;
+  }, [updateLocalState]);
+
+  const saveConsentStatus = useCallback((status) => {
+    updateLocalStateRef.current('consentStatus', status);
+  }, []); // ✅ Empty deps - uses ref instead
+
+  const handleUserConsent = useCallback(async () => {
     try {
       const consentInfo = await AdsConsent.requestInfoUpdate();
       await MobileAds().initialize();  
@@ -171,23 +189,50 @@ function App() {
         return;
       }
 
-      if (consentInfo.isConsentFormAvailable) {
+      if (consentInfo.isConsentFormAvailable && consentInfo.isRequestLocationInEeaOrUnknown) {
         const formResult = await AdsConsent.showForm();
         saveConsentStatus(formResult.status);
       }
     } catch (error) {
-      console.warn("Consent error:", error);
+      // Silently handle consent errors
     }
-  };
-
+  }, [saveConsentStatus]);
 
   // Handle Consent
   useEffect(() => {
     handleUserConsent();
+  }, [handleUserConsent]);
+
+  // Memoize screen render functions to prevent unnecessary re-renders
+  const renderMainTabs = useCallback(() => (
+    <MainTabs 
+      selectedTheme={selectedTheme} 
+      setChatFocused={setChatFocused} 
+      chatFocused={chatFocused} 
+      setModalVisibleChatinfo={setModalVisibleChatinfo} 
+      modalVisibleChatinfo={modalVisibleChatinfo} 
+    />
+  ), [selectedTheme, chatFocused, modalVisibleChatinfo]);
+
+  const renderAdminScreen = useCallback(() => (
+    <AdminUnbanScreen selectedTheme={selectedTheme} />
+  ), [selectedTheme]);
+
+  const renderSettingsScreen = useCallback(() => (
+    <SettingsScreen selectedTheme={selectedTheme} />
+  ), [selectedTheme]);
+
+  const handleCloseModal = useCallback(() => {
+    setModalVisible(false);
   }, []);
-  const navRef = useRef();
 
+  const handleCloseOfferWall = useCallback(() => {
+    setShowofferwall(false);
+  }, []);
 
+  const handleInfoPress = useCallback(() => {
+    setModalVisible(true);
+  }, []);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: selectedTheme.colors.background, }}>
@@ -200,7 +245,7 @@ function App() {
 
           <Stack.Navigator>
             <Stack.Screen name="Home" options={{ headerShown: false }}>
-              {() => <MainTabs selectedTheme={selectedTheme} setChatFocused={setChatFocused} chatFocused={chatFocused} setModalVisibleChatinfo={setModalVisibleChatinfo} modalVisibleChatinfo={modalVisibleChatinfo} />}
+              {renderMainTabs}
             </Stack.Screen>
 
             
@@ -211,13 +256,13 @@ function App() {
                 headerStyle: { backgroundColor: selectedTheme.colors.background },
                 headerTintColor: selectedTheme.colors.text,
                 headerRight: () => (
-                  <TouchableOpacity onPress={() => setModalVisible(true)} style={{ marginRight: 16 }}>
+                  <TouchableOpacity onPress={handleInfoPress} style={{ marginRight: 16 }}>
                     <Icon name="information-circle-outline" size={24} color={selectedTheme.colors.text} />
                   </TouchableOpacity>
                 ),
               }}
             >
-              {() => <AdminUnbanScreen selectedTheme={selectedTheme} />}
+              {renderAdminScreen}
             </Stack.Screen>
 
             {/* <Stack.Screen
@@ -247,16 +292,16 @@ function App() {
                 headerTintColor: selectedTheme.colors.text,
               }}
             >
-              {() => <SettingsScreen selectedTheme={selectedTheme} />}
+              {renderSettingsScreen}
             </Stack.Screen>
            
           </Stack.Navigator>
           {/* <AppUpdateChecker /> */}
         </NavigationContainer>
         {modalVisible && (
-          <RewardRulesModal visible={modalVisible} onClose={() => setModalVisible(false)} selectedTheme={selectedTheme} />
+          <RewardRulesModal visible={modalVisible} onClose={handleCloseModal} selectedTheme={selectedTheme} />
         )}
-         <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} track='Home' showoffer={!single_offer_wall}   oneWallOnly={single_offer_wall}/>
+         <SubscriptionScreen visible={showofferwall} onClose={handleCloseOfferWall} track='Home' showoffer={!single_offer_wall}   oneWallOnly={single_offer_wall}/>
       </Animated.View>
     </SafeAreaView>
   );
@@ -265,42 +310,7 @@ function App() {
 export default function AppWrapper() {
   const { localState, updateLocalState } = useLocalState();
   const { theme, proGranted } = useGlobalState();
-  const hasShownColdStartAd = useRef(false);
-  const appState = useRef(AppState.currentState);
-
-  // useEffect(() => {
-  //   if (localState.showOnBoardingScreen) return;
-
-  //   // ✅ Android: Show cold start ad only once
-  //   if (Platform.OS === 'android' && !hasShownColdStartAd.current) {
-  //     AppOpenAdManager.initAndShow();
-  //     hasShownColdStartAd.current = true;
-  //   }
-
-  //   // ✅ iOS: Listen for background → active transition
-  //   if (Platform.OS === 'ios') {
-  //     const subscription = AppState.addEventListener('change', nextAppState => {
-  //       const wasBackground = appState.current === 'background';
-  //       const nowActive = nextAppState === 'active';
-
-  //       appState.current = nextAppState;
-
-  //       if (wasBackground && nowActive && !localState.isPro) {
-  //         AppOpenAdManager.initAndShow();
-  //       }
-  //     });
-
-  //     return () => subscription?.remove();
-  //   }
-
-  // }, [localState.isPro]);
-
-  // ✅ Hide splash after UI ready
-
-  useEffect(() => {
-    if (!localState.showOnBoardingScreen) 
-   { (!localState.isPro && !proGranted) && AppOpenAdManager.initAndShow();}
-  }, [localState.isPro, proGranted]);
+  
   useEffect(() => {
     if (localState.isAppReady) {
       InteractionManager.runAfterInteractions(() => {
@@ -309,13 +319,42 @@ export default function AppWrapper() {
     }
   }, [localState.isAppReady]);
 
+  // ✅ Fixed: Add proper cleanup for AppOpenAdManager to prevent memory leaks
+  useEffect(() => {
+    if (!localState.showOnBoardingScreen && !localState.isPro) {
+      AppOpenAdManager.initAndShow();
+    }
+
+    // ✅ Cleanup on unmount or when dependencies change
+    return () => {
+      // Only cleanup if component is unmounting, not on dependency changes
+      // AppOpenAdManager.cleanup(); // Uncomment if you want to cleanup on dependency changes
+    };
+  }, [localState.showOnBoardingScreen, localState.isPro]);
+
+  // ✅ Add cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      AppOpenAdManager.cleanup();
+    };
+  }, []);
+
   const selectedTheme = useMemo(() => {
+    if (!theme) {
+      // console.warn("⚠️ Theme not found! Falling back to Light Theme.");
+    }
     return theme === 'dark' ? MyDarkTheme : MyLightTheme;
   }, [theme]);
 
-  const handleSplashFinish = () => {
-    updateLocalState('showOnBoardingScreen', false);
-  };
+  // ✅ Memoize handleSplashFinish to prevent recreation - use ref to avoid dependency
+  const updateLocalStateRef = React.useRef(updateLocalState);
+  React.useEffect(() => {
+    updateLocalStateRef.current = updateLocalState;
+  }, [updateLocalState]);
+
+  const handleSplashFinish = useCallback(() => {
+    updateLocalStateRef.current('showOnBoardingScreen', false);
+  }, []); // ✅ Empty deps - uses ref instead
 
   if (localState.showOnBoardingScreen) {
     return <OnboardingScreen onFinish={handleSplashFinish} selectedTheme={selectedTheme} />;

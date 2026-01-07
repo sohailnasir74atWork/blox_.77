@@ -15,60 +15,133 @@ import { ref, get, update, remove } from "@react-native-firebase/database";
 import { useTranslation } from "react-i18next";
 import { banUserwithEmail } from "./utils";
 
-const ReportPopup = ({ visible, message, onClose }) => {
+const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false }) => {
   const [selectedReason, setSelectedReason] = useState("Spam");
   const [customReason, setCustomReason] = useState("");
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { theme, appdatabase } = useGlobalState();
+  const { theme, appdatabase, user } = useGlobalState();
   const isDarkMode = theme === "dark";
   const { t } = useTranslation();
 
-  const handleSubmit = () => {
-    const sanitizedId = message.id.startsWith("chat-")
-      ? message.id.replace("chat-", "")
-      : message.id;
-
-  // console.log(message)
-    if (!sanitizedId) {
+  const handleSubmit = async () => {
+    if (!message) {
       Alert.alert("Error", "Invalid message. Unable to report.");
       return;
     }
-  
+
     setLoading(true);
-    const messageRef = ref(appdatabase, `chat_new/${sanitizedId}`);
-  
-    get(messageRef)
-      .then((snapshot) => {
-        if (!snapshot.exists()) throw new Error("Message not found");
-  
-        const data = snapshot.val();
-        const reportCount = Number(data?.reportCount || 0);
-        // console.log('report count', reportCount)
-  
-        if (reportCount >= 1) {
-          // ✅ Second report: delete the message
-          banUserwithEmail(message.currentUserEmail)
-          return remove(messageRef).then(() => ({ action: "deleted" }));
+    
+    try {
+      let messageRef;
+      let senderEmail = null;
+
+      if (isPrivateChat && chatId) {
+        // ✅ Private chat: messages are in private_messages/{chatId}/messages/{messageId}
+        // Message ID is the timestamp (Firebase key)
+        let messageId = null;
+        
+        // Try to get message ID from various possible fields
+        if (message.id && message.id !== 'undefined' && message.id !== 'null') {
+          messageId = String(message.id);
+        } else if (message.timestamp) {
+          messageId = String(message.timestamp);
         } else {
-          // ✅ First report: set to 1 (don’t increment beyond this)
-          return update(messageRef, { reportCount: 1 }).then(() => ({ action: "reported" }));
+          console.error("❌ Private chat message missing ID:", JSON.stringify(message, null, 2));
+          throw new Error("Invalid message ID for private chat - missing both id and timestamp");
         }
-      })
-      .then((res) => {
-        setLoading(false);
-        if (res?.action === "deleted") {
-          Alert.alert(t("chat.report_submitted"), t("chat.report_submitted_message"));
+        
+        if (!chatId || chatId === 'undefined' || chatId === 'null') {
+          console.error("❌ Invalid chatId:", chatId);
+          throw new Error("Invalid chatId for private chat");
+        }
+        
+        const messagePath = `private_messages/${chatId}/messages/${messageId}`;
+        // console.log("🔍 Reporting private chat message - Path:", messagePath, "Message ID:", messageId, "ChatId:", chatId);
+        messageRef = ref(appdatabase, messagePath);
+        
+        // ✅ Fetch sender's email from user data
+        if (message.senderId) {
+          try {
+            const userRef = ref(appdatabase, `users/${message.senderId}`);
+            const userSnap = await get(userRef);
+            if (userSnap.exists()) {
+              const userData = userSnap.val();
+              senderEmail = userData.email || null;
+              
+              // ✅ Log for debugging
+              if (!senderEmail) {
+                console.warn("⚠️ Sender email not found in user data for userId:", message.senderId);
+                console.warn("User data:", JSON.stringify(userData, null, 2));
+              } else {
+                // console.log("✅ Found sender email:", senderEmail);
+              }
+            } else {
+              console.error("❌ User not found in Firebase for senderId:", message.senderId);
+            }
+          } catch (err) {
+            console.error("Error fetching sender email:", err);
+          }
         } else {
-          Alert.alert(t("chat.report_submitted"), t("chat.report_submitted_message"));
+          console.error("❌ Message missing senderId:", JSON.stringify(message, null, 2));
         }
+      } else {
+        // ✅ Group chat: messages are in chat_new/{messageId}
+        const sanitizedId = message.id.startsWith("chat-")
+          ? message.id.replace("chat-", "")
+          : message.id;
+        
+        if (!sanitizedId) {
+          throw new Error("Invalid message ID");
+        }
+        
+        messageRef = ref(appdatabase, `chat_new/${sanitizedId}`);
+        senderEmail = message.currentUserEmail || null;
+      }
+
+      const snapshot = await get(messageRef);
+      if (!snapshot.exists()) {
+        // ✅ Better error message with debugging info
+        const errorMsg = isPrivateChat 
+          ? `Message not found in private chat. Path: private_messages/${chatId}/messages/${message.id}`
+          : `Message not found in group chat. ID: ${message.id}`;
+        console.error("❌", errorMsg);
+        console.error("Message object:", JSON.stringify(message, null, 2));
+        throw new Error(errorMsg);
+      }
+
+      const data = snapshot.val();
+      const reportCount = Number(data?.reportCount || 0);
+
+      if (reportCount >= 1) {
+        // ✅ Second report: delete the message and ban user (increment strike)
+        if (senderEmail) {
+          // console.log("🔨 Applying ban to email:", senderEmail, "from private chat report");
+          try {
+            await banUserwithEmail(senderEmail, false); // false = not admin, so no alert shown
+            // console.log("✅ Ban applied successfully");
+          } catch (banError) {
+            console.error("❌ Error applying ban:", banError);
+            // Continue with message deletion even if ban fails
+          }
+        } else {
+          console.error("❌ Cannot ban user - sender email not found for senderId:", message.senderId);
+        }
+        await remove(messageRef);
+        Alert.alert(t("chat.report_submitted"), t("chat.report_submitted_message"));
         onClose(true);
-      })
-      .catch((error) => {
-        console.error("Error reporting message:", error);
-        setLoading(false);
-        Alert.alert("Error", "Failed to submit the report. Please try again.");
-      });
+      } else {
+        // ✅ First report: set to 1 (don't increment beyond this)
+        await update(messageRef, { reportCount: 1 });
+        Alert.alert(t("chat.report_submitted"), t("chat.report_submitted_message"));
+        onClose(true);
+      }
+    } catch (error) {
+      console.error("Error reporting message:", error);
+      Alert.alert("Error", "Failed to submit the report. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   

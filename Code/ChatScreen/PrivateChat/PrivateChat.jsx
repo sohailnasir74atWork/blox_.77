@@ -9,7 +9,7 @@ import {
   TouchableWithoutFeedback,  
 
 } from 'react-native';
-import { useFocusEffect, useRoute } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import { getStyles } from '../Style';
 import PrivateMessageInput from './PrivateMessageInput';
 import PrivateMessageList from './PrivateMessageList';
@@ -30,6 +30,7 @@ import {
   setDoc,
   serverTimestamp,
 } from '@react-native-firebase/firestore';
+import { updateUserRatingSummary } from '../utils/ratingSummaryHelper';
 import { Keyboard } from 'react-native';
 import ProfileBottomDrawer from '../GroupChat/BottomDrawer';
 
@@ -39,7 +40,7 @@ const PAGE_SIZE = 15;
 const PrivateChatScreen = ({route, bannedUsers, isDrawerVisible, setIsDrawerVisible }) => {
   const { selectedUser, selectedTheme, item } = route.params || {};
 
-  const { user, theme, appdatabase, updateLocalStateAndDatabase, firestoreDB } = useGlobalState();
+  const { user, theme, appdatabase, updateLocalStateAndDatabase, firestoreDB, currentUserEmail, strikeInfo, isAdmin } = useGlobalState();
 
   
     const [trade, setTrade] = useState(null)
@@ -48,6 +49,7 @@ const PrivateChatScreen = ({route, bannedUsers, isDrawerVisible, setIsDrawerVisi
   const [refreshing, setRefreshing] = useState(false);
   const lastLoadedKeyRef = useRef(null);
   const [lastLoadedKey, setLastLoadedKey] = useState(null);
+  const previousChatKeyRef = useRef(null);
   const [replyTo, setReplyTo] = useState(null);
   const [input, setInput] = useState('');
   const [isAdVisible, setIsAdVisible] = useState(true);
@@ -61,16 +63,18 @@ const [showRatingModal, setShowRatingModal] = useState(false);
 const [rating, setRating] = useState(0);
 const [petModalVisible, setPetModalVisible] = useState(false);
 const [selectedFruits, setSelectedFruits] = useState([]); 
-const [reviewText, setReviewText] = useState('');   // 👈 new
+const [reviewText, setReviewText] = useState('');
 const [startRating,setStartRating] = useState(false);
 const [isOnline, setIsOnline] = useState(false); 
 
 
 
 
-  // console.log(item)
-  
-  useEffect(()=>{setTrade(item)}, [])
+  useEffect(() => {
+    if (item) {
+      setTrade(item);
+    }
+  }, [item]);
 
 
   useEffect(() => {
@@ -80,28 +84,39 @@ const [isOnline, setIsOnline] = useState(false);
   }, [selectedUserId]);
 
   useEffect(() => {
-    if (messages.length === 0) return;
+    if (!Array.isArray(messages) || messages.length === 0) return;
+    if (!myUserId || !selectedUserId) return;
   
-    const myMsgs = messages.filter(m => m.senderId === myUserId);
-    const theirMsgs = messages.filter(m => m.senderId === selectedUserId);
+    const myMsgs = messages.filter(m => m?.senderId === myUserId);
+    const theirMsgs = messages.filter(m => m?.senderId === selectedUserId);
   
     if (myMsgs.length > 1 && theirMsgs.length > 1) {
       setCanRate(true);
+    } else {
+      setCanRate(false);
     }
-  }, [messages]);
+  }, [messages, myUserId, selectedUserId]);
   
   useEffect(() => {
-    if (!selectedUserId || !myUserId) return;
+    if (!selectedUserId || !myUserId || !firestoreDB) return;
   
-    const ratingRef = ref(appdatabase, `ratings/${selectedUserId}/${myUserId}`);
-    ratingRef.once('value').then(snapshot => {
-      if (snapshot.exists()) {
-        setHasRated(true);
-      }
-    }).catch(error => {
-      console.error("Error checking existing rating:", error);
-    });
-  }, [selectedUserId, myUserId]);
+    // ✅ MIGRATED: Check rating from Firestore instead of RTDB
+    const reviewDocId = `${selectedUserId}_${myUserId}`;
+    const reviewRef = doc(firestoreDB, "reviews", reviewDocId);
+    
+    getDoc(reviewRef)
+      .then(snapshot => {
+        if (snapshot.exists) {
+          setHasRated(true);
+        } else {
+          setHasRated(false);
+        }
+      })
+      .catch(error => {
+        console.error("Error checking existing rating:", error);
+        setHasRated(false);
+      });
+  }, [selectedUserId, myUserId, firestoreDB]);
 
 
   const closeProfileDrawer = () => {
@@ -109,141 +124,132 @@ const [isOnline, setIsOnline] = useState(false);
   };
   
   const isBanned = useMemo(() => {
-    // const bannedUserIds = bannedUsers?.map((user) => user.id) || [];
-    return bannedUsers.includes(selectedUserId);
+    if (!selectedUserId) return false;
+    const banned = Array.isArray(bannedUsers) ? bannedUsers : [];
+    return banned.includes(selectedUserId);
   }, [bannedUsers, selectedUserId]);
   const isDarkMode = theme === 'dark';
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
 
-  // Generate a unique chat key
+  // ✅ Ensure chatKey matches the format used when storing messages (sorted IDs)
   const chatKey = useMemo(
-    () =>
-      myUserId < selectedUserId
-        ? `${myUserId}_${selectedUserId}`
-        : `${selectedUserId}_${myUserId}`,
+    () => {
+      if (!myUserId || !selectedUserId) return null;
+      return [myUserId, selectedUserId].sort().join('_');
+    },
     [myUserId, selectedUserId]
   );
 
-  const getUserPoints = async (userId) => {
-    if (!userId) return 0;
+  const getUserPoints = useCallback(async (userId) => {
+    if (!userId || !appdatabase) return 0;
     try {
       const snapshot = await get(ref(appdatabase, `/users/${userId}/rewardPoints`));
-      return snapshot.exists() ? snapshot.val() : 0;
+      return snapshot.exists() ? Number(snapshot.val()) || 0 : 0;
     } catch (error) {
-      return error;
+      console.error('Error getting user points:', error);
+      return 0;
     }
-  };
+  }, [appdatabase]);
 
-  const updateUserPoints = async (userId, pointsToAdd) => {
-    if (!userId) return;
+  const updateUserPoints = useCallback(async (userId, pointsToAdd) => {
+    if (!userId || !appdatabase) return;
+    if (typeof pointsToAdd !== 'number' || isNaN(pointsToAdd)) {
+      console.error('Invalid pointsToAdd value');
+      return;
+    }
     try {
       const latestPoints = await getUserPoints(userId);
-      // console.log(latestPoints)
-
-      const newPoints = latestPoints + pointsToAdd;
+      const newPoints = Number(latestPoints) + Number(pointsToAdd);
       await update(ref(appdatabase, `/users/${userId}`), { rewardPoints: newPoints });
-      updateLocalStateAndDatabase('rewardPoints', newPoints);
-    } catch (error) {}
-  };
-  // const navigation = useNavigation();
+      if (updateLocalStateAndDatabase && typeof updateLocalStateAndDatabase === 'function') {
+        updateLocalStateAndDatabase('rewardPoints', newPoints);
+      }
+    } catch (error) {
+      console.error('Error updating user points:', error);
+    }
+  }, [getUserPoints, appdatabase, updateLocalStateAndDatabase]);
   useFocusEffect(
     useCallback(() => {
-      // Screen is focused
-      // console.log('Screen is focused');
-
       return () => {
-        // Screen is unfocused
         if (user?.id) {
           clearActiveChat(user.id);
-          // console.log('Triggered clearActiveChat for user:', user.id);
         }
       };
     }, [user?.id])
   );
 
-const handleRating = async () => {
-  if (!rating) {
-    showErrorMessage("Error", "Please select a rating first.");
-    return;
-  }
+  const handleRating = useCallback(async () => {
+    if (!rating || rating < 1 || rating > 5) {
+      showErrorMessage("Error", "Please select a rating first.");
+      return;
+    }
 
-  try {
-    // 🔹 Realtime Database part (same as before)
+    if (!selectedUserId || !myUserId || !appdatabase || !firestoreDB) {
+      showErrorMessage("Error", "Missing required data. Please try again.");
+      return;
+    }
+  
+    try {
     setStartRating(true)
-    const ratingRef = ref(appdatabase, `ratings/${selectedUserId}/${myUserId}`);
-    const avgRef = ref(appdatabase, `averageRatings/${selectedUserId}`);
-
-
-    const [oldRatingSnap, avgSnap] = await Promise.all([
-      ratingRef.once('value'),
-      avgRef.once('value'),
-    ]);
-
-    const oldRating = oldRatingSnap.val()?.rating;
-    const avgData = avgSnap.val();
-    const oldAverage = avgData?.value || 0;
-    const oldCount = avgData?.count || 0;
+    
+    // ✅ MIGRATED: Get old rating from Firestore instead of RTDB
+    const reviewDocId = `${selectedUserId}_${myUserId}`;
+    const reviewRef = doc(firestoreDB, "reviews", reviewDocId);
+    const existingSnap = await getDoc(reviewRef);
+    const oldRating = existingSnap.exists ? existingSnap.data()?.rating : undefined;
+    
+    // ✅ Get current summary from Firestore to calculate new average
+    const summaryRef = doc(firestoreDB, 'user_ratings_summary', selectedUserId);
+    const summarySnap = await getDoc(summaryRef);
+    const summaryData = summarySnap.exists ? summarySnap.data() : null;
+    const oldAverage = summaryData?.averageRating || 0;
+    const oldCount = summaryData?.count || 0;
 
     let newAverage = 0;
     let newCount = oldCount;
 
     if (oldRating !== undefined) {
-      // Updating existing rating
       newAverage = ((oldAverage * oldCount) - oldRating + rating) / oldCount;
     } else {
-      // New rating
       newCount = oldCount + 1;
       newAverage = ((oldAverage * oldCount) + rating) / newCount;
     }
-
-    // ✅ Save rating
-    await ratingRef.set({
-      rating,
-      timestamp: Date.now(),
-    });
-
-    // ✅ Update average
-    await avgRef.set({
-      value: parseFloat(newAverage.toFixed(2)),
-      count: newCount,
-      updatedAt: Date.now(),
-    });
+    
     const trimmedReview = (reviewText || "").trim();
 
     let reviewWasSaved = false;
     let reviewWasUpdated = false;
     
-    if (trimmedReview) {
-      // one doc per (fromUser, toUser)
-      const reviewDocId = `${selectedUserId}_${myUserId}`; // toUser_fromUser
-      const reviewRef = doc(firestoreDB, "reviews", reviewDocId);
+    // ✅ MIGRATED: Save ALL ratings to Firestore only (removed RTDB writes)
+    // Note: reviewRef and existingSnap already fetched above, reuse them
+    const now = serverTimestamp();
+    const isUpdate = existingSnap.exists;
+  
+    await setDoc(
+      reviewRef,
+      {
+        fromUserId: myUserId,
+        toUserId: selectedUserId,
+        rating,
+        userName: user?.displayName || user?.displayname || null,
+        review: trimmedReview || null, // Can be null if no review text
+        createdAt: isUpdate ? existingSnap.data()?.createdAt ?? now : now,
+        updatedAt: now,
+        edited: isUpdate,
+      },
+      { merge: true }
+    );
+  
+    reviewWasSaved = true;
+    reviewWasUpdated = isUpdate;
+
+    // ✅ OPTIMIZED: Update user_ratings_summary collection (background update, doesn't block UI)
+    // This maintains aggregated data for efficient leaderboard queries
+    updateUserRatingSummary(firestoreDB, selectedUserId).catch((err) => {
+      console.error('Error updating rating summary:', err);
+      // Don't show error to user - this is a background operation
+    });
     
-      const now = serverTimestamp();
-    
-      // 🔍 check if this user already reviewed this trader
-      const existingSnap = await getDoc(reviewRef);
-const isUpdate = existingSnap.exists;   // 👈 property, NOT function
-    
-      await setDoc(
-        reviewRef,
-        {
-          fromUserId: myUserId,
-          toUserId: selectedUserId,
-          rating,
-          userName: user?.displayName || user?.displayname || null,
-          review: trimmedReview, // guaranteed non-empty here
-          createdAt: isUpdate ? existingSnap.data()?.createdAt ?? now : now,
-          updatedAt: now,
-          edited: isUpdate,
-        },
-        { merge: true }
-      );
-    
-      reviewWasSaved = true;
-      reviewWasUpdated = isUpdate;
-    }
-    
-    // 🎉 feedback based on whether we actually saved a text review
     showSuccessMessage(
       "Success",
       reviewWasSaved
@@ -253,27 +259,28 @@ const isUpdate = existingSnap.exists;   // 👈 property, NOT function
         : "Thanks for your rating!"
     );
     
-    setShowRatingModal(false);
-    setHasRated(true);
+      setShowRatingModal(false);
+      setHasRated(true);
       setReviewText('');
-      await updateUserPoints(user?.id, 100);
-    setStartRating(false)
-    showSuccessMessage("Success", "Thanks for your feedback!");
-
-  } catch (error) {
-    console.error("Rating error:", error);
-    showErrorMessage("Error", "Error submitting rating. Try again!");
-  }
-}
+      if (user?.id) {
+        await updateUserPoints(user.id, 100);
+      }
+      setStartRating(false);
+  
+    } catch (error) {
+      console.error("Rating error:", error);
+      showErrorMessage("Error", "Error submitting rating. Try again!");
+      setStartRating(false);
+    }
+  }, [rating, selectedUserId, myUserId, appdatabase, firestoreDB, reviewText, user?.id, user?.displayName, updateUserPoints]);
 
 
 
 const messagesRef = useMemo(
   () => (chatKey ? ref(appdatabase, `private_messages/${chatKey}/messages`) : null),
   [chatKey, appdatabase],
-);  // console.log(selecte÷dUser)
+);
 
-  // Load messages with pagination
   const loadMessages = useCallback(
     async (reset = false) => {
       if (!messagesRef) return;
@@ -288,11 +295,9 @@ const messagesRef = useMemo(
   
         const lastKey = lastLoadedKeyRef.current;
         if (!reset && lastKey) {
-          // get older messages including lastKey – we’ll filter overlap
           query = query.endAt(lastKey);
         }
   
-        // ✅ apply limit ONLY ONCE, at the end
         query = query.limitToLast(PAGE_SIZE);
 
         const snapshot = await query.once('value');
@@ -300,16 +305,28 @@ const messagesRef = useMemo(
 
         let parsedMessages = Object.entries(data)
           .map(([key, value]) => ({ id: key, ...value }))
-          .sort((a, b) => b.timestamp - a.timestamp);
-          if (parsedMessages.length === 0) return;
+          .sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
 
-          setMessages(prev => {
-            const existingIds = new Set(prev.map(m => String(m.id)));
-            const onlyNew = parsedMessages.filter(m => !existingIds.has(String(m.id)));
-            return reset ? parsedMessages : [...onlyNew, ...prev];
-          });
+        if (parsedMessages.length === 0) {
+          if (reset) {
+          }
+          return;
+        }
+
+        setMessages(prev => {
+          if (!Array.isArray(prev)) return parsedMessages;
+          const existingIds = new Set(prev.map(m => String(m?.id)));
+          const onlyNew = parsedMessages.filter(m => !existingIds.has(String(m?.id)));
+          
+          if (reset) {
+            return parsedMessages;
+          } else {
+            const combined = [...prev, ...onlyNew];
+            return combined.sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
+          }
+        });
     
-          lastLoadedKeyRef.current = parsedMessages[0].id; // oldest in this batch
+        lastLoadedKeyRef.current = parsedMessages[parsedMessages.length - 1]?.id;
     
       } catch (error) {
         console.error('Error loading messages:', error);
@@ -318,97 +335,146 @@ const messagesRef = useMemo(
     },
     [messagesRef]
   );
+  // ✅ OPTIMIZED: Initial load with pagination, then use child_added for new messages only
   useEffect(() => {
     if (!messagesRef) return;
-    loadMessages(true);
-  }, [messagesRef, loadMessages]);
+    
+    const currentChatKey = chatKey;
+    const previousChatKey = previousChatKeyRef.current;
+    
+    if (currentChatKey !== previousChatKey) {
+      previousChatKeyRef.current = currentChatKey;
+      loadMessages(true);
+    } else if (previousChatKey === null) {
+      previousChatKeyRef.current = currentChatKey;
+      loadMessages(true);
+    }
+  }, [chatKey, messagesRef, loadMessages]);
   
   const handleLoadMore = useCallback(() => {
-    // explicitly say "this is NOT a reset"
     loadMessages(false);
   }, [loadMessages]);
   
-  // console.log(selectedUser.sender)
-  const groupItems = (items) => {
+  const groupItems = useCallback((items) => {
+    if (!Array.isArray(items)) return [];
     const grouped = {};
-    items.forEach(({ name, type }) => {
-      const key = `${name}-${type}`;
+    items.forEach((item) => {
+      if (!item || typeof item !== 'object') return;
+      const key = `${item.name || ''}-${item.type || ''}`;
       if (grouped[key]) {
-        grouped[key].count += 1;
+        grouped[key].count = (grouped[key].count || 0) + 1;
       } else {
-        grouped[key] = { name, type, count: 1 };
+        grouped[key] = { 
+          ...item,
+          count: 1
+        };
       }
     });
     return Object.values(grouped);
-  };
-  const formatName = (name) => {
+  }, []);
+
+  const formatName = useCallback((name) => {
+    if (!name || typeof name !== 'string') return '';
     let formattedName = name.replace(/^\+/, '');
     formattedName = formattedName.replace(/\s+/g, '-');
     return formattedName;
-  };
+  }, []);
 
   useEffect(() => {
+    if (!myUserId || !selectedUserId || !appdatabase) return;
+
     const chatId = [myUserId, selectedUserId].sort().join('_');
     const tradeRef = ref(appdatabase, `private_messages/${chatId}/trade`);
-
-    if (item) {
-      // ✅ If trade comes from props, set it and update Firebase
+  
+    if (item && typeof item === 'object') {
       setTrade(item);
-      tradeRef.set(item).catch((error) => console.error("Error updating trade in Firebase:", error));
+      tradeRef.set(item).catch((error) => {
+        console.error("Error updating trade in Firebase:", error);
+      });
     } else {
-      // ✅ If no trade in props, check Firebase
       tradeRef.once('value')
         .then((snapshot) => {
-          const tradeData = snapshot.val();
-          if (tradeData) {
-            setTrade(tradeData);
+          if (snapshot.exists()) {
+            const tradeData = snapshot.val();
+            if (tradeData && typeof tradeData === 'object') {
+              setTrade(tradeData);
+            }
           }
         })
-        .catch((error) => console.error("Error fetching trade from Firebase:", error));
+        .catch((error) => {
+          console.error("Error fetching trade from Firebase:", error);
+        });
     }
-  }, []);
+  }, [item, myUserId, selectedUserId, appdatabase]);
   
 
-  const groupedHasItems = groupItems(trade?.hasItems || []);
-  const groupedWantsItems = groupItems(trade?.wantsItems || []);
+  const groupedHasItems = useMemo(() => {
+    if (!trade || !trade.hasItems || !Array.isArray(trade.hasItems)) return [];
+    return groupItems(trade.hasItems);
+  }, [trade?.hasItems, groupItems]);
 
-  const containsLink = (text = "") => {
-    const t = String(text);
-  
-    // obvious links
-    if (/(https?:\/\/|www\.)\S+/i.test(t)) return true;
-  
-    // simple domain patterns (covers many scam attempts)
-    const domainRegex =
-      /\b[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.(?:com|net|org|io|gg|co|uk|ru|pk|xyz|app|me|tv|info|biz|site|store)\b/i;
-  
-    return domainRegex.test(t);
-  };
-  
-  // Send message
+  const groupedWantsItems = useMemo(() => {
+    if (!trade || !trade.wantsItems || !Array.isArray(trade.wantsItems)) return [];
+    return groupItems(trade.wantsItems);
+  }, [trade?.wantsItems, groupItems]);
 
-  const sendMessage = async (text, image, fruits) => {
-    const trimmedText = (text || '').trim(); // safe guard
+ 
+  
+  const sendMessage = useCallback(async (text, image, fruits) => {
+    const trimmedText = (text || '').trim();
     const hasImage = !!image;
     const hasFruits = Array.isArray(fruits) && fruits.length > 0;
-    if (trimmedText && containsLink(trimmedText)) {
-      showErrorMessage(t("home.alert.error"), "Links are not allowed in chat.");
+  
+    if (!myUserId || !currentUserEmail) {
+      showErrorMessage(t("home.alert.error"), "You must be logged in to send messages.");
       return;
     }
-    // Block only if there's no text, no image AND no fruits
+
+    // ✅ Admins are exempt from blocking
+    if (strikeInfo && !isAdmin) {
+      const { strikeCount, bannedUntil } = strikeInfo;
+      const now = Date.now();
+
+      if (bannedUntil === 'permanent') {
+        showErrorMessage(t("home.alert.error"), "You are permanently banned from sending messages.");
+        return;
+      }
+
+      if (typeof bannedUntil === 'number' && now < bannedUntil) {
+        const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+        showErrorMessage(
+          t("home.alert.error"),
+          `You are banned from chatting for ${timeLeftText} more minute(s).`
+        );
+        return;
+      }
+    }
+  
+    if (hasFruits && fruits.length > 18) {
+      showErrorMessage(t("home.alert.error"), "You can only send up to 18 pets in a message.");
+      return;
+    }
+  
     if (!trimmedText && !hasImage && !hasFruits) {
-      // Alert.alert("Error", "Message cannot be empty!");
       showErrorMessage(t("home.alert.error"), t("chat.cannot_empty"));
       return;
     }
+  
+    if (!myUserId || !selectedUserId || !appdatabase) {
+      showErrorMessage(t("home.alert.error"), "Missing required data. Please try again.");
+      return;
+    }
+
     setInput('');
 
     const timestamp = Date.now();
     const chatId = [myUserId, selectedUserId].sort().join('_');
-    // const tradeRef = database().ref(`private_messages/${chatId}/trade`);
 
 
-    // References
     const messageRef       = ref(appdatabase, `private_messages/${chatId}/messages/${timestamp}`);
     const senderChatRef    = ref(appdatabase, `chat_meta_data/${myUserId}/${selectedUserId}`);
     const receiverChatRef  = ref(appdatabase, `chat_meta_data/${selectedUserId}/${myUserId}`);
@@ -420,59 +486,51 @@ const messagesRef = useMemo(
     };
   
     if (hasImage) {
-      messageData.imageUrl = image;      // 👈 used in PrivateMessageList
+      messageData.imageUrl = image;     
     }
   
     if (hasFruits) {
-      messageData.fruits = fruits;       // 👈 your array of selected fruits
+      messageData.fruits = fruits;       
     }
   
-    // What to show as last message in chat list
     const lastMessagePreview =
       trimmedText ||
       (hasImage ? '📷 Photo' : hasFruits ? `🐾 ${fruits.length} pet(s)` : '');
   
     try {
-      // Save the message
       await messageRef.set(messageData);
   
 
-      // Check if receiver is currently in the chat
       const snapshot = await receiverStatusRef.once('value');
       const isReceiverInChat = snapshot.val() === chatId;
-      // console.log(selectedUser)
 
 
-      // Update sender's chat metadata (unread count always 0 for sender)
       await senderChatRef.update({
         chatId,
         receiverId: selectedUserId,
-        // flage:user?.flage,
         receiverName: selectedUser?.sender || "Anonymous",
-        receiverAvatar: selectedUser?.avatar || "https://example.com/default-avatar.jpg",
+        receiverAvatar: selectedUser?.avatar || "https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png",
         lastMessage: lastMessagePreview,
         timestamp,
-        unreadCount: 0
+        unreadCount: 0,
       });
 
-      // Update receiver's chat metadata (increase unread count if not in chat)
       await receiverChatRef.update({
         chatId,
         receiverId: myUserId,
         receiverName: user?.displayName || "Anonymous",
-        receiverAvatar: user?.avatar || "https://example.com/default-avatar.jpg",
+        receiverAvatar: user?.avatar || "https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png",
         lastMessage: lastMessagePreview,
         timestamp,
         unreadCount: isReceiverInChat ? 0 : increment(1),
       });
 
-      // setInput('');
       setReplyTo(null);
     } catch (error) {
       console.error("Error sending message:", error);
       Alert.alert("Error", "Could not send your message. Please try again.");
     }
-  };
+  }, [myUserId, selectedUserId, appdatabase, selectedUser, user, t, currentUserEmail, strikeInfo, isAdmin]);
 
   useFocusEffect(
     useCallback(() => {
@@ -480,7 +538,6 @@ const messagesRef = useMemo(
 
       const chatMetaRef = ref(appdatabase, `chat_meta_data/${user.id}/${selectedUserId}`);
 
-      // ✅ Reset unreadCount when entering chat
       chatMetaRef.update({ unreadCount: 0 });
 
       setActiveChat(user.id, chatKey);
@@ -490,9 +547,7 @@ const messagesRef = useMemo(
       };
     }, [user?.id, selectedUserId, chatKey])
   );
-  // console.log(selectedUser.senderId)
-
-  // Handle refresh
+ 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadMessages(true);
@@ -500,29 +555,46 @@ const messagesRef = useMemo(
   }, [loadMessages]);
 
   useEffect(() => {
-    setActiveChat(user.id, chatKey)
-  }, [user.id, chatKey]);
+    if (user?.id && chatKey) {
+      setActiveChat(user.id, chatKey);
+    }
+  }, [user?.id, chatKey]);
 
 
   useEffect(() => {
     if (!messagesRef) return;
-  
-    const handleChildAdded = snapshot => {
-      const newMessage = { id: snapshot.key, ...snapshot.val() };
-  
-      setMessages(prev => {
-        const exists = prev.some(m => String(m.id) === String(newMessage.id));
-        if (exists) return prev;
-  
 
-     return [newMessage, ...prev];
+    // ✅ OPTIMIZED: Use limitToLast(1) on child_added to only listen for NEW messages
+    // This prevents downloading all historical messages when listener is attached
+    // Initial load is handled by loadMessages() with pagination
+    const newMessagesQuery = messagesRef.orderByKey().limitToLast(1);
+    
+    const handleChildAdded = snapshot => {
+      if (!snapshot || !snapshot.key) return;
+      const data = snapshot.val();
+      if (!data || typeof data !== 'object') return;
+
+      const newMessage = { id: snapshot.key, ...data };
+      if (!newMessage.timestamp) {
+        newMessage.timestamp = Date.now();
+      }
+
+      setMessages(prev => {
+        if (!Array.isArray(prev)) return [newMessage];
+        const exists = prev.some(m => String(m?.id) === String(newMessage.id));
+        if (exists) return prev;
+
+        return [newMessage, ...prev].sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
       });
     };
-  
-    messagesRef.on('child_added', handleChildAdded);
-  
+
+    // ✅ Only listen for the latest message (new messages only)
+    newMessagesQuery.on('child_added', handleChildAdded);
+
     return () => {
-      messagesRef.off('child_added', handleChildAdded);
+      if (newMessagesQuery) {
+        newMessagesQuery.off('child_added', handleChildAdded);
+      }
     };
   }, [messagesRef]);
   
@@ -559,7 +631,7 @@ const messagesRef = useMemo(
                           style={[styles.itemImage, { backgroundColor: hasItem.type === 'p' ? '#FFCC00' : '' }]}
                         />
                         <Text style={styles.names}>
-                          {hasItem.name}{hasItem.type === 'p' && " (P)"}
+                          {hasItem.name || ''}{hasItem.type === 'p' ? ' (P)' : ''}
                         </Text>
                         {hasItem.count > 1 && (
                           <View style={styles.tagcount}>
@@ -582,7 +654,7 @@ const messagesRef = useMemo(
                         style={[styles.itemImage, { backgroundColor: wantitem.type === 'p' ? '#FFCC00' : '' }]}
                       />
                       <Text style={styles.names}>
-                        {wantitem.name}{wantitem.type === 'p' && " (P)"}
+                        {wantitem.name || ''}{wantitem.type === 'p' ? ' (P)' : ''}
                       </Text>
                       {wantitem.count > 1 && (
                         <View style={styles.tagcount}>
@@ -594,24 +666,7 @@ const messagesRef = useMemo(
                   </View>
                  
                 </View>
-                {/* {canRate && !hasRated && (
-  <View style={{ alignItems: 'center', marginTop: 5, }}>
-    <TouchableOpacity
-      style={{
-        backgroundColor: config.colors.primary,
-        borderRadius: 10,
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-      }}
-      onPress={() => {setShowRatingModal(true)
-      }}
-    >
-      <Text style={{ color: 'white', fontSize: 12 }}>
-        Rate Trader and Get 100 points
-      </Text>
-    </TouchableOpacity>
-  </View>
-)} */}
+               
 
 
                 </View>
@@ -619,16 +674,13 @@ const messagesRef = useMemo(
               )}
 
 {messages.length === 0 ? (
-  // No messages yet
   loading ? (
-    // Still checking / loading
     <ActivityIndicator
       size="large"
       color="#1E88E5"
       style={{ flex: 1, justifyContent: 'center' }}
     />
   ) : (
-    // Finished loading, still empty
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyText}>{t('chat.no_messages_yet')}</Text>
     </View>
@@ -647,6 +699,7 @@ const messagesRef = useMemo(
                   canRate={canRate}
     hasRated={hasRated}
     setShowRatingModal={setShowRatingModal}
+                  chatKey={chatKey}
                 />
               )}
                          
@@ -705,7 +758,6 @@ const messagesRef = useMemo(
         position: 'relative',
       }}
     >
-      {/* ❌ Close Button */}
       <TouchableOpacity
         onPress={() => setShowRatingModal(false)}
         style={{
@@ -719,12 +771,10 @@ const messagesRef = useMemo(
         <Text style={{ fontSize: 18, color: '#888' }}>✖</Text>
       </TouchableOpacity>
 
-      {/* Title */}
       <Text style={{ fontSize: 16, marginBottom: 10, textAlign: 'center', fontWeight:'600' }}>
         Rate this Trader
       </Text>
 
-      {/* Stars */}
       <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 15 }}>
         {[1, 2, 3, 4, 5].map((num) => (
           <TouchableOpacity key={num} onPress={() => setRating(num)}>
@@ -754,7 +804,6 @@ const messagesRef = useMemo(
   onChangeText={setReviewText}
 />
 
-      {/* Submit Button */}
       <TouchableOpacity
         style={{
           backgroundColor: config.colors.primary,
@@ -782,19 +831,7 @@ const messagesRef = useMemo(
           bannedUsers={bannedUsers}
           fromPvtChat={true}
         />
-      {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
-        {isAdVisible && (
-          <BannerAd
-            unitId={bannerAdUnitId}
-            size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-            onAdLoaded={() => setIsAdVisible(true)}
-            onAdFailedToLoad={() => setIsAdVisible(false)}
-            requestOptions={{
-              requestNonPersonalizedAdsOnly: true,
-            }}
-          />
-        )}
-      </View>} */}
+    
     </>
   );
 };

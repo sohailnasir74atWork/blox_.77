@@ -24,9 +24,8 @@ const AdminUnbanScreen = () => {
   const { theme } = useGlobalState();
   const isDark = theme === 'dark';
 
-  const [activeTab, setActiveTab] = useState('email'); // 'email' | 'post'
-  const [emailBans, setEmailBans] = useState([]);
-  const [postBans, setPostBans] = useState([]);
+  // ✅ Unified ban system - only one list now
+  const [bans, setBans] = useState([]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -51,12 +50,9 @@ const AdminUnbanScreen = () => {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [emailList, postList] = await Promise.all([
-        fetchNode('banned_users_by_email'),
-        fetchNode('banned_users_by_email_post'),
-      ]);
-      setEmailBans(emailList);
-      setPostBans(postList);
+      // ✅ Use unified database path
+      const banList = await fetchNode('banned_users_by_email');
+      setBans(banList);
     } catch (err) {
       console.error('Failed to fetch bans:', err);
       Alert.alert('Error', 'Could not load banned users.');
@@ -88,30 +84,14 @@ const AdminUnbanScreen = () => {
     }
   };
 
-  const handleUnbanPostNode = async (decodedEmail) => {
-    try {
-      await set(ref(db, `banned_users_by_email_post/${encodeEmail(decodedEmail)}`), null);
-      Alert.alert('User Unbanned', 'Ban has been lifted.');
-      await fetchAll();
-    } catch (err) {
-      console.error('Unban failed (post node):', err);
-      Alert.alert('Error', 'Could not unban user.');
-    }
-  };
-
-  const listForActiveTab = useMemo(() => {
-    const src = activeTab === 'email' ? emailBans : postBans;
-    if (!searchQuery.trim()) return src;
+  const filteredBans = useMemo(() => {
+    if (!searchQuery.trim()) return bans;
     const q = searchQuery.toLowerCase();
-    return src.filter((u) => u.decodedEmail.toLowerCase().includes(q));
-  }, [activeTab, emailBans, postBans, searchQuery]);
+    return bans.filter((u) => u.decodedEmail.toLowerCase().includes(q));
+  }, [bans, searchQuery]);
 
   const handleUnban = (user) => {
-    if (activeTab === 'email') {
-      handleUnbanEmailNode(user.decodedEmail);
-    } else {
-      handleUnbanPostNode(user.decodedEmail);
-    }
+    handleUnbanEmailNode(user.decodedEmail);
   };
 
   if (loading) {
@@ -127,39 +107,6 @@ const AdminUnbanScreen = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#000' : '#fff' }]}>
-      {/* Tabs */}
-      <View style={styles.tabsRow}>
-        <TouchableOpacity
-          onPress={() => setActiveTab('email')}
-          style={[
-            styles.tab,
-            {
-              backgroundColor: activeTab === 'email' ? (isDark ? '#333' : '#e6e6e6') : 'transparent',
-              borderColor: isDark ? '#444' : '#ccc',
-              marginRight: 8,
-            },
-          ]}
-        >
-          <Text style={{ color: isDark ? '#fff' : '#000', fontWeight: '600' }}>
-            By Email ({emailBans.length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setActiveTab('post')}
-          style={[
-            styles.tab,
-            {
-              backgroundColor: activeTab === 'post' ? (isDark ? '#333' : '#e6e6e6') : 'transparent',
-              borderColor: isDark ? '#444' : '#ccc',
-            },
-          ]}
-        >
-          <Text style={{ color: isDark ? '#fff' : '#000', fontWeight: '600' }}>
-            From Posts ({postBans.length})
-          </Text>
-        </TouchableOpacity>
-      </View>
-
       {/* Search */}
       <TextInput
         value={searchQuery}
@@ -177,14 +124,14 @@ const AdminUnbanScreen = () => {
       />
 
       {/* List */}
-      {listForActiveTab.length === 0 ? (
+      {filteredBans.length === 0 ? (
         <Text style={{ color: isDark ? '#fff' : '#000', textAlign: 'center', marginTop: 20 }}>
           No banned users found.
         </Text>
       ) : (
         <FlatList
-          data={listForActiveTab}
-          keyExtractor={(item) => `${activeTab}-${item.encodedEmail}`}
+          data={filteredBans}
+          keyExtractor={(item) => item.encodedEmail}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

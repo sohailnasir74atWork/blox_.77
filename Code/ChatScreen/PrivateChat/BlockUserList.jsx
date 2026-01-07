@@ -49,22 +49,27 @@ const BlockedUsersScreen = () => {
           return;
         }
 
+        // ✅ OPTIMIZED: Fetch only displayName and avatar instead of full user objects
         const userDetailsPromises = bannedUserIds.map(async (id) => {
           if (!id) return null;
 
           try {
-            const userRef = ref(appdatabase, `users/${id}`);
-            const userSnapshot = await get(userRef);
+            // ✅ Fetch only the fields we need (parallel requests to specific child paths)
+            const [displayNameSnap, avatarSnap] = await Promise.all([
+              get(ref(appdatabase, `users/${id}/displayName`)).catch(() => null),
+              get(ref(appdatabase, `users/${id}/avatar`)).catch(() => null),
+            ]);
 
-            if (!userSnapshot?.exists()) return null;
-
-            const userData = userSnapshot.val();
-            if (!userData) return null;
+            // ✅ Check if user exists (if no displayName and no avatar, user likely doesn't exist)
+            if (!displayNameSnap?.exists() && !avatarSnap?.exists()) {
+              return null;
+            }
 
             return {
               id,
-              displayName: userData.displayName?.trim() || 'Anonymous',
-              avatar: userData.avatar?.trim() || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+              displayName: displayNameSnap?.exists() ? (displayNameSnap.val()?.trim() || 'Anonymous') : 'Anonymous',
+              avatar: avatarSnap?.exists() ? (avatarSnap.val()?.trim() || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png') 
+                     : 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
             };
           } catch (error) {
             console.error(`❌ Error fetching user ${id}:`, error);

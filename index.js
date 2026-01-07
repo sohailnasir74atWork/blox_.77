@@ -15,6 +15,9 @@ import FlashMessage from 'react-native-flash-message';
 
 // 🚀 Lazy load Notification Handler for better startup performance
 const NotificationHandler = lazy(() => import('./Code/Firebase/FrontendNotificationHandling'));
+
+// 👥 Lazy load Global Group Invite Toast for group invitations
+const GlobalGroupInviteToast = lazy(() => import('./Code/ValuesScreen/GlobalGroupInviteToast'));
 const STATUS_BAR_HEIGHT = Platform.OS === 'android' ? StatusBar.currentHeight || 18 : 44;
 // ✅ Background Notification Handler
 messaging().setBackgroundMessageHandler(async remoteMessage => {
@@ -48,6 +51,10 @@ const App = React.memo(() => (
           />
         <Suspense fallback={null}>
           <NotificationHandler />
+        </Suspense>
+        {/* 👥 Global Group Invite Toast - Shows on any screen when user receives a group invitation */}
+        <Suspense fallback={null}>
+          <GlobalGroupInviteToast />
         </Suspense>
       </GlobalStateProvider>
     </LocalStateProvider>                

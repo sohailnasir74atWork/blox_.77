@@ -24,6 +24,7 @@ import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-m
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
 import { handleadoptme, handleMM2 } from '../SettingScreen/settinghelper';
+import GlobalGroupInviteToast from './GlobalGroupInviteToast';
 
 const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruits, onRequestClose, fromSetting, ownedPets, setOwnedPets, wishlistPets, setWishlistPets, owned }) => {
   const [searchText, setSearchText] = useState('');
@@ -366,9 +367,15 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
       id: item.id,
     };
 
-    // 👉 From chat: always add another copy
+    // 👉 From chat: always add another copy (max 4 fruits)
     if (fromChat) {
-      setSelectedFruits(prev => [...(prev || []), fruitObj]);
+      setSelectedFruits(prev => {
+        const currentList = prev || [];
+        if (currentList.length >= 4) {
+          return currentList; // Don't add if already at max
+        }
+        return [...currentList, fruitObj];
+      });
     }
 
     // 👉 From settings: always add another copy
@@ -649,6 +656,8 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
           />
         )}
       </View>} */}
+      {/* 👥 Global Group Invite Toast - Shows when user receives a group invitation */}
+      <GlobalGroupInviteToast />
     </>
   );
 };

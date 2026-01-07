@@ -17,6 +17,9 @@ const config = {
   andriodOpenApp: isNoman ? 'ca-app-pub-5740215782746766/9015676434' : 'ca-app-pub-3701208411582706/2295931822',
   andriodNative: isNoman ? 'ca-app-pub-5740215782746766/2941106105' : 'ca-app-pub-3701208411582706/5457520430',
   IOsIntestial: isNoman ? 'ca-app-pub-5740215782746766/3209373499' : '',
+  // Game-specific interstitial ad IDs
+  gameInterstitialAndroid: isNoman ? 'ca-app-pub-5740215782746766/7231966561' : 'ca-app-pub-3701208411582706/2820664136',
+  gameInterstitialIOS: isNoman ? 'ca-app-pub-5740215782746766/5126152752' : '',
   IOsBanner: isNoman ? 'ca-app-pub-5740215782746766/4522455164' : '',
   IOsRewarded: isNoman ? 'ca-app-pub-5740215782746766/9755679519' : '',
   IOsOpenApp: isNoman ? 'ca-app-pub-5740215782746766/1499878996' : '',

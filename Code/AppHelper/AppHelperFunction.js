@@ -74,8 +74,8 @@ export const loadAppOpenAd = async (
 export const requestReview = () => {
   if (InAppReview.isAvailable()) {
     InAppReview.RequestInAppReview()
-      .then(() => console.log('In-App review flow completed'))
-      .catch((error) => console.error('In-App review error:', error));
+      .then(() => {/* console.log('In-App review flow completed') */})
+      .catch((error) => {/* console.error('In-App review error:', error) */});
   }
 };
 

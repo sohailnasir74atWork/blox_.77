@@ -92,7 +92,7 @@ export const getStyles = (isDarkMode) =>
       },
       drawer: {
         backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
-        padding: 20,
+        padding: 16,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         shadowColor: '#000',
@@ -358,6 +358,16 @@ export const getStyles = (isDarkMode) =>
         height: 48,
         borderRadius: 24,
       },
-    
+      reviewsSection: {
+        marginTop: 12,
+        marginBottom: 12,
+        paddingHorizontal: 15,
+      },
+      reviewsEmptyText: {
+        fontSize: 12,
+        color: isDarkMode ? '#9ca3af' : '#6b7280',
+        textAlign: 'center',
+        marginVertical: 20,
+      },
     });
   

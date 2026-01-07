@@ -137,7 +137,7 @@ const HDWallpaperScreen = () => {
       );
       return res === PermissionsAndroid.RESULTS.GRANTED;
     } catch (e) {
-      console.log('Permission error:', e);
+      // console.log('Permission error:', e);
       return false;
     }
   };
@@ -146,9 +146,9 @@ const HDWallpaperScreen = () => {
     (id, partial) => {
       if (!appdatabase) return;
       const nodeRef = ref(appdatabase, `like_counter/${id}`);
-      update(nodeRef, partial).catch((e) =>
-        console.log("Firebase like_counter update error:", e),
-      );
+      update(nodeRef, partial).catch((e) => {
+        // console.log("Firebase like_counter update error:", e);
+      });
     },
     [appdatabase],
   );
@@ -283,7 +283,7 @@ const HDWallpaperScreen = () => {
           Alert.alert('Error', 'Could not download this image.');
         }
       } catch (e) {
-        console.log('Download error (raw):', e);
+        // console.log('Download error (raw):', e);
         Alert.alert(
           'Error',
           e?.message || 'Something went wrong while downloading.',
@@ -353,7 +353,7 @@ const HDWallpaperScreen = () => {
                 });
               }}
               onError={(e) => {
-                console.log("IMAGE ERROR:", item.url, e.nativeEvent.error);
+                // console.log("IMAGE ERROR:", item.url, e.nativeEvent.error);
                 setLoadingIds((prev) => {
                   const next = { ...prev };
                   delete next[item.id];
@@ -482,11 +482,11 @@ const HDWallpaperScreen = () => {
               onLoadStart={() => setFullImageLoading(true)}
               onLoadEnd={() => setFullImageLoading(false)}
               onError={(e) => {
-                console.log(
-                  "FULL IMAGE ERROR:",
-                  selectedUrl,
-                  e.nativeEvent.error,
-                );
+                // console.log(
+                //   "FULL IMAGE ERROR:",
+                //   selectedUrl,
+                //   e.nativeEvent.error,
+                // );
                 setFullImageLoading(false);
               }}
             />

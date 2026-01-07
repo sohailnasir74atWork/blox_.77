@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,25 +9,27 @@ import {
   StyleSheet,
   Image,
   Alert,
-  useColorScheme,
+  Pressable,
 } from 'react-native';
+import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import {
   collection,
- doc,
- query,
- orderBy,
- onSnapshot,
- addDoc,
- updateDoc,
- serverTimestamp,
- increment,
- } from '@react-native-firebase/firestore';
- import { useGlobalState } from '../../GlobelStats';
+  doc,
+  query,
+  orderBy,
+  onSnapshot,
+  addDoc,
+  updateDoc,
+  serverTimestamp,
+  increment,
+} from '@react-native-firebase/firestore';
+import { useGlobalState } from '../../GlobelStats';
 import { useLocalState } from '../../LocalGlobelStats';
 import { useNavigation } from '@react-navigation/native';
 import InterstitialAdManager from '../../Ads/IntAd';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import { validateContent } from '../../Helper/ContentModeration';
 
 dayjs.extend(relativeTime);
 
@@ -40,6 +42,7 @@ const CommentModal = ({ visible, onClose, postId }) => {
   const navigation = useNavigation();
   const isDarkMode = theme === 'dark';
 
+  // Load comments
   useEffect(() => {
     if (!postId || !firestoreDB) return;
 
@@ -56,7 +59,6 @@ const CommentModal = ({ visible, onClose, postId }) => {
 
     return () => unsubscribe();
   }, [postId, firestoreDB]);
-
 
   const handleChatNavigation = useCallback((comment) => {
     const callback = () => {
@@ -88,10 +90,12 @@ const CommentModal = ({ visible, onClose, postId }) => {
 
   const handleAddComment = useCallback(async () => {
     const text = commentText.trim();
-    if (!text || !firestoreDB) return;
-    if (!firestoreDB || !postId) {
-      console.error('Missing firestoreDB or postId', { firestoreDB, postId });
-      Alert.alert('Error', 'Cannot post comment right now. Please try again.');
+    if (!text || !firestoreDB || !user?.id) return;
+
+    // ✅ Content moderation: Check comment for inappropriate content
+    const contentValidation = validateContent(text);
+    if (!contentValidation.isValid) {
+      Alert.alert('Content Not Allowed', contentValidation.reason || 'Your comment contains inappropriate content.');
       return;
     }
 
@@ -101,14 +105,13 @@ const CommentModal = ({ visible, onClose, postId }) => {
       avatar: user.avatar,
       text,
       createdAt: serverTimestamp(),
-
     };
 
     try {
       const commentsRef = collection(firestoreDB, 'designPosts', postId, 'comments');
       const postRef = doc(firestoreDB, 'designPosts', postId);
 
-     await addDoc(commentsRef, comment);
+      await addDoc(commentsRef, comment);
       await updateDoc(postRef, {
         commentCount: increment(1),
       });
@@ -119,142 +122,305 @@ const CommentModal = ({ visible, onClose, postId }) => {
       console.error('Add Comment Error:', error);
       Alert.alert('Error', 'Failed to post comment. Please try again.');
     }
-  }, [commentText, user, postId]);
+  }, [commentText, user, postId, firestoreDB]);
 
-  const renderItem = ({ item }) => (
-    <TouchableOpacity onPress={() => handleChatNavigation(item)} style={styles.comment}>
-      <Image source={{ uri: item.avatar }} style={styles.avatar} />
-      <View style={{flex:1}}>
-        <Text style={[styles.name, isDarkMode && styles.textDark]}>{item.displayName}</Text>
-        {item.createdAt?.seconds && (
-          <Text style={[styles.timestamp, isDarkMode && styles.textDark]}>
-            {dayjs(item.createdAt.seconds * 1000).fromNow()}
+  const renderItem = useCallback(({ item }) => (
+    <TouchableOpacity 
+      onPress={() => handleChatNavigation(item)} 
+      style={[styles.comment, isDarkMode && styles.commentDark]}
+      activeOpacity={0.7}
+    >
+      <Image 
+        source={{ uri: item.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }} 
+        style={styles.avatar} 
+      />
+      <View style={styles.commentContent}>
+        <View style={styles.commentHeader}>
+          <Text style={[styles.name, isDarkMode && styles.textDark]} numberOfLines={1}>
+            {item.displayName || 'Anonymous'}
           </Text>
-        )}
+          {item.createdAt?.seconds && (
+            <Text style={[styles.timestamp, isDarkMode && styles.timestampDark]}>
+              {dayjs(item.createdAt.seconds * 1000).fromNow()}
+            </Text>
+          )}
+        </View>
         <Text style={[styles.text, isDarkMode && styles.textDark]}>{item.text}</Text>
       </View>
     </TouchableOpacity>
-  );
+  ), [isDarkMode, handleChatNavigation]);
+
+  const ListEmptyComponent = useMemo(() => (
+    <View style={styles.emptyContainer}>
+      <Text style={[styles.emptyText, isDarkMode && styles.textDark]}>
+        No comments yet. Be the first to comment!
+      </Text>
+    </View>
+  ), [isDarkMode]);
 
   return (
-    <Modal visible={visible} transparent animationType="slide">
-      <View style={styles.modalBackground}>
-        <View style={[styles.modalContent, isDarkMode && styles.darkContent]}>
-          <FlatList
-            data={comments}
-            keyExtractor={(item) => item.id}
-            renderItem={renderItem}
-            keyboardShouldPersistTaps="handled"
-          />
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={visible}
+      onRequestClose={onClose}
+    >
+      <Pressable
+        style={styles.overlay}
+        onPress={onClose}
+      />
+      <ConditionalKeyboardWrapper style={{backgroundColor:'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end'}}>
+       
+          <View style={[styles.drawer, isDarkMode && styles.drawerDark]}>
+            {/* Handle Bar */}
+            <View style={styles.handleContainer}>
+              <View style={[styles.handleBar, isDarkMode && styles.handleBarDark]} />
+            </View>
 
-          <View style={styles.inputRow}>
-            <TextInput
-              ref={inputRef}
-              placeholder="Write a comment..."
-              placeholderTextColor={isDarkMode ? '#ccc' : '#888'}
-              value={commentText}
-              onChangeText={setCommentText}
-              style={[styles.input, isDarkMode && styles.inputDark]}
-              returnKeyType="send"
-              onSubmitEditing={handleAddComment}
+            {/* Header */}
+            <View style={[styles.header, isDarkMode && styles.headerDark]}>
+              <Text style={[styles.headerTitle, isDarkMode && styles.textDark]}>
+                Comments ({comments.length})
+              </Text>
+              <TouchableOpacity 
+                onPress={onClose} 
+                style={[styles.closeIconButton, isDarkMode && styles.closeIconButtonDark]}
+              >
+                <Text style={[styles.closeIcon, isDarkMode && styles.textDark]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Comments List */}
+            <FlatList
+              data={comments}
+              keyExtractor={(item) => item.id}
+              renderItem={renderItem}
+              keyboardShouldPersistTaps="always"
+              keyboardDismissMode="none"
+              contentContainerStyle={styles.listContent}
+              ListEmptyComponent={ListEmptyComponent}
+              showsVerticalScrollIndicator={false}
             />
-            <TouchableOpacity onPress={handleAddComment} style={styles.sendBtn}>
-              <Text style={styles.sendText}>Send</Text>
-            </TouchableOpacity>
-          </View>
 
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <Text style={styles.sendText}>Close</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+            {/* Input Row */}
+            <View style={[styles.inputContainer, isDarkMode && styles.inputContainerDark]}>
+              <TextInput
+                ref={inputRef}
+                placeholder="Write a comment..."
+                placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
+                value={commentText}
+                onChangeText={setCommentText}
+                style={[styles.input, isDarkMode && styles.inputDark]}
+                returnKeyType="send"
+                onSubmitEditing={handleAddComment}
+                multiline
+                maxLength={500}
+                blurOnSubmit={false}
+              />
+              <TouchableOpacity 
+                onPress={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleAddComment();
+                }} 
+                style={[
+                  styles.sendBtn, 
+                  (!commentText.trim() || !user?.id) && styles.sendBtnDisabled
+                ]}
+                disabled={!commentText.trim() || !user?.id}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.sendText}>Send</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+      </ConditionalKeyboardWrapper>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  modalBackground: {
+  overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  drawer: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 16,
+    minHeight: 400,
+    maxHeight: '85%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 20,
+    
+  },
+  drawerDark: {
+    backgroundColor: '#1F2937',
+  },
+  handleContainer: {
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  handleBar: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#D1D5DB',
+  },
+  handleBarDark: {
+    backgroundColor: '#4B5563',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    marginBottom: 12,
+  },
+  headerDark: {
+    borderBottomColor: '#374151',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontFamily: 'Lato-Bold',
+    color: '#111827',
+  },
+  closeIconButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  modalContent: {
-    backgroundColor: 'white',
-    margin: 20,
-    borderRadius: 10,
-    padding: 10,
-    maxHeight: '80%',
+  closeIconButtonDark: {
+    backgroundColor: '#374151',
   },
-  darkContent: {
-    backgroundColor: '#1e1e1e',
+  closeIcon: {
+    fontSize: 18,
+    color: '#6B7280',
+    fontFamily: 'Lato-Bold',
+  },
+  listContent: {
+    paddingBottom: 16,
+    flexGrow: 1,
   },
   comment: {
     flexDirection: 'row',
-    marginBottom: 10,
-    
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  commentDark: {
+    borderBottomColor: '#374151',
   },
   avatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    marginRight: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+    backgroundColor: '#E5E7EB',
+  },
+  commentContent: {
+    flex: 1,
+  },
+  commentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    gap: 8,
   },
   name: {
     fontFamily: 'Lato-Bold',
-    fontSize: 14,
-    color: '#000',
+    fontSize: 15,
+    color: '#111827',
+    flex: 1,
   },
   text: {
     fontFamily: 'Lato-Regular',
-    fontSize: 13,
-    color: '#333',
-    flex:1,
-    flexWrap:'wrap'
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 20,
+    marginTop: 4,
   },
   timestamp: {
-    fontSize: 10,
-    color: 'gray',
+    fontSize: 11,
+    color: '#9CA3AF',
     fontFamily: 'Lato-Regular',
   },
-  inputRow: {
+  timestampDark: {
+    color: '#6B7280',
+  },
+  inputContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 10,
+    alignItems: 'flex-end',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    gap: 12,
+    marginTop: 8,
+  },
+  inputContainerDark: {
+    borderTopColor: '#374151',
+    backgroundColor: '#1F2937',
   },
   input: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 8,
-    borderRadius: 5,
-    color: '#000',
+    borderColor: '#D1D5DB',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 20,
+    color: '#111827',
     fontFamily: 'Lato-Regular',
+    fontSize: 14,
+    maxHeight: 100,
+    backgroundColor: '#fff',
   },
   inputDark: {
-    borderColor: '#555',
-    color: '#fff',
-    backgroundColor: '#333',
+    borderColor: '#4B5563',
+    color: '#F9FAFB',
+    backgroundColor: '#374151',
   },
   sendBtn: {
-    backgroundColor: '#007AFF',
-    padding: 10,
-    marginLeft: 5,
-    borderRadius: 5,
-  },
-  closeBtn: {
-    marginTop: 10,
-    backgroundColor: '#FF3B30',
-    padding: 10,
-    borderRadius: 5,
+    backgroundColor: '#8B5CF6',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 20,
+    minWidth: 70,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendBtnDisabled: {
+    backgroundColor: '#9CA3AF',
+    opacity: 0.6,
   },
   sendText: {
     color: '#fff',
-    fontWeight: '600',
     fontFamily: 'Lato-Bold',
+    fontSize: 14,
+  },
+  emptyContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
+    fontFamily: 'Lato-Regular',
+    color: '#9CA3AF',
+    textAlign: 'center',
   },
   textDark: {
-    color: '#fff',
+    color: '#F9FAFB',
   },
 });
 

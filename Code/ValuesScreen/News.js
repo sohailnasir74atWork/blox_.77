@@ -16,12 +16,14 @@ import {
     TextInput,
 } from "react-native";
 import { useGlobalState } from "../GlobelStats";
+import { useLocalState } from "../LocalGlobelStats";
 import { ref, push, onValue } from "@react-native-firebase/database";
 import config from "../Helper/Environment";
 import ConditionalKeyboardWrapper from "../Helper/keyboardAvoidingContainer";
 
 const NewsScreen = () => {
     const { appdatabase, theme, user } = useGlobalState(); // assumes 'light' | 'dark'
+    const { localState, updateLocalState } = useLocalState();
     const isDark = theme === "dark";
 
     // simple theme palette
@@ -78,6 +80,13 @@ const NewsScreen = () => {
     const [sendingPollId, setSendingPollId] = useState(null);
     const [customFeedback, setCustomFeedback] = useState("");
     const [sendingCustom, setSendingCustom] = useState(false);
+
+    // ✅ Load existing poll votes from local storage on mount
+    useEffect(() => {
+        if (localState.pollVotes) {
+            setPollAnswers(localState.pollVotes);
+        }
+    }, [localState.pollVotes]);
 
     // 🔁 Load /news from Firebase
     useEffect(() => {
@@ -145,11 +154,43 @@ const NewsScreen = () => {
             setNewsItems(updatesArr);
             setPolls(pollsArr);
             setQuickSuggestions(qsArr);
+            
+            // ✅ Clean up votes for polls that no longer exist or have invalid options
+            setPollAnswers((prevAnswers) => {
+                const validAnswers = {};
+                const currentPollIds = new Set(pollsArr.map(p => p.id));
+                
+                // Only keep votes for polls that still exist
+                Object.entries(prevAnswers).forEach(([pollId, selectedOption]) => {
+                    if (!currentPollIds.has(pollId)) {
+                        // Poll was deleted, remove vote
+                        return;
+                    }
+                    
+                    // ✅ Validate that the selected option still exists in current poll
+                    const poll = pollsArr.find(p => p.id === pollId);
+                    if (poll) {
+                        const optionExists = poll.options.some(opt => opt.label === selectedOption);
+                        if (optionExists) {
+                            validAnswers[pollId] = selectedOption;
+                        }
+                        // If option doesn't exist (poll was updated), remove the vote
+                    }
+                });
+                
+                // ✅ Update local storage if votes were cleaned up
+                if (Object.keys(validAnswers).length !== Object.keys(prevAnswers).length) {
+                    updateLocalState('pollVotes', validAnswers);
+                }
+                
+                return validAnswers;
+            });
+            
             setLoadingNews(false);
         });
 
         return () => unsubscribe();
-    }, [appdatabase]);
+    }, [appdatabase, updateLocalState]);
 
     // send feedback to /news_feedback
     const sendToFirebase = useCallback(
@@ -166,7 +207,7 @@ const NewsScreen = () => {
                     createdAt: Date.now(),
                 });
             } catch (e) {
-                console.log("Error sending news feedback:", e);
+                // console.log("Error sending news feedback:", e);
             }
         },
         [appdatabase, user] // 👈 include user in deps
@@ -175,12 +216,42 @@ const NewsScreen = () => {
 
     const handlePollVote = useCallback(
         async (pollId, optionLabel) => {
-            setPollAnswers((prev) => ({
-                ...prev,
-                [pollId]: optionLabel,
-            }));
+            // ✅ Validate poll and option still exist (in case Firebase was updated)
+            const poll = polls.find(p => p.id === pollId);
+            if (!poll) {
+                Alert.alert("Error", "This poll no longer exists.");
+                return;
+            }
+            
+            const optionExists = poll.options.some(opt => opt.label === optionLabel);
+            if (!optionExists) {
+                Alert.alert("Error", "This option is no longer available.");
+                return;
+            }
+            
+            // ✅ Check if user has already voted for this poll
+            if (pollAnswers[pollId]) {
+                Alert.alert(
+                    "Already Voted",
+                    "You have already voted for this poll. You can only vote once per poll."
+                );
+                return;
+            }
 
-            if (!appdatabase) return;
+            // ✅ Update local state immediately (optimistic update)
+            const newAnswers = {
+                ...pollAnswers,
+                [pollId]: optionLabel,
+            };
+            setPollAnswers(newAnswers);
+            
+            // ✅ Save to local storage to persist across sessions
+            updateLocalState('pollVotes', newAnswers);
+
+            if (!appdatabase) {
+                Alert.alert("Thanks!", "Your vote has been recorded.");
+                return;
+            }
 
             try {
                 setSendingPollId(pollId);
@@ -191,12 +262,15 @@ const NewsScreen = () => {
                 });
                 Alert.alert("Thanks!", "Your vote has been recorded.");
             } catch (e) {
+                // ✅ Revert on error
+                setPollAnswers(pollAnswers);
+                updateLocalState('pollVotes', pollAnswers);
                 Alert.alert("Error", "Could not send your vote right now.");
             } finally {
                 setSendingPollId(null);
             }
         },
-        [appdatabase, sendToFirebase]
+        [appdatabase, sendToFirebase, pollAnswers, updateLocalState, polls]
     );
 
     const handleQuickSuggestion = useCallback(
@@ -411,6 +485,7 @@ const NewsScreen = () => {
 
                     {polls.map((poll) => {
                         const selected = pollAnswers[poll.id];
+                        const hasVoted = !!selected; // ✅ Check if user has already voted
                         const loading = sendingPollId === poll.id;
 
                         return (
@@ -446,11 +521,12 @@ const NewsScreen = () => {
                                                     borderColor: isSelected
                                                         ? config.colors.hasBlockGreen
                                                         : palette.border,
+                                                    opacity: hasVoted && !isSelected ? 0.5 : 1, // ✅ Dim non-selected options if voted
                                                 },
                                             ]}
                                             activeOpacity={0.7}
                                             onPress={() => handlePollVote(poll.id, opt.label)}
-                                            disabled={loading}
+                                            disabled={loading || hasVoted} // ✅ Disable if already voted
                                         >
                                             <Text
                                                 style={[

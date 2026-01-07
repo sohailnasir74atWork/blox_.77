@@ -94,7 +94,7 @@ export const handleOpenPaywall = async (source, showoffer, forceSecondOnly = fal
       await openAndCheck(offering, offeringId, source, showoffer);
     }
   } catch (e) {
-    console.log('Error showing paywall', e);
+    // console.log('Error showing paywall', e);
 
     mixpanel.track('paywall_error', {
       source: source || 'unknown',

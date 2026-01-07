@@ -52,6 +52,7 @@ const PrivateMessageList = ({
   canRate,
   hasRated,
   setShowRatingModal,
+  chatKey,
 }) => {
   const { theme, isAdmin, api, freeTranslation, proGranted } = useGlobalState();
   const isDarkMode = theme === 'dark';
@@ -140,24 +141,33 @@ const PrivateMessageList = ({
 
       return translated;
     } catch (err) {
-      console.error('Translation Error:', err);
-      return null;
+      // ✅ HANDLED: Catch network/API errors gracefully (no crash)
+      // Only log in development, suppress in production to avoid red banner
+      if (__DEV__) {
+        console.error('Translation Error:', err?.message || err);
+      }
+      return null; // Return null to trigger user-friendly error message
     }
   };
 
   const handleTranslate = async (item) => {
-    const isUnlimited = freeTranslation || (!localState.isPro && proGranted);
+    // ✅ FIXED: Correct unlimited check (Pro users OR proGranted users have unlimited)
+    const isUnlimited = freeTranslation || localState.isPro || proGranted;
   
+    // ✅ Check limit BEFORE translation (reads from storage for real-time accuracy)
     if (!isUnlimited && !canTranslate()) {
       Alert.alert('Limit Reached', 'You can only translate 5 messages per day.');
       return;
     }
   
+    // ✅ Only increment AFTER successful translation
     const translated = await translateText(item.text, deviceLanguage);
   
     if (translated) {
+      // ✅ Increment count (reads from storage first, then updates)
       if (!isUnlimited) incrementTranslationCount();
   
+      // ✅ Get remaining tries (reads from storage for real-time accuracy)
       const remaining = isUnlimited ? 'Unlimited' : `${getRemainingTranslationTries()} remaining`;
   
       Alert.alert(
@@ -174,6 +184,9 @@ const PrivateMessageList = ({
   
   // Render a single message
   const renderMessage = ({ item }) => {
+    // ✅ Safety check
+    if (!item || typeof item !== 'object') return null;
+    
     const isMyMessage = item.senderId === userId;
 
     // console.log(isMyMessage)
@@ -188,7 +201,10 @@ const PrivateMessageList = ({
         ? fruits.reduce((sum, f) => sum + (Number(f.value) || 0), 0)
         : 0;
 
-        const formatName = (name) => name.replace(/^\+/, '').replace(/\s+/g, '-');
+        const formatName = (name) => {
+          if (!name || typeof name !== 'string') return '';
+          return name.replace(/^\+/, '').replace(/\s+/g, '-');
+        };
 
     
     return (
@@ -258,7 +274,7 @@ const PrivateMessageList = ({
               style={[fruitStyles.fruitName, { color: fruitColors.name }]}
               numberOfLines={1}
             >
-              {`${fruit.name || fruit.Name}  `}
+              {`${fruit.name || fruit.Name || ''}  `}
             </Text>
 
             <Text
@@ -329,10 +345,10 @@ const PrivateMessageList = ({
           </MenuOptions>
         </Menu>
         <Text style={styles.timestamp}>
-          {new Date(item.timestamp).toLocaleTimeString([], {
+          {item.timestamp ? new Date(item.timestamp).toLocaleTimeString([], {
             hour: '2-digit',
             minute: '2-digit',
-          })}
+          }) : ''}
         </Text>
       </View>
     );
@@ -345,29 +361,11 @@ const PrivateMessageList = ({
       ) : (
         <View style={{paddingBottom:140}}>  
         <>   
-        <ScamSafetyBox/>
-        {canRate && 
-         (
-                  <View style={{ alignItems: 'center', marginTop: 1, paddingBottom:10 }}>
-                    <TouchableOpacity
-                      style={{
-                        backgroundColor: config.colors.primary,
-                        borderRadius: 4,
-                        paddingHorizontal: 5,
-                        paddingVertical: 4,
-                      }}
-                      onPress={() => setShowRatingModal(true)}
-                    >
-                      <Text style={{ color: 'white', fontSize: 12 }}>
-                        {!hasRated ? `Rate Trader and Get 100 points` : `Update your review`}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
+        <ScamSafetyBox setShowRatingModal={setShowRatingModal} canRate={canRate} hasRated={hasRated} />
         <FlatList
           data={messages}
           removeClippedSubviews={false} 
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item, index) => item?.id || `msg-${index}`}
           renderItem={renderMessage} // Pass the render function directly
           inverted // Ensure list starts from the bottom
           onEndReached={handleLoadMore}
@@ -383,12 +381,16 @@ const PrivateMessageList = ({
         </>     
         </View>
       )}
-      <ReportPopup
-        visible={showReportPopup}
-        message={selectedMessage}
-        onClose={() => setShowReportPopup(false)}
-        onSubmit={handleSubmitReport}
-      />
+      {selectedMessage && chatKey && (
+        <ReportPopup
+          visible={showReportPopup}
+          message={selectedMessage}
+          onClose={() => setShowReportPopup(false)}
+          onSubmit={handleSubmitReport}
+          chatId={chatKey}
+          isPrivateChat={true}
+        />
+      )}
     </View>
   );
 };

@@ -14,6 +14,7 @@ import { showMessage } from 'react-native-flash-message';
 import ReportModal from './ReportModal';
 import dayjs from 'dayjs';
 import { get, getDatabase, ref, set } from '@react-native-firebase/database';
+import { banUserwithEmail as banUserwithEmailUtils } from '../../ChatScreen/utils';
 import NativeFeedAd from '../../Ads/NativeFeedAd';
 import ProfileBottomDrawer from '../../ChatScreen/GroupChat/BottomDrawer';
 import { isUserOnline } from '../../ChatScreen/utils';
@@ -55,41 +56,16 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete, onD
         return config.colors.primary; // Fallback
     }
   };
-  const banUserwithEmail = async (email, userId) => {
-    const encodeEmail = (email) => email.replace(/\./g, '(dot)');
-  
+  const banUserwithEmail = async (email, admin) => {
     try {
-      const db = getDatabase();
-      const banRef = ref(db, `banned_users_by_email_post/${encodeEmail(email)}`);
-      const snap = await get(banRef);
-  
-      let strikeCount = 1;
-      let bannedUntil = Date.now() + 24 * 60 * 60 * 1000; // 1 day
-      // let bannedUntil = Date.now() +  1 * 60 * 1000; // 1 day
-  
-      
-  
-      if (snap.exists()) {
-        const data = snap.val();
-        if(!isAdmin){strikeCount = data.strikeCount;}
-        if(isAdmin){strikeCount = data.strikeCount + 1;}
-  
-        if (strikeCount === 2) bannedUntil = Date.now() + 3 * 24 * 60 * 60 * 1000; // 3 days
-        //  if (strikeCount === 2) bannedUntil = Date.now() + 2  * 60 * 1000; // 3 days
-        else if (strikeCount >= 3) bannedUntil = "permanent";
+      // ✅ Use unified ban function from utils.js
+      await banUserwithEmailUtils(email, admin || isAdmin);
+      // ✅ Delete design posts for this user
+      if (item?.userId) {
+        await onDeleteAll(item.userId);
       }
-  
-      await set(banRef, {
-        strikeCount,
-        bannedUntil,
-        reason: `Strike ${strikeCount}`
-      });
-      await onDeleteAll(userId)
-  
-      if(isAdmin){Alert.alert('User Banned', `Strike ${strikeCount} applied.`);}
     } catch (err) {
       console.error('Ban error:', err);
-      Alert.alert('Error', 'Could not ban user.');
     }
   };
   const closeProfileDrawer = () => {
@@ -164,7 +140,33 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete, onD
      <TouchableOpacity  onPress={openProfileDrawer}>
   <Image source={{ uri: item.avatar }} style={themedStyles.avatar}/></TouchableOpacity>
   <TouchableOpacity style={{ marginLeft: 10, flex: 1 }} onPress={openProfileDrawer}>
-    <Text style={themedStyles.name}>{item.displayName}</Text>
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      <Text style={themedStyles.name}>{item.displayName}</Text>
+      {item.isPro && (
+        <Image
+          source={require('../../../assets/pro.png')}
+          style={{ width: 10, height: 10, marginRight: 5 }}
+        />
+      )}
+      {item.robloxUsernameVerified && (
+        <Image
+          source={require('../../../assets/verification.png')}
+          style={{ width: 10, height: 10, marginRight: 5 }}
+        />
+      )}
+      {(() => {
+        const hasRecentWin =
+          !!item?.hasRecentGameWin ||
+          (typeof item?.lastGameWinAt === 'number' &&
+            Date.now() - item.lastGameWinAt <= 24 * 60 * 60 * 1000);
+        return hasRecentWin ? (
+          <Image
+            source={require('../../../assets/trophy.webp')}
+            style={{ width: 10, height: 10, marginLeft: 4 }}
+          />
+        ) : null;
+      })()}
+    </View>
     <Text style={themedStyles.time}>
       {formattedTime}
     </Text>
@@ -200,7 +202,7 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete, onD
   )}
  {isAdmin && 
  
- <MenuOption onSelect={()=>banUserwithEmail(item.email, item.userId)}>
+ <MenuOption onSelect={()=>banUserwithEmail(item.email, isAdmin)}>
   <Text>Ban User</Text>
   
   </MenuOption>
@@ -227,22 +229,21 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete, onD
 </View>
 
 
-      <Text style={themedStyles.desc}>{item?.desc}</Text>
-      {Array.isArray(item.imageUrl) && item.imageUrl.length < 1  && <ReportModal visible={showReportModal} onClose={() => setShowReportModal(false)} item={item} banUserwithEmail={banUserwithEmail} /> }
-
-
-      {/* {(item.selectedTags?.length > 0 || item.budget) && (
-        <View style={themedStyles.metaInfoRow}>
-          <View style={themedStyles.tagsRow}>
-            {item.selectedTags?.map((tag, idx) => (
-              <View key={idx} style={themedStyles.tagBadge}>
-                <Text style={themedStyles.tagText}>{tag}</Text>
+      {/* Text-only posts: Show tags at top right, similar to image posts */}
+      {Array.isArray(item.imageUrl) && item.imageUrl.length === 0 && item.selectedTags && item.selectedTags.length > 0 && (
+        <View style={themedStyles.textOnlyContainer}>
+          <View style={themedStyles.tagOverlayAbove}>
+            {item.selectedTags.map((tag, idx) => (
+              <View key={idx} style={[themedStyles.overlayTag, { backgroundColor: getTagColor(tag) }]}>
+                <Text style={themedStyles.overlayTagText}>{tag}</Text>
               </View>
             ))}
           </View>
-          {item.budget && <Text style={themedStyles.budgetText}>Budget: {item.budget}</Text>}
         </View>
-      )} */}
+      )}
+
+      <Text style={themedStyles.desc}>{item?.desc}</Text>
+      {Array.isArray(item.imageUrl) && item.imageUrl.length < 1  && <ReportModal visible={showReportModal} onClose={() => setShowReportModal(false)} item={item} /> }
 
 {Array.isArray(item.imageUrl) && item.imageUrl.length > 0 && (
   <View style={themedStyles.imageWrapper}>
@@ -290,7 +291,7 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete, onD
       )}
     </View>
     </View>
-    <ReportModal visible={showReportModal} onClose={() => setShowReportModal(false)} item={item} banUserwithEmail={banUserwithEmail} />
+    <ReportModal visible={showReportModal} onClose={() => setShowReportModal(false)} item={item} />
   </View>
 )}
 
@@ -467,6 +468,13 @@ const getStyles = (isDark) =>
     imageWrapper: {
       marginTop: 10,
       position: 'relative',
+    },
+    
+    textOnlyContainer: {
+      marginTop: 10,
+      marginBottom: 5,
+      position: 'relative',
+      minHeight: 30, // Ensure container has height for absolute positioning
     },
     
     tagOverlayAbove: {

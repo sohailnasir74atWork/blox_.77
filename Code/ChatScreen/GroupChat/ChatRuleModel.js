@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Modal,
   View,
@@ -11,22 +11,56 @@ import { rulesen } from '../utils';
 import config from '../../Helper/Environment';
 
 const ChatRulesModal = ({ visible, onClose, isDarkMode }) => {
+  // ✅ Safety check and memoize rules array
+  const rules = useMemo(() => {
+    return Array.isArray(rulesen) ? rulesen : [];
+  }, []);
+
+  // ✅ Memoize modal background color
+  const modalBgColor = useMemo(() => 
+    isDarkMode ? '#121212' : '#fff', 
+    [isDarkMode]
+  );
+
+  // ✅ Memoize text colors
+  const titleColor = useMemo(() => 
+    isDarkMode ? '#fff' : '#000', 
+    [isDarkMode]
+  );
+
+  const ruleTextColor = useMemo(() => 
+    isDarkMode ? '#ccc' : '#333', 
+    [isDarkMode]
+  );
+
+  // ✅ Validate onClose callback
+  const handleClose = () => {
+    if (onClose && typeof onClose === 'function') {
+      onClose();
+    }
+  };
+
   return (
-    <Modal animationType="slide" transparent={true} visible={visible} onRequestClose={onClose}>
+    <Modal animationType="slide" transparent={true} visible={visible} onRequestClose={handleClose}>
       <View style={styles.overlay}>
-        <View style={[styles.modalContent, { backgroundColor: isDarkMode ? '#121212' : '#fff' }]}>
-          <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>Community Chat Rules</Text>
+        <View style={[styles.modalContent, { backgroundColor: modalBgColor }]}>
+          <Text style={[styles.title, { color: titleColor }]}>Community Chat Rules</Text>
           <ScrollView style={styles.scroll}>
-            {rulesen.map((rule, index) => (
-              <Text
-                key={index}
-                style={[styles.ruleText, { color: isDarkMode ? '#ccc' : '#333' }]}
-              >
-                {index + 1}. {rule}
-              </Text>
-            ))}
+            {rules.map((rule, index) => {
+              // ✅ Safety check for rule
+              if (!rule || typeof rule !== 'string') return null;
+              
+              return (
+                <Text
+                  key={index}
+                  style={[styles.ruleText, { color: ruleTextColor }]}
+                >
+                  {index + 1}. {rule}
+                </Text>
+              );
+            })}
           </ScrollView>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+          <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
             <Text style={styles.closeButtonText}>Got it</Text>
           </TouchableOpacity>
         </View>

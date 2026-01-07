@@ -44,6 +44,7 @@ export const LocalStateProvider = ({ children }) => {
     mirageStock: safeParseJSON('mirageStock', []),
     prenormalStock: safeParseJSON('prenormalStock', []),
     premirageStock: safeParseJSON('premirageStock', []),
+    lastPreviousStockFetch: storage.getString('lastPreviousStockFetch') || null,
     isAppReady: storage.getBoolean('isAppReady') ?? false,
     lastActivity: storage.getString('lastActivity') || null,
     showOnBoardingScreen: storage.getBoolean('showOnBoardingScreen') ?? true,
@@ -53,6 +54,12 @@ export const LocalStateProvider = ({ children }) => {
       date: new Date().toDateString(),
     }),
     showAd1: storage.getBoolean('showAd1') ?? true,
+    leaderboardTop50: safeParseJSON('leaderboardTop50', {
+      data: [],
+      timestamp: null,
+      lastFetched: null,
+    }),
+    pollVotes: safeParseJSON('pollVotes', {}), // ✅ Store user's poll votes (pollId -> optionLabel)
   }));
 
   // RevenueCat subscriptions (for info/expiry)
@@ -95,19 +102,25 @@ export const LocalStateProvider = ({ children }) => {
     }
   };
 
+  // ✅ FIXED: Read directly from storage for real-time accuracy (no stale state)
   const canTranslate = () => {
     const today = new Date().toDateString();
-    const { count, date } = localState.translationUsage || {
+    // ✅ Read directly from storage to get latest value (not from stale localState)
+    const storedUsage = safeParseJSON('translationUsage', {
       count: 0,
       date: today,
-    };
+    });
+    
+    const { count, date } = storedUsage;
 
+    // ✅ Reset if it's a new day
     if (date !== today) {
       const newUsage = { count: 0, date: today };
       updateLocalState('translationUsage', newUsage);
       return true;
     }
 
+    // ✅ Check if under limit (5 translations per day)
     return count < 5;
   };
 
@@ -147,18 +160,24 @@ export const LocalStateProvider = ({ children }) => {
     };
   }, []);
 
+  // ✅ FIXED: Read from storage first, then increment for real-time accuracy
   const incrementTranslationCount = () => {
     const today = new Date().toDateString();
-    const { count, date } = localState.translationUsage || {
+    // ✅ Read directly from storage to get latest value (not from stale localState)
+    const storedUsage = safeParseJSON('translationUsage', {
       count: 0,
       date: today,
-    };
+    });
+    
+    const { count, date } = storedUsage;
 
+    // ✅ Increment count (reset to 1 if new day)
     const updatedUsage = {
       count: date === today ? count + 1 : 1,
       date: today,
     };
 
+    // ✅ Update both storage and state for immediate sync
     updateLocalState('translationUsage', updatedUsage);
   };
 
@@ -217,10 +236,18 @@ export const LocalStateProvider = ({ children }) => {
     storage.clearAll();
   };
 
+  // ✅ FIXED: Read directly from storage for real-time accuracy
   const getRemainingTranslationTries = () => {
     const today = new Date().toDateString();
-    const { count = 0, date = today } = localState.translationUsage || {};
-    return date === today ? 5 - count : 5;
+    // ✅ Read directly from storage to get latest value (not from stale localState)
+    const storedUsage = safeParseJSON('translationUsage', {
+      count: 0,
+      date: today,
+    });
+    
+    const { count = 0, date = today } = storedUsage;
+    // ✅ Return remaining tries (reset to 5 if new day)
+    return date === today ? Math.max(0, 5 - count) : 5;
   };
 
   const refreshCustomerInfo = async () => {

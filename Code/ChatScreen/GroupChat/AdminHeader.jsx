@@ -67,7 +67,8 @@ const AdminHeader = ({
     const encodeEmail = (email) => email.replace(/\./g, '(dot)');
     try {
       const db = getDatabase();
-      const banRef = ref(db, `banned_users_by_email_post/${encodeEmail(email)}`);
+      // ✅ Use unified database path
+      const banRef = ref(db, `banned_users_by_email/${encodeEmail(email)}`);
       await set(banRef, null); // Clear the ban entry
   
       Alert.alert('User Unbanned', 'Ban has been lifted.');

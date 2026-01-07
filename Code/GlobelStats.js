@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {  getApps } from '@react-native-firebase/app';
 import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
-import { ref, set, update, get, onDisconnect, getDatabase } from '@react-native-firebase/database';
+import { ref, set, update, get, onDisconnect, getDatabase, onValue } from '@react-native-firebase/database';
 import { getFirestore } from '@react-native-firebase/firestore';
 import { createNewUser, firebaseConfig, registerForNotifications } from './Globelhelper';
 import { useLocalState } from './LocalGlobelStats';
 import { requestPermission } from './Helper/PermissionCheck';
-import { useColorScheme, InteractionManager } from 'react-native';
+import { useColorScheme, InteractionManager, AppState } from 'react-native';
 import { getFlag } from './Helper/CountryCheck';
 const app = getApps();
 const auth = getAuth(app);
@@ -29,6 +29,7 @@ export const GlobalStateProvider = ({ children }) => {
   const [proGranted, setProGranted] = useState(false)
   const [currentUserEmail, setCurrentuserEmail] = useState('')
   const [single_offer_wall, setSingle_offer_wall] = useState(false)
+  const [tradingServerLink, setTradingServerLink] = useState(null); // Trading server link from admin servers
 
 
   
@@ -36,6 +37,7 @@ export const GlobalStateProvider = ({ children }) => {
 
 
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isInActiveGame, setIsInActiveGame] = useState(false); // ✅ Track if user is in active game
   const [user, setUser] = useState({
     id: null,
     selectedFruits: [],
@@ -59,6 +61,8 @@ export const GlobalStateProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [proTagBought, setProTagBought] = useState(false);
   const [stockNotifierPurchase, setStockNotifierPurchase] = useState(false);
+  const [isUserBlocked, setIsUserBlocked] = useState(false);
+  const [strikeInfo, setStrikeInfo] = useState(null);
 
   // const [robloxUsername, setRobloxUsername] = useState('');
   const robloxUsernameRef = useRef('');
@@ -128,7 +132,8 @@ export const GlobalStateProvider = ({ children }) => {
 
   // console.log('bought', proTagBought)
 
-  const updateLocalStateAndDatabase = async (keyOrUpdates, value) => {
+  // ✅ Memoize updateLocalStateAndDatabase to prevent recreation and reduce re-renders
+  const updateLocalStateAndDatabase = useCallback(async (keyOrUpdates, value) => {
     try {
       let updates = {};
   
@@ -147,37 +152,34 @@ export const GlobalStateProvider = ({ children }) => {
         }
       }
   
-      // Update in-memory user state for top-level keys only
+      // ✅ Update in-memory user state and Firebase in one functional update (prevents duplicate writes)
       setUser((prev) => {
-        const newUser = { ...prev };
-      
-        for (const [path, val] of Object.entries(updates)) {
-          if (!path.includes('/')) {
-            newUser[path] = val;
-          } else {
-            const keys = path.split('/');
-            let target = newUser;
-            for (let i = 0; i < keys.length - 1; i++) {
-              if (!target[keys[i]]) target[keys[i]] = {};
-              target = target[keys[i]];
-            }
-            target[keys[keys.length - 1]] = val;
-          }
+        // ✅ Check if updates are actually different to prevent duplicate writes
+        const hasChanges = Object.keys(updates).some(key => prev[key] !== updates[key]);
+        if (!hasChanges && prev?.id) {
+          // No changes, skip Firebase write
+          return prev;
         }
-      
-        return newUser;
-      });      
-  
-      // Update Firebase for all keys (supports nested paths)
-      if (user?.id) {
-        const userRef = ref(appdatabase, `users/${user.id}`);
-        await update(userRef, updates);
-      }
+
+        const updatedUser = { ...prev, ...updates };
+        
+        // ✅ Update Firebase only if user is logged in and there are actual changes
+        // ✅ Exclude 'online' field from user data (it's stored in presence/{uid} node)
+        if (prev?.id && appdatabase && hasChanges) {
+          const userRef = ref(appdatabase, `users/${prev.id}`);
+          const userDataUpdates = { ...updates };
+          delete userDataUpdates.online; // ✅ Don't sync online to user data
+          update(userRef, userDataUpdates).catch((error) => {
+            // Silently handle Firebase errors
+          });
+        }
+        
+        return updatedUser;
+      });
     } catch (error) {
       console.error('❌ Error updating user state or database:', error);
     }
-  };
-  
+  }, [appdatabase, updateLocalState]); // ✅ Memoize with dependencies
   
 // console.log(user)
   // console.log(robloxUsernameRef?.current, 'robloxUsername_outside')
@@ -232,8 +234,14 @@ export const GlobalStateProvider = ({ children }) => {
         userData = { 
           ...existing,
           id: userId,
-          createdAt: existing.createdAt || Date.now()   // fallback if missing
+          createdAt: existing.createdAt || Date.now(),   // fallback if missing
+          email: loggedInUser.email || existing.email || null, // ✅ Store email in user data
         };
+        
+        // ✅ Update email in Firebase if it's missing or changed
+        if (loggedInUser.email && existing.email !== loggedInUser.email) {
+          await update(userRef, { email: loggedInUser.email });
+        }
                 // console.log(userData, 'userData')
 
 
@@ -241,7 +249,8 @@ export const GlobalStateProvider = ({ children }) => {
         // console.log(robloxUsernameRef?.current, 'robloxUsername_inside')
         userData = {
           ...createNewUser(userId, loggedInUser, robloxUsernameRef?.current),
-          createdAt: Date.now()
+          createdAt: Date.now(),
+          email: loggedInUser.email || null, // ✅ Store email for new users
         };
       
         await set(userRef, userData);
@@ -262,10 +271,10 @@ export const GlobalStateProvider = ({ children }) => {
   
     const run = async () => {
       try {
-        console.log('Registering push token for user:', user.id);
+        // console.log('Registering push token for user:', user.id);
         await registerForNotifications(user.id);
       } catch (e) {
-        console.log('registerForNotifications error', e);
+        // console.log('registerForNotifications error', e);
       }
     };
   
@@ -433,33 +442,46 @@ export const GlobalStateProvider = ({ children }) => {
             })
           ]);
 
+          // ✅ Check if responses are OK
+          if (!codesRes.ok || !dataRes.ok) {
+            throw new Error(`CDN request failed: codes=${codesRes.status}, data=${dataRes.status}`);
+          }
+
           const codesJson = await codesRes.json();
           const dataJson = await dataRes.json();
 
           // Assign values or keep as empty object
           codes = codesJson || {};
           data = dataJson || {};
-          // console.log(data)
 
-          // If either is empty, force fallback
+          // ✅ Validate data is not empty
           if (!Object.keys(codes).length || !Object.keys(data).length) {
-            throw new Error('CDN data incomplete');
+            throw new Error('CDN data incomplete: empty response');
           }
 
           // console.log('✅ Loaded codes & data from CDN');
 
         } catch (err) {
-          console.warn('⚠️ Fallback to Firebase:', err.message);
-
-          const [xlsSnapshot, codeSnapShot] = await Promise.all([
-            get(ref(appdatabase, 'fruit_data')),
-            get(ref(appdatabase, 'codes')),
-          ]);
-
-          codes = codeSnapShot.exists() ? codeSnapShot.val() : {};
-          data = xlsSnapshot.exists() ? xlsSnapshot.val() : {};
-          // console.log(data, codes)
-
+          // ✅ REMOVED: Firebase fallback - only use CDN (bunny CDN)
+          // If CDN fails, log error and use cached data if available
+          console.error('❌ Failed to fetch from CDN:', err.message);
+          
+          // ✅ Use cached data if available, otherwise keep empty objects
+          if (localState.codes && localState.data) {
+            try {
+              codes = typeof localState.codes === 'string' ? JSON.parse(localState.codes) : localState.codes;
+              data = typeof localState.data === 'string' ? JSON.parse(localState.data) : localState.data;
+              console.warn('⚠️ Using cached codes & data due to CDN failure');
+            } catch (parseErr) {
+              console.error('❌ Failed to parse cached data:', parseErr);
+              codes = {};
+              data = {};
+            }
+          } else {
+            codes = {};
+            data = {};
+            console.warn('⚠️ No cached data available, using empty objects');
+          }
         }
 
 
@@ -481,23 +503,52 @@ export const GlobalStateProvider = ({ children }) => {
 
       // ✅ Always fetch stock data (`calcData`) on app load
       // console.log("📌 Fetching fresh stock data...");
-      const [calcSnapshot, preSnapshot] = await Promise.all([
-        get(ref(appdatabase, 'calcData')), // ✅ Always updated stock data
-        get(ref(appdatabase, 'previousStock')),
-      ]);
+      const calcSnapshot = await get(ref(appdatabase, 'calcData'));
 
       // ✅ Extract relevant stock data
       const normalStock = calcSnapshot.exists() ? calcSnapshot.val()?.test || {} : {};
       const mirageStock = calcSnapshot.exists() ? calcSnapshot.val()?.mirage || {} : {};
-      const prenormalStock = preSnapshot.exists() ? preSnapshot.val()?.normalStock || {} : {};
-      const premirageStock = preSnapshot.exists() ? preSnapshot.val()?.mirageStock || {} : {};
 
+      // ✅ OPTIMIZED: Cache previousStock - only fetch once per hour
+      // This reduces data download by ~80% (from 3.35 MB to ~0.67 MB)
+      const lastPreviousStockFetch = localState.lastPreviousStockFetch 
+        ? parseInt(localState.lastPreviousStockFetch, 10) 
+        : 0;
+      const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
+      const shouldFetchPreviousStock = refresh || (Date.now() - lastPreviousStockFetch > oneHour);
+
+      let prenormalStock = {};
+      let premirageStock = {};
+
+      if (shouldFetchPreviousStock) {
+        // ✅ Fetch previousStock from Firebase
+        const preSnapshot = await get(ref(appdatabase, 'previousStock'));
+        prenormalStock = preSnapshot.exists() ? preSnapshot.val()?.normalStock || {} : {};
+        premirageStock = preSnapshot.exists() ? preSnapshot.val()?.mirageStock || {} : {};
+        
+        // ✅ Store fetched data and update timestamp
+        await updateLocalState('prenormalStock', JSON.stringify(prenormalStock));
+        await updateLocalState('premirageStock', JSON.stringify(premirageStock));
+        await updateLocalState('lastPreviousStockFetch', Date.now().toString());
+      } else {
+        // ✅ Use cached previousStock data
+        try {
+          prenormalStock = typeof localState.prenormalStock === 'string' 
+            ? JSON.parse(localState.prenormalStock) 
+            : (localState.prenormalStock || {});
+          premirageStock = typeof localState.premirageStock === 'string' 
+            ? JSON.parse(localState.premirageStock) 
+            : (localState.premirageStock || {});
+        } catch (parseErr) {
+          console.error('❌ Failed to parse cached previousStock:', parseErr);
+          prenormalStock = {};
+          premirageStock = {};
+        }
+      }
 
       // ✅ Store frequently updated stock data
       await updateLocalState('normalStock', JSON.stringify(normalStock));
       await updateLocalState('mirageStock', JSON.stringify(mirageStock));
-      await updateLocalState('prenormalStock', JSON.stringify(prenormalStock));
-      await updateLocalState('premirageStock', JSON.stringify(premirageStock));
 
     } catch (error) {
       console.error("❌ Error fetching stock data:", error);
@@ -520,24 +571,213 @@ export const GlobalStateProvider = ({ children }) => {
     fetchStockData(true);
   };
 
+  // ✅ Check if user is blocked by email (centralized - used everywhere)
   useEffect(() => {
-    if (!user?.id) return;
+    if (!currentUserEmail || !appdatabase) {
+      setIsUserBlocked(false);
+      setStrikeInfo(null);
+      return;
+    }
 
-    // ✅ Mark user as online in local state & database
-    updateLocalStateAndDatabase('online', true);
+    const encodedEmail = currentUserEmail.replace(/\./g, '(dot)');
+    const banRef = ref(appdatabase, `banned_users_by_email/${encodedEmail}`);
 
-    // ✅ Ensure user is marked offline upon disconnection (only applies to Firebase)
-    const userOnlineRef = ref(appdatabase, `/users/${user.id}/online`);
+    const unsubscribe = onValue(banRef, (snapshot) => {
+      const banData = snapshot.val();
+      setStrikeInfo(banData || null);
+      
+      if (banData) {
+        const { bannedUntil } = banData;
+        const now = Date.now();
+        
+        // Check if permanently banned or temporarily banned
+        if (bannedUntil === 'permanent' || (typeof bannedUntil === 'number' && now < bannedUntil)) {
+          setIsUserBlocked(true);
+        } else {
+          setIsUserBlocked(false);
+        }
+      } else {
+        setIsUserBlocked(false);
+      }
+    });
 
-    onDisconnect(userOnlineRef)
-      .set(false)
-      .catch((error) => console.error("🔥 Error setting onDisconnect:", error));
+    return () => unsubscribe();
+  }, [currentUserEmail, appdatabase]);
+
+  // ✅ Set up online status tracking using separate presence node (RTDB-only, optimized for scale)
+  // ✅ Foreground-only presence (ACTIVE = online, background/inactive = offline)
+  // ✅ Uses presence/{uid} instead of users/{uid}/online for better scalability
+  useEffect(() => {
+    if (!user?.id || !appdatabase) return;
+
+    const uid = user.id;
+    const presenceRef = ref(appdatabase, `presence/${uid}`); // ✅ Separate presence node
+    const connectedRef = ref(appdatabase, ".info/connected")
+
+    let isConnected = false;
+    let currentAppState = AppState.currentState; // 'active' | 'background' | 'inactive'
+    let armedOnDisconnect = false;
+
+    const setLocalOnline = (val) => {
+      setUser((prev) => (prev?.id ? { ...prev, online: val } : prev));
+    };
+
+    const forceOffline = async () => {
+      try {
+        await set(presenceRef, false);
+      } catch (e) {
+        // log if you want: console.log("forceOffline error", e);
+      }
+      setLocalOnline(false);
+    };
+
+    let onDisconnectHandler = null;
+    
+    const armOnDisconnect = async () => {
+      if (armedOnDisconnect) return;
+      try {
+        onDisconnectHandler = onDisconnect(presenceRef);
+        await onDisconnectHandler.set(false);
+        armedOnDisconnect = true;
+      } catch (e) {
+        // Handle error silently
+      }
+    };
+
+    let running = false;
+    let pending = false;
+  
+    const updatePresence = async () => {
+      if (running) {
+        pending = true;
+        return;
+      }
+      running = true;
+  
+      try {
+        // ✅ Block online status update if user is blocked (admins are exempt)
+        if (isUserBlocked && !isAdmin) {
+          await forceOffline();
+          return;
+        }
+
+        if (localState?.showOnlineStatus === false) {
+          try { 
+            if (onDisconnectHandler) {
+              await onDisconnectHandler.cancel(); 
+            }
+          } catch {}
+          armedOnDisconnect = false;
+          await forceOffline();
+          return;
+        }
+  
+        if (!isConnected || currentAppState !== "active") {
+          await forceOffline();
+          return;
+        }
+  
+        await armOnDisconnect();
+        await set(presenceRef, true);
+        setLocalOnline(true);
+  
+      } catch (e) {
+        // console.log("updatePresence error", e);
+      } finally {
+        running = false;
+  
+        // ✅ if something changed while we were running, apply latest state once more
+        if (pending) {
+          pending = false;
+          updatePresence();
+        }
+      }
+    };
+  
+
+    // Listen to RTDB connection state
+    const unsubConnected = onValue(connectedRef, (snap) => {
+      isConnected = snap.val() === true;
+      updatePresence();
+    });
+
+    // Listen to AppState changes
+    const sub = AppState.addEventListener("change", (nextState) => {
+      currentAppState = nextState;
+      // immediately offline when background/inactive
+      updatePresence();
+    });
+
+    // Initial sync
+    updatePresence();
 
     return () => {
-      // ✅ Cleanup: Mark user offline when the app is closed
-      updateLocalStateAndDatabase('online', false);
+      // ✅ Cleanup: Mark user offline when component unmounts or user.id changes (logout)
+      sub.remove();
+      if (typeof unsubConnected === "function") unsubConnected();
+
+      // ✅ Cancel onDisconnect handler if it exists
+      if (onDisconnectHandler) {
+        onDisconnectHandler.cancel().catch(() => {});
+      }
+
+      // ✅ Mark offline in RTDB (using closure to capture the old uid)
+      // This ensures when user.id changes to null (logout), the previous user is marked offline
+      set(presenceRef, false).catch(() => {});
+      setLocalOnline(false);
     };
-  }, [user?.id]);
+  }, [user?.id, appdatabase, localState?.showOnlineStatus, isUserBlocked, isAdmin]);
+
+  // ✅ Fetch trading server link (cached for 3 hours)
+  useEffect(() => {
+    if (!appdatabase || !updateLocalState) return;
+
+    const fetchTradingServerLink = async () => {
+      try {
+        const lastServerFetch = localState.lastServerFetch ? new Date(localState.lastServerFetch).getTime() : 0;
+        const now = Date.now();
+        const timeElapsed = now - lastServerFetch;
+        const EXPIRY_LIMIT = 3 * 60 * 60 * 1000; // 3 hours
+
+        // Only fetch if expired or not cached
+        if (timeElapsed > EXPIRY_LIMIT || !localState.tradingServerLink) {
+          const serverRef = ref(appdatabase, 'server');
+          const snapshot = await get(serverRef);
+
+          if (snapshot.exists()) {
+            const serverData = snapshot.val();
+            // Convert to array and get first server link
+            const serverList = Object.entries(serverData).map(([id, value]) => ({ id, ...value }));
+            
+            // Get the first server link (or you can filter by name if needed)
+            const firstServer = serverList.length > 0 ? serverList[0] : null;
+            const serverLink = firstServer?.link || null;
+
+            if (serverLink) {
+              setTradingServerLink(serverLink);
+              await updateLocalState('tradingServerLink', serverLink);
+              await updateLocalState('lastServerFetch', new Date().toISOString());
+            }
+          }
+        } else {
+          // Use cached link
+          if (localState.tradingServerLink) {
+            setTradingServerLink(localState.tradingServerLink);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching trading server link:', error);
+        // Fallback to cached link if available
+        if (localState.tradingServerLink) {
+          setTradingServerLink(localState.tradingServerLink);
+        }
+      }
+    };
+
+    if (appdatabase) {
+      fetchTradingServerLink();
+    }
+  }, [appdatabase, localState.lastServerFetch, localState.tradingServerLink, updateLocalState]);
 
   // console.log(user)
 
@@ -557,10 +797,15 @@ export const GlobalStateProvider = ({ children }) => {
       freeTranslation,
       isAdmin,
       reload,
-      robloxUsernameRef, api,   proTagBought, stockNotifierPurchase, proGranted, currentUserEmail, single_offer_wall
+      robloxUsernameRef, api,   proTagBought, stockNotifierPurchase, proGranted, currentUserEmail, single_offer_wall,
+      isInActiveGame,
+      setIsInActiveGame, // ✅ Set game state
+      tradingServerLink, // ✅ Trading server link
+      strikeInfo, // ✅ User ban/strike information (centralized)
+      isUserBlocked, // ✅ Boolean flag if user is currently blocked
 
     }),
-    [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api, freeTranslation, proTagBought, currentUserEmail, auth, ]
+    [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api, freeTranslation, proTagBought, currentUserEmail, auth, isInActiveGame, setIsInActiveGame, tradingServerLink, strikeInfo, isUserBlocked]
   );
 
   return (

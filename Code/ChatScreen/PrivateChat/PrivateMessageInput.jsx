@@ -5,6 +5,8 @@ import {
   TouchableOpacity,
   Text,
   Alert,
+  Modal,
+  FlatList,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { getStyles } from '../Style';
@@ -15,6 +17,7 @@ import InterstitialAdManager from '../../Ads/IntAd';
 import { useLocalState } from '../../LocalGlobelStats';
 import { launchImageLibrary } from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
+import { validateContent } from '../../Helper/ContentModeration';
 
 const BUNNY_STORAGE_HOST = 'storage.bunnycdn.com';
 const BUNNY_STORAGE_ZONE = 'post-gag';
@@ -51,12 +54,37 @@ const base64ToBytes = (base64) => {
   return Uint8Array.from(output);
 };
 
+// ✅ Quick message templates for Blox Fruits trading
+const QUICK_MESSAGE_TEMPLATES = [
+  "Interested in your trade!",
+  "Can we negotiate?",
+  "What's your best offer?",
+  "I'm ready to trade!",
+  "Let me check my inventory",
+  "Deal accepted!",
+  "Can you add more?",
+  "Meet me at the trading hub",
+  "What fruits do you have?",
+  "Is this still available?",
+  "I'll add more fruits",
+  "Fair trade, let's do it!",
+  "Can you change something?",
+  "I'm interested, let's discuss",
+  "Thanks for the trade!",
+  "Are you online?",
+  "When can you trade?",
+  "I have what you need",
+  "Let's make a deal!",
+  "Can we do this trade?",
+];
+
 const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetModalVisible,
   selectedFruits,
   setSelectedFruits, }) => {
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [imageUri, setImageUri] = useState(null); // single image only
+  const [showTemplates, setShowTemplates] = useState(false);
 
   const [messageCount, setMessageCount] = useState(0);
   const {localState}= useLocalState()
@@ -160,6 +188,14 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
     if (!trimmedInput && !hasImage && !hasFruits) return;
     if (isSending) return;
 
+    // ✅ Comprehensive content moderation check
+    if (trimmedInput) {
+      const validation = validateContent(trimmedInput);
+      if (!validation.isValid) {
+        Alert.alert('Error', validation.reason || 'Inappropriate content detected.');
+        return;
+      }
+    }
 
     setIsSending(true);
     const textToSend   = trimmedInput;
@@ -228,6 +264,19 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
         >
           <Icon
             name="logo-octocat"
+            size={20}
+            color={isDark ? '#FFF' : '#000'}
+          />
+        </TouchableOpacity>
+
+        {/* Quick Message Templates */}
+        <TouchableOpacity
+          style={[styles.sendButton, { marginRight: 3, paddingHorizontal: 3 }]}
+          onPress={() => setShowTemplates(true)}
+          disabled={isSending || isBanned}
+        >
+          <Icon
+            name="flash"
             size={20}
             color={isDark ? '#FFF' : '#000'}
           />
@@ -323,6 +372,130 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Quick Message Templates Modal */}
+      <Modal
+        visible={showTemplates}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowTemplates(false)}
+      >
+        <TouchableOpacity
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            justifyContent: 'flex-end',
+          }}
+          activeOpacity={1}
+          onPress={() => setShowTemplates(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={{
+              backgroundColor: isDark ? '#2C2C2C' : '#FFF',
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              maxHeight: '60%',
+              paddingTop: 20,
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingHorizontal: 20,
+                paddingBottom: 15,
+                borderBottomWidth: 1,
+                borderBottomColor: isDark ? '#444' : '#E0E0E0',
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: 'bold',
+                  color: isDark ? '#FFF' : '#000',
+                }}
+              >
+                Quick Messages
+              </Text>
+              <TouchableOpacity onPress={() => setShowTemplates(false)}>
+                <Icon name="close" size={24} color={isDark ? '#FFF' : '#000'} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={QUICK_MESSAGE_TEMPLATES}
+              keyExtractor={(item, index) => index.toString()}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={{
+                    padding: 15,
+                    borderBottomWidth: 1,
+                    borderBottomColor: isDark ? '#444' : '#E0E0E0',
+                  }}
+                  onPress={async () => {
+                    setShowTemplates(false);
+                    
+                    // Auto-send the template message
+                    const trimmedInput = item.trim();
+                    if (!trimmedInput || isSending) return;
+
+                    // ✅ Comprehensive content moderation check (safety check for templates)
+                    const validation = validateContent(trimmedInput);
+                    if (!validation.isValid) {
+                      Alert.alert('Error', validation.reason || 'Inappropriate content detected.');
+                      return;
+                    }
+
+                    setIsSending(true);
+                    const textToSend = trimmedInput;
+                    const imageToSend = null;
+                    const fruitsToSend = [];
+
+                    // Clear UI
+                    setInput('');
+                    setImageUri(null);
+                    setSelectedFruits([]);
+
+                    setMessageCount(prevCount => {
+                      const newCount = prevCount + 1;
+                      if (!localState.isPro && newCount % 30 === 0) {
+                        InterstitialAdManager.showAd(() => {});
+                      } else {
+                        setIsSending(false);
+                      }
+                      return newCount;
+                    });
+
+                    try {
+                      let imageUrl = null;
+                      // No image for template messages
+                      
+                      await onSend(textToSend, imageUrl, fruitsToSend);
+                      if (onCancelReply) onCancelReply();
+                    } catch (error) {
+                      console.error('Error sending template message:', error);
+                    } finally {
+                      setIsSending(false);
+                    }
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      color: isDark ? '#FFF' : '#000',
+                    }}
+                  >
+                    {item}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              style={{ maxHeight: 400 }}
+            />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };

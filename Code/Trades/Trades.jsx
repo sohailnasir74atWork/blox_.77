@@ -59,7 +59,6 @@ const TradeList = ({ route }) => {
   const { selectedTheme } = route.params
   const { user, analytics, single_offer_wall, proGranted } = useGlobalState()
   const [trades, setTrades] = useState([]);
-  const [filteredTrades, setFilteredTrades] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [lastDoc, setLastDoc] = useState(null);
@@ -114,68 +113,67 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
     setIsProStatus(localState.isPro || proGranted); // ✅ Force update state and trigger re-render
   }, [localState.isPro, proGranted]);
 
-  useEffect(() => {
+  // ✅ OPTIMIZED: Memoize filtered trades to avoid recalculating on every render
+  const filteredTrades = useMemo(() => {
     const lowerCaseQuery = searchQuery.trim().toLowerCase();
 
-    setFilteredTrades(
-      trades.filter((trade) => {
-        // If no filters selected, show all trades
-        if (selectedFilters.length === 0) return true;
+    // If no filters and no search, return all trades
+    if (selectedFilters.length === 0 && !lowerCaseQuery) {
+      return trades;
+    }
 
-        let matchesAnyFilter = false;
+    return trades.filter((trade) => {
+      // If no filters selected, show all trades
+      if (selectedFilters.length === 0) return true;
 
-        if (selectedFilters.includes("has")) {
-          matchesAnyFilter =
-            matchesAnyFilter ||
-            trade.hasItems?.some((item) =>
-              item.name.toLowerCase().includes(lowerCaseQuery)
-            );
-        }
+      // ✅ Separate filter types
+      const dealFilters = selectedFilters.filter(f => ['fairDeal', 'riskyDeal', 'bestDeal', 'decentDeal', 'weakDeal', 'greatDeal'].includes(f));
+      const hasMyTradesFilter = selectedFilters.includes("myTrades");
+      const hasSearchFilters = lowerCaseQuery && (selectedFilters.includes("has") || selectedFilters.includes("wants"));
 
-        if (selectedFilters.includes("wants")) {
-          matchesAnyFilter =
-            matchesAnyFilter ||
-            trade.wantsItems?.some((item) =>
-              item.name.toLowerCase().includes(lowerCaseQuery)
-            );
-        }
-
-        if (selectedFilters.includes("myTrades")) {
-          matchesAnyFilter = matchesAnyFilter || trade.userId === user.id;
-        }
-
+      // ✅ Check deal filter match
+      let matchesDeal = true;
+      if (dealFilters.length > 0) {
         const { deal } = getTradeDeal(trade.hasTotal, trade.wantsTotal);
-        const tradeLabel = deal?.label || "trade.unknown_deal"; // Fallback to avoid undefined
+        const tradeLabel = deal?.label || "trade.unknown_deal";
+        const dealMap = {
+          fairDeal: "trade.fair_deal",
+          riskyDeal: "trade.risky_deal",
+          bestDeal: "trade.best_deal",
+          decentDeal: "trade.decent_deal",
+          weakDeal: "trade.weak_deal",
+          greatDeal: "trade.great_deal"
+        };
+        const dealValues = dealFilters.map(f => dealMap[f]);
+        matchesDeal = dealValues.includes(tradeLabel);
+      }
 
+      // ✅ Check myTrades filter match
+      let matchesMyTrades = true;
+      if (hasMyTradesFilter) {
+        matchesMyTrades = trade.userId === user?.id;
+      }
 
-        if (selectedFilters.includes("fairDeal")) {
-          matchesAnyFilter = matchesAnyFilter || tradeLabel === "trade.fair_deal";
+      // ✅ Check search filter match
+      let matchesSearch = true;
+      if (hasSearchFilters) {
+        matchesSearch = false;
+        if (selectedFilters.includes("has")) {
+          matchesSearch = matchesSearch || trade.hasItems?.some((item) =>
+            item.name.toLowerCase().includes(lowerCaseQuery)
+          );
         }
-
-        if (selectedFilters.includes("riskyDeal")) {
-          matchesAnyFilter = matchesAnyFilter || tradeLabel === "trade.risky_deal";
+        if (selectedFilters.includes("wants")) {
+          matchesSearch = matchesSearch || trade.wantsItems?.some((item) =>
+            item.name.toLowerCase().includes(lowerCaseQuery)
+          );
         }
+      }
 
-        if (selectedFilters.includes("bestDeal")) {
-          matchesAnyFilter = matchesAnyFilter || tradeLabel === "trade.best_deal";
-        }
-
-        if (selectedFilters.includes("decentDeal")) {
-          matchesAnyFilter = matchesAnyFilter || tradeLabel === "trade.decent_deal";
-        }
-
-        if (selectedFilters.includes("weakDeal")) {
-          matchesAnyFilter = matchesAnyFilter || tradeLabel === "trade.weak_deal";
-        }
-
-        if (selectedFilters.includes("greatDeal")) {
-          matchesAnyFilter = matchesAnyFilter || tradeLabel === "trade.great_deal";
-        }
-
-        return matchesAnyFilter; // Show if it matches at least one selected filter
-      })
-    );
-  }, [searchQuery, trades, selectedFilters]);
+      // ✅ All selected filters must match (AND logic)
+      return matchesDeal && matchesMyTrades && matchesSearch;
+    });
+  }, [searchQuery, trades, selectedFilters, user?.id]);
 
 
   useEffect(() => {
@@ -235,7 +233,6 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
               }
 
               setTrades((prev) => prev.filter((trade) => trade.id !== item.id));
-              setFilteredTrades((prev) => prev.filter((trade) => trade.id !== item.id));
 
               showSuccessMessage(t("trade.delete_success"), t("trade.delete_success_message"));
 
@@ -322,11 +319,6 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
                 });
 
                 setTrades((prev) =>
-                  prev.map((trade) =>
-                    trade.id === item.id ? { ...trade, isFeatured: true } : trade
-                  )
-                );
-                setFilteredTrades((prev) =>
                   prev.map((trade) =>
                     trade.id === item.id ? { ...trade, isFeatured: true } : trade
                   )
@@ -480,33 +472,30 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
   const fetchInitialTrades = useCallback(async () => {
     setLoading(true);
     try {
-      // ✅ Fetch latest normal trades
-      // const normalTradesQuery = await firestore()
-      const normalTradesQuerySnap = await getDocs(
-        query(
-          collection(firestoreDB, 'trades_new'),
-          orderBy('isFeatured'),
-          where('isFeatured', '!=', true),
-          orderBy('timestamp', 'desc'),
-          limit(PAGE_SIZE)
-        )
-      );
-  
-      const normalTrades = normalTradesQuerySnap.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...docSnap.data(),
-      }));
-
-      // ✅ Fetch only valid featured trades (NOT expired)
-     const featuredQuerySnapshot = await getDocs(
-        query(
-          collection(firestoreDB, 'trades_new'),
-          where('isFeatured', '==', true),
-          where('featuredUntil', '>', Timestamp.now()),
-          orderBy('featuredUntil', 'desc')
-        )
-      );
-  
+      // ✅ OPTIMIZED: Fetch featured and normal trades in parallel (faster loading)
+      const now = Timestamp.now();
+      const [featuredQuerySnapshot, normalTradesQuerySnap] = await Promise.all([
+        // Featured trades query
+        getDocs(
+          query(
+            collection(firestoreDB, 'trades_new'),
+            where('isFeatured', '==', true),
+            where('featuredUntil', '>', now),
+            orderBy('featuredUntil', 'desc'),
+            limit(10) // ✅ Limit featured trades to reduce reads
+          )
+        ),
+        // Normal trades query (parallel)
+        getDocs(
+          query(
+            collection(firestoreDB, 'trades_new'),
+            where('isFeatured', '!=', true),
+            orderBy('isFeatured'), // ✅ Required: first orderBy must match inequality field
+            orderBy('timestamp', 'desc'), // ✅ Then order by timestamp
+            limit(PAGE_SIZE)
+          )
+        ),
+      ]);
 
       let featuredTrades = [];
       if (!featuredQuerySnapshot.empty) {
@@ -515,14 +504,18 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
           ...docSnap.data(),
         }));
       }
-      // console.log('✅ Featured trades:', featuredTrades.length);
 
       // ✅ Keep some featured trades aside for future loadMore()
       setRemainingFeaturedTrades(featuredTrades);
+  
+      const normalTrades = normalTradesQuerySnap.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      }));
 
       // ✅ Merge trades but **reserve** featured trades for later
       const mergedTrades = mergeFeaturedWithNormal(
-        featuredTrades.splice(0, 3), // ✅ Only use first 2 featured
+        featuredTrades.splice(0, 3), // ✅ Only use first 3 featured
         normalTrades
       );
 
@@ -734,6 +727,20 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
   };
 
 
+  // ✅ OPTIMIZED: Helper function to group items (no hooks - can be called from renderTrade)
+  const groupItems = (items) => {
+    const grouped = {};
+    items.forEach(({ name, type }) => {
+      const key = `${name}-${type}`;
+      if (grouped[key]) {
+        grouped[key].count += 1;
+      } else {
+        grouped[key] = { name, type, count: 1 };
+      }
+    });
+    return Object.values(grouped);
+  };
+
   const renderTrade = ({ item, index }) => {
     const { deal, tradeRatio } = getTradeDeal(item.hasTotal, item.wantsTotal);
     const tradePercentage = Math.abs(((tradeRatio - 1) * 100).toFixed(0));
@@ -742,24 +749,7 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
     const neutral = tradeRatio === 1; // Exactly 1:1 trade
     const formattedTime = item.timestamp ? dayjs(item.timestamp.toDate()).fromNow() : "Anonymous";
 
-    // if ((index + 1) % 10 === 0 && !isProStatus) {
-    //   return <MyNativeAdComponent />;
-    // }
-    // Function to group items and count duplicates
-    const groupItems = (items) => {
-      const grouped = {};
-      items.forEach(({ name, type }) => {
-        const key = `${name}-${type}`;
-        if (grouped[key]) {
-          grouped[key].count += 1;
-        } else {
-          grouped[key] = { name, type, count: 1 };
-        }
-      });
-      return Object.values(grouped);
-    };
-
-    // Group and count duplicate items
+    // ✅ OPTIMIZED: Group items (no hooks - just regular function calls)
     const groupedHasItems = groupItems(item.hasItems || []);
     const groupedWantsItems = groupItems(item.wantsItems || []);
 
@@ -801,7 +791,10 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
 
         <View style={styles.tradeHeader}>
           <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', flex:1  }} onPress={()=>handleOpenProfile(item)}>
-            <Image source={{ uri: item.avatar }} style={styles.itemImageUser} />
+            <Image 
+              source={{ uri: item.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }} 
+              style={styles.itemImageUser}
+            />
 
             <View style={{  marginLeft: 5 }}>
               <View style={styles.traderName}>
@@ -820,9 +813,27 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
   {item?.isPro && (
     <Image
       source={require('../../assets/pro.png')}
-      style={{ width: 16, height: 16, marginLeft: 2 }}
+      style={{ width: 10, height: 10, marginRight: 5 }}
     />
   )}
+  {item?.robloxUsernameVerified && (
+    <Image
+      source={require('../../assets/verification.png')}
+      style={{ width: 10, height: 10, marginRight: 5 }}
+    />
+  )}
+  {(() => {
+    const hasRecentWin =
+      !!item?.hasRecentGameWin ||
+      (typeof item?.lastGameWinAt === 'number' &&
+        Date.now() - item.lastGameWinAt <= 24 * 60 * 60 * 1000);
+    return hasRecentWin ? (
+      <Image
+        source={require('../../assets/trophy.webp')}
+        style={{ width: 10, height: 10, marginRight: 5 }}
+      />
+    ) : null;
+  })()}
   {(item?.isProGranted || item.proTagBought) && (
     <Image
       source={require('../../assets/progranted.png')}
@@ -894,6 +905,7 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
                       uri: hasItem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(hasItem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(hasItem.name)}_Icon.webp`,
                     }}
                     style={[styles.itemImage, { backgroundColor: hasItem.type === 'p' ? '#FFCC00' : '' }]}
+                    resizeMode="contain"
                   />
                   <Text style={styles.names}>
                     {hasItem.name}{hasItem.type === 'p' && " (P)"}
@@ -928,6 +940,7 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
                       uri: wantnItem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(wantnItem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(wantnItem.name)}_Icon.webp`,
                     }}
                     style={[styles.itemImage, { backgroundColor: wantnItem.type === 'p' ? '#FFCC00' : '' }]}
+                    resizeMode="contain"
                   />
                   <Text style={styles.names}>
                     {wantnItem.name}{wantnItem.type === 'p' && " (P)"}
@@ -948,7 +961,7 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
         </View>
         <View style={styles.tradeTotals}>
           {groupedHasItems.length > 0 && <Text style={[styles.priceText, styles.hasBackground]}>
-            {t("trade.price_has")} {formatValue(item.hasTotal.value)}
+            ME {formatValue(item.hasTotal.value)}
           </Text>}
           <View style={styles.transfer}>
             {(groupedHasItems.length > 0 && groupedWantsItems.length > 0) && <Text style={[styles.priceTextProfit, { color: !isProfit ? config.colors.hasBlockGreen : config.colors.wantBlockRed }]}>
@@ -963,7 +976,7 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
             </Text>}
           </View>
           {groupedWantsItems.length > 0 && <Text style={[styles.priceText, styles.wantBackground]}>
-            {t("trade.price_want")} {formatValue(item.wantsTotal.value)}
+            YOU {formatValue(item.wantsTotal.value)}
           </Text>}
         </View>
 
@@ -1004,8 +1017,16 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
     );
   };
 
-  if (loading) {
-    return <ActivityIndicator style={styles.loader} size="large" color="#007BFF" />;
+  // ✅ OPTIMIZED: Show skeleton loader instead of blank screen
+  if (loading && trades.length === 0) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator style={styles.loader} size="large" color="#007BFF" />
+        <Text style={[styles.loadingText, { color: isDarkMode ? 'white' : 'black' }]}>
+          Loading trades...
+        </Text>
+      </View>
+    );
   }
 
 
@@ -1031,10 +1052,15 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.2}
         removeClippedSubviews={true} // 🚀 Reduce memory usage
-        initialNumToRender={10} // 🔹 Render fewer items at start
-        maxToRenderPerBatch={10} // 🔹 Load smaller batches
-        updateCellsBatchingPeriod={50} // 🔹 Reduce updates per frame
-        windowSize={5} // 🔹 Keep only 5 screens worth in memory
+        initialNumToRender={8} // ✅ OPTIMIZED: Render fewer items initially (was 10)
+        maxToRenderPerBatch={5} // ✅ OPTIMIZED: Smaller batches (was 10)
+        updateCellsBatchingPeriod={100} // ✅ OPTIMIZED: Less frequent updates (was 50)
+        windowSize={3} // ✅ OPTIMIZED: Keep less in memory (was 5)
+        getItemLayout={(data, index) => ({
+          length: 200, // Approximate item height
+          offset: 200 * index,
+          index,
+        })} // ✅ OPTIMIZED: Pre-calculate item positions for faster scrolling
         refreshing={refreshing} // Add Pull-to-Refresh
         onRefresh={handleRefresh} // Attach Refresh Handler
       />
@@ -1253,7 +1279,15 @@ const getStyles = (isDarkMode) =>
 
     },
     loader: {
-      flex: 1
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    loadingText: {
+      marginTop: 10,
+      fontSize: 14,
+      fontFamily: 'Lato-Regular',
+      textAlign: 'center',
     },
     dealContainer: {
       paddingVertical: 1,

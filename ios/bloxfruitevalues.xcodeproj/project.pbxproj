@@ -13,6 +13,7 @@
 		183231FB2D66329F00278B1F /* testing.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 183231FA2D66329F00278B1F /* testing.storekit */; };
 		183698FB2E30F9D800F44101 /* StoreKitTestCertificate.cer in Resources */ = {isa = PBXBuildFile; fileRef = 183698FA2E30F9D800F44101 /* StoreKitTestCertificate.cer */; };
 		187146CE2D5CB1B5003890D6 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 187146CD2D5CB1B5003890D6 /* GoogleService-Info.plist */; };
+		18B57A732F041D090023D7B3 /* audio.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 18B57A722F041D090023D7B3 /* audio.mp3 */; };
 		3CB3B02363450A64CDC9063D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		3DD773292011487396EB3CB0 /* Lato-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7C9634A738C64C4B9FFE6234 /* Lato-Regular.ttf */; };
 		56F857E2D0424B5587F79BC7 /* Colors.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 67352802B153454498C63C76 /* Colors.xcassets */; };
@@ -34,6 +35,7 @@
 		183231FA2D66329F00278B1F /* testing.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; name = testing.storekit; path = bloxfruitevalues/testing.storekit; sourceTree = "<group>"; };
 		183698FA2E30F9D800F44101 /* StoreKitTestCertificate.cer */ = {isa = PBXFileReference; lastKnownFileType = file; path = StoreKitTestCertificate.cer; sourceTree = "<group>"; };
 		187146CD2D5CB1B5003890D6 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		18B57A722F041D090023D7B3 /* audio.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = audio.mp3; sourceTree = "<group>"; };
 		54B080BD993F5B9719276A42 /* Pods_bloxfruitevalues.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_bloxfruitevalues.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		57EF4E73A3062E105568EAC7 /* Pods-bloxfruitevalues.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-bloxfruitevalues.debug.xcconfig"; path = "Target Support Files/Pods-bloxfruitevalues/Pods-bloxfruitevalues.debug.xcconfig"; sourceTree = "<group>"; };
 		67352802B153454498C63C76 /* Colors.xcassets */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = folder.assetcatalog; name = Colors.xcassets; path = bloxfruitevalues/Colors.xcassets; sourceTree = "<group>"; };
@@ -94,6 +96,7 @@
 		83CBB9F61A601CBA00E9B192 = {
 			isa = PBXGroup;
 			children = (
+				18B57A722F041D090023D7B3 /* audio.mp3 */,
 				183698FA2E30F9D800F44101 /* StoreKitTestCertificate.cer */,
 				183231FA2D66329F00278B1F /* testing.storekit */,
 				187146CD2D5CB1B5003890D6 /* GoogleService-Info.plist */,
@@ -198,6 +201,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				18B57A732F041D090023D7B3 /* audio.mp3 in Resources */,
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3CB3B02363450A64CDC9063D /* PrivacyInfo.xcprivacy in Resources */,
@@ -361,7 +365,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = bloxfruitevalues/bloxfruitevalues.entitlements;
-				CURRENT_PROJECT_VERSION = 62;
+				CURRENT_PROJECT_VERSION = 67;
 				DEVELOPMENT_TEAM = P32FX5FC6Z;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = bloxfruitevalues/Info.plist;
@@ -371,7 +375,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 5.2;
+				MARKETING_VERSION = 5.7;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -398,7 +402,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = bloxfruitevalues/bloxfruitevalues.entitlements;
-				CURRENT_PROJECT_VERSION = 62;
+				CURRENT_PROJECT_VERSION = 67;
 				DEVELOPMENT_TEAM = P32FX5FC6Z;
 				INFOPLIST_FILE = bloxfruitevalues/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Fruit Values";
@@ -407,7 +411,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 5.2;
+				MARKETING_VERSION = 5.7;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",

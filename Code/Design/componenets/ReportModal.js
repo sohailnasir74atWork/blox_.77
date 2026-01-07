@@ -6,8 +6,9 @@ import {
 import { showMessage } from 'react-native-flash-message';
 import firestore from '@react-native-firebase/firestore';
 import { useLocalState } from '../../LocalGlobelStats';
+import { banUserwithEmail } from '../../ChatScreen/utils';
 
-const ReportModal = ({ visible, onClose, item, banUserwithEmail }) => {
+const ReportModal = ({ visible, onClose, item }) => {
   const [reportText, setReportText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const {updateLocalState, localState} = useLocalState()
@@ -115,7 +116,8 @@ const ReportModal = ({ visible, onClose, item, banUserwithEmail }) => {
       // Side-effects OUTSIDE the transaction to avoid retries breaking things
       if (txResult.shouldBan && txResult.email && txResult.userId) {
         try {
-          await banUserwithEmail(txResult.email, txResult.userId);
+          // ✅ Pass false for admin parameter - user reports don't show ban alerts, but still increment strikes
+          await banUserwithEmail(txResult.email, false);
         } catch (err) {
           console.error('Ban error:', err);
           // optional: decide if you want to unset 'banned' on the post here

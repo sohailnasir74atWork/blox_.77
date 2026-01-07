@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import {
   FlatList,
   View,
@@ -10,6 +10,7 @@ import {
   Alert,
   Keyboard,
   StyleSheet,
+  Animated,
 } from 'react-native';
 import { getStyles } from './../Style';
 import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
@@ -81,10 +82,11 @@ const MessagesList = ({
   const [showReportPopup, setShowReportPopup] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState(null); // 👈 NEW
   const { triggerHapticFeedback } = useHaptic();
+  const scrollButtonOpacity = useMemo(() => new Animated.Value(0), []);
   // const [isAtBottom, setIsAtBottom] = useState(true);
   const { t } = useTranslation();
   // const { language, changeLanguage } = useLanguage();
-  const { isAdmin, api, freeTranslation , proGranted} = useGlobalState()
+  const { isAdmin, api, freeTranslation , proGranted, appdatabase} = useGlobalState()
   const { canTranslate, incrementTranslationCount, getRemainingTranslationTries, localState } = useLocalState();
   const deviceLanguage = useMemo(() => getDeviceLanguage(), []);
 
@@ -117,7 +119,7 @@ const MessagesList = ({
           );
         }, 1500);
       } catch (e) {
-        console.log('scrollToIndex error:', e);
+        // console.log('scrollToIndex error:', e);
       }
     },
     [flatListRef, messages],
@@ -174,29 +176,36 @@ const MessagesList = ({
         translated = translated.replace(new RegExp(placeholder, 'g'), word);
       });
       mixpanel.track("Translation", { lang: targetLang });
-      // console.log('translated', translated)
 
       return translated;
     } catch (err) {
-      console.error('Translation Error:', err);
-      return null;
+      // ✅ HANDLED: Catch network/API errors gracefully (no crash)
+      // Only log in development, suppress in production to avoid red banner
+      if (__DEV__) {
+        console.error('Translation Error:', err?.message || err);
+      }
+      return null; // Return null to trigger user-friendly error message
     }
   };
 
   const handleTranslate = async (item) => {
-    const isUnlimited = freeTranslation || (localState.isPro);
-    // console.log(isUnlimited, 'isunlimited')
+    // ✅ Check unlimited status
+    const isUnlimited = freeTranslation || localState.isPro;
 
+    // ✅ Check limit BEFORE translation (reads from storage for real-time accuracy)
     if (!isUnlimited && !canTranslate()) {
       Alert.alert('Limit Reached', 'You can only translate 5 messages per day.');
       return;
     }
 
+    // ✅ Only increment AFTER successful translation
     const translated = await translateText(item?.text, deviceLanguage);
 
     if (translated) {
+      // ✅ Increment count (reads from storage first, then updates)
       if (!isUnlimited) incrementTranslationCount();
 
+      // ✅ Get remaining tries (reads from storage for real-time accuracy)
       const remaining = isUnlimited ? 'Unlimited' : `${getRemainingTranslationTries()} remaining`;
 
       Alert.alert(
@@ -263,6 +272,36 @@ const MessagesList = ({
     else return
 
   };
+
+  // ✅ Scroll to bottom handler
+  const handleScrollToBottom = useCallback(() => {
+    if (!flatListRef?.current) return;
+    
+    triggerHapticFeedback('impactLight');
+    
+    try {
+      // Since FlatList is inverted, index 0 is the bottom (newest message)
+      flatListRef.current.scrollToIndex({
+        index: 0,
+        animated: true,
+        viewPosition: 0,
+      });
+      setIsAtBottom(true);
+    } catch (error) {
+      // Fallback: scroll to offset 0
+      flatListRef.current.scrollToOffset({ offset: 0, animated: true });
+      setIsAtBottom(true);
+    }
+  }, [flatListRef, triggerHapticFeedback, setIsAtBottom]);
+
+  // ✅ Animate scroll button visibility
+  useEffect(() => {
+    Animated.timing(scrollButtonOpacity, {
+      toValue: isAtBottom ? 0 : 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [isAtBottom, scrollButtonOpacity]);
   // console.log(user)
   const renderMessage = useCallback(({ item, index }) => {
     // console.log(item)
@@ -280,6 +319,12 @@ const MessagesList = ({
     const totalFruitValue = hasFruits
       ? fruits.reduce((sum, f) => sum + (Number(f.value) || 0), 0)
       : 0;
+    
+    // ✅ Trophy badge (recent win within 24 hours)
+    const hasRecentWin =
+      !!item?.hasRecentGameWin ||
+      (typeof item?.lastGameWinAt === 'number' &&
+        Date.now() - item.lastGameWinAt <= 24 * 60 * 60 * 1000);
   
     // console.log(user.id)
 
@@ -306,7 +351,7 @@ const MessagesList = ({
             ]}
           >
 
-            <TouchableOpacity onPress={() => handleProfileClick(item)} style={styles.profileImagecontainer}>
+            <TouchableOpacity onPress={() => handleProfileClick(item)}>
               <Image
                 source={{
                   uri: item.avatar
@@ -340,12 +385,7 @@ const MessagesList = ({
                 onLongPress={() => handleLongPress(item)}
                 customStyles={{ triggerTouchable: { activeOpacity: 1 } }}
               >
-                <View style={[
-                  item.senderId === (user?.id || item.isAdmin) ? styles.mymessageBubble : styles.othermessageBubble,
-                  item.senderId === user?.id ? styles.myMessage : styles.otherMessage,
-                  item.isReportedByUser && styles.reportedMessage,
-                ]}>
-                  <View style={[item.senderId === user?.id ? styles.myMessageText : styles.otherMessageText, isAdmin && item.strikeCount === 1
+                <View style={[item.senderId === user?.id ? styles.myMessageText : styles.otherMessageText, isAdmin && item.strikeCount === 1
                     ? { backgroundColor: 'pink' }
                     : item.strikeCount >= 2
                       ? { backgroundColor: 'red' }
@@ -366,7 +406,7 @@ const MessagesList = ({
                       {item?.isPro && (
                         <Image
                           source={require('../../../assets/pro.png')}
-                          style={{ width: 16, height: 16, marginLeft: 2 }}
+                          style={styles.icon}
                         />
                       )}
                       {item?.proGranted && (
@@ -381,12 +421,38 @@ const MessagesList = ({
                           source={iconMap[iconKey]}
                           style={{ width: 16, height: 16, marginLeft: 2, resizeMode: 'contain' }}
                         />
-                      ))} 
+                      ))}
+                      {item?.robloxUsernameVerified && (
+                        <Image
+                          source={require('../../../assets/verification.png')}
+                          style={styles.icon}
+                        />
+                      )}
+                      {hasRecentWin && (
+                        <Image
+                          source={require('../../../assets/trophy.webp')}
+                          style={{ width: 10, height: 10, marginLeft: 4 }}
+                        />
+                      )}
                       <Text>{''}</Text>
    {(!!item.isAdmin) &&
                       <View style={styles.adminContainer}>
                         <Text style={styles.admin}>{t("chat.admin")}</Text>
                       </View>}
+
+  {isAdmin && item.OS && (
+    <View
+      style={[
+        styles.platformBadge,
+      ]}
+    >
+      <Icon
+        name={item.OS === 'ios' ? 'logo-apple' : 'logo-android'}
+        size={14}
+        color={item.OS === 'ios' ? '#007AFF' : '#34C759' }
+      />
+    </View>
+  )}
 
                     </View>
 
@@ -398,81 +464,69 @@ const MessagesList = ({
                     {/* {'\n'} */}
                     <Text style={item.senderId === user?.id ? styles.myMessageTextOnly : styles.otherMessageTextOnly}>{parseMessageText(item?.text)}</Text>
 
+                    {/* ✅ Fruits list inside bubble */}
+                    {hasFruits && (
+                      <View
+                        style={[
+                          fruitStyles.fruitsWrapper,
+                          { backgroundColor: fruitColors.wrapperBg },
+                        ]}
+                      >
+                        {fruits.map((fruit, index) => {
+                          const formatName = (name) => name.replace(/^\+/, '').replace(/\s+/g, '-');
 
+                          return (
+                            <View
+                              key={`${fruit.id || fruit.name}-${index}`}
+                              style={fruitStyles.fruitCard}
+                            >
+                              <Image
+                                source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/${fruit.type === 'n' ? '09' : '08'}/${formatName(fruit.name)}_Icon.webp` }}
+                                style={fruitStyles.fruitImage}
+                              />
 
+                              <View style={fruitStyles.fruitInfo}>
+                                <Text
+                                  style={[fruitStyles.fruitName, { color: fruitColors.name }]}
+                                  numberOfLines={1}
+                                >
+                                  {`${fruit.name || fruit.Name} ${fruit.type === 'n' ? '' : '(P)'} `}
+                                </Text>
+
+                                <Text
+                                  style={[fruitStyles.fruitValue, { color: fruitColors.value }]}
+                                >
+                                  · Value: {Number(fruit.value || 0).toLocaleString()}
+                                </Text>
+                              </View>
+                            </View>
+                          );
+                        })}
+
+                        {/* ✅ Total row – only if more than one fruit */}
+                        {fruits.length > 1 && (
+                          <View
+                            style={[
+                              fruitStyles.totalRow,
+                              { borderTopColor: fruitColors.divider },
+                            ]}
+                          >
+                            <Text
+                              style={[fruitStyles.totalLabel, { color: fruitColors.totalLabel }]}
+                            >
+                              Total:
+                            </Text>
+                            <Text
+                              style={[fruitStyles.totalValue, { color: fruitColors.totalValue }]}
+                            >
+                              {totalFruitValue.toLocaleString()}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
 
                   </View>
-                </View>
-                {hasFruits && (
-  <View
-    style={[
-      fruitStyles.fruitsWrapper,
-      { backgroundColor: fruitColors.wrapperBg },
-    ]}
-  >
-    {fruits.map((fruit, index) => {
-      // const valueType = fruit.type
-
-      // let valueBadgeStyle = fruitStyles.badgeDefault;
-      // if (valueType === 'n') valueBadgeStyle = fruitStyles.badgeNeon;
-      // if (valueType === 'm') valueBadgeStyle = fruitStyles.badgeMega;
-      const formatName = (name) => name.replace(/^\+/, '').replace(/\s+/g, '-');
-
-      return (
-        <View
-          key={`${fruit.id || fruit.name}-${index}`}
-          style={fruitStyles.fruitCard}
-        >
-          <Image
-            source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/${fruit.type === 'n' ? '09' : '08'}/${formatName(fruit.name)}_Icon.webp` }}
-            style={fruitStyles.fruitImage}
-          />
-
-          <View style={fruitStyles.fruitInfo}>
-            <Text
-              style={[fruitStyles.fruitName, { color: fruitColors.name }]}
-              numberOfLines={1}
-            >
-              {`${fruit.name || fruit.Name} ${fruit.type === 'n' ? '' : '(P)'} `}
-            </Text>
-
-            <Text
-              style={[fruitStyles.fruitValue, { color: fruitColors.value }]}
-            >
-              · Value: {Number(fruit.value || 0).toLocaleString()}
-              {/* {fruit.category
-                ? `  ·  ${String(fruit.category).toUpperCase()}  `
-                : ''} */}{' '}
-            </Text>
-
-          
-          </View>
-        </View>
-      );
-    })}
-
-    {/* ✅ Total row – only if more than one fruit */}
-    {fruits.length > 1 && (
-      <View
-        style={[
-          fruitStyles.totalRow,
-          { borderTopColor: fruitColors.divider },
-        ]}
-      >
-        <Text
-          style={[fruitStyles.totalLabel, { color: fruitColors.totalLabel }]}
-        >
-          Total:
-        </Text>
-        <Text
-          style={[fruitStyles.totalValue, { color: fruitColors.totalValue }]}
-        >
-          {totalFruitValue.toLocaleString()}
-        </Text>
-      </View>
-    )}
-  </View>
-)}
               </MenuTrigger>
               <MenuOptions customStyles={{
                 optionsContainer: styles.menuoptions,
@@ -569,10 +623,44 @@ const MessagesList = ({
                   <MenuOption onSelect={() => onDeleteAllMessage(item?.senderId)} style={styles.deleteButton}>
                     <Text style={styles.adminTextAction}>Delete All</Text>
                   </MenuOption>
-                  <MenuOption onSelect={() => banUserwithEmail(item.currentUserEmail, item.isAdmin)} style={styles.deleteButton}>
+                  <MenuOption onSelect={async () => {
+                    // ✅ Fetch email on-demand for old messages (new messages don't have currentUserEmail)
+                    let email = item.currentUserEmail;
+                    if (!email && item.senderId && appdatabase) {
+                      try {
+                        const { ref, get } = require('@react-native-firebase/database');
+                        const emailSnap = await get(ref(appdatabase, `users/${item.senderId}/email`));
+                        email = emailSnap.exists() ? emailSnap.val() : null;
+                      } catch (error) {
+                        console.error('Error fetching email:', error);
+                      }
+                    }
+                    if (email) {
+                      await banUserwithEmail(email, item.isAdmin);
+                    } else {
+                      Alert.alert('Error', 'Could not find user email');
+                    }
+                  }} style={styles.deleteButton}>
                     <Text style={styles.adminTextAction}>Block</Text>
                   </MenuOption>
-                  <MenuOption onSelect={() => unbanUserWithEmail(item.currentUserEmail)} style={styles.deleteButton}>
+                  <MenuOption onSelect={async () => {
+                    // ✅ Fetch email on-demand for old messages (new messages don't have currentUserEmail)
+                    let email = item.currentUserEmail;
+                    if (!email && item.senderId && appdatabase) {
+                      try {
+                        const { ref, get } = require('@react-native-firebase/database');
+                        const emailSnap = await get(ref(appdatabase, `users/${item.senderId}/email`));
+                        email = emailSnap.exists() ? emailSnap.val() : null;
+                      } catch (error) {
+                        console.error('Error fetching email:', error);
+                      }
+                    }
+                    if (email) {
+                      await unbanUserWithEmail(email);
+                    } else {
+                      Alert.alert('Error', 'Could not find user email');
+                    }
+                  }} style={styles.deleteButton}>
                     <Text style={styles.adminTextAction}>Unblock</Text>
                   </MenuOption>
                   <MenuOption onSelect={() => onPinMessage(item)} style={styles.deleteButton}>
@@ -634,6 +722,37 @@ const MessagesList = ({
         onTouchStart={() => Keyboard.dismiss()}
         keyboardShouldPersistTaps="handled" // Ensures taps o
       />
+      {/* ✅ Scroll to Bottom Button */}
+      {!isAtBottom && (
+        <Animated.View
+          style={[
+            styles.scrollToBottomButton,
+            {
+              opacity: scrollButtonOpacity,
+              transform: [
+                {
+                  scale: scrollButtonOpacity.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.8, 1],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <TouchableOpacity
+            onPress={handleScrollToBottom}
+            activeOpacity={0.8}
+            style={styles.scrollToBottomTouchable}
+          >
+            <Icon
+              name="chevron-down-circle"
+              size={48}
+              color={config.colors.primary}
+            />
+          </TouchableOpacity>
+        </Animated.View>
+      )}
       <ReportPopup
         visible={showReportPopup}
         message={selectedMessage}

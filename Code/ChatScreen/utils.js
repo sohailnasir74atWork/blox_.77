@@ -274,14 +274,31 @@ export const rulesde  = [
 
 
 
+// ✅ Simple cache for online status to reduce Firebase reads (cost optimization)
+const onlineStatusCache = new Map(); // userId -> { status: boolean, timestamp: number }
+const CACHE_TTL_MS = 10000; // Cache for 10 seconds (reduce redundant reads)
+
 export const isUserOnline = async (userId) => {
   if (!userId) return false; // ✅ Return early if userId is invalid
 
+  // ✅ Check cache first (cost optimization)
+  const cached = onlineStatusCache.get(userId);
+  const now = Date.now();
+  if (cached && (now - cached.timestamp) < CACHE_TTL_MS) {
+    return cached.status; // ✅ Return cached value (no Firebase read)
+  }
+
   try {
-    const userRef = ref(getDatabase(), `users/${userId}/online`);
-    const snapshot = await get(userRef);
+    // ✅ Check presence node (where online status is actually stored - see GlobelStats.js)
+    const presenceRef = ref(getDatabase(), `presence/${userId}`);
+    const snapshot = await get(presenceRef);
     
-    return snapshot.val() ?? false; // ✅ Return online status OR false (cleaner)
+    const status = snapshot.val() ?? false;
+    
+    // ✅ Cache the result (cost optimization - reduces duplicate reads)
+    onlineStatusCache.set(userId, { status, timestamp: now });
+    
+    return status;
   } catch (error) {
     console.error("🔥 Error checking user online status:", error);
     return false; // ✅ Always return a boolean
@@ -314,6 +331,37 @@ export const clearActiveChat = async (userId) => {
     await set(activeChatRef, null);
   } catch (error) {
     console.error(`❌ Failed to clear active chat for user ${userId}:`, error);
+  }
+};
+
+export const setActiveGroupChat = async (userId, groupId) => {
+  if (!userId || !groupId) {
+    console.error('❌ Invalid userId or groupId for setActiveGroupChat');
+    return;
+  }
+
+  try {
+    const database = getDatabase();
+    const activeGroupRef = ref(database, `activeGroupChats/${groupId}/${userId}`);
+    await set(activeGroupRef, true);
+    await onDisconnect(activeGroupRef).remove();
+  } catch (error) {
+    console.error('❌ Failed to set active group chat:', error);
+  }
+};
+
+export const clearActiveGroupChat = async (userId, groupId) => {
+  if (!userId || !groupId) {
+    console.error('❌ Invalid userId or groupId for clearActiveGroupChat');
+    return;
+  }
+
+  try {
+    const database = getDatabase();
+    const activeGroupRef = ref(database, `activeGroupChats/${groupId}/${userId}`);
+    await set(activeGroupRef, null);
+  } catch (error) {
+    console.error('❌ Failed to clear active group chat:', error);
   }
 };
 
@@ -357,6 +405,14 @@ export const handleDeleteLast300Messages = async (senderId) => {
 };
 
 export const banUserwithEmail = async (email, admin) => {
+  // ✅ Safety check: handle undefined/null email
+  if (!email || typeof email !== 'string') {
+    if (admin) {
+      Alert.alert('Error', 'User email not available');
+    }
+    return;
+  }
+
   const encodeEmail = (email) => email.replace(/\./g, '(dot)');
 
   try {
@@ -365,19 +421,20 @@ export const banUserwithEmail = async (email, admin) => {
     const snap = await get(banRef);
 
     let strikeCount = 1;
-    let bannedUntil = Date.now() + 12 * 60 * 60 * 1000; // 1 day
-        // let bannedUntil = Date.now() +  1 * 60 * 1000; // 1 day
-
-    
+    let bannedUntil = Date.now() + 24 * 60 * 60 * 1000; // Strike 1: 1 day
 
     if (snap.exists()) {
       const data = snap.val();
-      if(admin){strikeCount = data.strikeCount + 1;}
-      // if(!admin){strikeCount = data.strikeCount}
+      // ✅ Always increment strike count (both admin bans and user reports)
+      strikeCount = (data.strikeCount || 0) + 1;
 
-      if (strikeCount === 2) bannedUntil = Date.now() + 3 * 24 * 60 * 60 * 1000; // 3 days
-      //  if (strikeCount === 2) bannedUntil = Date.now() + 2  * 60 * 1000; // 3 days
-      else if (strikeCount >= 3) bannedUntil = "permanent";
+      if (strikeCount === 1) {
+        bannedUntil = Date.now() + 24 * 60 * 60 * 1000; // Strike 1: 1 day
+      } else if (strikeCount === 2) {
+        bannedUntil = Date.now() + 3 * 24 * 60 * 60 * 1000; // Strike 2: 3 days
+      } else if (strikeCount >= 3) {
+        bannedUntil = "permanent"; // Strike 3: permanent
+      }
     }
 
     await set(banRef, {
@@ -385,11 +442,20 @@ export const banUserwithEmail = async (email, admin) => {
       bannedUntil,
       reason: `Strike ${strikeCount}`
     });
-    await handleDeleteLast300Messages()
-    if(admin){Alert.alert('User Banned', `Strike ${strikeCount} applied.`);}
+    // ✅ OPTIMIZED: Skip message deletion when banning by email (we don't have userId)
+    // Message deletion requires senderId, which we don't have when banning by email alone
+    // Admins can use banUser(userId) if they need to delete messages
+    // await handleDeleteLast300Messages() // ❌ Removed: requires senderId which we don't have here
+    // ✅ Only admins see ban success/error messages
+    if(admin){
+      Alert.alert('User Banned', `Strike ${strikeCount} applied.`);
+    }
   } catch (err) {
     console.error('Ban error:', err);
-    Alert.alert('Error', 'Could not ban user.');
+    // ✅ Only admins see error messages
+    if(admin){
+      Alert.alert('Error', 'Could not ban user.');
+    }
   }
 };
 

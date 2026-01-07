@@ -27,19 +27,19 @@ export default function NativeFeedAd({ mediaHeight = 220, onImpression, onClick 
   const unsubRef = useRef<() => void>();
 
   useEffect(() => {
-    console.log('[NativeFeedAd] mount → ask pool');
+    // console.log('[NativeFeedAd] mount → ask pool');
     nativeAdPool.fillIfNeeded();
 
     const next = nativeAdPool.take();
     if (next) {
-      console.log('[NativeFeedAd] got ad immediately');
+      // console.log('[NativeFeedAd] got ad immediately');
       setAd(next);
     } else {
-      console.log('[NativeFeedAd] no ad yet → subscribe');
+      // console.log('[NativeFeedAd] no ad yet → subscribe');
       unsubRef.current = nativeAdPool.addListener(() => {
         const n = nativeAdPool.take();
         if (n) {
-          console.log('[NativeFeedAd] received ad via listener');
+          // console.log('[NativeFeedAd] received ad via listener');
           setAd(n);
           unsubRef.current?.();
         }
@@ -49,7 +49,7 @@ export default function NativeFeedAd({ mediaHeight = 220, onImpression, onClick 
   return () => {
       unsubRef.current?.();
       if (ad) { try { ad.destroy(); } catch {} }
-      console.log('[NativeFeedAd] unmount → destroyed ad');
+      // console.log('[NativeFeedAd] unmount → destroyed ad');
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -57,18 +57,18 @@ export default function NativeFeedAd({ mediaHeight = 220, onImpression, onClick 
   // ad lifecycle logs (doc: listen on the NativeAd object)
   useEffect(() => {
     if (!ad) return;
-    console.log('[NativeFeedAd] subscribe ad events');
+    // console.log('[NativeFeedAd] subscribe ad events');
     const subs = [
-      ad.addAdEventListener(NativeAdEventType.LOADED,   () => console.log('[NativeFeedAd] LOADED (rendered ad)')),
-      ad.addAdEventListener(NativeAdEventType.ERROR,    (e: any) => console.warn('[NativeFeedAd] ERROR (rendered ad)', e)),
-      ad.addAdEventListener(NativeAdEventType.IMPRESSION, () => { console.log('[NativeFeedAd] IMPRESSION'); onImpression?.(); }),
-      ad.addAdEventListener(NativeAdEventType.CLICKED,  () => { console.log('[NativeFeedAd] CLICKED'); onClick?.(); }),
+      ad.addAdEventListener(NativeAdEventType.LOADED,   () => {/* console.log('[NativeFeedAd] LOADED (rendered ad)') */}),
+      ad.addAdEventListener(NativeAdEventType.ERROR,    (e: any) => {/* console.warn('[NativeFeedAd] ERROR (rendered ad)', e) */}),
+      ad.addAdEventListener(NativeAdEventType.IMPRESSION, () => { /* console.log('[NativeFeedAd] IMPRESSION'); */ onImpression?.(); }),
+      ad.addAdEventListener(NativeAdEventType.CLICKED,  () => { /* console.log('[NativeFeedAd] CLICKED'); */ onClick?.(); }),
     ];
     return () => subs.forEach(s => s.remove());
   }, [ad, onImpression, onClick]);
 
   if (!ad) {
-    console.log('[NativeFeedAd] show placeholder (no ad)');
+    // console.log('[NativeFeedAd] show placeholder (no ad)');
     return (
       <View style={[styles.card, { opacity: 0.6 }]}>
         <View style={styles.header}>

@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, FlatList, TextInput, Image,  Keyboard, Pressable, Platform } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, FlatList, TextInput, Image, Keyboard, Pressable, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import ViewShot from 'react-native-view-shot';
 import { useGlobalState } from '../GlobelStats';
@@ -7,25 +7,24 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import config from '../Helper/Environment';
 import ConditionalKeyboardWrapper from '../Helper/keyboardAvoidingContainer';
 import { useHaptic } from '../Helper/HepticFeedBack';
-import { getDatabase, ref } from '@react-native-firebase/database';
+import { getDatabase, ref, get } from '@react-native-firebase/database';
+import { useFocusEffect } from '@react-navigation/native';
 import { useLocalState } from '../LocalGlobelStats';
 import SignInDrawer from '../Firebase/SigninDrawer';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../Translation/LanguageProvider';
 import { showSuccessMessage, showErrorMessage } from '../Helper/MessageHelper';
-import DeviceInfo from 'react-native-device-info';
 import ShareTradeModal from '../Trades/SharetradeModel';
 import { mixpanel } from '../AppHelper/MixPenel';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
-import { addDoc, collection, serverTimestamp } from '@react-native-firebase/firestore';
+import { addDoc, collection, serverTimestamp, doc, getDoc } from '@react-native-firebase/firestore';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
 
-
 const HomeScreen = ({ selectedTheme }) => {
-  const { theme, user, proGranted, proTagBought , firestoreDB, single_offer_wall} = useGlobalState();
+  const { theme, user, proGranted, proTagBought, firestoreDB, single_offer_wall, currentUserEmail, appdatabase, strikeInfo, isAdmin } = useGlobalState();
   const tradesCollection = collection(firestoreDB, 'trades_new');
-    const initialItems = [null, null, null, null];
+  const initialItems = [null, null, null, null];
   const [hasItems, setHasItems] = useState(initialItems);
   const [fruitRecords, setFruitRecords] = useState([]);
   const [wantsItems, setWantsItems] = useState(initialItems);
@@ -34,93 +33,45 @@ const HomeScreen = ({ selectedTheme }) => {
   const [searchText, setSearchText] = useState('');
   const [hasTotal, setHasTotal] = useState({ price: 0, value: 0 });
   const [wantsTotal, setWantsTotal] = useState({ price: 0, value: 0 });
-  const [isAdVisible, setIsAdVisible] = useState(true);
   const { triggerHapticFeedback } = useHaptic();
-  const { localState } = useLocalState()
+  const { localState } = useLocalState();
   const [modalVisible, setModalVisible] = useState(false);
   const [description, setDescription] = useState('');
   const [isSigninDrawerVisible, setIsSigninDrawerVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { language } = useLanguage();
-  const [showNotification, setShowNotification] = useState(false);
-  const [pinnedMessages, setPinnedMessages] = useState([]);
-  const [lastTradeTime, setLastTradeTime] = useState(null); // 🔄 Store last trade timestamp locally
+  const [lastTradeTime, setLastTradeTime] = useState(null);
   const [openShareModel, setOpenShareModel] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState(null);
-  const [type, setType] = useState(null); // 🔄 Store last trade timestamp locally
-  const platform = Platform.OS.toLowerCase();
-  const { t } = useTranslation();
-  // const pinnedMessagesRef = useMemo(() => ref(appdatabase, 'pin_messages'), []);
-
+  const [type, setType] = useState(null);
   const [showofferwall, setShowofferwall] = useState(false);
+  const [demandData, setDemandData] = useState({}); // { itemKey: { buy: count, sale: count } }
+  const { t } = useTranslation();
 
-  
-  const CURRENT_APP_VERSION = DeviceInfo.getVersion();
-  // useEffect(() => {
-  //   let isMounted = true; // ✅ Track mounted state
-  //   const checkForUpdate = async () => {
-  //     try {
-  //       const database = getDatabase();
-  //       const platformKey = Platform.OS === "ios" ? "ios_app_version" : (config.isNoman ? "noman_app_version" : 'waqas_app_version');
-  //       const versionRef = ref(database, platformKey);
-  //       const snapshot = await get(versionRef);
-  //       if (snapshot.exists() && snapshot.val().app_version !== CURRENT_APP_VERSION) {
-  //         setShowNotification(true);
-  //       } else {
-  //         setShowNotification(false);
-  //       }
-  //     } catch (error) {
-  //       console.error("🔥 Error checking for updates:", error);
-  //     }
-  //   };
-  //   checkForUpdate();
-  //   return () => {
-  //     isMounted = false; // ✅ Prevent updates after unmount
-  //   };
-  // }, []);
+  const isDarkMode = theme === 'dark';
+  const viewRef = useRef();
+  const timeoutRefs = useRef({});
+  const rafRefs = useRef({});
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      Object.values(timeoutRefs.current).forEach(id => {
+        if (id) clearTimeout(id);
+      });
+      timeoutRefs.current = {};
+      Object.values(rafRefs.current).forEach(id => {
+        if (id) cancelAnimationFrame(id);
+      });
+      rafRefs.current = {};
+    };
+  }, []);
 
   const handleLoginSuccess = () => {
     setIsSigninDrawerVisible(false);
   };
-
- 
-
-  // useEffect(() => {
-  //   const loadPinnedMessages = async () => {
-  //     try {
-  //       const snapshot = await pinnedMessagesRef.once('value');
-  //       if (snapshot.exists()) {
-  //         const data = snapshot.val();
-  //         const parsedPinnedMessages = Object.entries(data).map(([key, value]) => ({
-  //           firebaseKey: key, // Use the actual Firebase key here
-  //           ...value,
-  //         }));
-  //         setPinnedMessages(parsedPinnedMessages); // Store the parsed messages with the Firebase key
-  //       } else {
-  //         setPinnedMessages([]); // No pinned messages
-  //       }
-  //     } catch (error) {
-  //       console.error('Error loading pinned messages:', error);
-  //       Alert.alert(t('home.alert.error'), 'Could not load pinned messages. Please try again.');
-  //     }
-  //   };
-
-  //   loadPinnedMessages();
-  //   return () => pinnedMessagesRef.off(); // ✅ Clean up Firebase reference
-
-  // }, [pinnedMessagesRef]);
-  // Run this once when the app starts
-
-
-
-
-
-  // const onClose = () => { setShowNotification(false) }
-  // const onClosePinMessage = (index) => {
-  //   setPinnedMessages((prevMessages) => prevMessages.filter((_, i) => i !== index));
-  // };
-  const isDarkMode = theme === 'dark'
-  const viewRef = useRef();
 
   const resetState = () => {
     triggerHapticFeedback('impactLight');
@@ -130,19 +81,20 @@ const HomeScreen = ({ selectedTheme }) => {
     setHasItems([null, null, null, null]);
     setWantsItems([null, null, null, null]);
   };
+
   const resetTradeState = () => {
     setHasItems([null, null, null, null]);
     setWantsItems([null, null, null, null]);
     setHasTotal({ price: 0, value: 0 });
     setWantsTotal({ price: 0, value: 0 });
-    setDescription("");  // ✅ Reset description field
+    setDescription("");
     setSelectedSection(null);
-    setModalVisible(false); // ✅ Close modal after successful trade
+    setModalVisible(false);
   };
 
   const handleCreateTradePress = async (type) => {
-    if (!user.id & type === 'create') {
-      setIsSigninDrawerVisible(true)
+    if (!user?.id && type === 'create') {
+      setIsSigninDrawerVisible(true);
       return;
     }
     if (hasItems.filter(Boolean).length === 0 && wantsItems.filter(Boolean).length === 0) {
@@ -153,223 +105,262 @@ const HomeScreen = ({ selectedTheme }) => {
       return;
     }
     if (type === 'create') {
-      setType('create')
+      setType('create');
     } else {
-      setType('share')
+      setType('share');
     }
-    const tradeRatio = wantsTotal.value / hasTotal.value;
-
-    if (
-      tradeRatio < 0.005 &&
-      hasItems.filter(Boolean).length > 0 &&
-      wantsItems.filter(Boolean).length > 0 && type !== 'share'
-    ) {
-      showErrorMessage(
-        t("home.unfair_trade"),
-        t('home.unfair_trade_description')
-      );
-      return;
-    }
-
-
-    if (tradeRatio > 2.95 && type !== 'share' &&
-      hasItems.filter(Boolean).length > 0 &&
-      wantsItems.filter(Boolean).length > 0) {
-      showErrorMessage(
-        t('home.invalid_trade'),
-        t('home.invalid_trade_description')
-      );
-      return;
-    }
-
-    setModalVisible(true)
+    setModalVisible(true);
   };
-
-
-
-
 
   const handleCreateTrade = async () => {
     if (isSubmitting) {
-      // console.log("🚫 Trade submission blocked: Already submitting.");
-      return; // Prevent duplicate submissions
+      return;
     }
 
     setIsSubmitting(true);
-    // console.log("🚀 Trade submission started...");
     try {
-      const database = getDatabase();
-      const avgRatingSnap = await ref(database, `averageRatings/${user.id}`).once('value');
-      const avgRatingData = avgRatingSnap.val();
-      
-      const userRating = avgRatingData?.value || null;
-      const ratingCount = avgRatingData?.count || 0; // 👈 total users who rated
-      const now = serverTimestamp();
+      if (!user?.id || !currentUserEmail) {
+        showErrorMessage(
+          t("home.alert.error"),
+          "Please sign in to create a trade."
+        );
+        setIsSubmitting(false);
+        return;
+      }
 
-      const styleObj = 
-      (user?.purchases && 
-        Object.values(user.purchases).find(p => p?.id === 9 && p.style)?.style) ?? {}; 
-    
-    const iconArr = 
-      (user?.purchases && 
-        Object.values(user.purchases).find(p => p?.id === 10 && Array.isArray(p.icons))?.icons) ?? [];
-    
+      // ✅ Admins are exempt from blocking
+      if (strikeInfo && !isAdmin) {
+        const { strikeCount, bannedUntil } = strikeInfo;
+        const now = Date.now();
+
+        if (bannedUntil === 'permanent') {
+          showErrorMessage(
+            t("home.alert.error"),
+            "You are permanently banned from creating trades."
+          );
+          setIsSubmitting(false);
+          return;
+        }
+
+        if (typeof bannedUntil === 'number' && now < bannedUntil) {
+          const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
+          const hours = Math.floor(totalMinutes / 60);
+          const minutes = totalMinutes % 60;
+          const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+          showErrorMessage(
+            t("home.alert.error"),
+            `You are banned from creating trades for ${timeLeftText} more minute(s).`
+          );
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      // ✅ MIGRATED: Fetch rating from Firestore user_ratings_summary instead of RTDB
+      let userRating = null;
+      let ratingCount = 0;
       
-      // console.log(iconArr, styleObj)
-      // ✅ Build new trade object
-      let newTrade = {
+      if (user?.id && firestoreDB) {
+        try {
+          const summaryRef = doc(firestoreDB, 'user_ratings_summary', user.id);
+          const summarySnap = await getDoc(summaryRef);
+          
+          if (summarySnap.exists) {
+            const summaryData = summarySnap.data();
+            userRating = summaryData.averageRating || null;
+            ratingCount = summaryData.count || 0;
+          }
+        } catch (error) {
+          console.error('Error fetching rating from Firestore:', error);
+          // Fallback to null/0 if Firestore fails
+        }
+      }
+      const timestamp = serverTimestamp();
+      const nowMs = Date.now();
+
+      const hasRecentWin =
+        typeof user?.lastGameWinAt === 'number' &&
+        nowMs - user.lastGameWinAt <= 24 * 60 * 60 * 1000;
+
+      const styleObj =
+        (user?.purchases &&
+          Object.values(user.purchases).find(p => p?.id === 9 && p.style)?.style) ?? {};
+
+      const iconArr =
+        (user?.purchases &&
+          Object.values(user.purchases).find(p => p?.id === 10 && Array.isArray(p.icons))?.icons) ?? [];
+
+      const newTrade = {
         userId: user?.id || "Anonymous",
         traderName: user?.displayName || "Anonymous",
         avatar: user?.avatar || null,
-        isPro: localState.isPro,
-        isProGranted:proGranted ,
+        isPro: localState?.isPro || false,
+        isProGranted: proGranted || false,
         isFeatured: false,
         hasItems: hasItems.filter(item => item && item.Name).map(item => ({ name: item.Name, type: item.Type, value: item.Value })),
         wantsItems: wantsItems.filter(item => item && item.Name).map(item => ({ name: item.Name, type: item.Type, value: item.Value })),
         hasTotal: { price: hasTotal?.price || 0, value: hasTotal?.value || 0 },
         wantsTotal: { price: wantsTotal?.price || 0, value: wantsTotal?.value || 0 },
         description: description || "",
-        timestamp: now,
-        rating: userRating,
-        ratingCount: ratingCount,
+        timestamp: timestamp,
+        rating: userRating ?? null,
+        ratingCount: ratingCount || 0,
         style: styleObj || {},
         icons: iconArr || [],
-        proTagBought:proTagBought || false,
-        flage:user?.flage
+        proTagBought: proTagBought || false,
+        flage: user?.flage || null,
+        robloxUsername: user?.robloxUsername || null,
+        robloxUsernameVerified: user?.robloxUsernameVerified || false,
+        hasRecentGameWin: hasRecentWin || false,
+        lastGameWinAt: user?.lastGameWinAt || null,
       };
-      // console.log(newTrade, 'new')
+
       if (type === 'share') {
-        const callbackfunction = () => {
+        const showSuccessCallback = () => {
           showSuccessMessage(
             t("home.alert.success"),
             "Your trade has been share successfully!"
           );
         };
-        if (Platform.OS === 'android')
-          {setModalVisible(false)} 
-        setSelectedTrade(newTrade);
-        setOpenShareModel(true)
-        mixpanel.track("Start Sharing");
-        if(!localState.isPro && !proGranted) {
-          InterstitialAdManager.showAd(callbackfunction);
-        } else {
-          callbackfunction()
-        }
-
+        setModalVisible(false);
+        setTimeout(() => {
+          setSelectedTrade(newTrade);
+          setOpenShareModel(true);
+          mixpanel.track("Start Sharing");
+          if (!localState.isPro && !proGranted) {
+            InterstitialAdManager.showAd(showSuccessCallback, showSuccessCallback);
+          } else {
+            showSuccessCallback();
+          }
+        }, 300);
       } else {
-
-        // console.log("📌 New trade object created:", newTrade);
-
-        // ✅ Check last trade locally before querying Firestore
         const now = Date.now();
-        if (lastTradeTime && now - lastTradeTime < 1 * 1 * 60 * 1000) {
+        const COOLDOWN_MS = 120000;
+        if (lastTradeTime && (now - lastTradeTime) < COOLDOWN_MS) {
+          const secondsLeft = Math.ceil((COOLDOWN_MS - (now - lastTradeTime)) / 1000);
+          const minutesLeft = Math.floor(secondsLeft / 60);
+          const remainingSeconds = secondsLeft % 60;
+          const timeMessage = minutesLeft > 0
+            ? `${minutesLeft} minute${minutesLeft === 1 ? '' : 's'} and ${remainingSeconds} second${remainingSeconds === 1 ? '' : 's'}`
+            : `${secondsLeft} second${secondsLeft === 1 ? '' : 's'}`;
           showErrorMessage(
             t("home.alert.error"),
-            "Please wait for 1 minut before creating new trade"
+            `Please wait ${timeMessage} before creating a new trade.`
           );
           setIsSubmitting(false);
           return;
         }
 
-        // console.log("✅ No duplicate trade found. Proceeding with submission...");
-
-        // ✅ Submit trade
         await addDoc(tradesCollection, newTrade);
-        // console.log("🎉 Trade successfully submitted!");
+        setModalVisible(false);
+        resetTradeState();
 
-        if (Platform.OS === 'android')
-          {setModalVisible(false)} 
         const callbackfunction = () => {
+          if (!isMountedRef.current) return;
           showSuccessMessage(
             t("home.alert.success"),
             "Your trade has been posted successfully!"
           );
         };
 
-        // ✅ Update last trade time locally
         setLastTradeTime(now);
         mixpanel.track("Trade Created", { user: user?.id });
 
-        if(!localState.isPro && !proGranted) {
-          InterstitialAdManager.showAd(callbackfunction);
-        } else {
-          callbackfunction()
-        }
+        const rafKey1 = `createTrade_raf_${Date.now()}_1`;
+        const timeoutKey1 = `createTrade_timeout_${Date.now()}_1`;
+        const rafKey2 = `createTrade_raf_${Date.now()}_2`;
+        const timeoutKey2 = `createTrade_timeout_${Date.now()}_2`;
+
+        rafRefs.current[rafKey1] = requestAnimationFrame(() => {
+          if (!isMountedRef.current) return;
+
+          timeoutRefs.current[timeoutKey1] = setTimeout(() => {
+            if (!isMountedRef.current) return;
+
+            if (!localState.isPro && !proGranted) {
+              rafRefs.current[rafKey2] = requestAnimationFrame(() => {
+                if (!isMountedRef.current) return;
+
+                timeoutRefs.current[timeoutKey2] = setTimeout(() => {
+                  if (!isMountedRef.current) return;
+
+                  try {
+                    InterstitialAdManager.showAd(callbackfunction);
+                  } catch (err) {
+                    console.warn('[AdManager] Failed to show ad:', err);
+                    callbackfunction();
+                  }
+                  delete timeoutRefs.current[timeoutKey2];
+                }, 400);
+              });
+            } else {
+              callbackfunction();
+            }
+            delete timeoutRefs.current[timeoutKey1];
+          }, 500);
+        });
       }
     } catch (error) {
-      console.error("🔥 Error creating trade:", error);
+      console.error("Error creating trade:", error);
       showErrorMessage(
         t("home.alert.error"),
         "Something went wrong while posting the trade."
       );
     } finally {
-      // console.log("🔄 Resetting submission state...");
-      setIsSubmitting(false); // Reset submission state
+      setIsSubmitting(false);
     }
   };
 
   const adjustedData = (fruitRecords) => {
-    let transformedData = [];
+    const transformedData = [];
 
     fruitRecords.forEach((fruit) => {
-      if (!fruit.name) return; // Skip invalid entries
-// console.log(fruit)
+      if (!fruit.name) return;
+
       const permValueInvalid = fruit.permValue === 0 || fruit.permValue === "0" || fruit.permValue === "N/A";
       const notperavailable = fruit.rarity == 'gamepass';
 
-      // ✅ If both permValue & value exist (permValue must be valid)
       if (fruit.permValue !== undefined && fruit.value !== undefined) {
-       if(!notperavailable){ transformedData.push({
-          Name: fruit.name,
-          Value: permValueInvalid ? 0 :fruit.permValue,
-          Type: 'p', // Permanent type
-          Price: 0
-        });}
+        if (!notperavailable) {
+          transformedData.push({
+            Name: fruit.name,
+            Value: permValueInvalid ? 0 : fruit.permValue,
+            Type: 'p',
+            Price: 0
+          });
+        }
 
         transformedData.push({
           Name: fruit.name,
           Value: fruit.value,
-          Type: 'n', // Normal type
+          Type: 'n',
           Price: fruit.beli || 0
         });
-
-        // console.log(`✅ Added ${fruit.name}: Permanent (${fruit.permValue}), Normal (${fruit.value})`);
-
-      } else if ( fruit.permValue !== undefined) {
-        // ✅ If only permValue exists (must be valid)
+      } else if (fruit.permValue !== undefined) {
         transformedData.push({
           Name: fruit.name,
-          Value: permValueInvalid ? 0 :fruit.permValue,
-          Type: 'p', // Permanent type
+          Value: permValueInvalid ? 0 : fruit.permValue,
+          Type: 'p',
           Price: 0
         });
-
-        // console.log(`⚠️ Only Permanent found for ${fruit.name}: ${fruit.permValue}`);
-
       } else if (fruit.value !== undefined) {
-        // ✅ If only value exists
         transformedData.push({
           Name: fruit.name,
           Value: fruit.value,
-          Type: 'n', // Normal type
+          Type: 'n',
           Price: fruit.beli || 0
         });
-
-        // console.log(`⚠️ Only Normal found for ${fruit.name}: ${fruit.value}`);
       } else {
-        console.warn(`🚨 No valid values found for ${fruit.name}, skipping!`);
+        console.warn(`No valid values found for ${fruit.name}, skipping!`);
       }
     });
 
     return transformedData;
   };
-  // console.log('test')
-
-
-
 
   useEffect(() => {
-    let isMounted = true; // Track mounted state
+    let isMounted = true;
 
     const parseAndSetData = () => {
       if (!localState.data) return;
@@ -377,12 +368,10 @@ const HomeScreen = ({ selectedTheme }) => {
       try {
         let parsedData = localState.data;
 
-        // Ensure `localState.data` is always an object
         if (typeof localState.data === 'string') {
           parsedData = JSON.parse(localState.data);
         }
 
-        // Ensure `parsedData` is a valid object before using it
         if (parsedData && typeof parsedData === 'object' && Object.keys(parsedData).length > 0) {
           const formattedData = adjustedData(Object.values(parsedData));
           if (isMounted) {
@@ -394,7 +383,7 @@ const HomeScreen = ({ selectedTheme }) => {
           }
         }
       } catch (error) {
-        console.error("❌ Error parsing data:", error);
+        console.error("Error parsing data:", error);
         if (isMounted) {
           setFruitRecords([]);
         }
@@ -404,44 +393,24 @@ const HomeScreen = ({ selectedTheme }) => {
     parseAndSetData();
 
     return () => {
-      isMounted = false; // Cleanup on unmount
+      isMounted = false;
     };
   }, [localState.data]);
 
-
   const openDrawer = (section) => {
-    const wantsItemCount = wantsItems.filter((item) => item !== null).length;
     triggerHapticFeedback('impactLight');
-
-    const callbackfunction = () => {
-      setSelectedSection(section);
-      setIsDrawerVisible(true);
-    };
-
-    if (section === 'wants' && wantsItemCount === 1 && (!localState.isPro && proGranted)) {
-      callbackfunction(); // No ad needed
-    } else {
-      callbackfunction(); // No ad needed
-    }
+    setSelectedSection(section);
+    setIsDrawerVisible(true);
   };
-
-
 
   const closeDrawer = () => {
     setIsDrawerVisible(false);
   };
 
   const updateTotal = (item, section, add = true, isNew = false) => {
-    // console.log(item);
-
-    // Convert `item.Price` and `item.Value` to numbers to prevent string concatenation
-    const price = Number(item.Price) || 0; // Ensure it's a number or default to 0
+    const price = Number(item.Price) || 0;
     const value = Number(item.Value) || 0;
-
-    // Only update price if item.Type is NOT "p"
     const priceChange = add ? price : -price;
-
-    // Update value only if item.Type isNew
     const valueChange = isNew ? (add ? value : -value) : 0;
 
     if (section === 'has') {
@@ -457,15 +426,142 @@ const HomeScreen = ({ selectedTheme }) => {
     }
   };
 
-
-
   const formatName = (name) => {
     let formattedName = name.replace(/^\+/, '');
     formattedName = formattedName.replace(/\s+/g, '-');
     return formattedName;
-  }
+  };
+
+  const formatValue = (value) => {
+    if (value >= 1_000_000_000) {
+      return `${(value / 1_000_000_000).toFixed(1)}B`;
+    } else if (value >= 1_000_000) {
+      return `${(value / 1_000_000).toFixed(1)}M`;
+    } else if (value >= 1_000) {
+      return `${(value / 1_000).toFixed(1)}K`;
+    } else {
+      return value.toLocaleString();
+    }
+  };
+
+  // ✅ Get demand for items from localState.data (already in "10/10" format)
+  const fetchDemandForItems = useCallback(() => {
+    if (!localState.data) {
+      setDemandData({});
+      return;
+    }
+
+    const allItems = [...hasItems, ...wantsItems].filter(Boolean);
+    if (allItems.length === 0) {
+      setDemandData({});
+      return;
+    }
+
+    // Parse localState.data if it's a string
+    let parsedData = localState.data;
+    if (typeof localState.data === 'string') {
+      try {
+        parsedData = JSON.parse(localState.data);
+      } catch (error) {
+        console.error('Error parsing localState.data:', error);
+        setDemandData({});
+        return;
+      }
+    }
+
+    // Convert parsedData to array if it's an object
+    const dataArray = Array.isArray(parsedData) ? parsedData : Object.values(parsedData || {});
+    
+    const demandMap = {};
+
+    allItems.forEach((item) => {
+      if (!item?.Name) return;
+      
+      // Find the original item from data by matching name
+      const originalItem = dataArray.find(
+        (dataItem) => 
+          dataItem?.name && 
+          dataItem.name.toLowerCase() === item.Name.toLowerCase()
+      );
+
+      if (originalItem) {
+        // Get demand from original item
+        // For normal items (Type === 'n'), use demand
+        // For permanent items (Type === 'p'), use permDemand
+        const demandString = item.Type === 'p' 
+          ? (originalItem.permDemand || '0/10')
+          : (originalItem.demand || '0/10');
+        
+        const itemKey = item.Name.replace(/[^a-zA-Z0-9]/g, '_');
+        demandMap[itemKey] = {
+          demand: demandString, // Store as string like "10/10"
+        };
+      }
+    });
+
+    setDemandData(demandMap);
+  }, [hasItems, wantsItems, localState.data]);
+
+  // ✅ Fetch demand when items change or screen is focused
+  useEffect(() => {
+    fetchDemandForItems();
+  }, [fetchDemandForItems]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchDemandForItems();
+    }, [fetchDemandForItems])
+  );
+
+  // ✅ Calculate aggregate demand as average (not sum) - keeps it in "X/10" format
+  const aggregateDemand = useMemo(() => {
+    const allItems = [...hasItems, ...wantsItems].filter(Boolean);
+    const hasDemands = [];
+    const wantsDemands = [];
+
+    allItems.forEach((item) => {
+      if (!item?.Name) return;
+      const itemKey = item.Name.replace(/[^a-zA-Z0-9]/g, '_');
+      const demand = demandData[itemKey];
+      if (demand?.demand) {
+        // Parse "10/10" format
+        const [numerator, denominator] = demand.demand.split('/').map(Number);
+        if (numerator && denominator) {
+          // Check if item is in hasItems or wantsItems
+          const isHasItem = hasItems.some(hasItem => hasItem?.Name === item.Name);
+          if (isHasItem) {
+            hasDemands.push({ numerator, denominator });
+          } else {
+            wantsDemands.push({ numerator, denominator });
+          }
+        }
+      }
+    });
+
+    // Calculate average demand (not sum) - keeps result in "X/10" format
+    const calculateAggregate = (fractions) => {
+      if (fractions.length === 0) return '0/10';
+      
+      // Calculate average numerator (sum of numerators / count)
+      let sumNumerator = 0;
+      fractions.forEach(({ numerator }) => {
+        sumNumerator += numerator;
+      });
+      
+      // Average numerator
+      const avgNumerator = Math.round(sumNumerator / fractions.length);
+      
+      // Return in "X/10" format (assuming all denominators are 10)
+      return `${avgNumerator}/10`;
+    };
+
+    return {
+      buy: calculateAggregate(hasDemands),
+      sale: calculateAggregate(wantsDemands),
+    };
+  }, [hasItems, wantsItems, demandData]);
+
   const selectItem = (item) => {
-    // console.log(item)
     triggerHapticFeedback('impactLight');
     const newItem = { ...item, usePermanent: false };
     const updateItems = selectedSection === 'has' ? [...hasItems] : [...wantsItems];
@@ -483,22 +579,25 @@ const HomeScreen = ({ selectedTheme }) => {
       updateTotal(newItem, 'wants', true, true);
     }
     closeDrawer();
-
   };
 
-  const removeItem = (index, isHas) => {
-    triggerHapticFeedback('impactLight');
-    const section = isHas ? 'has' : 'wants';
+  const handleCellPress = (index, isHas) => {
     const items = isHas ? hasItems : wantsItems;
-    const updatedItems = [...items];
-    const item = updatedItems[index];
+    const item = items[index];
 
     if (item) {
+      triggerHapticFeedback('impactLight');
+      const section = isHas ? 'has' : 'wants';
+      const updatedItems = [...items];
       updatedItems[index] = null;
       const filteredItems = updatedItems.filter((item, i) => item !== null || i < 4);
       if (isHas) setHasItems(filteredItems);
       else setWantsItems(filteredItems);
       updateTotal(item, section, false, true);
+    } else {
+      triggerHapticFeedback('impactLight');
+      setSelectedSection(isHas ? 'has' : 'wants');
+      setIsDrawerVisible(true);
     }
   };
 
@@ -506,7 +605,6 @@ const HomeScreen = ({ selectedTheme }) => {
     item.Name.toLowerCase().includes(searchText.toLowerCase())
   );
 
-  // console.log(filteredData)
   const profitLoss = wantsTotal.value - hasTotal.value;
   const isProfit = profitLoss >= 0;
   const neutral = profitLoss === 0;
@@ -519,45 +617,28 @@ const HomeScreen = ({ selectedTheme }) => {
   const lastFilledIndexHas = hasItems.reduce((lastIndex, item, index) => (item ? index : lastIndex), -1);
   const lastFilledIndexWant = wantsItems.reduce((lastIndex, item, index) => (item ? index : lastIndex), -1);
 
-
-
   return (
     <>
       <GestureHandlerRootView>
-
         <View style={styles.container} key={language}>
           <ScrollView showsVerticalScrollIndicator={false}>
-            {/* {showNotification && <View style={[styles.notification]}>
-              <Text style={styles.text}>A new update is available! Please update your app.</Text>
-              <TouchableOpacity onPress={onClose} style={styles.closeButtonNotification}>
-                <Icon name="close-outline" size={18} color="white" />
-
-              </TouchableOpacity>
-            </View>}
-            {pinnedMessages.length > 0 && pinnedMessages.map((message, index) => (
-              <View key={index} style={styles.notification}>
-                <Text style={styles.text}>{message.text}</Text>
-                <TouchableOpacity onPress={() => onClosePinMessage(index)} style={styles.closeButtonNotification}>
-                  <Icon name="close-outline" size={18} color="white" />
-                </TouchableOpacity>
-              </View>
-            ))} */}
-
-
-
             <ViewShot ref={viewRef} style={styles.screenshotView}>
-            {config.isNoman &&  <View style={styles.summaryContainer}>
+              {config.isNoman && <View style={styles.summaryContainer}>
                 <View style={[styles.summaryBox, styles.hasBox]}>
-                  <Text style={[styles.summaryText]}>{t('home.you')}</Text>
+                  <Text style={[styles.summaryText]}>ME</Text>
                   <View style={{ width: '90%', backgroundColor: '#e0e0e0', height: 1, alignSelf: 'center' }} />
-                  <Text style={styles.priceValue}>{t('home.value')}: {hasTotal.value?.toLocaleString()}</Text>
-                  <Text style={styles.priceValue}>{t('home.price')}: ${hasTotal.price?.toLocaleString()}</Text>
+                  <Text style={styles.priceValue}>{t('home.value')}: {formatValue(hasTotal.value || 0)}</Text>
+                  <Text style={styles.priceValue}>{t('home.price')}: ${formatValue(hasTotal.price || 0)}</Text>
+                  {/* ✅ Aggregate Demand for Has Items */}
+                  <Text style={styles.priceValue}>Demand: {aggregateDemand.buy || '0/10'}</Text>
                 </View>
                 <View style={[styles.summaryBox, styles.wantsBox]}>
-                  <Text style={styles.summaryText}>{t('home.them')}</Text>
+                  <Text style={styles.summaryText}>YOU</Text>
                   <View style={{ width: '90%', backgroundColor: '#e0e0e0', height: 1, alignSelf: 'center' }} />
-                  <Text style={styles.priceValue}>{t('home.value')}: {wantsTotal.value?.toLocaleString()}</Text>
-                  <Text style={styles.priceValue}>{t('home.price')}: ${wantsTotal.price?.toLocaleString()}</Text>
+                  <Text style={styles.priceValue}>{t('home.value')}: {formatValue(wantsTotal.value || 0)}</Text>
+                  <Text style={styles.priceValue}>{t('home.price')}: ${formatValue(wantsTotal.price || 0)}</Text>
+                  {/* ✅ Aggregate Demand for Wants Items */}
+                  <Text style={styles.priceValue}>Demand: {aggregateDemand.sale || '0/10'}</Text>
                 </View>
               </View>}
               <View style={styles.profitLossBox}>
@@ -565,7 +646,7 @@ const HomeScreen = ({ selectedTheme }) => {
                   {isProfit ? t('home.profit') : t('home.loss')}:
                 </Text>
                 <Text style={[styles.profitLossValue, { color: isProfit ? config.colors.hasBlockGreen : config.colors.wantBlockRed }]}>
-                  ${Math.abs(profitLoss).toLocaleString()} ({profitPercentage}%)
+                  ${formatValue(Math.abs(profitLoss))} ({profitPercentage}%)
                 </Text>
                 {!neutral && <Icon
                   name={isProfit ? 'arrow-up-outline' : 'arrow-down-outline'}
@@ -575,219 +656,193 @@ const HomeScreen = ({ selectedTheme }) => {
                 />}
               </View>
 
-              <Text style={[styles.sectionTitle, { color: selectedTheme.colors.text }]}>{t('home.you')}</Text>
-              <View style={styles.itemRow}>
-                {/* <TouchableOpacity onPress={() => { openDrawer('has') }} style={styles.addItemBlock}>
-                  <Icon name="add-circle" size={40} color="white" />
-                  <Text style={styles.itemText}>{t('home.add_item')}</Text>
-                </TouchableOpacity> */}
-
-                {config.isNoman && hasItems?.map((item, index) => (
-                  <TouchableOpacity key={index} style={[styles.addItemBlockNew, { backgroundColor: item?.Type === 'p' ? '#FFD700' : isDarkMode ? '#34495E' : '#CCCCFF' }]} onPress={() => { openDrawer('has') }} disabled={item !== null}>
-                    {item ? (
-                      <>
-                        <Image
-                          source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
-                          style={[styles.itemImageOverlay,
-
-                          ]}
-                        />
-                        <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
-                        ]}>{item.usePermanent 
-                          ? (Number(item.Permanent) === 0 ? "Special" : Number(item.Permanent).toLocaleString()) 
-                          : (Number(item.Value) === 0 ? "Special" : Number(item.Value).toLocaleString())
-                        }</Text>
-                        <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
-                        ]}>{item.Type === 'p' && 'Perm'}  {item.Name}</Text>
-                        {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
-                        <TouchableOpacity onPress={() => removeItem(index, true)} style={styles.removeButton}>
-                          <Icon name="close-outline" size={18} color="white" />
-                        </TouchableOpacity>
-                      </>
-                    ) : (
-                      <>
-                        {index === lastFilledIndexHas + 1 && <Icon name="add-circle" size={30} color="grey" />}
-                        {index === lastFilledIndexHas + 1 && <Text style={styles.itemText}>{t('home.add_item')}</Text>}
-                      </>
-                    )}
-                  </TouchableOpacity>
-                ))}
-                    {!config.isNoman && hasItems?.map((item, index) => (
-                  <TouchableOpacity key={index} style={[styles.addItemBlockNewNoman,]} onPress={() => { openDrawer('has') }} disabled={item !== null}>
-                    {item ? (
-                      <>
-                      <View style={{backgroundColor:'#1dc226', paddingVertical:6, borderTopLeftRadius:6, borderTopRightRadius:6}}>
-                         <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'black' : 'black') }
-                        ]}>{item.Type === 'p' && 'Perm'}  {item.Name}</Text></View>
-                        <Image
-                          source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
-                          style={[styles.itemImageOverlayNoman, {alignSelf:'center'}
-
-                          ]}
-                        />
-                        <View style={{backgroundColor:'#fe01ea', paddingVertical:6, borderBottomLeftRadius:6, borderBottomRightRadius:6}}>
-                        <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'black' : 'black') }
-                        ]}>${item.usePermanent 
-                          ? (Number(item.Permanent) === 0 ? "Special" : Number(item.Permanent).toLocaleString()) 
-                          : (Number(item.Value) === 0 ? "Special" : Number(item.Value).toLocaleString())
-                        }</Text></View>
-                     
-                        {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
-                        <TouchableOpacity onPress={() => removeItem(index, true)} style={styles.removeButton}>
-                          <Icon name="close-outline" size={18} color="white" />
-                        </TouchableOpacity>
-                      </>
-                    ) : (
-                      <View style={{flex:1, justifyContent:'center', alignItems:'center'}}>
-                        {index === lastFilledIndexHas + 1 && <Icon name="add-circle" size={30} color={isDarkMode ? "lightgrey" : 'grey' }/>}
-                        {index === lastFilledIndexHas + 1 && <Text style={[styles.itemText, {color:isDarkMode ? "lightgrey" : 'grey'}]}>{t('home.add_item')}</Text>}
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                ))}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <View style={styles.itemRow}>
+                  {hasItems?.map((item, index) => {
+                    const isLastColumn = (index + 1) % 2 === 0;
+                    const isLastRow = index >= hasItems.length - 2;
+                    return (
+                      <TouchableOpacity
+                        key={index}
+                        style={[
+                          styles.addItemBlockNew,
+                          item?.Type === 'p' && { backgroundColor: '#e1a900' },
+                          isLastColumn && { borderRightWidth: 0 },
+                          isLastRow && { borderBottomWidth: 0 }
+                        ]}
+                        onPress={() => handleCellPress(index, true)}
+                      >
+                        {item ? (
+                          <>
+                            {/* ✅ Demand Badge - Top Left Corner */}
+                            {(() => {
+                              const itemKey = item.Name.replace(/[^a-zA-Z0-9]/g, '_');
+                              const demand = demandData[itemKey];
+                              const demandString = demand?.demand || '0/10';
+                              // Only show if demand is not "0/10"
+                              return demandString !== '0/10' ? (
+                                <Text style={styles.demandBadgeText}>{demandString}</Text>
+                              ) : null;
+                            })()}
+                            <Image
+                              source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
+                              style={[styles.itemImageOverlay]}
+                            />
+                            <Text style={[styles.itemText, styles.fruitValueText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }]}>
+                              {(() => {
+                                const value = item.usePermanent
+                                  ? (Number(item.Permanent) === 0 ? 0 : Number(item.Permanent))
+                                  : (Number(item.Value) === 0 ? 0 : Number(item.Value));
+                                return value === 0 ? 'N/A' : formatValue(value);
+                              })()}
+                            </Text>
+                            <Text style={[styles.itemText, styles.fruitNameText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }]}>
+                              {item.Name}
+                            </Text>
+                          </>
+                        ) : (
+                          index === lastFilledIndexHas + 1 && (
+                            <Icon
+                              name="add-circle"
+                              size={30}
+                              color={isDarkMode ? "#fdf7e5" : '#fdf7e5'}
+                            />
+                          )
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <View style={styles.itemRow}>
+                  {wantsItems?.map((item, index) => {
+                    const isLastColumn = (index + 1) % 2 === 0;
+                    const isLastRow = index >= wantsItems.length - 2;
+                    return (
+                      <TouchableOpacity
+                        key={index}
+                        style={[
+                          styles.addItemBlockNew,
+                          item?.Type === 'p' && { backgroundColor: '#e1a900' },
+                          isLastColumn && { borderRightWidth: 0 },
+                          isLastRow && { borderBottomWidth: 0 }
+                        ]}
+                        onPress={() => handleCellPress(index, false)}
+                      >
+                        {item ? (
+                          <>
+                            {/* ✅ Demand Badge - Top Left Corner */}
+                            {(() => {
+                              const itemKey = item.Name.replace(/[^a-zA-Z0-9]/g, '_');
+                              const demand = demandData[itemKey];
+                              const demandString = demand?.demand || '0/10';
+                              // Only show if demand is not "0/10"
+                              return demandString !== '0/10' ? (
+                                <Text style={styles.demandBadgeText}>{demandString}</Text>
+                              ) : null;
+                            })()}
+                            <Image
+                              source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
+                              style={[styles.itemImageOverlay]}
+                            />
+                            <Text style={[styles.itemText, styles.fruitValueText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }]}>
+                              {(() => {
+                                const value = item.usePermanent
+                                  ? (Number(item.Permanent) === 0 ? 0 : Number(item.Permanent))
+                                  : (Number(item.Value) === 0 ? 0 : Number(item.Value));
+                                return value === 0 ? 'N/A' : formatValue(value);
+                              })()}
+                            </Text>
+                            <Text style={[styles.itemText, styles.fruitNameText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }]}>
+                              {item.Name}
+                            </Text>
+                          </>
+                        ) : (
+                          index === lastFilledIndexWant + 1 && (
+                            <Icon
+                              name="add-circle"
+                              size={30}
+                              color={isDarkMode ? "#fdf7e5" : '#fdf7e5'}
+                            />
+                          )
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
 
               <View style={styles.divider}>
                 <Image
-                  source={require('../../assets/reset.png')} // Replace with your image path
-                  style={{ width: 18, height: 18, tintColor: 'white' }} // Customize size and color
-                  onTouchEnd={resetState} // Add event handler
+                  source={require('../../assets/reset.png')}
+                  style={{ width: 18, height: 18, tintColor: 'white' }}
+                  onTouchEnd={resetState}
                 />
               </View>
-
-              <Text style={[styles.sectionTitle, { color: selectedTheme.colors.text }]}>{t('home.them')}</Text>
-              <View style={[styles.itemRow, { marginBottom: 0 }]}>
-                {/* <TouchableOpacity onPress={() => { openDrawer('wants'); }} style={styles.addItemBlockNew}>
-                  <Icon name="add-circle" size={40} color="white" />
-                  <Text style={styles.itemText}>{t('home.add_item')}</Text>
-                </TouchableOpacity> */}
-                {config.isNoman && wantsItems?.map((item, index) => (
-                  <TouchableOpacity key={index} style={[styles.addItemBlockNew, { backgroundColor: item?.Type === 'p' ? '#FFD700' : isDarkMode ? '#34495E' : '#CCCCFF' }]} onPress={() => { openDrawer('wants'); }} disabled={item !== null}>
-                    {item ? (
-                      <>
-                        <Image
-                          source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
-                          style={[styles.itemImageOverlay]}
-                        />
-                        <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
-                        ]}>{item.usePermanent 
-                          ? (Number(item.Permanent) === 0 ? "Special" : Number(item.Permanent).toLocaleString()) 
-                          : (Number(item.Value) === 0 ? "Special" : Number(item.Value).toLocaleString())
-                        }</Text>
-                        <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
-                        ]}>{item.Type === 'p' && 'Perm'} {item.Name}</Text>
-                        {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
-                        <TouchableOpacity onPress={() => removeItem(index, false)} style={styles.removeButton}>
-                          <Icon name="close-outline" size={18} color="white" />
-                        </TouchableOpacity>
-                      </>
-
-                    ) : (
-                      <>
-                        {index === lastFilledIndexWant + 1 && <Icon name="add-circle" size={30} color="grey" />}
-                        {index === lastFilledIndexWant + 1 && <Text style={styles.itemText}>{t('home.add_item')}</Text>}
-                      </>
-                      // <Text style={styles.itemPlaceholder}>{t('home.empty')}</Text>
-                    )}
-                  </TouchableOpacity>
-                ))}
-
-{!config.isNoman && wantsItems?.map((item, index) => (
-                  <TouchableOpacity key={index} style={[styles.addItemBlockNewNoman,]} onPress={() => { openDrawer('wants') }} disabled={item !== null}>
-                    {item ? (
-                      <>
-                      <View style={{backgroundColor:'#1dc226', paddingVertical:6, borderTopLeftRadius:6, borderTopRightRadius:6}}>
-                         <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'black' : 'black') }
-                        ]}>{item.Type === 'p' && 'Perm'}  {item.Name}</Text></View>
-                        <Image
-                          source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
-                          style={[styles.itemImageOverlayNoman, {alignSelf:'center'}
-
-                          ]}
-                        />
-                        <View style={{backgroundColor:'#fe01ea', paddingVertical:6, borderBottomLeftRadius:6, borderBottomRightRadius:6}}>
-                        <Text style={[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'black' : 'black') }
-                        ]}>${item.usePermanent 
-                          ? (Number(item.Permanent) === 0 ? "Special" : Number(item.Permanent).toLocaleString()) 
-                          : (Number(item.Value) === 0 ? "Special" : Number(item.Value).toLocaleString())
-                        }</Text></View>
-                     
-                        {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
-                        <TouchableOpacity onPress={() => removeItem(index, false)} style={styles.removeButton}>
-                          <Icon name="close-outline" size={18} color="white" />
-                        </TouchableOpacity>
-                      </>
-                    ) : (
-                      <View style={{flex:1, justifyContent:'center', alignItems:'center'}}>
-                        {index === lastFilledIndexWant + 1 && <Icon name="add-circle" size={30} color={isDarkMode ? "lightgrey" : 'grey'} />}
-                        {index === lastFilledIndexWant + 1 && <Text style={[styles.itemText, {color:isDarkMode ? "lightgrey" : 'grey'}]}>{t('home.add_item')}</Text>}
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-              {!config.isNoman &&  <View style={styles.summaryContainer}>
+              {!config.isNoman && <View style={styles.summaryContainer}>
                 <View style={[styles.summaryBox, styles.hasBox]}>
-                  <View style={{ width: '90%', backgroundColor: '#e0e0e0', alignSelf: 'center', }} />
-                  <View style={{justifyContent:'space-between', flexDirection:'row' }} >
-                  <Text style={styles.priceValue}>{t('home.value')}:</Text>
-                  <Text style={styles.priceValue}>${hasTotal.value?.toLocaleString()}</Text>
+                  <View style={{ width: '90%', backgroundColor: '#e0e0e0', alignSelf: 'center' }} />
+                  <View style={{ justifyContent: 'space-between', flexDirection: 'row' }}>
+                    <Text style={styles.priceValue}>{t('home.value')}:</Text>
+                    <Text style={styles.priceValue}>{formatValue(hasTotal.value || 0)}</Text>
                   </View>
-                  <View style={{justifyContent:'space-between', flexDirection:'row' }}>
-                  <Text style={styles.priceValue}>{t('home.price')}:</Text>
-                  <Text style={styles.priceValue}>${hasTotal.price?.toLocaleString()}</Text>
+                  <View style={{ justifyContent: 'space-between', flexDirection: 'row' }}>
+                    <Text style={styles.priceValue}>{t('home.price')}:</Text>
+                    <Text style={styles.priceValue}>${formatValue(hasTotal.price || 0)}</Text>
+                  </View>
+                  {/* ✅ Aggregate Demand for Has Items */}
+                  <View style={{ justifyContent: 'space-between', flexDirection: 'row', marginTop: 5 }}>
+                    <Text style={styles.priceValue}>Demand:</Text>
+                    <Text style={styles.priceValue}>{aggregateDemand.buy || '0/10'}</Text>
                   </View>
                 </View>
                 <View style={[styles.summaryBox, styles.wantsBox]}>
-                  <View style={{ width: '90%', backgroundColor: '#e0e0e0', alignSelf: 'center', }} />
-                  <View style={{justifyContent:'space-between', flexDirection:'row' }} >
-                  <Text style={styles.priceValue}>{t('home.value')}:</Text>
-                  <Text style={styles.priceValue}>${wantsTotal.value?.toLocaleString()}</Text>
+                  <View style={{ width: '90%', backgroundColor: '#e0e0e0', alignSelf: 'center' }} />
+                  <View style={{ justifyContent: 'space-between', flexDirection: 'row' }}>
+                    <Text style={styles.priceValue}>{t('home.value')}:</Text>
+                    <Text style={styles.priceValue}>{formatValue(wantsTotal.value || 0)}</Text>
                   </View>
-                  <View style={{justifyContent:'space-between', flexDirection:'row' }}>
-                  <Text style={styles.priceValue}>{t('home.price')}:</Text>
-                  <Text style={styles.priceValue}>${wantsTotal.price?.toLocaleString()}</Text>
+                  <View style={{ justifyContent: 'space-between', flexDirection: 'row' }}>
+                    <Text style={styles.priceValue}>{t('home.price')}:</Text>
+                    <Text style={styles.priceValue}>${formatValue(wantsTotal.price || 0)}</Text>
+                  </View>
+                  {/* ✅ Aggregate Demand for Wants Items */}
+                  <View style={{ justifyContent: 'space-between', flexDirection: 'row', marginTop: 5 }}>
+                    <Text style={styles.priceValue}>Demand:</Text>
+                    <Text style={styles.priceValue}>{aggregateDemand.sale || '0/10'}</Text>
                   </View>
                 </View>
               </View>}
             </ViewShot>
-            <View style={styles.createtrade} >
+            <View style={styles.createtrade}>
               <TouchableOpacity style={styles.createtradeButton} onPress={() => handleCreateTradePress('create')}>
-              <Icon name="enter-outline" size={18} color="white" style={{padding:4}}/>
-              <Text style={{ color: 'white', fontSize:12, fontFamily:'Lato-Bold'  }}>{t('home.create_trade')}</Text>
+                <Icon name="enter-outline" size={18} color="white" style={{ padding: 4 }} />
+                <Text style={{ color: 'white', fontSize: 12, fontFamily: 'Lato-Bold' }}>{t('home.create_trade')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.shareTradeButton} onPress={() => handleCreateTradePress('share')}>
-                <Text style={{ color: 'white', fontSize:12, fontFamily:'Lato-Bold' }}>{t('home.share_trade')}</Text>
-                <Icon name="share-outline" size={18} color="white" style={{padding:4}}/>
-                </TouchableOpacity></View>
-                {!localState.isPro &&  <View style={styles.createtradeAds}>
-  <TouchableOpacity
-    style={styles.removeAdsButton}
-    activeOpacity={0.9}
-    onPress={()=>{setShowofferwall(true)}}
-  >
-    <View style={styles.removeAdsContent}>
-      {/* Crown icon / image */}
-      <View style={styles.crownWrapper}>
-        {/* <Icon name="trophy" size={18} color="#3b2500" /> */}
-       
-        <Image
-          source={require('../../assets/pro.png')}
-          style={{ width: 20, height: 20 }}
-          resizeMode="contain"
-        />
-        
-      </View>
-
-      <View style={styles.removeAdsTextWrapper}>
-        <Text style={styles.removeAdsTitle}>Remove Ads</Text>
-        {/* <Text style={styles.removeAdsSubtitle}>Unlock a clean experience</Text> */}
-      </View>
-    </View>
-  </TouchableOpacity
-  >
-
-</View>}
+                <Text style={{ color: 'white', fontSize: 12, fontFamily: 'Lato-Bold' }}>{t('home.share_trade')}</Text>
+                <Icon name="share-outline" size={18} color="white" style={{ padding: 4 }} />
+              </TouchableOpacity>
+            </View>
+            {!localState.isPro && <View style={styles.createtradeAds}>
+              <TouchableOpacity
+                style={styles.removeAdsButton}
+                activeOpacity={0.9}
+                onPress={() => { setShowofferwall(true); }}
+              >
+                <View style={styles.removeAdsContent}>
+                  <View style={styles.crownWrapper}>
+                    <Image
+                      source={require('../../assets/pro.png')}
+                      style={{ width: 20, height: 20 }}
+                      resizeMode="contain"
+                    />
+                  </View>
+                  <View style={styles.removeAdsTextWrapper}>
+                    <Text style={styles.removeAdsTitle}>Remove Ads</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </View>}
           </ScrollView>
           <Modal
             visible={isDrawerVisible}
@@ -798,52 +853,74 @@ const HomeScreen = ({ selectedTheme }) => {
             <Pressable style={styles.modalOverlay} onPress={closeDrawer} />
             <ConditionalKeyboardWrapper>
               <View>
-
                 <View style={[styles.drawerContainer, { backgroundColor: isDarkMode ? '#3B404C' : 'white' }]}>
-
                   <View style={{
                     flexDirection: 'row', justifyContent: 'space-between', marginVertical: 10,
-                  }}
-
-                  >
-
+                  }}>
                     <TextInput
                       style={styles.searchInput}
                       placeholder={t('home.search_placeholder')}
                       value={searchText}
                       onChangeText={setSearchText}
                       placeholderTextColor={isDarkMode ? 'white' : 'black'}
-
                     />
                     <TouchableOpacity onPress={closeDrawer} style={styles.closeButton}>
                       <Text style={styles.closeButtonText}>{t('home.close')}</Text>
-                    </TouchableOpacity></View>
+                    </TouchableOpacity>
+                  </View>
                   <FlatList
                     onScroll={() => Keyboard.dismiss()}
                     onTouchStart={() => Keyboard.dismiss()}
-                    keyboardShouldPersistTaps="handled" // Ensures taps o
-
+                    keyboardShouldPersistTaps="handled"
                     data={filteredData}
                     keyExtractor={(item) => item.Name}
-                    renderItem={({ item }) => (
-                      <TouchableOpacity style={[styles.itemBlock, { backgroundColor: item.Type === 'p' ? '#FFD700' : isDarkMode ? '#34495E' : '#CCCCFF' }]} onPress={() => selectItem(item)}>
-                        <>
-                          <Image
-                            source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
-                            style={[styles.itemImageOverlay]}
-                          />
-                          <Text style={[[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
-                          ]]}>${Number(item.Value)?.toLocaleString()}</Text>
-                          <Text style={[[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
-                          ]]}>{item.Type === 'p' && 'Perm'} {item.Name}</Text>
-                          {/* {item.Type === 'p' && <Text style={styles.perm}>P</Text>} */}
-                        </>
-                      </TouchableOpacity>
-                    )}
+                    renderItem={({ item }) => {
+                      // ✅ Get demand for this item from localState.data
+                      let demandString = '0/10';
+                      if (localState.data) {
+                        try {
+                          let parsedData = localState.data;
+                          if (typeof localState.data === 'string') {
+                            parsedData = JSON.parse(localState.data);
+                          }
+                          const dataArray = Array.isArray(parsedData) ? parsedData : Object.values(parsedData || {});
+                          const originalItem = dataArray.find(
+                            (dataItem) => 
+                              dataItem?.name && 
+                              dataItem.name.toLowerCase() === item.Name.toLowerCase()
+                          );
+                          if (originalItem) {
+                            demandString = item.Type === 'p' 
+                              ? (originalItem.permDemand || '0/10')
+                              : (originalItem.demand || '0/10');
+                          }
+                        } catch (error) {
+                          // Silently fail, use default
+                        }
+                      }
+                      
+                      return (
+                        <TouchableOpacity style={[styles.itemBlock, { backgroundColor: item.Type === 'p' ? '#e1a900' : isDarkMode ? '#34495E' : '#CCCCFF' }]} onPress={() => selectItem(item)}>
+                          <>
+                            {/* ✅ Demand Badge - Top Left Corner (same as grid) */}
+                            {demandString !== '0/10' && (
+                              <Text style={styles.demandBadgeText}>{demandString}</Text>
+                            )}
+                            <Image
+                              source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
+                              style={[styles.itemImageOverlay]}
+                            />
+                            <Text style={[[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
+                            ]]}>${Number(item.Value)?.toLocaleString()}</Text>
+                            <Text style={[[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
+                            ]]}>{item.Type === 'p' && 'Perm'} {item.Name}</Text>
+                          </>
+                        </TouchableOpacity>
+                      );
+                    }}
                     numColumns={3}
                     contentContainerStyle={styles.flatListContainer}
                     columnWrapperStyle={styles.columnWrapper}
-
                   />
                 </View>
               </View>
@@ -853,7 +930,7 @@ const HomeScreen = ({ selectedTheme }) => {
             visible={modalVisible}
             transparent
             animationType="slide"
-            onRequestClose={() => setModalVisible(false)} // Close modal on request
+            onRequestClose={() => setModalVisible(false)}
           >
             <Pressable style={styles.modalOverlay} onPress={() => setModalVisible(false)} />
             <ConditionalKeyboardWrapper>
@@ -889,7 +966,6 @@ const HomeScreen = ({ selectedTheme }) => {
                   </View>
                 </View>
               </View>
-             
             </ConditionalKeyboardWrapper>
           </Modal>
           <ShareTradeModal
@@ -903,31 +979,15 @@ const HomeScreen = ({ selectedTheme }) => {
             selectedTheme={selectedTheme}
             screen='Chat'
             message={t("home.alert.sign_in_required")}
-
           />
         </View>
-        <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} track='Remove Ads'   oneWallOnly={single_offer_wall}/>
-     
+        <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} track='Remove Ads' oneWallOnly={single_offer_wall} />
       </GestureHandlerRootView>
       {(!localState.isPro && !proGranted) && <BannerAdComponent />}
-
-
-      {/* {!localState.isPro && <View style={{ alignSelf: 'center' }}>
-        {isAdVisible && (
-          <BannerAd
-            unitId={bannerAdUnitId}
-            size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-            onAdLoaded={() => setIsAdVisible(true)}
-            onAdFailedToLoad={() => setIsAdVisible(false)}
-            requestOptions={{
-              requestNonPersonalizedAdsOnly: true,
-            }}
-          />
-        )}
-      </View>} */}
     </>
   );
-}
+};
+
 const getStyles = (isDarkMode) =>
   StyleSheet.create({
     container: {
@@ -935,14 +995,13 @@ const getStyles = (isDarkMode) =>
       backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
       paddingBottom: 5,
     },
-
     summaryContainer: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       marginBottom: 10,
     },
     summaryBox: {
-      width: config.isNoman ? '48%' : '49%',
+      width: '48%',
       padding: 5,
       borderRadius: 8,
     },
@@ -958,65 +1017,40 @@ const getStyles = (isDarkMode) =>
       color: 'white',
       textAlign: 'center',
       fontFamily: 'Lato-Bold',
-
     },
     priceValue: {
       color: 'white',
       textAlign: 'center',
       marginTop: 5,
       fontFamily: 'Lato-Bold',
-
-    },
-    sectionTitle: {
-      fontSize: 14,
-      marginBottom: 5,
-      fontFamily: 'Lato-Bold',
-
     },
     itemRow: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      justifyContent: 'space-between',
+      justifyContent: 'center',
+      width: '49%',
+      alignItems: 'center',
       marginBottom: 5,
-
+      borderWidth: 1,
+      borderColor: isDarkMode ? '#6b7f8f' : '#1a237e',
+      borderRadius: 4,
+      overflow: 'hidden',
     },
     addItemBlockNew: {
-      width: '48%',
-      height: config.isNoman ? 80 : 110,
-      backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF', // Dark: darker contrast, Light: White
-      borderWidth: Platform.OS === 'android' ? 0 : 1,
-      borderColor: 'lightgrey',
+      width: '50%',
+      height: 80,
+      backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF',
       justifyContent: 'center',
       alignItems: 'center',
-      borderRadius: 8,
-      marginBottom: 5,
-
-    },
-    addItemBlockNewNoman: {
-      width: '49%',
-      height: config.isNoman ? 80 : 110,
-      backgroundColor: isDarkMode ? '#2d3337' : '#CCCCFF', // Dark: darker contrast, Light: White
-      borderWidth: Platform.OS === 'android' ? 0 : 1,
-      borderColor: 'lightgrey',
-      justifyContent: 'space-between',
-      // alignItems: 'center',
-      borderRadius: 8,
-      marginBottom: 5,
-
-    },
-    addItemBlock: {
-      width: '32%',
-      height: 85,
-      backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF', // Dark: darker contrast, Light: White
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderRadius: 10,
-      marginBottom: 10,
+      position: 'relative',
+      borderRightWidth: 1,
+      borderBottomWidth: 1,
+      borderColor: isDarkMode ? '#6b7f8f' : '#1a237e',
     },
     itemBlock: {
       width: '32%',
       height: 110,
-      backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF', // Dark: darker contrast, Light: White
+      backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF',
       justifyContent: 'center',
       alignItems: 'center',
       borderRadius: 10,
@@ -1027,24 +1061,17 @@ const getStyles = (isDarkMode) =>
         borderColor: config.colors.hasBlockGreen,
       }),
     },
-
     itemText: {
       color: isDarkMode ? 'white' : 'black',
       textAlign: 'center',
       fontFamily: 'Lato-Bold',
       fontSize: 12
     },
-    itemPlaceholder: {
-      color: '#CCC',
-      textAlign: 'center',
+    fruitNameText: {
+      fontSize: 8,
     },
-    removeButton: {
-      position: 'absolute',
-      top: 2,
-      right: 2,
-      backgroundColor: config.colors.wantBlockRed,
-      borderRadius: 50,
-      opacity: .7
+    fruitValueText: {
+      fontSize: 8,
     },
     divider: {
       justifyContent: 'center',
@@ -1066,13 +1093,7 @@ const getStyles = (isDarkMode) =>
       left: 0,
       right: 0,
     },
-
-    drawerTitle: {
-      fontSize: 16,
-      textAlign: 'center',
-      fontFamily: 'Lato-Bold'
-    },
-    profitLossBox: { flexDirection: 'row', justifyContent: 'center', marginVertical: 0, alignItems: 'center' },
+    profitLossBox: { flexDirection: 'row', justifyContent: 'center', marginVertical: 0, alignItems: 'center', paddingBottom: 10 },
     profitLossText: { fontSize: 14, fontFamily: 'Lato-Bold' },
     profitLossValue: { fontSize: 14, marginLeft: 5, fontFamily: 'Lato-Bold' },
     modalOverlay: {
@@ -1081,13 +1102,10 @@ const getStyles = (isDarkMode) =>
     },
     searchInput: {
       width: '75%',
-      borderColor: 'grey',
-      borderWidth: 1,
-      borderRadius: 5,
-      height: 48,
       borderColor: '#333',
       borderWidth: 1,
       borderRadius: 5,
+      height: 48,
       paddingHorizontal: 10,
       backgroundColor: '#fff',
       color: '#000',
@@ -1119,51 +1137,9 @@ const getStyles = (isDarkMode) =>
       height: 40,
       borderRadius: 5,
     },
-    itemImageOverlayNoman: {
-      width: 50,
-      height: 50,
-      borderRadius: 5,
-    },
-
-
     screenshotView: {
       padding: 10,
       flex: 1,
-      // paddingVertical: 10,
-    },
-    float: {
-      position: 'absolute',
-      right: 5,
-      bottom: 5,
-      // width:40,
-      zIndex: 1,
-      // height:40,
-      // backgroundColor:'red'
-
-    },
-    titleText: {
-      fontFamily: 'Lato-Regular',
-      fontSize: 10
-    },
-    loaderContainer: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    loaderText: {
-      fontSize: 16,
-      fontFamily: 'Lato-Bold',
-    },
-    noDataContainer: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: '#f9f9f9',
-    },
-    noDataText: {
-      fontSize: 16,
-      color: 'gray',
-      fontFamily: 'Lato-Bold',
     },
     createtrade: {
       alignSelf: 'center',
@@ -1180,7 +1156,7 @@ const getStyles = (isDarkMode) =>
       borderTopStartRadius: 20,
       borderBottomStartRadius: 20,
       marginRight: 1,
-      alignItems:'center'
+      alignItems: 'center'
     },
     shareTradeButton: {
       backgroundColor: config.colors.wantBlockRed,
@@ -1192,10 +1168,8 @@ const getStyles = (isDarkMode) =>
       borderTopEndRadius: 20,
       borderBottomEndRadius: 20,
       marginLeft: 1,
-      alignItems:'center'
-
+      alignItems: 'center'
     },
-
     modalMessage: {
       fontSize: 12,
       marginBottom: 4,
@@ -1225,7 +1199,6 @@ const getStyles = (isDarkMode) =>
       width: '100%',
       marginBottom: 10,
       paddingHorizontal: 20
-
     },
     button: {
       paddingVertical: 10,
@@ -1243,66 +1216,30 @@ const getStyles = (isDarkMode) =>
       fontSize: 14,
       fontFamily: 'Lato-Bold',
     },
-
-    perm: {
-      position: 'absolute',
-      top: 2,
-      left: 10,
-      color: 'lightgrey',
-      fontFamily: 'Lato-Bold',
-      color: 'white',
-    },
-    notification: {
-      justifyContent: "space-between",
-      padding: 12,
-      paddingTop: 20,
-      backgroundColor: config.colors.secondary,
-      marginHorizontal: 10,
-      marginTop: 10,
-      borderRadius: 8
-    },
-    text: {
-      color: "white",
-      fontSize: 12,
-      fontFamily: "Lato-Regular",
-      lineHeight: 12
-    },
-    closeButtonNotification: {
-      marginLeft: 10,
-      padding: 5,
-      position: 'absolute',
-      top: 0,
-      right: 0
-    },
     createtradeAds: {
       paddingHorizontal: 16,
       paddingVertical: 8,
-      flex:1,
-      justifyContent:'center',
-      alignItems:'center',
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
-    
     removeAdsButton: {
       borderRadius: 999,
       paddingVertical: 5,
       paddingHorizontal: 10,
-      backgroundColor: '#fbbf24', // warm gold
+      backgroundColor: '#fbbf24',
       shadowColor: '#000',
       shadowOpacity: 0.15,
       shadowRadius: 6,
       shadowOffset: { width: 0, height: 3 },
       elevation: 4,
-      // minWidth:244
-      marginTop:20
-
+      marginTop: 20
     },
-    
     removeAdsContent: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
     },
-    
     crownWrapper: {
       width: 25,
       height: 25,
@@ -1312,24 +1249,25 @@ const getStyles = (isDarkMode) =>
       alignItems: 'center',
       marginRight: 8,
     },
-    
     removeAdsTextWrapper: {
       flexDirection: 'column',
     },
-    
     removeAdsTitle: {
       color: '#1f2933',
       fontSize: 12,
       fontFamily: 'Lato-Bold',
     },
-    
-    removeAdsSubtitle: {
-      color: '#374151',
-      fontSize: 10,
-      fontFamily: 'Lato-Regular',
-      opacity: 0.9,
+    demandBadgeText: {
+      position: 'absolute',
+      top: 2,
+      left: 2,
+      paddingTop: 2,
+      paddingLeft: 2,
+      color: isDarkMode ? 'white' : 'black',
+      fontSize: 8, // Match fruit name font size
+      fontFamily: 'Lato-Bold',
+      zIndex: 10,
     },
-
   });
 
-export default HomeScreen
+export default HomeScreen;

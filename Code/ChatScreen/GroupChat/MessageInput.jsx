@@ -9,6 +9,7 @@ import { useLocalState } from '../../LocalGlobelStats';
 import InterstitialAdManager from '../../Ads/IntAd';
 import { showMessage } from 'react-native-flash-message';
 import { useGlobalState } from '../../GlobelStats';
+import { validateContent } from '../../Helper/ContentModeration';
 
 const Emojies = [
   'e1.png',
@@ -58,6 +59,7 @@ const MessageInput = ({
   const [showEmojiPopup, setShowEmojiPopup] = useState(false); // To show the emoji selection popup
   const [showGifPopup, setShowGifPopup] = useState(false); // To show GIF selection popup
   const hasFruits = Array.isArray(selectedFruits) && selectedFruits.length > 0;
+  const maxFruitsReached = Array.isArray(selectedFruits) && selectedFruits.length >= 4;
   const hasContent = (input || '').trim().length > 0 || hasFruits || selectedEmoji;
 
 
@@ -74,6 +76,19 @@ const MessageInput = ({
   
     if (!trimmedInput && !hasFruits && !hasEmoji) return;
     if (isSending) return;
+
+    // ✅ Comprehensive content moderation check
+    if (trimmedInput) {
+      const validation = validateContent(trimmedInput);
+      if (!validation.isValid) {
+        showMessage({
+          message: validation.reason || "Inappropriate content detected.",
+          type: "danger",
+          duration: 3000,
+        });
+        return;
+      }
+    }
   
     setIsSending(true);
   
@@ -145,9 +160,23 @@ const MessageInput = ({
 
       <View style={styles.inputContainer}>
       <TouchableOpacity
-          style={[styles.sendButton, { marginRight: 3, paddingHorizontal: 3 }]}
-          onPress={() => setPetModalVisible && setPetModalVisible(true)}
-          disabled={isSending }
+          style={[
+            styles.sendButton, 
+            { 
+              marginRight: 3, 
+              paddingHorizontal: 3,
+              opacity: maxFruitsReached ? 0.5 : 1
+            }
+          ]}
+          onPress={() => {
+            if (maxFruitsReached) {
+              return; // Don't open modal if max fruits reached
+            }
+            if (setPetModalVisible) {
+              setPetModalVisible(true);
+            }
+          }}
+          disabled={isSending || maxFruitsReached}
           >
           <Icon
             name="logo-octocat"
@@ -228,7 +257,12 @@ const MessageInput = ({
           }}
         >
           <Text style={{ color: isDark ? '#ccc' : '#555', fontSize: 12 }}>
-            {selectedFruits.length} pet(s) selected
+            {selectedFruits.length}/4 fruit(s) selected
+            {maxFruitsReached && (
+              <Text style={{ color: '#e74c3c', fontSize: 11, marginLeft: 4 }}>
+                (Max reached)
+              </Text>
+            )}
           </Text>
 
           <TouchableOpacity

@@ -441,7 +441,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                             buttonStyle={isDarkMode ? AppleButton.Style.WHITE : AppleButton.Style.BLACK}
                             buttonType={AppleButton.Type.SIGN_IN}
                             style={styles.applebUUTON}
-                            onPress={() => onAppleButtonPress().then(() => console.log('Apple sign-in complete!'))}
+                            onPress={() => onAppleButtonPress().then(() => {/* console.log('Apple sign-in complete!') */})}
                         />
                     )}
     
