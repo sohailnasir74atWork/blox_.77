@@ -132,6 +132,13 @@ export const GlobalStateProvider = ({ children }) => {
 
   // console.log('bought', proTagBought)
 
+  // ✅ OPTIMIZED: Debounce helper for non-critical updates
+  const debounceTimeoutRef = useRef(null);
+  const pendingUpdatesRef = useRef({});
+  
+  // ✅ Critical fields that should update immediately (no debounce)
+  const CRITICAL_FIELDS = ['rewardPoints', 'isBlock', 'fcmToken', 'email', 'isPro'];
+  
   // ✅ Memoize updateLocalStateAndDatabase to prevent recreation and reduce re-renders
   const updateLocalStateAndDatabase = useCallback(async (keyOrUpdates, value) => {
     try {
@@ -152,7 +159,7 @@ export const GlobalStateProvider = ({ children }) => {
         }
       }
   
-      // ✅ Update in-memory user state and Firebase in one functional update (prevents duplicate writes)
+      // ✅ Update in-memory user state immediately (always)
       setUser((prev) => {
         // ✅ Check if updates are actually different to prevent duplicate writes
         const hasChanges = Object.keys(updates).some(key => prev[key] !== updates[key]);
@@ -163,15 +170,58 @@ export const GlobalStateProvider = ({ children }) => {
 
         const updatedUser = { ...prev, ...updates };
         
-        // ✅ Update Firebase only if user is logged in and there are actual changes
-        // ✅ Exclude 'online' field from user data (it's stored in presence/{uid} node)
-        if (prev?.id && appdatabase && hasChanges) {
+        // ✅ Separate critical and non-critical updates
+        const criticalUpdates = {};
+        const nonCriticalUpdates = {};
+        
+        Object.keys(updates).forEach(key => {
+          if (key === 'online') {
+            // Skip online field (handled separately)
+            return;
+          }
+          if (CRITICAL_FIELDS.includes(key)) {
+            criticalUpdates[key] = updates[key];
+          } else {
+            nonCriticalUpdates[key] = updates[key];
+          }
+        });
+
+        // ✅ Write critical fields immediately to Firebase
+        if (prev?.id && appdatabase && Object.keys(criticalUpdates).length > 0) {
           const userRef = ref(appdatabase, `users/${prev.id}`);
-          const userDataUpdates = { ...updates };
-          delete userDataUpdates.online; // ✅ Don't sync online to user data
-          update(userRef, userDataUpdates).catch((error) => {
+          update(userRef, criticalUpdates).catch((error) => {
             // Silently handle Firebase errors
           });
+        }
+
+        // ✅ Merge non-critical updates into pending batch for debouncing
+        if (Object.keys(nonCriticalUpdates).length > 0) {
+          Object.assign(pendingUpdatesRef.current, nonCriticalUpdates);
+          
+          // ✅ Clear existing debounce timer
+          if (debounceTimeoutRef.current) {
+            clearTimeout(debounceTimeoutRef.current);
+          }
+
+          // ✅ Set new debounce timer (500ms)
+          debounceTimeoutRef.current = setTimeout(() => {
+            const pending = { ...pendingUpdatesRef.current };
+            pendingUpdatesRef.current = {};
+            
+            if (Object.keys(pending).length === 0) return;
+
+            // Get current user ID from state (use closure)
+            setUser((currentUser) => {
+              if (!currentUser?.id || !appdatabase) return currentUser;
+              
+              const userRef = ref(appdatabase, `users/${currentUser.id}`);
+              update(userRef, pending).catch((error) => {
+                // Silently handle Firebase errors
+              });
+              
+              return currentUser;
+            });
+          }, 500); // 500ms debounce delay
         }
         
         return updatedUser;
@@ -211,6 +261,9 @@ export const GlobalStateProvider = ({ children }) => {
   const handleUserLogin = useCallback(async (loggedInUser) => {
     if (!loggedInUser) {
       resetUserState(); // No longer recreates resetUserState
+      // ✅ Clear user data cache on logout
+      const { clearUserCache } = require('./Helper/UserDataCache');
+      clearUserCache();
       return;
     }
     try {
@@ -646,18 +699,30 @@ export const GlobalStateProvider = ({ children }) => {
 
     let running = false;
     let pending = false;
+    let lastPresenceUpdate = 0;
+    const PRESENCE_UPDATE_THROTTLE = 30000; // ✅ OPTIMIZED: 30 seconds throttle
   
     const updatePresence = async () => {
       if (running) {
         pending = true;
         return;
       }
+      
+      // ✅ OPTIMIZED: Throttle presence updates (max once per 30 seconds)
+      const now = Date.now();
+      const timeSinceLastUpdate = now - lastPresenceUpdate;
+      if (timeSinceLastUpdate < PRESENCE_UPDATE_THROTTLE && lastPresenceUpdate > 0) {
+        // Skip update if within throttle window
+        return;
+      }
+      
       running = true;
   
       try {
         // ✅ Block online status update if user is blocked (admins are exempt)
         if (isUserBlocked && !isAdmin) {
           await forceOffline();
+          lastPresenceUpdate = Date.now();
           return;
         }
 
@@ -669,17 +734,20 @@ export const GlobalStateProvider = ({ children }) => {
           } catch {}
           armedOnDisconnect = false;
           await forceOffline();
+          lastPresenceUpdate = Date.now();
           return;
         }
   
         if (!isConnected || currentAppState !== "active") {
           await forceOffline();
+          lastPresenceUpdate = Date.now();
           return;
         }
   
         await armOnDisconnect();
         await set(presenceRef, true);
         setLocalOnline(true);
+        lastPresenceUpdate = Date.now(); // ✅ Update throttle timestamp
   
       } catch (e) {
         // console.log("updatePresence error", e);

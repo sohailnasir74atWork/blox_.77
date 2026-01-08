@@ -25,6 +25,7 @@ import { useHaptic } from '../../Helper/HepticFeedBack';
 import { getUserAdminGroup, addMembersToGroup } from '../utils/groupUtils';
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
 import { sendGameInvite, isUserInActiveGame } from '../../ValuesScreen/PetGuessingGame/utils/gameInviteSystem';
+import { getUserData, cacheUserData } from '../../Helper/UserDataCache';
 const INITIAL_LOAD = 5; // Fetch first 10 online users
 const LOAD_MORE = 5; // Load 5 more on scroll
 const MAX_GROUP_MEMBERS = 15;
@@ -110,16 +111,31 @@ const OnlineUsersList = ({
   }, [visible, mode]);
 
   // ✅ Fetch user metadata from users node (only relevant fields)
-  // ✅ OPTIMIZED: Fetch only specific child paths instead of full user objects
+  // ✅ OPTIMIZED: Fetch only specific child paths instead of full user objects + CACHING
   const loadUserBatch = useCallback(async (userIds, alreadyLoaded) => {
     if (!appdatabase || userIds.length === 0) return;
 
     try {
-      // ✅ Fetch only specific fields by querying child paths in parallel
-      // This reduces data transfer significantly (from ~100KB to ~2-5KB per user)
-      const userPromises = userIds.map(async (userId) => {
-        if (alreadyLoaded.has(userId)) return null;
+      // ✅ STEP 1: Check cache first (avoid Firebase downloads for cached users)
+      const uncachedIds = [];
+      const cachedUsers = [];
+      
+      userIds.forEach(userId => {
+        if (alreadyLoaded.has(userId)) return; // Skip if already loaded in this session
+        
+        const cached = getUserData(userId);
+        if (cached) {
+          // Remove cachedAt from cached data before using
+          const { cachedAt, ...userData } = cached;
+          cachedUsers.push(userData);
+        } else {
+          uncachedIds.push(userId);
+        }
+      });
 
+      // ✅ STEP 2: Only fetch uncached users from Firebase
+      // This reduces data transfer significantly (from ~100KB to ~2-5KB per user)
+      const userPromises = uncachedIds.map(async (userId) => {
         try {
           // ✅ Fetch only the fields we need (parallel requests to specific child paths)
           const [displayNameSnap, avatarSnap, isProSnap, robloxUsernameVerifiedSnap, 
@@ -142,7 +158,7 @@ const OnlineUsersList = ({
             return null;
           }
 
-          return {
+          const userData = {
             id: userId,
             displayName: displayName || 'Anonymous',
             avatar: avatarSnap?.exists() ? avatarSnap.val() : 
@@ -154,18 +170,26 @@ const OnlineUsersList = ({
             OS: OSSnap?.exists() ? OSSnap.val() : null,
             isPlaying: isPlayingSnap?.exists() ? isPlayingSnap.val() : false,
           };
+
+          // ✅ STEP 3: Cache the fetched user data for future use
+          cacheUserData(userId, userData);
+          
+          return userData;
         } catch (error) {
           console.error(`Error fetching user ${userId}:`, error);
           return null;
         }
       });
 
-      const users = (await Promise.all(userPromises)).filter((u) => u !== null);
+      const fetchedUsers = (await Promise.all(userPromises)).filter((u) => u !== null);
+      
+      // ✅ STEP 4: Combine cached and fetched users
+      const allUsers = [...cachedUsers, ...fetchedUsers];
 
       // ✅ Add new users to existing list
       setAllOnlineUsers((prev) => {
         const existingIds = new Set(prev.map((u) => u.id));
-        const newUsers = users.filter((u) => !existingIds.has(u.id));
+        const newUsers = allUsers.filter((u) => !existingIds.has(u.id));
         return [...prev, ...newUsers];
       });
 

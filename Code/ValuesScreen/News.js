@@ -14,10 +14,12 @@ import {
     ActivityIndicator,
     Alert,
     TextInput,
+    RefreshControl,
 } from "react-native";
 import { useGlobalState } from "../GlobelStats";
 import { useLocalState } from "../LocalGlobelStats";
-import { ref, push, onValue } from "@react-native-firebase/database";
+import { ref, push, get } from "@react-native-firebase/database";
+import { useFocusEffect } from "@react-navigation/native";
 import config from "../Helper/Environment";
 import ConditionalKeyboardWrapper from "../Helper/keyboardAvoidingContainer";
 
@@ -73,6 +75,7 @@ const NewsScreen = () => {
 
     const [newsExists, setNewsExists] = useState(false);
     const [loadingNews, setLoadingNews] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
 
     // local UI state
     const [pollAnswers, setPollAnswers] = useState({});
@@ -88,109 +91,142 @@ const NewsScreen = () => {
         }
     }, [localState.pollVotes]);
 
-    // 🔁 Load /news from Firebase
-    useEffect(() => {
-        if (!appdatabase) return;
+    // ✅ OPTIMIZED: Process news data (extracted to reusable function)
+    const processNewsData = useCallback((data) => {
+        if (!data) {
+            setNewsExists(false);
+            setNewsItems([]);
+            setPolls([]);
+            setQuickSuggestions([]);
+            return;
+        }
 
-        setLoadingNews(true);
+        setNewsExists(true);
 
-        const newsRef = ref(appdatabase, "news");
-        const unsubscribe = onValue(newsRef, (snapshot) => {
-            const data = snapshot.val();
+        // updates
+        const updatesRaw = data.updates || {};
+        const updatesArr = Object.entries(updatesRaw).map(([id, value]) => ({
+            id,
+            title: value.title ?? "",
+            body: value.body ?? "",
+            tag: value.tag ?? "",
+            order: value.order ?? 0,
+        }));
+        updatesArr.sort((a, b) => a.order - b.order);
 
-            if (!data) {
-                setNewsExists(false);
-                setNewsItems([]);
-                setPolls([]);
-                setQuickSuggestions([]);
-                setLoadingNews(false);
-                return;
-            }
-
-            setNewsExists(true);
-
-            // updates
-            const updatesRaw = data.updates || {};
-            const updatesArr = Object.entries(updatesRaw).map(([id, value]) => ({
-                id,
-                title: value.title ?? "",
-                body: value.body ?? "",
-                tag: value.tag ?? "",
-                order: value.order ?? 0,
-            }));
-            updatesArr.sort((a, b) => a.order - b.order);
-
-            // polls
-            const pollsRaw = data.polls || {};
-            const pollsArr = Object.entries(pollsRaw).map(([id, value]) => {
-                const optionsRaw = value.options || {};
-                const optionsArr = Object.entries(optionsRaw)
-                    .map(([optId, optVal]) => ({
-                        id: optId,
-                        label: optVal.label ?? "",
-                        order: optVal.order ?? 0,
-                    }))
-                    .sort((a, b) => a.order - b.order);
-
-                return {
-                    id,
-                    question: value.question ?? "",
-                    options: optionsArr,
-                    order: value.order ?? 0,
-                };
-            });
-            pollsArr.sort((a, b) => a.order - b.order);
-
-            // quick suggestions
-            const qsRaw = data.quickSuggestions || {};
-            const qsArr = Object.entries(qsRaw)
-                .map(([id, value]) => ({
-                    id,
-                    text: value.text ?? "",
-                    order: value.order ?? 0,
+        // polls
+        const pollsRaw = data.polls || {};
+        const pollsArr = Object.entries(pollsRaw).map(([id, value]) => {
+            const optionsRaw = value.options || {};
+            const optionsArr = Object.entries(optionsRaw)
+                .map(([optId, optVal]) => ({
+                    id: optId,
+                    label: optVal.label ?? "",
+                    order: optVal.order ?? 0,
                 }))
                 .sort((a, b) => a.order - b.order);
 
-            setNewsItems(updatesArr);
-            setPolls(pollsArr);
-            setQuickSuggestions(qsArr);
+            return {
+                id,
+                question: value.question ?? "",
+                options: optionsArr,
+                order: value.order ?? 0,
+            };
+        });
+        pollsArr.sort((a, b) => a.order - b.order);
+
+        // quick suggestions
+        const qsRaw = data.quickSuggestions || {};
+        const qsArr = Object.entries(qsRaw)
+            .map(([id, value]) => ({
+                id,
+                text: value.text ?? "",
+                order: value.order ?? 0,
+            }))
+            .sort((a, b) => a.order - b.order);
+
+        setNewsItems(updatesArr);
+        setPolls(pollsArr);
+        setQuickSuggestions(qsArr);
+        
+        // ✅ Clean up votes for polls that no longer exist or have invalid options
+        setPollAnswers((prevAnswers) => {
+            const validAnswers = {};
+            const currentPollIds = new Set(pollsArr.map(p => p.id));
             
-            // ✅ Clean up votes for polls that no longer exist or have invalid options
-            setPollAnswers((prevAnswers) => {
-                const validAnswers = {};
-                const currentPollIds = new Set(pollsArr.map(p => p.id));
-                
-                // Only keep votes for polls that still exist
-                Object.entries(prevAnswers).forEach(([pollId, selectedOption]) => {
-                    if (!currentPollIds.has(pollId)) {
-                        // Poll was deleted, remove vote
-                        return;
-                    }
-                    
-                    // ✅ Validate that the selected option still exists in current poll
-                    const poll = pollsArr.find(p => p.id === pollId);
-                    if (poll) {
-                        const optionExists = poll.options.some(opt => opt.label === selectedOption);
-                        if (optionExists) {
-                            validAnswers[pollId] = selectedOption;
-                        }
-                        // If option doesn't exist (poll was updated), remove the vote
-                    }
-                });
-                
-                // ✅ Update local storage if votes were cleaned up
-                if (Object.keys(validAnswers).length !== Object.keys(prevAnswers).length) {
-                    updateLocalState('pollVotes', validAnswers);
+            // Only keep votes for polls that still exist
+            Object.entries(prevAnswers).forEach(([pollId, selectedOption]) => {
+                if (!currentPollIds.has(pollId)) {
+                    // Poll was deleted, remove vote
+                    return;
                 }
                 
-                return validAnswers;
+                // ✅ Validate that the selected option still exists in current poll
+                const poll = pollsArr.find(p => p.id === pollId);
+                if (poll) {
+                    const optionExists = poll.options.some(opt => opt.label === selectedOption);
+                    if (optionExists) {
+                        validAnswers[pollId] = selectedOption;
+                    }
+                    // If option doesn't exist (poll was updated), remove the vote
+                }
             });
             
-            setLoadingNews(false);
+            // ✅ Update local storage if votes were cleaned up
+            if (Object.keys(validAnswers).length !== Object.keys(prevAnswers).length) {
+                updateLocalState('pollVotes', validAnswers);
+            }
+            
+            return validAnswers;
         });
+    }, [updateLocalState]);
 
-        return () => unsubscribe();
-    }, [appdatabase, updateLocalState]);
+    // ✅ OPTIMIZED: Load news data (one-time fetch instead of real-time listener)
+    const loadNews = useCallback(async (showLoading = true) => {
+        if (!appdatabase) return;
+
+        if (showLoading) {
+            setLoadingNews(true);
+        } else {
+            setRefreshing(true);
+        }
+
+        try {
+            const newsRef = ref(appdatabase, "news");
+            const snapshot = await get(newsRef);
+            const data = snapshot.val();
+            
+            processNewsData(data);
+        } catch (error) {
+            console.error("Error loading news:", error);
+        } finally {
+            setLoadingNews(false);
+            setRefreshing(false);
+        }
+    }, [appdatabase, processNewsData]);
+
+    // ✅ OPTIMIZED: Load news on mount and when screen is focused
+    useEffect(() => {
+        loadNews(true);
+    }, [loadNews]);
+
+    // ✅ OPTIMIZED: Poll for news updates every 5 minutes when screen is focused
+    useFocusEffect(
+        useCallback(() => {
+            // Load immediately when screen is focused
+            loadNews(false);
+
+            // Set up polling interval (5 minutes)
+            const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
+            const intervalId = setInterval(() => {
+                loadNews(false);
+            }, POLL_INTERVAL);
+
+            return () => {
+                clearInterval(intervalId);
+            };
+        }, [loadNews])
+    );
 
     // send feedback to /news_feedback
     const sendToFirebase = useCallback(
@@ -392,6 +428,14 @@ const NewsScreen = () => {
             style={[styles.container, { backgroundColor: palette.background }]}
             contentContainerStyle={styles.contentContainer}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+                <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={() => loadNews(false)}
+                    tintColor={config.colors.hasBlockGreen}
+                    colors={[config.colors.hasBlockGreen]}
+                />
+            }
         >
             {/* Updates section */}
             {newsItems.length > 0 && (
