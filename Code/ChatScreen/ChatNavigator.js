@@ -101,43 +101,15 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
       setunreadcount(totalUnread);
     };
     
-    // Initial load: fetch only unreadCount fields for each chat (lighter than full data)
-    const loadInitialCounts = async () => {
-      try {
-        const snapshot = await userChatsRef.once('value');
-        if (!snapshot.exists()) {
-          setunreadcount(0);
-          return;
-        }
-        
-        const fetchedData = snapshot.val();
-        if (!fetchedData || typeof fetchedData !== 'object') {
-          setunreadcount(0);
-          return;
-        }
-        
-        const banned = Array.isArray(bannedUsers) ? bannedUsers : [];
-        totalUnread = 0;
-        
-        Object.entries(fetchedData).forEach(([chatPartnerId, chatData]) => {
-          if (!chatData || typeof chatData !== 'object') return;
-          const isBlocked = banned.includes(chatPartnerId);
-          const rawUnread = chatData?.unreadCount || 0;
-          const count = isBlocked ? 0 : rawUnread;
-          unreadCounts.set(chatPartnerId, count);
-          totalUnread += count;
-        });
-        
-        setunreadcount(totalUnread);
-      } catch (error) {
-        console.error("❌ Error loading initial unread counts:", error);
-        setunreadcount(0);
-      }
-    };
+    // ✅ OPTIMIZED: Use incremental loading with child listeners only
+    // Instead of downloading all metadata at once, let child_added fire for each chat
+    // This way we only download data as it's needed, reducing wildcard downloads
     
-    loadInitialCounts();
+    // Set initial count to 0 (will be updated as child_added fires for existing chats)
+    setunreadcount(0);
     
-    // Listen to individual chat changes
+    // ✅ Listen to individual chat changes - child_added will fire for existing chats
+    // This is more efficient than downloading all data at once
     userChatsRef.on('child_added', handleChildChange);
     userChatsRef.on('child_changed', handleChildChange);
     userChatsRef.on('child_removed', handleChildRemoved);

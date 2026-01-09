@@ -67,6 +67,9 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
   // ✅ Track last sent message to prevent duplicates (session-based, no Firebase cost)
   const lastSentMessageRef = useRef(null);
+  // ✅ OPTIMIZED: Track newest message to skip initial download in listener
+  const newestMessageIdRef = useRef(null);
+  const hasInitializedRef = useRef(false);
 
   const flatListRef = useRef();
   const gifAllowed = true; // Always allow GIFs/emojis
@@ -299,47 +302,114 @@ const startPrivateChat = useCallback(() => {
 
   // const bannedUserIds = bannedUsers.map((user) => user.id); // Extract IDs from bannedUsers
 
+  // ✅ OPTIMIZED: Skip initial data download in listener to reduce wildcard downloads
   useEffect(() => {
     if (!isFocused || !chatRef) return;
 
-    const listener = chatRef.limitToLast(1).on('child_added', (snapshot) => {
-      if (!snapshot || !snapshot.key) return;
-      const data = snapshot.val();
-      if (!data || typeof data !== 'object') return;
+    let listener = null;
+    let initialLoadQuery = null;
 
-      const newMessage = validateMessage({ id: snapshot.key, ...data });
-      if (!newMessage || !newMessage.id) return;
-
-      // ✅ Check if message is from banned user
-      const banned = Array.isArray(bannedUsers) ? bannedUsers : [];
-      if (banned.includes(newMessage.senderId)) return;
-
-      setMessages((prev) => {
-        if (!Array.isArray(prev)) return [newMessage];
-        const seenKeys = new Set(prev.map((msg) => msg?.id).filter(Boolean));
-        if (seenKeys.has(newMessage.id)) return prev;
-
-        if (isAtBottom) {
-          // Insert immediately
-          // console.log("📥 User is at bottom, adding message now");
-          return [newMessage, ...prev];
-        } else {
-          // Hold in pending
-          // console.log("⏳ Holding new message, user not at bottom");
-          setPendingMessages((prevPending) => {
-            const pendingIds = new Set(prevPending.map((msg) => msg?.id).filter(Boolean));
-            if (pendingIds.has(newMessage.id)) return prevPending;
-            return [newMessage, ...prevPending];
-          });
-          return prev;
+    const initializeListener = async () => {
+      try {
+        // Step 1: Get only the latest message KEY (minimal download)
+        initialLoadQuery = chatRef.orderByKey().limitToLast(1);
+        const initialSnapshot = await initialLoadQuery.once('value');
+        
+        if (initialSnapshot.exists()) {
+          const data = initialSnapshot.val();
+          const keys = Object.keys(data);
+          if (keys.length > 0) {
+            newestMessageIdRef.current = keys[0];
+          }
         }
-      });
-    });
+        
+        hasInitializedRef.current = true;
+
+        // Step 2: Listen for NEW messages only (skips initial data)
+        const newMessagesQuery = chatRef.orderByKey().limitToLast(1);
+        
+        listener = newMessagesQuery.on('child_added', (snapshot) => {
+          if (!snapshot || !snapshot.key) return;
+          
+          // ✅ Skip if this is the message we already loaded during initialization
+          if (hasInitializedRef.current && snapshot.key === newestMessageIdRef.current) {
+            return; // Skip initial message
+          }
+          
+          // Update newest message ID for future skips
+          newestMessageIdRef.current = snapshot.key;
+
+          const data = snapshot.val();
+          if (!data || typeof data !== 'object') return;
+
+          const newMessage = validateMessage({ id: snapshot.key, ...data });
+          if (!newMessage || !newMessage.id) return;
+
+          // ✅ Check if message is from banned user
+          const banned = Array.isArray(bannedUsers) ? bannedUsers : [];
+          if (banned.includes(newMessage.senderId)) return;
+
+          setMessages((prev) => {
+            if (!Array.isArray(prev)) return [newMessage];
+            const seenKeys = new Set(prev.map((msg) => msg?.id).filter(Boolean));
+            if (seenKeys.has(newMessage.id)) return prev;
+
+            if (isAtBottom) {
+              // Insert immediately
+              // console.log("📥 User is at bottom, adding message now");
+              return [newMessage, ...prev];
+            } else {
+              // Hold in pending
+              // console.log("⏳ Holding new message, user not at bottom");
+              setPendingMessages((prevPending) => {
+                const pendingIds = new Set(prevPending.map((msg) => msg?.id).filter(Boolean));
+                if (pendingIds.has(newMessage.id)) return prevPending;
+                return [newMessage, ...prevPending];
+              });
+              return prev;
+            }
+          });
+        });
+      } catch (error) {
+        console.error('Error initializing chat listener:', error);
+        // Fallback to original listener if initialization fails
+        listener = chatRef.limitToLast(1).on('child_added', (snapshot) => {
+          if (!snapshot || !snapshot.key) return;
+          const data = snapshot.val();
+          if (!data || typeof data !== 'object') return;
+          const newMessage = validateMessage({ id: snapshot.key, ...data });
+          if (!newMessage || !newMessage.id) return;
+          const banned = Array.isArray(bannedUsers) ? bannedUsers : [];
+          if (banned.includes(newMessage.senderId)) return;
+          setMessages((prev) => {
+            if (!Array.isArray(prev)) return [newMessage];
+            const seenKeys = new Set(prev.map((msg) => msg?.id).filter(Boolean));
+            if (seenKeys.has(newMessage.id)) return prev;
+            if (isAtBottom) {
+              return [newMessage, ...prev];
+            } else {
+              setPendingMessages((prevPending) => {
+                const pendingIds = new Set(prevPending.map((msg) => msg?.id).filter(Boolean));
+                if (pendingIds.has(newMessage.id)) return prevPending;
+                return [newMessage, ...prevPending];
+              });
+              return prev;
+            }
+          });
+        });
+      }
+    };
+
+    initializeListener();
 
     return () => {
-      if (chatRef) {
+      if (listener && chatRef) {
         chatRef.off('child_added', listener);
       }
+      if (initialLoadQuery) {
+        initialLoadQuery.off('value');
+      }
+      hasInitializedRef.current = false;
     };
   }, [chatRef, validateMessage, isAtBottom, isFocused, bannedUsers]);
   

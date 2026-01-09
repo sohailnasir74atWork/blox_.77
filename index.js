@@ -1,6 +1,7 @@
-// 🏆 Optimize performance by enabling screens before any imports
-import { enableScreens } from 'react-native-screens';
-enableScreens(); 
+// 🏆 Note: With Fabric (new architecture) enabled, enableScreens() is not needed
+// and can cause crashes. Screens are automatically enabled with Fabric.
+// import { enableScreens } from 'react-native-screens';
+// enableScreens(); 
 
 import React, { useEffect, lazy, Suspense } from 'react';
 import { AppRegistry, Platform, StatusBar, Text } from 'react-native';
