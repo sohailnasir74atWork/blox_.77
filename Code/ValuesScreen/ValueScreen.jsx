@@ -823,7 +823,7 @@ export const getStyles = (isDarkMode) =>
       marginTop: 10,
     },
     rarity: {
-      backgroundColor: '#6A5ACD',
+      backgroundColor: config.colors.primary,
       paddingVertical: 1
       ,
       paddingHorizontal: 5,
@@ -832,7 +832,7 @@ export const getStyles = (isDarkMode) =>
       fontSize: 12
     },
     headertext: {
-      backgroundColor: '#6A5ACD',
+      backgroundColor: config.colors.primary,
       paddingVertical: 1,
       paddingHorizontal: 5,
       borderRadius: 5,
@@ -916,7 +916,7 @@ export const getStyles = (isDarkMode) =>
     tryNowText: {
       fontSize: 14,
       fontFamily: 'Lato-Regular',
-      color: '#6A5ACD', // Adds a distinct color for the "Try Now" text
+      color: config.colors.primary, // Adds a distinct color for the "Try Now" text
       // marginTop: 5, // Adds space between the title and the "Try Now" text
     },
     downloadButton: {
