@@ -79,13 +79,11 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete, onD
       });
       return;
     }
-    // setSelectedUser(item)
-    // console.log(item)
     try {
       const online =  await isUserOnline(item?.userId);
       setIsOnline(online);
     } catch (error) {
-      console.error('🔥 Error checking online status:', error);
+      console.error('Error checking online status:', error);
       setIsOnline(false);
     }
     setIsDrawerVisible(true);
@@ -129,7 +127,6 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete, onD
   }, [userId, item, navigation, localState?.isPro]);
 
   const themedStyles = getStyles(isDark);
-  // console.log(item.createdAt)
   const formattedTime = item.createdAt ? dayjs(item.createdAt.toDate()).fromNow() : 'Anonymous';
 
 
@@ -179,7 +176,6 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete, onD
     <MenuOptions>
       <View>
   <MenuOption onSelect={() => setShowReportModal(true)} text="Report" style={{marginVertical: 5,}} /></View>
-    {/* {console.log(isAdmin)} */}
   {(userId === item.userId || isAdmin) && (
  <MenuOption
  onSelect={() => {

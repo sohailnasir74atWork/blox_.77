@@ -38,7 +38,7 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
   const [loading, setLoading] = useState(false);
   const [selectedTags, setSelectedTags] = useState(['Discussion']);
   // ✅ Use global strikeInfo from GlobelStats (no duplicate listener = saves Firebase reads)
-  const {currentUserEmail, strikeInfo} = useGlobalState();
+  const {currentUserEmail, strikeInfo, isAdmin} = useGlobalState();
   // const [budget, setBudget] = useState('');
   const { theme } = useGlobalState();
   const isDark = theme === 'dark';
@@ -57,9 +57,6 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
       setSelectedTags(['Discussion']);
     }
   }, [visible]);
-
-  // console.log(currentUserEmail)show
-  
 
 const pickAndCompress = useCallback(async () => {
   const result = await launchImageLibrary({
@@ -197,16 +194,17 @@ const pickAndCompress = useCallback(async () => {
         return;
       }
     }
-    if (strikeInfo) {
+    // ✅ Block users with strikes from uploading posts (admins are exempt)
+    if (strikeInfo && !isAdmin) {
       const { strikeCount, bannedUntil } = strikeInfo;
-      // console.log('strick')
       const now = Date.now();
 
       if (bannedUntil === 'permanent') {
         showMessage({
           message: '⛔ Permanently Banned',
-          description: 'You are permanently banned from sending messages.',
+          description: 'You are permanently banned from uploading posts.',
           type: 'danger',
+          duration: 4000
         });
         return;
       }
@@ -219,10 +217,9 @@ const pickAndCompress = useCallback(async () => {
 
         showMessage({
           message: `⚠️ Strike ${strikeCount}`,
-          description: `You are banned from chatting for ${timeLeftText} more minute(s).`,
-          type: 'warning',
-          duration: 5000,
-
+          description: `You are banned from uploading posts for ${timeLeftText} more minute(s).`,
+          type: 'danger',
+          duration: 4000
         });
         return;
       }
@@ -275,7 +272,7 @@ const pickAndCompress = useCallback(async () => {
       }, 500);
     });
   
-  }, [loading, user?.id, desc, imageUris, selectedTags, uploadToBunny, onUpload, onClose, localState.isPro, currentUserEmail, strikeInfo]);
+  }, [loading, user?.id, desc, imageUris, selectedTags, uploadToBunny, onUpload, onClose, localState.isPro, currentUserEmail, strikeInfo, isAdmin]);
   
 
   const themedStyles = getStyles(isDark);

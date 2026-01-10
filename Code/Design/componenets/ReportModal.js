@@ -12,7 +12,6 @@ const ReportModal = ({ visible, onClose, item }) => {
   const [reportText, setReportText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const {updateLocalState, localState} = useLocalState()
-// console.log(localState.bannedUsers)
 
   // const handleBanToggle = async () => {
   //   const action = isBlock ? t("chat.unblock") : t("chat.block");

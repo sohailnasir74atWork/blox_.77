@@ -83,7 +83,6 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
   return true;
 });
 
-// console.log(isFeaturedPurchase, 'isFeaturedPurchase');
 
 
 
@@ -106,11 +105,9 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
   };
 
 
-// console.log('pro', isProStatus)
 
 const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
   useEffect(() => {
-    // console.log(localState.isPro, 'from trade model'); // ✅ Check if isPro is updated
     setIsProStatus(localState.isPro || proGranted); // ✅ Force update state and trigger re-render
   }, [localState.isPro, proGranted]);
 
@@ -206,7 +203,6 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
 
     return { deal, tradeRatio };
   };
-  // console.log(localState.featuredCount, 'featu')
   const handleDelete = useCallback((item) => {
     Alert.alert(
       t("trade.delete_confirmation_title"),
@@ -253,7 +249,6 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
 
 
 
-  // console.log(isProStatus, 'from trade model')
 
   const handleMakeFeatureTrade = async (item) => {
     if (!isProStatus && !isFeaturedPurchase) {
@@ -356,39 +351,24 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
     }
   };
   const fetchMoreTrades = useCallback(async () => {
-    console.log('🔍 [PAGINATION DEBUG] fetchMoreTrades called', {
-      hasMore,
-      lastDoc: lastDoc ? lastDoc.id : 'null',
-      loadingMore,
-      firestoreDB: !!firestoreDB,
-      currentTradesCount: trades.length,
-      remainingFeaturedCount: remainingFeaturedTrades.length,
-    });
-    
     // ✅ OPTIMIZED: Prevent duplicate calls and check conditions
     if (!hasMore) {
-      console.log('⚠️ [PAGINATION DEBUG] fetchMoreTrades stopped: hasMore is false');
       return;
     }
     if (!lastDoc) {
-      console.log('⚠️ [PAGINATION DEBUG] fetchMoreTrades stopped: lastDoc is null');
       return;
     }
     if (loadingMore) {
-      console.log('⚠️ [PAGINATION DEBUG] fetchMoreTrades stopped: already loading');
       return;
     }
     if (!firestoreDB) {
-      console.log('⚠️ [PAGINATION DEBUG] fetchMoreTrades stopped: firestoreDB is null');
       return;
     }
 
-    console.log('✅ [PAGINATION DEBUG] Starting fetchMoreTrades...');
     setLoadingMore(true);
     try {
       // ✅ OPTIMIZED: Use same query structure as initial load for consistency
       // This ensures pagination works correctly with the composite index
-      console.log('🔍 [PAGINATION DEBUG] Querying Firestore with lastDoc:', lastDoc.id);
       const normalTradesQuerySnap = await getDocs(
         query(
           collection(firestoreDB, 'trades_new'),
@@ -400,24 +380,16 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
         )
       );
 
-      console.log('🔍 [PAGINATION DEBUG] Query result:', {
-        docsCount: normalTradesQuerySnap.docs.length,
-        isEmpty: normalTradesQuerySnap.empty,
-      });
-
       const newNormalTrades = normalTradesQuerySnap.docs.map((docSnap) => ({
         id: docSnap.id,
         ...docSnap.data(),
       }));
   
       if (newNormalTrades.length === 0) {
-        console.log('⚠️ [PAGINATION DEBUG] No new normal trades found, setting hasMore to false');
         setHasMore(false);
         setLoadingMore(false);
         return;
       }
-
-      console.log('✅ [PAGINATION DEBUG] Got', newNormalTrades.length, 'new normal trades');
 
       // ✅ FIX: Get more featured trades if available, but prevent duplicates
       // Check which featured trades are already in the current trades list
@@ -433,32 +405,15 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
       const newFeaturedTrades = availableFeatured.slice(0, 3); // ✅ Get up to 3 new featured
       const updatedRemainingFeatured = availableFeatured.slice(3); // ✅ Get remaining after first 3
       setRemainingFeaturedTrades(updatedRemainingFeatured);
-      
-      console.log('🔍 [PAGINATION DEBUG] Featured trades:', {
-        newFeaturedCount: newFeaturedTrades.length,
-        remainingCount: updatedRemainingFeatured.length,
-        existingFeaturedCount: existingFeaturedIds.size,
-        availableFeaturedCount: availableFeatured.length,
-      });
 
       // ✅ Merge & maintain balance
       const mergedTrades = mergeFeaturedWithNormal(newFeaturedTrades, newNormalTrades);
-      console.log('✅ [PAGINATION DEBUG] Merged trades count:', mergedTrades.length);
 
       setTrades((prevTrades) => {
         // ✅ FIX: Deduplicate trades by id to prevent duplicates
         const existingIds = new Set(prevTrades.map(t => t.id));
         const newUniqueTrades = mergedTrades.filter(t => !existingIds.has(t.id));
-        
-        const updated = [...prevTrades, ...newUniqueTrades];
-        console.log('✅ [PAGINATION DEBUG] Total trades after merge:', {
-          prevCount: prevTrades.length,
-          newMergedCount: mergedTrades.length,
-          newUniqueCount: newUniqueTrades.length,
-          finalCount: updated.length,
-          duplicatesFiltered: mergedTrades.length - newUniqueTrades.length,
-        });
-        return updated;
+        return [...prevTrades, ...newUniqueTrades];
       });
       
       // ✅ Update lastDoc only if we have normal trades (for pagination)
@@ -467,27 +422,14 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
         setLastDoc(newLastDoc);
         const newHasMore = normalTradesQuerySnap.docs.length === PAGE_SIZE;
         setHasMore(newHasMore);
-        console.log('✅ [PAGINATION DEBUG] Updated pagination state:', {
-          newLastDocId: newLastDoc.id,
-          newHasMore,
-          docsLength: normalTradesQuerySnap.docs.length,
-          PAGE_SIZE,
-        });
       } else {
-        console.log('⚠️ [PAGINATION DEBUG] No docs in snapshot, setting hasMore to false');
         setHasMore(false);
       }
     } catch (error) {
-      console.error('❌ [PAGINATION DEBUG] Error fetching more trades:', error);
-      console.error('❌ [PAGINATION DEBUG] Error details:', {
-        message: error.message,
-        code: error.code,
-        stack: error.stack,
-      });
+      console.error('Error fetching more trades:', error);
       // ✅ Don't set hasMore to false on error - allow retry
     } finally {
       setLoadingMore(false);
-      console.log('✅ [PAGINATION DEBUG] fetchMoreTrades completed, loadingMore set to false');
     }
   }, [lastDoc, hasMore, remainingFeaturedTrades, firestoreDB, loadingMore, trades.length]);
 
@@ -504,11 +446,7 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
       const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
       if (currentTime - featuredTime >= TWENTY_FOUR_HOURS) {
-        // console.log("⏳ 24 hours passed! Resetting featuredCount and time...");
-
         await updateLocalState("featuredCount", { count: 0, time: null });
-
-        // console.log("✅ Featured data reset successfully.");
       }
     };
 
@@ -535,7 +473,6 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
     };
 
     try {
-      // const isOnline = await isUserOnline(item.userId)
 
 
       if (!localState.isPro) { InterstitialAdManager.showAd(callbackfunction); }
@@ -553,48 +490,29 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
 
 
   const handleEndReached = () => {
-    console.log('🔍 [PAGINATION DEBUG] handleEndReached called', {
-      hasMore,
-      loading,
-      loadingMore,
-      lastDoc: lastDoc ? lastDoc.id : 'null',
-      currentTradesCount: trades.length,
-    });
-    
     // ✅ OPTIMIZED: Prevent calls when already loading or no more data
     if (!hasMore) {
-      console.log('⚠️ [PAGINATION DEBUG] Stopped: hasMore is false');
       return;
     }
     if (loading) {
-      console.log('⚠️ [PAGINATION DEBUG] Stopped: loading is true');
       return;
     }
     if (loadingMore) {
-      console.log('⚠️ [PAGINATION DEBUG] Stopped: loadingMore is true');
       return;
     }
     if (!lastDoc) {
-      console.log('⚠️ [PAGINATION DEBUG] Stopped: lastDoc is null');
       return;
     }
     
-    console.log('✅ [PAGINATION DEBUG] Calling fetchMoreTrades...');
     // ✅ Allow pagination even for logged-out users (they can see trades)
     fetchMoreTrades();
   };
 
-  // console.log(trades)
-
-  // import firestore from '@react-native-firebase/firestore'; // Ensure this import
-
   const fetchInitialTrades = useCallback(async () => {
-    console.log('🔍 [PAGINATION DEBUG] fetchInitialTrades called');
     setLoading(true);
     try {
       // ✅ OPTIMIZED: Fetch featured and normal trades in parallel (faster loading)
       const now = Timestamp.now();
-      console.log('🔍 [PAGINATION DEBUG] Fetching initial trades...');
       const [featuredQuerySnapshot, normalTradesQuerySnap] = await Promise.all([
         // Featured trades query
         getDocs(
@@ -618,13 +536,6 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
         ),
       ]);
 
-      console.log('🔍 [PAGINATION DEBUG] Initial query results:', {
-        featuredCount: featuredQuerySnapshot.docs.length,
-        normalCount: normalTradesQuerySnap.docs.length,
-        featuredEmpty: featuredQuerySnapshot.empty,
-        normalEmpty: normalTradesQuerySnap.empty,
-      });
-
       let featuredTrades = [];
       if (!featuredQuerySnapshot.empty) {
         featuredTrades = featuredQuerySnapshot.docs.map((docSnap) => ({
@@ -646,24 +557,10 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
       const featuredToUse = featuredTrades.slice(0, 3); // ✅ Use slice instead of splice
       const mergedTrades = mergeFeaturedWithNormal(featuredToUse, normalTrades);
 
-      console.log('✅ [PAGINATION DEBUG] Merged initial trades:', {
-        featuredUsed: featuredToUse.length,
-        normalCount: normalTrades.length,
-        mergedCount: mergedTrades.length,
-        remainingFeatured: allFeaturedTrades.length - featuredToUse.length,
-      });
-
       // ✅ FIX: Deduplicate initial trades (shouldn't be needed, but safety check)
       const uniqueMergedTrades = mergedTrades.filter((trade, index, self) => 
         index === self.findIndex(t => t.id === trade.id)
       );
-      
-      if (uniqueMergedTrades.length !== mergedTrades.length) {
-        console.warn('⚠️ [PAGINATION DEBUG] Duplicates found in initial merge:', {
-          original: mergedTrades.length,
-          unique: uniqueMergedTrades.length,
-        });
-      }
 
       // ✅ Update state
       setTrades(uniqueMergedTrades);
@@ -674,35 +571,17 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
         setLastDoc(lastDocSnapshot);
         const initialHasMore = normalTrades.length === PAGE_SIZE;
         setHasMore(initialHasMore);
-        console.log('✅ [PAGINATION DEBUG] Initial pagination state set:', {
-          lastDocId: lastDocSnapshot.id,
-          hasMore: initialHasMore,
-          normalTradesCount: normalTrades.length,
-          PAGE_SIZE,
-        });
       } else {
         // ✅ If no normal trades initially, check if there are more featured trades
         // If featured trades exist, we still might have more normal trades to load
         setLastDoc(null);
         const fallbackHasMore = featuredTrades.length > 0 || normalTrades.length > 0;
         setHasMore(fallbackHasMore);
-        console.log('⚠️ [PAGINATION DEBUG] No normal trades initially:', {
-          lastDoc: null,
-          hasMore: fallbackHasMore,
-          featuredCount: featuredTrades.length,
-          normalCount: normalTrades.length,
-        });
       }
     } catch (error) {
-      console.error('❌ [PAGINATION DEBUG] Error fetching initial trades:', error);
-      console.error('❌ [PAGINATION DEBUG] Error details:', {
-        message: error.message,
-        code: error.code,
-        stack: error.stack,
-      });
+      console.error('Error fetching initial trades:', error);
     } finally {
       setLoading(false);
-      console.log('✅ [PAGINATION DEBUG] fetchInitialTrades completed');
     }
   }, [firestoreDB]);
 
@@ -770,7 +649,6 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
   const mergeFeaturedWithNormal = (featuredTrades, normalTrades) => {
     // Input validation
     if (!Array.isArray(featuredTrades) || !Array.isArray(normalTrades)) {
-      console.warn('⚠️ Invalid input: featuredTrades or normalTrades is not an array');
       return [];
     }
 
@@ -805,10 +683,6 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
       }
     }
 
-    if (iterationCount >= MAX_ITERATIONS) {
-      console.warn('⚠️ Maximum iterations reached in mergeFeaturedWithNormal');
-    }
-
     return result;
   };
 
@@ -829,25 +703,10 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
 
 
 
-  // ✅ DEBUG: Log state changes for pagination debugging
   useEffect(() => {
-    console.log('🔍 [PAGINATION DEBUG] State changed:', {
-      tradesCount: trades.length,
-      hasMore,
-      lastDoc: lastDoc ? lastDoc.id : 'null',
-      loading,
-      loadingMore,
-      remainingFeaturedCount: remainingFeaturedTrades.length,
-    });
-  }, [trades.length, hasMore, lastDoc, loading, loadingMore, remainingFeaturedTrades.length]);
-
-  useEffect(() => {
-    console.log('🔍 [PAGINATION DEBUG] useEffect triggered, user?.id:', user?.id);
     fetchInitialTrades();
-    // updateLatest50TradesWithoutIsFeatured()
 
     if (!user?.id) {
-      console.log('⚠️ [PAGINATION DEBUG] User not logged in, limiting trades to', PAGE_SIZE);
       setTrades((prev) => prev.slice(0, PAGE_SIZE)); // Keep only 20 trades for logged-out users
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -857,7 +716,6 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
     setIsDrawerVisible(false);
   };
   const handleOpenProfile = async(item)=>{
-    // console.log('open')
     if (!user?.id) {
       setIsSigninDrawerVisible(true);
       return;
@@ -868,12 +726,11 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
       const online = await isUserOnline(item?.userId);
       setIsOnline(online);
     } catch (error) {
-      console.error('🔥 Error checking online status:', error);
+      console.error('Error checking online status:', error);
       setIsOnline(false);
     }
     setIsDrawerVisible(true)
   }
-// console.log(isDrawerVisible)
 
   const renderTextWithUsername = (description) => {
     const parts = description.split(/(@\w+)/g); // Split text by @username pattern
@@ -906,14 +763,12 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
 
 
   const handleRefresh = async () => {
-    console.log('🔍 [PAGINATION DEBUG] handleRefresh called');
     setRefreshing(true);
     setHasMore(true); // ✅ Reset hasMore
     setLastDoc(null); // ✅ Reset lastDoc
     setRemainingFeaturedTrades([]); // ✅ Reset featured trades
     await fetchInitialTrades();
     setRefreshing(false);
-    console.log('✅ [PAGINATION DEBUG] handleRefresh completed');
   };
 
   const handleLoginSuccess = () => {
@@ -1250,21 +1105,32 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
           return `trade-${index}`;
         }}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 20 }}
+        contentContainerStyle={{ paddingBottom: 20, flexGrow: 1 }}
         onEndReached={handleEndReached}
-        onEndReachedThreshold={0.2}
-        removeClippedSubviews={true} // 🚀 Reduce memory usage
-        initialNumToRender={8} // ✅ OPTIMIZED: Render fewer items initially (was 10)
-        maxToRenderPerBatch={5} // ✅ OPTIMIZED: Smaller batches (was 10)
-        updateCellsBatchingPeriod={100} // ✅ OPTIMIZED: Less frequent updates (was 50)
-        windowSize={3} // ✅ OPTIMIZED: Keep less in memory (was 5)
-        getItemLayout={(data, index) => ({
-          length: 200, // Approximate item height
-          offset: 200 * index,
-          index,
-        })} // ✅ OPTIMIZED: Pre-calculate item positions for faster scrolling
+        onEndReachedThreshold={0.5}
+        removeClippedSubviews={false} // ✅ FIX: Disable to prevent blank spaces during scrolling
+        initialNumToRender={15} // ✅ FIX: Render more items initially for smoother scrolling
+        maxToRenderPerBatch={10} // ✅ FIX: Larger batches for better rendering performance
+        updateCellsBatchingPeriod={50} // ✅ FIX: More frequent updates for smoother experience
+        windowSize={10} // ✅ FIX: Larger window size to keep more items in memory
         refreshing={refreshing} // Add Pull-to-Refresh
         onRefresh={handleRefresh} // Attach Refresh Handler
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color={config.colors.primary} />
+            </View>
+          ) : null
+        }
+        ListEmptyComponent={
+          !loading && filteredTrades.length === 0 ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
+              <Text style={[styles.loadingText, { color: isDarkMode ? 'white' : 'black' }]}>
+                No trades found
+              </Text>
+            </View>
+          ) : null
+        }
       />
 
 

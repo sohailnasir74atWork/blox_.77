@@ -85,10 +85,8 @@ const DesignFeedScreen = ({ route }) => {
      }
     return out;
      }
-  // console.log('mainscreen')
   const fetchMyPosts = async (tag = null) => {
     if (!user?.id) return;
-    // console.log('📦 Fetching My Posts...');
     setInitialLoading(true);
     try {
       let q = query(
@@ -109,11 +107,10 @@ const DesignFeedScreen = ({ route }) => {
   
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      // console.log('✅ My Posts fetched:', data.length);
       setMyPosts(data);
       setHasMore(snapshot.docs.length > 0);
     } catch (err) {
-      console.error('❌ Error fetching my posts:', err);
+      console.error('Error fetching my posts:', err);
       showMessage({ message: 'Failed to fetch your posts', type: 'danger' });
     } finally {
       setInitialLoading(false);
@@ -131,8 +128,6 @@ const DesignFeedScreen = ({ route }) => {
       limit(n)
     );
 
-      // console.log(q)
-  
       const snap = await getDocs(q);
       if (snap.empty) return [];
   
