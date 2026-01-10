@@ -666,6 +666,7 @@ const handleSendMessage = async (replyToArg, trimmedInputArg, fruits, emojiUrl) 
       avatar:
         user.avatar ||
         'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+      flage: user?.flage || null, // ✅ Include flag/flag emoji
       replyTo: replyToArg
         ? { id: replyToArg.id, text: replyToArg.text }
         : null,

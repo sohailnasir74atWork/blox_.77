@@ -54,12 +54,21 @@ const NotificationHandler = () => {
         const { notification, data } = remoteMessage || {};
         const title = notification?.title || data?.title || null;
         const body = notification?.body || data?.body || null;
-        const senderId = data?.senderId;
-        const type = data?.taype;
+        const senderId = data?.senderId || data?.sender_id || null; // ✅ Handle different field names
+        const type = data?.type || data?.taype || null; // ✅ Fixed typo: 'taype' -> 'type'
 
-        if (localState?.bannedUsers?.includes(senderId)) {
-          // console.log('[Notification] Sender is banned, skipping:', senderId);
-          return;
+        // ✅ OPTIMIZED: Check if sender is blocked (more robust check)
+        // Only check if we have a valid senderId and bannedUsers array exists
+        if (senderId && typeof senderId === 'string' && senderId.trim() !== '') {
+          const bannedUsersList = Array.isArray(localState?.bannedUsers) 
+            ? localState.bannedUsers 
+            : [];
+          
+          // ✅ Check if sender is in blocked users list
+          if (bannedUsersList.includes(senderId) || bannedUsersList.includes(senderId.trim())) {
+            // console.log('[Notification] Sender is blocked, skipping notification:', senderId);
+            return; // ✅ Don't show notification from blocked users
+          }
         }
 
         if (!title || !body) {

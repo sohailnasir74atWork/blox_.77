@@ -34,6 +34,11 @@ import {
   startAfter,
 } from '@react-native-firebase/firestore';
 import { ref, get } from '@react-native-firebase/database';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+
+// Initialize dayjs plugins
+dayjs.extend(relativeTime);
 
 const REVIEWS_PAGE_SIZE = 3; // how many reviews per page
 
@@ -41,6 +46,69 @@ const REVIEWS_PAGE_SIZE = 3; // how many reviews per page
 const formatName = (name) => {
   if (!name || typeof name !== 'string') return '';
   return name.replace(/^\+/, '').replace(/\s+/g, '-');
+};
+
+// Helper function to format trade item names
+const formatTradeName = (name) => {
+  if (!name || typeof name !== 'string') return '';
+  let formattedName = name.replace(/^\+/, '');
+  formattedName = formattedName.replace(/\s+/g, '-');
+  return formattedName;
+};
+
+// Helper function to format values
+const formatTradeValue = (value) => {
+  if (!value || typeof value !== 'number') return '0';
+  if (value >= 1_000_000_000) {
+    return `${(value / 1_000_000_000).toFixed(1)}B`;
+  } else if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1)}M`;
+  } else if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(1)}K`;
+  } else {
+    return value.toLocaleString();
+  }
+};
+
+// Helper function to group items
+const groupTradeItems = (items) => {
+  if (!Array.isArray(items)) return [];
+  const grouped = {};
+  items.forEach(({ name, type }) => {
+    const key = `${name}-${type}`;
+    if (grouped[key]) {
+      grouped[key].count += 1;
+    } else {
+      grouped[key] = { name, type, count: 1 };
+    }
+  });
+  return Object.values(grouped);
+};
+
+// Helper function to get trade deal
+const getTradeDeal = (hasTotal, wantsTotal) => {
+  if (!hasTotal || !hasTotal.value || hasTotal.value <= 0) {
+    return { deal: { label: "trade.unknown_deal", color: "#8E8E93" }, tradeRatio: 0 };
+  }
+
+  const tradeRatio = wantsTotal?.value ? wantsTotal.value / hasTotal.value : 0;
+  let deal;
+
+  if (tradeRatio >= 0.05 && tradeRatio <= 0.6) {
+    deal = { label: "trade.best_deal", color: "#34C759" };
+  } else if (tradeRatio > 0.6 && tradeRatio <= 0.75) {
+    deal = { label: "trade.great_deal", color: "#32D74B" };
+  } else if (tradeRatio > 0.75 && tradeRatio <= 1.25) {
+    deal = { label: "trade.fair_deal", color: "#FFCC00" };
+  } else if (tradeRatio > 1.25 && tradeRatio <= 1.4) {
+    deal = { label: "trade.decent_deal", color: "#FF9F0A" };
+  } else if (tradeRatio > 1.4 && tradeRatio <= 1.55) {
+    deal = { label: "trade.weak_deal", color: "#D65A31" };
+  } else {
+    deal = { label: "trade.risky_deal", color: "#7D1128" };
+  }
+
+  return { deal, tradeRatio };
 };
 
 const ProfileBottomDrawer = ({
@@ -91,6 +159,12 @@ const ProfileBottomDrawer = ({
   const [wishlistPets, setWishlistPets] = useState([]);
   const [loadingPets, setLoadingPets] = useState(false);
 
+  // 💼 trades list (from Firestore /trades_new where userId == selectedUserId)
+  const [trades, setTrades] = useState([]);
+  const [loadingTrades, setLoadingTrades] = useState(false);
+  const [lastTradeDoc, setLastTradeDoc] = useState(null);
+  const [hasMoreTrades, setHasMoreTrades] = useState(false);
+
   // toggle details
   const [loadDetails, setLoadDetails] = useState(false);
 
@@ -99,40 +173,66 @@ const ProfileBottomDrawer = ({
 
 
 
-  // ✅ Fetch user data from Firebase if roblox data is missing
+  // ✅ OPTIMIZED: Fetch user data from Firebase only for missing fields
+  // This minimizes Firebase reads and reduces costs
   useEffect(() => {
     if (!selectedUserId || !appdatabase) return;
-    
-    // Only fetch if robloxUsername is not already in selectedUser
-    if (selectedUser?.robloxUsername || selectedUser?.robloxUserId) {
-      setUserData(null); // Clear fetched data if already in selectedUser
-      return;
-    }
 
     let isMounted = true;
 
     const fetchUserData = async () => {
       try {
-        // ✅ OPTIMIZED: Fetch only specific fields instead of full user object
-        const [robloxUsernameSnap, robloxUserIdSnap, robloxUsernameVerifiedSnap, 
-               isProSnap, lastGameWinAtSnap] = await Promise.all([
-          get(ref(appdatabase, `users/${selectedUserId}/robloxUsername`)).catch(() => null),
-          get(ref(appdatabase, `users/${selectedUserId}/robloxUserId`)).catch(() => null),
-          get(ref(appdatabase, `users/${selectedUserId}/robloxUsernameVerified`)).catch(() => null),
-          get(ref(appdatabase, `users/${selectedUserId}/isPro`)).catch(() => null),
-          get(ref(appdatabase, `users/${selectedUserId}/lastGameWinAt`)).catch(() => null),
-        ]);
+        // ✅ OPTIMIZED: Only fetch fields that are NOT already in selectedUser
+        // This reduces Firebase reads from 6 potential reads to only what's missing
+        const fieldsToFetch = [];
+        
+        // Check each field and only add to fetch list if missing
+        if (!selectedUser?.robloxUsername) {
+          fieldsToFetch.push({ key: 'robloxUsername', path: `users/${selectedUserId}/robloxUsername` });
+        }
+        if (!selectedUser?.robloxUserId) {
+          fieldsToFetch.push({ key: 'robloxUserId', path: `users/${selectedUserId}/robloxUserId` });
+        }
+        if (selectedUser?.robloxUsernameVerified === undefined) {
+          fieldsToFetch.push({ key: 'robloxUsernameVerified', path: `users/${selectedUserId}/robloxUsernameVerified` });
+        }
+        if (selectedUser?.isPro === undefined) {
+          fieldsToFetch.push({ key: 'isPro', path: `users/${selectedUserId}/isPro` });
+        }
+        if (!selectedUser?.lastGameWinAt) {
+          fieldsToFetch.push({ key: 'lastGameWinAt', path: `users/${selectedUserId}/lastGameWinAt` });
+        }
+        if (!selectedUser?.flage) {
+          fieldsToFetch.push({ key: 'flage', path: `users/${selectedUserId}/flage` }); // ✅ Only fetch if missing
+        }
+        
+        // ✅ If all fields are already available, skip Firebase read entirely (0 reads = $0 cost)
+        if (fieldsToFetch.length === 0) {
+          setUserData(null);
+          return;
+        }
+
+        // ✅ Fetch only missing fields in parallel (minimal reads, maximum efficiency)
+        const snapshots = await Promise.all(
+          fieldsToFetch.map(({ path }) => get(ref(appdatabase, path)).catch(() => null))
+        );
         
         if (!isMounted) return;
         
-        // ✅ Extract values only if they exist
-        setUserData({
-          robloxUsername: robloxUsernameSnap?.exists() ? robloxUsernameSnap.val() : null,
-          robloxUserId: robloxUserIdSnap?.exists() ? robloxUserIdSnap.val() : null,
-          robloxUsernameVerified: robloxUsernameVerifiedSnap?.exists() ? robloxUsernameVerifiedSnap.val() : false,
-          isPro: isProSnap?.exists() ? isProSnap.val() : false,
-          lastGameWinAt: lastGameWinAtSnap?.exists() ? lastGameWinAtSnap.val() : null,
+        // ✅ Extract values and build result object
+        const fetchedData = {};
+        fieldsToFetch.forEach(({ key }, index) => {
+          const snap = snapshots[index];
+          if (snap?.exists()) {
+            fetchedData[key] = snap.val();
+          } else if (key === 'robloxUsernameVerified') {
+            fetchedData[key] = false; // Default for boolean
+          } else {
+            fetchedData[key] = null;
+          }
         });
+
+        setUserData(fetchedData);
       } catch (error) {
         console.error('Error fetching user data in BottomDrawer:', error);
         if (isMounted) setUserData(null);
@@ -144,7 +244,7 @@ const ProfileBottomDrawer = ({
     return () => {
       isMounted = false;
     };
-  }, [selectedUserId, selectedUser?.robloxUsername, selectedUser?.robloxUserId, appdatabase]);
+  }, [selectedUserId, selectedUser?.robloxUsername, selectedUser?.robloxUserId, selectedUser?.flage, selectedUser?.isPro, selectedUser?.lastGameWinAt, appdatabase]);
 
   // ✅ Merge selectedUser with fetched userData
   const mergedUser = useMemo(() => {
@@ -160,6 +260,9 @@ const ProfileBottomDrawer = ({
       lastGameWinAt: selectedUser?.lastGameWinAt !== undefined 
         ? selectedUser.lastGameWinAt 
         : userData.lastGameWinAt, // ✅ Game win timestamp
+      flage: selectedUser?.flage !== undefined 
+        ? selectedUser.flage 
+        : userData.flage, // ✅ Flag/flag emoji
     };
   }, [selectedUser, userData]);
 
@@ -344,6 +447,9 @@ const ProfileBottomDrawer = ({
       setUserPoints(null);
       setGameWins(null);
       setUserData(null); // ✅ Clear fetched user data
+      setTrades([]);
+      setLastTradeDoc(null);
+      setHasMoreTrades(false);
     }
   }, [isVisible]);
   
@@ -587,6 +693,80 @@ const ProfileBottomDrawer = ({
   }, [hasMoreReviews, loadingReviews, loadReviews]);
 
   // ─────────────────────────────────────────────
+  // Load trades (paged) — ✅ Initially show 1, then load 2 by 2
+  const INITIAL_TRADES_SIZE = 1; // Show 1 trade initially
+  const LOAD_MORE_TRADES_SIZE = 2; // Load 2 trades at a time when loading more
+  
+  const loadTrades = useCallback(async (reset = false) => {
+    if (!firestoreDB || !selectedUserId) return;
+    if (loadingTrades) return;
+
+    setLoadingTrades(true);
+    try {
+      // Determine the limit based on whether it's initial load or load more
+      const limitSize = reset ? INITIAL_TRADES_SIZE : LOAD_MORE_TRADES_SIZE;
+      
+      let q;
+      if (!reset && lastTradeDoc) {
+        q = query(
+          collection(firestoreDB, 'trades_new'),
+          where('userId', '==', selectedUserId),
+          orderBy('timestamp', 'desc'),
+          startAfter(lastTradeDoc),
+          limit(limitSize + 1), // Fetch one extra to check if more exist
+        );
+      } else {
+        q = query(
+          collection(firestoreDB, 'trades_new'),
+          where('userId', '==', selectedUserId),
+          orderBy('timestamp', 'desc'),
+          limit(limitSize + 1), // Fetch one extra to check if more exist
+        );
+      }
+
+      const snap = await getDocs(q);
+
+      // Check if we got more than page size
+      const hasMoreResults = snap.docs.length > limitSize;
+      
+      // Only take limitSize documents (discard the extra one)
+      const docsToUse = snap.docs.slice(0, limitSize);
+      
+      const batch = docsToUse.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }));
+
+      setTrades((prev) => (reset ? batch : [...prev, ...batch]));
+
+      const newLastDoc = docsToUse[docsToUse.length - 1] || null;
+      setLastTradeDoc(newLastDoc);
+      setHasMoreTrades(hasMoreResults);
+    } catch (err) {
+      console.error('Trades load error:', err);
+      if (reset) setTrades([]);
+      setHasMoreTrades(false);
+    } finally {
+      setLoadingTrades(false);
+    }
+  }, [firestoreDB, selectedUserId, lastTradeDoc, loadingTrades]);
+
+  // Initial trades load when opening details
+  useEffect(() => {
+    if (!isVisible || !selectedUserId || !loadDetails) return;
+    setLastTradeDoc(null);
+    setHasMoreTrades(false);
+    loadTrades(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isVisible, selectedUserId, loadDetails]);
+
+  // ✅ Memoize handleLoadMoreTrades
+  const handleLoadMoreTrades = useCallback(() => {
+    if (!hasMoreTrades || loadingTrades) return;
+    loadTrades(false);
+  }, [hasMoreTrades, loadingTrades, loadTrades]);
+
+  // ─────────────────────────────────────────────
   // Helpers for rendering - ✅ Memoized
 
   const renderStars = useCallback((value) => {
@@ -628,6 +808,249 @@ const ProfileBottomDrawer = ({
       </View>
     );
   }, [isDarkMode]);
+
+  // ✅ Render trade item
+  const renderTradeItem = useCallback((trade) => {
+    const { deal, tradeRatio } = getTradeDeal(trade.hasTotal, trade.wantsTotal);
+    const tradePercentage = Math.abs(((tradeRatio - 1) * 100).toFixed(0));
+    const isProfit = tradeRatio > 1;
+    const neutral = tradeRatio === 1;
+    const formattedTime = trade.timestamp ? dayjs(trade.timestamp.toDate()).fromNow() : "Unknown";
+
+    const groupedHasItems = groupTradeItems(trade.hasItems || []);
+    const groupedWantsItems = groupTradeItems(trade.wantsItems || []);
+
+    return (
+      <View
+        key={trade.id}
+        style={{
+          backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
+          borderRadius: 12,
+          padding: 10,
+          marginBottom: 10,
+          borderWidth: 1,
+          borderColor: isDarkMode ? '#1f2937' : '#e5e7eb',
+        }}
+      >
+        {/* Trade Header */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+              {trade.isFeatured && (
+                <View style={{
+                  backgroundColor: config.colors.hasBlockGreen,
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                  borderRadius: 4,
+                  marginRight: 6,
+                }}>
+                  <Text style={{ color: '#fff', fontSize: 9, fontWeight: '600' }}>FEATURED</Text>
+                </View>
+              )}
+              <Text style={{ fontSize: 10, color: isDarkMode ? '#9ca3af' : '#6b7280' }}>
+                {formattedTime}
+              </Text>
+            </View>
+            {(groupedHasItems.length > 0 && groupedWantsItems.length > 0) && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                <View style={{
+                  backgroundColor: deal.color,
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 6,
+                  marginRight: 8,
+                }}>
+                  <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>
+                    {t(deal.label) || deal.label}
+                  </Text>
+                </View>
+                <Text style={{
+                  fontSize: 11,
+                  color: !isProfit ? config.colors.hasBlockGreen : config.colors.wantBlockRed,
+                  fontWeight: '600'
+                }}>
+                  {tradePercentage}% {!neutral && (
+                    <Icon
+                      name={isProfit ? 'arrow-down-outline' : 'arrow-up-outline'}
+                      size={10}
+                      color={isProfit ? config.colors.wantBlockRed : config.colors.hasBlockGreen}
+                    />
+                  )}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Trade Items */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+          {/* Has Items */}
+          <View style={{ flex: 1, alignItems: 'center', marginRight: 4 }}>
+            <Text style={{ fontSize: 9, fontWeight: '600', color: isDarkMode ? '#9ca3af' : '#6b7280', marginBottom: 4 }}>
+              ME
+            </Text>
+            {groupedHasItems.length > 0 ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 3 }}>
+                {groupedHasItems.slice(0, 2).map((hasItem) => (
+                  <View key={`${hasItem.name}-${hasItem.type}`} style={{ alignItems: 'center', marginBottom: 2 }}>
+                    <Image
+                      source={{
+                        uri: hasItem.type === 'p' 
+                          ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatTradeName(hasItem.name)}_Icon.webp` 
+                          : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatTradeName(hasItem.name)}_Icon.webp`,
+                      }}
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: 4,
+                        backgroundColor: hasItem.type === 'p' ? '#FFCC00' : 'transparent',
+                      }}
+                      resizeMode="contain"
+                    />
+                    <Text style={{ fontSize: 7, color: isDarkMode ? '#d1d5db' : '#4b5563', marginTop: 1 }}>
+                      {hasItem.name}{hasItem.type === 'p' && " (P)"}
+                    </Text>
+                    {hasItem.count > 1 && (
+                      <View style={{
+                        position: 'absolute',
+                        top: -2,
+                        right: -2,
+                        backgroundColor: 'purple',
+                        borderRadius: 6,
+                        minWidth: 12,
+                        height: 12,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        paddingHorizontal: 1,
+                      }}>
+                        <Text style={{ color: '#fff', fontSize: 7, fontWeight: '600' }}>{hasItem.count}</Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+                {groupedHasItems.length > 2 && (
+                  <Text style={{ fontSize: 8, color: isDarkMode ? '#9ca3af' : '#6b7280' }}>
+                    +{groupedHasItems.length - 2}
+                  </Text>
+                )}
+              </View>
+            ) : (
+              <Text style={{ fontSize: 9, color: isDarkMode ? '#6b7280' : '#9ca3af', fontStyle: 'italic' }}>
+                No items
+              </Text>
+            )}
+            {groupedHasItems.length > 0 && trade.hasTotal && (
+              <Text style={{
+                fontSize: 8,
+                fontWeight: '600',
+                color: config.colors.hasBlockGreen,
+                marginTop: 3,
+                backgroundColor: config.colors.hasBlockGreen + '20',
+                paddingHorizontal: 4,
+                paddingVertical: 1,
+                borderRadius: 3,
+              }}>
+                {formatTradeValue(trade.hasTotal.value)}
+              </Text>
+            )}
+          </View>
+
+          {/* Transfer Icon */}
+          <View style={{ justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6 }}>
+            <Image 
+              source={require('../../../assets/transfer.png')} 
+              style={{ width: 16, height: 16, opacity: 0.6 }} 
+            />
+          </View>
+
+          {/* Wants Items */}
+          <View style={{ flex: 1, alignItems: 'center', marginLeft: 4 }}>
+            <Text style={{ fontSize: 9, fontWeight: '600', color: isDarkMode ? '#9ca3af' : '#6b7280', marginBottom: 4 }}>
+              YOU
+            </Text>
+            {groupedWantsItems.length > 0 ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 3 }}>
+                {groupedWantsItems.slice(0, 2).map((wantnItem) => (
+                  <View key={`${wantnItem.name}-${wantnItem.type}`} style={{ alignItems: 'center', marginBottom: 2 }}>
+                    <Image
+                      source={{
+                        uri: wantnItem.type === 'p' 
+                          ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatTradeName(wantnItem.name)}_Icon.webp` 
+                          : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatTradeName(wantnItem.name)}_Icon.webp`,
+                      }}
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: 4,
+                        backgroundColor: wantnItem.type === 'p' ? '#FFCC00' : 'transparent',
+                      }}
+                      resizeMode="contain"
+                    />
+                    <Text style={{ fontSize: 7, color: isDarkMode ? '#d1d5db' : '#4b5563', marginTop: 1 }}>
+                      {wantnItem.name}{wantnItem.type === 'p' && " (P)"}
+                    </Text>
+                    {wantnItem.count > 1 && (
+                      <View style={{
+                        position: 'absolute',
+                        top: -2,
+                        right: -2,
+                        backgroundColor: 'purple',
+                        borderRadius: 6,
+                        minWidth: 12,
+                        height: 12,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        paddingHorizontal: 1,
+                      }}>
+                        <Text style={{ color: '#fff', fontSize: 7, fontWeight: '600' }}>{wantnItem.count}</Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+                {groupedWantsItems.length > 2 && (
+                  <Text style={{ fontSize: 8, color: isDarkMode ? '#9ca3af' : '#6b7280' }}>
+                    +{groupedWantsItems.length - 2}
+                  </Text>
+                )}
+              </View>
+            ) : (
+              <Text style={{ fontSize: 9, color: isDarkMode ? '#6b7280' : '#9ca3af', fontStyle: 'italic' }}>
+                No items
+              </Text>
+            )}
+            {groupedWantsItems.length > 0 && trade.wantsTotal && (
+              <Text style={{
+                fontSize: 8,
+                fontWeight: '600',
+                color: config.colors.wantBlockRed,
+                marginTop: 3,
+                backgroundColor: config.colors.wantBlockRed + '20',
+                paddingHorizontal: 4,
+                paddingVertical: 1,
+                borderRadius: 3,
+              }}>
+                {formatTradeValue(trade.wantsTotal.value)}
+              </Text>
+            )}
+          </View>
+        </View>
+
+        {/* Description */}
+        {trade.description && (
+          <Text style={{
+            fontSize: 10,
+            color: isDarkMode ? '#d1d5db' : '#4b5563',
+            marginTop: 6,
+            paddingTop: 6,
+            borderTopWidth: 1,
+            borderTopColor: isDarkMode ? '#1f2937' : '#e5e7eb',
+          }}>
+            {trade.description}
+          </Text>
+        )}
+      </View>
+    );
+  }, [isDarkMode, t]);
 
   // ─────────────────────────────────────────────
   return (
@@ -700,7 +1123,7 @@ const ProfileBottomDrawer = ({
                           style={{ width: 10, height: 10 }}
                         />
                       )}{' '}
-                      {selectedUser?.flage ? selectedUser.flage : ''}
+                      {mergedUser?.flage || selectedUser?.flage || ''}
                       {(() => {
                         const hasRecentWin =
                           !!mergedUser?.hasRecentGameWin ||
@@ -1202,6 +1625,81 @@ const ProfileBottomDrawer = ({
                 </>
               )}
             </View>}
+
+            {/* 💼 Trades section */}
+            {loadDetails && (
+              <View
+                style={{
+                  borderRadius: 12,
+                  padding: 10,
+                  backgroundColor: isDarkMode ? '#020617' : '#f3f4f6',
+                  marginBottom: 16,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 13,
+                    fontWeight: '600',
+                    marginBottom: 6,
+                    color: isDarkMode ? '#e5e7eb' : '#111827',
+                  }}
+                >
+                  Recent Trades
+                </Text>
+
+                {loadingTrades && trades.length === 0 ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={config.colors.primary}
+                  />
+                ) : trades.length === 0 ? (
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      color: isDarkMode ? '#9ca3af' : '#6b7280',
+                    }}
+                  >
+                    No trades yet.
+                  </Text>
+                ) : (
+                  <>
+                    {trades.map((trade) => renderTradeItem(trade))}
+
+                    {hasMoreTrades && !loadingTrades && (
+                      <TouchableOpacity
+                        onPress={handleLoadMoreTrades}
+                        style={{
+                          marginTop: 8,
+                          alignSelf: 'center',
+                          paddingHorizontal: 12,
+                          paddingVertical: 6,
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          borderColor: isDarkMode ? '#4b5563' : '#d1d5db',
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            color: isDarkMode ? '#e5e7eb' : '#111827',
+                          }}
+                        >
+                          Load more trades
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {loadingTrades && hasMoreTrades && (
+                      <ActivityIndicator
+                        size="small"
+                        color={config.colors.primary}
+                        style={{ marginTop: 6, alignSelf: 'center' }}
+                      />
+                    )}
+                  </>
+                )}
+              </View>
+            )}
 
             {/* View details button */}
             {!loadDetails && (

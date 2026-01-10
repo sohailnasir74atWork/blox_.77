@@ -275,12 +275,62 @@ const DesignFeedScreen = ({ route }) => {
 
 
   const handleLike = async (post) => {
+    if (!user?.id) return;
+    
     const postRef = doc(firestoreDB, 'designPosts', post.id);
     const alreadyLiked = !!post.likes?.[user.id];
+    
+    // ✅ Save original likes for error rollback
+    const originalLikes = { ...(post.likes || {}) };
 
-    await updateDoc(postRef, {
-      [`likes.${user.id}`]: alreadyLiked ? deleteField() : true
-    });
+    // ✅ Optimistic update: Update local state immediately for instant UI feedback
+    const updateLocalState = (likes) => {
+      setPosts(prevPosts => 
+        prevPosts.map(p => {
+          if (p.id === post.id) {
+            return { ...p, likes };
+          }
+          return p;
+        })
+      );
+
+      // ✅ Also update myPosts if user is viewing their own posts
+      setMyPosts(prevMyPosts => 
+        prevMyPosts.map(p => {
+          if (p.id === post.id) {
+            return { ...p, likes };
+          }
+          return p;
+        })
+      );
+    };
+
+    // ✅ Update local state immediately (optimistic update)
+    const newLikes = { ...(post.likes || {}) };
+    if (alreadyLiked) {
+      delete newLikes[user.id];
+    } else {
+      newLikes[user.id] = true;
+    }
+    updateLocalState(newLikes);
+
+    try {
+      // ✅ Update Firestore (backend)
+      await updateDoc(postRef, {
+        [`likes.${user.id}`]: alreadyLiked ? deleteField() : true
+      });
+    } catch (error) {
+      console.error('Error updating like:', error);
+      
+      // ✅ Revert optimistic update on error
+      updateLocalState(originalLikes);
+
+      showMessage({
+        message: 'Error',
+        description: 'Failed to update like. Please try again.',
+        type: 'danger',
+      });
+    }
   };
 
   const handleUploadPost = async (desc, imageUrls, selectedTags, currentUserEmail) => {

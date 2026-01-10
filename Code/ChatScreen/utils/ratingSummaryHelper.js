@@ -2,9 +2,20 @@
  * ✅ OPTIMIZED: Helper function to update user_ratings_summary collection
  * This reduces Firebase costs by maintaining aggregated data instead of querying all reviews
  * 
- * Firestore Index Required:
- * Collection: user_ratings_summary
- * Fields: count (Descending)
+ * Firestore Indexes Required:
+ * 1. Simple Index:
+ *    Collection: user_ratings_summary
+ *    Fields: count (Descending)
+ * 
+ * 2. Composite Index (for optimized leaderboard query with rating filter):
+ *    Collection: user_ratings_summary
+ *    Fields: averageRating (Descending), count (Descending)
+ *    This allows querying with: 
+ *      - where(averageRating >= 3.5) 
+ *      - orderBy(averageRating desc) [REQUIRED: must match where field]
+ *      - orderBy(count desc) [secondary sort]
+ *    
+ *    ⚠️ Note: When using inequality (>=) in where(), FIRST orderBy() MUST be on same field
  */
 import { doc, getDoc, setDoc, collection, query, where, getDocs, serverTimestamp } from '@react-native-firebase/firestore';
 

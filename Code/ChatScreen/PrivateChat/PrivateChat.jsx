@@ -704,8 +704,6 @@ const messagesRef = useMemo(
               )}
                          
 
-                          {!localState.isPro && <BannerAdComponent/>}
-
               <PrivateMessageInput
                 onSend={sendMessage}
                 isBanned={isBanned}
@@ -737,6 +735,7 @@ const messagesRef = useMemo(
                    </ConditionalKeyboardWrapper>
         </View>
       </GestureHandlerRootView>
+      {!localState.isPro && <BannerAdComponent />}
       {showRatingModal && (
   <View
     style={{
@@ -831,7 +830,6 @@ const messagesRef = useMemo(
           bannedUsers={bannedUsers}
           fromPvtChat={true}
         />
-    
     </>
   );
 };

@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, FlatList, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, TextInput, Alert, Platform } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { View, FlatList, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, TextInput, Alert, Platform, Animated } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -21,6 +21,7 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import StyledUsernamePreview from '../SettingScreen/Store/StyledName';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
 import { isUserOnline } from '../ChatScreen/utils';
+import { useHaptic } from '../Helper/HepticFeedBack';
 import {
   collection,
   deleteDoc,
@@ -70,6 +71,10 @@ const TradeList = ({ route }) => {
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
   const [bannedUsers, setBannedUsers] = useState([]);
   const [isOnline, setIsOnline] = useState(false);
+  const [isAtTop, setIsAtTop] = useState(true);
+  const flatListRef = useRef(null);
+  const scrollButtonOpacity = useMemo(() => new Animated.Value(0), []);
+  const { triggerHapticFeedback } = useHaptic();
   // Check if user has featured listing purchase
   const purchasesArr = Array.isArray(user?.purchases)
   ? user.purchases
@@ -459,6 +464,7 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
     senderId: selectedTrade?.userId,
     sender: selectedTrade?.traderName,
     avatar: selectedTrade?.avatar,
+    flage: selectedTrade?.flage || null,
   }
   const handleChatNavigation2 = async () => {
     
@@ -769,7 +775,38 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
     setRemainingFeaturedTrades([]); // ✅ Reset featured trades
     await fetchInitialTrades();
     setRefreshing(false);
+    setIsAtTop(true); // ✅ Reset scroll position
   };
+
+  // ✅ Scroll to top handler
+  const handleScrollToTop = useCallback(() => {
+    if (!flatListRef?.current) return;
+    
+    triggerHapticFeedback('impactLight');
+    
+    try {
+      // Scroll to index 0 (top of list)
+      flatListRef.current.scrollToIndex({
+        index: 0,
+        animated: true,
+        viewPosition: 0,
+      });
+      setIsAtTop(true);
+    } catch (error) {
+      // Fallback: scroll to offset 0
+      flatListRef.current.scrollToOffset({ offset: 0, animated: true });
+      setIsAtTop(true);
+    }
+  }, [flatListRef, triggerHapticFeedback]);
+
+  // ✅ Animate scroll button visibility
+  useEffect(() => {
+    Animated.timing(scrollButtonOpacity, {
+      toValue: isAtTop ? 0 : 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [isAtTop, scrollButtonOpacity]);
 
   const handleLoginSuccess = () => {
     setIsSigninDrawerVisible(false);
@@ -815,6 +852,7 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
             senderId: item.userId,
             sender: item.traderName,
             avatar: item.avatar,
+            flage: item?.flage || null,
           },
           item,
         });
@@ -1093,6 +1131,7 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
         <FilterMenu selectedFilters={selectedFilters} setSelectedFilters={setSelectedFilters} analytics={analytics} platform={platform} />
       </View>
       <FlatList
+        ref={flatListRef}
         data={filteredTrades}
         renderItem={renderTrade}
         keyExtractor={(item, index) => {
@@ -1115,6 +1154,13 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
         windowSize={10} // ✅ FIX: Larger window size to keep more items in memory
         refreshing={refreshing} // Add Pull-to-Refresh
         onRefresh={handleRefresh} // Attach Refresh Handler
+        onScroll={({ nativeEvent }) => {
+          const { contentOffset } = nativeEvent;
+          // ✅ Check if user is at top (within 60px from top)
+          const atTop = contentOffset.y <= 60;
+          setIsAtTop(atTop);
+        }}
+        scrollEventThrottle={16}
         ListFooterComponent={
           loadingMore ? (
             <View style={{ paddingVertical: 20, alignItems: 'center' }}>
@@ -1132,6 +1178,37 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
           ) : null
         }
       />
+      {/* ✅ Scroll to Top Button */}
+      {!isAtTop && (
+        <Animated.View
+          style={[
+            styles.scrollToTopButton,
+            {
+              opacity: scrollButtonOpacity,
+              transform: [
+                {
+                  scale: scrollButtonOpacity.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.8, 1],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <TouchableOpacity
+            onPress={handleScrollToTop}
+            activeOpacity={0.8}
+            style={styles.scrollToTopTouchable}
+          >
+            <Icon
+              name="chevron-up-circle"
+              size={48}
+              color={config.colors.primary}
+            />
+          </TouchableOpacity>
+        </Animated.View>
+      )}
 
 
 
@@ -1150,22 +1227,6 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
         screen='Trade'
 
       />
-     
-      {(!localState.isPro && !proGranted) && <BannerAdComponent />}
-
-      {/* {!isProStatus && <View style={{ alignSelf: 'center' }}>
-        {isAdVisible && (
-          <BannerAd
-            unitId={bannerAdUnitId}
-            size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-            onAdLoaded={() => setIsAdVisible(true)}
-            onAdFailedToLoad={() => setIsAdVisible(false)}
-            requestOptions={{
-              requestNonPersonalizedAdsOnly: true,
-            }}
-          />
-        )}
-      </View>} */}
       <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} track='Trade'   oneWallOnly={single_offer_wall}      />
       <ProfileBottomDrawer
           isVisible={isDrawerVisible}
@@ -1175,6 +1236,7 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
           isOnline={isOnline}
           bannedUsers={bannedUsers}
         />
+      {(!localState.isPro && !proGranted) && <BannerAdComponent />}
     </View>
   );
 };
@@ -1428,7 +1490,25 @@ const getStyles = (isDarkMode) =>
     },
     boost:{
       justifyContent:'flex-start', paddingVertical:2, paddingHorizontal:5, borderRadius:3, alignItems:'center', margin:4
-    }
+    },
+    scrollToTopButton: {
+      position: 'absolute',
+      bottom: 60, // Position above the bottom ad banner
+      right: 8,
+      zIndex: 1000,
+      elevation: 8, // For Android shadow
+      shadowColor: '#000', // For iOS shadow
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 3.84,
+    },
+    scrollToTopTouchable: {
+      borderRadius: 28,
+      // backgroundColor: isDarkMode ? 'rgba(30, 30, 30, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+      // padding: 4,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
 
   });
 

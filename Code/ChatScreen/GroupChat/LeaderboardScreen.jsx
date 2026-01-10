@@ -10,9 +10,8 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../../GlobelStats';
-import { ref, get } from '@react-native-firebase/database';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { collection, getDocs, query, where, orderBy, limit, doc, getDoc, setDoc, serverTimestamp } from '@react-native-firebase/firestore';
+import { doc, getDoc } from '@react-native-firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import InterstitialAdManager from '../../Ads/IntAd';
 import { useLocalState } from '../../LocalGlobelStats';
@@ -21,9 +20,9 @@ import config from '../../Helper/Environment';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import ProfileBottomDrawer from './BottomDrawer';
 import { isUserOnline } from '../utils';
-import { backfillUserRatingsSummary, diagnoseReviewCounts } from '../utils/ratingSummaryHelper';
 
-const CACHE_DURATION_MS = 2 * 24 * 60 * 60 * 1000; // 2 days in milliseconds
+const CACHE_DURATION_MS = 2 * 24 * 60 * 60 * 1000; // 2 days in milliseconds (local app cache)
+// Note: Leaderboard data is pre-computed daily by Cloud Function with rating >= 3.7
 
 const LeaderboardScreen = ({ route }) => {
   const { theme, user, appdatabase, firestoreDB } = useGlobalState();
@@ -39,7 +38,6 @@ const LeaderboardScreen = ({ route }) => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [isOnline, setIsOnline] = useState(false);
   const [bannedUsers] = useState(Array.isArray(localState.bannedUsers) ? localState.bannedUsers : []);
-  const [backfillAttempted, setBackfillAttempted] = useState(false);
 
   // ✅ Memoize styles
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
@@ -47,156 +45,117 @@ const LeaderboardScreen = ({ route }) => {
   // ✅ Check if cached data is still valid (less than 2 days old)
   const isCacheValid = useCallback((cachedData) => {
     if (!cachedData || !cachedData.timestamp) return false;
+    
+    // ✅ Ensure timestamp is a number (handle cases where it might be stored as string)
+    const timestamp = typeof cachedData.timestamp === 'number' 
+      ? cachedData.timestamp 
+      : typeof cachedData.timestamp === 'string' 
+        ? parseInt(cachedData.timestamp, 10) 
+        : null;
+    
+    if (!timestamp || isNaN(timestamp)) return false;
+    
     const now = Date.now();
-    const cacheAge = now - cachedData.timestamp;
-    return cacheAge < CACHE_DURATION_MS;
+    const cacheAge = now - timestamp;
+    
+    // ✅ Cache is valid only if less than 2 days old
+    const isValid = cacheAge >= 0 && cacheAge < CACHE_DURATION_MS;
+    
+    // ✅ Debug: Log cache status if needed (commented out for production)
+    // console.log('📊 [Leaderboard] Cache check:', {
+    //   cacheAge: `${Math.floor(cacheAge / (1000 * 60 * 60))}h ${Math.floor((cacheAge % (1000 * 60 * 60)) / (1000 * 60))}m`,
+    //   isValid,
+    //   timestamp: new Date(timestamp).toISOString(),
+    //   now: new Date(now).toISOString(),
+    // });
+    
+    return isValid;
   }, []);
 
-  // ✅ OPTIMIZED: Fetch ONLY top 50 users by review count
-  // Uses pre-aggregated user_ratings_summary collection for efficiency
-  // Cost: Only 50 Firestore reads (not thousands of reviews)
+  // ✅ OPTIMIZED: Fetch pre-computed leaderboard from cached collection
+  // Uses Cloud Function that runs daily to pre-compute top 50 users
+  // Priority #1: NUMBER OF REVIEWS (most reviewed first)
+  // Filter: Rating >= 3.7 (applied in Cloud Function)
+  // 
+  // Strategy: Read from leaderboard_cache/top50 document (pre-computed daily)
+  // Cost: ONLY 1 Firestore read (most cost-effective!)
+  // 
+  // Benefits:
+  // - Pre-computed: No querying/filtering on app load
+  // - Fast: Single document read (very fast)
+  // - Accurate: Shows most reviewed users with >= 3.7 rating
   const fetchLeaderboard = useCallback(async () => {
-    if (!firestoreDB || !appdatabase || !user?.id) {
+    if (!firestoreDB || !user?.id) {
       return;
     }
 
     setLoading(true);
     try {
-      // ✅ OPTIMIZED: Fetch exactly 50 records sorted by review count
-      // Cost: Only 50 Firestore reads (not 100+)
-      // We'll do secondary sort (by rating) client-side on these 50 records
-      const summaryQuery = query(
-        collection(firestoreDB, 'user_ratings_summary'),
-        orderBy('count', 'desc'), // Primary sort: review count (highest first) - server-side
-        limit(50) // ✅ ONLY fetch 50 records = 50 reads (optimized!)
-      );
+      // ✅ OPTIMIZED: Read from pre-computed cached leaderboard
+      // Cloud Function runs daily to update this document
+      // This is a single document read - very fast and cheap!
+      const cacheDocRef = doc(firestoreDB, 'leaderboard_cache', 'top50');
+      const cacheDocSnap = await getDoc(cacheDocRef);
       
-      const summarySnapshot = await getDocs(summaryQuery);
-      
-      if (summarySnapshot.empty) {
-        // ✅ If summary collection is empty, try to check if there are any reviews at all
-        // Try to check if reviews exist (but don't fetch all - just check)
-        try {
-          const reviewsCheckQuery = query(
-            collection(firestoreDB, 'reviews'),
-            limit(1)
-          );
-          const reviewsCheck = await getDocs(reviewsCheckQuery);
-          if (!reviewsCheck.empty && !backfillAttempted) {
-            // ✅ Mark that we've attempted backfill to prevent infinite loops
-            setBackfillAttempted(true);
-            
-            // ✅ Automatically backfill the summary collection
-            try {
-              const result = await backfillUserRatingsSummary(firestoreDB);
-              
-              if (result.success && result.processed > 0) {
-                // ✅ Retry fetching after backfill
-                setTimeout(() => {
-                  fetchLeaderboard();
-                }, 500);
-                return; // Exit early, will retry
-              }
-            } catch (backfillError) {
-              console.error('❌ [Leaderboard] Error during backfill:', backfillError);
-            }
-          }
-        } catch (checkError) {
-          console.error('❌ [Leaderboard] Error checking reviews:', checkError);
-        }
-        
+      // ✅ Firestore: exists is a property, not a function
+      if (!cacheDocSnap.exists) {
+        console.log('⚠️ [Leaderboard] Cache not found - leaderboard may not be initialized yet');
         setLeaderboardData([]);
         setLoading(false);
         return;
       }
 
-      // ✅ Extract and sort users (client-side sorting on the 50 fetched records)
-      // 1. Primary: Review count (descending) - users with more reviews first
-      // 2. Secondary: Average rating (descending) - within same review count, higher rating first
-      // This creates groups: 4 reviews (sorted by rating), 3 reviews (sorted by rating), etc.
-      // 
-      // ✅ OPTIMIZED: Only working with 50 records (already fetched from Firestore)
-      // Client-side sort is fast and free (no additional Firestore reads)
-      const allUsers = summarySnapshot.docs
-        .map((doc) => {
-          const data = doc.data();
-          return {
-            userId: doc.id,
-            ratingCount: data.count || 0, // Number of reviews received
-            averageRating: data.averageRating || 0,
-            updatedAt: data.updatedAt?.toMillis?.() || data.updatedAt || Date.now(),
-          };
-        })
-        .filter(item => item.ratingCount > 0); // Only include users with at least 1 review
+      const cacheData = cacheDocSnap.data();
+      const cachedUsers = cacheData?.users || [];
       
-      // ✅ Client-side sort: First by review count (desc), then by average rating (desc)
-      // This groups users by review count, with top-rated users first within each group
-      // Cost: 0 Firestore reads (just JavaScript sorting)
-      const sortedUsers = allUsers.sort((a, b) => {
-        // Primary sort: Review count (descending)
-        if (b.ratingCount !== a.ratingCount) {
-          return b.ratingCount - a.ratingCount;
-        }
-        // Secondary sort: Average rating (descending) - within same review count
-        return b.averageRating - a.averageRating;
-      });
+      if (cachedUsers.length === 0) {
+        console.log('⚠️ [Leaderboard] Cache is empty - waiting for Cloud Function to update');
+        setLeaderboardData([]);
+        setLoading(false);
+        return;
+      }
       
-      // ✅ Use all sorted users (already limited to 50 from Firestore query)
-      const topRatings = sortedUsers.map((item, index) => ({
-        ...item,
-        rank: index + 1, // Assign rank after sorting
+      // ✅ Users are already sorted by review count (desc), then rating (desc)
+      // Users are already filtered for rating >= 3.7
+      // Users already have displayName and avatar included
+      // Just assign ranks (they should already have ranks, but we ensure consistency)
+      const leaderboardWithDetails = cachedUsers.map((user, index) => ({
+        userId: user.userId,
+        ratingCount: user.ratingCount || 0,
+        averageRating: user.averageRating || 0,
+        displayName: user.displayName || 'Anonymous',
+        avatar: user.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+        rank: index + 1, // Ensure rank is 1-based (though it should already be set)
+        updatedAt: user.updatedAt || Date.now(),
       }));
 
-      // ✅ Fetch user details (displayName, avatar) for ONLY these top 50 users in parallel
-      // This is the only additional data fetch needed - we already have the top 50 user IDs
-      const userDetailsPromises = topRatings.map(async (item) => {
-        try {
-          const [displayNameSnap, avatarSnap] = await Promise.all([
-            get(ref(appdatabase, `users/${item.userId}/displayName`)).catch(() => null),
-            get(ref(appdatabase, `users/${item.userId}/avatar`)).catch(() => null),
-          ]);
-
-          return {
-            ...item,
-            displayName: displayNameSnap?.exists() ? displayNameSnap.val() : 'Anonymous',
-            avatar: avatarSnap?.exists() ? avatarSnap.val() : 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
-            rank: topRatings.indexOf(item) + 1,
-          };
-        } catch (error) {
-          console.error(`Error fetching user ${item.userId}:`, error);
-          return {
-            ...item,
-            displayName: 'Anonymous',
-            avatar: 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
-            rank: topRatings.indexOf(item) + 1,
-          };
-        }
-      });
-
-      const leaderboardWithDetails = await Promise.all(userDetailsPromises);
-
-      // ✅ Save to cache
-      const cacheData = {
+      // ✅ Save to local cache (2-day caching)
+      // Cache includes the timestamp from Cloud Function's lastUpdated field
+      const cacheTimestamp = cacheData.lastUpdated?.toMillis?.() || cacheData.lastUpdated || Date.now();
+      const localCacheData = {
         data: leaderboardWithDetails,
-        timestamp: Date.now(),
-        lastFetched: new Date().toISOString(),
+        timestamp: cacheTimestamp, // Use Cloud Function's timestamp, not current time
+        lastFetched: cacheData.lastUpdated?.toDate?.()?.toISOString() || new Date().toISOString(),
+        cloudFunctionUpdated: cacheData.lastUpdated?.toDate?.()?.toISOString() || null,
       };
-      updateLocalState('leaderboardTop50', cacheData);
+      updateLocalState('leaderboardTop50', localCacheData);
 
       setLeaderboardData(leaderboardWithDetails);
     } catch (error) {
-      console.error('❌ [Leaderboard] Error fetching leaderboard:', error);
+      console.error('❌ [Leaderboard] Error fetching leaderboard from cache:', error);
       
-      // ✅ Check if it's a missing index error
-      if (error.code === 'failed-precondition') {
-        console.error('⚠️ [Leaderboard] Firestore index required for collection: user_ratings_summary, fields: count (Descending)');
+      // ✅ Check if cache document doesn't exist (Cloud Function may not have run yet)
+      if (error.code === 'not-found' || error.code === 'permission-denied') {
+        console.error('⚠️ [Leaderboard] Cache document not found or access denied');
+        console.error('   The Cloud Function "updateLeaderboardCache" should run daily to populate this cache');
+        console.error('   Check Firebase Console → Functions → Logs to verify the function is running');
       }
       
       setLeaderboardData([]);
     } finally {
       setLoading(false);
     }
-  }, [firestoreDB, appdatabase, user?.id, updateLocalState]);
+  }, [firestoreDB, user?.id, updateLocalState]);
 
   // ✅ Load leaderboard data (check cache first) - using useFocusEffect like InboxScreen
   useFocusEffect(
@@ -205,11 +164,11 @@ const LeaderboardScreen = ({ route }) => {
 
       // ✅ Check if cache is valid (less than 2 days old)
       if (cachedData && cachedData.data && cachedData.data.length > 0 && isCacheValid(cachedData)) {
-        // ✅ Use cached data
+        // ✅ Use cached data (still fresh, less than 2 days old)
         setLeaderboardData(cachedData.data);
         setLoading(false);
       } else {
-        // ✅ Cache expired or doesn't exist, fetch from Firebase
+        // ✅ Cache expired (older than 2 days) or doesn't exist, fetch fresh data from Firebase
         fetchLeaderboard();
       }
     }, [localState.leaderboardTop50, isCacheValid, fetchLeaderboard])
@@ -316,12 +275,13 @@ const LeaderboardScreen = ({ route }) => {
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={config.colors.primary} />
             <Text style={styles.loadingText}>Loading leaderboard...</Text>
-            <Text style={styles.loadingSubtext}>Sorting by review count and rating...</Text>
+            <Text style={styles.loadingSubtext}>Showing most reviewed users with 3.7+ rating...</Text>
           </View>
         ) : leaderboardData.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Icon name="trophy-outline" size={48} color={config.colors.primary} />
-            <Text style={styles.emptyText}>No ratings yet</Text>
+            <Text style={styles.emptyText}>No users found with 3.7+ rating</Text>
+            <Text style={styles.emptySubtext}>Leaderboard is updated daily</Text>
           </View>
         ) : (
           <FlatList
@@ -387,6 +347,12 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     color: isDarkMode ? '#999' : '#666',
+    fontFamily: 'Lato-Regular',
+  },
+  emptySubtext: {
+    marginTop: 6,
+    fontSize: 12,
+    color: isDarkMode ? '#666' : '#999',
     fontFamily: 'Lato-Regular',
   },
   listContent: {

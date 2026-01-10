@@ -30,6 +30,7 @@ import { isUserOnline } from '../utils';
 import { useLocalState } from '../../LocalGlobelStats';
 import PetModal from '../PrivateChat/PetsModel';
 import config from '../../Helper/Environment';
+import BannerAdComponent from '../../Ads/bannerAds';
 
 const INITIAL_PAGE_SIZE = 15; // ✅ Initial load: 15 messages
 const PAGE_SIZE = 10; // ✅ Pagination: load 10 messages per batch
@@ -674,6 +675,7 @@ const GroupChatScreen = () => {
         senderId: user.id,
         sender: user.displayName || 'Anonymous',
         avatar: user.avatar || null,
+        flage: user?.flage || null, // ✅ Include flag/flag emoji
         timestamp: Date.now(),
         isPro: !!localState?.isPro,
         robloxUsernameVerified: user?.robloxUsernameVerified || false,
@@ -1076,6 +1078,7 @@ const GroupChatScreen = () => {
   }
 
   return (
+    <>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ConditionalKeyboardWrapper style={{ flex: 1 }} privatechatscreen={true}>
         <View style={[styles.container, { position: 'relative' }]}>
@@ -1284,6 +1287,8 @@ const GroupChatScreen = () => {
         setSelectedFruits={setSelectedFruits}
       />
     </GestureHandlerRootView>
+    {!localState.isPro && <BannerAdComponent />}
+    </>
   );
 };
 
