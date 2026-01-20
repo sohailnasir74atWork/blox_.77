@@ -53,16 +53,73 @@ const SPAM_KEYWORDS = [
 
 // ✅ Inappropriate content patterns (beyond profanity)
 const INAPPROPRIATE_PATTERNS = [
+  // Core porn/NSFW signals (incl. light obfuscation)
+  /p\W*o\W*r\W*n/i,
   /p\*rn/i,
-  /porn/i,
-  /xxx/i,
-  /nsfw/i,
-  /adult content/i,
-  /explicit/i,
-  /sexual/i,
-  /nude/i,
-  /naked/i,
+  /\bxxx\b/i,
+  /\bnsfw\b/i,
+  /\badult\s*content\b/i,
+  /\bexplicit\b/i,
+  /\bsex(?:ual|y|ually)?\b/i,
+  /\berotic(?:a)?\b/i,
+  /\bhard\s*core\b/i,
+  /\bsoft\s*core\b/i,
+
+  // Nudity
+  /\bnude(?:s)?\b/i,
+  /\bnaked\b/i,
+  /\bnudity\b/i,
+
+  // Breasts / chest
+  /\bboob(?:s|ies)?\b/i,
+  /\bbreast(?:s)?\b/i,
+  /\btit(?:s|ties|ty)?\b/i,
+  /\bcleavage\b/i,
+  /\bnipple(?:s)?\b/i,
+  /\bareolae?\b/i,
+
+  // Penis terms
+  /\bpenis\b/i,
+  /\bdick\b/i,
+  /\bcock\b/i,
+  /\bschlong\b/i,
+  /\bwang\b/i,
+
+  // Vulva/vagina terms (note: some are strong slurs; include only if you truly want them blocked)
+  /\bvagina\b/i,
+  /\bclit\b/i,
+  /\blabia\b/i,
+  /\bpuss(?:y|ies)\b/i,
+  /\bcunt\b/i,
+
+  // Butt / anus
+  /\bbutt\b/i,
+  /\bbooty\b/i,
+  /\bass(?:hole)?\b/i,
+  /\banus\b/i,
+
+  // Sex acts
+  /\banal\b/i,
+  /\boral\b/i,
+  /\bblow\s*job\b/i,
+  /\bhand\s*job\b/i,
+  /\brim\s*job\b/i,
+  /\bfellatio\b/i,
+  /\bcunnilingus\b/i,
+
+  // Masturbation / fluids
+  /\bmasturbat(?:e|es|ed|ing|ion)\b/i,
+  /\bjerk\s*off\b/i,
+  /\borgasm(?:s|ic)?\b/i,
+  /\bcum(?:shot|ming)?\b/i,
+  /\bejaculat(?:e|es|ed|ing|ion)\b/i,
+
+  // Kink / fetish
+  /\bbdsm\b/i,
+  /\bkink(?:y)?\b/i,
+  /\bfetish(?:es)?\b/i,
 ];
+
 
 // ✅ URL patterns (already covered, but included for completeness)
 const URL_PATTERNS = [
