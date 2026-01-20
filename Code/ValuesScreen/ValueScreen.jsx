@@ -14,14 +14,12 @@ import { debounce } from '../Helper/debounce';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import config from '../Helper/Environment';
 import { useGlobalState } from '../GlobelStats';
-import CodesDrawer from './Code';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { useLocalState } from '../LocalGlobelStats';
 import { useTranslation } from 'react-i18next';
 import { ref, update } from '@react-native-firebase/database';
 import { mixpanel } from '../AppHelper/MixPenel';
 import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
-import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
 import { handleadoptme, handleMM2 } from '../SettingScreen/settinghelper';
 import GlobalGroupInviteToast from './GlobalGroupInviteToast';
@@ -36,15 +34,10 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
   const [filteredData, setFilteredData] = useState([]);
   const [valuesData, setValuesData] = useState([]);
-  const [codesData, setCodesData] = useState([]);
   const { t } = useTranslation();
   const filters = ['All', 'COMMON', 'UNCOMMON', 'RARE', 'LEGENDARY', 'MYTHICAL', 'GAME PASS', 'LIMITED'];
   const displayedFilter = selectedFilter === 'PREMIUM' ? 'GAME PASS' : selectedFilter;
   const formatName = (name) => name.replace(/^\+/, '').replace(/\s+/g, '-');
-  const [isDrawerVisible, setIsDrawerVisible] = useState(false);
-  const [hasAdBeenShown, setHasAdBeenShown] = useState(false);
-  const [isAdLoaded, setIsAdLoaded] = useState(false);
-  const [isShowingAd, setIsShowingAd] = useState(false);
   const { triggerHapticFeedback } = useHaptic();
   const [selectedFruit, setSelectedFruit] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -86,23 +79,6 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
     }
   };
 
-  const toggleDrawer = () => {
-
-    triggerHapticFeedback('impactLight');
-    const callbackfunction = () => {
-      setHasAdBeenShown(true); // Mark the ad as shown
-      setIsDrawerVisible(!isDrawerVisible);
-    };
-
-    if (!hasAdBeenShown && (!localState.isPro && !proGranted)) {
-      InterstitialAdManager.showAd(callbackfunction);
-    }
-    else {
-      setIsDrawerVisible(!isDrawerVisible);
-
-    }
-    mixpanel.track("Code Drawer Open");
-  }
 
   // const updateFruitData = () => {
   //   if (!selectedFruit || !selectedFruit.Name) {
@@ -231,25 +207,6 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
   }, [localState.data]);
 
 
-  useEffect(() => {
-    if (localState.codes) {
-      try {
-        // ✅ Handle both JSON string & object cases
-        const parsedCodes = typeof localState.codes === 'string' ? JSON.parse(localState.codes) : localState.codes;
-
-        // ✅ Ensure parsedCodes is a valid object
-        if (typeof parsedCodes !== 'object' || parsedCodes === null) {
-          throw new Error('Parsed codes is not a valid object');
-        }
-
-        const extractedCodes = Object.values(parsedCodes);
-        setCodesData(extractedCodes.length > 0 ? extractedCodes : []);
-      } catch (error) {
-        console.error("❌ Error parsing codes:", error, "📝 Raw Codes Data:", localState.codes);
-        setCodesData([]); // Fallback to empty array
-      }
-    }
-  }, [localState.codes]);
 
   const handleFilterChange = (filter) => {
     triggerHapticFeedback('impactLight');
@@ -594,12 +551,6 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
                 ))}
               </MenuOptions>
             </Menu>}
-            {!fromChat && !fromSetting && <TouchableOpacity
-              style={[styles.filterDropdown, { backgroundColor: config.colors.primary }]}
-              onPress={toggleDrawer}
-            >
-              <Text style={[styles.filterText, { color: 'white' }]}> {t("value.codes")}</Text>
-            </TouchableOpacity>}
             {selectedFruits?.length > 0 && <TouchableOpacity
               style={[styles.filterButton, { backgroundColor: 'purple' }]}
               onPress={onRequestClose}
@@ -639,7 +590,6 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
           }
 
         </View>
-        <CodesDrawer isVisible={isDrawerVisible} toggleModal={toggleDrawer} codes={codesData} />
       </GestureHandlerRootView>
       {/* {(!localState.isPro && !proGranted) && <BannerAdComponent/>} */}
 

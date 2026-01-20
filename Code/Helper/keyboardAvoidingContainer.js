@@ -43,7 +43,7 @@ const ConditionalKeyboardWrapper = ({ children, style, chatscreen = false, priva
         <KeyboardAvoidingView
           behavior="padding"
           style={style}
-          keyboardVerticalOffset={100}
+          keyboardVerticalOffset={120}
         >
           {children}
         </KeyboardAvoidingView>

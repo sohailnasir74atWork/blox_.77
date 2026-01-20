@@ -31,6 +31,7 @@ import { useLocalState } from '../../LocalGlobelStats';
 import PetModal from '../PrivateChat/PetsModel';
 import config from '../../Helper/Environment';
 import BannerAdComponent from '../../Ads/bannerAds';
+import InterstitialAdManager from '../../Ads/IntAd';
 
 const INITIAL_PAGE_SIZE = 15; // ✅ Initial load: 15 messages
 const PAGE_SIZE = 10; // ✅ Pagination: load 10 messages per batch
@@ -67,6 +68,8 @@ const GroupChatScreen = () => {
   const lastLoadedKeyRef = useRef(null); // Oldest message ID (for pagination)
   const newestMessageIdRef = useRef(null); // Newest message ID (for real-time listener)
   const previousGroupIdRef = useRef(null);
+  const hasSentMessageRef = useRef(false); // Track if user sent a message (for exit ad)
+  const chatEnterTimeRef = useRef(null); // Track when user entered chat (for exit ad)
   const { t } = useTranslation();
 
   const isDarkMode = theme === 'dark';
@@ -510,6 +513,10 @@ const GroupChatScreen = () => {
       setActiveChat(user.id, groupId);
       setActiveGroupChat(user.id, groupId);
 
+      // Reset refs when entering chat (for exit ad logic)
+      hasSentMessageRef.current = false;
+      chatEnterTimeRef.current = Date.now();
+
       // Reset unreadCount when entering chat
       const groupMetaRef = ref(appdatabase, `group_meta_data/${user.id}/${groupId}`);
       update(groupMetaRef, { unreadCount: 0 }).catch((error) => {
@@ -519,8 +526,14 @@ const GroupChatScreen = () => {
       return () => {
         clearActiveChat(user.id);
         clearActiveGroupChat(user.id, groupId);
+        
+        // Show ad when leaving if: 10+ seconds spent AND message sent AND not Pro
+        const timeSpent = Date.now() - (chatEnterTimeRef.current || Date.now());
+        if (timeSpent >= 10000 && hasSentMessageRef.current && !localState?.isPro) {
+          InterstitialAdManager.showAd();
+        }
       };
-    }, [user?.id, groupId, appdatabase])
+    }, [user?.id, groupId, appdatabase, localState?.isPro])
   );
 
   // Handle refresh
@@ -722,6 +735,7 @@ const GroupChatScreen = () => {
         } else {
           // Clear reply after successful send
           setReplyTo(null);
+          hasSentMessageRef.current = true; // Track that user sent a message (for exit ad)
         }
       } catch (error) {
         console.error('Error sending message:', error);

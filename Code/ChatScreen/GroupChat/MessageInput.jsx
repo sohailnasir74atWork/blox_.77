@@ -105,7 +105,7 @@ const MessageInput = ({
       const newCount = messageCount + 1;
       setMessageCount(newCount);
   
-      if (!localState?.isPro && newCount % 5 === 0) {
+      if (!localState?.isPro && newCount % 10 === 0) {
         InterstitialAdManager.showAd(adCallback);
       } else {
         setIsSending(false);

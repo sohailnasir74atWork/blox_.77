@@ -556,7 +556,7 @@ const getStyles = (isDarkMode, user) =>
       marginTop: !config.isNoman ? 20 : 0
     },
     iconNew: {
-      marginLeft: 10,
+      marginLeft: 20,
     },
     peopleIcon: {
       marginRight: 15,
@@ -576,7 +576,7 @@ const getStyles = (isDarkMode, user) =>
       alignItems: 'center',
       backgroundColor: user?.isSelectedReminderEnabled ? config.colors.hasBlockGreen : config.colors.primary,
       borderRadius: 20,
-      marginLeft: 10
+      marginLeft: 20
     },
     listContentSelected: {
       flexDirection: 'row',

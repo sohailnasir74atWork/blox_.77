@@ -20,7 +20,7 @@ import { useHaptic } from '../../Helper/HepticFeedBack';
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
 import { useBackgroundMusic } from '../../Helper/useBackgroundMusic';
 import { mixpanel } from '../../AppHelper/MixPenel';
-import GameInterstitialAdManager from '../../Ads/GameIntAd';
+import InterstitialAdManager from '../../Ads/IntAd';
 import OnlineUsersList from '../../ChatScreen/GroupChat/OnlineUsersList';
 import InviteNotification from './components/InviteNotification';
 import PlayerCards from './components/PlayerCards';
@@ -141,7 +141,7 @@ const PetGuessingGameScreen = () => {
             // ✅ Delay ad by 2 seconds so result screen is visible first
             setTimeout(() => {
               try {
-                GameInterstitialAdManager.showAd();
+                InterstitialAdManager.showAd();
               } catch (err) {
                 console.warn('[AdManager] Failed to show game end ad:', err);
               }

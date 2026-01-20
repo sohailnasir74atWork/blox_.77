@@ -185,11 +185,7 @@ const startPrivateChat = useCallback(() => {
     }
     mixpanel.track("Inbox Chat");
   };
-  if (!localState?.isPro) {
-    InterstitialAdManager.showAd(callbackfunction);
-  } else {
-    callbackfunction();
-  }
+  callbackfunction();
 }, [selectedUser, selectedTheme,  closeProfileDrawer]);
 
 
@@ -750,7 +746,7 @@ const handleSendMessage = async (replyToArg, trimmedInputArg, fruits, emojiUrl) 
                 
               />
             )}
-                  {(!localState.isPro && !proGranted) && <BannerAdComponent />}
+                 
 
             {user.id ? (
               <MessageInput
@@ -778,6 +774,7 @@ const handleSendMessage = async (replyToArg, trimmedInputArg, fruits, emojiUrl) 
                 <Text style={styles.loginText}>{t('misc.loginToStartChat')}</Text>
               </TouchableOpacity>
             )}
+             {(!localState.isPro && !proGranted) && <BannerAdComponent />}
              <PetModal
                fromChat={true}
       visible={petModalVisible}

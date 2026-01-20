@@ -28,7 +28,7 @@ import { sendGameInvite, isUserInActiveGame } from '../../ValuesScreen/PetGuessi
 import { getUserData, cacheUserData } from '../../Helper/UserDataCache';
 const INITIAL_LOAD = 5; // Fetch first 10 online users
 const LOAD_MORE = 5; // Load 5 more on scroll
-const MAX_GROUP_MEMBERS = 15;
+const MAX_GROUP_MEMBERS = 50;
 
 const OnlineUsersList = ({ 
   visible, 
@@ -479,11 +479,7 @@ const OnlineUsersList = ({
       mixpanel.track("Online Users Chat");
     };
 
-    if (!localState?.isPro) {
-      InterstitialAdManager.showAd(callbackFunction);
-    } else {
-      callbackFunction();
-    }
+    callbackFunction();
   }, [mode, onClose, navigation, localState?.isPro, handleToggleUserSelection, handleGameInvite]);
 
   // ✅ Get selected users for group creation

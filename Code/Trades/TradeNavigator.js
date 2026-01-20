@@ -92,7 +92,7 @@ export const TradeStack = ({ selectedTheme }) => {
             title: t("tabs.trade"),
             headerRight: () => (
               <View style={{ flexDirection: 'row', }}>
-                <TouchableOpacity onPress={() => navigation.navigate('Trade Notifier')} style={{  alignItems:'center', justifyContent:'center', paddingHorizontal:8}}>
+                <TouchableOpacity onPress={() => navigation.navigate('Trade Notifier')} style={{  alignItems:'center', justifyContent:'center', paddingHorizontal:16}}>
                 <Icon
                     name="notifications"
                     size={20}

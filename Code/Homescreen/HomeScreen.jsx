@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, FlatList, TextInput, Image, Keyboard, Pressable, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, FlatList, TextInput, Image, Keyboard, Pressable, Platform, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import ViewShot from 'react-native-view-shot';
 import { useGlobalState } from '../GlobelStats';
@@ -22,7 +22,7 @@ import { addDoc, collection, serverTimestamp, doc, getDoc } from '@react-native-
 import SubscriptionScreen from '../SettingScreen/OfferWall';
 
 const HomeScreen = ({ selectedTheme }) => {
-  const { theme, user, proGranted, proTagBought, firestoreDB, single_offer_wall, currentUserEmail, appdatabase, strikeInfo, isAdmin } = useGlobalState();
+  const { theme, user, proGranted, proTagBought, firestoreDB, single_offer_wall, currentUserEmail, appdatabase, strikeInfo, isAdmin, reload } = useGlobalState();
   const tradesCollection = collection(firestoreDB, 'trades_new');
   const initialItems = [null, null, null, null];
   const [hasItems, setHasItems] = useState(initialItems);
@@ -46,6 +46,8 @@ const HomeScreen = ({ selectedTheme }) => {
   const [type, setType] = useState(null);
   const [showofferwall, setShowofferwall] = useState(false);
   const [demandData, setDemandData] = useState({}); // { itemKey: { buy: count, sale: count } }
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdatedTime, setLastUpdatedTime] = useState(new Date());
   const { t } = useTranslation();
 
   const isDarkMode = theme === 'dark';
@@ -72,6 +74,47 @@ const HomeScreen = ({ selectedTheme }) => {
   const handleLoginSuccess = () => {
     setIsSigninDrawerVisible(false);
   };
+
+  // ✅ Format last updated time as relative string
+  const getLastUpdatedText = useCallback(() => {
+    const now = new Date();
+    const diffMs = now - lastUpdatedTime;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins === 1) return '1 min ago';
+    if (diffMins < 60) return `${diffMins} min ago`;
+    if (diffHours === 1) return '1 hour ago';
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    return lastUpdatedTime.toLocaleDateString();
+  }, [lastUpdatedTime]);
+
+  // ✅ Hard refresh values - reloads data from CDN/Firebase
+  const handleRefresh = useCallback(async () => {
+    if (refreshing || !isMountedRef.current) return;
+    
+    triggerHapticFeedback('impactLight');
+    setRefreshing(true);
+
+    try {
+      await reload(); // Re-fetch values data from CDN/Firebase
+      // ✅ Check if component is still mounted before updating state
+      if (!isMountedRef.current) return;
+      // ✅ Update last refreshed time
+      setLastUpdatedTime(new Date());
+      // ✅ Show success message when values are reloaded
+      showSuccessMessage('Success', 'Values have been reloaded');
+    } catch (error) {
+      console.error('Error refreshing values:', error);
+      if (!isMountedRef.current) return;
+      showErrorMessage('Error', 'Failed to reload values. Please try again.');
+    } finally {
+      if (isMountedRef.current) {
+        setRefreshing(false);
+      }
+    }
+  }, [reload, refreshing, triggerHapticFeedback]);
 
   const resetState = () => {
     triggerHapticFeedback('impactLight');
@@ -191,6 +234,40 @@ const HomeScreen = ({ selectedTheme }) => {
         (user?.purchases &&
           Object.values(user.purchases).find(p => p?.id === 10 && Array.isArray(p.icons))?.icons) ?? [];
 
+      // ✅ Create indexed arrays for server-side search - OPTIMIZED: Store only full names + words (not prefixes)
+      // Prefixes are generated on search side to reduce storage costs
+      const createSearchTokens = (itemName) => {
+        const name = itemName.toLowerCase().trim();
+        const tokens = [name]; // Full name for exact match
+        
+        // Split into words and add each word as a token (for partial word matching)
+        const words = name.split(/\s+/).filter(w => w.length > 0);
+        tokens.push(...words);
+        
+        // ✅ OPTIMIZED: Don't store prefixes here - they're generated on search side
+        // This reduces storage costs significantly (from ~10-20 tokens/item to ~2-3 tokens/item)
+        
+        return [...new Set(tokens)]; // Remove duplicates
+      };
+      
+      const hasItemNames = hasItems
+        .filter(item => item && item.Name)
+        .flatMap(item => createSearchTokens(item.Name));
+      
+      const wantsItemNames = wantsItems
+        .filter(item => item && item.Name)
+        .flatMap(item => createSearchTokens(item.Name));
+      
+      // ✅ Calculate trade status and convert to single letter: 'w' (win), 'l' (lose), 'f' (fair)
+      const getTradeStatus = (hasTotal, wantsTotal) => {
+        if (hasTotal.value <= 0 && wantsTotal.value <= 0) return 'fair';
+        if (hasTotal.value > wantsTotal.value) return 'lose';
+        if (hasTotal.value < wantsTotal.value) return 'win';
+        return 'fair';
+      };
+      const tradeStatus = getTradeStatus(hasTotal, wantsTotal);
+      const statusLetter = tradeStatus === 'win' ? 'w' : tradeStatus === 'lose' ? 'l' : 'f';
+
       const newTrade = {
         userId: user?.id || "Anonymous",
         traderName: user?.displayName || "Anonymous",
@@ -200,10 +277,13 @@ const HomeScreen = ({ selectedTheme }) => {
         isFeatured: false,
         hasItems: hasItems.filter(item => item && item.Name).map(item => ({ name: item.Name, type: item.Type, value: item.Value })),
         wantsItems: wantsItems.filter(item => item && item.Name).map(item => ({ name: item.Name, type: item.Type, value: item.Value })),
+        hasItemNames, // ✅ Indexed array for server-side search (lowercase)
+        wantsItemNames, // ✅ Indexed array for server-side search (lowercase)
         hasTotal: { price: hasTotal?.price || 0, value: hasTotal?.value || 0 },
         wantsTotal: { price: wantsTotal?.price || 0, value: wantsTotal?.value || 0 },
         description: description || "",
         timestamp: timestamp,
+        status: statusLetter, // ✅ Trade status: 'w' (win), 'l' (lose), 'f' (fair)
         rating: userRating ?? null,
         ratingCount: ratingCount || 0,
         style: styleObj || {},
@@ -654,6 +734,8 @@ const HomeScreen = ({ selectedTheme }) => {
                   color={isProfit ? config.colors.hasBlockGreen : config.colors.wantBlockRed}
                   style={styles.icon}
                 />}
+                {/* ✅ Refresh Button */}
+               
               </View>
 
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -770,6 +852,30 @@ const HomeScreen = ({ selectedTheme }) => {
                   })}
                 </View>
               </View>
+            
+{/* Last Updated Section */}
+              <TouchableOpacity 
+                style={styles.lastUpdatedContainer}
+                onPress={handleRefresh}
+                disabled={refreshing}
+                activeOpacity={0.7}
+              >
+                <View style={styles.lastUpdatedContent}>
+                  {refreshing ? (
+                    <ActivityIndicator size="small" color={config.colors.primary} style={{ marginRight: 6 }} />
+                  ) : (
+                    <Icon name="time-outline" size={14} color={isDarkMode ? '#aaa' : '#888'} style={{ marginRight: 6 }} />
+                  )}
+                  <Text style={[styles.lastUpdatedText, { color: isDarkMode ? '#aaa' : '#666' }]}>
+                    {refreshing ? 'Updating...' : `Updated ${getLastUpdatedText()}`}
+                  </Text>
+                  {!refreshing && (
+                    <Icon name="refresh-outline" size={14} color={config.colors.primary} style={{ marginLeft: 6 }} />
+                  )}
+                </View>
+              </TouchableOpacity>
+                
+
 
               <View style={styles.divider}>
                 <Image
@@ -1081,6 +1187,21 @@ const getStyles = (isDarkMode) =>
       borderRadius: 12,
       padding: 5,
     },
+    lastUpdatedContainer: {
+      alignSelf: 'center',
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      marginVertical: 4,
+    },
+    lastUpdatedContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    lastUpdatedText: {
+      fontSize: 12,
+      fontFamily: 'Lato-Regular',
+    },
     drawerContainer: {
       borderTopLeftRadius: 10,
       borderTopRightRadius: 10,
@@ -1267,6 +1388,18 @@ const getStyles = (isDarkMode) =>
       fontSize: 8, // Match fruit name font size
       fontFamily: 'Lato-Bold',
       zIndex: 10,
+    },
+    refreshButtonContainer: {
+      // position: 'absolute',
+      // left: 0,
+      // bottom: 0,
+    },
+    refreshButton: {
+      // width: 30,
+      // height: 30,
+      // borderRadius: 15,
+      // alignItems: 'center',
+      // justifyContent: 'center',
     },
   });
 

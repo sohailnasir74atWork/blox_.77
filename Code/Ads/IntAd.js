@@ -1,105 +1,205 @@
-// InterstitialAdManager.js
+// InterstitialAdManager.js - Optimized with A/B Testing & Max Show Rate
 import {
   InterstitialAd,
   AdEventType,
 } from 'react-native-google-mobile-ads';
-
+import { Platform } from 'react-native';
 import getAdUnitId from './ads';
+import config from '../Helper/Environment';
 
+// ✅ Two ad unit IDs for A/B testing
 const interstitialAdUnitId = getAdUnitId('interstitial');
-
+const gameInterstitialAdUnitId = Platform.OS === 'ios' 
+  ? config.gameInterstitialIOS 
+  : config.gameInterstitialAndroid;
 
 class InterstitialAdManager {
-  static interstitialAd = InterstitialAd.createForAdRequest(interstitialAdUnitId);
-  static isAdLoaded = false;
+  // ✅ Two ad instances for A/B testing
+  static adA = InterstitialAd.createForAdRequest(interstitialAdUnitId);
+  static adB = InterstitialAd.createForAdRequest(gameInterstitialAdUnitId);
+  
+  static isAdALoaded = false;
+  static isAdBLoaded = false;
   static hasInitialized = false;
   static unsubscribeEvents = [];
 
-  static retryCount = 0;
+  static retryCountA = 0;
+  static retryCountB = 0;
   static maxRetries = 5;
+  
+  // ✅ A/B test tracking (50/50 split)
+  static abTestCounter = 0;
   
   static init() {
     if (this.hasInitialized) return;
-  
-    // console.log('[AdManager] Initializing interstitial...');
-  
-    const onAdLoaded = this.interstitialAd.addAdEventListener(
+
+    // ============ AD A (Primary Interstitial) ============
+    const onAdALoaded = this.adA.addAdEventListener(
       AdEventType.LOADED,
       () => {
-        this.isAdLoaded = true;
-        this.retryCount = 0; // Reset on success
-        // console.log('[AdManager] Interstitial ad loaded ✅');
+        this.isAdALoaded = true;
+        this.retryCountA = 0;
       }
     );
-  
-    const onAdError = this.interstitialAd.addAdEventListener(
+
+    const onAdAError = this.adA.addAdEventListener(
       AdEventType.ERROR,
       (error) => {
-        this.isAdLoaded = false;
-        // console.error('[AdManager] Ad failed to load ❌', error);
-  
-        if (this.retryCount < this.maxRetries) {
-          const delay = Math.pow(2, this.retryCount) * 10000; // 1s, 2s, 4s, etc.
-          // console.log(`[AdManager] Retrying to load ad in ${delay}ms...`);
-          setTimeout(() => {
-            this.retryCount += 1;
-            this.interstitialAd.load();
-          }, delay);
-        } else {
-          console.warn('[AdManager] Max retry limit reached. Will not retry further.');
-        }
+        this.isAdALoaded = false;
+        this.retryLoadAdA();
       }
     );
-  
-    this.unsubscribeEvents = [onAdLoaded, onAdError];
-    this.interstitialAd.load();
+
+    // ============ AD B (Game/Chat Interstitial) ============
+    const onAdBLoaded = this.adB.addAdEventListener(
+      AdEventType.LOADED,
+      () => {
+        this.isAdBLoaded = true;
+        this.retryCountB = 0;
+      }
+    );
+
+    const onAdBError = this.adB.addAdEventListener(
+      AdEventType.ERROR,
+      (error) => {
+        this.isAdBLoaded = false;
+        this.retryLoadAdB();
+      }
+    );
+
+    this.unsubscribeEvents = [onAdALoaded, onAdAError, onAdBLoaded, onAdBError];
+    
+    // ✅ Load both ads immediately
+    this.adA.load();
+    this.adB.load();
+    
     this.hasInitialized = true;
   }
-  
-  
 
-  static showAd(onAdClosedCallback, onAdUnavailableCallback) {
-    if (!this.hasInitialized) {
-      console.warn('[AdManager] AdManager not initialized. Calling init...');
-      this.init();
-    }
-  
-    if (this.isAdLoaded) {
-      // console.log('[AdManager] Showing interstitial ad 🚀');
-  
-      const unsubscribeClose = this.interstitialAd.addAdEventListener(
-        AdEventType.CLOSED,
-        () => {
-          // console.log('[AdManager] Interstitial ad closed 👋');
-          this.isAdLoaded = false;
-          this.interstitialAd.load(); // Preload next
-  
-          if (typeof onAdClosedCallback === 'function') {
-            onAdClosedCallback();
-            // console.log('function is executing');
-          }
-          unsubscribeClose(); // Clean up
-        }
-      );
-  
-      this.interstitialAd.show();
+  // ✅ Retry with shorter delays (1s, 2s, 4s, 8s, 16s) then continue with 30s interval
+  static retryLoadAdA() {
+    if (this.retryCountA < this.maxRetries) {
+      const delay = Math.pow(2, this.retryCountA) * 1000; // 1s, 2s, 4s, 8s, 16s
+      setTimeout(() => {
+        this.retryCountA += 1;
+        this.adA.load();
+      }, delay);
     } else {
-      // console.log('[AdManager] Ad not ready yet, skipping 💤');
-      if (typeof onAdUnavailableCallback === 'function') {
-        onAdUnavailableCallback(); // Optional callback for fallback
-      } else if (typeof onAdClosedCallback === 'function') {
-        onAdClosedCallback(); // Fallback: proceed without ad
-      }
+      // ✅ Continue retrying every 30 seconds (don't give up)
+      setTimeout(() => {
+        this.retryCountA = 0; // Reset and try again
+        this.adA.load();
+      }, 30000);
     }
   }
-  
-  
+
+  static retryLoadAdB() {
+    if (this.retryCountB < this.maxRetries) {
+      const delay = Math.pow(2, this.retryCountB) * 1000;
+      setTimeout(() => {
+        this.retryCountB += 1;
+        this.adB.load();
+      }, delay);
+    } else {
+      setTimeout(() => {
+        this.retryCountB = 0;
+        this.adB.load();
+      }, 30000);
+    }
+  }
+
+  // ✅ Show ad with A/B testing and fallback
+  static showAd(onAdClosedCallback, onAdUnavailableCallback) {
+    if (!this.hasInitialized) {
+      this.init();
+    }
+
+    // ✅ Determine which ad to try first (A/B test: 50/50 split)
+    this.abTestCounter += 1;
+    const tryAdAFirst = this.abTestCounter % 2 === 0;
+
+    // ✅ Try to show an ad with fallback to the other
+    if (tryAdAFirst) {
+      if (this.isAdALoaded) {
+        this.showAdA(onAdClosedCallback);
+        return;
+      } else if (this.isAdBLoaded) {
+        this.showAdB(onAdClosedCallback);
+        return;
+      }
+    } else {
+      if (this.isAdBLoaded) {
+        this.showAdB(onAdClosedCallback);
+        return;
+      } else if (this.isAdALoaded) {
+        this.showAdA(onAdClosedCallback);
+        return;
+      }
+    }
+
+    // ✅ Neither ad is ready - call unavailable callback
+    if (typeof onAdUnavailableCallback === 'function') {
+      onAdUnavailableCallback();
+    } else if (typeof onAdClosedCallback === 'function') {
+      onAdClosedCallback();
+    }
+
+    // ✅ Trigger immediate reload for both ads
+    if (!this.isAdALoaded) this.adA.load();
+    if (!this.isAdBLoaded) this.adB.load();
+  }
+
+  static showAdA(onAdClosedCallback) {
+    const unsubscribeClose = this.adA.addAdEventListener(
+      AdEventType.CLOSED,
+      () => {
+        this.isAdALoaded = false;
+        this.adA.load(); // Preload next immediately
+        
+        if (typeof onAdClosedCallback === 'function') {
+          onAdClosedCallback();
+        }
+        unsubscribeClose();
+      }
+    );
+
+    this.adA.show();
+  }
+
+  static showAdB(onAdClosedCallback) {
+    const unsubscribeClose = this.adB.addAdEventListener(
+      AdEventType.CLOSED,
+      () => {
+        this.isAdBLoaded = false;
+        this.adB.load(); // Preload next immediately
+        
+        if (typeof onAdClosedCallback === 'function') {
+          onAdClosedCallback();
+        }
+        unsubscribeClose();
+      }
+    );
+
+    this.adB.show();
+  }
+
+  // ✅ Check if any ad is available
+  static isReady() {
+    return this.isAdALoaded || this.isAdBLoaded;
+  }
+
+  // ✅ Force reload both ads (useful after network recovery)
+  static forceReload() {
+    this.adA.load();
+    this.adB.load();
+  }
 
   static cleanup() {
-    // console.log('[AdManager] Cleaning up ad event listeners');
     this.unsubscribeEvents.forEach((unsubscribe) => unsubscribe());
     this.unsubscribeEvents = [];
     this.hasInitialized = false;
+    this.isAdALoaded = false;
+    this.isAdBLoaded = false;
   }
 }
 

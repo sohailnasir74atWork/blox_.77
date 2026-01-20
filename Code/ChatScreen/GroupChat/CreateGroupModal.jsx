@@ -64,7 +64,7 @@ const base64ToBytes = (base64) => {
   return Uint8Array.from(output);
 };
 
-const MAX_GROUP_MEMBERS = 15;
+const MAX_GROUP_MEMBERS = 50;
 
 const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = null, editGroupName = null, editGroupDescription = null, editGroupAvatar = null, isAdmin = false, onGroupUpdated = null }) => {
   const { theme, user, firestoreDB, appdatabase } = useGlobalState();

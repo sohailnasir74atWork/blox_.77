@@ -19,6 +19,7 @@ import ValueScreen from "./ValueScreen";
 import config from "../Helper/Environment";
 import HDWallpaperScreen from "./HDwallpaper";
 import NewsScreen from "./News";
+import CodesScreen from "./CodesScreen";
 import { useGlobalState } from "../GlobelStats";
 import NewsFeedbackReport from "./AdminReport";
 
@@ -37,6 +38,12 @@ const CustomTopTabs = ({ selectedTheme }) => {
         key: "values",
         icon: "pricetags-outline",
         iconActive: "pricetags",
+      },
+      {
+        label: "Codes",
+        key: "codes",
+        icon: "code-slash-outline",
+        iconActive: "code-slash",
       },
       {
         label: "HD Wallpaper",
@@ -211,6 +218,17 @@ const CustomTopTabs = ({ selectedTheme }) => {
           </View>
         )}
 
+        {mountedTabs.codes && (
+          <View
+            style={[
+              styles.screen,
+              activeKey !== "codes" && styles.hiddenScreen,
+            ]}
+          >
+            <CodesScreen />
+          </View>
+        )}
+
         {mountedTabs.wallpaper && (
           <View
             style={[
@@ -254,6 +272,7 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
     padding: 8,
+    paddingTop: 40,
   },
   container: {
     paddingBottom: 8,

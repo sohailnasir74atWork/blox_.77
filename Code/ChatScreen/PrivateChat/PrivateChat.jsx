@@ -22,6 +22,7 @@ import  { get, increment, ref, update } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
 import BannerAdComponent from '../../Ads/bannerAds';
+import InterstitialAdManager from '../../Ads/IntAd';
 import config from '../../Helper/Environment';
 import PetModal from './PetsModel';
 import {
@@ -65,10 +66,9 @@ const [petModalVisible, setPetModalVisible] = useState(false);
 const [selectedFruits, setSelectedFruits] = useState([]); 
 const [reviewText, setReviewText] = useState('');
 const [startRating,setStartRating] = useState(false);
-const [isOnline, setIsOnline] = useState(false); 
-
-
-
+const [isOnline, setIsOnline] = useState(false);
+const hasSentMessageRef = useRef(false); // ✅ Use ref to avoid closure issue in cleanup
+const chatEnterTimeRef = useRef(null); // ✅ Track when user entered chat
 
   useEffect(() => {
     if (item) {
@@ -526,6 +526,7 @@ const messagesRef = useMemo(
       });
 
       setReplyTo(null);
+      hasSentMessageRef.current = true; // ✅ Track that user sent a message (for exit ad)
     } catch (error) {
       console.error("Error sending message:", error);
       Alert.alert("Error", "Could not send your message. Please try again.");
@@ -542,10 +543,19 @@ const messagesRef = useMemo(
 
       setActiveChat(user.id, chatKey);
 
+      // ✅ Reset refs when entering chat
+      hasSentMessageRef.current = false;
+      chatEnterTimeRef.current = Date.now();
+
       return () => {
         clearActiveChat(user.id);
+        // ✅ Show ad when leaving if: 10+ seconds spent AND message sent AND not Pro
+        const timeSpent = Date.now() - (chatEnterTimeRef.current || Date.now());
+        if (timeSpent >= 10000 && hasSentMessageRef.current && !localState?.isPro) {
+          InterstitialAdManager.showAd();
+        }
       };
-    }, [user?.id, selectedUserId, chatKey])
+    }, [user?.id, selectedUserId, chatKey, localState?.isPro])
   );
  
   const handleRefresh = useCallback(async () => {
@@ -606,13 +616,9 @@ const messagesRef = useMemo(
 
   return (
     <>
-
       <GestureHandlerRootView>
-
-
         <View style={styles.container}>
-
-          <ConditionalKeyboardWrapper style={{ flex: 1 }} privatechatscreen={true}>
+          <ConditionalKeyboardWrapper style={{ flex: 1 }} chatscreen={true}>
           <TouchableWithoutFeedback
     onPress={Keyboard.dismiss}
     accessible={false}
@@ -664,16 +670,10 @@ const messagesRef = useMemo(
                     </View>
                   ))}
                   </View>
-                 
                 </View>
-               
-
-
                 </View>
-
               )}
-
-{messages.length === 0 ? (
+              {messages.length === 0 ? (
   loading ? (
     <ActivityIndicator
       size="large"
@@ -702,8 +702,6 @@ const messagesRef = useMemo(
                   chatKey={chatKey}
                 />
               )}
-                         
-
               <PrivateMessageInput
                 onSend={sendMessage}
                 isBanned={isBanned}
@@ -718,21 +716,16 @@ const messagesRef = useMemo(
                 selectedFruits={selectedFruits}
                 setSelectedFruits={setSelectedFruits}
               />
-               <PetModal
-               fromChat={true}
-      visible={petModalVisible}
-      onClose={() => setPetModalVisible(false)}
-        selectedFruits={selectedFruits}
-        setSelectedFruits={setSelectedFruits}
-
-
-
-      
-    />
-                </View> 
-
-    </TouchableWithoutFeedback>
-                   </ConditionalKeyboardWrapper>
+              <PetModal
+                fromChat={true}
+                visible={petModalVisible}
+                onClose={() => setPetModalVisible(false)}
+                selectedFruits={selectedFruits}
+                setSelectedFruits={setSelectedFruits}
+              />
+            </View>
+          </TouchableWithoutFeedback>
+          </ConditionalKeyboardWrapper>
         </View>
       </GestureHandlerRootView>
       {!localState.isPro && <BannerAdComponent />}

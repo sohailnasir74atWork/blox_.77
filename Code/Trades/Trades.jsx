@@ -6,7 +6,6 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import { useGlobalState } from '../GlobelStats';
 import config from '../Helper/Environment';
 import { useNavigation } from '@react-navigation/native';
-import { FilterMenu } from './tradeHelpers';
 import ReportTradePopup from './ReportTradePopUp';
 import SignInDrawer from '../Firebase/SigninDrawer';
 import { useLocalState } from '../LocalGlobelStats';
@@ -56,10 +55,17 @@ const iconMap = {
 
 const TradeList = ({ route }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [isAdVisible, setIsAdVisible] = useState(true);
+  const [searchInHas, setSearchInHas] = useState(true); // ✅ Search in "ME" side (hasItems)
+  const [searchInWants, setSearchInWants] = useState(true); // ✅ Search in "YOU" side (wantsItems)
+  const [isSearching, setIsSearching] = useState(false); // ✅ Loading state for search
+  const [isSearchMode, setIsSearchMode] = useState(false); // ✅ Track if we're in search mode
+  const [searchLastDoc, setSearchLastDoc] = useState(null); // ✅ Pagination cursor for search
+  const [searchHasMore, setSearchHasMore] = useState(true); // ✅ More results available for search
+  const SEARCH_PAGE_SIZE = 5; // ✅ Fetch 5 items at a time for search
   const { selectedTheme } = route.params
   const { user, analytics, single_offer_wall, proGranted } = useGlobalState()
   const [trades, setTrades] = useState([]);
+  const [filteredTrades, setFilteredTrades] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -111,72 +117,50 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
 
 
 
-const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
+  const [selectedFilters, setSelectedFilters] = useState([]); // ✅ Default: no filters (show all)
   useEffect(() => {
     setIsProStatus(localState.isPro || proGranted); // ✅ Force update state and trigger re-render
   }, [localState.isPro, proGranted]);
 
-  // ✅ OPTIMIZED: Memoize filtered trades to avoid recalculating on every render
-  const filteredTrades = useMemo(() => {
-    const lowerCaseQuery = searchQuery.trim().toLowerCase();
+  // ✅ Client-side filtering for non-search scenarios (filters, banned users)
+  useEffect(() => {
+    const bannedUsersList = Array.isArray(bannedUsers) ? bannedUsers : [];
 
-    // If no filters and no search, return all trades
-    if (selectedFilters.length === 0 && !lowerCaseQuery) {
-      return trades;
-    }
-
-    return trades.filter((trade) => {
-      // If no filters selected, show all trades
-      if (selectedFilters.length === 0) return true;
-
-      // ✅ Separate filter types
-      const dealFilters = selectedFilters.filter(f => ['fairDeal', 'riskyDeal', 'bestDeal', 'decentDeal', 'weakDeal', 'greatDeal'].includes(f));
-      const hasMyTradesFilter = selectedFilters.includes("myTrades");
-      const hasSearchFilters = lowerCaseQuery && (selectedFilters.includes("has") || selectedFilters.includes("wants"));
-
-      // ✅ Check deal filter match
-      let matchesDeal = true;
-      if (dealFilters.length > 0) {
-        const { deal } = getTradeDeal(trade.hasTotal, trade.wantsTotal);
-        const tradeLabel = deal?.label || "trade.unknown_deal";
-        const dealMap = {
-          fairDeal: "trade.fair_deal",
-          riskyDeal: "trade.risky_deal",
-          bestDeal: "trade.best_deal",
-          decentDeal: "trade.decent_deal",
-          weakDeal: "trade.weak_deal",
-          greatDeal: "trade.great_deal"
-        };
-        const dealValues = dealFilters.map(f => dealMap[f]);
-        matchesDeal = dealValues.includes(tradeLabel);
-      }
-
-      // ✅ Check myTrades filter match
-      let matchesMyTrades = true;
-      if (hasMyTradesFilter) {
-        matchesMyTrades = trade.userId === user?.id;
-      }
-
-      // ✅ Check search filter match
-      let matchesSearch = true;
-      if (hasSearchFilters) {
-        matchesSearch = false;
-        if (selectedFilters.includes("has")) {
-          matchesSearch = matchesSearch || trade.hasItems?.some((item) =>
-            item.name.toLowerCase().includes(lowerCaseQuery)
-          );
+    setFilteredTrades(
+      trades.filter((trade) => {
+        // ✅ Filter out trades from blocked users
+        if (bannedUsersList.includes(trade.userId)) {
+          return false;
         }
-        if (selectedFilters.includes("wants")) {
-          matchesSearch = matchesSearch || trade.wantsItems?.some((item) =>
-            item.name.toLowerCase().includes(lowerCaseQuery)
-          );
-        }
-      }
 
-      // ✅ All selected filters must match (AND logic)
-      return matchesDeal && matchesMyTrades && matchesSearch;
-    });
-  }, [searchQuery, trades, selectedFilters, user?.id]);
+        // ✅ If no filters selected, show all trades
+        if (selectedFilters.length === 0) {
+          return true;
+        }
+
+        // ✅ Separate filter types
+        const statusFilters = selectedFilters.filter(f => ['win', 'lose', 'fair'].includes(f));
+        const hasMyTradesFilter = selectedFilters.includes("myTrades");
+
+        // ✅ Check status filter match
+        let matchesStatus = true;
+        if (statusFilters.length > 0) {
+          const statusMap = { win: 'w', lose: 'l', fair: 'f' };
+          const statusValues = statusFilters.map(f => statusMap[f]);
+          matchesStatus = trade.status && statusValues.includes(trade.status);
+        }
+
+        // ✅ Check myTrades filter match
+        let matchesMyTrades = true;
+        if (hasMyTradesFilter) {
+          matchesMyTrades = trade.userId === user?.id;
+        }
+
+        // ✅ All selected filters must match (AND logic)
+        return matchesStatus && matchesMyTrades;
+      })
+    );
+  }, [trades, selectedFilters, user?.id, bannedUsers]);
 
 
   useEffect(() => {
@@ -372,18 +356,36 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
 
     setLoadingMore(true);
     try {
-      // ✅ OPTIMIZED: Use same query structure as initial load for consistency
-      // This ensures pagination works correctly with the composite index
-      const normalTradesQuerySnap = await getDocs(
-        query(
+      // ✅ Get status filters and map to status values
+      const statusFilters = selectedFilters.filter(f => ['win', 'lose', 'fair'].includes(f));
+      const statusValues = statusFilters.length > 0 
+        ? statusFilters.map(f => ({ win: 'w', lose: 'l', fair: 'f' }[f]))
+        : null;
+
+      // ✅ Build query for more normal trades
+      let normalQuery = query(
+        collection(firestoreDB, 'trades_new'),
+        where('isFeatured', '!=', true), // ✅ Match initial query structure
+        orderBy('isFeatured'), // ✅ Required: first orderBy must match inequality field
+        orderBy('timestamp', 'desc'), // ✅ Then order by timestamp
+        startAfter(lastDoc),
+        limit(PAGE_SIZE)
+      );
+
+      // ✅ Add status filter if status filters are selected
+      if (statusValues && statusValues.length > 0) {
+        normalQuery = query(
           collection(firestoreDB, 'trades_new'),
-          where('isFeatured', '!=', true), // ✅ Match initial query structure
-          orderBy('isFeatured'), // ✅ Required: first orderBy must match inequality field
-          orderBy('timestamp', 'desc'), // ✅ Then order by timestamp
+          where('isFeatured', '!=', true),
+          where('status', 'in', statusValues),
+          orderBy('isFeatured'),
+          orderBy('timestamp', 'desc'),
           startAfter(lastDoc),
           limit(PAGE_SIZE)
-        )
-      );
+        );
+      }
+
+      const normalTradesQuerySnap = await getDocs(normalQuery);
 
       const newNormalTrades = normalTradesQuerySnap.docs.map((docSnap) => ({
         id: docSnap.id,
@@ -432,11 +434,15 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
       }
     } catch (error) {
       console.error('Error fetching more trades:', error);
+      // ✅ If error is about missing index, log helpful message
+      if (error.code === 'failed-precondition') {
+        console.warn('⚠️ Firestore index required. Please create composite index for: status + timestamp');
+      }
       // ✅ Don't set hasMore to false on error - allow retry
     } finally {
       setLoadingMore(false);
     }
-  }, [lastDoc, hasMore, remainingFeaturedTrades, firestoreDB, loadingMore, trades.length]);
+  }, [lastDoc, hasMore, remainingFeaturedTrades, firestoreDB, loadingMore, trades.length, selectedFilters]);
 
 
 
@@ -481,8 +487,7 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
     try {
 
 
-      if (!localState.isPro) { InterstitialAdManager.showAd(callbackfunction); }
-      else { callbackfunction() }
+      callbackfunction();
 
 
     } catch (error) {
@@ -496,50 +501,221 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
 
 
   const handleEndReached = () => {
-    // ✅ OPTIMIZED: Prevent calls when already loading or no more data
-    if (!hasMore) {
+    if (loading || isSearching) return; // ✅ Prevents unnecessary calls
+    // ✅ Handle search pagination
+    if (isSearchMode && searchHasMore) {
+      if (!searchLastDoc) return;
+      handleSearchTrades(true); // Load more search results
       return;
     }
-    if (loading) {
-      return;
-    }
-    if (loadingMore) {
-      return;
-    }
-    if (!lastDoc) {
-      return;
-    }
-    
-    // ✅ Allow pagination even for logged-out users (they can see trades)
+    // ✅ Normal pagination
+    if (!hasMore || !lastDoc || loadingMore) return;
     fetchMoreTrades();
   };
+
+  // ✅ Firestore search - uses indexed fields (hasItemNames/wantsItemNames) for new trades
+  const handleSearchTrades = useCallback(async (isLoadMore = false) => {
+    const searchTerm = searchQuery.trim();
+    if (!searchTerm) {
+      setIsSearchMode(false);
+      setSearchLastDoc(null);
+      setSearchHasMore(true);
+      fetchInitialTrades();
+      return;
+    }
+
+    if (!searchInHas && !searchInWants) {
+      Alert.alert('Search Error', 'Please select at least one search option (ME side or YOU side)');
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const searchTermLower = searchTerm.toLowerCase().trim();
+      
+      // ✅ Get status filters
+      const statusFilters = selectedFilters.filter(f => ['win', 'lose', 'fair'].includes(f));
+      const statusValues = statusFilters.length > 0 
+        ? statusFilters.map(f => ({ win: 'w', lose: 'l', fair: 'f' }[f]))
+        : null;
+
+      const allResults = new Map();
+      let lastDocSnapshot = isLoadMore ? searchLastDoc : null;
+
+      // ✅ Search in ME side (hasItemNames) - SERVER-SIDE filtering
+      // Requires composite index: hasItemNames (array-contains) + timestamp (desc)
+      if (searchInHas) {
+        try {
+          const hasQuery = lastDocSnapshot
+            ? query(
+                collection(firestoreDB, 'trades_new'),
+                where('hasItemNames', 'array-contains', searchTermLower),
+                orderBy('timestamp', 'desc'),
+                startAfter(lastDocSnapshot),
+                limit(SEARCH_PAGE_SIZE)
+              )
+            : query(
+                collection(firestoreDB, 'trades_new'),
+                where('hasItemNames', 'array-contains', searchTermLower),
+                orderBy('timestamp', 'desc'),
+                limit(SEARCH_PAGE_SIZE)
+              );
+
+          const hasSnapshot = await getDocs(hasQuery);
+          hasSnapshot.docs?.forEach((docSnap) => {
+            if (!allResults.has(docSnap.id)) {
+              allResults.set(docSnap.id, { id: docSnap.id, ...docSnap.data(), _doc: docSnap });
+            }
+          });
+        } catch (error) {
+          console.error('❌ hasItemNames search error:', error.message);
+          // If index missing, show link to create it
+          if (error.message?.includes('index')) {
+            console.log('📌 Create index at:', error.message.match(/https:\/\/[^\s]+/)?.[0]);
+          }
+        }
+      }
+
+      // ✅ Search in YOU side (wantsItemNames) - SERVER-SIDE filtering
+      // Requires composite index: wantsItemNames (array-contains) + timestamp (desc)
+      if (searchInWants) {
+        try {
+          const wantsQuery = lastDocSnapshot
+            ? query(
+                collection(firestoreDB, 'trades_new'),
+                where('wantsItemNames', 'array-contains', searchTermLower),
+                orderBy('timestamp', 'desc'),
+                startAfter(lastDocSnapshot),
+                limit(SEARCH_PAGE_SIZE)
+              )
+            : query(
+                collection(firestoreDB, 'trades_new'),
+                where('wantsItemNames', 'array-contains', searchTermLower),
+                orderBy('timestamp', 'desc'),
+                limit(SEARCH_PAGE_SIZE)
+              );
+
+          const wantsSnapshot = await getDocs(wantsQuery);
+          wantsSnapshot.docs?.forEach((docSnap) => {
+            if (!allResults.has(docSnap.id)) {
+              allResults.set(docSnap.id, { id: docSnap.id, ...docSnap.data(), _doc: docSnap });
+            }
+          });
+        } catch (error) {
+          console.error('❌ wantsItemNames search error:', error.message);
+          if (error.message?.includes('index')) {
+            console.log('📌 Create index at:', error.message.match(/https:\/\/[^\s]+/)?.[0]);
+          }
+        }
+      }
+
+      // ✅ Convert to array and sort by timestamp
+      let searchedTrades = Array.from(allResults.values())
+        .sort((a, b) => {
+          const aTime = a.timestamp?.toMillis() || 0;
+          const bTime = b.timestamp?.toMillis() || 0;
+          return bTime - aTime;
+        });
+
+      // ✅ Apply status filter if needed
+      if (statusValues && statusValues.length > 0) {
+        searchedTrades = searchedTrades.filter(t => statusValues.includes(t.status));
+      }
+
+      // ✅ Get last doc for pagination
+      if (searchedTrades.length > 0) {
+        const lastTrade = searchedTrades[searchedTrades.length - 1];
+        lastDocSnapshot = lastTrade._doc || null;
+      }
+
+      // ✅ Remove _doc from trades before setting state
+      searchedTrades = searchedTrades.map(({ _doc, ...trade }) => trade);
+
+      // ✅ Update state
+      if (isLoadMore) {
+        setTrades((prev) => {
+          const combined = [...prev, ...searchedTrades];
+          const unique = Array.from(new Map(combined.map(t => [t.id, t])).values());
+          return unique.sort((a, b) => {
+            const aTime = a.timestamp?.toMillis() || 0;
+            const bTime = b.timestamp?.toMillis() || 0;
+            return bTime - aTime;
+          });
+        });
+      } else {
+        setTrades(searchedTrades);
+        setIsSearchMode(true);
+      }
+
+      // ✅ Update pagination state
+      setSearchLastDoc(lastDocSnapshot);
+      setSearchHasMore(searchedTrades.length >= SEARCH_PAGE_SIZE);
+      
+    } catch (error) {
+      console.error('❌ Error searching trades:', error);
+      Alert.alert('Search Error', 'Failed to search trades. Please try again.');
+    } finally {
+      setIsSearching(false);
+    }
+  }, [searchQuery, searchInHas, searchInWants, selectedFilters, firestoreDB, searchLastDoc]);
 
   const fetchInitialTrades = useCallback(async () => {
     setLoading(true);
     try {
+      // ✅ Get status filters (win, lose, fair) and map to status values (w, l, f)
+      const statusFilters = selectedFilters.filter(f => ['win', 'lose', 'fair'].includes(f));
+      const statusValues = statusFilters.length > 0 
+        ? statusFilters.map(f => ({ win: 'w', lose: 'l', fair: 'f' }[f]))
+        : null;
+
       // ✅ OPTIMIZED: Fetch featured and normal trades in parallel (faster loading)
       const now = Timestamp.now();
+      
+      // ✅ Build query for normal trades
+      let normalQuery = query(
+        collection(firestoreDB, 'trades_new'),
+        where('isFeatured', '!=', true),
+        orderBy('isFeatured'), // ✅ Required: first orderBy must match inequality field
+        orderBy('timestamp', 'desc'), // ✅ Then order by timestamp
+        limit(PAGE_SIZE)
+      );
+
+      // ✅ Add status filter if status filters are selected
+      if (statusValues && statusValues.length > 0) {
+        normalQuery = query(
+          collection(firestoreDB, 'trades_new'),
+          where('isFeatured', '!=', true),
+          where('status', 'in', statusValues),
+          orderBy('isFeatured'),
+          orderBy('timestamp', 'desc'),
+          limit(PAGE_SIZE)
+        );
+      }
+
+      // ✅ Build query for featured trades
+      let featuredQuery = query(
+        collection(firestoreDB, 'trades_new'),
+        where('isFeatured', '==', true),
+        where('featuredUntil', '>', now),
+        orderBy('featuredUntil', 'desc'),
+        limit(10) // ✅ Limit featured trades to reduce reads
+      );
+
+      // ✅ Add status filter to featured trades if status filters are selected
+      if (statusValues && statusValues.length > 0) {
+        featuredQuery = query(
+          collection(firestoreDB, 'trades_new'),
+          where('isFeatured', '==', true),
+          where('featuredUntil', '>', now),
+          where('status', 'in', statusValues),
+          orderBy('featuredUntil', 'desc'),
+          limit(10)
+        );
+      }
+
       const [featuredQuerySnapshot, normalTradesQuerySnap] = await Promise.all([
-        // Featured trades query
-        getDocs(
-          query(
-            collection(firestoreDB, 'trades_new'),
-            where('isFeatured', '==', true),
-            where('featuredUntil', '>', now),
-            orderBy('featuredUntil', 'desc'),
-            limit(10) // ✅ Limit featured trades to reduce reads
-          )
-        ),
-        // Normal trades query (parallel)
-        getDocs(
-          query(
-            collection(firestoreDB, 'trades_new'),
-            where('isFeatured', '!=', true),
-            orderBy('isFeatured'), // ✅ Required: first orderBy must match inequality field
-            orderBy('timestamp', 'desc'), // ✅ Then order by timestamp
-            limit(PAGE_SIZE)
-          )
-        ),
+        getDocs(featuredQuery),
+        getDocs(normalQuery),
       ]);
 
       let featuredTrades = [];
@@ -589,7 +765,7 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
     } finally {
       setLoading(false);
     }
-  }, [firestoreDB]);
+  }, [firestoreDB, selectedFilters]);
 
 
   // const captureAndSave = async () => {
@@ -770,6 +946,13 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
 
   const handleRefresh = async () => {
     setRefreshing(true);
+    // ✅ Reset search when refreshing
+    if (searchQuery.trim()) {
+      setSearchQuery('');
+      setIsSearchMode(false);
+      setSearchLastDoc(null);
+      setSearchHasMore(true);
+    }
     setHasMore(true); // ✅ Reset hasMore
     setLastDoc(null); // ✅ Reset lastDoc
     setRemainingFeaturedTrades([]); // ✅ Reset featured trades
@@ -862,8 +1045,7 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
         // const isOnline = await isUserOnline(item.userId)
 
 
-        if (!localState.isPro && !proGranted) { InterstitialAdManager.showAd(callbackfunction); }
-        else { callbackfunction() }
+        callbackfunction();
 
 
       } catch (error) {
@@ -1119,20 +1301,110 @@ const [selectedFilters, setSelectedFilters] = useState(['has', 'wants']);
 
   return (
     <View style={styles.container}>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      {/* ✅ Modern Search Container */}
+      <View style={[styles.searchContainer, { backgroundColor: isDarkMode ? '#1e1e1e' : '#fff' }]}>
+        <View style={styles.searchInputContainer}>
+          <TextInput
+            style={[styles.searchInput, { color: isDarkMode ? '#fff' : '#000' }]}
+            placeholder={t("trade.search_placeholder") || "Search items..."}
+            placeholderTextColor={isDarkMode ? '#888' : '#666'}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onSubmitEditing={() => {
+              setSearchLastDoc(null);
+              setSearchHasMore(true);
+              handleSearchTrades(false);
+            }}
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity 
+              onPress={() => {
+                setSearchQuery('');
+                setIsSearchMode(false);
+                setSearchLastDoc(null);
+                setSearchHasMore(true);
+                fetchInitialTrades();
+              }} 
+              style={styles.clearSearchButton}
+            >
+              <Icon name="close-circle" size={20} color={isDarkMode ? '#999' : '#666'} />
+            </TouchableOpacity>
+          )}
+          {/* ✅ Search Button - Inside input container on right side */}
+          <TouchableOpacity
+            style={[
+              styles.searchButtonInline,
+              { 
+                backgroundColor: searchQuery.trim() ? config.colors.primary : (isDarkMode ? '#333' : '#ddd'),
+                opacity: searchQuery.trim() && !isSearching ? 1 : 0.6
+              }
+            ]}
+            onPress={() => {
+              // ✅ Reset pagination for new search
+              setSearchLastDoc(null);
+              setSearchHasMore(true);
+              handleSearchTrades(false);
+            }}
+            disabled={!searchQuery.trim() || isSearching}
+            activeOpacity={0.8}
+          >
+            {isSearching ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Icon name="search" size={18} color="#fff" />
+            )}
+          </TouchableOpacity>
+        </View>
 
-        <TextInput
-          style={styles.searchInput}
-          placeholder={t("trade.search_placeholder")}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholderTextColor={isDarkMode ? 'white' : '#aaa'}
-        />
-        <FilterMenu selectedFilters={selectedFilters} setSelectedFilters={setSelectedFilters} analytics={analytics} platform={platform} />
+        {/* ✅ Search Options Checkboxes */}
+        {searchQuery.length > 0 && (
+          <View style={styles.searchOptionsContainer}>
+            <TouchableOpacity
+              style={[styles.checkboxContainer, !searchInHas && styles.checkboxUnchecked]}
+              onPress={() => {
+                triggerHapticFeedback('impactLight');
+                // ✅ Ensure at least one checkbox is always checked
+                if (!searchInHas && !searchInWants) {
+                  setSearchInWants(true);
+                }
+                setSearchInHas(!searchInHas);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.checkbox, searchInHas && styles.checkboxChecked]}>
+                {searchInHas && <Icon name="checkmark" size={14} color="#fff" />}
+              </View>
+              <Text style={[styles.checkboxLabel, { color: isDarkMode ? '#fff' : '#000' }]}>
+                Search in ME side
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.checkboxContainer, !searchInWants && styles.checkboxUnchecked]}
+              onPress={() => {
+                triggerHapticFeedback('impactLight');
+                // ✅ Ensure at least one checkbox is always checked
+                if (!searchInHas && !searchInWants) {
+                  setSearchInHas(true);
+                }
+                setSearchInWants(!searchInWants);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.checkbox, searchInWants && styles.checkboxChecked]}>
+                {searchInWants && <Icon name="checkmark" size={14} color="#fff" />}
+              </View>
+              <Text style={[styles.checkboxLabel, { color: isDarkMode ? '#fff' : '#000' }]}>
+                Search in YOU side
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
       <FlatList
         ref={flatListRef}
-        data={filteredTrades}
+        data={isSearchMode ? trades : filteredTrades}
         renderItem={renderTrade}
         keyExtractor={(item, index) => {
           // ✅ FIX: Featured trades already have 'featured-' prefix in their id
@@ -1260,21 +1532,13 @@ const getStyles = (isDarkMode) =>
 
     searchInput: {
       height: 40,
-      borderColor: isDarkMode ? config.colors.primary : 'white',
-      backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
-
-      borderWidth: 1,
-      borderRadius: 5,
+      borderColor: 'transparent',
+      backgroundColor: 'transparent',
+      borderWidth: 0,
       marginVertical: 8,
       paddingHorizontal: 10,
-      color: isDarkMode ? 'white' : 'black',
+      color: isDarkMode ? 'white' : '#1a1a1a',
       flex: 1,
-      borderRadius: 10, // Ensure smooth corners
-      // shadowColor: '#000', // Shadow color for iOS
-      // shadowOffset: { width: 0, height: 0 }, // Positioning of the shadow
-      // shadowOpacity: 0.2, // Opacity for iOS shadow
-      // shadowRadius: 2, // Spread of the shadow
-      // elevation: 2, // Elevation for Android (4-sided shadow)
     },
     tradeHeader: {
       flexDirection: 'row',
@@ -1508,6 +1772,92 @@ const getStyles = (isDarkMode) =>
       // padding: 4,
       justifyContent: 'center',
       alignItems: 'center',
+    },
+    searchContainer: {
+      padding: 6,
+      borderRadius: 12,
+      marginVertical: 8,
+      // shadowColor: '#000',
+      // shadowOffset: { width: 0, height: 2 },
+      // shadowOpacity: 0.3,
+      // shadowRadius: 4,
+      // elevation: 3,
+    },
+    searchInputContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: isDarkMode ? '#2a2a2a' : '#f0f0f0',
+      borderRadius: 10,
+      paddingHorizontal: 6,
+      borderWidth: 1.5,
+      borderColor: isDarkMode ? '#444' : '#c5c5c5',
+    },
+    searchIcon: {
+      marginRight: 8,
+    },
+    clearSearchButton: {
+      padding: 4,
+      marginLeft: 8,
+    },
+    searchOptionsContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      // marginBottom: 10,
+      paddingVertical: 8,
+    },
+    checkboxContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderRadius: 8,
+      backgroundColor: isDarkMode ? '#2a2a2a' : '#e8e8e8',
+      borderWidth: isDarkMode ? 0 : 1,
+      borderColor: isDarkMode ? 'transparent' : '#d0d0d0',
+    },
+    checkboxUnchecked: {
+      opacity: 0.6,
+    },
+    checkbox: {
+      width: 20,
+      height: 20,
+      borderRadius: 4,
+      borderWidth: 2,
+      borderColor: config.colors.primary,
+      marginRight: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'transparent',
+    },
+    checkboxChecked: {
+      backgroundColor: config.colors.primary,
+      borderColor: config.colors.primary,
+    },
+    checkboxLabel: {
+      fontSize: 13,
+      fontFamily: 'Lato-Regular',
+    },
+    searchButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 20,
+      borderRadius: 10,
+      marginTop: 4,
+    },
+    searchButtonInline: {
+      width: 40,
+      height: 40,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: 8,
+    },
+    searchButtonText: {
+      color: '#fff',
+      fontSize: 15,
+      fontFamily: 'Lato-Bold',
     },
 
   });

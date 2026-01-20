@@ -517,7 +517,7 @@ icon: {
 },
 scrollToBottomButton: {
   position: 'absolute',
-  bottom: 80,
+  bottom: 100,
   right: 8,
   marginTop: -24, // Half of icon size (48/2) to center it perfectly
   zIndex: 1000,
