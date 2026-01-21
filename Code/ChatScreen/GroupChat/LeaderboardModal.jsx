@@ -17,7 +17,6 @@ import { ref, get } from '@react-native-firebase/database';
 import { collection, getDocs, query, orderBy, limit, doc, getDoc } from '@react-native-firebase/firestore';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import InterstitialAdManager from '../../Ads/IntAd';
 import { useLocalState } from '../../LocalGlobelStats';
 import { mixpanel } from '../../AppHelper/MixPenel';
 import config from '../../Helper/Environment';
@@ -186,29 +185,20 @@ const LeaderboardModal = ({
   const handleStartChat = useCallback(() => {
     if (!selectedUser) return;
 
-    const callbackFunction = () => {
-      setIsDrawerVisible(false);
-      onClose();
-      
-      if (navigation && typeof navigation.navigate === 'function') {
-        navigation.navigate('PrivateChat', {
-          selectedUser: {
-            senderId: selectedUser.senderId,
-            sender: selectedUser.sender,
-            avatar: selectedUser.avatar,
-          },
-        });
-      }
-      mixpanel.track("Leaderboard Start Chat");
-    };
-
-    // ✅ Show ad for non-pro users
-    if (!localState?.isPro) {
-      InterstitialAdManager.showAd(callbackFunction);
-    } else {
-      callbackFunction();
+    setIsDrawerVisible(false);
+    onClose();
+    
+    if (navigation && typeof navigation.navigate === 'function') {
+      navigation.navigate('PrivateChat', {
+        selectedUser: {
+          senderId: selectedUser.senderId,
+          sender: selectedUser.sender,
+          avatar: selectedUser.avatar,
+        },
+      });
     }
-  }, [selectedUser, navigation, onClose, localState?.isPro]);
+    mixpanel.track("Leaderboard Start Chat");
+  }, [selectedUser, navigation, onClose]);
 
   // ✅ Render leaderboard item
   const renderLeaderboardItem = useCallback(({ item, index }) => {

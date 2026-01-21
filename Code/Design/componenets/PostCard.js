@@ -3,7 +3,6 @@ import {
   View, Text, Image, StyleSheet, TouchableOpacity, Alert, useColorScheme,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
-import InterstitialAdManager from '../../Ads/IntAd';
 import { mixpanel } from '../../AppHelper/MixPenel';
 import { useNavigation } from '@react-navigation/native';
 import CommentModal from './CommentsModal';
@@ -99,32 +98,20 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete, onD
  
 
   const handleChatNavigation = useCallback(() => {
-    const callback = () => {
-      if (!userId) {
-        showMessage({
-          message: 'Please sign in to message',
-          type: 'warning',
-        });
-        return;
-      }
-      
-      mixpanel.track('Design Screen');
-      navigation.navigate('PrivateChatDesign', {
-        selectedUser: selectedUser,
-        item,
+    if (!userId) {
+      showMessage({
+        message: 'Please sign in to message',
+        type: 'warning',
       });
-    };
-
-
-
-
-
-    if (!localState?.isPro) {
-      InterstitialAdManager.showAd(callback);
-    } else {
-      callback();
+      return;
     }
-  }, [userId, item, navigation, localState?.isPro]);
+    
+    mixpanel.track('Design Screen');
+    navigation.navigate('PrivateChatDesign', {
+      selectedUser: selectedUser,
+      item,
+    });
+  }, [userId, item, navigation]);
 
   const themedStyles = getStyles(isDark);
   const formattedTime = item.createdAt ? dayjs(item.createdAt.toDate()).fromNow() : 'Anonymous';

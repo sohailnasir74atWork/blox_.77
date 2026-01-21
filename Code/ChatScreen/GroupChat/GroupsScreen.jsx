@@ -312,21 +312,13 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
       return;
     }
 
-    const callbackFunction = () => {
-      if (navigation && typeof navigation.navigate === 'function') {
-        navigation.navigate('GroupChatDetail', {
-          groupId,
-          groupName: groupName || 'Group',
-        });
-      }
-    };
-
-    if (!localState?.isPro) {
-      InterstitialAdManager.showAd(callbackFunction);
-    } else {
-      callbackFunction();
+    if (navigation && typeof navigation.navigate === 'function') {
+      navigation.navigate('GroupChatDetail', {
+        groupId,
+        groupName: groupName || 'Group',
+      });
     }
-  }, [navigation, localState?.isPro]);
+  }, [navigation]);
 
   // Handle delete group (Group Admin only)
   const handleDeleteGroup = useCallback((groupId, groupName) => {

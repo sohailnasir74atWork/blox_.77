@@ -18,7 +18,7 @@ import BannerAdComponent from '../Ads/bannerAds';
 
 
 const TimerScreen = ({ selectedTheme }) => {
-  const { user, updateLocalStateAndDatabase, theme,  reload , stockNotifierPurchase, proGranted} = useGlobalState();
+  const { user, updateLocalStateAndDatabase, theme,  reload , stockNotifierPurchase} = useGlobalState();
   const [hasAdBeenShown, setHasAdBeenShown] = useState(false);
   const [fruitRecords, setFruitRecords] = useState([]);
   const [isDrawerVisible, setDrawerVisible] = useState(false);
@@ -71,19 +71,7 @@ const TimerScreen = ({ selectedTheme }) => {
 
   const openDrawer = () => {
     triggerHapticFeedback('impactLight');
-
-    const callbackfunction = () => {
-      setHasAdBeenShown(true); // Mark the ad as shown
-      setDrawerVisible(true);
-    };
-    if (!hasAdBeenShown && (!localState.isPro && proGranted)) {
-      InterstitialAdManager.showAd(callbackfunction);
-    }
-    else {
-      callbackfunction()
-
-    }
-
+    setDrawerVisible(true);
   }
 
   const handleLoginSuccess = () => {
@@ -106,8 +94,8 @@ const TimerScreen = ({ selectedTheme }) => {
       return;
     }
 
-    // ✅ Restriction: Free users can select up to 3 fruits, Pro users have no limit
-    if ((!localState.isPro && proGranted && !stockNotifierPurchase) && selectedFruits.length >= 2) {
+    // ✅ Restriction: Free users can select up to 2 fruits, Pro users have no limit
+    if ((!localState.isPro && !stockNotifierPurchase) && selectedFruits.length >= 2) {
       Alert.alert(
         "Selection Limit Reached",
         "You can only select up to 2 fruits as a free user. Upgrade to Pro or purchse notifier to select more.",
@@ -116,16 +104,23 @@ const TimerScreen = ({ selectedTheme }) => {
       return;
     }
 
-    // ✅ Add selected fruit
-    const updatedFruits = [...selectedFruits, fruit];
-    await updateLocalStateAndDatabase('selectedFruits', updatedFruits);
+    // ✅ Function to add fruit and close drawer
+    const addFruitAndClose = async () => {
+      const updatedFruits = [...selectedFruits, fruit];
+      await updateLocalStateAndDatabase('selectedFruits', updatedFruits);
+      showSuccessMessage(t("home.alert.success"), t("stock.fruit_selected"));
+      setTimeout(() => {
+        closeDrawer();
+      }, 300);
+    };
 
-    showSuccessMessage(t("home.alert.success"), t("stock.fruit_selected"));
-
-    // ✅ Ensure drawer closes after updates
-    setTimeout(() => {
-      closeDrawer();
-    }, 300);
+    // ✅ Show ad when selecting 2nd fruit (once per session, non-pro users only)
+    if (selectedFruits.length === 1 && !hasAdBeenShown && !localState.isPro) {
+      setHasAdBeenShown(true);
+      InterstitialAdManager.showAd(addFruitAndClose, addFruitAndClose);
+    } else {
+      addFruitAndClose();
+    }
   };
 
 
