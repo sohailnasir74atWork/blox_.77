@@ -18,7 +18,7 @@ import BannerAdComponent from '../Ads/bannerAds';
 
 
 const TimerScreen = ({ selectedTheme }) => {
-  const { user, updateLocalStateAndDatabase, theme,  reload , stockNotifierPurchase} = useGlobalState();
+  const { user, updateLocalStateAndDatabase, theme, reload, stockNotifierPurchase } = useGlobalState();
   const [hasAdBeenShown, setHasAdBeenShown] = useState(false);
   const [fruitRecords, setFruitRecords] = useState([]);
   const [isDrawerVisible, setDrawerVisible] = useState(false);
@@ -52,21 +52,21 @@ const TimerScreen = ({ selectedTheme }) => {
       return {};
     }
   };
-  
+
   useEffect(() => {
     const newFruitRecords = parseJSONSafely(localState?.data);
     const newNormalStock = parseJSONSafely(localState?.normalStock);
     const newMirageStock = parseJSONSafely(localState?.mirageStock);
     const newPreNormalStock = parseJSONSafely(localState?.prenormalStock);
     const newPreMirageStock = parseJSONSafely(localState?.premirageStock);
-  
+
     setFruitRecords((prev) => (JSON.stringify(prev) !== JSON.stringify(newFruitRecords) ? Object.values(newFruitRecords) : prev));
     setNormalStock((prev) => (JSON.stringify(prev) !== JSON.stringify(newNormalStock) ? Object.values(newNormalStock) : prev));
     setmirageStock((prev) => (JSON.stringify(prev) !== JSON.stringify(newMirageStock) ? Object.values(newMirageStock) : prev));
     setPreNormalStock((prev) => (JSON.stringify(prev) !== JSON.stringify(newPreNormalStock) ? Object.values(newPreNormalStock) : prev));
     setPremirageStock((prev) => (JSON.stringify(prev) !== JSON.stringify(newPreMirageStock) ? Object.values(newPreMirageStock) : prev));
   }, [localState.data, localState.normalStock, localState.mirageStock, localState.prenormalStock, localState.premirageStock]);
-  
+
 
 
   const openDrawer = () => {
@@ -85,7 +85,7 @@ const TimerScreen = ({ selectedTheme }) => {
 
     const selectedFruits = user.selectedFruits || []; // Ensure `selectedFruits` is always an array
     const isAlreadySelected = selectedFruits.some((item) => item.name === fruit.name);
-    mixpanel.track("Select Fruit", {fruit:fruit.name});
+    mixpanel.track("Select Fruit", { fruit: fruit.name });
 
 
     // ✅ Prevent duplicate selection
@@ -236,7 +236,7 @@ const TimerScreen = ({ selectedTheme }) => {
 
 
 
-  
+
   // Render FlatList Item
   const renderItem = ({ item, index, isLastItem }) => {
     return (
@@ -263,7 +263,7 @@ const TimerScreen = ({ selectedTheme }) => {
 
 
 
-  
+
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
   // console.log(state.premirageStock)
   // console.log(localState.normalStock, localState.mi)
@@ -321,7 +321,7 @@ const TimerScreen = ({ selectedTheme }) => {
                     source={{
                       uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${item.name?.replace(/^\+/, '')
                         .replace(/\s+/g, '-') || item.Name?.replace(/^\+/, '')
-                        .replace(/\s+/g, '-')}_Icon.webp`,
+                          .replace(/\s+/g, '-')}_Icon.webp`,
                     }}
                     style={styles.iconselected}
                   />
@@ -448,11 +448,11 @@ const TimerScreen = ({ selectedTheme }) => {
               onClose={handleLoginSuccess}
               selectedTheme={selectedTheme}
               message={t("stock.signin_required_message")}
-               screen='Stock'
+              screen='Stock'
             />
           </ScrollView>
         </View>
-       
+
 
       </GestureHandlerRootView>
 
@@ -483,12 +483,12 @@ const getStyles = (isDarkMode, user) =>
     container: {
       flex: 1, paddingHorizontal: 10, backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
     },
-    description: { fontSize: 14, lineHeight: 18, marginVertical: 10, fontFamily: 'Lato-Regular', color: 'white' },
+    description: { fontSize: 14, lineHeight: 18, marginVertical: 10, color: 'white' },
     headerContainer: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 10, paddingHorizontal: 10 },
     headerContainerpre: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 10, paddingHorizontal: 10, opacity: .3 },
 
-    timer: { fontSize: 16, fontFamily: 'Lato-Bold' },
-    time: { fontSize: 16, fontFamily: 'Lato-Bold' },
+    timer: { fontSize: 16, fontWeight: 'bold' },
+    time: { fontSize: 16, fontWeight: 'bold' },
     itemContainer: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -504,7 +504,7 @@ const getStyles = (isDarkMode, user) =>
     },
 
     icon: { width: 50, height: 50, borderRadius: 5, marginRight: 10 },
-    name: { fontSize: 16, flex: 1, fontFamily: 'Lato-Bold' },
+    name: { fontSize: 16, flex: 1, fontWeight: 'bold' },
     price: { fontSize: 14, backgroundColor: config.colors.hasBlockGreen, padding: 5, borderRadius: 5, color: 'white' },
     robux: { fontSize: 14, backgroundColor: config.colors.hasBlockGreen, padding: 5, borderRadius: 5, color: 'white', marginLeft: 10 },
     stockContainer: {
@@ -544,7 +544,7 @@ const getStyles = (isDarkMode, user) =>
       overflow: 'hidden', // Prevents text from overflowing outside the container
       flexWrap: 'wrap', // This ensures the text wraps when it exceeds maxWidth
     },
-    title: { fontSize: 14, fontFamily: 'Lato-Bold', color: isDarkMode ? 'white' : 'black' },
+    title: { fontSize: 14, fontWeight: 'bold', color: isDarkMode ? 'white' : 'black' },
     rightSide: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -595,7 +595,7 @@ const getStyles = (isDarkMode, user) =>
       backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
       padding: 10,
       borderRadius: 10,
-      marginTop:10
+      marginTop: 10
     },
     preCont: {
       justifyContent: 'center',
@@ -606,7 +606,7 @@ const getStyles = (isDarkMode, user) =>
       margin: 10,
       opacity: .3
     },
-    preContrefresh:{
+    preContrefresh: {
       justifyContent: 'center',
       flex: 1,
       padding: 20,
@@ -617,10 +617,10 @@ const getStyles = (isDarkMode, user) =>
     pre: {
       color: 'white',
       alignSelf: 'center',
-      fontFamily: 'Lato-Bold'
+      fontWeight: 'bold'
     },
     footer: {
-      fontFamily: 'Lato-Regular',
+
       fontSize: 8,
       lineHeight: 12,
       // width: 100, // Ensures the text stays within this width
@@ -630,7 +630,7 @@ const getStyles = (isDarkMode, user) =>
     }
     ,
     loadingText: {
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       fontSize: 14,
       alignSelf: 'center',
       color: config.colors.hasBlockGreen

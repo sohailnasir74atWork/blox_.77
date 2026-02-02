@@ -6,12 +6,14 @@ import {
 import { showMessage } from 'react-native-flash-message';
 import firestore from '@react-native-firebase/firestore';
 import { useLocalState } from '../../LocalGlobelStats';
+import { useGlobalState } from '../../GlobelStats';
 import { banUserwithEmail } from '../../ChatScreen/utils';
 
 const ReportModal = ({ visible, onClose, item }) => {
   const [reportText, setReportText] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const {updateLocalState, localState} = useLocalState()
+  const { updateLocalState, localState } = useLocalState()
+  const { strikeInfo, isAdmin, user } = useGlobalState();
 
   // const handleBanToggle = async () => {
   //   const action = isBlock ? t("chat.unblock") : t("chat.block");
@@ -59,7 +61,7 @@ const ReportModal = ({ visible, onClose, item }) => {
 
   const handleSubmit = async () => {
     if (submitting) return;
-  
+
     if (!item || !item.id) {
       showMessage({ message: 'Invalid post.', type: 'danger' });
       return;
@@ -68,10 +70,10 @@ const ReportModal = ({ visible, onClose, item }) => {
       showMessage({ message: 'Please enter a reason.', type: 'warning' });
       return;
     }
-  
+
     setSubmitting(true);
     const postRef = firestore().collection('designPosts').doc(item.id);
-  
+
     try {
       // PURE transaction: only Firestore reads/writes, no awaits to external code
       const txResult = await firestore().runTransaction(async (tx) => {
@@ -79,26 +81,26 @@ const ReportModal = ({ visible, onClose, item }) => {
         if (!snap.exists) {
           return { status: 'missing' };
         }
-  
+
         const currentCount = snap.get('reportCount') || 0;
         const nextCount = currentCount + 1;
-  
+
         // Keep legacy boolean 'report' if your UI needs it
         const updates = {
           reportCount: nextCount,
           report: true,
         };
-  
+
         // prevent double-ban by storing a flag
         const alreadyBanned = !!snap.get('banned');
         const shouldBan = !alreadyBanned && nextCount >= REPORT_THRESHOLD;
-  
+
         if (shouldBan) {
           updates.banned = true; // mark so future transactions don't re-ban
         }
-  
+
         tx.update(postRef, updates);
-  
+
         return {
           status: 'ok',
           shouldBan,
@@ -106,23 +108,37 @@ const ReportModal = ({ visible, onClose, item }) => {
           userId: snap.get('userId') || null,
         };
       });
-  
+
       if (txResult.status === 'missing') {
         showMessage({ message: 'Post not found.', type: 'danger' });
         return;
       }
-  
+
       // Side-effects OUTSIDE the transaction to avoid retries breaking things
       if (txResult.shouldBan && txResult.email && txResult.userId) {
         try {
+          // ✅ Construct rich user data for the ban record
+          const userInfo = {
+            id: txResult.userId,
+            displayName: item.displayName || 'Unknown',
+            avatar: item.avatar || null,
+            email: txResult.email
+          };
+
+          const bannerInfo = {
+            id: user?.id,
+            displayName: user?.userName || 'System',
+            avatar: user?.avatar || null
+          };
+
           // ✅ Pass false for admin parameter - user reports don't show ban alerts, but still increment strikes
-          await banUserwithEmail(txResult.email, false);
+          await banUserwithEmail(txResult.email, false, txResult.userId, userInfo, bannerInfo);
         } catch (err) {
           console.error('Ban error:', err);
           // optional: decide if you want to unset 'banned' on the post here
         }
       }
-  
+
       // local state/UI updates
       await updateLocalState('bannedUsers', [...localState.bannedUsers, item.userId]);
       setReportText('');
@@ -134,7 +150,7 @@ const ReportModal = ({ visible, onClose, item }) => {
       setSubmitting(false);
     }
   };
-  
+
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>

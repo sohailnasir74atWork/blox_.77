@@ -284,7 +284,7 @@ const getStyles = (isDarkMode) =>
     },
     headerTitle: {
       fontSize: 20,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       color: isDarkMode ? '#fff' : '#000',
     },
     closeButton: {
@@ -307,7 +307,7 @@ const getStyles = (isDarkMode) =>
     searchInput: {
       flex: 1,
       fontSize: 14,
-      fontFamily: 'Lato-Regular',
+
       color: isDarkMode ? '#fff' : '#000',
     },
     clearButton: {
@@ -330,12 +330,12 @@ const getStyles = (isDarkMode) =>
     },
     filterText: {
       fontSize: 11,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       color: isDarkMode ? '#9CA3AF' : '#6B7280',
     },
     filterTextActive: {
       color: '#fff',
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
     },
     listContent: {
       paddingHorizontal: 16,
@@ -362,13 +362,13 @@ const getStyles = (isDarkMode) =>
     },
     groupName: {
       fontSize: 14,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       color: isDarkMode ? '#fff' : '#000',
       marginBottom: 3,
     },
     groupDescription: {
       fontSize: 11,
-      fontFamily: 'Lato-Regular',
+
       color: isDarkMode ? '#9CA3AF' : '#6B7280',
       marginBottom: 4,
       lineHeight: 14,
@@ -380,7 +380,7 @@ const getStyles = (isDarkMode) =>
     },
     creatorName: {
       fontSize: 10,
-      fontFamily: 'Lato-Regular',
+
       color: isDarkMode ? '#9CA3AF' : '#6B7280',
     },
     metaSeparator: {
@@ -389,7 +389,7 @@ const getStyles = (isDarkMode) =>
     },
     memberCount: {
       fontSize: 10,
-      fontFamily: 'Lato-Regular',
+
       color: isDarkMode ? '#9CA3AF' : '#6B7280',
     },
     actionContainer: {
@@ -410,11 +410,11 @@ const getStyles = (isDarkMode) =>
     requestButtonText: {
       color: '#fff',
       fontSize: 11,
-      fontFamily: 'Lato-SemiBold',
+      fontWeight: '600'
     },
     statusText: {
       fontSize: 10,
-      fontFamily: 'Lato-Regular',
+
       color: isDarkMode ? '#9CA3AF' : '#6B7280',
       textAlign: 'center',
     },
@@ -432,7 +432,7 @@ const getStyles = (isDarkMode) =>
     },
     emptyText: {
       fontSize: 14,
-      fontFamily: 'Lato-Regular',
+
       color: isDarkMode ? '#9CA3AF' : '#6B7280',
       textAlign: 'center',
     },

@@ -40,19 +40,19 @@ export const getStyles = (isDark) => StyleSheet.create({
     popularText: {
         fontSize: 9,
         color: '#fff',
-        fontFamily: 'Lato-Bold',
+        fontWeight: 'bold',
     },
     soldText: {
         fontSize: 9,
         color: isDark ? 'lightgrey' : config.colors.primary,
-        fontFamily: 'Lato-Bold',
+        fontWeight: 'bold',
     },
     itemTitle: {
         fontSize: 14,
-        fontFamily: 'Lato-Bold',
+        fontWeight: 'bold',
         color: isDark ? '#f0f0f0' : '#1a1a1a',
         textAlign: 'center',
-        lineHeight:16
+        lineHeight: 16
     },
     itemNote: {
         fontSize: 12,
@@ -67,7 +67,7 @@ export const getStyles = (isDark) => StyleSheet.create({
         color: 'white',
         fontSize: 10,
         marginTop: 3,
-        fontFamily: 'Lato-Regular',
+
         lineHeight: 10,
     },
     statusUnAvailable: {
@@ -78,7 +78,7 @@ export const getStyles = (isDark) => StyleSheet.create({
         color: 'white',
         fontSize: 10,
         marginTop: 3,
-        fontFamily: 'Lato-Regular',
+
         lineHeight: 10,
     },
     modalContainer: {
@@ -95,22 +95,22 @@ export const getStyles = (isDark) => StyleSheet.create({
     },
     modalTitle: {
         fontSize: 20,
-        fontFamily: 'Lato-Bold',
+        fontWeight: 'bold',
         marginBottom: 10,
-        lineHeight:24
+        lineHeight: 24
     },
     modalCost: {
         fontSize: 16,
         marginBottom: 4,
         color: '#444',
-        fontFamily: 'Lato-Regular',
+
     },
     modalNote: {
         marginBottom: 12,
         fontSize: 13,
         color: '#666',
         textAlign: 'center',
-        fontFamily: 'Lato-Regular',
+
     },
     confirmButton: {
         backgroundColor: '#6A5ACD',
@@ -120,12 +120,12 @@ export const getStyles = (isDark) => StyleSheet.create({
     },
     buyText: {
         color: '#fff',
-        fontFamily: 'Lato-Bold',
+        fontWeight: 'bold',
         fontSize: 16,
     },
     cancelText: {
         marginTop: 12,
         color: '#999',
-        fontFamily: 'Lato-Regular',
+
     },
 }); 

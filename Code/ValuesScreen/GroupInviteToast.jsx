@@ -21,7 +21,7 @@ const GroupInviteToast = ({ visible, fromUserName, fromUserAvatar, groupName, in
   const slideAnim = useRef(new Animated.Value(MAX_TOAST_WIDTH)).current; // Start off-screen right
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
-  
+
   const isGameInvite = inviteType === 'game';
 
   useEffect(() => {
@@ -98,7 +98,7 @@ const GroupInviteToast = ({ visible, fromUserName, fromUserAvatar, groupName, in
       <TouchableOpacity
         style={[
           styles.toast,
-          { 
+          {
             backgroundColor: isDarkMode ? '#1a1a1a' : '#fff',
             borderLeftColor: '#8B5CF6',
           },
@@ -124,7 +124,7 @@ const GroupInviteToast = ({ visible, fromUserName, fromUserAvatar, groupName, in
               style={[styles.message, { color: isDarkMode ? '#9ca3af' : '#6b7280' }]}
               numberOfLines={2}
             >
-              {isGameInvite 
+              {isGameInvite
                 ? `${fromUserName || 'Someone'} invites you to play now`
                 : `${fromUserName || 'Someone'} invited you to join "${groupName || 'Group'}"`
               }
@@ -197,12 +197,12 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 13,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     marginBottom: 3,
   },
   message: {
     fontSize: 10,
-    fontFamily: 'Lato-Regular',
+
     lineHeight: 14,
   },
   avatar: {

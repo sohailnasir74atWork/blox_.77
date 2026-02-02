@@ -38,29 +38,29 @@ export default function DailyCheckIn({
   useEffect(() => {
     const saved = user?.checkin?.claimedDates || [];
     const last = saved[saved.length - 1];  // Corrected index
-  
+
     // Reset if the user missed a claim (skipped day)
     const updated = last && last !== todayFormatted ? [] : saved;
     // console.log(updated, last, todayFormatted, saved);
-  
+
     setClaimedDates(updated);
   }, [user?.id]);
-  
+
   // console.log(todayFormatted)
 
   const isTodayClaimed = claimedDates.includes(todayFormatted) || todayClaimed;
 
   const currentDayIndex = claimedDates.length >= 7 ? 0 : claimedDates.length;
-  
+
   const nextClaimableDay = claimedDates.length === 0
     ? today
     : new Date(claimedDates[claimedDates.length - 1]);
-  
+
   nextClaimableDay.setDate(nextClaimableDay.getDate() + 1);
   nextClaimableDay.setHours(0, 0, 0, 0);
-  
+
   const isNextClaimable = today.getTime() >= nextClaimableDay.getTime();
-  
+
   // Debug: Log the next claimable day and its time
   // console.log(`Next claimable day (midnight): ${nextClaimableDay.toLocaleString()}`);
 
@@ -106,9 +106,9 @@ export default function DailyCheckIn({
 
   const handleCheckIn = (isClaimed, isLocked, isNextDay, countdownMessage) => {
     if (!user?.id) return setOpenSignin(true);
-  
+
     if (isClaiming) return; // 🔒 prevent double-tap
-  
+
     if (isClaimed) {
       showMessage({
         message: "You’ve already claimed today’s reward.",
@@ -119,7 +119,7 @@ export default function DailyCheckIn({
       });
       return;
     }
-  
+
     if (isLocked && !isNextDay) {
       showMessage({
         message: "This day is locked. Please try again later.",
@@ -128,7 +128,7 @@ export default function DailyCheckIn({
       });
       return;
     }
-  
+
     if (isNextDay && isLocked) {
       showMessage({
         message: countdownMessage || "Available to claim",
@@ -139,7 +139,7 @@ export default function DailyCheckIn({
       });
       return;
     }
-  
+
     if (!isClaimed && !isLocked && isNextDay) {
       const reward = { dayIndex: currentDayIndex, coins: dailyRewards[currentDayIndex] };
       setIsClaiming(true); // 🔐 lock UI
@@ -148,22 +148,22 @@ export default function DailyCheckIn({
       setIsAdsDrawerVisible(true);
     }
   };
-  
+
 
 
   const handleAdComplete = async () => {
     const reward = pendingCoinRewardRef.current;
     if (!reward) return;
-  
+
     const updatedDates = claimedDates.length >= 7
       ? [todayFormatted]
       : [...claimedDates, todayFormatted];
-  
+
     setClaimedDates(updatedDates); // 🧠 IMMEDIATE update
     setTodayClaimed(true); // ✅ Avoid false clicks
     setPendingCoinReward(null);
     pendingCoinRewardRef.current = null;
-  
+
     try {
       await updateLocalStateAndDatabase({
         coins: (user?.coins || 0) + reward.coins,
@@ -173,7 +173,7 @@ export default function DailyCheckIn({
           claimedDates: updatedDates,
         },
       });
-  
+
       Alert.alert('✅ Success', `You earned ${reward.coins} coins!`);
     } catch (e) {
       Alert.alert('⚠️ Error', 'Failed to update your reward. Please try again.');
@@ -182,7 +182,7 @@ export default function DailyCheckIn({
       setIsClaiming(false); // 🔓 Unlock UI
     }
   };
-  
+
 
   return (
     <View style={styles.container}>
@@ -216,11 +216,11 @@ export default function DailyCheckIn({
           return (
             <TouchableOpacity
               key={index}
-              onPress={() => handleCheckIn(isClaimed, isLocked, isNextDay, countdownMessage)} 
+              onPress={() => handleCheckIn(isClaimed, isLocked, isNextDay, countdownMessage)}
               style={[
                 styles.dayBox,
                 isClaimed ? styles.claimedBox : styles.lockedBox,
-                isNextDay && styles.nextClaimableDayBox, 
+                isNextDay && styles.nextClaimableDayBox,
               ]}
             >
               <Text style={styles.dayLabel}>DAY {index + 1}</Text>
@@ -229,9 +229,9 @@ export default function DailyCheckIn({
 
               {isClaimed && <Icon name="checkmark-circle" size={16} color={config.colors.hasBlockGreen} style={styles.overlayIcon} />}
               {isLocked && !isClaimed && <Icon name="lock-closed" size={16} color={'lightgrey'} style={styles.overlayIcon} />}
-              
+
               {/* <Text style={styles.statusMessage}>{claimStatusMessage}</Text> */}
-              {isNextDay && <Text style={styles.countdownMessage}>{countdownMessage}</Text>} 
+              {isNextDay && <Text style={styles.countdownMessage}>{countdownMessage}</Text>}
             </TouchableOpacity>
           );
         })}
@@ -260,7 +260,7 @@ const getStyles = (isDarkMode) =>
     },
     title: {
       fontSize: 16,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       marginBottom: 12,
       alignSelf: 'center',
       color: isDarkMode ? 'white' : 'black'
@@ -277,8 +277,8 @@ const getStyles = (isDarkMode) =>
       borderRadius: 20,
       alignItems: 'center',
       marginHorizontal: '1%',
-      minHeight:80,
-      justifyContent:'center'
+      minHeight: 80,
+      justifyContent: 'center'
     },
     claimedBox: {
       backgroundColor: config.colors.hasBlockGreen,
@@ -291,14 +291,14 @@ const getStyles = (isDarkMode) =>
     },
     dayLabel: {
       fontSize: 12,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       color: 'white',
       marginBottom: 4,
     },
     coinText: {
       fontSize: 10,
       color: 'lightgrey',
-      fontFamily: 'Lato-Regular',
+
     },
     overlayIcon: {
       position: 'absolute',
@@ -309,14 +309,14 @@ const getStyles = (isDarkMode) =>
       marginTop: 5,
       fontSize: 10,
       color: 'white',
-      fontFamily: 'Lato-Regular',
+
       textAlign: 'center',
     },
     countdownMessage: {
       marginTop: 3,
       fontSize: 9,
       color: 'yellow',
-      fontFamily: 'Lato-Regular',
+
       textAlign: 'center',
     },
   });

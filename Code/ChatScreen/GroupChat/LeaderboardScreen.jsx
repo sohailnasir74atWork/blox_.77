@@ -30,7 +30,7 @@ const LeaderboardScreen = ({ route }) => {
   const { t } = useTranslation();
   const { triggerHapticFeedback } = useHaptic();
   const isDarkMode = theme === 'dark';
-  
+
   const [leaderboardData, setLeaderboardData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
@@ -44,22 +44,22 @@ const LeaderboardScreen = ({ route }) => {
   // ✅ Check if cached data is still valid (less than 2 days old)
   const isCacheValid = useCallback((cachedData) => {
     if (!cachedData || !cachedData.timestamp) return false;
-    
+
     // ✅ Ensure timestamp is a number (handle cases where it might be stored as string)
-    const timestamp = typeof cachedData.timestamp === 'number' 
-      ? cachedData.timestamp 
-      : typeof cachedData.timestamp === 'string' 
-        ? parseInt(cachedData.timestamp, 10) 
+    const timestamp = typeof cachedData.timestamp === 'number'
+      ? cachedData.timestamp
+      : typeof cachedData.timestamp === 'string'
+        ? parseInt(cachedData.timestamp, 10)
         : null;
-    
+
     if (!timestamp || isNaN(timestamp)) return false;
-    
+
     const now = Date.now();
     const cacheAge = now - timestamp;
-    
+
     // ✅ Cache is valid only if less than 2 days old
     const isValid = cacheAge >= 0 && cacheAge < CACHE_DURATION_MS;
-    
+
     // ✅ Debug: Log cache status if needed (commented out for production)
     // console.log('📊 [Leaderboard] Cache check:', {
     //   cacheAge: `${Math.floor(cacheAge / (1000 * 60 * 60))}h ${Math.floor((cacheAge % (1000 * 60 * 60)) / (1000 * 60))}m`,
@@ -67,7 +67,7 @@ const LeaderboardScreen = ({ route }) => {
     //   timestamp: new Date(timestamp).toISOString(),
     //   now: new Date(now).toISOString(),
     // });
-    
+
     return isValid;
   }, []);
 
@@ -95,7 +95,7 @@ const LeaderboardScreen = ({ route }) => {
       // This is a single document read - very fast and cheap!
       const cacheDocRef = doc(firestoreDB, 'leaderboard_cache', 'top50');
       const cacheDocSnap = await getDoc(cacheDocRef);
-      
+
       // ✅ Firestore: exists is a property, not a function
       if (!cacheDocSnap.exists) {
         console.log('⚠️ [Leaderboard] Cache not found - leaderboard may not be initialized yet');
@@ -106,14 +106,14 @@ const LeaderboardScreen = ({ route }) => {
 
       const cacheData = cacheDocSnap.data();
       const cachedUsers = cacheData?.users || [];
-      
+
       if (cachedUsers.length === 0) {
         console.log('⚠️ [Leaderboard] Cache is empty - waiting for Cloud Function to update');
         setLeaderboardData([]);
         setLoading(false);
         return;
       }
-      
+
       // ✅ Users are already sorted by review count (desc), then rating (desc)
       // Users are already filtered for rating >= 3.7
       // Users already have displayName and avatar included
@@ -142,14 +142,14 @@ const LeaderboardScreen = ({ route }) => {
       setLeaderboardData(leaderboardWithDetails);
     } catch (error) {
       console.error('❌ [Leaderboard] Error fetching leaderboard from cache:', error);
-      
+
       // ✅ Check if cache document doesn't exist (Cloud Function may not have run yet)
       if (error.code === 'not-found' || error.code === 'permission-denied') {
         console.error('⚠️ [Leaderboard] Cache document not found or access denied');
         console.error('   The Cloud Function "updateLeaderboardCache" should run daily to populate this cache');
         console.error('   Check Firebase Console → Functions → Logs to verify the function is running');
       }
-      
+
       setLeaderboardData([]);
     } finally {
       setLoading(false);
@@ -176,7 +176,7 @@ const LeaderboardScreen = ({ route }) => {
   // ✅ Handle user click - open BottomDrawer
   const handleUserClick = useCallback(async (item) => {
     triggerHapticFeedback('impactLight');
-    
+
     const selectedUserData = {
       senderId: item.userId,
       sender: item.displayName,
@@ -203,7 +203,7 @@ const LeaderboardScreen = ({ route }) => {
     if (!selectedUser) return;
 
     setIsDrawerVisible(false);
-    
+
     if (navigation && typeof navigation.navigate === 'function') {
       navigation.navigate('PrivateChat', {
         selectedUser: {
@@ -319,13 +319,13 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     color: isDarkMode ? '#999' : '#666',
-    fontFamily: 'Lato-Regular',
+
   },
   loadingSubtext: {
     marginTop: 4,
     fontSize: 12,
     color: isDarkMode ? '#666' : '#999',
-    fontFamily: 'Lato-Regular',
+
   },
   emptyContainer: {
     flex: 1,
@@ -337,13 +337,13 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     color: isDarkMode ? '#999' : '#666',
-    fontFamily: 'Lato-Regular',
+
   },
   emptySubtext: {
     marginTop: 6,
     fontSize: 12,
     color: isDarkMode ? '#666' : '#999',
-    fontFamily: 'Lato-Regular',
+
   },
   listContent: {
     padding: 8,
@@ -368,7 +368,7 @@ const getStyles = (isDarkMode) => StyleSheet.create({
   rankText: {
     color: '#fff',
     fontSize: 14,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
   },
   avatar: {
     width: 50,
@@ -383,7 +383,7 @@ const getStyles = (isDarkMode) => StyleSheet.create({
   },
   userName: {
     fontSize: 16,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     color: isDarkMode ? '#fff' : '#000',
     marginBottom: 4,
   },
@@ -394,7 +394,7 @@ const getStyles = (isDarkMode) => StyleSheet.create({
   ratingText: {
     fontSize: 12,
     color: isDarkMode ? '#999' : '#666',
-    fontFamily: 'Lato-Regular',
+
     marginLeft: 4,
   },
   cacheInfo: {
@@ -402,7 +402,7 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     color: isDarkMode ? '#666' : '#999',
     textAlign: 'center',
     padding: 8,
-    fontFamily: 'Lato-Regular',
+
   },
 });
 

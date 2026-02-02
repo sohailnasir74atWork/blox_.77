@@ -63,7 +63,7 @@ const TradeList = ({ route }) => {
   const [searchHasMore, setSearchHasMore] = useState(true); // ✅ More results available for search
   const SEARCH_PAGE_SIZE = 5; // ✅ Fetch 5 items at a time for search
   const { selectedTheme } = route.params
-  const { user, analytics, single_offer_wall, proGranted } = useGlobalState()
+  const { user, analytics, single_offer_wall, proGranted, strikeInfo, isAdmin } = useGlobalState()
   const [trades, setTrades] = useState([]);
   const [filteredTrades, setFilteredTrades] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -83,16 +83,16 @@ const TradeList = ({ route }) => {
   const { triggerHapticFeedback } = useHaptic();
   // Check if user has featured listing purchase
   const purchasesArr = Array.isArray(user?.purchases)
-  ? user.purchases
-  : Object.values(user?.purchases || {});
+    ? user.purchases
+    : Object.values(user?.purchases || {});
 
-const now = Date.now();
+  const now = Date.now();
 
-const isFeaturedPurchase = purchasesArr.some((purchase) => {
-  if (purchase?.id !== "4" || !purchase?.title) return false;
-  if (purchase?.expiresAt && now > purchase.expiresAt) return false; // Expired
-  return true;
-});
+  const isFeaturedPurchase = purchasesArr.some((purchase) => {
+    if (purchase?.id !== "4" || !purchase?.title) return false;
+    if (purchase?.expiresAt && now > purchase.expiresAt) return false; // Expired
+    return true;
+  });
 
 
 
@@ -104,7 +104,7 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
   const [selectedTrade, setSelectedTrade] = useState(null);
   const { localState, updateLocalState } = useLocalState()
   const navigation = useNavigation()
-  const { theme , firestoreDB} = useGlobalState()
+  const { theme, firestoreDB } = useGlobalState()
   const [isProStatus, setIsProStatus] = useState(localState.isPro || proGranted);
   const { t } = useTranslation();
   const platform = Platform.OS.toLowerCase();
@@ -358,7 +358,7 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
     try {
       // ✅ Get status filters and map to status values
       const statusFilters = selectedFilters.filter(f => ['win', 'lose', 'fair'].includes(f));
-      const statusValues = statusFilters.length > 0 
+      const statusValues = statusFilters.length > 0
         ? statusFilters.map(f => ({ win: 'w', lose: 'l', fair: 'f' }[f]))
         : null;
 
@@ -391,7 +391,7 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
         id: docSnap.id,
         ...docSnap.data(),
       }));
-  
+
       if (newNormalTrades.length === 0) {
         setHasMore(false);
         setLoadingMore(false);
@@ -403,12 +403,12 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
       const existingFeaturedIds = new Set(
         trades.filter(t => t.isFeatured).map(t => t.id)
       );
-      
+
       // Filter out featured trades that are already shown
       const availableFeatured = remainingFeaturedTrades.filter(
         ft => !existingFeaturedIds.has(ft.id)
       );
-      
+
       const newFeaturedTrades = availableFeatured.slice(0, 3); // ✅ Get up to 3 new featured
       const updatedRemainingFeatured = availableFeatured.slice(3); // ✅ Get remaining after first 3
       setRemainingFeaturedTrades(updatedRemainingFeatured);
@@ -422,7 +422,7 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
         const newUniqueTrades = mergedTrades.filter(t => !existingIds.has(t.id));
         return [...prevTrades, ...newUniqueTrades];
       });
-      
+
       // ✅ Update lastDoc only if we have normal trades (for pagination)
       if (normalTradesQuerySnap.docs.length > 0) {
         const newLastDoc = normalTradesQuerySnap.docs[normalTradesQuerySnap.docs.length - 1];
@@ -473,14 +473,40 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
     flage: selectedTrade?.flage || null,
   }
   const handleChatNavigation2 = async () => {
-    
+
 
     const callbackfunction = () => {
+      // ✅ Block users with strikes from messaging (admins are exempt)
+      if (strikeInfo && !isAdmin) {
+        const { strikeCount, bannedUntil } = strikeInfo;
+        const now = Date.now();
+
+        if (bannedUntil === 'permanent') {
+          showErrorMessage(
+            t("home.alert.error"),
+            "You are permanently banned from using this feature."
+          );
+          return;
+        }
+
+        if (typeof bannedUntil === 'number' && now < bannedUntil) {
+          const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
+          const hours = Math.floor(totalMinutes / 60);
+          const minutes = totalMinutes % 60;
+          const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+          showErrorMessage(
+            t("home.alert.error"),
+            `You are banned from using this feature for ${timeLeftText} more minute(s).`
+          );
+          return;
+        }
+      }
+
       mixpanel.track("Inbox Trade");
       navigation.navigate('PrivateChatTrade', {
         selectedUser: selectedUser,
-        item:selectedTrade,
-        
+        item: selectedTrade,
       });
     };
 
@@ -532,10 +558,10 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
     setIsSearching(true);
     try {
       const searchTermLower = searchTerm.toLowerCase().trim();
-      
+
       // ✅ Get status filters
       const statusFilters = selectedFilters.filter(f => ['win', 'lose', 'fair'].includes(f));
-      const statusValues = statusFilters.length > 0 
+      const statusValues = statusFilters.length > 0
         ? statusFilters.map(f => ({ win: 'w', lose: 'l', fair: 'f' }[f]))
         : null;
 
@@ -548,18 +574,18 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
         try {
           const hasQuery = lastDocSnapshot
             ? query(
-                collection(firestoreDB, 'trades_new'),
-                where('hasItemNames', 'array-contains', searchTermLower),
-                orderBy('timestamp', 'desc'),
-                startAfter(lastDocSnapshot),
-                limit(SEARCH_PAGE_SIZE)
-              )
+              collection(firestoreDB, 'trades_new'),
+              where('hasItemNames', 'array-contains', searchTermLower),
+              orderBy('timestamp', 'desc'),
+              startAfter(lastDocSnapshot),
+              limit(SEARCH_PAGE_SIZE)
+            )
             : query(
-                collection(firestoreDB, 'trades_new'),
-                where('hasItemNames', 'array-contains', searchTermLower),
-                orderBy('timestamp', 'desc'),
-                limit(SEARCH_PAGE_SIZE)
-              );
+              collection(firestoreDB, 'trades_new'),
+              where('hasItemNames', 'array-contains', searchTermLower),
+              orderBy('timestamp', 'desc'),
+              limit(SEARCH_PAGE_SIZE)
+            );
 
           const hasSnapshot = await getDocs(hasQuery);
           hasSnapshot.docs?.forEach((docSnap) => {
@@ -582,18 +608,18 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
         try {
           const wantsQuery = lastDocSnapshot
             ? query(
-                collection(firestoreDB, 'trades_new'),
-                where('wantsItemNames', 'array-contains', searchTermLower),
-                orderBy('timestamp', 'desc'),
-                startAfter(lastDocSnapshot),
-                limit(SEARCH_PAGE_SIZE)
-              )
+              collection(firestoreDB, 'trades_new'),
+              where('wantsItemNames', 'array-contains', searchTermLower),
+              orderBy('timestamp', 'desc'),
+              startAfter(lastDocSnapshot),
+              limit(SEARCH_PAGE_SIZE)
+            )
             : query(
-                collection(firestoreDB, 'trades_new'),
-                where('wantsItemNames', 'array-contains', searchTermLower),
-                orderBy('timestamp', 'desc'),
-                limit(SEARCH_PAGE_SIZE)
-              );
+              collection(firestoreDB, 'trades_new'),
+              where('wantsItemNames', 'array-contains', searchTermLower),
+              orderBy('timestamp', 'desc'),
+              limit(SEARCH_PAGE_SIZE)
+            );
 
           const wantsSnapshot = await getDocs(wantsQuery);
           wantsSnapshot.docs?.forEach((docSnap) => {
@@ -650,7 +676,7 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
       // ✅ Update pagination state
       setSearchLastDoc(lastDocSnapshot);
       setSearchHasMore(searchedTrades.length >= SEARCH_PAGE_SIZE);
-      
+
     } catch (error) {
       console.error('❌ Error searching trades:', error);
       Alert.alert('Search Error', 'Failed to search trades. Please try again.');
@@ -664,13 +690,13 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
     try {
       // ✅ Get status filters (win, lose, fair) and map to status values (w, l, f)
       const statusFilters = selectedFilters.filter(f => ['win', 'lose', 'fair'].includes(f));
-      const statusValues = statusFilters.length > 0 
+      const statusValues = statusFilters.length > 0
         ? statusFilters.map(f => ({ win: 'w', lose: 'l', fair: 'f' }[f]))
         : null;
 
       // ✅ OPTIMIZED: Fetch featured and normal trades in parallel (faster loading)
       const now = Timestamp.now();
-      
+
       // ✅ Build query for normal trades
       let normalQuery = query(
         collection(firestoreDB, 'trades_new'),
@@ -729,7 +755,7 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
       // ✅ Keep some featured trades aside for future loadMore() (fix: don't mutate)
       const allFeaturedTrades = [...featuredTrades]; // Copy array
       setRemainingFeaturedTrades(allFeaturedTrades);
-  
+
       const normalTrades = normalTradesQuerySnap.docs.map((docSnap) => ({
         id: docSnap.id,
         ...docSnap.data(),
@@ -740,13 +766,13 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
       const mergedTrades = mergeFeaturedWithNormal(featuredToUse, normalTrades);
 
       // ✅ FIX: Deduplicate initial trades (shouldn't be needed, but safety check)
-      const uniqueMergedTrades = mergedTrades.filter((trade, index, self) => 
+      const uniqueMergedTrades = mergedTrades.filter((trade, index, self) =>
         index === self.findIndex(t => t.id === trade.id)
       );
 
       // ✅ Update state
       setTrades(uniqueMergedTrades);
-      
+
       // ✅ OPTIMIZED: Set lastDoc only if we have normal trades (critical for pagination)
       if (normalTradesQuerySnap.docs.length > 0) {
         const lastDocSnapshot = normalTradesQuerySnap.docs[normalTradesQuerySnap.docs.length - 1];
@@ -897,7 +923,7 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
   const closeProfileDrawer = async () => {
     setIsDrawerVisible(false);
   };
-  const handleOpenProfile = async(item)=>{
+  const handleOpenProfile = async (item) => {
     if (!user?.id) {
       setIsSigninDrawerVisible(true);
       return;
@@ -964,9 +990,9 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
   // ✅ Scroll to top handler
   const handleScrollToTop = useCallback(() => {
     if (!flatListRef?.current) return;
-    
+
     triggerHapticFeedback('impactLight');
-    
+
     try {
       // Scroll to index 0 (top of list)
       flatListRef.current.scrollToIndex({
@@ -1059,70 +1085,70 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
         {item.isFeatured && <View style={styles.tag}></View>}
 
         <View style={styles.tradeHeader}>
-          <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', flex:1  }} onPress={()=>handleOpenProfile(item)}>
-            <Image 
-              source={{ uri: item.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }} 
+          <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }} onPress={() => handleOpenProfile(item)}>
+            <Image
+              source={{ uri: item.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }}
               style={styles.itemImageUser}
             />
 
-            <View style={{  marginLeft: 5 }}>
+            <View style={{ marginLeft: 5 }}>
               <View style={styles.traderName}>
-              {(item?.style && Object.keys(item?.style).length > 0) ? (
-    <StyledUsernamePreview
-      text={item.traderName}
-      variant={item.style.variant}
-      options={item.style}
-      fontSize={14}
-      lineHeight={16}
-      marginVertical={0}
-    />
-  ) : (
-    <Text style={styles.traderName}>{item.traderName}</Text>
-  )}
-  {item?.isPro && (
-    <Image
-      source={require('../../assets/pro.png')}
-      style={{ width: 10, height: 10, marginRight: 5 }}
-    />
-  )}
-  {item?.robloxUsernameVerified && (
-    <Image
-      source={require('../../assets/verification.png')}
-      style={{ width: 10, height: 10, marginRight: 5 }}
-    />
-  )}
-  {(() => {
-    const hasRecentWin =
-      !!item?.hasRecentGameWin ||
-      (typeof item?.lastGameWinAt === 'number' &&
-        Date.now() - item.lastGameWinAt <= 24 * 60 * 60 * 1000);
-    return hasRecentWin ? (
-      <Image
-        source={require('../../assets/trophy.webp')}
-        style={{ width: 10, height: 10, marginRight: 5 }}
-      />
-    ) : null;
-  })()}
-  {(item?.isProGranted || item.proTagBought) && (
-    <Image
-      source={require('../../assets/progranted.png')}
-      style={{ width: 16, height: 16, marginLeft: 2 }}
-    />
-  )}
-  {Array.isArray(item.icons) && item.icons.slice(0, 4).map(iconKey => (
-    <Image
-      key={iconKey}
-      source={iconMap[iconKey]}
-      style={{ width: 16, height: 16, marginLeft: 4, resizeMode: 'contain' }}
-    />
-  ))}
+                {(item?.style && Object.keys(item?.style).length > 0) ? (
+                  <StyledUsernamePreview
+                    text={item.traderName}
+                    variant={item.style.variant}
+                    options={item.style}
+                    fontSize={14}
+                    lineHeight={16}
+                    marginVertical={0}
+                  />
+                ) : (
+                  <Text style={styles.traderName}>{item.traderName}</Text>
+                )}
+                {item?.isPro && (
+                  <Image
+                    source={require('../../assets/pro.png')}
+                    style={{ width: 10, height: 10, marginRight: 5 }}
+                  />
+                )}
+                {item?.robloxUsernameVerified && (
+                  <Image
+                    source={require('../../assets/verification.png')}
+                    style={{ width: 10, height: 10, marginRight: 5 }}
+                  />
+                )}
+                {(() => {
+                  const hasRecentWin =
+                    !!item?.hasRecentGameWin ||
+                    (typeof item?.lastGameWinAt === 'number' &&
+                      Date.now() - item.lastGameWinAt <= 24 * 60 * 60 * 1000);
+                  return hasRecentWin ? (
+                    <Image
+                      source={require('../../assets/trophy.webp')}
+                      style={{ width: 10, height: 10, marginRight: 5 }}
+                    />
+                  ) : null;
+                })()}
+                {(item?.isProGranted || item.proTagBought) && (
+                  <Image
+                    source={require('../../assets/progranted.png')}
+                    style={{ width: 16, height: 16, marginLeft: 2 }}
+                  />
+                )}
+                {Array.isArray(item.icons) && item.icons.slice(0, 4).map(iconKey => (
+                  <Image
+                    key={iconKey}
+                    source={iconMap[iconKey]}
+                    style={{ width: 16, height: 16, marginLeft: 4, resizeMode: 'contain' }}
+                  />
+                ))}
                 {item.rating ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center',  backgroundColor: '#ffb300', borderRadius: 5, paddingHorizontal: 4, paddingVertical: 1, marginLeft: 5 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffb300', borderRadius: 5, paddingHorizontal: 4, paddingVertical: 1, marginLeft: 5 }}>
                     <Icon name="star" size={8} color="white" style={{ marginRight: 4 }} />
                     <Text style={{ fontSize: 8, color: 'white' }}>{parseFloat(item.rating).toFixed(1)}({item.ratingCount})</Text>
                   </View>
                 ) : (
-                  <View style={{ flexDirection: 'row', alignItems: 'center',  backgroundColor: '#888', borderRadius: 5, paddingHorizontal: 2, paddingVertical: 1, marginLeft: 5 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#888', borderRadius: 5, paddingHorizontal: 2, paddingVertical: 1, marginLeft: 5 }}>
                     <Icon name="star-outline" size={8} color="white" style={{ marginRight: 4 }} />
                     <Text style={{ fontSize: 8, color: 'white' }}>N/A</Text>
                   </View>
@@ -1146,14 +1172,14 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
               </Text>
 
             </View>} */}
- <FontAwesome
-        name='message'
-         size={18}
+            <FontAwesome
+              name='message'
+              size={18}
               color={config.colors.primary}
-              onPress={()=>handleOpenProfile(item)}
+              onPress={() => handleOpenProfile(item)}
 
-        solid={false}
-      />
+              solid={false}
+            />
             {/* <Icon
               name="chatbox-outline"
               size={18}
@@ -1187,7 +1213,7 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
                 </View>
               ))
             ) : (
-              <TouchableOpacity style={styles.dealContainerSingle} onPress={()=>handleOpenProfile(item)}>
+              <TouchableOpacity style={styles.dealContainerSingle} onPress={() => handleOpenProfile(item)}>
                 <Text style={styles.dealText}>Give offer</Text>
               </TouchableOpacity>
             )}
@@ -1254,26 +1280,26 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
         </Text>}
         {item.userId === user.id && (<View style={styles.footer}>
           {!item.isFeatured &&
-                <TouchableOpacity  onPress={() => handleMakeFeatureTrade(item)} style={[styles.boost, {backgroundColor:'purple'}]}>
-                <Text
-                 
-                 
-                  
-                 
-                  style={{  color:'white', fontFamily:'Lato-Regular' }}
-                >BOOST IT</Text>
-                </TouchableOpacity>}
-       <TouchableOpacity  onPress={() => handleDelete(item)} style={[styles.boost, {backgroundColor:'black'}]}>
-       <Text
-                 
-                 
-                 color={config.colors.secondary}
-                
-                 style={{ color:'white', fontFamily:'Lato-Regular' }}
-               >DELETE IT</Text>
-                </TouchableOpacity>
+            <TouchableOpacity onPress={() => handleMakeFeatureTrade(item)} style={[styles.boost, { backgroundColor: 'purple' }]}>
+              <Text
 
-              
+
+
+
+                style={{ color: 'white', }}
+              >BOOST IT</Text>
+            </TouchableOpacity>}
+          <TouchableOpacity onPress={() => handleDelete(item)} style={[styles.boost, { backgroundColor: 'black' }]}>
+            <Text
+
+
+              color={config.colors.secondary}
+
+              style={{ color: 'white', }}
+            >DELETE IT</Text>
+          </TouchableOpacity>
+
+
 
         </View>)}
         {/* <ShareTradeModal
@@ -1318,14 +1344,14 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
             returnKeyType="search"
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => {
                 setSearchQuery('');
                 setIsSearchMode(false);
                 setSearchLastDoc(null);
                 setSearchHasMore(true);
                 fetchInitialTrades();
-              }} 
+              }}
               style={styles.clearSearchButton}
             >
               <Icon name="close-circle" size={20} color={isDarkMode ? '#999' : '#666'} />
@@ -1335,7 +1361,7 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
           <TouchableOpacity
             style={[
               styles.searchButtonInline,
-              { 
+              {
                 backgroundColor: searchQuery.trim() ? config.colors.primary : (isDarkMode ? '#333' : '#ddd'),
                 opacity: searchQuery.trim() && !isSearching ? 1 : 0.6
               }
@@ -1499,15 +1525,15 @@ const isFeaturedPurchase = purchasesArr.some((purchase) => {
         screen='Trade'
 
       />
-      <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} track='Trade'   oneWallOnly={single_offer_wall}      />
+      <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} track='Trade' oneWallOnly={single_offer_wall} />
       <ProfileBottomDrawer
-          isVisible={isDrawerVisible}
-          toggleModal={closeProfileDrawer}  
-          startChat={handleChatNavigation2}
-          selectedUser={selectedUser}
-          isOnline={isOnline}
-          bannedUsers={bannedUsers}
-        />
+        isVisible={isDrawerVisible}
+        toggleModal={closeProfileDrawer}
+        startChat={handleChatNavigation2}
+        selectedUser={selectedUser}
+        isOnline={isOnline}
+        bannedUsers={bannedUsers}
+      />
       {(!localState.isPro && !proGranted) && <BannerAdComponent />}
     </View>
   );
@@ -1551,11 +1577,11 @@ const getStyles = (isDarkMode) =>
       color: isDarkMode ? 'white' : "black",
     },
     traderName: {
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       fontSize: 10,
       color: isDarkMode ? 'white' : "black",
-    flexDirection:'row',
-    alignItems:'baseline'
+      flexDirection: 'row',
+      alignItems: 'baseline'
 
     },
     tradeTime: {
@@ -1612,7 +1638,7 @@ const getStyles = (isDarkMode) =>
     },
     priceText: {
       fontSize: 8,
-      fontFamily: 'Lato-Regular',
+
       color: '#007BFF',
       // width: '40%',
       textAlign: 'center', // Centers text within its own width
@@ -1626,7 +1652,7 @@ const getStyles = (isDarkMode) =>
     priceTextProfit: {
       fontSize: 10,
       lineHeight: 14,
-      fontFamily: 'Lato-Regular',
+
       // color: '#007BFF',
       // width: '40%',
       textAlign: 'center', // Centers text within its own width
@@ -1659,14 +1685,14 @@ const getStyles = (isDarkMode) =>
     },
     description: {
       color: isDarkMode ? 'lightgrey' : "grey",
-      fontFamily: 'Lato-Regular',
+
       fontSize: 10,
       marginTop: 5,
       lineHeight: 12
     },
     descriptionclick: {
       color: config.colors.secondary,
-      fontFamily: 'Lato-Regular',
+
       fontSize: 10,
       // marginTop: 5,
       // lineHeight:12
@@ -1680,7 +1706,7 @@ const getStyles = (isDarkMode) =>
     loadingText: {
       marginTop: 10,
       fontSize: 14,
-      fontFamily: 'Lato-Regular',
+
       textAlign: 'center',
     },
     dealContainer: {
@@ -1703,7 +1729,7 @@ const getStyles = (isDarkMode) =>
     },
     dealText: {
       color: 'white',
-      fontWeight: 'Lato-Bold',
+      fontWeight: 'bold',
       fontSize: 8,
       textAlign: 'center',
       alignItems: 'center',
@@ -1712,7 +1738,7 @@ const getStyles = (isDarkMode) =>
 
     },
     names: {
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       fontSize: 8,
       color: isDarkMode ? 'white' : "black",
       marginTop: -3
@@ -1729,18 +1755,18 @@ const getStyles = (isDarkMode) =>
     },
     tagcounttext: {
       color: 'white',
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       fontSize: 10
     },
     footer: {
       flexDirection: 'row',
       justifyContent: 'flex-start',
       borderTopWidth: 1,
-      backgroundColor:'#F5A327',
+      backgroundColor: '#F5A327',
       // paddingHorizontal: 30,
       paddingTop: 5,
       marginTop: 10,
-      borderTopColor:config.colors.hasBlockGreen
+      borderTopColor: config.colors.hasBlockGreen
     },
     tag: {
       backgroundColor: config.colors.hasBlockGreen,
@@ -1752,8 +1778,8 @@ const getStyles = (isDarkMode) =>
       borderTopLeftRadius: 10,  // Increased to make it more curved
       borderBottomRightRadius: 30, // Further increased for more curve
     },
-    boost:{
-      justifyContent:'flex-start', paddingVertical:2, paddingHorizontal:5, borderRadius:3, alignItems:'center', margin:4
+    boost: {
+      justifyContent: 'flex-start', paddingVertical: 2, paddingHorizontal: 5, borderRadius: 3, alignItems: 'center', margin: 4
     },
     scrollToTopButton: {
       position: 'absolute',
@@ -1835,7 +1861,7 @@ const getStyles = (isDarkMode) =>
     },
     checkboxLabel: {
       fontSize: 13,
-      fontFamily: 'Lato-Regular',
+
     },
     searchButton: {
       flexDirection: 'row',
@@ -1857,7 +1883,7 @@ const getStyles = (isDarkMode) =>
     searchButtonText: {
       color: '#fff',
       fontSize: 15,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
     },
 
   });

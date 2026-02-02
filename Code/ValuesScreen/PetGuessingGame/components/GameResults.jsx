@@ -45,7 +45,7 @@ const GameResults = ({ roomData, currentUser }) => {
     if (!appdatabase || !currentUser?.id) return;
 
     const userRef = ref(appdatabase, `users/${currentUser.id}`);
-    
+
     // Initial fetch
     const fetchUserStats = async () => {
       try {
@@ -222,7 +222,7 @@ const GameResults = ({ roomData, currentUser }) => {
             <View style={styles.historyList}>
               {spinHistory.map((spin, index) => {
                 const playerName = roomData?.players?.[spin.playerId]?.displayName || 'Player';
-                
+
                 return (
                   <View key={index} style={styles.historyItem}>
                     <View style={styles.historyRound}>
@@ -231,7 +231,7 @@ const GameResults = ({ roomData, currentUser }) => {
                         R{spin.round}
                       </Text>
                     </View>
-                    <Text 
+                    <Text
                       style={[styles.historyPlayer, { color: isDarkMode ? '#fff' : '#000' }]}
                       numberOfLines={1}
                     >
@@ -265,16 +265,16 @@ const styles = StyleSheet.create({
   winnerEmoji: {
     fontSize: 40,
     marginBottom: 8,
-    fontFamily: 'Lato-Regular',
+
   },
   winnerText: {
     fontSize: 20,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     marginBottom: 4,
   },
   winnerScore: {
     fontSize: 16,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     color: '#F59E0B',
     marginBottom: 8,
   },
@@ -285,10 +285,10 @@ const styles = StyleSheet.create({
   },
   pointsLabel: {
     fontSize: 13,
-    fontFamily: 'Lato-Regular',
+
   },
   pointsValue: {
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     color: '#10B981',
   },
   leaderboardSection: {
@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 14,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
   },
   leaderboard: {
     gap: 8,
@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
   medalText: {
     color: '#fff',
     fontSize: 12,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
   },
   avatar: {
     width: 36,
@@ -342,7 +342,7 @@ const styles = StyleSheet.create({
   },
   playerName: {
     fontSize: 14,
-    fontFamily: 'Lato-Regular',
+
     flex: 1,
   },
   scoreContainer: {
@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
   },
   score: {
     fontSize: 16,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     color: '#10B981',
   },
   winnerScoreText: {
@@ -381,23 +381,23 @@ const styles = StyleSheet.create({
   },
   historyRoundText: {
     fontSize: 11,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     color: '#fff',
   },
   historyPlayer: {
     fontSize: 12,
-    fontFamily: 'Lato-Regular',
+
     flex: 1,
   },
   historyPet: {
     fontSize: 11,
-    fontFamily: 'Lato-Regular',
+
     flex: 1,
     textAlign: 'right',
   },
   historyValue: {
     fontSize: 13,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     color: '#10B981',
     minWidth: 60,
     textAlign: 'right',
@@ -413,16 +413,16 @@ const styles = StyleSheet.create({
   timeoutEmoji: {
     fontSize: 48,
     marginBottom: 8,
-    fontFamily: 'Lato-Regular',
+
   },
   timeoutText: {
     fontSize: 20,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     marginBottom: 4,
   },
   timeoutReason: {
     fontSize: 14,
-    fontFamily: 'Lato-Regular',
+
     textAlign: 'center',
   },
 });

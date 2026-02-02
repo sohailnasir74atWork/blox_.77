@@ -14,6 +14,7 @@ import ImageViewerScreenChat from './PrivateChat/ImageViewer';
 import { ref, update } from '@react-native-firebase/database';
 import CommunityChatHeader from './GroupChat/CommunityChatHeader';
 import LeaderboardScreen from './GroupChat/LeaderboardScreen';
+import AdminDashboard from '../AppHelper/AdminDashboard';
 
 const Stack = createNativeStackNavigator();
 
@@ -49,7 +50,7 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
   const headerOptions = useMemo(() => ({
     headerStyle: { backgroundColor: selectedTheme.colors.background },
     headerTintColor: selectedTheme.colors.text,
-    headerTitleStyle: { fontFamily: 'Lato-Bold', fontSize: 24 },
+    headerTitleStyle: { fontWeight: 'bold', fontSize: 24 },
     headerBackTitleVisible: false,
   }), [selectedTheme]);
 
@@ -61,22 +62,22 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
       setunreadcount(0);
       return;
     }
-  
+
     const userChatsRef = ref(appdatabase, `chat_meta_data/${user.id}`);
     let totalUnread = 0;
     const unreadCounts = new Map(); // Track unread counts per chat
-    
+
     // ✅ OPTIMIZED: Use child_added and child_changed to listen to individual chats
     // This only downloads data when a specific chat changes, not the entire metadata
     const handleChildChange = (snapshot) => {
       if (!snapshot || !snapshot.key) return;
       const chatData = snapshot.val();
       if (!chatData || typeof chatData !== 'object') return;
-      
+
       const chatPartnerId = snapshot.key;
       const isBlocked = Array.isArray(bannedUsers) && bannedUsers.includes(chatPartnerId);
       const rawUnread = chatData?.unreadCount || 0;
-      
+
       if (isBlocked && rawUnread > 0) {
         update(
           ref(appdatabase, `chat_meta_data/${user.id}/${chatPartnerId}`),
@@ -88,32 +89,32 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
       } else {
         unreadCounts.set(chatPartnerId, isBlocked ? 0 : rawUnread);
       }
-      
+
       // Recalculate total
       totalUnread = Array.from(unreadCounts.values()).reduce((sum, count) => sum + count, 0);
       setunreadcount(totalUnread);
     };
-    
+
     const handleChildRemoved = (snapshot) => {
       if (!snapshot || !snapshot.key) return;
       unreadCounts.delete(snapshot.key);
       totalUnread = Array.from(unreadCounts.values()).reduce((sum, count) => sum + count, 0);
       setunreadcount(totalUnread);
     };
-    
+
     // ✅ OPTIMIZED: Use incremental loading with child listeners only
     // Instead of downloading all metadata at once, let child_added fire for each chat
     // This way we only download data as it's needed, reducing wildcard downloads
-    
+
     // Set initial count to 0 (will be updated as child_added fires for existing chats)
     setunreadcount(0);
-    
+
     // ✅ Listen to individual chat changes - child_added will fire for existing chats
     // This is more efficient than downloading all data at once
     userChatsRef.on('child_added', handleChildChange);
     userChatsRef.on('child_changed', handleChildChange);
     userChatsRef.on('child_removed', handleChildRemoved);
-  
+
     // ✅ Proper cleanup
     return () => {
       userChatsRef.off('child_added', handleChildChange);
@@ -170,11 +171,11 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
           (a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp
         );
         setGroups(sortedGroups);
-        
+
         // ✅ Calculate total group unread count
         const totalGroupUnread = sortedGroups.reduce((sum, group) => sum + (group.unreadCount || 0), 0);
         setGroupUnreadCount(totalGroupUnread);
-        
+
         setGroupsLoading(false);
       } catch (error) {
         console.error('❌ Error fetching groups:', error);
@@ -190,10 +191,10 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
   const [onlineUsersVisible, setOnlineUsersVisible] = useState(false);
 
   const getGroupChatOptions = useCallback(({ navigation }) => ({
-    title: '', // Hide title
+    title: user?.id ? '' : 'Community Chat', // ✅ Show title only when logged out
     headerTitleAlign: 'left',
-    headerTitleStyle: { 
-      fontFamily: 'Lato-Bold', 
+    headerTitleStyle: {
+      fontWeight: 'bold',
       fontSize: 24,
     },
     headerTitleContainerStyle: {
@@ -221,7 +222,7 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
       paddingRight: 0,
       marginRight: 0,
     },
-  }), [selectedTheme, unreadcount, setunreadcount, groupUnreadCount, setGroupUnreadCount, triggerHapticFeedback]);
+  }), [selectedTheme, unreadcount, setunreadcount, groupUnreadCount, setGroupUnreadCount, triggerHapticFeedback, user?.id]);
 
   return (
     <Stack.Navigator screenOptions={headerOptions}>
@@ -275,30 +276,30 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
       </Stack.Screen>
 
       <Stack.Screen
-  name="PrivateChat"
-  options={({ route }) => ({
-    headerTitle: () => (
-      <PrivateChatHeader
-        selectedUser={route.params?.selectedUser}
-        selectedTheme={selectedTheme}
-        bannedUsers={bannedUsers}
-        isDrawerVisible={isDrawerVisible}
-        setIsDrawerVisible={setIsDrawerVisible}
-      />
-    ),
-  })}
->
-  {(props) => (
-    <PrivateChatScreen
-      {...props}
-      bannedUsers={bannedUsers}
-      isDrawerVisible={isDrawerVisible}
-      setIsDrawerVisible={setIsDrawerVisible}
-    />
-  )}
-</Stack.Screen>
+        name="PrivateChat"
+        options={({ route }) => ({
+          headerTitle: () => (
+            <PrivateChatHeader
+              selectedUser={route.params?.selectedUser}
+              selectedTheme={selectedTheme}
+              bannedUsers={bannedUsers}
+              isDrawerVisible={isDrawerVisible}
+              setIsDrawerVisible={setIsDrawerVisible}
+            />
+          ),
+        })}
+      >
+        {(props) => (
+          <PrivateChatScreen
+            {...props}
+            bannedUsers={bannedUsers}
+            isDrawerVisible={isDrawerVisible}
+            setIsDrawerVisible={setIsDrawerVisible}
+          />
+        )}
+      </Stack.Screen>
 
-       <Stack.Screen
+      <Stack.Screen
         name="ImageViewerScreenChat"
         component={ImageViewerScreenChat}
         options={{ title: 'Image' }}
@@ -310,6 +311,12 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
       >
         {props => <LeaderboardScreen {...props} />}
       </Stack.Screen>
+
+      <Stack.Screen
+        name="AdminDashboard"
+        component={AdminDashboard}
+        options={{ title: '', headerShown: false }} // AdminDashboard has its own header
+      />
     </Stack.Navigator>
 
   );

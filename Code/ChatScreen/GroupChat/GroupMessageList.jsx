@@ -185,7 +185,7 @@ const GroupMessageList = ({
             )}
 
             {/* Username with badges - shown for ALL messages (including current user) */}
-           
+
 
             <Menu>
               <MenuTrigger
@@ -196,77 +196,77 @@ const GroupMessageList = ({
                 <View style={[
                   isMyMessage ? styles.myMessageText : styles.otherMessageText,
                 ]}>
-                   <TouchableOpacity
-              onPress={() => {
-                if (onUserPress && item.senderId) {
-                  onUserPress({
-                    senderId: item.senderId,
-                    sender: senderName,
-                    avatar: senderAvatar,
-                  });
-                }
-              }}
-              disabled={!onUserPress}
-              activeOpacity={0.7}
-              style={{ alignSelf: 'flex-start' }}
-            >
-              <View style={{ 
-                flexDirection: 'row', 
-                alignItems: 'center', 
-                flexWrap: 'nowrap',
-              }}>
-                <Text 
-                  style={[styles.userNameText, { 
-                    flexShrink: 1,
-                  }]} 
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                >
-                  {senderName}
-                </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (onUserPress && item.senderId) {
+                        onUserPress({
+                          senderId: item.senderId,
+                          sender: senderName,
+                          avatar: senderAvatar,
+                        });
+                      }
+                    }}
+                    disabled={!onUserPress}
+                    activeOpacity={0.7}
+                    style={{ alignSelf: 'flex-start' }}
+                  >
+                    <View style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      flexWrap: 'nowrap',
+                    }}>
+                      <Text
+                        style={[styles.userNameText, {
+                          flexShrink: 1,
+                        }]}
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                      >
+                        {senderName}
+                      </Text>
 
-                {/* Pro badge */}
-                {item?.isPro && (
-                  <Image
-                    source={require('../../../assets/pro.png')}
-                    style={{ width: 16, height: 16, marginLeft: 4 }}
-                  />
-                )}
+                      {/* Pro badge */}
+                      {item?.isPro && (
+                        <Image
+                          source={require('../../../assets/pro.png')}
+                          style={{ width: 16, height: 16, marginLeft: 4 }}
+                        />
+                      )}
 
-                {/* Verified badge */}
-                {item?.robloxUsernameVerified && (
-                  <Image
-                    source={require('../../../assets/verification.png')}
-                    style={{ width: 16, height: 16, marginLeft: 4 }}
-                  />
-                )}
+                      {/* Verified badge */}
+                      {item?.robloxUsernameVerified && (
+                        <Image
+                          source={require('../../../assets/verification.png')}
+                          style={{ width: 16, height: 16, marginLeft: 4 }}
+                        />
+                      )}
 
-                {/* Trophy badge (recent win) */}
-                {hasRecentWin && (
-                  <Image
-                    source={require('../../../assets/trophy.webp')}
-                    style={{ width: 10, height: 10, marginLeft: 4 }}
-                  />
-                )}
+                      {/* Trophy badge (recent win) */}
+                      {hasRecentWin && (
+                        <Image
+                          source={require('../../../assets/trophy.webp')}
+                          style={{ width: 10, height: 10, marginLeft: 4 }}
+                        />
+                      )}
 
-                {/* Creator badge */}
-                {item?.isCreator && (
-                  <View style={{
-                    backgroundColor: '#8B5CF6',
-                    paddingHorizontal: 4,
-                    paddingVertical: 1,
-                    borderRadius: 3,
-                    marginLeft: 4,
-                  }}>
-                    <Text style={{
-                      color: '#FFF',
-                      fontSize: 9,
-                      fontWeight: '600',
-                    }}>Creator</Text>
-                  </View>
-                )}
-              </View>
-            </TouchableOpacity> 
+                      {/* Creator badge */}
+                      {item?.isCreator && (
+                        <View style={{
+                          backgroundColor: '#8B5CF6',
+                          paddingHorizontal: 4,
+                          paddingVertical: 1,
+                          borderRadius: 3,
+                          marginLeft: 4,
+                        }}>
+                          <Text style={{
+                            color: '#FFF',
+                            fontSize: 9,
+                            fontWeight: '600'
+                          }}>Creator</Text>
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
                   {/* Image */}
                   {item.imageUrl && (
                     <View style={{ marginBottom: 4 }}>
@@ -288,7 +288,7 @@ const GroupMessageList = ({
                   {hasFruits && (
                     <View
                       style={[
-                        fruitStyles.fruitsWrapper,                     ]}
+                        fruitStyles.fruitsWrapper,]}
                     >
                       {fruits.map((fruit, index) => {
                         const valueType = (fruit.valueType || 'd').toLowerCase();
@@ -380,31 +380,31 @@ const GroupMessageList = ({
                 </View>
               </MenuTrigger>
 
-            <MenuOptions
-              customStyles={{
-                optionsContainer: styles.menuoptions,
-                optionWrapper: styles.menuOption,
-                optionText: styles.menuOptionText,
-              }}
-            >
-              <MenuOption onSelect={() => handleCopy(item)}>
-                <Text style={styles.menuOptionText}>Copy</Text>
-              </MenuOption>
-              {userId && onReply && (
-                <MenuOption onSelect={() => onReply(item)}>
-                  <Text style={styles.menuOptionText}>{t('chat.reply')}</Text>
+              <MenuOptions
+                customStyles={{
+                  optionsContainer: styles.menuoptions,
+                  optionWrapper: styles.menuOption,
+                  optionText: styles.menuOptionText,
+                }}
+              >
+                <MenuOption onSelect={() => handleCopy(item)}>
+                  <Text style={styles.menuOptionText}>Copy</Text>
                 </MenuOption>
-              )}
-            </MenuOptions>
-          </Menu>
+                {userId && onReply && (
+                  <MenuOption onSelect={() => onReply(item)}>
+                    <Text style={styles.menuOptionText}>{t('chat.reply')}</Text>
+                  </MenuOption>
+                )}
+              </MenuOptions>
+            </Menu>
           </View>
 
           <Text style={styles.timestamp}>
             {item.timestamp
               ? new Date(item.timestamp).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })
+                hour: '2-digit',
+                minute: '2-digit',
+              })
               : ''}
           </Text>
         </View>
@@ -453,7 +453,7 @@ const GroupMessageList = ({
       initialNumToRender={15} // ✅ Render 15 messages initially
       maxToRenderPerBatch={10} // ✅ Render 10 per batch
       windowSize={5} // ✅ Optimize memory usage
-      removeClippedSubviews={true} // ✅ Improve performance
+      removeClippedSubviews={false} // ✅ Fix for getChildDrawingOrder crash
       ListFooterComponent={
         isPaginating ? (
           <View style={{ padding: 16, alignItems: 'center' }}>

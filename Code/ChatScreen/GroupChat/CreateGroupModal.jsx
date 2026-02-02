@@ -67,7 +67,7 @@ const base64ToBytes = (base64) => {
 const MAX_GROUP_MEMBERS = 50;
 
 const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = null, editGroupName = null, editGroupDescription = null, editGroupAvatar = null, isAdmin = false, onGroupUpdated = null }) => {
-  const { theme, user, firestoreDB, appdatabase } = useGlobalState();
+  const { theme, user, firestoreDB, appdatabase, strikeInfo, isAdmin: isAppAdmin } = useGlobalState();
   const isEditMode = !!editGroupId;
   const { triggerHapticFeedback } = useHaptic();
   const navigation = useNavigation();
@@ -118,7 +118,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
   // Initialize edit data when modal opens in edit mode (only once per group)
   React.useEffect(() => {
     if (!visible) return;
-    
+
     if (isEditMode && editGroupId) {
       // Only initialize if we haven't initialized for this group yet
       if (initializedEditGroupIdRef.current !== editGroupId) {
@@ -222,6 +222,29 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
 
   // Handle create group
   const handleCreateGroup = async () => {
+    // ✅ Check for ban/strikes
+    if (strikeInfo && !isAppAdmin) {
+      const { strikeCount, bannedUntil } = strikeInfo;
+      const now = Date.now();
+
+      if (bannedUntil === 'permanent') {
+        showErrorMessage('Error', 'You are permanently banned from creating groups.');
+        return;
+      }
+
+      if (typeof bannedUntil === 'number' && now < bannedUntil) {
+        const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+        showErrorMessage(
+          'Error',
+          `You are banned from creating groups for ${timeLeftText} more minute(s).`
+        );
+        return;
+      }
+    }
     // Validate description (required for create)
     if (!groupDescription.trim()) {
       showErrorMessage('Error', 'Group description is required');
@@ -541,6 +564,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
                     </View>
                   }
                   style={styles.membersList}
+                  removeClippedSubviews={false}
                 />
               </>
             )}
@@ -550,10 +574,10 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
               <TouchableOpacity
                 style={[
                   styles.createButton,
-                (creating || (!isEditMode && (totalMembers < 2 || totalMembers > MAX_GROUP_MEMBERS || !groupName.trim() || !groupDescription.trim())) || (isEditMode && !groupName.trim())) &&
+                  (creating || (!isEditMode && (totalMembers < 2 || totalMembers > MAX_GROUP_MEMBERS || !groupName.trim() || !groupDescription.trim())) || (isEditMode && !groupName.trim())) &&
                   styles.createButtonDisabled,
-              ]}
-              onPress={handleSubmit}
+                ]}
+                onPress={handleSubmit}
                 disabled={creating || uploadingAvatar || (!isEditMode && (totalMembers < 2 || totalMembers > MAX_GROUP_MEMBERS || !groupName.trim() || !groupDescription.trim())) || (isEditMode && !groupName.trim())}
               >
                 {(creating || uploadingAvatar) ? (
@@ -601,7 +625,7 @@ const getStyles = (isDark) =>
     },
     headerTitle: {
       fontSize: 20,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       color: isDark ? '#fff' : '#000',
     },
     placeholder: {
@@ -657,7 +681,7 @@ const getStyles = (isDark) =>
     },
     label: {
       fontSize: 14,
-      fontFamily: 'Lato-SemiBold',
+      fontWeight: '600',
       color: isDark ? '#fff' : '#000',
       marginBottom: 8,
     },
@@ -665,14 +689,14 @@ const getStyles = (isDark) =>
       borderRadius: 12,
       padding: 12,
       fontSize: 16,
-      fontFamily: 'Lato-Regular',
+
     },
     memberCountContainer: {
       marginBottom: 12,
     },
     memberCountText: {
       fontSize: 14,
-      fontFamily: 'Lato-SemiBold',
+      fontWeight: '600',
       color: isDark ? '#9ca3af' : '#6b7280',
     },
     maxReachedText: {
@@ -700,7 +724,7 @@ const getStyles = (isDark) =>
     memberName: {
       flex: 1,
       fontSize: 16,
-      fontFamily: 'Lato-Regular',
+
       color: isDark ? '#fff' : '#000',
     },
     removeButton: {
@@ -712,7 +736,7 @@ const getStyles = (isDark) =>
     },
     emptyText: {
       fontSize: 14,
-      fontFamily: 'Lato-Regular',
+
       color: isDark ? '#666' : '#999',
     },
     footer: {
@@ -735,7 +759,7 @@ const getStyles = (isDark) =>
     },
     createButtonText: {
       fontSize: 16,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       color: '#fff',
     },
   });

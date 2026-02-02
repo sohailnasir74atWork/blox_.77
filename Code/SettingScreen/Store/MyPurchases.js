@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 16,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     marginBottom: 12,
     alignSelf: 'center',
   },
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   purchaseTitle: {
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     fontSize: 15,
     color: 'white',
   },
@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
     maxHeight: '60%',
   },
   modalTitle: {
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     fontSize: 18,
     paddingBottom: 12,
     textAlign: 'center',
@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: '#fff',
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     fontSize: 16,
     alignSelf:'center'
   },
@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: '#fff',
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     fontSize: 16,
   },
 });

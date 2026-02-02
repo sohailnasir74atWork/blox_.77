@@ -8,7 +8,7 @@ import {
   Text,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { 
+import {
   collection,
   doc,
   getDoc,
@@ -24,7 +24,7 @@ import {
   onSnapshot,
   addDoc,
   writeBatch,
-  deleteField,       
+  deleteField,
 
 } from '@react-native-firebase/firestore';
 
@@ -73,18 +73,18 @@ const DesignFeedScreen = ({ route }) => {
 
   }, [localState.bannedUsers]);
   function interleaveAds(items, showAds) {
-     if (!showAds) return items;
-      const out = [];
-     let real = 0;
+    if (!showAds) return items;
+    const out = [];
+    let real = 0;
     for (let i = 0; i < items.length; i++) {
-       out.push(items[i]);
-        real++;
-        if (real > 0 && real % AD_FREQUENCY === 0) {
-          out.push({ __type: 'ad', id: `ad-${i}` });
-        }
-     }
+      out.push(items[i]);
+      real++;
+      if (real > 0 && real % AD_FREQUENCY === 0) {
+        out.push({ __type: 'ad', id: `ad-${i}` });
+      }
+    }
     return out;
-     }
+  }
   const fetchMyPosts = async (tag = null) => {
     if (!user?.id) return;
     setInitialLoading(true);
@@ -94,7 +94,7 @@ const DesignFeedScreen = ({ route }) => {
         where('userId', '==', user.id),
         orderBy('createdAt', 'desc')
       );
-      
+
       if (tag) {
         q = query(
           collection(firestoreDB, 'designPosts'),
@@ -102,9 +102,9 @@ const DesignFeedScreen = ({ route }) => {
           where('selectedTags', 'array-contains', tag),
           orderBy('createdAt', 'desc')
         );
-        
+
       }
-  
+
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       setMyPosts(data);
@@ -117,10 +117,10 @@ const DesignFeedScreen = ({ route }) => {
       setRefreshing(false);
     }
   };
-  
+
   const deleteUsersLatestPosts = async (userId, n = 15) => {
     if (!userId) throw new Error('userId is required');
-  
+
     const q = query(
       collection(firestoreDB, 'designPosts'),
       where('userId', '==', userId),
@@ -128,16 +128,16 @@ const DesignFeedScreen = ({ route }) => {
       limit(n)
     );
 
-      const snap = await getDocs(q);
-      if (snap.empty) return [];
-  
-      const batch = writeBatch(firestoreDB);
-      const ids = [];
-  
-      snap.docs.forEach(d => {
-        batch.delete(d.ref);
-        ids.push(d.id);
-      });
+    const snap = await getDocs(q);
+    if (snap.empty) return [];
+
+    const batch = writeBatch(firestoreDB);
+    const ids = [];
+
+    snap.docs.forEach(d => {
+      batch.delete(d.ref);
+      ids.push(d.id);
+    });
 
     await batch.commit();
     return ids;
@@ -158,9 +158,9 @@ const DesignFeedScreen = ({ route }) => {
         orderBy('createdAt', 'desc'),
         limit(5)
       );
-      
+
       const snapshot = await getDocs(q);
-      
+
 
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setPosts(data);
@@ -195,7 +195,7 @@ const DesignFeedScreen = ({ route }) => {
         orderBy('createdAt', 'desc'),
         limit(5)
       );
-      
+
       const snapshot = await getDocs(q);
 
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -276,16 +276,16 @@ const DesignFeedScreen = ({ route }) => {
 
   const handleLike = async (post) => {
     if (!user?.id) return;
-    
+
     const postRef = doc(firestoreDB, 'designPosts', post.id);
     const alreadyLiked = !!post.likes?.[user.id];
-    
+
     // ✅ Save original likes for error rollback
     const originalLikes = { ...(post.likes || {}) };
 
     // ✅ Optimistic update: Update local state immediately for instant UI feedback
     const updateLocalState = (likes) => {
-      setPosts(prevPosts => 
+      setPosts(prevPosts =>
         prevPosts.map(p => {
           if (p.id === post.id) {
             return { ...p, likes };
@@ -295,7 +295,7 @@ const DesignFeedScreen = ({ route }) => {
       );
 
       // ✅ Also update myPosts if user is viewing their own posts
-      setMyPosts(prevMyPosts => 
+      setMyPosts(prevMyPosts =>
         prevMyPosts.map(p => {
           if (p.id === post.id) {
             return { ...p, likes };
@@ -321,7 +321,7 @@ const DesignFeedScreen = ({ route }) => {
       });
     } catch (error) {
       console.error('Error updating like:', error);
-      
+
       // ✅ Revert optimistic update on error
       updateLocalState(originalLikes);
 
@@ -338,12 +338,12 @@ const DesignFeedScreen = ({ route }) => {
     if (isSubmittingPost) {
       return;
     }
-    
+
     if (!user?.id) return;
-    
+
     // ✅ Set submitting state IMMEDIATELY to prevent duplicate submissions
     setIsSubmittingPost(true);
-    
+
     try {
       // ✅ 2-minute cooldown check (using Date.now() for accurate comparison)
       const now = Date.now();
@@ -352,11 +352,11 @@ const DesignFeedScreen = ({ route }) => {
         const secondsLeft = Math.ceil((COOLDOWN_MS - (now - lastPostTime)) / 1000);
         const minutesLeft = Math.floor(secondsLeft / 60);
         const remainingSeconds = secondsLeft % 60;
-        const timeMessage = minutesLeft > 0 
+        const timeMessage = minutesLeft > 0
           ? `${minutesLeft} minute${minutesLeft === 1 ? '' : 's'} and ${remainingSeconds} second${remainingSeconds === 1 ? '' : 's'}`
           : `${secondsLeft} second${secondsLeft === 1 ? '' : 's'}`;
-        showMessage({ 
-          message: `Please wait ${timeMessage} before posting again.`, 
+        showMessage({
+          message: `Please wait ${timeMessage} before posting again.`,
           type: 'danger',
           duration: 3000
         });
@@ -373,12 +373,12 @@ const DesignFeedScreen = ({ route }) => {
         setIsSubmittingPost(false);
         throw new Error('Missing tags'); // ✅ Throw error to prevent clearing form
       }
-      
+
       // Ensure imageUrls is an array (PostCard expects imageUrl as array)
-      const imageUrlArray = Array.isArray(imageUrls) 
+      const imageUrlArray = Array.isArray(imageUrls)
         ? imageUrls.filter(url => url && typeof url === 'string' && url.trim().length > 0)
         : (imageUrls && typeof imageUrls === 'string' && imageUrls.trim().length > 0 ? [imageUrls] : []);
-      
+
       // ✅ Images are optional - posts can have text only, images only, or both
       // ✅ Tags are always required and must be saved to database
       const post = {
@@ -389,23 +389,23 @@ const DesignFeedScreen = ({ route }) => {
         avatar: user?.avatar || null,
         createdAt: serverTimestamp(),
         likes: {},
-        selectedTags: Array.isArray(selectedTags) && selectedTags.length > 0 
-          ? selectedTags 
+        selectedTags: Array.isArray(selectedTags) && selectedTags.length > 0
+          ? selectedTags
           : (selectedTags ? [selectedTags] : ['Discussion']), // ✅ Always ensure tags exist
         email: currentUserEmail || null,
         report: false,
         flage: user?.flage || null
       };
-      
+
       await addDoc(collection(firestoreDB, 'designPosts'), post);
-      
+
       // ✅ Update last post time after successful upload
       setLastPostTime(now);
-      
+
       // ✅ Refresh feed after posting
       setRefreshing(true);
       await fetchInitialPosts();
-      
+
       showMessage({
         message: 'Success',
         description: 'Post created successfully',
@@ -433,12 +433,12 @@ const DesignFeedScreen = ({ route }) => {
     if (initialLoading) {
       return <View style={[styles.skeletonPost, isDarkMode && { backgroundColor: '#444' }]} />;
     }
-      // if (item?.__type === 'ad') {
-      //    return <NativeFeedAd mediaHeight={220} />;
-      //  }
-       if (item?.__type === 'ad') {
-         return <View style={{flex:1}}><SingleNativeAd  /></View>;
-       }
+    // if (item?.__type === 'ad') {
+    //    return <NativeFeedAd mediaHeight={220} />;
+    //  }
+    if (item?.__type === 'ad') {
+      return <View style={{ flex: 1 }}><SingleNativeAd /></View>;
+    }
 
     return (
       <PostCard
@@ -459,8 +459,8 @@ const DesignFeedScreen = ({ route }) => {
   //   : filterMyPosts
   //     ? myPosts
   //     : posts;
-      const baseList = initialLoading ? skeletonArray : (filterMyPosts ? myPosts : posts);
-    
+  const baseList = initialLoading ? skeletonArray : (filterMyPosts ? myPosts : posts);
+
   // keep ads; drop banned users' posts
   const filteredBase = useMemo(() => {
     if (initialLoading) return skeletonArray;
@@ -469,18 +469,18 @@ const DesignFeedScreen = ({ route }) => {
       item?.__type === 'ad' || !bannedUsers.includes(item?.userId)
     );
   }, [initialLoading, baseList, bannedUsers, skeletonArray]);
-  
+
   const dataToRender = initialLoading
     ? skeletonArray
     : interleaveAds(filteredBase, false);
 
   const keyExtractor = (item, index) =>
     // initialLoading ? `skeleton-${index}` : item?.id || `post-${index}`;
-   initialLoading
-  ? `skeleton-${index}`
-   : item?.__type === 'ad'
-      ? item.id
-      : `${item?.id}_${index}}` || `post-${index}`;
+    initialLoading
+      ? `skeleton-${index}`
+      : item?.__type === 'ad'
+        ? item.id
+        : `${item?.id}_${index}}` || `post-${index}`;
 
   return (
     <View style={[styles.container, isDarkMode && styles.darkContainer]}>
@@ -572,12 +572,6 @@ const styles = StyleSheet.create({
     margin: 10,
     backgroundColor: '#e0e0e0',
     borderRadius: 10,
-  },
-  latoText: {
-    fontFamily: 'Lato-Regular',
-  },
-  latoBold: {
-    fontFamily: 'Lato-Bold',
   },
 });
 

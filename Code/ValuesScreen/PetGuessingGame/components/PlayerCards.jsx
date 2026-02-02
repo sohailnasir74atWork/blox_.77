@@ -18,15 +18,15 @@ const PlayerCards = ({ roomData, currentUserId }) => {
 
   const players = useMemo(() => {
     if (!roomData?.players) return [];
-    
+
     const playerOrder = roomData.gameData?.playerOrder || Object.keys(roomData.players);
     const scores = roomData.gameData?.scores || {};
     const spinHistory = roomData.gameData?.spinHistory || [];
-    
+
     let playersList = playerOrder.map(playerId => {
       // Get player data - preserve even if player left (use stored data)
       const playerData = roomData.players[playerId] || {};
-      
+
       // Get winning fruits for this player from spin history
       const winningFruits = spinHistory
         .filter(spin => spin.playerId === playerId && spin.petImage)
@@ -35,7 +35,7 @@ const PlayerCards = ({ roomData, currentUserId }) => {
           image: spin.petImage,
           value: spin.petValue,
         }));
-      
+
       return {
         id: playerId,
         displayName: playerData.displayName || 'Anonymous',
@@ -45,7 +45,7 @@ const PlayerCards = ({ roomData, currentUserId }) => {
         winningPets: winningFruits, // Keep prop name for compatibility
       };
     });
-    
+
     // Always show current user's card on the left
     // Sort so current user is first
     const currentUserIndex = playersList.findIndex(p => p.id === currentUserId);
@@ -54,7 +54,7 @@ const PlayerCards = ({ roomData, currentUserId }) => {
       playersList.splice(currentUserIndex, 1);
       playersList.unshift(currentUser);
     }
-    
+
     return playersList;
   }, [roomData, currentUserId]);
 
@@ -70,17 +70,17 @@ const PlayerCards = ({ roomData, currentUserId }) => {
   // Determine winner if game is finished
   const winner = useMemo(() => {
     if (roomData?.status !== 'finished') return null;
-    
+
     let maxScore = -1;
     let winnerId = null;
-    
+
     players.forEach(player => {
       if (player.score > maxScore) {
         maxScore = player.score;
         winnerId = player.id;
       }
     });
-    
+
     return winnerId;
   }, [roomData?.status, players]);
 
@@ -142,7 +142,7 @@ const PlayerCards = ({ roomData, currentUserId }) => {
               {/* Center: Player Info */}
               <View style={styles.playerInfoContainer}>
                 {/* Player Name */}
-                <Text 
+                <Text
                   style={[styles.playerName, { color: isDarkMode ? '#fff' : '#000' }]}
                   numberOfLines={1}
                 >
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
   },
   roundText: {
     fontSize: 12,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
   },
   cardsContainer: {
     flexDirection: 'row',
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
   turnBadgeText: {
     color: '#fff',
     fontSize: 9,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     marginLeft: 2,
   },
   avatarContainer: {
@@ -277,7 +277,7 @@ const styles = StyleSheet.create({
   },
   hostBadgeText: {
     fontSize: 9,
-    fontFamily: 'Lato-Regular',
+
   },
   playerInfoContainer: {
     flex: 1,
@@ -286,13 +286,13 @@ const styles = StyleSheet.create({
   },
   playerName: {
     fontSize: 11,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     textAlign: 'left',
     marginBottom: 2,
   },
   score: {
     fontSize: 14,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     color: '#10B981',
     marginBottom: 4,
   },

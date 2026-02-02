@@ -93,7 +93,7 @@ const FortuneWheel = ({
       setWinner(null);
       setHasSpun(false);
     }
-    
+
     // Update previous turn state
     previousTurnRef.current = isMyTurn;
   }, [isMyTurn, isSpinning, isSpinningLocal, triggerHapticFeedback]);
@@ -133,12 +133,12 @@ const FortuneWheel = ({
     if (!isMyTurn || isSpinning || disabled || hasSpun || isSpinningLocal || wheelPets.length === 0) return;
 
     triggerHapticFeedback('impactMedium'); // ✅ Haptic feedback when spin starts
-    
+
     // Call onSpinStart callback if provided (to reset timeout)
     if (onSpinStart) {
       onSpinStart();
     }
-    
+
     setIsSpinningLocal(true);
     setHasSpun(true);
     setWinner(null);
@@ -372,10 +372,10 @@ const styles = StyleSheet.create({
   container: { alignItems: 'center', paddingVertical: 8 },
 
   emptyContainer: { padding: 40, alignItems: 'center' },
-  emptyText: { fontSize: 16, fontFamily: 'Lato-Regular' },
+  emptyText: { fontSize: 16, },
 
   turnIndicator: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, marginBottom: 8 },
-  turnText: { fontSize: 16, fontFamily: 'Lato-Bold', textAlign: 'center' },
+  turnText: { fontSize: 16, fontWeight: 'bold', textAlign: 'center' },
 
   // wheel + pointer
   wheelWrapper: {
@@ -387,7 +387,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 8,
   },
-  
+
   wheelContainer: {
     width: WHEEL_SIZE,
     height: WHEEL_SIZE,
@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
   },
   petValue: {
     fontSize: 12,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',
     textShadowColor: 'rgba(0,0,0,0.95)',
@@ -501,7 +501,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 100,
   },
-  
+
 
   // ✅ LEFT-pointing triangle (color on borderRight)
   pointerTriangle: {
@@ -532,7 +532,7 @@ const styles = StyleSheet.create({
   },
   spinButtonDisabled: { backgroundColor: '#6b7280', shadowOpacity: 0 },
   spinButtonSpinning: { backgroundColor: '#F59E0B' },
-  spinButtonText: { color: '#fff', fontSize: 18, fontFamily: 'Lato-Bold', marginLeft: 8 },
+  spinButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginLeft: 8 },
 
   winnerCard: {
     marginTop: 12,
@@ -548,10 +548,10 @@ const styles = StyleSheet.create({
     borderColor: '#10B981',
     minWidth: 200,
   },
-  winnerLabel: { fontSize: 12, fontFamily: 'Lato-Regular', marginBottom: 4 },
+  winnerLabel: { fontSize: 12, marginBottom: 4 },
   winnerImage: { width: 60, height: 60, marginBottom: 8, borderRadius: 8 },
-  winnerName: { fontSize: 18, fontFamily: 'Lato-Bold', marginBottom: 4, textAlign: 'center' },
-  winnerValue: { fontSize: 20, fontFamily: 'Lato-Bold', color: '#10B981' },
+  winnerName: { fontSize: 18, fontWeight: 'bold', marginBottom: 4, textAlign: 'center' },
+  winnerValue: { fontSize: 20, fontWeight: 'bold', color: '#10B981' },
 });
 
 export default FortuneWheel;

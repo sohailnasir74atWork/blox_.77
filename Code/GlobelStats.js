@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import {  getApps } from '@react-native-firebase/app';
+import { getApps } from '@react-native-firebase/app';
 import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
 import { ref, set, update, get, onDisconnect, getDatabase, onValue } from '@react-native-firebase/database';
 import { getFirestore } from '@react-native-firebase/firestore';
@@ -32,11 +32,12 @@ export const GlobalStateProvider = ({ children }) => {
   const [tradingServerLink, setTradingServerLink] = useState(null); // Trading server link from admin servers
 
 
-  
+
 
 
 
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isModerator, setIsModerator] = useState(false); // ✅ Global Moderator State
   const [isInActiveGame, setIsInActiveGame] = useState(false); // ✅ Track if user is in active game
   const [user, setUser] = useState({
     id: null,
@@ -51,8 +52,8 @@ export const GlobalStateProvider = ({ children }) => {
     lastActivity: null,
     online: false,
     isPro: false,
-    coins:null,
-    createdAt:null
+    coins: null,
+    createdAt: null
 
 
   });
@@ -102,48 +103,48 @@ export const GlobalStateProvider = ({ children }) => {
   //   } catch (error) {
   //     console.error('Error updating user state or database:', error);
   //   }
-  // };
+  //   // };
 
 
 
   useEffect(() => {
     if (!user?.id || !user?.purchases || typeof user.purchases !== 'object') return;
-  
+
     const now = Date.now();
-  
+
     const proTagPurchase = Object.values(user.purchases || {}).find(p => p?.id === 0);
     const isProTagValid = proTagPurchase && proTagPurchase.expiresAt > now;
     setProTagBought(isProTagValid);
-  
+
     const stockNotifierPurchase = Object.values(user.purchases || {}).find(p => p?.id === 4);
     const isStockNotifierValid = stockNotifierPurchase && stockNotifierPurchase.expiresAt > now;
     setStockNotifierPurchase(isStockNotifierValid);
-  
+
     const isProActive = Object.values(user.purchases || {}).some(p => {
       if (!p || !p.title) return false;
       const { title, expiresAt } = p;
       const isPro = title === 'Pro Membership (Weekly)' || title === 'Pro Membership (Monthly)';
       return isPro && expiresAt && expiresAt > now;
     });
-  
+
     setProGranted(isProActive);
   }, [user?.id, user?.purchases]);
-  
+  // console.log('user', user)
 
   // console.log('bought', proTagBought)
 
   // ✅ OPTIMIZED: Debounce helper for non-critical updates
   const debounceTimeoutRef = useRef(null);
   const pendingUpdatesRef = useRef({});
-  
+
   // ✅ Critical fields that should update immediately (no debounce)
   const CRITICAL_FIELDS = ['rewardPoints', 'isBlock', 'fcmToken', 'email', 'isPro'];
-  
+
   // ✅ Memoize updateLocalStateAndDatabase to prevent recreation and reduce re-renders
   const updateLocalStateAndDatabase = useCallback(async (keyOrUpdates, value) => {
     try {
       let updates = {};
-  
+
       if (typeof keyOrUpdates === 'string') {
         updates = { [keyOrUpdates]: value };
       } else if (typeof keyOrUpdates === 'object') {
@@ -151,14 +152,14 @@ export const GlobalStateProvider = ({ children }) => {
       } else {
         throw new Error('Invalid arguments for update.');
       }
-  
+
       // Update AsyncStorage (localState) only for top-level keys
       for (const [key, val] of Object.entries(updates)) {
         if (!key.includes('/')) {
           await updateLocalState(key, val);
         }
       }
-  
+
       // ✅ Update in-memory user state immediately (always)
       setUser((prev) => {
         // ✅ Check if updates are actually different to prevent duplicate writes
@@ -169,11 +170,11 @@ export const GlobalStateProvider = ({ children }) => {
         }
 
         const updatedUser = { ...prev, ...updates };
-        
+
         // ✅ Separate critical and non-critical updates
         const criticalUpdates = {};
         const nonCriticalUpdates = {};
-        
+
         Object.keys(updates).forEach(key => {
           if (key === 'online') {
             // Skip online field (handled separately)
@@ -197,7 +198,7 @@ export const GlobalStateProvider = ({ children }) => {
         // ✅ Merge non-critical updates into pending batch for debouncing
         if (Object.keys(nonCriticalUpdates).length > 0) {
           Object.assign(pendingUpdatesRef.current, nonCriticalUpdates);
-          
+
           // ✅ Clear existing debounce timer
           if (debounceTimeoutRef.current) {
             clearTimeout(debounceTimeoutRef.current);
@@ -207,31 +208,31 @@ export const GlobalStateProvider = ({ children }) => {
           debounceTimeoutRef.current = setTimeout(() => {
             const pending = { ...pendingUpdatesRef.current };
             pendingUpdatesRef.current = {};
-            
+
             if (Object.keys(pending).length === 0) return;
 
             // Get current user ID from state (use closure)
             setUser((currentUser) => {
               if (!currentUser?.id || !appdatabase) return currentUser;
-              
+
               const userRef = ref(appdatabase, `users/${currentUser.id}`);
               update(userRef, pending).catch((error) => {
                 // Silently handle Firebase errors
               });
-              
+
               return currentUser;
             });
           }, 500); // 500ms debounce delay
         }
-        
+
         return updatedUser;
       });
     } catch (error) {
       console.error('❌ Error updating user state or database:', error);
     }
   }, [appdatabase, updateLocalState]); // ✅ Memoize with dependencies
-  
-// console.log(user)
+
+  // console.log(user)
   // console.log(robloxUsernameRef?.current, 'robloxUsername_outside')
 
 
@@ -250,8 +251,8 @@ export const GlobalStateProvider = ({ children }) => {
       lastActivity: null,
       online: false,
       isPro: false,
-      coins:null,
-      createdAt:null
+      coins: null,
+      createdAt: null
 
 
     });
@@ -261,6 +262,8 @@ export const GlobalStateProvider = ({ children }) => {
   const handleUserLogin = useCallback(async (loggedInUser) => {
     if (!loggedInUser) {
       resetUserState(); // No longer recreates resetUserState
+      setIsAdmin(false);
+      setIsModerator(false); // ✅ Reset moderator status
       // ✅ Clear user data cache on logout
       const { clearUserCache } = require('./Helper/UserDataCache');
       clearUserCache();
@@ -284,18 +287,24 @@ export const GlobalStateProvider = ({ children }) => {
 
       if (snapshot.exists()) {
         const existing = snapshot.val();
-        userData = { 
+
+        // ✅ Check if user is moderator from DB
+        if (existing.isModerator) setIsModerator(true);
+        // ✅ Also check admin from DB if not hardcoded
+        if (existing.admin || existing.isAdmin) setIsAdmin(true);
+
+        userData = {
           ...existing,
           id: userId,
           createdAt: existing.createdAt || Date.now(),   // fallback if missing
           email: loggedInUser.email || existing.email || null, // ✅ Store email in user data
         };
-        
+
         // ✅ Update email in Firebase if it's missing or changed
         if (loggedInUser.email && existing.email !== loggedInUser.email) {
           await update(userRef, { email: loggedInUser.email });
         }
-                // console.log(userData, 'userData')
+        // console.log(userData, 'userData')
 
 
       } else {
@@ -305,7 +314,7 @@ export const GlobalStateProvider = ({ children }) => {
           createdAt: Date.now(),
           email: loggedInUser.email || null, // ✅ Store email for new users
         };
-      
+
         await set(userRef, userData);
       }
       // console.log(userData, 'user')
@@ -321,7 +330,7 @@ export const GlobalStateProvider = ({ children }) => {
 
   useEffect(() => {
     if (!user?.id) return;
-  
+
     const run = async () => {
       try {
         // console.log('Registering push token for user:', user.id);
@@ -330,16 +339,16 @@ export const GlobalStateProvider = ({ children }) => {
         // console.log('registerForNotifications error', e);
       }
     };
-  
+
     run();
   }, [user?.id]);
 
-  useEffect(()=>{
+  useEffect(() => {
     // console.log(user)
-    if(!isAdmin)
-    updateLocalStateAndDatabase({flage:getFlag()})
+    if (!isAdmin)
+      updateLocalStateAndDatabase({ flage: getFlag() })
     // getFlag()
-  },[user.id])
+  }, [user.id])
 
   // ✅ Ensure useEffect runs only when necessary
   useEffect(() => {
@@ -367,7 +376,7 @@ export const GlobalStateProvider = ({ children }) => {
         const paywallSecondOnlyFlagRef = ref(appdatabase, 'single_offer_wall');
         const freeRef = ref(appdatabase, 'free_translation');
 
-        const [snapshotApi, paywallSecondOnlyFlag,  snapshotFree] = await Promise.all([
+        const [snapshotApi, paywallSecondOnlyFlag, snapshotFree] = await Promise.all([
           get(apiRef),
           get(paywallSecondOnlyFlagRef),
           get(freeRef),
@@ -518,7 +527,7 @@ export const GlobalStateProvider = ({ children }) => {
           // ✅ REMOVED: Firebase fallback - only use CDN (bunny CDN)
           // If CDN fails, log error and use cached data if available
           console.error('❌ Failed to fetch from CDN:', err.message);
-          
+
           // ✅ Use cached data if available, otherwise keep empty objects
           if (localState.codes && localState.data) {
             try {
@@ -564,8 +573,8 @@ export const GlobalStateProvider = ({ children }) => {
 
       // ✅ OPTIMIZED: Cache previousStock - only fetch once per hour
       // This reduces data download by ~80% (from 3.35 MB to ~0.67 MB)
-      const lastPreviousStockFetch = localState.lastPreviousStockFetch 
-        ? parseInt(localState.lastPreviousStockFetch, 10) 
+      const lastPreviousStockFetch = localState.lastPreviousStockFetch
+        ? parseInt(localState.lastPreviousStockFetch, 10)
         : 0;
       const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
       const shouldFetchPreviousStock = refresh || (Date.now() - lastPreviousStockFetch > oneHour);
@@ -578,7 +587,7 @@ export const GlobalStateProvider = ({ children }) => {
         const preSnapshot = await get(ref(appdatabase, 'previousStock'));
         prenormalStock = preSnapshot.exists() ? preSnapshot.val()?.normalStock || {} : {};
         premirageStock = preSnapshot.exists() ? preSnapshot.val()?.mirageStock || {} : {};
-        
+
         // ✅ Store fetched data and update timestamp
         await updateLocalState('prenormalStock', JSON.stringify(prenormalStock));
         await updateLocalState('premirageStock', JSON.stringify(premirageStock));
@@ -586,11 +595,11 @@ export const GlobalStateProvider = ({ children }) => {
       } else {
         // ✅ Use cached previousStock data
         try {
-          prenormalStock = typeof localState.prenormalStock === 'string' 
-            ? JSON.parse(localState.prenormalStock) 
+          prenormalStock = typeof localState.prenormalStock === 'string'
+            ? JSON.parse(localState.prenormalStock)
             : (localState.prenormalStock || {});
-          premirageStock = typeof localState.premirageStock === 'string' 
-            ? JSON.parse(localState.premirageStock) 
+          premirageStock = typeof localState.premirageStock === 'string'
+            ? JSON.parse(localState.premirageStock)
             : (localState.premirageStock || {});
         } catch (parseErr) {
           console.error('❌ Failed to parse cached previousStock:', parseErr);
@@ -638,11 +647,11 @@ export const GlobalStateProvider = ({ children }) => {
     const unsubscribe = onValue(banRef, (snapshot) => {
       const banData = snapshot.val();
       setStrikeInfo(banData || null);
-      
+
       if (banData) {
         const { bannedUntil } = banData;
         const now = Date.now();
-        
+
         // Check if permanently banned or temporarily banned
         if (bannedUntil === 'permanent' || (typeof bannedUntil === 'number' && now < bannedUntil)) {
           setIsUserBlocked(true);
@@ -685,7 +694,7 @@ export const GlobalStateProvider = ({ children }) => {
     };
 
     let onDisconnectHandler = null;
-    
+
     const armOnDisconnect = async () => {
       if (armedOnDisconnect) return;
       try {
@@ -701,13 +710,13 @@ export const GlobalStateProvider = ({ children }) => {
     let pending = false;
     let lastPresenceUpdate = 0;
     const PRESENCE_UPDATE_THROTTLE = 30000; // ✅ OPTIMIZED: 30 seconds throttle
-  
+
     const updatePresence = async () => {
       if (running) {
         pending = true;
         return;
       }
-      
+
       // ✅ OPTIMIZED: Throttle presence updates (max once per 30 seconds)
       const now = Date.now();
       const timeSinceLastUpdate = now - lastPresenceUpdate;
@@ -715,9 +724,9 @@ export const GlobalStateProvider = ({ children }) => {
         // Skip update if within throttle window
         return;
       }
-      
+
       running = true;
-  
+
       try {
         // ✅ Block online status update if user is blocked (admins are exempt)
         if (isUserBlocked && !isAdmin) {
@@ -727,33 +736,33 @@ export const GlobalStateProvider = ({ children }) => {
         }
 
         if (localState?.showOnlineStatus === false) {
-          try { 
+          try {
             if (onDisconnectHandler) {
-              await onDisconnectHandler.cancel(); 
+              await onDisconnectHandler.cancel();
             }
-          } catch {}
+          } catch { }
           armedOnDisconnect = false;
           await forceOffline();
           lastPresenceUpdate = Date.now();
           return;
         }
-  
+
         if (!isConnected || currentAppState !== "active") {
           await forceOffline();
           lastPresenceUpdate = Date.now();
           return;
         }
-  
+
         await armOnDisconnect();
         await set(presenceRef, true);
         setLocalOnline(true);
         lastPresenceUpdate = Date.now(); // ✅ Update throttle timestamp
-  
+
       } catch (e) {
         // console.log("updatePresence error", e);
       } finally {
         running = false;
-  
+
         // ✅ if something changed while we were running, apply latest state once more
         if (pending) {
           pending = false;
@@ -761,7 +770,7 @@ export const GlobalStateProvider = ({ children }) => {
         }
       }
     };
-  
+
 
     // Listen to RTDB connection state
     const unsubConnected = onValue(connectedRef, (snap) => {
@@ -786,12 +795,12 @@ export const GlobalStateProvider = ({ children }) => {
 
       // ✅ Cancel onDisconnect handler if it exists
       if (onDisconnectHandler) {
-        onDisconnectHandler.cancel().catch(() => {});
+        onDisconnectHandler.cancel().catch(() => { });
       }
 
       // ✅ Mark offline in RTDB (using closure to capture the old uid)
       // This ensures when user.id changes to null (logout), the previous user is marked offline
-      set(presenceRef, false).catch(() => {});
+      set(presenceRef, false).catch(() => { });
       setLocalOnline(false);
     };
   }, [user?.id, appdatabase, localState?.showOnlineStatus, isUserBlocked, isAdmin]);
@@ -816,7 +825,7 @@ export const GlobalStateProvider = ({ children }) => {
             const serverData = snapshot.val();
             // Convert to array and get first server link
             const serverList = Object.entries(serverData).map(([id, value]) => ({ id, ...value }));
-            
+
             // Get the first server link (or you can filter by name if needed)
             const firstServer = serverList.length > 0 ? serverList[0] : null;
             const serverLink = firstServer?.link || null;
@@ -851,7 +860,7 @@ export const GlobalStateProvider = ({ children }) => {
 
   const contextValue = useMemo(
     () => ({
- auth, 
+      auth,
       user,
       onlineMembersCount,
       firestoreDB,
@@ -864,8 +873,9 @@ export const GlobalStateProvider = ({ children }) => {
       loading,
       freeTranslation,
       isAdmin,
+      isModerator, // ✅ Export moderator status
       reload,
-      robloxUsernameRef, api,   proTagBought, stockNotifierPurchase, proGranted, currentUserEmail, single_offer_wall,
+      robloxUsernameRef, api, proTagBought, stockNotifierPurchase, proGranted, currentUserEmail, single_offer_wall,
       isInActiveGame,
       setIsInActiveGame, // ✅ Set game state
       tradingServerLink, // ✅ Trading server link
@@ -873,7 +883,7 @@ export const GlobalStateProvider = ({ children }) => {
       isUserBlocked, // ✅ Boolean flag if user is currently blocked
 
     }),
-    [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api, freeTranslation, proTagBought, currentUserEmail, auth, isInActiveGame, setIsInActiveGame, tradingServerLink, strikeInfo, isUserBlocked]
+    [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api, freeTranslation, proTagBought, currentUserEmail, auth, isInActiveGame, setIsInActiveGame, tradingServerLink, strikeInfo, isUserBlocked, isAdmin, isModerator]
   );
 
   return (

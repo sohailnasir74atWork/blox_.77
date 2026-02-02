@@ -331,7 +331,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
     const group = groups.find(g => g.groupId === groupId);
     const isCreator = group?.createdBy === user.id;
     const isGroupAdmin = isCreator || (group?.members?.[user.id]?.role === 'admin') || (isAdmin && group?.members?.[user.id]);
-    
+
     if (!isGroupAdmin) {
       showErrorMessage('Error', 'Only group admins can delete groups');
       return;
@@ -441,7 +441,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
   // Handle edit group (Group creator, group admin, or global admin) - Opens CreateGroupModal in edit mode
   const handleEditGroup = useCallback((groupId) => {
     if (!groupId || !user?.id) return;
-    
+
     const group = groups.find(g => g.groupId === groupId);
     if (!group) {
       showErrorMessage('Error', 'Group not found');
@@ -452,7 +452,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
     const isCreator = group.createdBy === user.id;
     const isGroupAdmin = group.members?.[user.id]?.role === 'admin';
     const canEdit = isCreator || isGroupAdmin || (isAdmin && group.members?.[user.id]);
-    
+
     if (!canEdit) {
       showErrorMessage('Error', 'Only group creator or admin can edit this group');
       return;
@@ -517,7 +517,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
       // Get group data from Firestore
       const groupDocRef = doc(firestoreDB, 'groups', groupId);
       const groupDocSnapshot = await getDoc(groupDocRef);
-      
+
       if (!groupDocSnapshot.exists) {
         showErrorMessage('Error', 'Group not found');
         setGroupInfoModalVisible(false);
@@ -528,14 +528,14 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
       // console.log('Group data:', groupData);
       const createdBy = groupData.createdBy;
       let createdAt = groupData.createdAt || groupData.createdAtTimestamp || groupData.createdAt?.toMillis?.() || null;
-      
+
       // Handle Firestore Timestamp
       if (createdAt && typeof createdAt === 'object' && createdAt.toMillis) {
         createdAt = createdAt.toMillis();
       } else if (createdAt && typeof createdAt === 'object' && createdAt.seconds) {
         createdAt = createdAt.seconds * 1000;
       }
-      
+
       // ✅ OPTIMIZED: Fetch only displayName and avatar instead of full user object
       let creatorName = 'Unknown';
       let creatorAvatar = null;
@@ -573,7 +573,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
         createdAt: createdAt,
         memberCount: memberCount,
       };
-      
+
       // console.log('Setting group info:', groupInfo);
       setSelectedGroupInfo(groupInfo);
     } catch (error) {
@@ -605,8 +605,8 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
 
       showSuccessMessage(
         'Success',
-        newMutedStatus 
-          ? `Notifications muted for "${groupName || 'group'}"` 
+        newMutedStatus
+          ? `Notifications muted for "${groupName || 'group'}"`
           : `Notifications enabled for "${groupName || 'group'}"`
       );
     } catch (error) {
@@ -618,7 +618,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
   // Handle update group icon (Admin or creator)
   const handleUpdateGroupIcon = useCallback(async (groupId) => {
     if (!groupId || !user?.id || !firestoreDB || !appdatabase) return;
-    
+
     // Check if user is admin or creator
     const group = groups.find(g => g.groupId === groupId);
     const isCreator = group?.createdBy === user.id;
@@ -698,9 +698,9 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
           style={styles.chatItem}
           onPress={() => handleOpenGroup(groupId, groupName)}
         >
-          <Image 
-            source={groupAvatar ? { uri: groupAvatar } : require('../../../assets/groups.png')} 
-            style={styles.avatar} 
+          <Image
+            source={groupAvatar ? { uri: groupAvatar } : require('../../../assets/groups.png')}
+            style={styles.avatar}
           />
           <View style={styles.textContainer}>
             <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -718,7 +718,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                   <Text style={{
                     color: '#FFF',
                     fontSize: 10,
-                    fontWeight: '600',
+                    fontWeight: '600'
                   }}>My Group</Text>
                 </View>
               )}
@@ -753,10 +753,10 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
               <Text style={{ fontSize: 16, padding: 10 }}>Group Info</Text>
             </MenuOption>
             {/* Mute/Unmute Notifications */}
-            <MenuOption onSelect={() => {}} closeOnSelect={false}>
-              <View style={{ 
-                flexDirection: 'row', 
-                alignItems: 'center', 
+            <MenuOption onSelect={() => { }} closeOnSelect={false}>
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
                 justifyContent: 'space-between',
                 paddingHorizontal: 10,
                 paddingVertical: 10,
@@ -923,7 +923,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
   const renderInvitationItem = useCallback(({ item }) => {
     const inviteGroupName = item.groupName || 'Group';
     const truncatedInviteName = truncateGroupName(inviteGroupName, 20);
-    
+
     return (
       <View style={{
         backgroundColor: isDarkMode ? '#1F2937' : '#FFFFFF',
@@ -953,7 +953,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
           <View style={{ flex: 1 }}>
             <Text style={{
               fontSize: 15,
-              fontFamily: 'Lato-Bold',
+              fontWeight: 'bold',
               color: isDarkMode ? '#fff' : '#111827',
               marginBottom: 4,
             }} numberOfLines={1} ellipsizeMode="tail">
@@ -962,7 +962,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
             <Text style={{
               fontSize: 12,
               color: isDarkMode ? '#9CA3AF' : '#6B7280',
-              fontFamily: 'Lato-Regular',
+
             }}>
               Invited by {item.invitedByDisplayName || 'Someone'}
             </Text>
@@ -983,7 +983,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
           >
             <Text style={{
               color: '#EF4444',
-              fontFamily: 'Lato-Bold',
+              fontWeight: 'bold',
               fontSize: 13,
               textAlign: 'center',
             }}>Decline</Text>
@@ -1000,7 +1000,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
           >
             <Text style={{
               color: '#fff',
-              fontFamily: 'Lato-Bold',
+              fontWeight: 'bold',
               fontSize: 13,
               textAlign: 'center',
             }}>Accept</Text>
@@ -1014,7 +1014,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
   const renderJoinRequestItem = useCallback(({ item }) => {
     const requestGroupName = item.groupName || 'Group';
     const truncatedGroupName = truncateGroupName(requestGroupName, 20);
-    
+
     return (
       <View style={{
         backgroundColor: isDarkMode ? '#1F2937' : '#FFFFFF',
@@ -1060,7 +1060,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
           <View style={{ flex: 1 }}>
             <Text style={{
               fontSize: 15,
-              fontFamily: 'Lato-Bold',
+              fontWeight: 'bold',
               color: isDarkMode ? '#fff' : '#111827',
               marginBottom: 4,
             }} numberOfLines={1} ellipsizeMode="tail">
@@ -1069,7 +1069,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
             <Text style={{
               fontSize: 12,
               color: isDarkMode ? '#9CA3AF' : '#6B7280',
-              fontFamily: 'Lato-Regular',
+
             }}>
               Wants to join "{truncatedGroupName}"
             </Text>
@@ -1097,7 +1097,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
           >
             <Text style={{
               color: '#EF4444',
-              fontFamily: 'Lato-Bold',
+              fontWeight: 'bold',
               fontSize: 13,
               textAlign: 'center',
             }}>Reject</Text>
@@ -1121,7 +1121,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
           >
             <Text style={{
               color: '#fff',
-              fontFamily: 'Lato-Bold',
+              fontWeight: 'bold',
               fontSize: 13,
               textAlign: 'center',
             }}>Approve</Text>
@@ -1151,8 +1151,8 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
             paddingVertical: 6,
             paddingHorizontal: 12,
             borderRadius: 8,
-            backgroundColor: activeTab === 'joined' 
-              ? (isDarkMode ? '#8B5CF6' : '#8B5CF6') 
+            backgroundColor: activeTab === 'joined'
+              ? (isDarkMode ? '#8B5CF6' : '#8B5CF6')
               : 'transparent',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1161,10 +1161,10 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
         >
           <Text style={{
             fontSize: 12,
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
             fontWeight: '700',
-            color: activeTab === 'joined' 
-              ? '#FFFFFF' 
+            color: activeTab === 'joined'
+              ? '#FFFFFF'
               : (isDarkMode ? '#9CA3AF' : '#6B7280'),
             letterSpacing: 0.3,
           }}>
@@ -1178,8 +1178,8 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
             paddingVertical: 6,
             paddingHorizontal: 12,
             borderRadius: 8,
-            backgroundColor: activeTab === 'all' 
-              ? (isDarkMode ? '#8B5CF6' : '#8B5CF6') 
+            backgroundColor: activeTab === 'all'
+              ? (isDarkMode ? '#8B5CF6' : '#8B5CF6')
               : 'transparent',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1188,10 +1188,10 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
         >
           <Text style={{
             fontSize: 12,
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
             fontWeight: '700',
-            color: activeTab === 'all' 
-              ? '#FFFFFF' 
+            color: activeTab === 'all'
+              ? '#FFFFFF'
               : (isDarkMode ? '#9CA3AF' : '#6B7280'),
             letterSpacing: 0.3,
           }}>
@@ -1202,9 +1202,9 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
 
       {/* Pending Join Requests Banner (for groups where user is creator) - Only show in Joined Groups tab */}
       {activeTab === 'joined' && pendingJoinRequests.length > 0 && (
-        <View style={{ 
-          backgroundColor: isDarkMode ? '#111827' : '#FFFFFF', 
-          borderBottomWidth: 1, 
+        <View style={{
+          backgroundColor: isDarkMode ? '#111827' : '#FFFFFF',
+          borderBottomWidth: 1,
           borderBottomColor: isDarkMode ? '#374151' : '#E5E7EB',
           marginBottom: 8,
           borderRadius: 12,
@@ -1218,10 +1218,10 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
         }}>
           <TouchableOpacity
             onPress={() => setJoinRequestsExpanded(!joinRequestsExpanded)}
-            style={{ 
-              flexDirection: 'row', 
-              alignItems: 'center', 
-              justifyContent: 'space-between', 
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
               padding: 16,
               backgroundColor: isDarkMode ? '#1F2937' : '#F9FAFB',
               borderTopLeftRadius: 12,
@@ -1242,17 +1242,17 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                 <Icon name="person-add-outline" size={18} color="#fff" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ 
-                  color: isDarkMode ? '#fff' : '#111827', 
-                  fontFamily: 'Lato-Bold', 
+                <Text style={{
+                  color: isDarkMode ? '#fff' : '#111827',
+                  fontWeight: 'bold',
                   fontSize: 12,
                   marginBottom: 2,
                 }}>
                   Join Requests
                 </Text>
-                <Text style={{ 
-                  color: isDarkMode ? '#9CA3AF' : '#6B7280', 
-                  fontFamily: 'Lato-Regular', 
+                <Text style={{
+                  color: isDarkMode ? '#9CA3AF' : '#6B7280',
+
                   fontSize: 10,
                 }}>
                   {pendingJoinRequests.length} pending approval
@@ -1290,9 +1290,9 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
 
       {/* Pending Invitations Banner - Only show in Joined Groups tab */}
       {activeTab === 'joined' && pendingInvitations.length > 0 && (
-        <View style={{ 
-          backgroundColor: isDarkMode ? '#111827' : '#FFFFFF', 
-          borderBottomWidth: 1, 
+        <View style={{
+          backgroundColor: isDarkMode ? '#111827' : '#FFFFFF',
+          borderBottomWidth: 1,
           borderBottomColor: isDarkMode ? '#374151' : '#E5E7EB',
           marginBottom: 8,
           borderRadius: 12,
@@ -1306,10 +1306,10 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
         }}>
           <TouchableOpacity
             onPress={() => setInvitationsExpanded(!invitationsExpanded)}
-            style={{ 
-              flexDirection: 'row', 
-              alignItems: 'center', 
-              justifyContent: 'space-between', 
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
               padding: 16,
               backgroundColor: isDarkMode ? '#1F2937' : '#F9FAFB',
               borderTopLeftRadius: 12,
@@ -1330,17 +1330,17 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                 <Icon name="mail-outline" size={18} color="#fff" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ 
-                  color: isDarkMode ? '#fff' : '#111827', 
-                  fontFamily: 'Lato-Bold', 
+                <Text style={{
+                  color: isDarkMode ? '#fff' : '#111827',
+                  fontWeight: 'bold',
                   fontSize: 12,
                   marginBottom: 2,
                 }}>
                   Pending Invitations
                 </Text>
-                <Text style={{ 
-                  color: isDarkMode ? '#9CA3AF' : '#6B7280', 
-                  fontFamily: 'Lato-Regular', 
+                <Text style={{
+                  color: isDarkMode ? '#9CA3AF' : '#6B7280',
+
                   fontSize: 12,
                 }}>
                   {pendingInvitations.length} waiting for you
@@ -1382,18 +1382,18 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
       ) : activeTab === 'joined' ? (
         // Joined Groups Tab
         filteredGroups.length === 0 && pendingInvitations.length === 0 && pendingJoinRequests.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No groups yet</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredGroups}
-          keyExtractor={(item, index) => item?.groupId || `group-${index}`}
-          renderItem={renderGroupItem}
-          removeClippedSubviews={true}
-          maxToRenderPerBatch={10}
-          windowSize={10}
-        />
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No groups yet</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={filteredGroups}
+            keyExtractor={(item, index) => item?.groupId || `group-${index}`}
+            renderItem={renderGroupItem}
+            removeClippedSubviews={false}
+            maxToRenderPerBatch={10}
+            windowSize={10}
+          />
         )
       ) : (
         // All Groups Tab
@@ -1464,7 +1464,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                     <View style={{ flex: 1 }}>
                       <Text style={{
                         fontSize: 12,
-                        fontFamily: 'Lato-Bold',
+                        fontWeight: 'bold',
                         color: isDarkMode ? '#FFFFFF' : '#111827',
                         marginBottom: 4,
                       }} numberOfLines={1}>
@@ -1473,7 +1473,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                       {createdBy && (
                         <Text style={{
                           fontSize: 10,
-                          fontFamily: 'Lato-Regular',
+
                           color: isDarkMode ? '#9CA3AF' : '#6B7280',
                           marginBottom: 4,
                         }}>
@@ -1483,7 +1483,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                       {description && (
                         <Text style={{
                           fontSize: 11,
-                          fontFamily: 'Lato-Regular',
+
                           color: isDarkMode ? '#D1D5DB' : '#4B5563',
                           marginBottom: 4,
                         }} numberOfLines={2}>
@@ -1492,7 +1492,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                       )}
                       <Text style={{
                         fontSize: 10,
-                        fontFamily: 'Lato-Regular',
+
                         color: isDarkMode ? '#9CA3AF' : '#6B7280',
                       }}>
                         {memberCount} {memberCount === 1 ? 'member' : 'members'}
@@ -1511,7 +1511,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                           <Text style={{
                             color: isDarkMode ? '#FFFFFF' : '#065F46',
                             fontSize: 11,
-                            fontFamily: 'Lato-Bold',
+                            fontWeight: 'bold',
                             letterSpacing: 0.2,
                           }}>
                             Joined
@@ -1529,14 +1529,14 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                           <Text style={{
                             color: isDarkMode ? '#FFFFFF' : '#92400E',
                             fontSize: 11,
-                            fontFamily: 'Lato-Bold',
+                            fontWeight: 'bold',
                             letterSpacing: 0.2,
                           }}>
                             Pending
                           </Text>
                         </View>
                       ) : (
-      <TouchableOpacity
+                        <TouchableOpacity
                           onPress={async () => {
                             // Send join request
                             if (!firestoreDB || !user?.id) {
@@ -1565,13 +1565,13 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                               showErrorMessage('Error', 'Failed to send join request');
                             }
                           }}
-        style={{
-          backgroundColor: config.colors.primary || '#8B5CF6',
+                          style={{
+                            backgroundColor: config.colors.primary || '#8B5CF6',
                             paddingHorizontal: 10,
                             paddingVertical: 6,
                             borderRadius: 6,
                             alignItems: 'center',
-          justifyContent: 'center',
+                            justifyContent: 'center',
                             shadowColor: '#000',
                             shadowOffset: { width: 0, height: 1 },
                             shadowOpacity: 0.1,
@@ -1583,7 +1583,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                           <Text style={{
                             color: '#FFFFFF',
                             fontSize: 11,
-                            fontFamily: 'Lato-Bold',
+                            fontWeight: 'bold',
                             letterSpacing: 0.2,
                           }}>
                             Send Request
@@ -1625,25 +1625,25 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                             paddingHorizontal: 10,
                             paddingVertical: 6,
                             borderRadius: 6,
-          alignItems: 'center',
+                            alignItems: 'center',
                             justifyContent: 'center',
-          shadowColor: '#000',
+                            shadowColor: '#000',
                             shadowOffset: { width: 0, height: 1 },
                             shadowOpacity: 0.1,
-          shadowRadius: 2,
+                            shadowRadius: 2,
                             elevation: 2,
                           }}
                           activeOpacity={0.8}
                         >
                           <Icon name="trash-outline" size={14} color="#FFFFFF" />
-      </TouchableOpacity>
+                        </TouchableOpacity>
                       )}
                     </View>
                   </View>
                 </View>
               );
             }}
-            removeClippedSubviews={true}
+            removeClippedSubviews={false}
             maxToRenderPerBatch={10}
             windowSize={10}
           />
@@ -1652,32 +1652,32 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
 
       {/* FAB Button - Create Group or Add Members (Only show in Joined Groups tab) */}
       {activeTab === 'joined' && (
-      <TouchableOpacity
-        onPress={() => setOnlineUsersListVisible(true)}
-        style={{
-          position: 'absolute',
-          bottom: 20,
-          right: 20,
-          width: 36,
-          height: 36,
-          borderRadius: 18,
-          backgroundColor: config.colors.primary || '#8B5CF6',
-          justifyContent: 'center',
-          alignItems: 'center',
-          elevation: 4,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.25,
-          shadowRadius: 2,
-          zIndex: 1000,
-        }}
-      >
-        <Icon 
-          name="add" 
-          size={24} 
-          color="#fff" 
-        />
-      </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setOnlineUsersListVisible(true)}
+          style={{
+            position: 'absolute',
+            bottom: 20,
+            right: 20,
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: config.colors.primary || '#8B5CF6',
+            justifyContent: 'center',
+            alignItems: 'center',
+            elevation: 4,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 3 },
+            shadowOpacity: 0.25,
+            shadowRadius: 2,
+            zIndex: 1000,
+          }}
+        >
+          <Icon
+            name="add"
+            size={24}
+            color="#fff"
+          />
+        </TouchableOpacity>
       )}
 
       {/* Online Users List for Group Creation/Adding Members */}
@@ -1741,7 +1741,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
             }}>
               <Text style={{
                 fontSize: 20,
-                fontFamily: 'Lato-Bold',
+                fontWeight: 'bold',
                 color: isDarkMode ? '#fff' : '#000',
               }}>
                 Group Information
@@ -1762,8 +1762,8 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                 <ActivityIndicator size="large" color="#8B5CF6" />
               </View>
             ) : selectedGroupInfo ? (
-              <ScrollView 
-                style={{ flex: 1 }} 
+              <ScrollView
+                style={{ flex: 1 }}
                 contentContainerStyle={{ flexGrow: 1, paddingBottom: 20 }}
                 showsVerticalScrollIndicator={false}
               >
@@ -1782,7 +1782,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                     />
                     <Text style={{
                       fontSize: 22,
-                      fontFamily: 'Lato-Bold',
+                      fontWeight: 'bold',
                       color: isDarkMode ? '#fff' : '#000',
                       marginTop: 12,
                       textAlign: 'center',
@@ -1795,7 +1795,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                   <View style={{ marginBottom: 24 }}>
                     <Text style={{
                       fontSize: 14,
-                      fontFamily: 'Lato-Bold',
+                      fontWeight: 'bold',
                       color: isDarkMode ? '#9CA3AF' : '#6B7280',
                       marginBottom: 8,
                     }}>
@@ -1803,7 +1803,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                     </Text>
                     <Text style={{
                       fontSize: 15,
-                      fontFamily: 'Lato-Regular',
+
                       color: isDarkMode ? '#E5E7EB' : '#374151',
                       lineHeight: 22,
                     }}>
@@ -1836,7 +1836,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                       <View style={{ flex: 1 }}>
                         <Text style={{
                           fontSize: 12,
-                          fontFamily: 'Lato-Regular',
+
                           color: isDarkMode ? '#9CA3AF' : '#6B7280',
                           marginBottom: 4,
                         }}>
@@ -1844,7 +1844,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                         </Text>
                         <Text style={{
                           fontSize: 16,
-                          fontFamily: 'Lato-Bold',
+                          fontWeight: 'bold',
                           color: isDarkMode ? '#fff' : '#000',
                         }}>
                           {selectedGroupInfo.createdBy.name}
@@ -1858,7 +1858,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                     <View style={{ marginBottom: 24 }}>
                       <Text style={{
                         fontSize: 14,
-                        fontFamily: 'Lato-Bold',
+                        fontWeight: 'bold',
                         color: isDarkMode ? '#9CA3AF' : '#6B7280',
                         marginBottom: 8,
                       }}>
@@ -1866,7 +1866,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                       </Text>
                       <Text style={{
                         fontSize: 15,
-                        fontFamily: 'Lato-Regular',
+
                         color: isDarkMode ? '#E5E7EB' : '#374151',
                       }}>
                         {new Date(selectedGroupInfo.createdAt).toLocaleDateString('en-US', {
@@ -1887,16 +1887,16 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                       backgroundColor: isDarkMode ? '#111827' : '#F9FAFB',
                       borderRadius: 12,
                     }}>
-                      <Icon 
-                        name="people-outline" 
-                        size={24} 
-                        color={isDarkMode ? '#8B5CF6' : '#8B5CF6'} 
+                      <Icon
+                        name="people-outline"
+                        size={24}
+                        color={isDarkMode ? '#8B5CF6' : '#8B5CF6'}
                         style={{ marginRight: 12 }}
                       />
                       <View style={{ flex: 1 }}>
                         <Text style={{
                           fontSize: 14,
-                          fontFamily: 'Lato-Bold',
+                          fontWeight: 'bold',
                           color: isDarkMode ? '#9CA3AF' : '#6B7280',
                           marginBottom: 4,
                         }}>
@@ -1904,7 +1904,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                         </Text>
                         <Text style={{
                           fontSize: 18,
-                          fontFamily: 'Lato-Bold',
+                          fontWeight: 'bold',
                           color: isDarkMode ? '#fff' : '#000',
                         }}>
                           {selectedGroupInfo.memberCount || 0} {selectedGroupInfo.memberCount === 1 ? 'member' : 'members'}
@@ -1918,7 +1918,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
               <View style={{ padding: 40, alignItems: 'center' }}>
                 <Text style={{
                   fontSize: 16,
-                  fontFamily: 'Lato-Regular',
+
                   color: isDarkMode ? '#9CA3AF' : '#6B7280',
                 }}>
                   No group information available
@@ -1945,7 +1945,7 @@ const getStyles = (isDarkMode) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-     
+
       paddingHorizontal: 10,
     },
     chatItem: {
@@ -1968,13 +1968,13 @@ const getStyles = (isDarkMode) =>
     },
     userName: {
       fontSize: 12,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       color: isDarkMode ? '#fff' : '#333',
       flexShrink: 1, // Allow text to shrink and truncate
     },
     memberCountText: {
       fontSize: 9,
-      fontFamily: 'Lato-Regular',
+
       color: isDarkMode ? '#9ca3af' : '#6b7280',
     },
     lastMessage: {

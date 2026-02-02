@@ -1,4 +1,4 @@
-import React, {  useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { View, Text, Image, Modal, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import ViewShot, { captureRef } from 'react-native-view-shot';
@@ -23,10 +23,10 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const [includeAppTag, setIncludeAppTag] = useState(true);
     const [showLeftGrid, setShowLeftGrid] = useState(true);
     const [showRightGrid, setShowRightGrid] = useState(true);
-    const {theme, proGranted, single_offer_wall} = useGlobalState()
+    const { theme, proGranted, single_offer_wall } = useGlobalState()
     const isDarkMode = theme === 'dark'
     const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
-    const {localState} = useLocalState()
+    const { localState } = useLocalState()
     const [showofferwall, setShowofferwall] = useState(false);
 
     if (!tradeData) return null;
@@ -42,13 +42,12 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const formatName = (name) => name.replace(/\s+/g, '-');
 
     const callbackfunction = () => {
-       handleShare()
-      };
+        handleShare()
+    };
 
-    const sharewithAds = ()=>{
-       if(!localState.isPro && proGranted)
-        {InterstitialAdManager.showAd(callbackfunction);}
-        else {callbackfunction()}
+    const sharewithAds = () => {
+        if (!localState.isPro && proGranted) { InterstitialAdManager.showAd(callbackfunction); }
+        else { callbackfunction() }
     }
 
     const handleShare = async () => {
@@ -93,20 +92,20 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
 
     const handleRemoveAttribute = () => {
         if (!localState?.isPro) {
-          Alert.alert(
-            "Pro Feature", 
-            "Only Pro users can remove this. Do you want to upgrade?", 
-            [
-              { text: "Cancel", style: "cancel" },
-              { text: "Upgrade", onPress: () => setShowofferwall(true) }
-            ]
-          );
-          return;
+            Alert.alert(
+                "Pro Feature",
+                "Only Pro users can remove this. Do you want to upgrade?",
+                [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Upgrade", onPress: () => setShowofferwall(true) }
+                ]
+            );
+            return;
         }
-      
+
         setIncludeAppTag(!includeAppTag); // Assuming this is what you intended
-      };
-      
+    };
+
     const Badge = ({ label, icon, isSelected, onPress }) => (
         <TouchableOpacity
             style={[
@@ -130,8 +129,9 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
             <View style={styles.modalOverlay}>
                 <View style={styles.modalContainer}>
                     {/* Trade Details */}
-                    <ViewShot ref={viewRef} style={{ backgroundColor: 'white', padding: 5, borderRadius:8,         backgroundColor:'#E8F9FF'
- }}>
+                    <ViewShot ref={viewRef} style={{
+                        backgroundColor: 'white', padding: 5, borderRadius: 8, backgroundColor: '#E8F9FF'
+                    }}>
                         {includeHasWants && (
                             <View style={styles.tradeDetails}>
                                 {/* Has Items */}
@@ -143,7 +143,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                                     <View key={`${item.name}-${item.type}-${index}`} style={styles.gridItem}>
                                                         <View style={item.name !== '' && styles.top}>
                                                             <Text style={styles.itemText}>
-                                                            {item.name !== '' ? (item.value === 0 || item.value === "N/A" ? 'Special' : item.value) : ''}
+                                                                {item.name !== '' ? (item.value === 0 || item.value === "N/A" ? 'Special' : item.value) : ''}
                                                             </Text></View>
                                                         <Image
                                                             source={{
@@ -178,7 +178,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                                     <View key={`${item.name}-${item.type}-${index}`} style={styles.gridItem}>
                                                         <View style={item.name !== '' && styles.top}>
                                                             <Text style={styles.itemText}>
-                                                            {item.name !== '' ? (item.value === 0 || item.value === "N/A" ? 'Special' : item.value) : ''}
+                                                                {item.name !== '' ? (item.value === 0 || item.value === "N/A" ? 'Special' : item.value) : ''}
                                                             </Text></View>
                                                         <Image
                                                             source={{
@@ -198,7 +198,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                 )}
                             </View>
                         )}
-                         
+
 
                         {/* Profit/Loss (Optional) */}
                         {includeProfitLoss && (
@@ -220,7 +220,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                             </View>
                         )}
                         {includePercentage && showLeftGrid && showRightGrid && (
-                            <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%', paddingVertical:10 }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%', paddingVertical: 10 }}>
                                 <Text style={[styles.priceTextProfit, { color: !isProfit ? 'green' : 'red' }]}>
                                     {!isProfit ? 'Profit :' : 'Loss :'} {tradePercentage}%{!neutral && (
                                         <Icon
@@ -326,241 +326,241 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                     </View>
                 </View>
             </View>
-            {showofferwall && <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)}   oneWallOnly={single_offer_wall}            />}
+            {showofferwall && <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} oneWallOnly={single_offer_wall} />}
         </Modal>
     );
 };
 
 // Styles
 const getStyles = (isDarkMode) =>
-StyleSheet.create({
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modalContainer: {
-        backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
-        // paddingVertical: 10,
-        borderRadius: 8,
-        width: '98%',
-        alignItems: 'center',
-    },
-    tradeDetails: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 10,
-        
-    },
-    transfer: {
-        width: '2%',
-        alignItems: 'center',
-    },
-    transferImage: {
-        width: 10,
-        height: 10,
-    },
-    switchContainer: {
-        width: '100%',
-        marginBottom: 15,
-        paddingTop: 20,
-        paddingHorizontal: 5,
-    },
-    switchRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginVertical: 5,
-    },
-    switchLabel: {
-        fontSize: 12,
-        fontFamily:'Lato-Regular',
-        color: isDarkMode ? '#f2f2f7' : '#121212' ,
-    },
-    buttonContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        width: '100%',
-        padding: 10,
-        marginTop: 10,
-    },
-    cancelButton: {
-        backgroundColor: config.colors.wantBlockRed,
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-        borderRadius: 8,
-        width: '48%',
-        alignItems: 'center',
-    },
-    shareButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: config.colors.hasBlockGreen,
-        paddingVertical: 8,
-        paddingHorizontal: 20,
-        borderRadius: 8,
-        width: '48%',
-    },
-    shareButtonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
-        marginLeft: 8,
-    },
-    gridContainer: {
-        width: '49%',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    fullWidthGrid: {
-        width: '100%',
-    },
-    row: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        width: '100%',
-        marginBottom: 4, // Space between rows
-    },
-    gridItem: {
-        width: '49%', // Each item takes ~45% of the row width
-        alignItems: 'center',
-        justifyContent: 'center',
-        // padding: 4,
-        borderWidth: !config.isNoman ? 1 : 0, // Optional: Add border for grid feel
-        borderColor: '#ccc',
-        borderRadius: 6,
-        backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF',
-    },
-    itemImage: {
-        width: 50,
-        height: 50,
-        borderRadius: 8,
-    },
-    itemText: {
-        fontSize: 10,
-        marginTop: 3,
-        textAlign: 'center',
-        color: 'white',
-        lineHeight: 16,
-        paddingVertical: 2,
-        fontFamily:'Lato-Bold'
+    StyleSheet.create({
+        modalOverlay: {
+            flex: 1,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        modalContainer: {
+            backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
+            // paddingVertical: 10,
+            borderRadius: 8,
+            width: '98%',
+            alignItems: 'center',
+        },
+        tradeDetails: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginBottom: 10,
 
-    },
-    cancelText: {
-        color: 'white',
-        fontFamily: 'Lato-Bold',
-        alignSelf: 'center'
-    },
-    tradeTotals: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        width: '100%',
-        // paddingHorizontal:20
-    },
-    bottom: {
-        backgroundColor: '#fe01ea', width: '100%', borderBottomEndRadius: 4, borderBottomStartRadius: 4
-    },
-    top: {
-        backgroundColor: '#1dc226', width: '100%', borderTopEndRadius: 4, borderTopStartRadius: 4
-    },
-    wantBackground: {
-        backgroundColor: config.colors.wantBlockRed,
-        paddingVertical: 3,
-        paddingHorizontal: 5,
-        borderRadius: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-        width: '49%'
+        },
+        transfer: {
+            width: '2%',
+            alignItems: 'center',
+        },
+        transferImage: {
+            width: 10,
+            height: 10,
+        },
+        switchContainer: {
+            width: '100%',
+            marginBottom: 15,
+            paddingTop: 20,
+            paddingHorizontal: 5,
+        },
+        switchRow: {
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            marginVertical: 5,
+        },
+        switchLabel: {
+            fontSize: 12,
 
-    },
-    priceText: {
-        color: 'white',
-        fontFamily:'Lato-Regular',
-        fontSize:12,
-        lineHeight:20
+            color: isDarkMode ? '#f2f2f7' : '#121212',
+        },
+        buttonContainer: {
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            width: '100%',
+            padding: 10,
+            marginTop: 10,
+        },
+        cancelButton: {
+            backgroundColor: config.colors.wantBlockRed,
+            paddingVertical: 10,
+            paddingHorizontal: 20,
+            borderRadius: 8,
+            width: '48%',
+            alignItems: 'center',
+        },
+        shareButton: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: config.colors.hasBlockGreen,
+            paddingVertical: 8,
+            paddingHorizontal: 20,
+            borderRadius: 8,
+            width: '48%',
+        },
+        shareButtonText: {
+            color: '#fff',
+            fontSize: 16,
+            fontWeight: '600',
+            marginLeft: 8,
+        },
+        gridContainer: {
+            width: '49%',
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        fullWidthGrid: {
+            width: '100%',
+        },
+        row: {
+            flexDirection: 'row',
+            justifyContent: 'space-around',
+            width: '100%',
+            marginBottom: 4, // Space between rows
+        },
+        gridItem: {
+            width: '49%', // Each item takes ~45% of the row width
+            alignItems: 'center',
+            justifyContent: 'center',
+            // padding: 4,
+            borderWidth: !config.isNoman ? 1 : 0, // Optional: Add border for grid feel
+            borderColor: '#ccc',
+            borderRadius: 6,
+            backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF',
+        },
+        itemImage: {
+            width: 50,
+            height: 50,
+            borderRadius: 8,
+        },
+        itemText: {
+            fontSize: 10,
+            marginTop: 3,
+            textAlign: 'center',
+            color: 'white',
+            lineHeight: 16,
+            paddingVertical: 2,
+            fontWeight: 'bold'
 
-    },
-    hasBackground: {
-        backgroundColor: config.colors.hasBlockGreen,
-        paddingVertical: 3,
-        paddingHorizontal: 5,
-        borderRadius: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-        width: '49%'
-    },
-    priceTextProfit: {
-        fontSize: 12
-    },
-    description: {
-        fontSize: 12,
-        paddingVertical: 5
-    },
-    footer: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        alignItems: 'center',
-        // marginTop: 10,
-    },
+        },
+        cancelText: {
+            color: 'white',
+            fontWeight: 'bold',
+            alignSelf: 'center'
+        },
+        tradeTotals: {
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            width: '100%',
+            // paddingHorizontal:20
+        },
+        bottom: {
+            backgroundColor: '#fe01ea', width: '100%', borderBottomEndRadius: 4, borderBottomStartRadius: 4
+        },
+        top: {
+            backgroundColor: '#1dc226', width: '100%', borderTopEndRadius: 4, borderTopStartRadius: 4
+        },
+        wantBackground: {
+            backgroundColor: config.colors.wantBlockRed,
+            paddingVertical: 3,
+            paddingHorizontal: 5,
+            borderRadius: 8,
+            justifyContent: 'center',
+            alignItems: 'center',
+            width: '49%'
 
-    footerText: {
-        fontSize: 10,
-        color: '#666',
-        marginRight: 5,
-        fontStyle: "italic"
-    },
+        },
+        priceText: {
+            color: 'white',
 
-    footerImage: {
-        width: 40, // Adjust size as needed
-        height: 40,
-        resizeMode: 'contain',
-    },
-    badgesContainer: {
-        marginTop: 15,
-        marginBottom: 10,
-        width: '100%',
-        paddingHorizontal: 10,
-    },
-    badgesWrapper: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'center',
-        gap: 8,
-    },
-    badge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        borderRadius: 20,
-        // borderWidth: 1,
-        borderColor: '#ddd',
-        // minWidth: 100,
-    },
-    badgeSelected: {
-        backgroundColor: config.colors.hasBlockGreen,
-        // borderColor: config.colors.hasBlockGreen,
-    },
-    badgeUnselected: {
-        backgroundColor: isDarkMode ? '#2C2C2E' : '#F2F2F7',
-    },
-    badgeIcon: {
-        marginRight: 6,
-    },
-    badgeText: {
-        fontSize: 10,
-        fontWeight: '500',
-    },
-    badgeTextSelected: {
-        color: '#fff',
-    },
-    badgeTextUnselected: {
-        color: isDarkMode ? '#fff' : '#000',
-    },
-    fullWidthSummary: {
-        width: '100%',
-    },
-});
+            fontSize: 12,
+            lineHeight: 20
+
+        },
+        hasBackground: {
+            backgroundColor: config.colors.hasBlockGreen,
+            paddingVertical: 3,
+            paddingHorizontal: 5,
+            borderRadius: 8,
+            justifyContent: 'center',
+            alignItems: 'center',
+            width: '49%'
+        },
+        priceTextProfit: {
+            fontSize: 12
+        },
+        description: {
+            fontSize: 12,
+            paddingVertical: 5
+        },
+        footer: {
+            flexDirection: 'row',
+            justifyContent: 'flex-end',
+            alignItems: 'center',
+            // marginTop: 10,
+        },
+
+        footerText: {
+            fontSize: 10,
+            color: '#666',
+            marginRight: 5,
+            fontStyle: "italic"
+        },
+
+        footerImage: {
+            width: 40, // Adjust size as needed
+            height: 40,
+            resizeMode: 'contain',
+        },
+        badgesContainer: {
+            marginTop: 15,
+            marginBottom: 10,
+            width: '100%',
+            paddingHorizontal: 10,
+        },
+        badgesWrapper: {
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            gap: 8,
+        },
+        badge: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 10,
+            paddingVertical: 5,
+            borderRadius: 20,
+            // borderWidth: 1,
+            borderColor: '#ddd',
+            // minWidth: 100,
+        },
+        badgeSelected: {
+            backgroundColor: config.colors.hasBlockGreen,
+            // borderColor: config.colors.hasBlockGreen,
+        },
+        badgeUnselected: {
+            backgroundColor: isDarkMode ? '#2C2C2E' : '#F2F2F7',
+        },
+        badgeIcon: {
+            marginRight: 6,
+        },
+        badgeText: {
+            fontSize: 10,
+            fontWeight: '500',
+        },
+        badgeTextSelected: {
+            color: '#fff',
+        },
+        badgeTextUnselected: {
+            color: isDarkMode ? '#fff' : '#000',
+        },
+        fullWidthSummary: {
+            width: '100%',
+        },
+    });
 
 export default ShareTradeModal;

@@ -61,6 +61,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   menuRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  menuOptionText: { fontSize: 16, color: 'black', paddingVertical: 10, fontFamily: 'Lato-Regular' },
-  selectedText: { color: config.colors.hasBlockGreen, fontFamily: 'Lato-Bold' },
+  menuOptionText: { fontSize: 16, color: 'black', paddingVertical: 10, },
+  selectedText: { color: config.colors.hasBlockGreen, fontWeight: 'bold' },
 });

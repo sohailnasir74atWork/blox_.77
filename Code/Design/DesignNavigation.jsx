@@ -27,7 +27,7 @@ export const DesignStack = ({ selectedTheme }) => {
     () => ({
       headerStyle: { backgroundColor: selectedTheme.colors.background },
       headerTintColor: selectedTheme.colors.text,
-      headerTitleStyle: { fontFamily: 'Lato-Bold', fontSize: 24 },
+      headerTitleStyle: { fontWeight: 'bold', fontSize: 24 },
     }),
     [selectedTheme]
   );

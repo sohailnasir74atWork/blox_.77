@@ -36,6 +36,8 @@ import {
 import { ref, get } from '@react-native-firebase/database';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import { banUserwithEmail, unbanUserWithEmail, checkBanStatus, makeModerator, removeModerator } from '../utils'; // ✅ Import moderator utils
+import auth from '@react-native-firebase/auth'; // ✅ Import auth
 
 // Initialize dayjs plugins
 dayjs.extend(relativeTime);
@@ -120,7 +122,7 @@ const ProfileBottomDrawer = ({
   bannedUsers,
   fromPvtChat,
 }) => {
-  const { theme, firestoreDB, appdatabase } = useGlobalState();
+  const { theme, firestoreDB, appdatabase, isAdmin, user, isModerator: isGlobalModerator } = useGlobalState(); // ✅ Get isAdmin and user
   const { updateLocalState } = useLocalState();
   const { t } = useTranslation();
   const { triggerHapticFeedback } = useHaptic();
@@ -170,6 +172,8 @@ const ProfileBottomDrawer = ({
 
   // ✅ State for fetched user data (roblox username, verified status, etc.)
   const [userData, setUserData] = useState(null);
+  // ✅ State for ban status (fetched dynamically)
+  const [isBanned, setIsBanned] = useState(false);
 
 
 
@@ -185,7 +189,7 @@ const ProfileBottomDrawer = ({
         // ✅ OPTIMIZED: Only fetch fields that are NOT already in selectedUser
         // This reduces Firebase reads from 6 potential reads to only what's missing
         const fieldsToFetch = [];
-        
+
         // Check each field and only add to fetch list if missing
         if (!selectedUser?.robloxUsername) {
           fieldsToFetch.push({ key: 'robloxUsername', path: `users/${selectedUserId}/robloxUsername` });
@@ -205,7 +209,10 @@ const ProfileBottomDrawer = ({
         if (!selectedUser?.flage) {
           fieldsToFetch.push({ key: 'flage', path: `users/${selectedUserId}/flage` }); // ✅ Only fetch if missing
         }
-        
+        // ✅ Always fetch isModerator and isAdmin if missing
+        fieldsToFetch.push({ key: 'isModerator', path: `users/${selectedUserId}/isModerator` });
+        fieldsToFetch.push({ key: 'isAdmin', path: `users/${selectedUserId}/admin` });
+
         // ✅ If all fields are already available, skip Firebase read entirely (0 reads = $0 cost)
         if (fieldsToFetch.length === 0) {
           setUserData(null);
@@ -216,9 +223,9 @@ const ProfileBottomDrawer = ({
         const snapshots = await Promise.all(
           fieldsToFetch.map(({ path }) => get(ref(appdatabase, path)).catch(() => null))
         );
-        
+
         if (!isMounted) return;
-        
+
         // ✅ Extract values and build result object
         const fetchedData = {};
         fieldsToFetch.forEach(({ key }, index) => {
@@ -246,6 +253,13 @@ const ProfileBottomDrawer = ({
     };
   }, [selectedUserId, selectedUser?.robloxUsername, selectedUser?.robloxUserId, selectedUser?.flage, selectedUser?.isPro, selectedUser?.lastGameWinAt, appdatabase]);
 
+  // ✅ Fetch ban status
+  useEffect(() => {
+    if (selectedUser?.email) {
+      checkBanStatus(selectedUser.email).then(status => setIsBanned(status.isBanned));
+    }
+  }, [selectedUser?.email]);
+
   // ✅ Merge selectedUser with fetched userData
   const mergedUser = useMemo(() => {
     if (!userData) return selectedUser;
@@ -253,16 +267,18 @@ const ProfileBottomDrawer = ({
       ...selectedUser,
       robloxUsername: selectedUser?.robloxUsername || userData.robloxUsername,
       robloxUserId: selectedUser?.robloxUserId || userData.robloxUserId,
-      robloxUsernameVerified: selectedUser?.robloxUsernameVerified !== undefined 
-        ? selectedUser.robloxUsernameVerified 
+      robloxUsernameVerified: selectedUser?.robloxUsernameVerified !== undefined
+        ? selectedUser.robloxUsernameVerified
         : userData.robloxUsernameVerified,
       isPro: selectedUser?.isPro !== undefined ? selectedUser.isPro : userData.isPro,
-      lastGameWinAt: selectedUser?.lastGameWinAt !== undefined 
-        ? selectedUser.lastGameWinAt 
+      lastGameWinAt: selectedUser?.lastGameWinAt !== undefined
+        ? selectedUser.lastGameWinAt
         : userData.lastGameWinAt, // ✅ Game win timestamp
-      flage: selectedUser?.flage !== undefined 
-        ? selectedUser.flage 
+      flage: selectedUser?.flage !== undefined
+        ? selectedUser.flage
         : userData.flage, // ✅ Flag/flag emoji
+      isModerator: userData?.isModerator || false,
+      isAdmin: userData?.isAdmin || false,
     };
   }, [selectedUser, userData]);
 
@@ -280,7 +296,7 @@ const ProfileBottomDrawer = ({
   const handleOpenRobloxProfile = useCallback(async () => {
     const robloxUsername = mergedUser?.robloxUsername;
     const robloxUserId = mergedUser?.robloxUserId;
-    
+
     if (!robloxUsername && !robloxUserId) {
       return;
     }
@@ -296,7 +312,7 @@ const ProfileBottomDrawer = ({
         // Use userId for app deep link (most reliable)
         robloxAppUrl = `roblox://users/${robloxUserId}`;
         // Use search URL format for web (works with username)
-        robloxWebUrl = robloxUsername 
+        robloxWebUrl = robloxUsername
           ? `https://www.roblox.com/search/users?keyword=${encodeURIComponent(robloxUsername)}`
           : `https://www.roblox.com/users/${robloxUserId}`;
       } else if (robloxUsername) {
@@ -375,7 +391,182 @@ const ProfileBottomDrawer = ({
 
     return null;
   }, []);
-  
+
+  // ─────────────────────────────────────────────
+  // Ban / Unban Logic (Admin)
+  const handleBanUser = async () => {
+    let targetEmail = null; // Start null to force fetch
+
+    // 1️⃣ Try Auth (if banning self) to satisfy "use auth" request
+    const currentUser = auth().currentUser;
+    if (currentUser && currentUser.uid === selectedUserId) {
+      targetEmail = currentUser.email;
+    }
+
+    // 2️⃣ Try Firebase Realtime Database (Truth for others)
+    if (!targetEmail) {
+      try {
+        const userRef = ref(appdatabase, `users/${selectedUserId}`);
+        const userSnap = await get(userRef);
+
+        if (userSnap.exists()) {
+          const userData = userSnap.val();
+
+          if (userData.email) {
+            targetEmail = userData.email;
+          } else if (userData.userEmail) { // Potential alternate key
+            targetEmail = userData.userEmail;
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching user data:", err);
+      }
+    }
+
+    // 3️⃣ Fallback to prop
+    if (!targetEmail && selectedUser?.email) {
+      targetEmail = selectedUser.email;
+    }
+
+    if (!targetEmail) {
+      Alert.alert("Error", "User email not found. Cannot ban user without email.");
+      return;
+    }
+
+    // 4️⃣ Hierarchy Check
+    const targetIsAdmin = mergedUser?.isAdmin || false;
+    const targetIsMod = mergedUser?.isModerator || false;
+
+    // Moderators cannot ban Admins or other Moderators
+    if (!isAdmin && (targetIsAdmin || targetIsMod)) {
+      Alert.alert("Permission Denied", "Moderators cannot ban Admins or other Moderators.");
+      return;
+    }
+
+    Alert.alert(
+      'Ban User',
+      `Are you sure you want to ban ${userName}? This will apply a strike.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Ban",
+          style: "destructive",
+          onPress: async () => {
+            // ✅ Construct rich user data for the ban record
+            const userInfo = {
+              ...mergedUser,
+              id: selectedUser.id || selectedUser.senderId,
+              displayName: mergedUser.displayName || mergedUser.sender || 'Unknown',
+              avatar: mergedUser.avatar || null,
+              email: targetEmail
+            };
+
+            const bannerInfo = {
+              id: user?.id,
+              displayName: user?.userName || user?.displayName || 'System',
+              avatar: user?.avatar || null
+            };
+
+            // ✅ Pass actual isAdmin flag!
+            const success = await banUserwithEmail(targetEmail, isAdmin, userInfo.id, userInfo, bannerInfo);
+            if (success) setIsBanned(true);
+          }
+        }
+      ]
+    );
+  };
+
+  const handleUnbanUser = async () => {
+    let targetEmail = null;
+
+    // 1️⃣ Try Auth (if unbanning self)
+    const currentUser = auth().currentUser;
+    if (currentUser && currentUser.uid === selectedUserId) {
+      targetEmail = currentUser.email;
+    }
+
+    // 2️⃣ Try Firebase Realtime Database
+    if (!targetEmail) {
+      try {
+        const userRef = ref(appdatabase, `users/${selectedUserId}`);
+        const userSnap = await get(userRef);
+
+        if (userSnap.exists()) {
+          const userData = userSnap.val();
+
+          if (userData.email) {
+            targetEmail = userData.email;
+          } else if (userData.userEmail) {
+            targetEmail = userData.userEmail;
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching user data for unban:", err);
+      }
+    }
+
+    // 3️⃣ Fallback to prop
+    if (!targetEmail && selectedUser?.email) {
+      targetEmail = selectedUser.email;
+    }
+
+    if (!targetEmail) {
+      Alert.alert("Error", "User email not found. Cannot unban user without email.");
+      return;
+    }
+
+    Alert.alert(
+      'Unban User',
+      `Are you sure you want to unban ${userName}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Unban",
+          onPress: async () => {
+            const success = await unbanUserWithEmail(targetEmail, true);
+            if (success) setIsBanned(false);
+          }
+        }
+      ]
+    );
+  };
+
+  const handlePromoteModerator = () => {
+    Alert.alert(
+      'Promote to Moderator',
+      `Are you sure you want to make ${userName} a moderator?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Promote", onPress: async () => {
+            const success = await makeModerator(selectedUserId);
+            if (success) {
+              setUserData(prev => ({ ...prev, isModerator: true }));
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleDemoteModerator = () => {
+    Alert.alert(
+      'Remove Moderator',
+      `Are you sure you want to remove moderator privileges from ${userName}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove", style: "destructive", onPress: async () => {
+            const success = await removeModerator(selectedUserId);
+            if (success) {
+              setUserData(prev => ({ ...prev, isModerator: false }));
+            }
+          }
+        }
+      ]
+    );
+  };
+
   // ─────────────────────────────────────────────
   // Ban / Unban
   const handleBanToggle = async () => {
@@ -423,7 +614,7 @@ const ProfileBottomDrawer = ({
       ],
     );
   };
-// console.log(selectedUser)
+  // console.log(selectedUser)
   // ─────────────────────────────────────────────
   // Start chat
   const handleStartChat = () => {
@@ -452,7 +643,7 @@ const ProfileBottomDrawer = ({
       setHasMoreTrades(false);
     }
   }, [isVisible]);
-  
+
   // ─────────────────────────────────────────────
   // Load rating summary + joined
   useEffect(() => {
@@ -468,7 +659,7 @@ const ProfileBottomDrawer = ({
           collection(firestoreDB, 'reviews'),
           where('toUserId', '==', selectedUserId),
         );
-        
+
         // ✅ OPTIMIZED: Fetch only rewardPoints field instead of full user object
         const [reviewsSnap, createdSnap, rewardPointsSnap, reviewDocSnap] = await Promise.all([
           getDocs(reviewsQuery),
@@ -486,7 +677,7 @@ const ProfileBottomDrawer = ({
           const count = validRatings.length;
           const sum = validRatings.reduce((acc, r) => acc + r.rating, 0);
           const averageValue = count > 0 ? sum / count : 0;
-          
+
           setRatingSummary({
             value: averageValue,
             count: count,
@@ -606,10 +797,10 @@ const ProfileBottomDrawer = ({
   // ✅ Use refs to track state and avoid dependency issues
   const lastReviewDocRef = useRef(null);
   const isLoadingRef = useRef(false);
-  
+
   const loadReviews = useCallback(async (reset = false) => {
     if (!firestoreDB || !selectedUserId) return;
-    
+
     // ✅ Prevent duplicate calls using ref (avoids dependency issues)
     if (isLoadingRef.current) {
       // console.log('🔄 [BottomDrawer] Already loading reviews, skipping...');
@@ -643,10 +834,10 @@ const ProfileBottomDrawer = ({
 
       // ✅ Check if we got more than page size (means there are more reviews)
       const hasMoreResults = snap.docs.length > REVIEWS_PAGE_SIZE;
-      
+
       // ✅ Only take REVIEWS_PAGE_SIZE documents (discard the extra one)
       const docsToUse = snap.docs.slice(0, REVIEWS_PAGE_SIZE);
-      
+
       const batch = docsToUse.map((d) => {
         const data = d.data();
         return {
@@ -661,7 +852,7 @@ const ProfileBottomDrawer = ({
       const newLastDoc = docsToUse[docsToUse.length - 1] || null;
       lastReviewDocRef.current = newLastDoc;
       setLastReviewDoc(newLastDoc);
-      
+
       // ✅ Fix: hasMoreReviews is true only if we got more results than page size
       // This accurately detects if there are more reviews without false positives
       setHasMoreReviews(hasMoreResults);
@@ -696,7 +887,7 @@ const ProfileBottomDrawer = ({
   // Load trades (paged) — ✅ Initially show 1, then load 2 by 2
   const INITIAL_TRADES_SIZE = 1; // Show 1 trade initially
   const LOAD_MORE_TRADES_SIZE = 2; // Load 2 trades at a time when loading more
-  
+
   const loadTrades = useCallback(async (reset = false) => {
     if (!firestoreDB || !selectedUserId) return;
     if (loadingTrades) return;
@@ -705,7 +896,7 @@ const ProfileBottomDrawer = ({
     try {
       // Determine the limit based on whether it's initial load or load more
       const limitSize = reset ? INITIAL_TRADES_SIZE : LOAD_MORE_TRADES_SIZE;
-      
+
       let q;
       if (!reset && lastTradeDoc) {
         q = query(
@@ -728,10 +919,10 @@ const ProfileBottomDrawer = ({
 
       // Check if we got more than page size
       const hasMoreResults = snap.docs.length > limitSize;
-      
+
       // Only take limitSize documents (discard the extra one)
       const docsToUse = snap.docs.slice(0, limitSize);
-      
+
       const batch = docsToUse.map((d) => ({
         id: d.id,
         ...d.data(),
@@ -895,8 +1086,8 @@ const ProfileBottomDrawer = ({
                   <View key={`${hasItem.name}-${hasItem.type}`} style={{ alignItems: 'center', marginBottom: 2 }}>
                     <Image
                       source={{
-                        uri: hasItem.type === 'p' 
-                          ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatTradeName(hasItem.name)}_Icon.webp` 
+                        uri: hasItem.type === 'p'
+                          ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatTradeName(hasItem.name)}_Icon.webp`
                           : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatTradeName(hasItem.name)}_Icon.webp`,
                       }}
                       style={{
@@ -957,9 +1148,9 @@ const ProfileBottomDrawer = ({
 
           {/* Transfer Icon */}
           <View style={{ justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6 }}>
-            <Image 
-              source={require('../../../assets/transfer.png')} 
-              style={{ width: 16, height: 16, opacity: 0.6 }} 
+            <Image
+              source={require('../../../assets/transfer.png')}
+              style={{ width: 16, height: 16, opacity: 0.6 }}
             />
           </View>
 
@@ -974,8 +1165,8 @@ const ProfileBottomDrawer = ({
                   <View key={`${wantnItem.name}-${wantnItem.type}`} style={{ alignItems: 'center', marginBottom: 2 }}>
                     <Image
                       source={{
-                        uri: wantnItem.type === 'p' 
-                          ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatTradeName(wantnItem.name)}_Icon.webp` 
+                        uri: wantnItem.type === 'p'
+                          ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatTradeName(wantnItem.name)}_Icon.webp`
                           : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatTradeName(wantnItem.name)}_Icon.webp`,
                       }}
                       style={{
@@ -1111,7 +1302,7 @@ const ProfileBottomDrawer = ({
                 <View style={{ justifyContent: 'center', flex: 1, marginRight: 8 }}>
                   {/* Username Row */}
                   <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <Text 
+                    <Text
                       style={[styles.drawerSubtitleUser, { flexShrink: 1 }]}
                       numberOfLines={1}
                       ellipsizeMode="tail"
@@ -1146,49 +1337,48 @@ const ProfileBottomDrawer = ({
                     />
                   </View>
                   <View style={{ alignItems: 'flex-start', justifyContent: 'center' }}>
-                  {/* Roblox Badge */}
-                  {mergedUser?.robloxUsername ? (
-                    <View style={{ 
-                      backgroundColor: mergedUser?.robloxUsernameVerified ? '#4CAF50' : '#FFA500', 
-                      paddingHorizontal: 6, 
-                      paddingVertical: 2, 
-                      borderRadius: 4,
-                      marginBottom: 4,
-                      marginTop: 2,
-                    }}>
-                      <Text style={{ 
-                        color: '#FFFFFF', 
-                        fontSize: 9, 
-                        fontWeight: '600' 
+                    {/* Roblox Badge */}
+                    {mergedUser?.robloxUsername ? (
+                      <View style={{
+                        backgroundColor: mergedUser?.robloxUsernameVerified ? '#4CAF50' : '#FFA500',
+                        paddingHorizontal: 6,
+                        paddingVertical: 2,
+                        borderRadius: 4,
+                        marginBottom: 4,
+                        marginTop: 2,
                       }}>
-                        {mergedUser?.robloxUsernameVerified ? '✓ Verified' : '⚠ Unverified'}
-                      </Text>
-                    </View>
-                  ) : (
-                    <View style={{ 
-                      backgroundColor: '#9CA3AF', 
-                      paddingHorizontal: 6, 
-                      paddingVertical: 2, 
-                      borderRadius: 4,
-                      marginVertical: 4,
-                    }}>
-                      <Text style={{ 
-                        color: '#FFFFFF', 
-                        fontSize: 9, 
-                        fontWeight: '600' 
+                        <Text style={{
+                          color: '#FFFFFF',
+                          fontSize: 9,
+                          fontWeight: '600'
+                        }}>
+                          {mergedUser?.robloxUsernameVerified ? '✓ Verified' : '⚠ Unverified'}
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={{
+                        backgroundColor: '#9CA3AF',
+                        paddingHorizontal: 6,
+                        paddingVertical: 2,
+                        borderRadius: 4,
+                        marginVertical: 4,
                       }}>
-                        No Roblox ID
-                      </Text>
-                    </View>
-                  )}
-                </View>
+                        <Text style={{
+                          color: '#FFFFFF',
+                          fontSize: 9,
+                          fontWeight: '600'
+                        }}>
+                          No Roblox ID
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
 
                 {/* Right Side: Badges */}
-           
+
               </View>
 
-              {/* Ban/Unban Icon */}
               <TouchableOpacity onPress={handleBanToggle}>
                 <Icon
                   name={isBlock ? 'shield-checkmark-outline' : 'ban-outline'}
@@ -1201,6 +1391,69 @@ const ProfileBottomDrawer = ({
                 />
               </TouchableOpacity>
             </View>
+
+            {/* 🛡️ Moderator/Admin Actions */}
+            {(isAdmin || isGlobalModerator) && (
+              <View style={{
+                marginTop: 0,
+                padding: 10,
+                backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9',
+                borderRadius: 8,
+                marginBottom: 10,
+                borderLeftWidth: 4,
+                borderLeftColor: config.colors.wantBlockRed
+              }}>
+                <Text style={{
+                  fontSize: 12,
+                  fontWeight: 'bold',
+                  color: isDarkMode ? '#94a3b8' : '#64748b',
+                  marginBottom: 8
+                }}>
+                  Moderation Actions
+                </Text>
+
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {/* Ban Button (Server Ban) */}
+                  <TouchableOpacity
+                    onPress={isBanned ? handleUnbanUser : handleBanUser}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: isBanned ? '#10B981' : config.colors.wantBlockRed,
+                      paddingVertical: 6,
+                      paddingHorizontal: 12,
+                      borderRadius: 6
+                    }}
+                  >
+                    <Icon name={isBanned ? "checkmark-circle-outline" : "hammer-outline"} size={16} color="white" />
+                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 12, marginLeft: 4 }}>
+                      {isBanned ? "Unban User" : "Ban User"}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Promote/Demote Moderator (Admin Only) */}
+                  {isAdmin && (
+                    <TouchableOpacity
+                      onPress={mergedUser?.isModerator ? handleDemoteModerator : handlePromoteModerator}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: mergedUser?.isModerator ? '#F59E0B' : '#3B82F6',
+                        paddingVertical: 6,
+                        paddingHorizontal: 12,
+                        borderRadius: 6,
+                        marginLeft: 8
+                      }}
+                    >
+                      <Icon name={mergedUser?.isModerator ? "arrow-down-circle-outline" : "shield-outline"} size={16} color="white" />
+                      <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 12, marginLeft: 4 }}>
+                        {mergedUser?.isModerator ? "Remove Mod" : "Make Mod"}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            )}
 
             {/* ⭐ Rating summary - Below profile picture section */}
             {loadDetails && (
@@ -1247,7 +1500,7 @@ const ProfileBottomDrawer = ({
                     <Text
                       style={{
                         fontSize: 10,
-                        backgroundColor:  '#16A34A',
+                        backgroundColor: '#16A34A',
                         paddingHorizontal: 5,
                         borderRadius: 4,
                         paddingVertical: 1,
@@ -1287,7 +1540,7 @@ const ProfileBottomDrawer = ({
                         <Text
                           style={{
                             fontSize: 11,
-                            fontFamily: 'Lato-Bold',
+                            fontWeight: 'bold',
                             color: isDarkMode ? '#10B981' : '#059669',
                             marginLeft: 4,
                           }}
@@ -1313,7 +1566,7 @@ const ProfileBottomDrawer = ({
                         <Text
                           style={{
                             fontSize: 11,
-                            fontFamily: 'Lato-Bold',
+                            fontWeight: 'bold',
                             color: isDarkMode ? '#F59E0B' : '#D97706',
                             marginLeft: 4,
                           }}
@@ -1326,8 +1579,8 @@ const ProfileBottomDrawer = ({
                 )}
               </View>
             )}
-     {/* 📝 Bio Section */}
-     {loadDetails && (
+            {/* 📝 Bio Section */}
+            {loadDetails && (
               <View
                 style={{
                   borderRadius: 12,
@@ -1357,9 +1610,9 @@ const ProfileBottomDrawer = ({
                 </Text>
               </View>
             )}
-            
+
             {/* 🐾 Pets section */}
-           {loadDetails && <View
+            {loadDetails && <View
               style={{
                 borderRadius: 12,
                 padding: 10,
@@ -1413,18 +1666,18 @@ const ProfileBottomDrawer = ({
                       </Text>
                     ) : (
                       <ScrollView
-  horizontal
-  showsHorizontalScrollIndicator={false}
-  contentContainerStyle={{ paddingRight: 6 }}
->
-  <View style={{ flexDirection: 'row' }}>
-    {ownedPets.map((pet, index) => renderPetBubble(pet, index))}
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ paddingRight: 6 }}
+                      >
+                        <View style={{ flexDirection: 'row' }}>
+                          {ownedPets.map((pet, index) => renderPetBubble(pet, index))}
 
-    
-      
-  
-  </View>
-</ScrollView>
+
+
+
+                        </View>
+                      </ScrollView>
 
                     )}
                   </View>
@@ -1460,24 +1713,24 @@ const ProfileBottomDrawer = ({
                       </Text>
                     ) : (
                       <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={{ paddingRight: 6 }}
-                    >
-                      <View style={{ flexDirection: 'row' }}>
-                        {wishlistPets.map((pet, index) => renderPetBubble(pet, index))}
-                          </View>
-                          </ScrollView>
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ paddingRight: 6 }}
+                      >
+                        <View style={{ flexDirection: 'row' }}>
+                          {wishlistPets.map((pet, index) => renderPetBubble(pet, index))}
+                        </View>
+                      </ScrollView>
                     )}
                   </View>
                 </>
               )}
             </View>}
-           
+
 
 
             {/* 📝 Reviews section */}
-           {loadDetails &&  <View
+            {loadDetails && <View
               style={{
                 borderRadius: 12,
                 padding: 10,
@@ -1720,20 +1973,20 @@ const ProfileBottomDrawer = ({
 
             {/* Roblox Profile Button */}
             {mergedUser?.robloxUsername && (
-              <TouchableOpacity 
-                style={[styles.saveButton, { 
+              <TouchableOpacity
+                style={[styles.saveButton, {
                   backgroundColor: isDarkMode ? '#4A90E2' : '#007AFF',
                   marginBottom: 8,
                   flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'center',
-                }]} 
+                }]}
                 onPress={handleOpenRobloxProfile}
               >
-                <Icon 
-                  name="game-controller-outline" 
-                  size={16} 
-                  color="#FFFFFF" 
+                <Icon
+                  name="game-controller-outline"
+                  size={16}
+                  color="#FFFFFF"
                   style={{ marginRight: 6 }}
                 />
                 <Text style={[styles.saveButtonText, { color: '#FFFFFF' }]}>
@@ -1741,6 +1994,31 @@ const ProfileBottomDrawer = ({
                 </Text>
               </TouchableOpacity>
             )}
+
+            {/* Moderator Actions */}
+            {/* {(isAdmin || mergedUser?.isModerator) && (
+              <View style={{ marginBottom: 8, marginTop: -4 }}>
+                {isAdmin && (
+                  <TouchableOpacity
+                    style={[styles.saveButton, { backgroundColor: mergedUser?.isModerator ? '#FF9500' : '#4CAF50', marginBottom: 8 }]}
+                    onPress={mergedUser?.isModerator ? handleDemoteModerator : handlePromoteModerator}
+                  >
+                    <Text style={styles.saveButtonText}>
+                      {mergedUser?.isModerator ? "Remove Moderator" : "Promote to Moderator"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity
+                  style={[styles.saveButton, { backgroundColor: isBanned ? '#34C759' : '#FF3B30' }]}
+                  onPress={isBanned ? handleUnbanUser : handleBanUser}
+                >
+                  <Text style={styles.saveButtonText}>
+                    {isBanned ? "Unban User" : "Ban User (Strike)"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )} */}
 
             {/* Start chat button */}
             {!fromPvtChat && (

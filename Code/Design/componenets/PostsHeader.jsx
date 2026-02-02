@@ -24,9 +24,9 @@ const PostsHeader = ({
 
   return (
     <Menu>
-      <MenuTrigger style={{ 
-        flexDirection: 'row', 
-        alignItems: 'center', 
+      <MenuTrigger style={{
+        flexDirection: 'row',
+        alignItems: 'center',
         justifyContent: 'center',
         // marginRight: 16,
         paddingVertical: 8,
@@ -61,7 +61,7 @@ const PostsHeader = ({
           }}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingHorizontal: 10 }}>
-            <Text style={{ fontSize: 14, color: !filterMyPosts && !selectedTag ? config.colors.primary : '#333', fontFamily: !filterMyPosts && !selectedTag ? 'Lato-Bold' : 'Lato-Regular' }}>
+            <Text style={{ fontSize: 14, color: !filterMyPosts && !selectedTag ? config.colors.primary : '#333', fontWeight: !filterMyPosts && !selectedTag ? 'bold' : 'normal' }}>
               All Posts
             </Text>
             {!filterMyPosts && !selectedTag && <FontAwesome name="check" size={14} color={config.colors.primary} />}
@@ -85,7 +85,7 @@ const PostsHeader = ({
           }}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingHorizontal: 10 }}>
-            <Text style={{ fontSize: 14, color: filterMyPosts ? config.colors.primary : '#333', fontFamily: filterMyPosts ? 'Lato-Bold' : 'Lato-Regular' }}>
+            <Text style={{ fontSize: 14, color: filterMyPosts ? config.colors.primary : '#333', fontWeight: filterMyPosts ? 'bold' : 'normal' }}>
               My Posts
             </Text>
             {filterMyPosts && <FontAwesome name="check" size={14} color={config.colors.primary} />}
@@ -94,7 +94,7 @@ const PostsHeader = ({
 
         {/* Divider & Label */}
         <View style={{ paddingHorizontal: 10, paddingTop: 6, paddingBottom: 4, borderTopWidth: 1, borderColor: '#ccc' }}>
-          <Text style={{ fontWeight: 'bold', fontSize: 12, color: isDarkMode ? '#aaa' : '#444', fontFamily: 'Lato-Bold' }}>
+          <Text style={{ fontWeight: 'bold', fontSize: 12, color: isDarkMode ? '#aaa' : '#444', fontWeight: 'bold' }}>
             Filter by Tag
           </Text>
         </View>
@@ -117,7 +117,7 @@ const PostsHeader = ({
             }}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingHorizontal: 10 }}>
-              <Text style={{ fontSize: 14, color: selectedTag === tag ? config.colors.primary : '#333', fontFamily: selectedTag === tag ? 'Lato-Bold' : 'Lato-Regular' }}>
+              <Text style={{ fontSize: 14, color: selectedTag === tag ? config.colors.primary : '#333', fontWeight: selectedTag === tag ? 'bold' : 'normal' }}>
                 {tag}
               </Text>
               {selectedTag === tag && (

@@ -17,19 +17,19 @@ const ChatRulesModal = ({ visible, onClose, isDarkMode }) => {
   }, []);
 
   // ✅ Memoize modal background color
-  const modalBgColor = useMemo(() => 
-    isDarkMode ? '#121212' : '#fff', 
+  const modalBgColor = useMemo(() =>
+    isDarkMode ? '#121212' : '#fff',
     [isDarkMode]
   );
 
   // ✅ Memoize text colors
-  const titleColor = useMemo(() => 
-    isDarkMode ? '#fff' : '#000', 
+  const titleColor = useMemo(() =>
+    isDarkMode ? '#fff' : '#000',
     [isDarkMode]
   );
 
-  const ruleTextColor = useMemo(() => 
-    isDarkMode ? '#ccc' : '#333', 
+  const ruleTextColor = useMemo(() =>
+    isDarkMode ? '#ccc' : '#333',
     [isDarkMode]
   );
 
@@ -49,7 +49,7 @@ const ChatRulesModal = ({ visible, onClose, isDarkMode }) => {
             {rules.map((rule, index) => {
               // ✅ Safety check for rule
               if (!rule || typeof rule !== 'string') return null;
-              
+
               return (
                 <Text
                   key={index}
@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     marginBottom: 10,
   },
   scroll: {
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
   },
   ruleText: {
     fontSize: 14,
-    fontFamily: 'Lato-Regular',
+
     marginBottom: 10,
   },
   closeButton: {
@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
   },
   closeButtonText: {
     color: 'white',
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     fontSize: 16,
   },
 });

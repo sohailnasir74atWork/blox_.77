@@ -20,7 +20,7 @@ const CommunityChatHeader = ({
   onOnlineUsersPress,
   onLeaderboardPress,
 }) => {
-  const { user, firestoreDB, theme, isInActiveGame = false } = useGlobalState();
+  const { user, firestoreDB, theme, isInActiveGame = false, isAdmin, isModerator } = useGlobalState();
   const navigation = useNavigation();
   const { t } = useTranslation();
   const [gameModalVisible, setGameModalVisible] = useState(false);
@@ -81,7 +81,7 @@ const CommunityChatHeader = ({
       (snapshot) => {
         const now = Date.now();
         let validCount = 0;
-        
+
         snapshot.forEach((doc) => {
           const data = doc.data();
           // Check if invitation is not expired
@@ -92,7 +92,7 @@ const CommunityChatHeader = ({
             validCount++;
           }
         });
-        
+
         setPendingGroupInvitationsCount(validCount);
       },
       (error) => {
@@ -135,7 +135,7 @@ const CommunityChatHeader = ({
   }, [firestoreDB, user?.id]);
 
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8 , }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8, }}>
       {user?.id && (
         <>
           {/* Fruit Guessing Game Button */}
@@ -153,7 +153,7 @@ const CommunityChatHeader = ({
             />
             {hasValidInvite && (
               <View style={{ position: 'absolute', top: 4, right: 4, backgroundColor: '#8B5CF6', borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 }}>
-                <Text style={{ color: '#fff', fontSize: 8, fontFamily: 'Lato-Bold' }}>
+                <Text style={{ color: '#fff', fontSize: 8, fontWeight: 'bold' }}>
                   1
                 </Text>
               </View>
@@ -176,7 +176,7 @@ const CommunityChatHeader = ({
             />
             {unreadcount > 0 && (
               <View style={{ position: 'absolute', top: 4, right: 4, backgroundColor: 'red', borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 }}>
-                <Text style={{ color: '#fff', fontSize: 8, fontFamily: 'Lato-Bold' }}>
+                <Text style={{ color: '#fff', fontSize: 8, fontWeight: 'bold' }}>
                   {unreadcount > 9 ? '9+' : unreadcount}
                 </Text>
               </View>
@@ -202,7 +202,7 @@ const CommunityChatHeader = ({
             {/* Show "!" if there are pending invitations or join requests (prioritized), otherwise show unread count */}
             {(pendingGroupInvitationsCount > 0 || pendingJoinRequestsCount > 0 || groupUnreadCount > 0) && (
               <View style={{ position: 'absolute', top: 4, right: 4, backgroundColor: '#10B981', borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 }}>
-                <Text style={{ color: '#fff', fontSize: 8, fontFamily: 'Lato-Bold' }}>
+                <Text style={{ color: '#fff', fontSize: 8, fontWeight: 'bold' }}>
                   {(pendingGroupInvitationsCount > 0 || pendingJoinRequestsCount > 0) ? '!' : (groupUnreadCount > 9 ? '9+' : groupUnreadCount)}
                 </Text>
               </View>
@@ -225,6 +225,23 @@ const CommunityChatHeader = ({
               color={config.colors.primary}
             />
           </TouchableOpacity>
+
+          {/* Admin Dashboard Button (Only for Admins/Moderators) */}
+          {(isAdmin || isModerator) && (
+            <TouchableOpacity
+              onPress={() => {
+                navigation.navigate('AdminDashboard');
+                triggerHapticFeedback('impactLight');
+              }}
+              style={{ position: 'relative', padding: 8, marginRight: 4 }}
+            >
+              <Icon
+                name="shield-checkmark-outline"
+                size={24}
+                color={config.colors.primary}
+              />
+            </TouchableOpacity>
+          )}
         </>
       )}
       {user?.id && (

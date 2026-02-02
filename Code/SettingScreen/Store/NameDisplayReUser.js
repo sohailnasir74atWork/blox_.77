@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   userName: {
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     color: '#333',
   },
   icon: {

@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 10,
   },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 18, fontFamily: 'Lato-Bold' },
+  title: { fontSize: 18, fontWeight: 'bold' },
   itemBlock: {
     width: '32%',
     height: 110,

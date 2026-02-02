@@ -20,7 +20,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../GlobelStats';
 import { getStyles } from './settingstyle';
-import { handleGetSuggestions, handleOpenFacebook, handleOpenWebsite, handleRateApp, handleadoptme, handleShareApp, imageOptions, handleBloxFruit, handleRefresh, handleReport, handleOpenPrivacy, handleOpenChild} from './settinghelper';
+import { handleGetSuggestions, handleOpenFacebook, handleOpenWebsite, handleRateApp, handleadoptme, handleShareApp, imageOptions, handleBloxFruit, handleRefresh, handleReport, handleOpenPrivacy, handleOpenChild } from './settinghelper';
 import { logoutUser } from '../Firebase/UserLogics';
 import SignInDrawer from '../Firebase/SigninDrawer';
 import auth from '@react-native-firebase/auth';
@@ -71,8 +71,8 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 const BUNNY_STORAGE_HOST = 'storage.bunnycdn.com';
 const BUNNY_STORAGE_ZONE = 'post-gag';
-const BUNNY_ACCESS_KEY   = '1b7e1a85-dff7-4a98-ba701fc7f9b9-6542-46e2';
-const BUNNY_CDN_BASE     = 'https://pull-gag.b-cdn.net';
+const BUNNY_ACCESS_KEY = '1b7e1a85-dff7-4a98-ba701fc7f9b9-6542-46e2';
+const BUNNY_CDN_BASE = 'https://pull-gag.b-cdn.net';
 
 // ~500 KB max for avatar (small, DP-friendly)
 const MAX_AVATAR_SIZE_BYTES = 500 * 1024;
@@ -176,7 +176,7 @@ const EditProfileDrawerContent = ({
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
   const insets = useSafeAreaInsets();
-  const PROFILE_EDIT_COOLDOWN_DAYS = 30;
+  const PROFILE_EDIT_COOLDOWN_DAYS = 10;
 
   // ✅ Calculate cooldown status - only checks existing cooldown from last save, not unsaved changes
   const cooldownStatus = useMemo(() => {
@@ -186,10 +186,10 @@ const EditProfileDrawerContent = ({
       return { inCooldown: false, daysRemaining: 0 };
     }
 
-    const lastEditTimestamp = typeof user.lastProfileEditAt === 'number' 
-      ? user.lastProfileEditAt 
+    const lastEditTimestamp = typeof user.lastProfileEditAt === 'number'
+      ? user.lastProfileEditAt
       : Date.parse(user.lastProfileEditAt);
-    
+
     if (isNaN(lastEditTimestamp)) {
       return { inCooldown: false, daysRemaining: 0 };
     }
@@ -228,217 +228,217 @@ const EditProfileDrawerContent = ({
         },
       ]}
     >
-      <ScrollView 
+      <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 0 }}
       >
-      {/* Display Name - Minimal Design */}
-      <View style={{ marginBottom: 10 }}>
-        <Text style={{ fontSize: 11, fontFamily: 'Lato-Bold', color: isDarkMode ? '#9ca3af' : '#6b7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-          Display Name
-        </Text>
-        <TextInput
-          style={{
-            backgroundColor: isDarkMode ? '#1a1a1a' : '#f5f5f5',
-            padding: 12,
-            borderRadius: 10,
-            fontSize: 14,
-            color: isDarkMode ? '#fff' : '#000',
-            borderWidth: 0,
-          }}
-          placeholder="Enter name"
-          placeholderTextColor={isDarkMode ? '#6b7280' : '#9ca3af'}
-          value={newDisplayName}
-          onChangeText={setNewDisplayName}
-        />
-      </View>
-
-      {/* Profile Picture - Clean Section */}
-      <View style={{ marginBottom: 10 }}>
-        <Text style={{ fontSize: 11, fontFamily: 'Lato-Bold', color: isDarkMode ? '#9ca3af' : '#6b7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-          Profile Picture
-        </Text>
-        
-        <TouchableOpacity
-          style={{
-            backgroundColor: isDarkMode ? '#1a1a1a' : '#f5f5f5',
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            paddingVertical: 11,
-            borderRadius: 10,
-            marginBottom: 8,
-          }}
-          onPress={handlePickAndUploadAvatar}
-          disabled={uploadingAvatar}
-          activeOpacity={0.7}
-        >
-          {uploadingAvatar ? (
-            <ActivityIndicator color={config.colors.primary} size="small" />
-          ) : (
-            <>
-              <Icon
-                name="cloud-upload-outline"
-                size={16}
-                color={config.colors.primary}
-                style={{ marginRight: 6 }}
-              />
-              <Text style={{ color: config.colors.primary, fontSize: 13, fontFamily: 'Lato-Bold' }}>
-                Upload Photo
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        <View style={{
-          backgroundColor: isDarkMode ? '#1a1a1a' : '#f5f5f5',
-          borderRadius: 10,
-          padding: 8,
-          marginBottom: 8,
-          flexDirection: 'row',
-          alignItems: 'center',
-        }}>
-          <Icon name="search-outline" size={14} color={isDarkMode ? '#6b7280' : '#9ca3af'} style={{ marginRight: 8 }} />
+        {/* Display Name - Minimal Design */}
+        <View style={{ marginBottom: 10 }}>
+          <Text style={{ fontSize: 11, fontWeight: 'bold', color: isDarkMode ? '#9ca3af' : '#6b7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            Display Name
+          </Text>
           <TextInput
             style={{
-              flex: 1,
-              fontSize: 13,
+              backgroundColor: isDarkMode ? '#1a1a1a' : '#f5f5f5',
+              padding: 12,
+              borderRadius: 10,
+              fontSize: 14,
               color: isDarkMode ? '#fff' : '#000',
-              padding: 0,
+              borderWidth: 0,
             }}
-            placeholder="Search fruits..."
+            placeholder="Enter name"
             placeholderTextColor={isDarkMode ? '#6b7280' : '#9ca3af'}
-            value={avatarSearch}
-            onChangeText={setAvatarSearch}
+            value={newDisplayName}
+            onChangeText={setNewDisplayName}
           />
         </View>
 
-        {/* Avatar Grid - Minimal */}
-        <FlatList
-          data={filteredAvatarOptions}
-          keyExtractor={(item, index) => `${item.url}-${index}`}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingVertical: 4 }}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              onPress={() => setSelectedImage(item.url)}
-              activeOpacity={0.7}
-              style={{
-                marginRight: 8,
-                borderRadius: 20,
-                borderWidth: selectedImage === item.url ? 2.5 : 0,
-                borderColor: config.colors.primary,
-                padding: selectedImage === item.url ? 2 : 0,
-              }}
-            >
-              <Image
-                source={{ uri: item.url }}
-                style={{ width: 40, height: 40, borderRadius: 20, opacity: selectedImage === item.url ? 1 : 0.6 }}
-              />
-            </TouchableOpacity>
-          )}
-        />
-      </View>
+        {/* Profile Picture - Clean Section */}
+        <View style={{ marginBottom: 10 }}>
+          <Text style={{ fontSize: 11, fontWeight: 'bold', color: isDarkMode ? '#9ca3af' : '#6b7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            Profile Picture
+          </Text>
 
-      {/* Bio - Clean Design */}
-      <View style={{ marginBottom: 12 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <Text style={{ fontSize: 11, fontFamily: 'Lato-Bold', color: isDarkMode ? '#9ca3af' : '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            Bio
-          </Text>
-          <Text style={{ 
-            fontSize: 10, 
-            color: bio.length > 120 ? '#EF4444' : (isDarkMode ? '#6b7280' : '#9ca3af'),
-            fontFamily: 'Lato-Bold',
-          }}>
-            {bio.length}/120
-          </Text>
-        </View>
-        <TextInput
-          style={{
+          <TouchableOpacity
+            style={{
+              backgroundColor: isDarkMode ? '#1a1a1a' : '#f5f5f5',
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingVertical: 11,
+              borderRadius: 10,
+              marginBottom: 8,
+            }}
+            onPress={handlePickAndUploadAvatar}
+            disabled={uploadingAvatar}
+            activeOpacity={0.7}
+          >
+            {uploadingAvatar ? (
+              <ActivityIndicator color={config.colors.primary} size="small" />
+            ) : (
+              <>
+                <Icon
+                  name="cloud-upload-outline"
+                  size={16}
+                  color={config.colors.primary}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={{ color: config.colors.primary, fontSize: 13, fontWeight: 'bold' }}>
+                  Upload Photo
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <View style={{
             backgroundColor: isDarkMode ? '#1a1a1a' : '#f5f5f5',
-            minHeight: 65,
-            textAlignVertical: 'top',
-            padding: 12,
             borderRadius: 10,
-            fontSize: 13,
-            color: isDarkMode ? '#fff' : '#000',
-            borderWidth: 0,
-          }}
-          placeholder="Tell us about yourself..."
-          placeholderTextColor={isDarkMode ? '#6b7280' : '#9ca3af'}
-          value={bio}
-          onChangeText={(text) => {
-            if (text.length <= 120) {
-              setBio(text);
-            }
-          }}
-          maxLength={120}
-          multiline={true}
-          numberOfLines={3}
-          autoCapitalize="sentences"
-          autoCorrect={true}
-        />
-      </View>
+            padding: 8,
+            marginBottom: 8,
+            flexDirection: 'row',
+            alignItems: 'center',
+          }}>
+            <Icon name="search-outline" size={14} color={isDarkMode ? '#6b7280' : '#9ca3af'} style={{ marginRight: 8 }} />
+            <TextInput
+              style={{
+                flex: 1,
+                fontSize: 13,
+                color: isDarkMode ? '#fff' : '#000',
+                padding: 0,
+              }}
+              placeholder="Search fruits..."
+              placeholderTextColor={isDarkMode ? '#6b7280' : '#9ca3af'}
+              value={avatarSearch}
+              onChangeText={setAvatarSearch}
+            />
+          </View>
 
-      {/* ✅ Cooldown Warning Message - only show if trying to save name/avatar changes */}
-      {shouldDisableSave && (
-        <View
-          style={{
-            backgroundColor: isDarkMode ? '#1a1a1a' : '#fef3c7',
-            padding: 12,
-            borderRadius: 10,
-            marginBottom: 12,
-            borderWidth: 1,
-            borderColor: isDarkMode ? '#F59E0B' : '#FCD34D',
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-            <Icon name="time-outline" size={16} color="#F59E0B" style={{ marginRight: 6 }} />
-            <Text style={{ 
-              fontSize: 12, 
-              fontFamily: 'Lato-Bold', 
-              color: isDarkMode ? '#FCD34D' : '#92400E' 
+          {/* Avatar Grid - Minimal */}
+          <FlatList
+            data={filteredAvatarOptions}
+            keyExtractor={(item, index) => `${item.url}-${index}`}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingVertical: 4 }}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                onPress={() => setSelectedImage(item.url)}
+                activeOpacity={0.7}
+                style={{
+                  marginRight: 8,
+                  borderRadius: 20,
+                  borderWidth: selectedImage === item.url ? 2.5 : 0,
+                  borderColor: config.colors.primary,
+                  padding: selectedImage === item.url ? 2 : 0,
+                }}
+              >
+                <Image
+                  source={{ uri: item.url }}
+                  style={{ width: 40, height: 40, borderRadius: 20, opacity: selectedImage === item.url ? 1 : 0.6 }}
+                />
+              </TouchableOpacity>
+            )}
+          />
+        </View>
+
+        {/* Bio - Clean Design */}
+        <View style={{ marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <Text style={{ fontSize: 11, fontWeight: 'bold', color: isDarkMode ? '#9ca3af' : '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Bio
+            </Text>
+            <Text style={{
+              fontSize: 10,
+              color: bio.length > 120 ? '#EF4444' : (isDarkMode ? '#6b7280' : '#9ca3af'),
+              fontWeight: 'bold',
             }}>
-              Edit Cooldown Active
+              {bio.length}/120
             </Text>
           </View>
-          <Text style={{ 
-            fontSize: 11, 
-            fontFamily: 'Lato-Regular', 
-            color: isDarkMode ? '#FCD34D' : '#92400E',
-            lineHeight: 16,
-          }}>
-            You can only edit your display name and profile picture once every {PROFILE_EDIT_COOLDOWN_DAYS} days. 
-            Please try again in {cooldownStatus.daysRemaining} day{cooldownStatus.daysRemaining === 1 ? '' : 's'}. 
-            (Bio can be edited anytime)
-          </Text>
+          <TextInput
+            style={{
+              backgroundColor: isDarkMode ? '#1a1a1a' : '#f5f5f5',
+              minHeight: 65,
+              textAlignVertical: 'top',
+              padding: 12,
+              borderRadius: 10,
+              fontSize: 13,
+              color: isDarkMode ? '#fff' : '#000',
+              borderWidth: 0,
+            }}
+            placeholder="Tell us about yourself..."
+            placeholderTextColor={isDarkMode ? '#6b7280' : '#9ca3af'}
+            value={bio}
+            onChangeText={(text) => {
+              if (text.length <= 120) {
+                setBio(text);
+              }
+            }}
+            maxLength={120}
+            multiline={true}
+            numberOfLines={3}
+            autoCapitalize="sentences"
+            autoCorrect={true}
+          />
         </View>
-      )}
 
-      {/* Modern Save Button */}
-      <TouchableOpacity
-        style={{
-          backgroundColor: shouldDisableSave
-            ? (isDarkMode ? '#374151' : '#9ca3af')
-            : config.colors.primary,
-          paddingVertical: 13,
-          borderRadius: 10,
-          alignItems: 'center',
-          justifyContent: 'center',
-          opacity: shouldDisableSave ? 0.6 : 1,
-        }}
-        onPress={handleSaveChanges}
-        disabled={shouldDisableSave}
-        activeOpacity={0.8}
-      >
-        <Text style={{ color: '#fff', fontSize: 15, fontFamily: 'Lato-Bold' }}>
-          {shouldDisableSave
-            ? `Edit Available in ${cooldownStatus.daysRemaining} Day${cooldownStatus.daysRemaining === 1 ? '' : 's'}`
-            : t('settings.save_changes')}
-        </Text>
-      </TouchableOpacity>
+        {/* ✅ Cooldown Warning Message - only show if trying to save name/avatar changes */}
+        {shouldDisableSave && (
+          <View
+            style={{
+              backgroundColor: isDarkMode ? '#1a1a1a' : '#fef3c7',
+              padding: 12,
+              borderRadius: 10,
+              marginBottom: 12,
+              borderWidth: 1,
+              borderColor: isDarkMode ? '#F59E0B' : '#FCD34D',
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+              <Icon name="time-outline" size={16} color="#F59E0B" style={{ marginRight: 6 }} />
+              <Text style={{
+                fontSize: 12,
+                fontWeight: 'bold',
+                color: isDarkMode ? '#FCD34D' : '#92400E'
+              }}>
+                Edit Cooldown Active
+              </Text>
+            </View>
+            <Text style={{
+              fontSize: 11,
+
+              color: isDarkMode ? '#FCD34D' : '#92400E',
+              lineHeight: 16,
+            }}>
+              You can only edit your display name and profile picture once every {PROFILE_EDIT_COOLDOWN_DAYS} days.
+              Please try again in {cooldownStatus.daysRemaining} day{cooldownStatus.daysRemaining === 1 ? '' : 's'}.
+              (Bio can be edited anytime)
+            </Text>
+          </View>
+        )}
+
+        {/* Modern Save Button */}
+        <TouchableOpacity
+          style={{
+            backgroundColor: shouldDisableSave
+              ? (isDarkMode ? '#374151' : '#9ca3af')
+              : config.colors.primary,
+            paddingVertical: 13,
+            borderRadius: 10,
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: shouldDisableSave ? 0.6 : 1,
+          }}
+          onPress={handleSaveChanges}
+          disabled={shouldDisableSave}
+          activeOpacity={0.8}
+        >
+          <Text style={{ color: '#fff', fontSize: 15, fontWeight: 'bold' }}>
+            {shouldDisableSave
+              ? `Edit Available in ${cooldownStatus.daysRemaining} Day${cooldownStatus.daysRemaining === 1 ? '' : 's'}`
+              : t('settings.save_changes')}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </Animated.View>
   );
@@ -503,7 +503,7 @@ export default function SettingsScreen({ selectedTheme }) {
   const [createdAtText, setCreatedAtText] = useState(null);
   const initializedUserIdRef = useRef(null); // ✅ Track which user ID we've initialized for
   const scrollViewRef = useRef(null); // ✅ Ref for ScrollView to scroll to input
-  
+
   const { t } = useTranslation();
   const BASE_ADOPTME_URL = 'https://bloxfruitscalc.com/wp-content/uploads/2024/09';
 
@@ -543,7 +543,7 @@ export default function SettingsScreen({ selectedTheme }) {
             <Text
               style={{
                 fontSize: 12,
-                fontFamily: "Lato-Bold",
+                fontWeight: 'bold',
                 color: isActive ? "#fff" : (isDarkMode ? "#ddd" : "#333"),
               }}
             >
@@ -599,7 +599,7 @@ export default function SettingsScreen({ selectedTheme }) {
     () => [...petAvatarOptions, ...defaultAvatarOptions],
     [defaultAvatarOptions, petAvatarOptions]
   );
-  
+
 
 
   // Final list: existing `imageOptions` + options from values data
@@ -692,7 +692,7 @@ export default function SettingsScreen({ selectedTheme }) {
 
   const { triggerHapticFeedback } = useHaptic();
   const themes = [t('settings.theme_system'), t('settings.theme_light'), t('settings.theme_dark')];
-    // const themes = ['System', 'Light','Dark'];
+  // const themes = ['System', 'Light','Dark'];
 
   const handleToggle = (value) => {
     updateLocalState('isHaptic', value); // Update isHaptic state globally
@@ -719,7 +719,7 @@ export default function SettingsScreen({ selectedTheme }) {
 
     // ✅ Pro users can toggle freely
     updateLocalState('showFlag', value);
-    
+
     if (user?.id && appdatabase) {
       try {
         const userRef = ref(appdatabase, `users/${user.id}`);
@@ -794,13 +794,13 @@ export default function SettingsScreen({ selectedTheme }) {
           }),
         }
       );
-      
+
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      
+
       // ✅ Check if data exists and has results
       if (!data.data || !Array.isArray(data.data) || data.data.length === 0) {
         return { valid: false, error: 'Username not found on Roblox. Please check spelling.' };
@@ -866,7 +866,7 @@ export default function SettingsScreen({ selectedTheme }) {
     // First verify username exists
     setIsVerifyingRoblox(true);
     const verifyResult = await verifyRobloxUsername(trimmedUsername);
-    
+
     if (!verifyResult.valid) {
       setIsVerifyingRoblox(false);
       showErrorMessage('Invalid Username', verifyResult.error);
@@ -888,12 +888,12 @@ export default function SettingsScreen({ selectedTheme }) {
           onPress: async () => {
             setIsVerifyingRoblox(true);
             const result = await checkVerificationCode(trimmedUsername, code);
-            
+
             // ✅ Save username to database regardless of verification status
             const isVerified = result.verified;
             // Use userId from verification result if verified, otherwise from initial username check
             const userIdToSave = result.verified ? result.userId : (verifyResult.userId || null);
-            
+
             await updateLocalStateAndDatabase({
               robloxUsername: trimmedUsername,
               robloxUsernameVerified: isVerified,
@@ -903,7 +903,7 @@ export default function SettingsScreen({ selectedTheme }) {
             // ✅ Update local state
             setRobloxUsername(trimmedUsername);
             setRobloxUsernameVerified(isVerified);
-            
+
             // ✅ Update user state immediately for UI
             setUser((prev) => ({
               ...prev,
@@ -911,7 +911,7 @@ export default function SettingsScreen({ selectedTheme }) {
               robloxUsernameVerified: isVerified,
               robloxUserId: userIdToSave,
             }));
-            
+
             if (isVerified) {
               showSuccessMessage('Success', 'Roblox username verified and saved!');
             } else {
@@ -951,7 +951,7 @@ export default function SettingsScreen({ selectedTheme }) {
     symbol: require('../../assets/Icons/symbol.png'),
     'treasure-map': require('../../assets/Icons/treasure-map.png'),
   };
-  
+
 
 
   const isDarkMode = theme === 'dark';
@@ -960,13 +960,13 @@ export default function SettingsScreen({ selectedTheme }) {
   useEffect(() => {
     // Only initialize when drawer opens (isDrawerVisible becomes true) or when user ID changes
     if (!isDrawerVisible) return; // Don't initialize when drawer is closed
-    
+
     if (user && user?.id) {
       // Only reset if this is a different user or first time initialization for this user
       if (initializedUserIdRef.current !== user.id) {
         initializedUserIdRef.current = user.id;
-      setNewDisplayName(user?.displayName?.trim() || 'Anonymous');
-      setSelectedImage(user?.avatar?.trim() || 'https://bloxfruitscalc.com/wp-content/uploads/2025/placeholder.png');
+        setNewDisplayName(user?.displayName?.trim() || 'Anonymous');
+        setSelectedImage(user?.avatar?.trim() || 'https://bloxfruitscalc.com/wp-content/uploads/2025/placeholder.png');
         // ✅ Load Roblox username if exists
         setRobloxUsername(user?.robloxUsername || '');
         setRobloxUsernameVerified(user?.robloxUsernameVerified || false);
@@ -995,7 +995,7 @@ export default function SettingsScreen({ selectedTheme }) {
 
   // ✅ MIGRATED: Load bio and rating from Firestore (user_ratings_summary)
   const [userPoints, setUserPoints] = useState(null);
-  
+
   useEffect(() => {
     if (!user?.id || !appdatabase || !firestoreDB) {
       setBio('Hi there, I am new here');
@@ -1021,11 +1021,11 @@ export default function SettingsScreen({ selectedTheme }) {
         // ✅ If bio doesn't exist, initialize it with default value in Firestore
         if (reviewDocSnap.exists) { // ✅ Firestore: exists is a property, not a function
           const reviewData = reviewDocSnap.data();
-          const loadedBio = (reviewData.bio && typeof reviewData.bio === 'string' && reviewData.bio.trim()) 
-            ? reviewData.bio.trim() 
+          const loadedBio = (reviewData.bio && typeof reviewData.bio === 'string' && reviewData.bio.trim())
+            ? reviewData.bio.trim()
             : 'Hi there, I am new here';
           setBio(loadedBio);
-          
+
           // ✅ If bio doesn't exist in Firestore, save default bio
           if (!reviewData.bio || !reviewData.bio.trim()) {
             await setDoc(
@@ -1137,9 +1137,9 @@ export default function SettingsScreen({ selectedTheme }) {
           t("settings.permission_required"),
           t("settings.notification_permissions_disabled"),
           [
-            { text:  t("home.cancel"), style: 'cancel' },
+            { text: t("home.cancel"), style: 'cancel' },
             {
-              text:  t("settings.go_to_settings"),
+              text: t("settings.go_to_settings"),
               onPress: () => Linking.openSettings(), // Redirect to app settings
             },
           ]
@@ -1175,9 +1175,9 @@ export default function SettingsScreen({ selectedTheme }) {
     triggerHapticFeedback('impactLight');
     const MAX_NAME_LENGTH = 15;
     const PROFILE_EDIT_COOLDOWN_DAYS = 30;
-  
+
     if (!user?.id) return;
-  
+
     if (newDisplayName.length > MAX_NAME_LENGTH) {
       showErrorMessage(
         t("home.alert.error"),
@@ -1185,61 +1185,61 @@ export default function SettingsScreen({ selectedTheme }) {
       );
       return;
     }
-  
+
     // ✅ Check if displayName or avatar changed (30-day cooldown only applies to these)
     const displayNameChanged = newDisplayName.trim() !== (user?.displayName || '').trim();
     const avatarChanged = (selectedImage || '').trim() !== (user?.avatar || '').trim();
-    
+
     // ✅ Only check cooldown if displayName or avatar is being changed (not bio)
     if ((displayNameChanged || avatarChanged) && user?.lastProfileEditAt) {
-      const lastEditTimestamp = typeof user.lastProfileEditAt === 'number' 
-        ? user.lastProfileEditAt 
+      const lastEditTimestamp = typeof user.lastProfileEditAt === 'number'
+        ? user.lastProfileEditAt
         : Date.parse(user.lastProfileEditAt);
-      
+
       if (!isNaN(lastEditTimestamp)) {
         const now = Date.now();
         const daysSinceLastEdit = (now - lastEditTimestamp) / (1000 * 60 * 60 * 24);
         const daysRemaining = Math.ceil(PROFILE_EDIT_COOLDOWN_DAYS - daysSinceLastEdit);
 
         if (daysSinceLastEdit < PROFILE_EDIT_COOLDOWN_DAYS) {
-      showErrorMessage(
+          showErrorMessage(
             'Edit Cooldown',
             `You can only edit your display name and profile picture once every ${PROFILE_EDIT_COOLDOWN_DAYS} days. Please try again in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'}.`
-      );
-      return;
+          );
+          return;
         }
       }
     }
-  
+
     try {
       const now = Date.now();
-      
+
       // ✅ Only update lastProfileEditAt if displayName or avatar changed (not for bio-only changes)
       const displayNameChanged = newDisplayName.trim() !== (user?.displayName || '').trim();
       const avatarChanged = (selectedImage || '').trim() !== (user?.avatar || '').trim();
-      
+
       // ✅ Update profile with timestamp (displayName, avatar, lastProfileEditAt)
       // Only update lastProfileEditAt if displayName or avatar changed
       const updateData = {
         displayName: newDisplayName.trim(),
         avatar: (selectedImage || '').trim(),
       };
-      
+
       if (displayNameChanged || avatarChanged) {
         updateData.lastProfileEditAt = now; // ✅ Store timestamp only when name/avatar changes
       }
-      
+
       await updateLocalStateAndDatabase(updateData);
 
       // ✅ Save bio to Firestore reviews/{userId} (alongside ownedPets and wishlistPets)
       // Bio can be changed anytime (no cooldown restriction)
       if (user?.id && firestoreDB) {
         const userReviewRef = doc(firestoreDB, 'reviews', user.id);
-        
+
         // ✅ Trim bio and use default if empty/whitespace
         const trimmedBio = bio.trim();
         const bioToSave = trimmedBio || 'Hi there, I am new here';
-        
+
         // Update bio in Firestore (merge to preserve existing ownedPets and wishlistPets)
         await setDoc(
           userReviewRef,
@@ -1250,7 +1250,7 @@ export default function SettingsScreen({ selectedTheme }) {
           { merge: true }
         );
       }
-  
+
       setDrawerVisible(false);
       showSuccessMessage(
         t("home.alert.success"),
@@ -1264,7 +1264,7 @@ export default function SettingsScreen({ selectedTheme }) {
       );
     }
   };
-  
+
 
 
 
@@ -1272,254 +1272,131 @@ export default function SettingsScreen({ selectedTheme }) {
     ? newDisplayName?.trim() || user?.displayName || 'Anonymous'
     : 'Guest User';
 
-    // ✅ Render stars for rating
-    const renderStars = (value) => {
-      const rounded = Math.round(value || 0);
-      const full = '★'.repeat(Math.min(rounded, 5));
-      const empty = '☆'.repeat(Math.max(0, 5 - rounded));
-      return (
-        <Text style={{ color: '#FFD700', fontSize: 14, fontWeight: '600' }}>
-          {full}
-          <Text style={{ color: '#999' }}>{empty}</Text>
-        </Text>
-      );
-    };
+  // ✅ Render stars for rating
+  const renderStars = (value) => {
+    const rounded = Math.round(value || 0);
+    const full = '★'.repeat(Math.min(rounded, 5));
+    const empty = '☆'.repeat(Math.max(0, 5 - rounded));
+    return (
+      <Text style={{ color: '#FFD700', fontSize: 14, fontWeight: '600' }}>
+        {full}
+        <Text style={{ color: '#999' }}>{empty}</Text>
+      </Text>
+    );
+  };
 
-    const renderPetBubble = (pet, index) => {
+  const renderPetBubble = (pet, index) => {
     // {console.log(pet,`${BASE_ADOPTME_URL}${formatName(pet.name)}_Icon.webp` )}
-    
-      return (
-        <View key={`${pet.id || pet.name}-${index}`} style={styles.petBubble}>
 
-        
-          <Image
-            source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/${pet.type === 'n' ? '09' : '08'}/${formatName(pet.name)}_Icon.webp` }}
-            style={styles.petImageSmall}
-          />
-    
-          {/* Badge stack on bottom-right of the bubble */}
-          <View
-            style={{
-              position: 'absolute',
-              bottom: 0,
-              right: 0,
-              flexDirection: 'row',
-              alignItems: 'center',
-              padding: 2,
-            }}
-          >
-      
-          </View>
+    return (
+      <View key={`${pet.id || pet.name}-${index}`} style={styles.petBubble}>
+
+
+        <Image
+          source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/${pet.type === 'n' ? '09' : '08'}/${formatName(pet.name)}_Icon.webp` }}
+          style={styles.petImageSmall}
+        />
+
+        {/* Badge stack on bottom-right of the bubble */}
+        <View
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            right: 0,
+            flexDirection: 'row',
+            alignItems: 'center',
+            padding: 2,
+          }}
+        >
+
         </View>
-      );
-    };
-    
-    
-    // Later you’ll hook these into a modal / selector
-    const handleManagePets = (owned) => {
-      // e.g. open modal to pick owned pets
-      owned === 'owned' ?  setOwned(true) : setOwned(false)
-      setPetModalVisible(true)
-    };
-    
- // ✅ OPTIMIZED: Load pets with getDoc instead of onSnapshot (pets rarely change, no need for real-time)
- // This reduces continuous Firestore reads by ~90% for this data
- useEffect(() => {
-  if (!user?.id || !firestoreDB) {
-    setOwnedPets([]);
-    setWishlistPets([]);
-    return;
-  }
+      </View>
+    );
+  };
 
-  const loadPets = async () => {
-    try {
-      const userReviewRef = doc(firestoreDB, 'reviews', user.id);
-      const docSnap = await getDoc(userReviewRef);
-      
-      if (docSnap.exists) {
-        const data = docSnap.data();
-        setOwnedPets(Array.isArray(data.ownedPets) ? data.ownedPets : []);
-        setWishlistPets(Array.isArray(data.wishlistPets) ? data.wishlistPets : []);
-      } else {
+
+  // Later you’ll hook these into a modal / selector
+  const handleManagePets = (owned) => {
+    // e.g. open modal to pick owned pets
+    owned === 'owned' ? setOwned(true) : setOwned(false)
+    setPetModalVisible(true)
+  };
+
+  // ✅ OPTIMIZED: Load pets with getDoc instead of onSnapshot (pets rarely change, no need for real-time)
+  // This reduces continuous Firestore reads by ~90% for this data
+  useEffect(() => {
+    if (!user?.id || !firestoreDB) {
+      setOwnedPets([]);
+      setWishlistPets([]);
+      return;
+    }
+
+    const loadPets = async () => {
+      try {
+        const userReviewRef = doc(firestoreDB, 'reviews', user.id);
+        const docSnap = await getDoc(userReviewRef);
+
+        if (docSnap.exists) {
+          const data = docSnap.data();
+          setOwnedPets(Array.isArray(data.ownedPets) ? data.ownedPets : []);
+          setWishlistPets(Array.isArray(data.wishlistPets) ? data.wishlistPets : []);
+        } else {
+          setOwnedPets([]);
+          setWishlistPets([]);
+        }
+      } catch (error) {
+        console.error('Error loading pets:', error);
         setOwnedPets([]);
         setWishlistPets([]);
       }
-    } catch (error) {
-      console.error('Error loading pets:', error);
-      setOwnedPets([]);
-      setWishlistPets([]);
-    }
-  };
-
-  loadPets();
-}, [user?.id, firestoreDB]);
-
-
-    // Call this after user finishes editing selection
-    const savePetsToReviews = async (newOwned, newWishlist) => {
-      if (!user?.id || !firestoreDB) return;
-    
-      const userReviewRef = doc(firestoreDB, 'reviews', user.id);
-    
-      await setDoc(
-        userReviewRef,
-        {
-          ownedPets: newOwned,
-          wishlistPets: newWishlist,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true },
-      );
-    
-      setOwnedPets(newOwned);
-      setWishlistPets(newWishlist);
     };
 
-// Don't load reviews initially - only load when modals open
+    loadPets();
+  }, [user?.id, firestoreDB]);
 
-// Load "gave" reviews modal when opens
-useEffect(() => {
-  if (!showGaveReviewsModal || !user?.id || !firestoreDB || !appdatabase) {
-    return;
-  }
 
-  const loadGaveModalReviews = async () => {
-    setLoadingModalGaveReviews(true);
-    try {
-      // Load initial batch of 5 reviews
-      const gaveQuery = await getDocs(query(
-        collection(firestoreDB, 'reviews'),
-        where('fromUserId', '==', user.id),
-        orderBy('updatedAt', 'desc'),
-        limit(5)
-      ));
+  // Call this after user finishes editing selection
+  const savePetsToReviews = async (newOwned, newWishlist) => {
+    if (!user?.id || !firestoreDB) return;
 
-      const gaveDocs = gaveQuery.docs;
+    const userReviewRef = doc(firestoreDB, 'reviews', user.id);
 
-      // Fetch user names for gave reviews
-      const gaveWithNames = await Promise.all(
-        gaveDocs.map(async (doc) => {
-          const data = doc.data();
-          try {
-            const userRef = ref(appdatabase, `users/${data.toUserId}`);
-            const userSnapshot = await get(userRef);
-            const userData = userSnapshot.val();
-            return {
-              id: doc.id,
-              ...data,
-              type: 'gave',
-              reviewedUserName: userData?.displayName || 'Unknown User',
-              reviewedUserAvatar: userData?.avatar || null,
-            };
-          } catch (error) {
-            return {
-              id: doc.id,
-              ...data,
-              type: 'gave',
-              reviewedUserName: 'Unknown User',
-              reviewedUserAvatar: null,
-            };
-          }
-        })
-      );
+    await setDoc(
+      userReviewRef,
+      {
+        ownedPets: newOwned,
+        wishlistPets: newWishlist,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
 
-      setModalGaveReviews(gaveWithNames);
-      setModalLastGaveDoc(gaveDocs[gaveDocs.length - 1] || null);
-      setModalHasMoreGave(gaveDocs.length === 5);
-    } catch (error) {
-      console.error('Error loading gave modal reviews:', error);
-      setModalGaveReviews([]);
-    } finally {
-      setLoadingModalGaveReviews(false);
-    }
+    setOwnedPets(newOwned);
+    setWishlistPets(newWishlist);
   };
 
-  loadGaveModalReviews();
-}, [showGaveReviewsModal, user?.id, firestoreDB, appdatabase]);
+  // Don't load reviews initially - only load when modals open
 
-// Load "received" reviews modal when opens
-useEffect(() => {
-  if (!showReceivedReviewsModal || !user?.id || !firestoreDB || !appdatabase) {
-    return;
-  }
-
-  const loadReceivedModalReviews = async () => {
-    setLoadingModalReceivedReviews(true);
-    try {
-      // Load initial batch of 5 reviews
-      const receivedQuery = await getDocs(query(
-        collection(firestoreDB, 'reviews'),
-        where('toUserId', '==', user.id),
-        orderBy('updatedAt', 'desc'),
-        limit(5)
-      ));
-
-      const receivedDocs = receivedQuery.docs;
-
-      // Fetch user names for received reviews
-      const receivedWithNames = await Promise.all(
-        receivedDocs.map(async (doc) => {
-          const data = doc.data();
-          try {
-            const userRef = ref(appdatabase, `users/${data.fromUserId}`);
-            const userSnapshot = await get(userRef);
-            const userData = userSnapshot.val();
-            return {
-              id: doc.id,
-              ...data,
-              type: 'received',
-              reviewerName: userData?.displayName || 'Unknown User',
-              reviewerAvatar: userData?.avatar || null,
-            };
-          } catch (error) {
-            return {
-              id: doc.id,
-              ...data,
-              type: 'received',
-              reviewerName: 'Unknown User',
-              reviewerAvatar: null,
-            };
-          }
-        })
-      );
-
-      setModalReceivedReviews(receivedWithNames);
-      setModalLastReceivedDoc(receivedDocs[receivedDocs.length - 1] || null);
-      setModalHasMoreReceived(receivedDocs.length === 5);
-    } catch (error) {
-      console.error('Error loading received modal reviews:', error);
-      setModalReceivedReviews([]);
-    } finally {
-      setLoadingModalReceivedReviews(false);
+  // Load "gave" reviews modal when opens
+  useEffect(() => {
+    if (!showGaveReviewsModal || !user?.id || !firestoreDB || !appdatabase) {
+      return;
     }
-  };
 
-  loadReceivedModalReviews();
-}, [showReceivedReviewsModal, user?.id, firestoreDB, appdatabase]);
+    const loadGaveModalReviews = async () => {
+      setLoadingModalGaveReviews(true);
+      try {
+        // Load initial batch of 5 reviews
+        const gaveQuery = await getDocs(query(
+          collection(firestoreDB, 'reviews'),
+          where('fromUserId', '==', user.id),
+          orderBy('updatedAt', 'desc'),
+          limit(5)
+        ));
 
-// Load more "gave" reviews in modal - keeps loading until all are fetched
-const loadMoreGaveModalReviews = useCallback(async () => {
-  if (!user?.id || !firestoreDB || !appdatabase || loadingModalGaveReviews || !modalLastGaveDoc) return;
+        const gaveDocs = gaveQuery.docs;
 
-  setLoadingModalGaveReviews(true);
-  try {
-    let lastDoc = modalLastGaveDoc;
-    let allNewReviews = [];
-    let hasMore = true;
-
-    // Keep loading in batches until all reviews are fetched
-    while (hasMore && lastDoc) {
-      const gaveQuery = await getDocs(query(
-        collection(firestoreDB, 'reviews'),
-        where('fromUserId', '==', user.id),
-        orderBy('updatedAt', 'desc'),
-        startAfter(lastDoc),
-        limit(20) // Load 20 at a time for efficiency
-      ));
-
-      const gaveDocs = gaveQuery.docs;
-      
-      if (gaveDocs.length > 0) {
+        // Fetch user names for gave reviews
         const gaveWithNames = await Promise.all(
           gaveDocs.map(async (doc) => {
             const data = doc.data();
@@ -1546,50 +1423,40 @@ const loadMoreGaveModalReviews = useCallback(async () => {
           })
         );
 
-        allNewReviews.push(...gaveWithNames);
-        lastDoc = gaveDocs[gaveDocs.length - 1];
-        hasMore = gaveDocs.length === 20; // If we got 20, there might be more
-      } else {
-        hasMore = false;
+        setModalGaveReviews(gaveWithNames);
+        setModalLastGaveDoc(gaveDocs[gaveDocs.length - 1] || null);
+        setModalHasMoreGave(gaveDocs.length === 5);
+      } catch (error) {
+        console.error('Error loading gave modal reviews:', error);
+        setModalGaveReviews([]);
+      } finally {
+        setLoadingModalGaveReviews(false);
       }
+    };
+
+    loadGaveModalReviews();
+  }, [showGaveReviewsModal, user?.id, firestoreDB, appdatabase]);
+
+  // Load "received" reviews modal when opens
+  useEffect(() => {
+    if (!showReceivedReviewsModal || !user?.id || !firestoreDB || !appdatabase) {
+      return;
     }
 
-    if (allNewReviews.length > 0) {
-      setModalGaveReviews((prev) => [...prev, ...allNewReviews]);
-      setModalLastGaveDoc(lastDoc);
-    }
-    setModalHasMoreGave(hasMore);
-  } catch (error) {
-    console.error('Error loading more gave modal reviews:', error);
-    setModalHasMoreGave(false);
-  } finally {
-    setLoadingModalGaveReviews(false);
-  }
-}, [user?.id, firestoreDB, appdatabase, modalLastGaveDoc, loadingModalGaveReviews]);
+    const loadReceivedModalReviews = async () => {
+      setLoadingModalReceivedReviews(true);
+      try {
+        // Load initial batch of 5 reviews
+        const receivedQuery = await getDocs(query(
+          collection(firestoreDB, 'reviews'),
+          where('toUserId', '==', user.id),
+          orderBy('updatedAt', 'desc'),
+          limit(5)
+        ));
 
-// Load more "received" reviews in modal - keeps loading until all are fetched
-const loadMoreReceivedModalReviews = useCallback(async () => {
-  if (!user?.id || !firestoreDB || !appdatabase || loadingModalReceivedReviews || !modalLastReceivedDoc) return;
+        const receivedDocs = receivedQuery.docs;
 
-  setLoadingModalReceivedReviews(true);
-  try {
-    let lastDoc = modalLastReceivedDoc;
-    let allNewReviews = [];
-    let hasMore = true;
-
-    // Keep loading in batches until all reviews are fetched
-    while (hasMore && lastDoc) {
-      const receivedQuery = await getDocs(query(
-        collection(firestoreDB, 'reviews'),
-        where('toUserId', '==', user.id),
-        orderBy('updatedAt', 'desc'),
-        startAfter(lastDoc),
-        limit(20) // Load 20 at a time for efficiency
-      ));
-
-      const receivedDocs = receivedQuery.docs;
-      
-      if (receivedDocs.length > 0) {
+        // Fetch user names for received reviews
         const receivedWithNames = await Promise.all(
           receivedDocs.map(async (doc) => {
             const data = doc.data();
@@ -1616,534 +1483,667 @@ const loadMoreReceivedModalReviews = useCallback(async () => {
           })
         );
 
-        allNewReviews.push(...receivedWithNames);
-        lastDoc = receivedDocs[receivedDocs.length - 1];
-        hasMore = receivedDocs.length === 20; // If we got 20, there might be more
-      } else {
-        hasMore = false;
+        setModalReceivedReviews(receivedWithNames);
+        setModalLastReceivedDoc(receivedDocs[receivedDocs.length - 1] || null);
+        setModalHasMoreReceived(receivedDocs.length === 5);
+      } catch (error) {
+        console.error('Error loading received modal reviews:', error);
+        setModalReceivedReviews([]);
+      } finally {
+        setLoadingModalReceivedReviews(false);
       }
+    };
+
+    loadReceivedModalReviews();
+  }, [showReceivedReviewsModal, user?.id, firestoreDB, appdatabase]);
+
+  // Load more "gave" reviews in modal - keeps loading until all are fetched
+  const loadMoreGaveModalReviews = useCallback(async () => {
+    if (!user?.id || !firestoreDB || !appdatabase || loadingModalGaveReviews || !modalLastGaveDoc) return;
+
+    setLoadingModalGaveReviews(true);
+    try {
+      let lastDoc = modalLastGaveDoc;
+      let allNewReviews = [];
+      let hasMore = true;
+
+      // Keep loading in batches until all reviews are fetched
+      while (hasMore && lastDoc) {
+        const gaveQuery = await getDocs(query(
+          collection(firestoreDB, 'reviews'),
+          where('fromUserId', '==', user.id),
+          orderBy('updatedAt', 'desc'),
+          startAfter(lastDoc),
+          limit(20) // Load 20 at a time for efficiency
+        ));
+
+        const gaveDocs = gaveQuery.docs;
+
+        if (gaveDocs.length > 0) {
+          const gaveWithNames = await Promise.all(
+            gaveDocs.map(async (doc) => {
+              const data = doc.data();
+              try {
+                const userRef = ref(appdatabase, `users/${data.toUserId}`);
+                const userSnapshot = await get(userRef);
+                const userData = userSnapshot.val();
+                return {
+                  id: doc.id,
+                  ...data,
+                  type: 'gave',
+                  reviewedUserName: userData?.displayName || 'Unknown User',
+                  reviewedUserAvatar: userData?.avatar || null,
+                };
+              } catch (error) {
+                return {
+                  id: doc.id,
+                  ...data,
+                  type: 'gave',
+                  reviewedUserName: 'Unknown User',
+                  reviewedUserAvatar: null,
+                };
+              }
+            })
+          );
+
+          allNewReviews.push(...gaveWithNames);
+          lastDoc = gaveDocs[gaveDocs.length - 1];
+          hasMore = gaveDocs.length === 20; // If we got 20, there might be more
+        } else {
+          hasMore = false;
+        }
+      }
+
+      if (allNewReviews.length > 0) {
+        setModalGaveReviews((prev) => [...prev, ...allNewReviews]);
+        setModalLastGaveDoc(lastDoc);
+      }
+      setModalHasMoreGave(hasMore);
+    } catch (error) {
+      console.error('Error loading more gave modal reviews:', error);
+      setModalHasMoreGave(false);
+    } finally {
+      setLoadingModalGaveReviews(false);
+    }
+  }, [user?.id, firestoreDB, appdatabase, modalLastGaveDoc, loadingModalGaveReviews]);
+
+  // Load more "received" reviews in modal - keeps loading until all are fetched
+  const loadMoreReceivedModalReviews = useCallback(async () => {
+    if (!user?.id || !firestoreDB || !appdatabase || loadingModalReceivedReviews || !modalLastReceivedDoc) return;
+
+    setLoadingModalReceivedReviews(true);
+    try {
+      let lastDoc = modalLastReceivedDoc;
+      let allNewReviews = [];
+      let hasMore = true;
+
+      // Keep loading in batches until all reviews are fetched
+      while (hasMore && lastDoc) {
+        const receivedQuery = await getDocs(query(
+          collection(firestoreDB, 'reviews'),
+          where('toUserId', '==', user.id),
+          orderBy('updatedAt', 'desc'),
+          startAfter(lastDoc),
+          limit(20) // Load 20 at a time for efficiency
+        ));
+
+        const receivedDocs = receivedQuery.docs;
+
+        if (receivedDocs.length > 0) {
+          const receivedWithNames = await Promise.all(
+            receivedDocs.map(async (doc) => {
+              const data = doc.data();
+              try {
+                const userRef = ref(appdatabase, `users/${data.fromUserId}`);
+                const userSnapshot = await get(userRef);
+                const userData = userSnapshot.val();
+                return {
+                  id: doc.id,
+                  ...data,
+                  type: 'received',
+                  reviewerName: userData?.displayName || 'Unknown User',
+                  reviewerAvatar: userData?.avatar || null,
+                };
+              } catch (error) {
+                return {
+                  id: doc.id,
+                  ...data,
+                  type: 'received',
+                  reviewerName: 'Unknown User',
+                  reviewerAvatar: null,
+                };
+              }
+            })
+          );
+
+          allNewReviews.push(...receivedWithNames);
+          lastDoc = receivedDocs[receivedDocs.length - 1];
+          hasMore = receivedDocs.length === 20; // If we got 20, there might be more
+        } else {
+          hasMore = false;
+        }
+      }
+
+      if (allNewReviews.length > 0) {
+        setModalReceivedReviews((prev) => [...prev, ...allNewReviews]);
+        setModalLastReceivedDoc(lastDoc);
+      }
+      setModalHasMoreReceived(hasMore);
+    } catch (error) {
+      console.error('Error loading more received modal reviews:', error);
+      setModalHasMoreReceived(false);
+    } finally {
+      setLoadingModalReceivedReviews(false);
+    }
+  }, [user?.id, firestoreDB, appdatabase, modalLastReceivedDoc, loadingModalReceivedReviews]);
+
+  // Load "My Trades" modal when opens
+  useEffect(() => {
+    if (!showMyTradesModal || !user?.id || !firestoreDB) {
+      return;
     }
 
-    if (allNewReviews.length > 0) {
-      setModalReceivedReviews((prev) => [...prev, ...allNewReviews]);
-      setModalLastReceivedDoc(lastDoc);
-    }
-    setModalHasMoreReceived(hasMore);
-  } catch (error) {
-    console.error('Error loading more received modal reviews:', error);
-    setModalHasMoreReceived(false);
-  } finally {
-    setLoadingModalReceivedReviews(false);
-  }
-}, [user?.id, firestoreDB, appdatabase, modalLastReceivedDoc, loadingModalReceivedReviews]);
+    const loadMyTrades = async () => {
+      setLoadingModalMyTrades(true);
+      try {
+        // Load initial batch of 3 trades
+        const tradesQuery = await getDocs(query(
+          collection(firestoreDB, 'trades_new'),
+          where('userId', '==', user.id),
+          orderBy('timestamp', 'desc'),
+          limit(3)
+        ));
 
-// Load "My Trades" modal when opens
-useEffect(() => {
-  if (!showMyTradesModal || !user?.id || !firestoreDB) {
-    return;
-  }
+        const tradesDocs = tradesQuery.docs;
+        const tradesData = tradesDocs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
 
-  const loadMyTrades = async () => {
+        setModalMyTrades(tradesData);
+        setModalLastTradeDoc(tradesDocs[tradesDocs.length - 1] || null);
+        setModalHasMoreTrades(tradesDocs.length === 3);
+      } catch (error) {
+        console.error('Error loading my trades:', error);
+        setModalMyTrades([]);
+        setModalHasMoreTrades(false);
+      } finally {
+        setLoadingModalMyTrades(false);
+      }
+    };
+
+    loadMyTrades();
+  }, [showMyTradesModal, user?.id, firestoreDB]);
+
+  // Load more "My Trades" in modal
+  const loadMoreMyTrades = useCallback(async () => {
+    if (!user?.id || !firestoreDB || loadingModalMyTrades || !modalLastTradeDoc) return;
+
     setLoadingModalMyTrades(true);
     try {
-      // Load initial batch of 3 trades
       const tradesQuery = await getDocs(query(
         collection(firestoreDB, 'trades_new'),
         where('userId', '==', user.id),
         orderBy('timestamp', 'desc'),
-        limit(3)
+        startAfter(modalLastTradeDoc),
+        limit(10) // Load 10 at a time
       ));
 
       const tradesDocs = tradesQuery.docs;
-      const tradesData = tradesDocs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
 
-      setModalMyTrades(tradesData);
-      setModalLastTradeDoc(tradesDocs[tradesDocs.length - 1] || null);
-      setModalHasMoreTrades(tradesDocs.length === 3);
+      if (tradesDocs.length > 0) {
+        const newTrades = tradesDocs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+
+        setModalMyTrades((prev) => [...prev, ...newTrades]);
+        setModalLastTradeDoc(tradesDocs[tradesDocs.length - 1]);
+        setModalHasMoreTrades(tradesDocs.length === 10);
+      } else {
+        setModalHasMoreTrades(false);
+      }
     } catch (error) {
-      console.error('Error loading my trades:', error);
-      setModalMyTrades([]);
+      console.error('Error loading more trades:', error);
       setModalHasMoreTrades(false);
     } finally {
       setLoadingModalMyTrades(false);
     }
-  };
+  }, [user?.id, firestoreDB, modalLastTradeDoc, loadingModalMyTrades]);
 
-  loadMyTrades();
-}, [showMyTradesModal, user?.id, firestoreDB]);
+  // Delete a single trade
+  const handleDeleteTrade = useCallback(async (tradeId, isFeatured) => {
+    if (!user?.id || !firestoreDB) return;
 
-// Load more "My Trades" in modal
-const loadMoreMyTrades = useCallback(async () => {
-  if (!user?.id || !firestoreDB || loadingModalMyTrades || !modalLastTradeDoc) return;
+    Alert.alert(
+      t("trade.delete_confirmation_title") || "Delete Trade",
+      t("trade.delete_confirmation_message") || "Are you sure you want to delete this trade?",
+      [
+        { text: t("trade.cancel") || "Cancel", style: "cancel" },
+        {
+          text: t("trade.delete") || "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setDeletingTradeId(tradeId);
+              const actualTradeId = tradeId.startsWith("featured-") ? tradeId.replace("featured-", "") : tradeId;
+              await deleteDoc(doc(firestoreDB, "trades_new", actualTradeId));
 
-  setLoadingModalMyTrades(true);
-  try {
-    const tradesQuery = await getDocs(query(
-      collection(firestoreDB, 'trades_new'),
-      where('userId', '==', user.id),
-      orderBy('timestamp', 'desc'),
-      startAfter(modalLastTradeDoc),
-      limit(10) // Load 10 at a time
-    ));
-
-    const tradesDocs = tradesQuery.docs;
-    
-    if (tradesDocs.length > 0) {
-      const newTrades = tradesDocs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
-      setModalMyTrades((prev) => [...prev, ...newTrades]);
-      setModalLastTradeDoc(tradesDocs[tradesDocs.length - 1]);
-      setModalHasMoreTrades(tradesDocs.length === 10);
-    } else {
-      setModalHasMoreTrades(false);
-    }
-  } catch (error) {
-    console.error('Error loading more trades:', error);
-    setModalHasMoreTrades(false);
-  } finally {
-    setLoadingModalMyTrades(false);
-  }
-}, [user?.id, firestoreDB, modalLastTradeDoc, loadingModalMyTrades]);
-
-// Delete a single trade
-const handleDeleteTrade = useCallback(async (tradeId, isFeatured) => {
-  if (!user?.id || !firestoreDB) return;
-
-  Alert.alert(
-    t("trade.delete_confirmation_title") || "Delete Trade",
-    t("trade.delete_confirmation_message") || "Are you sure you want to delete this trade?",
-    [
-      { text: t("trade.cancel") || "Cancel", style: "cancel" },
-      {
-        text: t("trade.delete") || "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            setDeletingTradeId(tradeId);
-            const actualTradeId = tradeId.startsWith("featured-") ? tradeId.replace("featured-", "") : tradeId;
-            await deleteDoc(doc(firestoreDB, "trades_new", actualTradeId));
-
-            if (isFeatured) {
-              const currentFeaturedData = localState.featuredCount || { count: 0, time: null };
-              const newFeaturedCount = Math.max(0, currentFeaturedData.count - 1);
-              updateLocalState("featuredCount", {
-                count: newFeaturedCount,
-                time: currentFeaturedData.time,
-              });
-            }
-
-            setModalMyTrades((prev) => prev.filter((trade) => trade.id !== tradeId));
-            showSuccessMessage(
-              t("trade.delete_success") || "Success",
-              t("trade.delete_success_message") || "Trade deleted successfully"
-            );
-          } catch (error) {
-            console.error("Error deleting trade:", error);
-            showErrorMessage(
-              t("trade.delete_error") || "Error",
-              t("trade.delete_error_message") || "Failed to delete trade"
-            );
-          } finally {
-            setDeletingTradeId(null);
-          }
-        },
-      },
-    ]
-  );
-}, [user?.id, firestoreDB, localState.featuredCount, updateLocalState, t]);
-
-// Delete all trades
-const handleDeleteAllTrades = useCallback(async () => {
-  if (!user?.id || !firestoreDB || modalMyTrades.length === 0) return;
-
-  Alert.alert(
-    "Delete All Trades",
-    `Are you sure you want to delete all ${modalMyTrades.length} trades? This action cannot be undone.`,
-    [
-      { text: t("trade.cancel") || "Cancel", style: "cancel" },
-      {
-        text: "Delete All",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            setIsDeletingAll(true);
-            
-            if (modalMyTrades.length === 0) {
-              setIsDeletingAll(false);
-              return;
-            }
-
-            const batch = writeBatch(firestoreDB);
-            let featuredCount = 0;
-
-            modalMyTrades.forEach((trade) => {
-              const tradeId = trade.id.startsWith("featured-") ? trade.id.replace("featured-", "") : trade.id;
-              if (trade.isFeatured) {
-                featuredCount++;
+              if (isFeatured) {
+                const currentFeaturedData = localState.featuredCount || { count: 0, time: null };
+                const newFeaturedCount = Math.max(0, currentFeaturedData.count - 1);
+                updateLocalState("featuredCount", {
+                  count: newFeaturedCount,
+                  time: currentFeaturedData.time,
+                });
               }
-              const tradeRef = doc(firestoreDB, "trades_new", tradeId);
-              batch.delete(tradeRef);
-            });
 
-            await batch.commit();
-
-            // Update featured count if needed
-            if (featuredCount > 0) {
-              const currentFeaturedData = localState.featuredCount || { count: 0, time: null };
-              const newFeaturedCount = Math.max(0, currentFeaturedData.count - featuredCount);
-              updateLocalState("featuredCount", {
-                count: newFeaturedCount,
-                time: currentFeaturedData.time,
-              });
+              setModalMyTrades((prev) => prev.filter((trade) => trade.id !== tradeId));
+              showSuccessMessage(
+                t("trade.delete_success") || "Success",
+                t("trade.delete_success_message") || "Trade deleted successfully"
+              );
+            } catch (error) {
+              console.error("Error deleting trade:", error);
+              showErrorMessage(
+                t("trade.delete_error") || "Error",
+                t("trade.delete_error_message") || "Failed to delete trade"
+              );
+            } finally {
+              setDeletingTradeId(null);
             }
-
-            setModalMyTrades([]);
-            setModalLastTradeDoc(null);
-            setModalHasMoreTrades(false);
-            showSuccessMessage("Success", "All trades deleted successfully");
-          } catch (error) {
-            console.error("Error deleting all trades:", error);
-            showErrorMessage("Error", "Failed to delete all trades");
-          } finally {
-            setIsDeletingAll(false);
-          }
+          },
         },
-      },
-    ]
-  );
-}, [user?.id, firestoreDB, modalMyTrades, localState.featuredCount, updateLocalState, t]);
+      ]
+    );
+  }, [user?.id, firestoreDB, localState.featuredCount, updateLocalState, t]);
 
-// Render trade item for modal
-const renderTradeItem = useCallback((trade) => {
-  const { deal, tradeRatio } = getTradeDeal(trade.hasTotal, trade.wantsTotal);
-  const tradePercentage = Math.abs(((tradeRatio - 1) * 100).toFixed(0));
-  const isProfit = tradeRatio > 1;
-  const neutral = tradeRatio === 1;
-  const formattedTime = trade.timestamp ? dayjs(trade.timestamp.toDate()).fromNow() : "Unknown";
+  // Delete all trades
+  const handleDeleteAllTrades = useCallback(async () => {
+    if (!user?.id || !firestoreDB || modalMyTrades.length === 0) return;
 
-  const groupedHasItems = groupTradeItems(trade.hasItems || []);
-  const groupedWantsItems = groupTradeItems(trade.wantsItems || []);
+    Alert.alert(
+      "Delete All Trades",
+      `Are you sure you want to delete all ${modalMyTrades.length} trades? This action cannot be undone.`,
+      [
+        { text: t("trade.cancel") || "Cancel", style: "cancel" },
+        {
+          text: "Delete All",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setIsDeletingAll(true);
 
-  return (
-    <View
-      style={{
-        backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
-        borderRadius: 12,
-        padding: 12,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: isDarkMode ? '#1f2937' : '#e5e7eb',
-        opacity: deletingTradeId === trade.id ? 0.5 : 1,
-      }}
-    >
-      {/* Trade Header */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-            {trade.isFeatured && (
-              <View style={{
-                backgroundColor: config.colors.hasBlockGreen,
+              if (modalMyTrades.length === 0) {
+                setIsDeletingAll(false);
+                return;
+              }
+
+              const batch = writeBatch(firestoreDB);
+              let featuredCount = 0;
+
+              modalMyTrades.forEach((trade) => {
+                const tradeId = trade.id.startsWith("featured-") ? trade.id.replace("featured-", "") : trade.id;
+                if (trade.isFeatured) {
+                  featuredCount++;
+                }
+                const tradeRef = doc(firestoreDB, "trades_new", tradeId);
+                batch.delete(tradeRef);
+              });
+
+              await batch.commit();
+
+              // Update featured count if needed
+              if (featuredCount > 0) {
+                const currentFeaturedData = localState.featuredCount || { count: 0, time: null };
+                const newFeaturedCount = Math.max(0, currentFeaturedData.count - featuredCount);
+                updateLocalState("featuredCount", {
+                  count: newFeaturedCount,
+                  time: currentFeaturedData.time,
+                });
+              }
+
+              setModalMyTrades([]);
+              setModalLastTradeDoc(null);
+              setModalHasMoreTrades(false);
+              showSuccessMessage("Success", "All trades deleted successfully");
+            } catch (error) {
+              console.error("Error deleting all trades:", error);
+              showErrorMessage("Error", "Failed to delete all trades");
+            } finally {
+              setIsDeletingAll(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [user?.id, firestoreDB, modalMyTrades, localState.featuredCount, updateLocalState, t]);
+
+  // Render trade item for modal
+  const renderTradeItem = useCallback((trade) => {
+    const { deal, tradeRatio } = getTradeDeal(trade.hasTotal, trade.wantsTotal);
+    const tradePercentage = Math.abs(((tradeRatio - 1) * 100).toFixed(0));
+    const isProfit = tradeRatio > 1;
+    const neutral = tradeRatio === 1;
+    const formattedTime = trade.timestamp ? dayjs(trade.timestamp.toDate()).fromNow() : "Unknown";
+
+    const groupedHasItems = groupTradeItems(trade.hasItems || []);
+    const groupedWantsItems = groupTradeItems(trade.wantsItems || []);
+
+    return (
+      <View
+        style={{
+          backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
+          borderRadius: 12,
+          padding: 12,
+          marginBottom: 12,
+          borderWidth: 1,
+          borderColor: isDarkMode ? '#1f2937' : '#e5e7eb',
+          opacity: deletingTradeId === trade.id ? 0.5 : 1,
+        }}
+      >
+        {/* Trade Header */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+              {trade.isFeatured && (
+                <View style={{
+                  backgroundColor: config.colors.hasBlockGreen,
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                  borderRadius: 4,
+                  marginRight: 6,
+                }}>
+                  <Text style={{ color: '#fff', fontSize: 9, fontWeight: '600' }}>FEATURED</Text>
+                </View>
+              )}
+              <Text style={{ fontSize: 11, color: isDarkMode ? '#9ca3af' : '#6b7280' }}>
+                {formattedTime}
+              </Text>
+            </View>
+            {(groupedHasItems.length > 0 && groupedWantsItems.length > 0) && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                <View style={{
+                  backgroundColor: deal.color,
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 6,
+                  marginRight: 8,
+                }}>
+                  <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>
+                    {t(deal.label) || deal.label}
+                  </Text>
+                </View>
+                <Text style={{
+                  fontSize: 12,
+                  color: !isProfit ? config.colors.hasBlockGreen : config.colors.wantBlockRed,
+                  fontWeight: '600'
+                }}>
+                  {tradePercentage}% {!neutral && (
+                    <Icon
+                      name={isProfit ? 'arrow-down-outline' : 'arrow-up-outline'}
+                      size={12}
+                      color={isProfit ? config.colors.wantBlockRed : config.colors.hasBlockGreen}
+                    />
+                  )}
+                </Text>
+              </View>
+            )}
+          </View>
+          <TouchableOpacity
+            onPress={() => handleDeleteTrade(trade.id, trade.isFeatured)}
+            disabled={deletingTradeId === trade.id}
+            style={{
+              padding: 6,
+              borderRadius: 6,
+              backgroundColor: isDarkMode ? '#1f2937' : '#f3f4f6',
+            }}
+          >
+            {deletingTradeId === trade.id ? (
+              <ActivityIndicator size="small" color="#EF4444" />
+            ) : (
+              <Icon name="trash-outline" size={18} color="#EF4444" />
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Trade Items */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+          {/* Has Items */}
+          <View style={{ flex: 1, alignItems: 'center', marginRight: 4 }}>
+            <Text style={{ fontSize: 10, fontWeight: '600', color: isDarkMode ? '#9ca3af' : '#6b7280', marginBottom: 6 }}>
+              ME
+            </Text>
+            {groupedHasItems.length > 0 ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 4 }}>
+                {groupedHasItems.slice(0, 3).map((hasItem) => (
+                  <View key={`${hasItem.name}-${hasItem.type}`} style={{ alignItems: 'center', marginBottom: 4 }}>
+                    <Image
+                      source={{
+                        uri: hasItem.type === 'p'
+                          ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatTradeName(hasItem.name)}_Icon.webp`
+                          : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatTradeName(hasItem.name)}_Icon.webp`,
+                      }}
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: 4,
+                        backgroundColor: hasItem.type === 'p' ? '#FFCC00' : 'transparent',
+                      }}
+                      resizeMode="contain"
+                    />
+                    <Text style={{ fontSize: 8, color: isDarkMode ? '#d1d5db' : '#4b5563', marginTop: 2 }}>
+                      {hasItem.name}{hasItem.type === 'p' && " (P)"}
+                    </Text>
+                    {hasItem.count > 1 && (
+                      <View style={{
+                        position: 'absolute',
+                        top: -2,
+                        right: -2,
+                        backgroundColor: 'purple',
+                        borderRadius: 8,
+                        minWidth: 14,
+                        height: 14,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        paddingHorizontal: 2,
+                      }}>
+                        <Text style={{ color: '#fff', fontSize: 8, fontWeight: '600' }}>{hasItem.count}</Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+                {groupedHasItems.length > 3 && (
+                  <Text style={{ fontSize: 9, color: isDarkMode ? '#9ca3af' : '#6b7280' }}>
+                    +{groupedHasItems.length - 3} more
+                  </Text>
+                )}
+              </View>
+            ) : (
+              <Text style={{ fontSize: 10, color: isDarkMode ? '#6b7280' : '#9ca3af', fontStyle: 'italic' }}>
+                No items
+              </Text>
+            )}
+            {groupedHasItems.length > 0 && trade.hasTotal && (
+              <Text style={{
+                fontSize: 9,
+                fontWeight: '600',
+                color: config.colors.hasBlockGreen,
+                marginTop: 4,
+                backgroundColor: config.colors.hasBlockGreen + '20',
                 paddingHorizontal: 6,
                 paddingVertical: 2,
                 borderRadius: 4,
-                marginRight: 6,
               }}>
-                <Text style={{ color: '#fff', fontSize: 9, fontWeight: '600' }}>FEATURED</Text>
-              </View>
-            )}
-            <Text style={{ fontSize: 11, color: isDarkMode ? '#9ca3af' : '#6b7280' }}>
-              {formattedTime}
-            </Text>
-          </View>
-          {(groupedHasItems.length > 0 && groupedWantsItems.length > 0) && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-              <View style={{
-                backgroundColor: deal.color,
-                paddingHorizontal: 8,
-                paddingVertical: 4,
-                borderRadius: 6,
-                marginRight: 8,
-              }}>
-                <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>
-                  {t(deal.label) || deal.label}
-                </Text>
-              </View>
-              <Text style={{
-                fontSize: 12,
-                color: !isProfit ? config.colors.hasBlockGreen : config.colors.wantBlockRed,
-                fontWeight: '600'
-              }}>
-                {tradePercentage}% {!neutral && (
-                  <Icon
-                    name={isProfit ? 'arrow-down-outline' : 'arrow-up-outline'}
-                    size={12}
-                    color={isProfit ? config.colors.wantBlockRed : config.colors.hasBlockGreen}
-                  />
-                )}
+                {formatTradeValue(trade.hasTotal.value)}
               </Text>
-            </View>
-          )}
-        </View>
-        <TouchableOpacity
-          onPress={() => handleDeleteTrade(trade.id, trade.isFeatured)}
-          disabled={deletingTradeId === trade.id}
-          style={{
-            padding: 6,
-            borderRadius: 6,
-            backgroundColor: isDarkMode ? '#1f2937' : '#f3f4f6',
-          }}
-        >
-          {deletingTradeId === trade.id ? (
-            <ActivityIndicator size="small" color="#EF4444" />
-          ) : (
-            <Icon name="trash-outline" size={18} color="#EF4444" />
-          )}
-        </TouchableOpacity>
-      </View>
+            )}
+          </View>
 
-      {/* Trade Items */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-        {/* Has Items */}
-        <View style={{ flex: 1, alignItems: 'center', marginRight: 4 }}>
-          <Text style={{ fontSize: 10, fontWeight: '600', color: isDarkMode ? '#9ca3af' : '#6b7280', marginBottom: 6 }}>
-            ME
-          </Text>
-          {groupedHasItems.length > 0 ? (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 4 }}>
-              {groupedHasItems.slice(0, 3).map((hasItem) => (
-                <View key={`${hasItem.name}-${hasItem.type}`} style={{ alignItems: 'center', marginBottom: 4 }}>
-                  <Image
-                    source={{
-                      uri: hasItem.type === 'p' 
-                        ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatTradeName(hasItem.name)}_Icon.webp` 
-                        : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatTradeName(hasItem.name)}_Icon.webp`,
-                    }}
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 4,
-                      backgroundColor: hasItem.type === 'p' ? '#FFCC00' : 'transparent',
-                    }}
-                    resizeMode="contain"
-                  />
-                  <Text style={{ fontSize: 8, color: isDarkMode ? '#d1d5db' : '#4b5563', marginTop: 2 }}>
-                    {hasItem.name}{hasItem.type === 'p' && " (P)"}
+          {/* Transfer Icon */}
+          <View style={{ justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8 }}>
+            <Image
+              source={require('../../assets/transfer.png')}
+              style={{ width: 20, height: 20, opacity: 0.6 }}
+            />
+          </View>
+
+          {/* Wants Items */}
+          <View style={{ flex: 1, alignItems: 'center', marginLeft: 4 }}>
+            <Text style={{ fontSize: 10, fontWeight: '600', color: isDarkMode ? '#9ca3af' : '#6b7280', marginBottom: 6 }}>
+              YOU
+            </Text>
+            {groupedWantsItems.length > 0 ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 4 }}>
+                {groupedWantsItems.slice(0, 3).map((wantnItem) => (
+                  <View key={`${wantnItem.name}-${wantnItem.type}`} style={{ alignItems: 'center', marginBottom: 4 }}>
+                    <Image
+                      source={{
+                        uri: wantnItem.type === 'p'
+                          ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatTradeName(wantnItem.name)}_Icon.webp`
+                          : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatTradeName(wantnItem.name)}_Icon.webp`,
+                      }}
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: 4,
+                        backgroundColor: wantnItem.type === 'p' ? '#FFCC00' : 'transparent',
+                      }}
+                      resizeMode="contain"
+                    />
+                    <Text style={{ fontSize: 8, color: isDarkMode ? '#d1d5db' : '#4b5563', marginTop: 2 }}>
+                      {wantnItem.name}{wantnItem.type === 'p' && " (P)"}
+                    </Text>
+                    {wantnItem.count > 1 && (
+                      <View style={{
+                        position: 'absolute',
+                        top: -2,
+                        right: -2,
+                        backgroundColor: 'purple',
+                        borderRadius: 8,
+                        minWidth: 14,
+                        height: 14,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        paddingHorizontal: 2,
+                      }}>
+                        <Text style={{ color: '#fff', fontSize: 8, fontWeight: '600' }}>{wantnItem.count}</Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+                {groupedWantsItems.length > 3 && (
+                  <Text style={{ fontSize: 9, color: isDarkMode ? '#9ca3af' : '#6b7280' }}>
+                    +{groupedWantsItems.length - 3} more
                   </Text>
-                  {hasItem.count > 1 && (
-                    <View style={{
-                      position: 'absolute',
-                      top: -2,
-                      right: -2,
-                      backgroundColor: 'purple',
-                      borderRadius: 8,
-                      minWidth: 14,
-                      height: 14,
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      paddingHorizontal: 2,
-                    }}>
-                      <Text style={{ color: '#fff', fontSize: 8, fontWeight: '600' }}>{hasItem.count}</Text>
-                    </View>
-                  )}
-                </View>
-              ))}
-              {groupedHasItems.length > 3 && (
-                <Text style={{ fontSize: 9, color: isDarkMode ? '#9ca3af' : '#6b7280' }}>
-                  +{groupedHasItems.length - 3} more
-                </Text>
-              )}
-            </View>
-          ) : (
-            <Text style={{ fontSize: 10, color: isDarkMode ? '#6b7280' : '#9ca3af', fontStyle: 'italic' }}>
-              No items
-            </Text>
-          )}
-          {groupedHasItems.length > 0 && trade.hasTotal && (
-            <Text style={{
-              fontSize: 9,
-              fontWeight: '600',
-              color: config.colors.hasBlockGreen,
-              marginTop: 4,
-              backgroundColor: config.colors.hasBlockGreen + '20',
-              paddingHorizontal: 6,
-              paddingVertical: 2,
-              borderRadius: 4,
-            }}>
-              {formatTradeValue(trade.hasTotal.value)}
-            </Text>
-          )}
+                )}
+              </View>
+            ) : (
+              <Text style={{ fontSize: 10, color: isDarkMode ? '#6b7280' : '#9ca3af', fontStyle: 'italic' }}>
+                No items
+              </Text>
+            )}
+            {groupedWantsItems.length > 0 && trade.wantsTotal && (
+              <Text style={{
+                fontSize: 9,
+                fontWeight: '600',
+                color: config.colors.wantBlockRed,
+                marginTop: 4,
+                backgroundColor: config.colors.wantBlockRed + '20',
+                paddingHorizontal: 6,
+                paddingVertical: 2,
+                borderRadius: 4,
+              }}>
+                {formatTradeValue(trade.wantsTotal.value)}
+              </Text>
+            )}
+          </View>
         </View>
 
-        {/* Transfer Icon */}
-        <View style={{ justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8 }}>
-          <Image 
-            source={require('../../assets/transfer.png')} 
-            style={{ width: 20, height: 20, opacity: 0.6 }} 
-          />
-        </View>
-
-        {/* Wants Items */}
-        <View style={{ flex: 1, alignItems: 'center', marginLeft: 4 }}>
-          <Text style={{ fontSize: 10, fontWeight: '600', color: isDarkMode ? '#9ca3af' : '#6b7280', marginBottom: 6 }}>
-            YOU
+        {/* Description */}
+        {trade.description && (
+          <Text style={{
+            fontSize: 11,
+            color: isDarkMode ? '#d1d5db' : '#4b5563',
+            marginTop: 8,
+            paddingTop: 8,
+            borderTopWidth: 1,
+            borderTopColor: isDarkMode ? '#1f2937' : '#e5e7eb',
+          }}>
+            {trade.description}
           </Text>
-          {groupedWantsItems.length > 0 ? (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 4 }}>
-              {groupedWantsItems.slice(0, 3).map((wantnItem) => (
-                <View key={`${wantnItem.name}-${wantnItem.type}`} style={{ alignItems: 'center', marginBottom: 4 }}>
-                  <Image
-                    source={{
-                      uri: wantnItem.type === 'p' 
-                        ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatTradeName(wantnItem.name)}_Icon.webp` 
-                        : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatTradeName(wantnItem.name)}_Icon.webp`,
-                    }}
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 4,
-                      backgroundColor: wantnItem.type === 'p' ? '#FFCC00' : 'transparent',
-                    }}
-                    resizeMode="contain"
-                  />
-                  <Text style={{ fontSize: 8, color: isDarkMode ? '#d1d5db' : '#4b5563', marginTop: 2 }}>
-                    {wantnItem.name}{wantnItem.type === 'p' && " (P)"}
-                  </Text>
-                  {wantnItem.count > 1 && (
-                    <View style={{
-                      position: 'absolute',
-                      top: -2,
-                      right: -2,
-                      backgroundColor: 'purple',
-                      borderRadius: 8,
-                      minWidth: 14,
-                      height: 14,
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      paddingHorizontal: 2,
-                    }}>
-                      <Text style={{ color: '#fff', fontSize: 8, fontWeight: '600' }}>{wantnItem.count}</Text>
-                    </View>
-                  )}
-                </View>
-              ))}
-              {groupedWantsItems.length > 3 && (
-                <Text style={{ fontSize: 9, color: isDarkMode ? '#9ca3af' : '#6b7280' }}>
-                  +{groupedWantsItems.length - 3} more
-                </Text>
-              )}
-            </View>
-          ) : (
-            <Text style={{ fontSize: 10, color: isDarkMode ? '#6b7280' : '#9ca3af', fontStyle: 'italic' }}>
-              No items
-            </Text>
-          )}
-          {groupedWantsItems.length > 0 && trade.wantsTotal && (
-            <Text style={{
-              fontSize: 9,
-              fontWeight: '600',
-              color: config.colors.wantBlockRed,
-              marginTop: 4,
-              backgroundColor: config.colors.wantBlockRed + '20',
-              paddingHorizontal: 6,
-              paddingVertical: 2,
-              borderRadius: 4,
-            }}>
-              {formatTradeValue(trade.wantsTotal.value)}
-            </Text>
-          )}
-        </View>
+        )}
       </View>
+    );
+  }, [isDarkMode, deletingTradeId, handleDeleteTrade, t]);
 
-      {/* Description */}
-      {trade.description && (
-        <Text style={{
-          fontSize: 11,
-          color: isDarkMode ? '#d1d5db' : '#4b5563',
-          marginTop: 8,
-          paddingTop: 8,
-          borderTopWidth: 1,
-          borderTopColor: isDarkMode ? '#1f2937' : '#e5e7eb',
-        }}>
-          {trade.description}
-        </Text>
-      )}
-    </View>
-  );
-}, [isDarkMode, deletingTradeId, handleDeleteTrade, t]);
+  // Handle editing a review
+  const handleEditReview = (review) => {
+    setEditingReview(review);
+    setEditReviewText(review.review || '');
+    setEditReviewRating(review.rating || 0);
+  };
 
-    // Handle editing a review
-    const handleEditReview = (review) => {
-      setEditingReview(review);
-      setEditReviewText(review.review || '');
-      setEditReviewRating(review.rating || 0);
-    };
+  // Save edited review
+  const handleSaveEditedReview = async () => {
+    if (!editingReview || !firestoreDB || !user?.id) return;
 
-    // Save edited review
-    const handleSaveEditedReview = async () => {
-      if (!editingReview || !firestoreDB || !user?.id) return;
+    const trimmedReview = (editReviewText || '').trim();
+    if (!trimmedReview) {
+      showErrorMessage('Error', 'Review text cannot be empty');
+      return;
+    }
 
-      const trimmedReview = (editReviewText || '').trim();
-      if (!trimmedReview) {
-        showErrorMessage('Error', 'Review text cannot be empty');
-        return;
-      }
+    try {
+      // Document ID format: toUserId_fromUserId
+      const reviewDocId = `${editingReview.toUserId}_${user.id}`;
+      const reviewRef = doc(firestoreDB, 'reviews', reviewDocId);
 
-      try {
-        // Document ID format: toUserId_fromUserId
-        const reviewDocId = `${editingReview.toUserId}_${user.id}`;
-        const reviewRef = doc(firestoreDB, 'reviews', reviewDocId);
+      await setDoc(
+        reviewRef,
+        {
+          fromUserId: user.id,
+          toUserId: editingReview.toUserId,
+          rating: editReviewRating,
+          userName: user?.displayName || user?.displayname || null,
+          review: trimmedReview,
+          createdAt: editingReview.createdAt, // Preserve original
+          updatedAt: serverTimestamp(),
+          edited: true,
+        },
+        { merge: true }
+      );
 
-        await setDoc(
-          reviewRef,
-          {
-            fromUserId: user.id,
-            toUserId: editingReview.toUserId,
-            rating: editReviewRating,
-            userName: user?.displayName || user?.displayname || null,
-            review: trimmedReview,
-            createdAt: editingReview.createdAt, // Preserve original
-            updatedAt: serverTimestamp(),
-            edited: true,
-          },
-          { merge: true }
-        );
+      // ✅ OPTIMIZED: Update user_ratings_summary collection (background update)
+      const { updateUserRatingSummary } = require('../ChatScreen/utils/ratingSummaryHelper');
+      updateUserRatingSummary(firestoreDB, editingReview.toUserId).catch((err) => {
+        console.error('Error updating rating summary:', err);
+      });
 
-        // ✅ OPTIMIZED: Update user_ratings_summary collection (background update)
-        const { updateUserRatingSummary } = require('../ChatScreen/utils/ratingSummaryHelper');
-        updateUserRatingSummary(firestoreDB, editingReview.toUserId).catch((err) => {
-          console.error('Error updating rating summary:', err);
-        });
+      // Update local state
+      setUserReviews((prev) =>
+        prev.map((r) =>
+          r.id === editingReview.id
+            ? {
+              ...r,
+              review: trimmedReview,
+              rating: editReviewRating,
+              updatedAt: new Date(),
+              edited: true,
+            }
+            : r
+        )
+      );
 
-        // Update local state
-        setUserReviews((prev) =>
-          prev.map((r) =>
-            r.id === editingReview.id
-              ? {
-                  ...r,
-                  review: trimmedReview,
-                  rating: editReviewRating,
-                  updatedAt: new Date(),
-                  edited: true,
-                }
-              : r
-          )
-        );
-
-        showSuccessMessage('Success', 'Review updated successfully!');
-        setEditingReview(null);
-        setEditReviewText('');
-        setEditReviewRating(0);
-      } catch (error) {
-        console.error('Error updating review:', error);
-        showErrorMessage('Error', 'Failed to update review');
-      }
-    };
+      showSuccessMessage('Success', 'Review updated successfully!');
+      setEditingReview(null);
+      setEditReviewText('');
+      setEditReviewRating(0);
+    } catch (error) {
+      console.error('Error updating review:', error);
+      showErrorMessage('Error', 'Failed to update review');
+    }
+  };
 
   const handleLogout = async () => {
     triggerHapticFeedback('impactLight');
@@ -2161,7 +2161,7 @@ const renderTradeItem = useCallback((trade) => {
       );
     }
   };
-  
+
   const handleDeleteUser = async () => {
     triggerHapticFeedback('impactLight');
     try {
@@ -2172,9 +2172,9 @@ const renderTradeItem = useCallback((trade) => {
         );
         return;
       }
-  
+
       const userId = user?.id;
-  
+
       // Step 1: Acknowledge the irreversible action
       const showAcknowledgment = () =>
         new Promise((resolve, reject) => {
@@ -2183,11 +2183,11 @@ const renderTradeItem = useCallback((trade) => {
             t("settings.delete_account_warning"),
             [
               { text: t("home.cancel"), style: 'cancel', onPress: reject },
-              { text:  t("settings.proceed"), style: 'destructive', onPress: resolve },
+              { text: t("settings.proceed"), style: 'destructive', onPress: resolve },
             ]
           );
         });
-  
+
       // Step 2: Confirm the action again
       const showFinalConfirmation = () =>
         new Promise((resolve, reject) => {
@@ -2200,15 +2200,15 @@ const renderTradeItem = useCallback((trade) => {
             ]
           );
         });
-  
+
       // Await acknowledgment and confirmation
       await showAcknowledgment();
       await showFinalConfirmation();
-  
+
       // Step 3: Remove user data from Firebase Realtime Database
       const userRef = ref(appdatabase, `users/${userId}`);
 
-  
+
       await Promise.all([
         remove(userRef), // ✅ Delete user profile
       ]);
@@ -2225,10 +2225,10 @@ const renderTradeItem = useCallback((trade) => {
         );
         return;
       }
-  
+
       // Step 5: Reset local state
       await resetUserState(setUser);
-  
+
       // Alert.alert(t("home.alert.success"), t("home.alert.success"));
       showSuccessMessage(
         t("home.alert.success"),
@@ -2236,7 +2236,7 @@ const renderTradeItem = useCallback((trade) => {
       );
     } catch (error) {
       // console.error('Error deleting user:', error.message);
-  
+
       if (error.code === 'auth/requires-recent-login') {
         // Alert.alert(
         //   t("settings.session_expired"),
@@ -2256,13 +2256,13 @@ const renderTradeItem = useCallback((trade) => {
       }
     }
   };
-  
+
   const manageSubscription = () => {
     const url = Platform.select({
       ios: 'https://apps.apple.com/account/subscriptions',
       android: 'https://play.google.com/store/account/subscriptions',
     });
-  
+
     if (url) {
       Linking.openURL(url).catch((err) => {
         console.error('Error opening subscription manager:', err);
@@ -2287,67 +2287,67 @@ const renderTradeItem = useCallback((trade) => {
 
 
 
-const formatPlanName = (plan) => {
-  // console.log(plan, 'plan');
+  const formatPlanName = (plan) => {
+    // console.log(plan, 'plan');
 
-  if (plan === 'monthly:monthly' || plan === 'Blox_values_199_1m') return '1 MONTH';
-  if (plan === 'quarterly:quarterly' || plan === 'Blox_values_499_3m') return '3 MONTHS';
-  if (plan === 'yearly:yearly' || plan === 'Blox_values_999_1y') return '1 YEAR';
+    if (plan === 'monthly:monthly' || plan === 'Blox_values_199_1m') return '1 MONTH';
+    if (plan === 'quarterly:quarterly' || plan === 'Blox_values_499_3m') return '3 MONTHS';
+    if (plan === 'yearly:yearly' || plan === 'Blox_values_999_1y') return '1 YEAR';
 
-  return 'Anonymous Plan';
-};
+    return 'Anonymous Plan';
+  };
 
 
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
   return (
     <GestureHandlerRootView>
-    <View style={[styles.container]}>
+      <View style={[styles.container]}>
         <SettingsTabs />
 
-      {/* User Profile Section */}
-      {activeTab === "profile" ?   <ConditionalKeyboardWrapper style={{ flex: 1 }}>
-      <ScrollView 
-        ref={scrollViewRef}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
-        
-      >
-      <View style={[styles.cardContainer, {paddingBottom:20}]}>
-        <View style={[styles.optionuserName, styles.option]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Image
-              source={
-                user?.avatar && typeof user.avatar === 'string' && user.avatar.trim()
-                  ? { uri: user.avatar }
-                  : { uri: 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }
-              }
-              style={styles.profileImage}
-            />
-            <TouchableOpacity onPress={user?.id ? () => { } : () => { setOpenSignin(true) }} disabled={user?.id !== null}>
-            {!user?.id ? (
-  <Text style={styles.userNameLogout}>
-    {t('settings.login_register')}
-  </Text>
-) : (
-  <View style={{ flexDirection: 'column' }}>
-    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-      {/* Styled name if available */}
-      {user?.id &&
-     
-        <StyledDisplayName
-        user={user}
-        localState={localState}
-        displayName={user?.displayName || 'Guest'}
-        fontSize={16}
-        lineHeight={20}
-        marginVertical={1}
-      />
-     }
-     {user?.flage && <Text>{user.flage}</Text>}
+        {/* User Profile Section */}
+        {activeTab === "profile" ? <ConditionalKeyboardWrapper style={{ flex: 1 }}>
+          <ScrollView
+            ref={scrollViewRef}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
 
-      {/* Pro badges */}
-      {/* {localState?.isPro && (
+          >
+            <View style={[styles.cardContainer, { paddingBottom: 20 }]}>
+              <View style={[styles.optionuserName, styles.option]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Image
+                    source={
+                      user?.avatar && typeof user.avatar === 'string' && user.avatar.trim()
+                        ? { uri: user.avatar }
+                        : { uri: 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }
+                    }
+                    style={styles.profileImage}
+                  />
+                  <TouchableOpacity onPress={user?.id ? () => { } : () => { setOpenSignin(true) }} disabled={user?.id !== null}>
+                    {!user?.id ? (
+                      <Text style={styles.userNameLogout}>
+                        {t('settings.login_register')}
+                      </Text>
+                    ) : (
+                      <View style={{ flexDirection: 'column' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          {/* Styled name if available */}
+                          {user?.id &&
+
+                            <StyledDisplayName
+                              user={user}
+                              localState={localState}
+                              displayName={user?.displayName || 'Guest'}
+                              fontSize={16}
+                              lineHeight={20}
+                              marginVertical={1}
+                            />
+                          }
+                          {user?.flage && <Text>{user.flage}</Text>}
+
+                          {/* Pro badges */}
+                          {/* {localState?.isPro && (
         <Image
           source={require('../../assets/pro.png')}
           style={{ width: 18, height: 18, marginLeft: 4 }}
@@ -2359,491 +2359,491 @@ const formatPlanName = (plan) => {
           style={{ width: 18, height: 18, marginLeft: 4 }}
         />
       )} */}
-    </View>
-    {/* ✅ Roblox Verification Badge */}
-    {user?.id && user?.robloxUsername && (
-      <View style={{ 
-        marginLeft: 6, 
-        backgroundColor: user?.robloxUsernameVerified ? '#4CAF50' : '#FFA500', 
-        paddingHorizontal: 6, 
-        paddingVertical: 2, 
-        borderRadius: 4 
-      }}>
-        <Text style={{ color: '#fff', fontSize: 9, fontWeight: '600' }}>
-          {user?.robloxUsernameVerified ? '✓ Verified' : '⚠ Unverified'}
-        </Text>
-      </View>
-    )}
-  </View>
-)}
+                        </View>
+                        {/* ✅ Roblox Verification Badge */}
+                        {user?.id && user?.robloxUsername && (
+                          <View style={{
+                            marginLeft: 6,
+                            backgroundColor: user?.robloxUsernameVerified ? '#4CAF50' : '#FFA500',
+                            paddingHorizontal: 6,
+                            paddingVertical: 2,
+                            borderRadius: 4
+                          }}>
+                            <Text style={{ color: '#fff', fontSize: 9, fontWeight: '600' }}>
+                              {user?.robloxUsernameVerified ? '✓ Verified' : '⚠ Unverified'}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
 
-              {!user?.id && <Text style={styles.rewardLogout}>{t('settings.login_description')}</Text>}
-              {user?.id && <Text style={styles.reward}>My Points: {userPoints !== null ? Number(userPoints).toLocaleString() : 0}</Text>}
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity onPress={handleProfileUpdate}>
-            {user?.id && <Icon name="create" size={24} color={'#566D5D'} />}
-          </TouchableOpacity>
-        </View>
-        <View style={styles.petsSection}>
-  {/* Owned Pets */}
-  <View style={[styles.petsColumn]}>
-    <View style={styles.petsHeaderRow}>
-      <Text style={styles.petsTitle}>
-       Owned Items
-      </Text>
-      {user?.id && (
-        <TouchableOpacity onPress={()=>handleManagePets('owned')}>
-          {user?.id && <Icon name="create" size={24} color={'#566D5D'} />}
-        </TouchableOpacity>
-      )}
-    </View>
-
-    {ownedPets.length === 0 ? (
-      <Text style={styles.petsEmptyText}>
-       {user?.id ? 'Select the pets you own' : 'Login to selected owned pets'}
-      </Text>
-    ) : (
-      <View style={styles.petsAvatarRow}>
-        {ownedPets.map((pet, index) => renderPetBubble(pet, index))}
-       
-         
-        
-      </View>
-    )}
-  </View>
-
-  {/* Wishlist */}
-  <View style={styles.petsColumn}>
-    <View style={styles.petsHeaderRow}>
-      <Text style={styles.petsTitle}>
-        Wishlist
-      </Text>
-      {user?.id && (
-        <TouchableOpacity onPress={()=>handleManagePets('wish')}>
-         {user?.id && <Icon name="create" size={24} color={'#566D5D'} />}
-        </TouchableOpacity>
-      )}
-    </View>
-
-    {wishlistPets.length === 0 ? (
-      <Text style={styles.petsEmptyText}>
-     {user?.id ? 'Add pets you want' : 'Login & Add pets you want'}
-      </Text>
-    ) : (
-      <View style={styles.petsAvatarRow}>
-        {wishlistPets.map((pet, index)=>(renderPetBubble(pet, index)))}
-       
-        
-      
-      </View>
-    )}
-  </View>
-</View>
-
-        {/* ⭐ Rating summary - Below profile picture section */}
-        {user?.id && (
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              marginTop: 12,
-              marginBottom: 12,
-              paddingVertical: 8,
-              paddingHorizontal: 12,
-              backgroundColor: isDarkMode ? '#1b1b1b' : '#f2f2f2',
-              borderRadius: 8,
-            }}
-          >
-            {loadingRating ? (
-              <ActivityIndicator
-                size="small"
-                color={config.colors.primary}
-              />
-            ) : ratingSummary ? (
-              <>
-                {renderStars(ratingSummary.value)}
-                <Text
-                  style={{
-                    marginLeft: 6,
-                    fontSize: 12,
-                    color: isDarkMode ? '#e5e7eb' : '#4b5563',
-                  }}
-                >
-                  {ratingSummary.value.toFixed(1)} / 5 ·{' '}
-                  {ratingSummary.count} rating
-                  {ratingSummary.count === 1 ? '' : 's'}
-                </Text>
-              </>
-            ) : (
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: isDarkMode ? '#9ca3af' : '#6b7280',
-                }}
-              >
-                Not rated yet
-              </Text>
-            )}
-
-            {!loadingRating && createdAtText && (
-              <Text
-                style={{
-                  fontSize: 10,
-                  backgroundColor: isDarkMode ? '#FACC15' : '#16A34A',
-                  paddingHorizontal: 5,
-                  borderRadius: 4,
-                  paddingVertical: 1,
-                  color: 'white',
-                  marginLeft: 5,
-                }}
-              >
-                Joined {createdAtText}
-              </Text>
-            )}
-      </View>
-        )}
-
-        {/* 📝 Bio Section - Below rating box */}
-        {user?.id && (
-          <View
-            style={{
-              borderRadius: 12,
-              padding: 12,
-              backgroundColor: isDarkMode ? '#0f172a' : '#f3f4f6',
-              marginBottom: 12,
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 14,
-                fontFamily: 'Lato-Bold',
-                marginBottom: 6,
-                color: isDarkMode ? '#e5e7eb' : '#111827',
-              }}
-            >
-              Bio
-            </Text>
-            <Text
-              style={{
-                fontSize: 13,
-                color: isDarkMode ? '#e5e7eb' : '#111827',
-                lineHeight: 18,
-              }}
-            >
-              {bio || 'Hi there, I am new here'}
-            </Text>
-          </View>
-        )}
-        
-        {/* Flag Visibility Toggle */}
-        {user?.id && (
-          <View style={styles.option}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
-              <TouchableOpacity 
-                style={{ flexDirection: 'row', alignItems: 'center' }}
-                onPress={() => handleToggleFlag(!localState.showFlag)}
-              >
-                <Icon name="flag-outline" size={18} color={'white'} style={{backgroundColor:'#FF6B6B', padding:5, borderRadius:5}} />
-                <Text style={styles.optionText}>Country Flag</Text>
-              </TouchableOpacity>
-              <Switch
-                value={localState.showFlag ?? true}
-                onValueChange={handleToggleFlag}
-              />
-            </View>
-          </View>
-        )}
-        
-        {/* ✅ Show Online Status Toggle */}
-        {user?.id && ( <View style={styles.option}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
-            <TouchableOpacity 
-              style={{ flexDirection: 'row', alignItems: 'center' }}
-              onPress={() => handleToggleOnlineStatus(!localState.showOnlineStatus)}
-            >
-              <Icon name="radio-button-on-outline" size={18} color={'white'} style={{backgroundColor:'#4CAF50', padding:5, borderRadius:5}} />
-              <Text style={styles.optionText}>Online Status</Text>
-            </TouchableOpacity>
-            <Switch
-              value={localState.showOnlineStatus ?? true}
-              onValueChange={handleToggleOnlineStatus}
-            />
-          </View>
-        </View>)}
-
-        {/* ✅ Roblox Username Section */}
-        {user?.id && (
-          <View style={styles.option}>
-            <View style={{ width: '100%' }}>
-              {/* Header with icon and label */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-                <Icon 
-                  name="game-controller-outline" 
-                  size={18} 
-                  color={'white'} 
-                  style={{
-                    backgroundColor: '#00A8FF', 
-                    padding: 5, 
-                    borderRadius: 5, 
-                    marginRight: 8
-                  }} 
-                />
-                <Text style={styles.optionText}>Roblox Username</Text>
-                {robloxUsername && (
-                  <View style={{ 
-                    marginLeft: 8, 
-                    backgroundColor: robloxUsernameVerified ? '#4CAF50' : '#FFA500', 
-                    paddingHorizontal: 6, 
-                    paddingVertical: 2, 
-                    borderRadius: 4 
-                  }}>
-                    <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>
-                      {robloxUsernameVerified ? '✓ Verified' : '⚠ Unverified'}
-                    </Text>
-                  </View>
-                )}
+                    {!user?.id && <Text style={styles.rewardLogout}>{t('settings.login_description')}</Text>}
+                    {user?.id && <Text style={styles.reward}>My Points: {userPoints !== null ? Number(userPoints).toLocaleString() : 0}</Text>}
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity onPress={handleProfileUpdate}>
+                  {user?.id && <Icon name="create" size={24} color={'#566D5D'} />}
+                </TouchableOpacity>
               </View>
-              
-              {/* Input and Verify button row */}
-              <View style={{ 
-                flexDirection: 'row', 
-                alignItems: 'center', 
-                marginBottom: 4,
-                width: '100%',
-              }}>
-                <TextInput
+              <View style={styles.petsSection}>
+                {/* Owned Pets */}
+                <View style={[styles.petsColumn]}>
+                  <View style={styles.petsHeaderRow}>
+                    <Text style={styles.petsTitle}>
+                      Owned Items
+                    </Text>
+                    {user?.id && (
+                      <TouchableOpacity onPress={() => handleManagePets('owned')}>
+                        {user?.id && <Icon name="create" size={24} color={'#566D5D'} />}
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {ownedPets.length === 0 ? (
+                    <Text style={styles.petsEmptyText}>
+                      {user?.id ? 'Select the pets you own' : 'Login to selected owned pets'}
+                    </Text>
+                  ) : (
+                    <View style={styles.petsAvatarRow}>
+                      {ownedPets.map((pet, index) => renderPetBubble(pet, index))}
+
+
+
+                    </View>
+                  )}
+                </View>
+
+                {/* Wishlist */}
+                <View style={styles.petsColumn}>
+                  <View style={styles.petsHeaderRow}>
+                    <Text style={styles.petsTitle}>
+                      Wishlist
+                    </Text>
+                    {user?.id && (
+                      <TouchableOpacity onPress={() => handleManagePets('wish')}>
+                        {user?.id && <Icon name="create" size={24} color={'#566D5D'} />}
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {wishlistPets.length === 0 ? (
+                    <Text style={styles.petsEmptyText}>
+                      {user?.id ? 'Add pets you want' : 'Login & Add pets you want'}
+                    </Text>
+                  ) : (
+                    <View style={styles.petsAvatarRow}>
+                      {wishlistPets.map((pet, index) => (renderPetBubble(pet, index)))}
+
+
+
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* ⭐ Rating summary - Below profile picture section */}
+              {user?.id && (
+                <View
                   style={{
-                    flex: 1,
-                    marginRight: 8,
-                    backgroundColor: isDarkMode ? '#1b1b1b' : '#f2f2f2',
-                    color: isDarkMode ? '#fff' : '#000',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    marginTop: 12,
+                    marginBottom: 12,
                     paddingVertical: 8,
                     paddingHorizontal: 12,
-                    borderRadius: 6,
-                    fontSize: 14,
-                    height: 30,
+                    backgroundColor: isDarkMode ? '#1b1b1b' : '#f2f2f2',
+                    borderRadius: 8,
                   }}
-                  placeholder="Enter your Roblox username"
-                  placeholderTextColor={isDarkMode ? '#888' : '#999'}
-                  value={robloxUsername}
-                  onChangeText={setRobloxUsername}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  onFocus={() => {
-                    // ✅ Scroll to end when input is focused to show it above keyboard
-                    setTimeout(() => {
-                      scrollViewRef.current?.scrollToEnd({ animated: true });
-                    }, 100);
+                >
+                  {loadingRating ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={config.colors.primary}
+                    />
+                  ) : ratingSummary ? (
+                    <>
+                      {renderStars(ratingSummary.value)}
+                      <Text
+                        style={{
+                          marginLeft: 6,
+                          fontSize: 12,
+                          color: isDarkMode ? '#e5e7eb' : '#4b5563',
+                        }}
+                      >
+                        {ratingSummary.value.toFixed(1)} / 5 ·{' '}
+                        {ratingSummary.count} rating
+                        {ratingSummary.count === 1 ? '' : 's'}
+                      </Text>
+                    </>
+                  ) : (
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        color: isDarkMode ? '#9ca3af' : '#6b7280',
+                      }}
+                    >
+                      Not rated yet
+                    </Text>
+                  )}
+
+                  {!loadingRating && createdAtText && (
+                    <Text
+                      style={{
+                        fontSize: 10,
+                        backgroundColor: isDarkMode ? '#FACC15' : '#16A34A',
+                        paddingHorizontal: 5,
+                        borderRadius: 4,
+                        paddingVertical: 1,
+                        color: 'white',
+                        marginLeft: 5,
+                      }}
+                    >
+                      Joined {createdAtText}
+                    </Text>
+                  )}
+                </View>
+              )}
+
+              {/* 📝 Bio Section - Below rating box */}
+              {user?.id && (
+                <View
+                  style={{
+                    borderRadius: 12,
+                    padding: 12,
+                    backgroundColor: isDarkMode ? '#0f172a' : '#f3f4f6',
+                    marginBottom: 12,
                   }}
-                />
-                {isVerifyingRoblox ? (
-                  <View style={{ 
-                    height: 30, 
-                    justifyContent: 'center', 
-                    alignItems: 'center',
-                    width: 80,
-                  }}>
-                    <ActivityIndicator size="small" color={config.colors.primary} />
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    onPress={handleUpdateRobloxUsername}
+                >
+                  <Text
                     style={{
-                      backgroundColor: config.colors.primary,
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                      borderRadius: 6,
-                      minWidth: 80,
-                      height: 30,
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      fontSize: 14,
+                      fontWeight: 'bold',
+                      marginBottom: 6,
+                      color: isDarkMode ? '#e5e7eb' : '#111827',
                     }}
                   >
-                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>
-                      {robloxUsernameVerified ? 'Re-verify' : 'Verify'}
+                    Bio
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      color: isDarkMode ? '#e5e7eb' : '#111827',
+                      lineHeight: 18,
+                    }}
+                  >
+                    {bio || 'Hi there, I am new here'}
+                  </Text>
+                </View>
+              )}
+
+              {/* Flag Visibility Toggle */}
+              {user?.id && (
+                <View style={styles.option}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', alignItems: 'center' }}
+                      onPress={() => handleToggleFlag(!localState.showFlag)}
+                    >
+                      <Icon name="flag-outline" size={18} color={'white'} style={{ backgroundColor: '#FF6B6B', padding: 5, borderRadius: 5 }} />
+                      <Text style={styles.optionText}>Country Flag</Text>
+                    </TouchableOpacity>
+                    <Switch
+                      value={localState.showFlag ?? true}
+                      onValueChange={handleToggleFlag}
+                    />
+                  </View>
+                </View>
+              )}
+
+              {/* ✅ Show Online Status Toggle */}
+              {user?.id && (<View style={styles.option}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center' }}
+                    onPress={() => handleToggleOnlineStatus(!localState.showOnlineStatus)}
+                  >
+                    <Icon name="radio-button-on-outline" size={18} color={'white'} style={{ backgroundColor: '#4CAF50', padding: 5, borderRadius: 5 }} />
+                    <Text style={styles.optionText}>Online Status</Text>
+                  </TouchableOpacity>
+                  <Switch
+                    value={localState.showOnlineStatus ?? true}
+                    onValueChange={handleToggleOnlineStatus}
+                  />
+                </View>
+              </View>)}
+
+              {/* ✅ Roblox Username Section */}
+              {user?.id && (
+                <View style={styles.option}>
+                  <View style={{ width: '100%' }}>
+                    {/* Header with icon and label */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                      <Icon
+                        name="game-controller-outline"
+                        size={18}
+                        color={'white'}
+                        style={{
+                          backgroundColor: '#00A8FF',
+                          padding: 5,
+                          borderRadius: 5,
+                          marginRight: 8
+                        }}
+                      />
+                      <Text style={styles.optionText}>Roblox Username</Text>
+                      {robloxUsername && (
+                        <View style={{
+                          marginLeft: 8,
+                          backgroundColor: robloxUsernameVerified ? '#4CAF50' : '#FFA500',
+                          paddingHorizontal: 6,
+                          paddingVertical: 2,
+                          borderRadius: 4
+                        }}>
+                          <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>
+                            {robloxUsernameVerified ? '✓ Verified' : '⚠ Unverified'}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Input and Verify button row */}
+                    <View style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      marginBottom: 4,
+                      width: '100%',
+                    }}>
+                      <TextInput
+                        style={{
+                          flex: 1,
+                          marginRight: 8,
+                          backgroundColor: isDarkMode ? '#1b1b1b' : '#f2f2f2',
+                          color: isDarkMode ? '#fff' : '#000',
+                          paddingVertical: 8,
+                          paddingHorizontal: 12,
+                          borderRadius: 6,
+                          fontSize: 14,
+                          height: 30,
+                        }}
+                        placeholder="Enter your Roblox username"
+                        placeholderTextColor={isDarkMode ? '#888' : '#999'}
+                        value={robloxUsername}
+                        onChangeText={setRobloxUsername}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        onFocus={() => {
+                          // ✅ Scroll to end when input is focused to show it above keyboard
+                          setTimeout(() => {
+                            scrollViewRef.current?.scrollToEnd({ animated: true });
+                          }, 100);
+                        }}
+                      />
+                      {isVerifyingRoblox ? (
+                        <View style={{
+                          height: 30,
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          width: 80,
+                        }}>
+                          <ActivityIndicator size="small" color={config.colors.primary} />
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          onPress={handleUpdateRobloxUsername}
+                          style={{
+                            backgroundColor: config.colors.primary,
+                            paddingHorizontal: 12,
+                            paddingVertical: 6,
+                            borderRadius: 6,
+                            minWidth: 80,
+                            height: 30,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>
+                            {robloxUsernameVerified ? 'Re-verify' : 'Verify'}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    {/* Warning text for unverified */}
+                    {robloxUsername && !robloxUsernameVerified && (
+                      <Text style={{
+                        fontSize: 11,
+                        color: '#FFA500',
+                        marginTop: 4,
+                        marginLeft: 0,
+                      }}>
+                        ⚠️ Unverified - Click "Verify" to prove ownership
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              )}
+
+              {/* Reviews Section - Two Small Modern Buttons */}
+              <View style={styles.reviewsSection}>
+                <Text style={{ fontSize: 14, fontWeight: 'bold', color: isDarkMode ? '#e5e7eb' : '#111827', marginBottom: 12 }}>
+                  Reviews
+                </Text>
+
+                {!user?.id ? (
+                  <Text style={styles.reviewsEmptyText}>
+                    Login to see your reviews
+                  </Text>
+                ) : (
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {/* Reviews I Gave Button */}
+                    <TouchableOpacity
+                      onPress={() => setShowGaveReviewsModal(true)}
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
+                        borderRadius: 10,
+                        paddingVertical: 12,
+                        paddingHorizontal: 12,
+                        borderWidth: 1,
+                        borderColor: isDarkMode ? '#1f2937' : '#e5e7eb',
+                      }}
+                    >
+                      <Icon name="star" size={18} color="#4A90E2" style={{ marginRight: 6 }} />
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: isDarkMode ? '#e5e7eb' : '#111827' }}>
+                        I Gave
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Reviews I Received Button */}
+                    <TouchableOpacity
+                      onPress={() => setShowReceivedReviewsModal(true)}
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
+                        borderRadius: 10,
+                        paddingVertical: 12,
+                        paddingHorizontal: 12,
+                        borderWidth: 1,
+                        borderColor: isDarkMode ? '#1f2937' : '#e5e7eb',
+                      }}
+                    >
+                      <Icon name="heart" size={18} color="#9B59B6" style={{ marginRight: 6 }} />
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: isDarkMode ? '#e5e7eb' : '#111827' }}>
+                        I Received
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+
+              {/* My Trades Section - Below Reviews */}
+              <View style={styles.reviewsSection}>
+                <Text style={{ fontSize: 14, fontWeight: 'bold', color: isDarkMode ? '#e5e7eb' : '#111827', marginBottom: 12 }}>
+                  My Trades
+                </Text>
+
+                {!user?.id ? (
+                  <Text style={styles.reviewsEmptyText}>
+                    Login to see your trades
+                  </Text>
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => setShowMyTradesModal(true)}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
+                      borderRadius: 10,
+                      paddingVertical: 12,
+                      paddingHorizontal: 12,
+                      borderWidth: 1,
+                      borderColor: isDarkMode ? '#1f2937' : '#e5e7eb',
+                    }}
+                  >
+                    <Icon name="swap-horizontal-outline" size={18} color="#FF9500" style={{ marginRight: 6 }} />
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: isDarkMode ? '#e5e7eb' : '#111827' }}>
+                      View My Trades
                     </Text>
                   </TouchableOpacity>
                 )}
               </View>
-              
-              {/* Warning text for unverified */}
-              {robloxUsername && !robloxUsernameVerified && (
-                <Text style={{ 
-                  fontSize: 11, 
-                  color: '#FFA500', 
-                  marginTop: 4,
-                  marginLeft: 0,
-                }}>
-                  ⚠️ Unverified - Click "Verify" to prove ownership
-                </Text>
-              )}
             </View>
-          </View>
-        )}
-        
-        {/* Reviews Section - Two Small Modern Buttons */}
-        <View style={styles.reviewsSection}>
-          <Text style={{ fontSize: 14, fontFamily: 'Lato-Bold', color: isDarkMode ? '#e5e7eb' : '#111827', marginBottom: 12 }}>
-            Reviews
-          </Text>
+          </ScrollView>
+        </ConditionalKeyboardWrapper>
 
-          {!user?.id ? (
-            <Text style={styles.reviewsEmptyText}>
-              Login to see your reviews
-            </Text>
-          ) : (
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              {/* Reviews I Gave Button */}
-              <TouchableOpacity
-                onPress={() => setShowGaveReviewsModal(true)}
-                style={{
-                  flex: 1,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
-                  borderRadius: 10,
-                  paddingVertical: 12,
-                  paddingHorizontal: 12,
-                  borderWidth: 1,
-                  borderColor: isDarkMode ? '#1f2937' : '#e5e7eb',
-                }}
-              >
-                <Icon name="star" size={18} color="#4A90E2" style={{ marginRight: 6 }} />
-                <Text style={{ fontSize: 13, fontWeight: '600', color: isDarkMode ? '#e5e7eb' : '#111827' }}>
-                  I Gave
-                </Text>
-              </TouchableOpacity>
-
-              {/* Reviews I Received Button */}
-              <TouchableOpacity
-                onPress={() => setShowReceivedReviewsModal(true)}
-                style={{
-                  flex: 1,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
-                  borderRadius: 10,
-                  paddingVertical: 12,
-                  paddingHorizontal: 12,
-                  borderWidth: 1,
-                  borderColor: isDarkMode ? '#1f2937' : '#e5e7eb',
-                }}
-              >
-                <Icon name="heart" size={18} color="#9B59B6" style={{ marginRight: 6 }} />
-                <Text style={{ fontSize: 13, fontWeight: '600', color: isDarkMode ? '#e5e7eb' : '#111827' }}>
-                  I Received
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-        
-        {/* My Trades Section - Below Reviews */}
-        <View style={styles.reviewsSection}>
-          <Text style={{ fontSize: 14, fontFamily: 'Lato-Bold', color: isDarkMode ? '#e5e7eb' : '#111827', marginBottom: 12 }}>
-            My Trades
-          </Text>
-
-          {!user?.id ? (
-            <Text style={styles.reviewsEmptyText}>
-              Login to see your trades
-            </Text>
-          ) : (
-            <TouchableOpacity
-              onPress={() => setShowMyTradesModal(true)}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
-                borderRadius: 10,
-                paddingVertical: 12,
-                paddingHorizontal: 12,
-                borderWidth: 1,
-                borderColor: isDarkMode ? '#1f2937' : '#e5e7eb',
-              }}
-            >
-              <Icon name="swap-horizontal-outline" size={18} color="#FF9500" style={{ marginRight: 6 }} />
-              <Text style={{ fontSize: 13, fontWeight: '600', color: isDarkMode ? '#e5e7eb' : '#111827' }}>
-                View My Trades
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        </View>
-      </ScrollView>
-      </ConditionalKeyboardWrapper>
-
-     : <ScrollView showsVerticalScrollIndicator={false}>
-         {/* Purchases Section */}
-    
+          : <ScrollView showsVerticalScrollIndicator={false}>
+            {/* Purchases Section */}
 
 
-        <Text style={styles.subtitle}>{t('settings.app_settings')}</Text>
-        <View style={styles.cardContainer}>
-          <View style={styles.option} onPress={() => {
-            handleShareApp(); triggerHapticFeedback('impactLight');
-          }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
-              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Icon name="radio-outline" size={18} color={'white'} style={{backgroundColor:'#B76E79', padding:5, borderRadius:5}} />
-                <Text style={styles.optionText}>{t('settings.haptic_feedback')}</Text></TouchableOpacity>
-              <Switch value={localState.isHaptic} onValueChange={handleToggle} />
-            </View>
 
-          </View>
-          <View style={styles.optionLast} onPress={() => {
-            handleShareApp(); triggerHapticFeedback('impactLight');
-          }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
-              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Icon name="notifications" size={18} color={'white'} style={{backgroundColor:config.colors.hasBlockGreen, padding:5, borderRadius:5}}/>
-                <Text style={styles.optionText}>{t('settings.chat_notifications')}</Text></TouchableOpacity>
-              <Switch
-                value={isPermissionGranted}
-                onValueChange={handleToggleNotification}
-              />
-            </View>
+            <Text style={styles.subtitle}>{t('settings.app_settings')}</Text>
+            <View style={styles.cardContainer}>
+              <View style={styles.option} onPress={() => {
+                handleShareApp(); triggerHapticFeedback('impactLight');
+              }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+                  <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Icon name="radio-outline" size={18} color={'white'} style={{ backgroundColor: '#B76E79', padding: 5, borderRadius: 5 }} />
+                    <Text style={styles.optionText}>{t('settings.haptic_feedback')}</Text></TouchableOpacity>
+                  <Switch value={localState.isHaptic} onValueChange={handleToggle} />
+                </View>
 
-          </View>
+              </View>
+              <View style={styles.optionLast} onPress={() => {
+                handleShareApp(); triggerHapticFeedback('impactLight');
+              }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+                  <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Icon name="notifications" size={18} color={'white'} style={{ backgroundColor: config.colors.hasBlockGreen, padding: 5, borderRadius: 5 }} />
+                    <Text style={styles.optionText}>{t('settings.chat_notifications')}</Text></TouchableOpacity>
+                  <Switch
+                    value={isPermissionGranted}
+                    onValueChange={handleToggleNotification}
+                  />
+                </View>
 
-          <View style={styles.optionLast} onPress={() => {
-            handleShareApp(); triggerHapticFeedback('impactLight');
-          }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
-              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Icon name="contrast-outline" size={18} color={'white'} style={{backgroundColor:'#4A90E2', padding:5, borderRadius:5}}/>
-                <Text style={styles.optionText}>{t('settings.theme')}</Text></TouchableOpacity>
-              <View style={styles.containertheme}>
-                {themes.map((theme, index) => (
-                  <TouchableOpacity
-                    key={theme}
-                    style={[
-                      styles.box,
-                      localState.theme === ['system', 'light', 'dark'][index].toLowerCase() && styles.selectedBox, // Highlight selected box
-                    ]}
-                    onPress={() => updateLocalState('theme', ['system', 'light', 'dark'][index])}
-                  >
-                    
-                    <Text
-                    style={[
-                      styles.text,
-                      localState.theme === ['system', 'light', 'dark'][index] && styles.selectedText, // Highlight selected text
-                    ]}
-                  >
-                    {theme}
-                  </Text>
-                  </TouchableOpacity>
-                ))}
+              </View>
+
+              <View style={styles.optionLast} onPress={() => {
+                handleShareApp(); triggerHapticFeedback('impactLight');
+              }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+                  <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Icon name="contrast-outline" size={18} color={'white'} style={{ backgroundColor: '#4A90E2', padding: 5, borderRadius: 5 }} />
+                    <Text style={styles.optionText}>{t('settings.theme')}</Text></TouchableOpacity>
+                  <View style={styles.containertheme}>
+                    {themes.map((theme, index) => (
+                      <TouchableOpacity
+                        key={theme}
+                        style={[
+                          styles.box,
+                          localState.theme === ['system', 'light', 'dark'][index].toLowerCase() && styles.selectedBox, // Highlight selected box
+                        ]}
+                        onPress={() => updateLocalState('theme', ['system', 'light', 'dark'][index])}
+                      >
+
+                        <Text
+                          style={[
+                            styles.text,
+                            localState.theme === ['system', 'light', 'dark'][index] && styles.selectedText, // Highlight selected text
+                          ]}
+                        >
+                          {theme}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
               </View>
             </View>
-          </View>
-        </View>
 
-        {/* <Text style={styles.subtitle}>{t('settings.language_settings')}</Text>
+            {/* <Text style={styles.subtitle}>{t('settings.language_settings')}</Text>
         <View style={styles.cardContainer}>
           <View style={[styles.optionLast, { flexDirection: 'row', justifyContent: 'space-between' }]}>
             <View style={{ flexDirection: 'row', }}>
@@ -2872,638 +2872,639 @@ const formatPlanName = (plan) => {
         </View> */}
 
 
-        <Text style={styles.subtitle}>{t('settings.pro_subscription')}</Text>
-        <View style={[styles.cardContainer, {backgroundColor:'#FFD700'}]}>
+            <Text style={styles.subtitle}>{t('settings.pro_subscription')}</Text>
+            <View style={[styles.cardContainer, { backgroundColor: '#FFD700' }]}>
 
-          <TouchableOpacity style={[styles.optionLast]} onPress={() => { setShowofferWall(true);     
- }}>
-            <Icon name="prism-outline" size={18} color={'white'} style={{backgroundColor:config.colors.hasBlockGreen, padding:5, borderRadius:5}}/>
-            <Text style={[styles.optionText, {color:'black'}]}>
-            {t('settings.active_plan')} : {localState.isPro ? t('settings.paid') : t('settings.free')}
-            </Text>
-          </TouchableOpacity>
-          {localState.isPro && (
-            <View style={styles.subscriptionContainer}>
-              <Text style={styles.subscriptionText}>
-              {t('settings.active_plan')} - 
-                  {mySubscriptions.length === 0
-                  ?   t('settings.paid')
-                  : mySubscriptions.map(sub => formatPlanName(sub.plan)).join(', ')}
-              </Text>
-
-              <TouchableOpacity onPress={manageSubscription} style={styles.manageButton}>
-                <Text style={styles.manageButtonText}>{t('settings.manage')}</Text>
+              <TouchableOpacity style={[styles.optionLast]} onPress={() => {
+                setShowofferWall(true);
+              }}>
+                <Icon name="prism-outline" size={18} color={'white'} style={{ backgroundColor: config.colors.hasBlockGreen, padding: 5, borderRadius: 5 }} />
+                <Text style={[styles.optionText, { color: 'black' }]}>
+                  {t('settings.active_plan')} : {localState.isPro ? t('settings.paid') : t('settings.free')}
+                </Text>
               </TouchableOpacity>
+              {localState.isPro && (
+                <View style={styles.subscriptionContainer}>
+                  <Text style={styles.subscriptionText}>
+                    {t('settings.active_plan')} -
+                    {mySubscriptions.length === 0
+                      ? t('settings.paid')
+                      : mySubscriptions.map(sub => formatPlanName(sub.plan)).join(', ')}
+                  </Text>
 
+                  <TouchableOpacity onPress={manageSubscription} style={styles.manageButton}>
+                    <Text style={styles.manageButtonText}>{t('settings.manage')}</Text>
+                  </TouchableOpacity>
+
+                </View>
+              )}
             </View>
-          )}
-        </View>
-     
-
-        <Text style={styles.subtitle}>{t('settings.other_settings')}</Text>
-
-        <View style={styles.cardContainer}>
 
 
-          <TouchableOpacity style={styles.option} onPress={() => {
-            handleShareApp(); triggerHapticFeedback('impactLight');
-          }}>
-            <Icon name="share-social-outline" size={18} color={'white'} style={{backgroundColor:'#B76E79', padding:5, borderRadius:5}}/>
-            <Text style={styles.optionText}>{t('settings.share_app')}</Text>
-          </TouchableOpacity>
-          {/* <TouchableOpacity style={styles.option} onPress={() => {
+            <Text style={styles.subtitle}>{t('settings.other_settings')}</Text>
+
+            <View style={styles.cardContainer}>
+
+
+              <TouchableOpacity style={styles.option} onPress={() => {
+                handleShareApp(); triggerHapticFeedback('impactLight');
+              }}>
+                <Icon name="share-social-outline" size={18} color={'white'} style={{ backgroundColor: '#B76E79', padding: 5, borderRadius: 5 }} />
+                <Text style={styles.optionText}>{t('settings.share_app')}</Text>
+              </TouchableOpacity>
+              {/* <TouchableOpacity style={styles.option} onPress={() => {
             handleGetSuggestions(user); triggerHapticFeedback('impactLight');
           }}>
             <Icon name="color-filter-outline" size={18} color={'white'}  style={{backgroundColor:'#066D5D', padding:5, borderRadius:5}}/>
             <Text style={styles.optionText}>Partner with Us</Text>
           </TouchableOpacity> */}
-          <TouchableOpacity style={styles.option} onPress={() => {
-            handleGetSuggestions(user); triggerHapticFeedback('impactLight');
-          }}>
-            <Icon name="mail-outline" size={18} color={'white'}  style={{backgroundColor:'#566D5D', padding:5, borderRadius:5}}/>
-            <Text style={styles.optionText}>Contact Us</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.option} onPress={() => {
-            handleReport(user); triggerHapticFeedback('impactLight');
-          }}>
-            <Icon name="warning" size={18} color={'pink'}  style={{backgroundColor:'#566D5D', padding:5, borderRadius:5}}/>
-            <Text style={styles.optionText}>Report Abusive Content</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.option} onPress={() => { handleRateApp(); triggerHapticFeedback('impactLight'); }
-          }>
-            <Icon name="star-outline" size={18} color={'white'} style={{backgroundColor:'#A2B38B', padding:5, borderRadius:5}}/>
-            <Text style={styles.optionText}>{t('settings.rate_us')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.option} onPress={() => {
-            handleOpenFacebook(); triggerHapticFeedback('impactLight');
-          }}>
-            <Icon name="logo-facebook" size={18} color={'white'} style={{backgroundColor:'#566D5D', padding:5, borderRadius:5}}/>
-            <Text style={styles.optionText}>{t('settings.visit_facebook_group')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={user?.id ? styles.option : styles.optionLast} onPress={() => {
-            handleOpenWebsite(); triggerHapticFeedback('impactLight');
-          }}>
-            <Icon name="link-outline" size={18} color={'white'}  style={{backgroundColor:'#4B4453', padding:5, borderRadius:5}}/>
-            <Text style={styles.optionText}>{t('settings.visit_website')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={user?.id ? styles.option : styles.optionLast} onPress={() => {
-            handleOpenPrivacy(); triggerHapticFeedback('impactLight');
-          }}>
-            <Icon name="link-outline" size={18} color={'white'}  style={{backgroundColor:'green', padding:5, borderRadius:5}}/>
-            <Text style={styles.optionText}>Privacy Policy</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={user?.id ? styles.option : styles.optionLast} onPress={() => {
-            handleOpenChild(); triggerHapticFeedback('impactLight');
-          }}>
-            <Icon name="link-outline" size={18} color={'white'}  style={{backgroundColor:'blue', padding:5, borderRadius:5}}/>
-            <Text style={styles.optionText}>Child Safety Standards</Text>
-          </TouchableOpacity>
-          {user?.id && <TouchableOpacity style={styles.option} onPress={handleLogout} >
-            <Icon name="person-outline" size={18} color={'white'} style={{backgroundColor:'#4B4453', padding:5, borderRadius:5}} />
-            <Text style={styles.optionTextLogout}>{t('settings.logout')}</Text>
-          </TouchableOpacity>}
-          {user?.id && <TouchableOpacity style={styles.optionDelete} onPress={handleDeleteUser} >
-            <Icon name="warning-outline" size={24} color={'#4B4453'} />
-            <Text style={styles.optionTextDelete}>{t('settings.delete_my_account')}</Text>
-          </TouchableOpacity>}
-
-         
-
-        </View>
-        <Text style={styles.subtitle}>Our Other APPS</Text>
-       
-        <View style={styles.cardContainer}>
+              <TouchableOpacity style={styles.option} onPress={() => {
+                handleGetSuggestions(user); triggerHapticFeedback('impactLight');
+              }}>
+                <Icon name="mail-outline" size={18} color={'white'} style={{ backgroundColor: '#566D5D', padding: 5, borderRadius: 5 }} />
+                <Text style={styles.optionText}>Contact Us</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.option} onPress={() => {
+                handleReport(user); triggerHapticFeedback('impactLight');
+              }}>
+                <Icon name="warning" size={18} color={'pink'} style={{ backgroundColor: '#566D5D', padding: 5, borderRadius: 5 }} />
+                <Text style={styles.optionText}>Report Abusive Content</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.option} onPress={() => { handleRateApp(); triggerHapticFeedback('impactLight'); }
+              }>
+                <Icon name="star-outline" size={18} color={'white'} style={{ backgroundColor: '#A2B38B', padding: 5, borderRadius: 5 }} />
+                <Text style={styles.optionText}>{t('settings.rate_us')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.option} onPress={() => {
+                handleOpenFacebook(); triggerHapticFeedback('impactLight');
+              }}>
+                <Icon name="logo-facebook" size={18} color={'white'} style={{ backgroundColor: '#566D5D', padding: 5, borderRadius: 5 }} />
+                <Text style={styles.optionText}>{t('settings.visit_facebook_group')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={user?.id ? styles.option : styles.optionLast} onPress={() => {
+                handleOpenWebsite(); triggerHapticFeedback('impactLight');
+              }}>
+                <Icon name="link-outline" size={18} color={'white'} style={{ backgroundColor: '#4B4453', padding: 5, borderRadius: 5 }} />
+                <Text style={styles.optionText}>{t('settings.visit_website')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={user?.id ? styles.option : styles.optionLast} onPress={() => {
+                handleOpenPrivacy(); triggerHapticFeedback('impactLight');
+              }}>
+                <Icon name="link-outline" size={18} color={'white'} style={{ backgroundColor: 'green', padding: 5, borderRadius: 5 }} />
+                <Text style={styles.optionText}>Privacy Policy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={user?.id ? styles.option : styles.optionLast} onPress={() => {
+                handleOpenChild(); triggerHapticFeedback('impactLight');
+              }}>
+                <Icon name="link-outline" size={18} color={'white'} style={{ backgroundColor: 'blue', padding: 5, borderRadius: 5 }} />
+                <Text style={styles.optionText}>Child Safety Standards</Text>
+              </TouchableOpacity>
+              {user?.id && <TouchableOpacity style={styles.option} onPress={handleLogout} >
+                <Icon name="person-outline" size={18} color={'white'} style={{ backgroundColor: '#4B4453', padding: 5, borderRadius: 5 }} />
+                <Text style={styles.optionTextLogout}>{t('settings.logout')}</Text>
+              </TouchableOpacity>}
+              {user?.id && <TouchableOpacity style={styles.optionDelete} onPress={handleDeleteUser} >
+                <Icon name="warning-outline" size={24} color={'#4B4453'} />
+                <Text style={styles.optionTextDelete}>{t('settings.delete_my_account')}</Text>
+              </TouchableOpacity>}
 
 
-<TouchableOpacity style={styles.option} onPress={() => {
-  handleadoptme(); triggerHapticFeedback('impactLight');
-}}>
- <Image 
-  source={require('../../assets/adoptme.png')} 
-  style={{ width: 40, height: 40,   borderRadius: 5 }} 
-/>
 
-  <Text style={styles.optionText}>Adopt Me Values</Text>
-</TouchableOpacity>
-<TouchableOpacity style={styles.optionLast} onPress={() => {
-            handleMM2(); triggerHapticFeedback('impactLight');
-          }}>
-            <Image
-              source={require('../../assets/logo2.png')}
-              style={{ width: 40, height: 40, borderRadius: 5 }}
-            />
+            </View>
+            <Text style={styles.subtitle}>Our Other APPS</Text>
 
-            <Text style={styles.optionText}>MM2 Values</Text>
-          </TouchableOpacity>
+            <View style={styles.cardContainer}>
 
 
-</View>
-<Text style={styles.subtitle}>Business Enquiries
-</Text>
+              <TouchableOpacity style={styles.option} onPress={() => {
+                handleadoptme(); triggerHapticFeedback('impactLight');
+              }}>
+                <Image
+                  source={require('../../assets/adoptme.png')}
+                  style={{ width: 40, height: 40, borderRadius: 5 }}
+                />
 
-<Text style={styles.text}>
-    For collaborations, partnerships, or other business-related queries, feel free to contact us at:{' '}
-    <TouchableOpacity onPress={() => Linking.openURL('mailto:thesolanalabs@gmail.com')}>
-      <Text style={styles.emailText}>thesolanalabs@gmail.com</Text>
-    </TouchableOpacity>
-  </Text>
+                <Text style={styles.optionText}>Adopt Me Values</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.optionLast} onPress={() => {
+                handleMM2(); triggerHapticFeedback('impactLight');
+              }}>
+                <Image
+                  source={require('../../assets/logo2.png')}
+                  style={{ width: 40, height: 40, borderRadius: 5 }}
+                />
+
+                <Text style={styles.optionText}>MM2 Values</Text>
+              </TouchableOpacity>
 
 
-      </ScrollView>}
+            </View>
+            <Text style={styles.subtitle}>Business Enquiries
+            </Text>
 
-      {/* Bottom Drawer */}
-         {/* Bottom Drawer */}
-         <Modal
-        animationType="slide"
-        transparent={true}
-        visible={isDrawerVisible}
-        onRequestClose={() => setDrawerVisible(false)}
-      >
-        <Pressable
-          style={styles.overlay}
-          onPress={() => setDrawerVisible(false)}
+            <Text style={styles.text}>
+              For collaborations, partnerships, or other business-related queries, feel free to contact us at:{' '}
+              <TouchableOpacity onPress={() => Linking.openURL('mailto:thesolanalabs@gmail.com')}>
+                <Text style={styles.emailText}>thesolanalabs@gmail.com</Text>
+              </TouchableOpacity>
+            </Text>
+
+
+          </ScrollView>}
+
+        {/* Bottom Drawer */}
+        {/* Bottom Drawer */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={isDrawerVisible}
+          onRequestClose={() => setDrawerVisible(false)}
+        >
+          <Pressable
+            style={styles.overlay}
+            onPress={() => setDrawerVisible(false)}
+          />
+          <ConditionalKeyboardWrapper>
+            <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+              <EditProfileDrawerContent
+                isDarkMode={isDarkMode}
+                newDisplayName={newDisplayName}
+                setNewDisplayName={setNewDisplayName}
+                handlePickAndUploadAvatar={handlePickAndUploadAvatar}
+                uploadingAvatar={uploadingAvatar}
+                avatarSearch={avatarSearch}
+                setAvatarSearch={setAvatarSearch}
+                filteredAvatarOptions={filteredAvatarOptions}
+                selectedImage={selectedImage}
+                setSelectedImage={setSelectedImage}
+                bio={bio}
+                setBio={setBio}
+                handleSaveChanges={handleSaveChanges}
+                t={t}
+                config={config}
+                user={user}
+                isVisible={isDrawerVisible}
+              />
+            </View>
+          </ConditionalKeyboardWrapper>
+        </Modal>
+        <PetModal fromSetting={true} ownedPets={ownedPets} setOwnedPets={setOwnedPets} wishlistPets={wishlistPets} setWishlistPets={setWishlistPets} onClose={async () => { { setPetModalVisible(false); await savePetsToReviews(ownedPets, wishlistPets) } }} visible={petModalVisible} owned={owned}
         />
-        <ConditionalKeyboardWrapper>
-          <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-            <EditProfileDrawerContent
-              isDarkMode={isDarkMode}
-              newDisplayName={newDisplayName}
-              setNewDisplayName={setNewDisplayName}
-              handlePickAndUploadAvatar={handlePickAndUploadAvatar}
-              uploadingAvatar={uploadingAvatar}
-              avatarSearch={avatarSearch}
-              setAvatarSearch={setAvatarSearch}
-              filteredAvatarOptions={filteredAvatarOptions}
-              selectedImage={selectedImage}
-              setSelectedImage={setSelectedImage}
-              bio={bio}
-              setBio={setBio}
-              handleSaveChanges={handleSaveChanges}
-              t={t}
-              config={config}
-              user={user}
-              isVisible={isDrawerVisible}
-            />
-          </View>
-        </ConditionalKeyboardWrapper>
-      </Modal>
-      <PetModal fromSetting={true} ownedPets={ownedPets} setOwnedPets={setOwnedPets} wishlistPets={wishlistPets} setWishlistPets={setWishlistPets} onClose={async ()=>{{ setPetModalVisible(false); await savePetsToReviews(ownedPets, wishlistPets)}}}       visible={petModalVisible} owned={owned}
-            />
-      <SubscriptionScreen visible={showOfferWall} onClose={() => setShowofferWall(false)} track='Setting'   oneWallOnly={single_offer_wall}
-      />
-      <SignInDrawer
-        visible={openSingnin}
-        onClose={() => setOpenSignin(false)}
-        selectedTheme={selectedTheme}
-        message='Signin to access all features'
-         screen='Setting'
-      />
+        <SubscriptionScreen visible={showOfferWall} onClose={() => setShowofferWall(false)} track='Setting' oneWallOnly={single_offer_wall}
+        />
+        <SignInDrawer
+          visible={openSingnin}
+          onClose={() => setOpenSignin(false)}
+          selectedTheme={selectedTheme}
+          message='Signin to access all features'
+          screen='Setting'
+        />
 
-      {/* Reviews I Gave Modal */}
-      <Modal
-        visible={showGaveReviewsModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => {
-          setShowGaveReviewsModal(false);
-          setModalGaveReviews([]);
-          setModalLastGaveDoc(null);
-          setModalHasMoreGave(false);
-        }}
-      >
-        <Pressable
-          style={styles.overlay}
-          onPress={() => {
+        {/* Reviews I Gave Modal */}
+        <Modal
+          visible={showGaveReviewsModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => {
             setShowGaveReviewsModal(false);
             setModalGaveReviews([]);
             setModalLastGaveDoc(null);
             setModalHasMoreGave(false);
           }}
-        />
-        <View style={{ 
-          flex: 1, 
-          justifyContent: 'flex-end',
-          backgroundColor: 'rgba(0,0,0,0.5)' 
-        }}>
-          <View style={[styles.drawer, { maxHeight: '90%' }]}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <Text style={styles.drawerSubtitle}>Reviews I Gave</Text>
-              <TouchableOpacity onPress={() => {
-                setShowGaveReviewsModal(false);
-                setModalGaveReviews([]);
-                setModalLastGaveDoc(null);
-                setModalHasMoreGave(false);
-              }}>
-                <Icon name="close" size={24} color={isDarkMode ? '#fff' : '#000'} />
-              </TouchableOpacity>
-  </View>
+        >
+          <Pressable
+            style={styles.overlay}
+            onPress={() => {
+              setShowGaveReviewsModal(false);
+              setModalGaveReviews([]);
+              setModalLastGaveDoc(null);
+              setModalHasMoreGave(false);
+            }}
+          />
+          <View style={{
+            flex: 1,
+            justifyContent: 'flex-end',
+            backgroundColor: 'rgba(0,0,0,0.5)'
+          }}>
+            <View style={[styles.drawer, { maxHeight: '90%' }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <Text style={styles.drawerSubtitle}>Reviews I Gave</Text>
+                <TouchableOpacity onPress={() => {
+                  setShowGaveReviewsModal(false);
+                  setModalGaveReviews([]);
+                  setModalLastGaveDoc(null);
+                  setModalHasMoreGave(false);
+                }}>
+                  <Icon name="close" size={24} color={isDarkMode ? '#fff' : '#000'} />
+                </TouchableOpacity>
+              </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {loadingModalGaveReviews && modalGaveReviews.length === 0 ? (
-                <ActivityIndicator size="small" color={config.colors.primary} style={{ marginVertical: 20 }} />
-              ) : modalGaveReviews.length === 0 ? (
-                <Text style={{ textAlign: 'center', color: isDarkMode ? '#9ca3af' : '#6b7280', marginVertical: 20 }}>
-                  No reviews found
-                </Text>
-              ) : (
-                <>
-                  {modalGaveReviews.map((review) => (
-                    <View
-                      key={review.id}
-                      style={{
-                        backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
-                        borderRadius: 12,
-                        padding: 8,
-                        marginBottom: 8,
-                        borderWidth: 1,
-                        borderColor: isDarkMode ? '#1f2937' : '#e5e7eb',
-                      }}
-                    >
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 14, fontWeight: '600', color: isDarkMode ? '#e5e7eb' : '#111827', marginBottom: 4 }}>
-                            {review.reviewedUserName || 'Unknown User'}
-                          </Text>
-                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            {[1, 2, 3, 4, 5].map((star) => (
-                              <Icon
-                                key={star}
-                                name={star <= review.rating ? 'star' : 'star-outline'}
-                                size={14}
-                                color={star <= review.rating ? '#FFD700' : '#ccc'}
-                                style={{ marginRight: 2 }}
-                              />
-                            ))}
-                            {review.edited && (
-                              <Text style={{ fontSize: 10, color: isDarkMode ? '#9ca3af' : '#6b7280', marginLeft: 6 }}>
-                                (Edited)
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {loadingModalGaveReviews && modalGaveReviews.length === 0 ? (
+                  <ActivityIndicator size="small" color={config.colors.primary} style={{ marginVertical: 20 }} />
+                ) : modalGaveReviews.length === 0 ? (
+                  <Text style={{ textAlign: 'center', color: isDarkMode ? '#9ca3af' : '#6b7280', marginVertical: 20 }}>
+                    No reviews found
+                  </Text>
+                ) : (
+                  <>
+                    {modalGaveReviews.map((review) => (
+                      <View
+                        key={review.id}
+                        style={{
+                          backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
+                          borderRadius: 12,
+                          padding: 8,
+                          marginBottom: 8,
+                          borderWidth: 1,
+                          borderColor: isDarkMode ? '#1f2937' : '#e5e7eb',
+                        }}
+                      >
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 14, fontWeight: '600', color: isDarkMode ? '#e5e7eb' : '#111827', marginBottom: 4 }}>
+                              {review.reviewedUserName || 'Unknown User'}
+                            </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Icon
+                                  key={star}
+                                  name={star <= review.rating ? 'star' : 'star-outline'}
+                                  size={14}
+                                  color={star <= review.rating ? '#FFD700' : '#ccc'}
+                                  style={{ marginRight: 2 }}
+                                />
+                              ))}
+                              {review.edited && (
+                                <Text style={{ fontSize: 10, color: isDarkMode ? '#9ca3af' : '#6b7280', marginLeft: 6 }}>
+                                  (Edited)
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            {review.updatedAt && (
+                              <Text style={{ fontSize: 10, color: isDarkMode ? '#9ca3af' : '#9ca3af' }}>
+                                {review.updatedAt.toDate ?
+                                  new Date(review.updatedAt.toDate()).toLocaleDateString() :
+                                  new Date(review.updatedAt).toLocaleDateString()}
                               </Text>
                             )}
-  </View>
+                            <TouchableOpacity
+                              onPress={() => {
+                                setShowGaveReviewsModal(false);
+                                handleEditReview(review);
+                              }}
+                              style={{ padding: 4 }}
+                            >
+                              <Icon name="create-outline" size={18} color={config.colors.primary} />
+                            </TouchableOpacity>
+                          </View>
                         </View>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          {review.updatedAt && (
-                            <Text style={{ fontSize: 10, color: isDarkMode ? '#9ca3af' : '#9ca3af' }}>
-                              {review.updatedAt.toDate ? 
-                                new Date(review.updatedAt.toDate()).toLocaleDateString() :
-                                new Date(review.updatedAt).toLocaleDateString()}
-              </Text>
-                          )}
-                          <TouchableOpacity
-                            onPress={() => {
-                              setShowGaveReviewsModal(false);
-                              handleEditReview(review);
-                            }}
-                            style={{ padding: 4 }}
-                          >
-                            <Icon name="create-outline" size={18} color={config.colors.primary} />
-                          </TouchableOpacity>
-                        </View>
+                        <Text style={{ fontSize: 13, color: isDarkMode ? '#d1d5db' : '#4b5563', lineHeight: 18 }}>
+                          {review.review}
+                        </Text>
                       </View>
-                      <Text style={{ fontSize: 13, color: isDarkMode ? '#d1d5db' : '#4b5563', lineHeight: 18 }}>
-                        {review.review}
-                      </Text>
-                    </View>
-                  ))}
+                    ))}
 
-                  {modalHasMoreGave && (
-              <TouchableOpacity
-                      style={{
-                        backgroundColor: config.colors.primary,
-                        paddingVertical: 12,
-                        paddingHorizontal: 16,
-                        borderRadius: 8,
-                    alignItems: 'center',
-                        marginTop: 8,
-                        marginBottom: 16,
-                      }}
-                      onPress={loadMoreGaveModalReviews}
-                      disabled={loadingModalGaveReviews}
-                    >
-                      {loadingModalGaveReviews ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                      ) : (
-                        <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
-                          Load More
-                    </Text>
+                    {modalHasMoreGave && (
+                      <TouchableOpacity
+                        style={{
+                          backgroundColor: config.colors.primary,
+                          paddingVertical: 12,
+                          paddingHorizontal: 16,
+                          borderRadius: 8,
+                          alignItems: 'center',
+                          marginTop: 8,
+                          marginBottom: 16,
+                        }}
+                        onPress={loadMoreGaveModalReviews}
+                        disabled={loadingModalGaveReviews}
+                      >
+                        {loadingModalGaveReviews ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
+                            Load More
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                  </>
                 )}
-              </TouchableOpacity>
-                  )}
-                </>
-              )}
-            </ScrollView>
+              </ScrollView>
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-      {/* Reviews I Received Modal */}
-      <Modal
-        visible={showReceivedReviewsModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => {
-          setShowReceivedReviewsModal(false);
-          setModalReceivedReviews([]);
-          setModalLastReceivedDoc(null);
-          setModalHasMoreReceived(false);
-        }}
-      >
-        <Pressable
-          style={styles.overlay}
-          onPress={() => {
+        {/* Reviews I Received Modal */}
+        <Modal
+          visible={showReceivedReviewsModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => {
             setShowReceivedReviewsModal(false);
             setModalReceivedReviews([]);
             setModalLastReceivedDoc(null);
             setModalHasMoreReceived(false);
           }}
-        />
-        <View style={{ 
-          flex: 1, 
-          justifyContent: 'flex-end',
-          backgroundColor: 'rgba(0,0,0,0.5)' 
-        }}>
-          <View style={[styles.drawer, { maxHeight: '90%' }]}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <Text style={styles.drawerSubtitle}>Reviews I Received</Text>
-              <TouchableOpacity onPress={() => {
-                setShowReceivedReviewsModal(false);
-                setModalReceivedReviews([]);
-                setModalLastReceivedDoc(null);
-                setModalHasMoreReceived(false);
-              }}>
-                <Icon name="close" size={24} color={isDarkMode ? '#fff' : '#000'} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {loadingModalReceivedReviews && modalReceivedReviews.length === 0 ? (
-                <ActivityIndicator size="small" color={config.colors.primary} style={{ marginVertical: 20 }} />
-              ) : modalReceivedReviews.length === 0 ? (
-                <Text style={{ textAlign: 'center', color: isDarkMode ? '#9ca3af' : '#6b7280', marginVertical: 20 }}>
-                  No reviews found
-                </Text>
-              ) : (
-                <>
-                  {modalReceivedReviews.map((review) => (
-                    <View
-                      key={review.id}
-                      style={{
-                        backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
-                        borderRadius: 12,
-                        padding: 8,
-                        marginBottom: 8,
-                        borderWidth: 1,
-                        borderColor: isDarkMode ? '#1f2937' : '#e5e7eb',
-                      }}
-                    >
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 14, fontWeight: '600', color: isDarkMode ? '#e5e7eb' : '#111827', marginBottom: 4 }}>
-                            {review.reviewerName || 'Unknown User'}
-                          </Text>
-                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            {[1, 2, 3, 4, 5].map((star) => (
-                              <Icon
-                                key={star}
-                                name={star <= review.rating ? 'star' : 'star-outline'}
-                                size={14}
-                                color={star <= review.rating ? '#FFD700' : '#ccc'}
-                                style={{ marginRight: 2 }}
-                              />
-                            ))}
-                            {review.edited && (
-                              <Text style={{ fontSize: 10, color: isDarkMode ? '#9ca3af' : '#6b7280', marginLeft: 6 }}>
-                                (Edited)
-                              </Text>
-                            )}
-                          </View>
-                        </View>
-                        {review.updatedAt && (
-                          <Text style={{ fontSize: 10, color: isDarkMode ? '#9ca3af' : '#9ca3af' }}>
-                            {review.updatedAt.toDate ? 
-                              new Date(review.updatedAt.toDate()).toLocaleDateString() :
-                              new Date(review.updatedAt).toLocaleDateString()}
-                          </Text>
-                        )}
-                      </View>
-                      <Text style={{ fontSize: 13, color: isDarkMode ? '#d1d5db' : '#4b5563', lineHeight: 18 }}>
-                        {review.review}
-                      </Text>
-                    </View>
-                  ))}
-
-                  {modalHasMoreReceived && (
-                    <TouchableOpacity
-                        style={{
-                        backgroundColor: config.colors.primary,
-                        paddingVertical: 12,
-                        paddingHorizontal: 16,
-                        borderRadius: 8,
-                        alignItems: 'center',
-                        marginTop: 8,
-                        marginBottom: 16,
-                      }}
-                      onPress={loadMoreReceivedModalReviews}
-                      disabled={loadingModalReceivedReviews}
-                    >
-                      {loadingModalReceivedReviews ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                      ) : (
-                        <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
-                          Load More
-                      </Text>
-                      )}
-                  </TouchableOpacity>
-                )}
-                </>
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Edit Review Modal */}
-      <Modal
-        visible={!!editingReview}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => {
-          setEditingReview(null);
-          setEditReviewText('');
-          setEditReviewRating(0);
-        }}
-      >
-        <Pressable
-          style={styles.overlay}
-          onPress={() => {
-            setEditingReview(null);
-            setEditReviewText('');
-            setEditReviewRating(0);
-          }}
-        />
-        <ConditionalKeyboardWrapper>
-          <View style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-            <View style={styles.drawer}>
+        >
+          <Pressable
+            style={styles.overlay}
+            onPress={() => {
+              setShowReceivedReviewsModal(false);
+              setModalReceivedReviews([]);
+              setModalLastReceivedDoc(null);
+              setModalHasMoreReceived(false);
+            }}
+          />
+          <View style={{
+            flex: 1,
+            justifyContent: 'flex-end',
+            backgroundColor: 'rgba(0,0,0,0.5)'
+          }}>
+            <View style={[styles.drawer, { maxHeight: '90%' }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <Text style={styles.drawerSubtitle}>Edit Review</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    setEditingReview(null);
-                    setEditReviewText('');
-                    setEditReviewRating(0);
-                  }}
-                >
+                <Text style={styles.drawerSubtitle}>Reviews I Received</Text>
+                <TouchableOpacity onPress={() => {
+                  setShowReceivedReviewsModal(false);
+                  setModalReceivedReviews([]);
+                  setModalLastReceivedDoc(null);
+                  setModalHasMoreReceived(false);
+                }}>
                   <Icon name="close" size={24} color={isDarkMode ? '#fff' : '#000'} />
                 </TouchableOpacity>
               </View>
 
-              <Text style={[styles.drawerSubtitle, { marginBottom: 8 }]}>Rating</Text>
-              <View style={{ flexDirection: 'row', marginBottom: 16 }}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <TouchableOpacity
-                    key={star}
-                    onPress={() => setEditReviewRating(star)}
-                    style={{ marginRight: 8 }}
-                  >
-                    <Icon
-                      name={star <= editReviewRating ? 'star' : 'star-outline'}
-                      size={32}
-                      color={star <= editReviewRating ? '#FFD700' : '#ccc'}
-                    />
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {loadingModalReceivedReviews && modalReceivedReviews.length === 0 ? (
+                  <ActivityIndicator size="small" color={config.colors.primary} style={{ marginVertical: 20 }} />
+                ) : modalReceivedReviews.length === 0 ? (
+                  <Text style={{ textAlign: 'center', color: isDarkMode ? '#9ca3af' : '#6b7280', marginVertical: 20 }}>
+                    No reviews found
+                  </Text>
+                ) : (
+                  <>
+                    {modalReceivedReviews.map((review) => (
+                      <View
+                        key={review.id}
+                        style={{
+                          backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
+                          borderRadius: 12,
+                          padding: 8,
+                          marginBottom: 8,
+                          borderWidth: 1,
+                          borderColor: isDarkMode ? '#1f2937' : '#e5e7eb',
+                        }}
+                      >
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 14, fontWeight: '600', color: isDarkMode ? '#e5e7eb' : '#111827', marginBottom: 4 }}>
+                              {review.reviewerName || 'Unknown User'}
+                            </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Icon
+                                  key={star}
+                                  name={star <= review.rating ? 'star' : 'star-outline'}
+                                  size={14}
+                                  color={star <= review.rating ? '#FFD700' : '#ccc'}
+                                  style={{ marginRight: 2 }}
+                                />
+                              ))}
+                              {review.edited && (
+                                <Text style={{ fontSize: 10, color: isDarkMode ? '#9ca3af' : '#6b7280', marginLeft: 6 }}>
+                                  (Edited)
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+                          {review.updatedAt && (
+                            <Text style={{ fontSize: 10, color: isDarkMode ? '#9ca3af' : '#9ca3af' }}>
+                              {review.updatedAt.toDate ?
+                                new Date(review.updatedAt.toDate()).toLocaleDateString() :
+                                new Date(review.updatedAt).toLocaleDateString()}
+                            </Text>
+                          )}
+                        </View>
+                        <Text style={{ fontSize: 13, color: isDarkMode ? '#d1d5db' : '#4b5563', lineHeight: 18 }}>
+                          {review.review}
+                        </Text>
+                      </View>
+                    ))}
 
-              <Text style={[styles.drawerSubtitle, { marginBottom: 8 }]}>Review</Text>
-              <TextInput
-                style={[styles.input, { minHeight: 100, textAlignVertical: 'top' }]}
-                placeholder="Write your review..."
-                placeholderTextColor="#999"
-                value={editReviewText}
-                onChangeText={setEditReviewText}
-                multiline
-                numberOfLines={4}
-              />
-
-              <TouchableOpacity
-                   style={[styles.saveButton, { marginTop: 16 }]}
-                onPress={handleSaveEditedReview}
-              >
-                <Text style={styles.saveButtonText}>Save Changes</Text>
-              </TouchableOpacity>
+                    {modalHasMoreReceived && (
+                      <TouchableOpacity
+                        style={{
+                          backgroundColor: config.colors.primary,
+                          paddingVertical: 12,
+                          paddingHorizontal: 16,
+                          borderRadius: 8,
+                          alignItems: 'center',
+                          marginTop: 8,
+                          marginBottom: 16,
+                        }}
+                        onPress={loadMoreReceivedModalReviews}
+                        disabled={loadingModalReceivedReviews}
+                      >
+                        {loadingModalReceivedReviews ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
+                            Load More
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                  </>
+                )}
+              </ScrollView>
             </View>
           </View>
-        </ConditionalKeyboardWrapper>
-      </Modal>
+        </Modal>
 
-      {/* My Trades Modal */}
-      <Modal
-        visible={showMyTradesModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => {
-          setShowMyTradesModal(false);
-          setModalMyTrades([]);
-          setModalLastTradeDoc(null);
-          setModalHasMoreTrades(false);
-        }}
-      >
-        <Pressable
-          style={styles.overlay}
-          onPress={() => {
+        {/* Edit Review Modal */}
+        <Modal
+          visible={!!editingReview}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => {
+            setEditingReview(null);
+            setEditReviewText('');
+            setEditReviewRating(0);
+          }}
+        >
+          <Pressable
+            style={styles.overlay}
+            onPress={() => {
+              setEditingReview(null);
+              setEditReviewText('');
+              setEditReviewRating(0);
+            }}
+          />
+          <ConditionalKeyboardWrapper>
+            <View style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+              <View style={styles.drawer}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <Text style={styles.drawerSubtitle}>Edit Review</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setEditingReview(null);
+                      setEditReviewText('');
+                      setEditReviewRating(0);
+                    }}
+                  >
+                    <Icon name="close" size={24} color={isDarkMode ? '#fff' : '#000'} />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={[styles.drawerSubtitle, { marginBottom: 8 }]}>Rating</Text>
+                <View style={{ flexDirection: 'row', marginBottom: 16 }}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <TouchableOpacity
+                      key={star}
+                      onPress={() => setEditReviewRating(star)}
+                      style={{ marginRight: 8 }}
+                    >
+                      <Icon
+                        name={star <= editReviewRating ? 'star' : 'star-outline'}
+                        size={32}
+                        color={star <= editReviewRating ? '#FFD700' : '#ccc'}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={[styles.drawerSubtitle, { marginBottom: 8 }]}>Review</Text>
+                <TextInput
+                  style={[styles.input, { minHeight: 100, textAlignVertical: 'top' }]}
+                  placeholder="Write your review..."
+                  placeholderTextColor="#999"
+                  value={editReviewText}
+                  onChangeText={setEditReviewText}
+                  multiline
+                  numberOfLines={4}
+                />
+
+                <TouchableOpacity
+                  style={[styles.saveButton, { marginTop: 16 }]}
+                  onPress={handleSaveEditedReview}
+                >
+                  <Text style={styles.saveButtonText}>Save Changes</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ConditionalKeyboardWrapper>
+        </Modal>
+
+        {/* My Trades Modal */}
+        <Modal
+          visible={showMyTradesModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => {
             setShowMyTradesModal(false);
             setModalMyTrades([]);
             setModalLastTradeDoc(null);
             setModalHasMoreTrades(false);
           }}
-        />
-        <View style={{ 
-          flex: 1, 
-          justifyContent: 'flex-end',
-          backgroundColor: 'rgba(0,0,0,0.5)' 
-        }}>
-          <View style={[styles.drawer, { maxHeight: '90%' }]}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <Text style={styles.drawerSubtitle}>My Trades</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                {modalMyTrades.length > 0 && (
-                  <TouchableOpacity
-                    onPress={handleDeleteAllTrades}
-                    disabled={isDeletingAll}
-                    style={{
-                      paddingHorizontal: 10,
-                      paddingVertical: 6,
-                      borderRadius: 6,
-                      backgroundColor: isDeletingAll ? (isDarkMode ? '#374151' : '#9ca3af') : '#EF4444',
-                      opacity: isDeletingAll ? 0.6 : 1,
-                    }}
-                  >
-                    {isDeletingAll ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>
-                        Delete All
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity onPress={() => {
-                  setShowMyTradesModal(false);
-                  setModalMyTrades([]);
-                  setModalLastTradeDoc(null);
-                  setModalHasMoreTrades(false);
-                }}>
-                  <Icon name="close" size={24} color={isDarkMode ? '#fff' : '#000'} />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {loadingModalMyTrades && modalMyTrades.length === 0 ? (
-                <ActivityIndicator size="small" color={config.colors.primary} style={{ marginVertical: 20 }} />
-              ) : modalMyTrades.length === 0 ? (
-                <Text style={{ textAlign: 'center', color: isDarkMode ? '#9ca3af' : '#6b7280', marginVertical: 20 }}>
-                  No trades found
-                </Text>
-              ) : (
-                <>
-                  {modalMyTrades.map((trade) => (
-                    <React.Fragment key={trade.id}>
-                      {renderTradeItem(trade)}
-                    </React.Fragment>
-                  ))}
-
-                  {modalHasMoreTrades && (
+        >
+          <Pressable
+            style={styles.overlay}
+            onPress={() => {
+              setShowMyTradesModal(false);
+              setModalMyTrades([]);
+              setModalLastTradeDoc(null);
+              setModalHasMoreTrades(false);
+            }}
+          />
+          <View style={{
+            flex: 1,
+            justifyContent: 'flex-end',
+            backgroundColor: 'rgba(0,0,0,0.5)'
+          }}>
+            <View style={[styles.drawer, { maxHeight: '90%' }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <Text style={styles.drawerSubtitle}>My Trades</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  {modalMyTrades.length > 0 && (
                     <TouchableOpacity
+                      onPress={handleDeleteAllTrades}
+                      disabled={isDeletingAll}
                       style={{
-                        backgroundColor: config.colors.primary,
-                        paddingVertical: 12,
-                        paddingHorizontal: 16,
-                        borderRadius: 8,
-                        alignItems: 'center',
-                        marginTop: 8,
-                        marginBottom: 16,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        borderRadius: 6,
+                        backgroundColor: isDeletingAll ? (isDarkMode ? '#374151' : '#9ca3af') : '#EF4444',
+                        opacity: isDeletingAll ? 0.6 : 1,
                       }}
-                      onPress={loadMoreMyTrades}
-                      disabled={loadingModalMyTrades}
                     >
-                      {loadingModalMyTrades ? (
+                      {isDeletingAll ? (
                         <ActivityIndicator size="small" color="#FFFFFF" />
                       ) : (
-                        <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
-                          Load More
+                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>
+                          Delete All
                         </Text>
                       )}
                     </TouchableOpacity>
                   )}
-                </>
-              )}
-            </ScrollView>
+                  <TouchableOpacity onPress={() => {
+                    setShowMyTradesModal(false);
+                    setModalMyTrades([]);
+                    setModalLastTradeDoc(null);
+                    setModalHasMoreTrades(false);
+                  }}>
+                    <Icon name="close" size={24} color={isDarkMode ? '#fff' : '#000'} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {loadingModalMyTrades && modalMyTrades.length === 0 ? (
+                  <ActivityIndicator size="small" color={config.colors.primary} style={{ marginVertical: 20 }} />
+                ) : modalMyTrades.length === 0 ? (
+                  <Text style={{ textAlign: 'center', color: isDarkMode ? '#9ca3af' : '#6b7280', marginVertical: 20 }}>
+                    No trades found
+                  </Text>
+                ) : (
+                  <>
+                    {modalMyTrades.map((trade) => (
+                      <React.Fragment key={trade.id}>
+                        {renderTradeItem(trade)}
+                      </React.Fragment>
+                    ))}
+
+                    {modalHasMoreTrades && (
+                      <TouchableOpacity
+                        style={{
+                          backgroundColor: config.colors.primary,
+                          paddingVertical: 12,
+                          paddingHorizontal: 16,
+                          borderRadius: 8,
+                          alignItems: 'center',
+                          marginTop: 8,
+                          marginBottom: 16,
+                        }}
+                        onPress={loadMoreMyTrades}
+                        disabled={loadingModalMyTrades}
+                      >
+                        {loadingModalMyTrades ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
+                            Load More
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                  </>
+                )}
+              </ScrollView>
+            </View>
           </View>
-        </View>
-      </Modal>
- 
-    </View>
+        </Modal>
+
+      </View>
     </GestureHandlerRootView>
   );
 }

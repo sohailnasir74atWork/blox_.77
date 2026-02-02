@@ -460,7 +460,7 @@ lastUpdatedContent: {
 },
 lastUpdatedText: {
   fontSize: 12,
-  fontFamily: 'Lato-Regular',
+  
 },
 ```
 
@@ -603,12 +603,12 @@ const styles = StyleSheet.create({
   },
   codeText: {
     fontSize: 16,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     marginLeft: 10,
   },
   rewardText: {
     fontSize: 14,
-    fontFamily: 'Lato-Regular',
+    
     marginBottom: 12,
     marginLeft: 30,
   },
@@ -626,7 +626,7 @@ const styles = StyleSheet.create({
   copyButtonText: {
     color: '#fff',
     fontSize: 14,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     marginLeft: 6,
   },
   emptyContainer: {
@@ -637,7 +637,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    fontFamily: 'Lato-Regular',
+    
     marginTop: 12,
   },
 });

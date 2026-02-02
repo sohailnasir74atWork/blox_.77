@@ -19,21 +19,21 @@ const NewsFeedbackReport = () => {
     () =>
       isDark
         ? {
-            background: "#000000",
-            card: "#10151A",
-            border: "rgba(255,255,255,0.20)",
-            textPrimary: "#FFFFFF",
-            textSecondary: "#D5E2DC",
-            chipBg: "#141C20",
-          }
+          background: "#000000",
+          card: "#10151A",
+          border: "rgba(255,255,255,0.20)",
+          textPrimary: "#FFFFFF",
+          textSecondary: "#D5E2DC",
+          chipBg: "#141C20",
+        }
         : {
-            background: "#f3f7f5",
-            card: "#ffffff",
-            border: "rgba(0,0,0,0.06)",
-            textPrimary: "#0b1510",
-            textSecondary: "#4c6357",
-            chipBg: "#edf5f1",
-          },
+          background: "#f3f7f5",
+          card: "#ffffff",
+          border: "rgba(0,0,0,0.06)",
+          textPrimary: "#0b1510",
+          textSecondary: "#4c6357",
+          chipBg: "#edf5f1",
+        },
     [isDark]
   );
 
@@ -349,17 +349,15 @@ const styles = StyleSheet.create({
   infoText: {
     marginTop: 8,
     fontSize: 14,
-    fontFamily: "Lato-Regular",
     textAlign: "center",
   },
   screenTitle: {
     fontSize: 20,
-    fontFamily: "Lato-Bold",
+    fontWeight: 'bold',
     marginBottom: 2,
   },
   screenSubtitle: {
     fontSize: 13,
-    fontFamily: "Lato-Regular",
     marginBottom: 12,
   },
   userCard: {
@@ -376,11 +374,10 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontSize: 16,
-    fontFamily: "Lato-Bold",
+    fontWeight: 'bold',
   },
   userId: {
     fontSize: 11,
-    fontFamily: "Lato-Regular",
     marginTop: 2,
   },
   statsRow: {
@@ -398,11 +395,11 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 13,
-    fontFamily: "Lato-Bold",
+    fontWeight: 'bold',
   },
   statLabel: {
     fontSize: 10,
-    fontFamily: "Lato-Regular",
+
   },
   itemRow: {
     flexDirection: "row",
@@ -417,16 +414,16 @@ const styles = StyleSheet.create({
   },
   itemType: {
     fontSize: 11,
-    fontFamily: "Lato-Bold",
+    fontWeight: 'bold',
     marginBottom: 2,
   },
   itemText: {
     fontSize: 13,
-    fontFamily: "Lato-Regular",
+
   },
   itemDate: {
     fontSize: 11,
-    fontFamily: "Lato-Regular",
+
     marginLeft: 6,
     alignSelf: "flex-start",
   },

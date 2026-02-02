@@ -10,7 +10,7 @@ import {
   Keyboard,
   Alert,
   StyleSheet,
-  TouchableOpacity,  
+  TouchableOpacity,
 } from 'react-native';
 import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
 import { useGlobalState } from '../../GlobelStats';
@@ -31,7 +31,7 @@ const FRUIT_KEYWORDS = [
   'rubber', 'barrier', 'ghost', 'light', 'magma', 'quake', 'love',
   'spider', 'sound', 'portal', 'pain', 'rumble', 'blizzard', 'buddha',
   'phoenix', 'gravity', 'shadow', 'venom', 'control', 'spirit', 'dough',
-  'gas', 'dragon', 'leopard', 'kitsune', 'mammoth', 't-rex', 'yeti', 'perm', 'west', 'east', 'gamepass', 'skin', 'chromatic', 'permanent', 'Fruit Storage', 'game pass', 'Eagle', 'Creation',  'gamepass'
+  'gas', 'dragon', 'leopard', 'kitsune', 'mammoth', 't-rex', 'yeti', 'perm', 'west', 'east', 'gamepass', 'skin', 'chromatic', 'permanent', 'Fruit Storage', 'game pass', 'Eagle', 'Creation', 'gamepass'
 ];
 import ScamSafetyBox from './Scamwarning';
 import { useNavigation } from '@react-navigation/native';
@@ -53,18 +53,19 @@ const PrivateMessageList = ({
   hasRated,
   setShowRatingModal,
   chatKey,
+  isAdmin,
 }) => {
-  const { theme, isAdmin, api, freeTranslation, proGranted } = useGlobalState();
+  const { theme, isAdmin: globalIsAdmin, api, freeTranslation, proGranted } = useGlobalState();
   const isDarkMode = theme === 'dark';
   const styles = getStyles(isDarkMode);
   const fruitColors = useMemo(
     () => ({
       wrapperBg: isDarkMode ? '#0f172a55' : '#e5e7eb55',
-      name:      isDarkMode ? '#f9fafb' : '#111827',
-      value:     isDarkMode ? '#e5e7eb' : '#4b5563',
-      divider:   isDarkMode ? '#ffffff22' : '#00000011',
-      totalLabel:isDarkMode ? '#e5e7eb' : '#4b5563',
-      totalValue:isDarkMode ? '#f97373' : '#b91c1c',
+      name: isDarkMode ? '#f9fafb' : '#111827',
+      value: isDarkMode ? '#e5e7eb' : '#4b5563',
+      divider: isDarkMode ? '#ffffff22' : '#00000011',
+      totalLabel: isDarkMode ? '#e5e7eb' : '#4b5563',
+      totalValue: isDarkMode ? '#f97373' : '#b91c1c',
     }),
     [isDarkMode],
   );
@@ -102,7 +103,7 @@ const PrivateMessageList = ({
     setShowReportPopup(false);
   };
   // console.log(selectedUserId === userId)
- 
+
 
 
   const translateText = async (text, targetLang = deviceLanguage) => {
@@ -137,7 +138,7 @@ const PrivateMessageList = ({
       Object.entries(placeholders).forEach(([placeholder, word]) => {
         translated = translated.replace(new RegExp(placeholder, 'g'), word);
       });
-      mixpanel.track("Translation", {lang:targetLang});
+      mixpanel.track("Translation", { lang: targetLang });
 
       return translated;
     } catch (err) {
@@ -153,23 +154,23 @@ const PrivateMessageList = ({
   const handleTranslate = async (item) => {
     // ✅ FIXED: Correct unlimited check (Pro users OR proGranted users have unlimited)
     const isUnlimited = freeTranslation || localState.isPro || proGranted;
-  
+
     // ✅ Check limit BEFORE translation (reads from storage for real-time accuracy)
     if (!isUnlimited && !canTranslate()) {
       Alert.alert('Limit Reached', 'You can only translate 5 messages per day.');
       return;
     }
-  
+
     // ✅ Only increment AFTER successful translation
     const translated = await translateText(item.text, deviceLanguage);
-  
+
     if (translated) {
       // ✅ Increment count (reads from storage first, then updates)
       if (!isUnlimited) incrementTranslationCount();
-  
+
       // ✅ Get remaining tries (reads from storage for real-time accuracy)
       const remaining = isUnlimited ? 'Unlimited' : `${getRemainingTranslationTries()} remaining`;
-  
+
       Alert.alert(
         'Translated Message',
         `${translated}\n\n🧠 Daily Limit: ${remaining}${isUnlimited
@@ -181,12 +182,12 @@ const PrivateMessageList = ({
       Alert.alert('Error', 'Translation failed. Please try again later.');
     }
   };
-  
+
   // Render a single message
   const renderMessage = ({ item }) => {
     // ✅ Safety check
     if (!item || typeof item !== 'object') return null;
-    
+
     const isMyMessage = item.senderId === userId;
 
     // console.log(isMyMessage)
@@ -195,18 +196,28 @@ const PrivateMessageList = ({
     const avatarUri = item.senderId !== userId
       ? selectedUser?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png'
       : user?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png';
-      const fruits = Array.isArray(item.fruits) ? item.fruits : [];
-      const hasFruits = fruits.length > 0;
-      const totalFruitValue = hasFruits
-        ? fruits.reduce((sum, f) => sum + (Number(f.value) || 0), 0)
-        : 0;
+    const fruits = Array.isArray(item.fruits) ? item.fruits : [];
+    const hasFruits = fruits.length > 0;
+    const totalFruitValue = hasFruits
+      ? fruits.reduce((sum, f) => sum + (Number(f.value) || 0), 0)
+      : 0;
 
-        const formatName = (name) => {
-          if (!name || typeof name !== 'string') return '';
-          return name.replace(/^\+/, '').replace(/\s+/g, '-');
-        };
+    const formatName = (name) => {
+      if (!name || typeof name !== 'string') return '';
+      return name.replace(/^\+/, '').replace(/\s+/g, '-');
+    };
 
-    
+
+    // Determine roles for tagging
+    // If it's my message, check my roles (user object)
+    // If it's other's message, check selectedUser roles
+    // Resolved syntax error: checked consistent variable usage
+    const senderData = isMyMessage ? user : selectedUser;
+
+    // ✅ Use explicit isAdmin prop for current user if available, otherwise check object
+    const isSenderAdmin = isMyMessage ? (isAdmin || user?.isAdmin) : (selectedUser?.isAdmin || false);
+    const isSenderMod = senderData?.isModerator || false;
+
     return (
       <View
         style={
@@ -222,105 +233,119 @@ const PrivateMessageList = ({
         />
         {/* Message Content */}
         <Menu>
-        {item.imageUrl && (
-  <View style={{ marginBottom: 4 }}>
-    <TouchableOpacity
-      activeOpacity={0.8}
-      onPress={() =>
-        navigation.navigate('ImageViewerScreenChat', {
-          // if your viewer expects an array of images:
-          images: [item.imageUrl],
-          initialIndex: 0, // only one image here
-        })
-      }
-    >
-      <Image
-        source={{ uri: item.imageUrl }}
-        style={styles.chatImage}
-      />
-    </TouchableOpacity>
-  </View>
-)}
+          {item.imageUrl && (
+            <View style={{ marginBottom: 4 }}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() =>
+                  navigation.navigate('ImageViewerScreenChat', {
+                    // if your viewer expects an array of images:
+                    images: [item.imageUrl],
+                    initialIndex: 0, // only one image here
+                  })
+                }
+              >
+                <Image
+                  source={{ uri: item.imageUrl }}
+                  style={styles.chatImage}
+                />
+              </TouchableOpacity>
+            </View>
+          )}
           <MenuTrigger
             onLongPress={() => Vibration.vibrate(50)}
             customStyles={{ triggerTouchable: { activeOpacity: 1 } }}
           >
-          {hasFruits && (
-  <View
-    style={[
-      fruitStyles.fruitsWrapper,
-      { backgroundColor: fruitColors.wrapperBg },
-    ]}
-  >
-    {fruits.map((fruit, index )=> {
-      const valueType = (fruit.valueType || 'd').toLowerCase(); // 'd' | 'n' | 'm'
+            {hasFruits && (
+              <View
+                style={[
+                  fruitStyles.fruitsWrapper,
+                  { backgroundColor: fruitColors.wrapperBg },
+                ]}
+              >
+                {fruits.map((fruit, index) => {
+                  const valueType = (fruit.valueType || 'd').toLowerCase(); // 'd' | 'n' | 'm'
 
-      let valueBadgeStyle = fruitStyles.badgeDefault;
-      if (valueType === 'n') valueBadgeStyle = fruitStyles.badgeNeon;
-      if (valueType === 'm') valueBadgeStyle = fruitStyles.badgeMega;
+                  let valueBadgeStyle = fruitStyles.badgeDefault;
+                  if (valueType === 'n') valueBadgeStyle = fruitStyles.badgeNeon;
+                  if (valueType === 'm') valueBadgeStyle = fruitStyles.badgeMega;
 
-      return (
-        <View
-          key={`${fruit.id || fruit.name}-${index}`}
-          style={fruitStyles.fruitCard}
-        >
-          <Image
-            source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/${fruit.type === 'n' ? '09' : '08'}/${formatName(fruit.name)}_Icon.webp` }}
-            style={fruitStyles.fruitImage}
-          />
+                  return (
+                    <View
+                      key={`${fruit.id || fruit.name}-${index}`}
+                      style={fruitStyles.fruitCard}
+                    >
+                      <Image
+                        source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/${fruit.type === 'n' ? '09' : '08'}/${formatName(fruit.name)}_Icon.webp` }}
+                        style={fruitStyles.fruitImage}
+                      />
 
-          <View style={fruitStyles.fruitInfo}>
-            <Text
-              style={[fruitStyles.fruitName, { color: fruitColors.name }]}
-              numberOfLines={1}
-            >
-              {`${fruit.name || fruit.Name || ''}  `}
-            </Text>
+                      <View style={fruitStyles.fruitInfo}>
+                        <Text
+                          style={[fruitStyles.fruitName, { color: fruitColors.name }]}
+                          numberOfLines={1}
+                        >
+                          {`${fruit.name || fruit.Name || ''}  `}
+                        </Text>
 
-            <Text
-              style={[fruitStyles.fruitValue, { color: fruitColors.value }]}
-            >
-              · Value: {Number(fruit.value || 0).toLocaleString()}
-              {/* {fruit.category
+                        <Text
+                          style={[fruitStyles.fruitValue, { color: fruitColors.value }]}
+                        >
+                          · Value: {Number(fruit.value || 0).toLocaleString()}
+                          {/* {fruit.category
                 ? `  ·  ${String(fruit.category).toUpperCase()}  `
                 : ''} */}{' '}
-            </Text>
+                        </Text>
 
-          
-          </View>
-        </View>
-      );
-    })}
 
-    {/* ✅ Total row – only if more than one fruit */}
-    {fruits.length > 1 && (
-      <View
-        style={[
-          fruitStyles.totalRow,
-          { borderTopColor: fruitColors.divider },
-        ]}
-      >
-        <Text
-          style={[fruitStyles.totalLabel, { color: fruitColors.totalLabel }]}
-        >
-          Total:
-        </Text>
-        <Text
-          style={[fruitStyles.totalValue, { color: fruitColors.totalValue }]}
-        >
-          {totalFruitValue.toLocaleString()}
-        </Text>
-      </View>
-    )}
-  </View>
-)}
+                      </View>
+                    </View>
+                  );
+                })}
 
-  
+                {/* ✅ Total row – only if more than one fruit */}
+                {fruits.length > 1 && (
+                  <View
+                    style={[
+                      fruitStyles.totalRow,
+                      { borderTopColor: fruitColors.divider },
+                    ]}
+                  >
+                    <Text
+                      style={[fruitStyles.totalLabel, { color: fruitColors.totalLabel }]}
+                    >
+                      Total:
+                    </Text>
+                    <Text
+                      style={[fruitStyles.totalValue, { color: fruitColors.totalValue }]}
+                    >
+                      {totalFruitValue.toLocaleString()}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* ✅ Role Badges for Private Chat */}
+
+
             {/* Normal text (can be empty if only fruits) */}
             {!!item.text && (
               <Text
                 style={isMyMessage ? styles.myMessageText : styles.otherMessageText}
               >
+                <View style={{ flexDirection: 'row', marginBottom: (!!item.text) ? 2 : 0 }}>
+                  {isSenderAdmin && (
+                    <View style={[styles.adminContainer, { marginBottom: 2 }]}>
+                      <Text style={styles.admin}>{t("chat.admin")}</Text>
+                    </View>
+                  )}
+                  {(!isSenderAdmin && isSenderMod) && (
+                    <View style={[styles.moderatorContainer, { marginBottom: 2 }]}>
+                      <Text style={styles.moderator}>MOD</Text>
+                    </View>
+                  )}
+                </View>{"\n"}
                 {item.text}
               </Text>
             )}
@@ -359,26 +384,26 @@ const PrivateMessageList = ({
       {loading && messages.length === 0 ? (
         <ActivityIndicator size="large" color="#1E88E5" style={styles.loader} />
       ) : (
-        <View style={{paddingBottom:140}}>  
-        <>   
-        <ScamSafetyBox setShowRatingModal={setShowRatingModal} canRate={canRate} hasRated={hasRated} />
-        <FlatList
-          data={messages}
-          removeClippedSubviews={false} 
-          keyExtractor={(item, index) => item?.id || `msg-${index}`}
-          renderItem={renderMessage} // Pass the render function directly
-          inverted // Ensure list starts from the bottom
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.3}
-          onScroll={() => Keyboard.dismiss()}
-          onTouchStart={() => Keyboard.dismiss()}
-          keyboardShouldPersistTaps="handled" // Ensures taps o
-          // onTouchStart={() => Keyboard.dismiss()}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        />
-        </>     
+        <View style={{ paddingBottom: 140 }}>
+          <>
+            <ScamSafetyBox setShowRatingModal={setShowRatingModal} canRate={canRate} hasRated={hasRated} />
+            <FlatList
+              data={messages}
+              removeClippedSubviews={false}
+              keyExtractor={(item, index) => item?.id || `msg-${index}`}
+              renderItem={renderMessage} // Pass the render function directly
+              inverted // Ensure list starts from the bottom
+              onEndReached={handleLoadMore}
+              onEndReachedThreshold={0.3}
+              onScroll={() => Keyboard.dismiss()}
+              onTouchStart={() => Keyboard.dismiss()}
+              keyboardShouldPersistTaps="handled" // Ensures taps o
+              // onTouchStart={() => Keyboard.dismiss()}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+              }
+            />
+          </>
         </View>
       )}
       {selectedMessage && chatKey && (
@@ -407,10 +432,10 @@ export const fruitStyles = StyleSheet.create({
   fruitCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent:'flex-start',
-    marginBottom:3,
+    justifyContent: 'flex-start',
+    marginBottom: 3,
 
-    flex:1,
+    flex: 1,
 
 
   },
@@ -423,10 +448,10 @@ export const fruitStyles = StyleSheet.create({
   },
   fruitInfo: {
     // flex: 1,
-    flexDirection:'row',
-    justifyContent:'flex-start',
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
     // backgroundColor:'red',
-    alignItems:'center',
+    alignItems: 'center',
   },
   fruitName: {
     fontSize: 12,

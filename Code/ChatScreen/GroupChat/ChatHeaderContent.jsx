@@ -33,7 +33,7 @@ const ChatHeaderContent = ({
   const isDarkMode = theme === 'dark';
   const { t } = useTranslation();
   const [pinMessageOpen, setPinMessageOpen] = useState(false);
-  
+
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
 
   const renderMessageWithLinks = useCallback((message) => {
@@ -91,8 +91,8 @@ const ChatHeaderContent = ({
           {uniquePinnedMessages.slice(0, 1).map((msg) => {
             const msgText = msg?.text || '';
             const normalizedText = msgText.replace(/\n/g, ' ');
-            const displayText = normalizedText.length > 40 
-              ? normalizedText.substring(0, 40) + '...' 
+            const displayText = normalizedText.length > 40
+              ? normalizedText.substring(0, 40) + '...'
               : normalizedText;
 
             return (
@@ -123,17 +123,17 @@ const ChatHeaderContent = ({
               <Text style={styles.modalTitle}>Pin Messages</Text>
               {uniquePinnedMessages.map((msg) => {
                 if (!msg || !msg.firebaseKey) return null;
-                
+
                 return (
                   <View key={msg.firebaseKey} style={styles.singlePinnedMessageModal}>
                     {renderMessageWithLinks(msg.text || '')}
                     {isAdmin && (
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         onPress={() => {
                           if (onUnpinMessage && typeof onUnpinMessage === 'function') {
                             onUnpinMessage(msg.firebaseKey);
                           }
-                        }} 
+                        }}
                         style={{ backgroundColor: config.colors.primary, marginVertical: 3 }}
                       >
                         <Text style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 5, color: 'white' }}>Delete</Text>
@@ -171,7 +171,7 @@ const ChatHeaderContent = ({
 const getStyles = (isDarkMode) => StyleSheet.create({
   pinnedText: {
     fontSize: 12,
-    fontFamily: 'Lato-Regular',
+
     color: isDarkMode ? '#fff' : '#000',
   },
   modalContent: {
@@ -182,7 +182,7 @@ const getStyles = (isDarkMode) => StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     marginBottom: 20,
     color: isDarkMode ? '#fff' : '#000',
   },
@@ -206,7 +206,7 @@ const getStyles = (isDarkMode) => StyleSheet.create({
   pinnedTextheader: {
     fontSize: 12,
     paddingRight: 20,
-    fontFamily: 'Lato-Regular',
+
     color: config.colors.primary,
   },
   pinIcon: {
@@ -229,7 +229,7 @@ const getStyles = (isDarkMode) => StyleSheet.create({
   closeButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
   },
 });
 

@@ -1,27 +1,27 @@
 // HDWallpaperScreen.jsx
 import React, { useMemo, useState, useCallback, useEffect } from "react";
 import {
-    View,
-    Text,
-    FlatList,
-    Image,
-    TouchableOpacity,
-    StyleSheet,
-    Modal,
-    ScrollView,
-    ActivityIndicator,
-    Alert,
-    Platform,
-    PermissionsAndroid,
-  } from "react-native";
-  
+  View,
+  Text,
+  FlatList,
+  Image,
+  TouchableOpacity,
+  StyleSheet,
+  Modal,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+  Platform,
+  PermissionsAndroid,
+} from "react-native";
+
 import Icon from "react-native-vector-icons/Ionicons";
 import RNFS from "react-native-fs";
 import { ref, onValue, update } from "@react-native-firebase/database";
 import { useGlobalState } from "../GlobelStats";
 import InterstitialAdManager from "../Ads/IntAd";
 import { useLocalState } from "../LocalGlobelStats";
-import {CameraRoll} from "@react-native-camera-roll/camera-roll"; // ✅ default import
+import { CameraRoll } from "@react-native-camera-roll/camera-roll"; // ✅ default import
 
 // Base URL for your wallpapers
 const IMAGE_BASE = "https://pull-blox.b-cdn.net";
@@ -121,7 +121,7 @@ const HDWallpaperScreen = () => {
   }, [totalPics, visibleCount, likeData]);
   const requestAndroidGalleryPermission = async () => {
     if (Platform.OS !== 'android') return true;
-  
+
     try {
       // Android 13+ uses READ_MEDIA_IMAGES
       if (Platform.Version >= 33) {
@@ -130,7 +130,7 @@ const HDWallpaperScreen = () => {
         );
         return res === PermissionsAndroid.RESULTS.GRANTED;
       }
-  
+
       // Older Android versions use WRITE_EXTERNAL_STORAGE
       const res = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
@@ -141,7 +141,7 @@ const HDWallpaperScreen = () => {
       return false;
     }
   };
-  
+
   const pushCounters = useCallback(
     (id, partial) => {
       if (!appdatabase) return;
@@ -236,7 +236,7 @@ const HDWallpaperScreen = () => {
     async (item) => {
       try {
         setDownloadingId(item.id);
-  
+
         // ✅ Android: ask for permission first
         if (Platform.OS === 'android') {
           const granted = await requestAndroidGalleryPermission();
@@ -248,24 +248,24 @@ const HDWallpaperScreen = () => {
             return;
           }
         }
-  
+
         const fileName = item.fileName || `wallpaper-${item.id}.jpg`;
         const destPath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
-  
+
         const res = await RNFS.downloadFile({
           fromUrl: item.url,
           toFile: destPath,
           connectionTimeout: 15000,
           readTimeout: 30000,
         }).promise;
-  
+
         if (res.statusCode === 200) {
           // ✅ CameraRoll prefers a URI on Android
           const localPath =
             Platform.OS === 'android' ? `file://${destPath}` : destPath;
-  
+
           await CameraRoll.save(localPath, { type: 'photo' });
-  
+
           // update counters as you already do...
           let nextDownloads = 0;
           setItems((prev) =>
@@ -277,7 +277,7 @@ const HDWallpaperScreen = () => {
             }),
           );
           pushCounters(item.id, { downloads: nextDownloads });
-  
+
           Alert.alert('Downloaded', 'Wallpaper saved to your gallery.');
         } else {
           Alert.alert('Error', 'Could not download this image.');
@@ -294,7 +294,7 @@ const HDWallpaperScreen = () => {
     },
     [pushCounters],
   );
-  
+
 
   // 🔽 Load more (next 14)
   const handleLoadMore = useCallback(() => {
@@ -610,7 +610,7 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 11,
     marginLeft: 3,
-    fontFamily: "Lato-Regular",
+
   },
   downloadButton: {
     flexDirection: "row",
@@ -623,7 +623,7 @@ const styles = StyleSheet.create({
   downloadText: {
     color: "#0d1f17",
     fontSize: 12,
-    fontFamily: "Lato-Bold",
+    fontWeight: 'bold',
   },
   modalBackdrop: {
     flex: 1,
@@ -682,7 +682,7 @@ const styles = StyleSheet.create({
   loadMoreText: {
     color: "#0d1f17",
     fontSize: 14,
-    fontFamily: "Lato-Bold",
+    fontWeight: 'bold',
   },
 
 });

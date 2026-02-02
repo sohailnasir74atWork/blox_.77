@@ -22,6 +22,7 @@ import NewsScreen from "./News";
 import CodesScreen from "./CodesScreen";
 import { useGlobalState } from "../GlobelStats";
 import NewsFeedbackReport from "./AdminReport";
+import { Platform } from "react-native";
 
 const MemoValueScreen = React.memo(ValueScreen);
 
@@ -166,9 +167,9 @@ const CustomTopTabs = ({ selectedTheme }) => {
                     isActive
                       ? { backgroundColor: activeBg, borderColor: activeBg }
                       : {
-                          backgroundColor: "transparent",
-                          borderColor: inactiveBorder,
-                        },
+                        backgroundColor: "transparent",
+                        borderColor: inactiveBorder,
+                      },
                   ]}
                   activeOpacity={0.85}
                   onLayout={(e) => onTabLayout(tab.key, e)}
@@ -272,7 +273,7 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
     padding: 8,
-    paddingTop: 40,
+    paddingTop: Platform.OS === 'ios' ? 40 : 60,
   },
   container: {
     paddingBottom: 8,
@@ -293,10 +294,10 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 12,
-    fontFamily: "Lato-Regular",
+
   },
   tabTextActive: {
-    fontFamily: "Lato-Bold",
+    fontWeight: 'bold',
   },
   indicator: {
     position: "absolute",

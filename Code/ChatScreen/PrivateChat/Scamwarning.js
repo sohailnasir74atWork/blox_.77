@@ -129,13 +129,13 @@ const getStyles = (isDark) =>
       fontSize: 11,
       color: isDark ? '#FCD34D' : '#92400E',
       marginBottom: 6,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
     },
     item: {
       fontSize: 9,
       color: isDark ? '#E5E7EB' : '#4B5563',
       marginBottom: 5,
-      fontFamily: 'Lato-Regular',
+
     },
 
     // shared button base (same size)
@@ -160,7 +160,7 @@ const getStyles = (isDark) =>
 
     buttonTitle: {
       fontSize: 11,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
     },
     buttonSub: {
       fontSize: 8,
@@ -170,17 +170,17 @@ const getStyles = (isDark) =>
     // color overrides
     serverButtonTitle: {
       color: config.colors.primary,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
     },
     serverButtonSub: {
       color: isDark ? '#CBD5F5' : '#6B7280',
     },
     rateButtonTitle: {
       color: '#ffffff',
-      fontFamily: 'Lato-Regular',
+
     },
     rateButtonSub: {
       color: 'rgba(255,255,255,0.9)',
-      fontFamily: 'Lato-Regular',
+
     },
   });

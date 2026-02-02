@@ -36,7 +36,7 @@ const InviteNotification = ({ currentUser, onAccept, isInActiveGame = false }) =
     // Only listen to invites when NOT in active game
     const unsubscribe = listenToUserInvites(firestoreDB, currentUser.id, (invites) => {
       setPendingInvites(invites);
-      
+
       // ✅ Hide notification if no invites (all expired or declined)
       if (invites.length === 0) {
         setCurrentInvite(null);
@@ -142,7 +142,7 @@ const InviteNotification = ({ currentUser, onAccept, isInActiveGame = false }) =
     if (!currentInvite || isAccepting) return;
 
     setIsAccepting(true);
-    
+
     try {
       const result = await acceptGameInvite(
         firestoreDB,
@@ -178,7 +178,7 @@ const InviteNotification = ({ currentUser, onAccept, isInActiveGame = false }) =
     if (!currentInvite || isDeclining) return;
 
     setIsDeclining(true);
-    
+
     try {
       await declineGameInvite(firestoreDB, currentInvite.roomId, currentUser.id);
       setCurrentInvite(null);
@@ -302,12 +302,12 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 14,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     marginBottom: 4,
   },
   message: {
     fontSize: 12,
-    fontFamily: 'Lato-Regular',
+
   },
   actions: {
     flexDirection: 'row',

@@ -29,7 +29,7 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [filterDropdownVisible, setFilterDropdownVisible] = useState(false);
   const { analytics, isAdmin, reload, theme, proGranted } = useGlobalState();
-  const {localState, toggleAd} = useLocalState()
+  const { localState, toggleAd } = useLocalState()
   const isDarkMode = theme === 'dark'
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
   const [filteredData, setFilteredData] = useState([]);
@@ -318,7 +318,7 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
       // Name: item.Name ?? item.name,
       name: item.name,
       value: type === 'n' ? Number(item.value) : Number(item.permValue),
-      type:type,
+      type: type,
       // valueType: itemSelection.valueType,
       // imag/eUrl,
       id: item.id,
@@ -406,14 +406,14 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
 
 
       </View>
-     {!fromChat && !fromSetting && <View style={{ backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF', width: '100%', borderRadius: 8, padding: 10, marginTop: 10 }}>
+      {!fromChat && !fromSetting && <View style={{ backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF', width: '100%', borderRadius: 8, padding: 10, marginTop: 10 }}>
         <View style={styles.rowcenter}>
           <Text style={styles.headertext}>TYPE : </Text>
           <Text style={styles.value}>{item.type ? item.type : 'N/A'} </Text>
         </View>
         <View style={styles.rowcenter}>
           <Text style={styles.headertext}>BEST USED FOR :</Text>
-          <Text style={styles.value}>{item.bestUsedFor ? item.bestUsedFor :'N/A'} </Text>
+          <Text style={styles.value}>{item.bestUsedFor ? item.bestUsedFor : 'N/A'} </Text>
 
         </View>
         <View style={styles.rowcenter}>
@@ -436,19 +436,19 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
 
 
       </View>}
-     {(fromChat || fromSetting) && <View style={styles.headerContainer}>
-        <TouchableOpacity style={[styles.pointsBox, {backgroundColor:config.colors.hasBlockGreen }]} onPress={()=>handlePress(item, 'n')}>
-         <Text style={{fontFamily:'Lato-Bold', alignSelf:'center'}}>Select Normal</Text>
+      {(fromChat || fromSetting) && <View style={styles.headerContainer}>
+        <TouchableOpacity style={[styles.pointsBox, { backgroundColor: config.colors.hasBlockGreen }]} onPress={() => handlePress(item, 'n')}>
+          <Text style={{ fontWeight: 'bold', alignSelf: 'center' }}>Select Normal</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.pointsBox, {backgroundColor : '#FFD700'}]} onPress={()=>handlePress(item, 'p')}>
-         <Text style={{fontFamily:'Lato-Bold', alignSelf:'center'}}>Select Permenenet</Text>
+        <TouchableOpacity style={[styles.pointsBox, { backgroundColor: '#FFD700' }]} onPress={() => handlePress(item, 'p')}>
+          <Text style={{ fontWeight: 'bold', alignSelf: 'center' }}>Select Permenenet</Text>
         </TouchableOpacity>
 
 
 
       </View>}
-   
+
       <View style={styles.devider}></View>
 
     </View>
@@ -467,13 +467,13 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
           {/* <Text style={[styles.description, { color: selectedTheme.colors.text }]}>
             {t("value.description")}
           </Text> */}
-                    {/* {showAd1 ? (
+          {/* {showAd1 ? (
             <CustomAd />
           ) : (
             <CustomAd2 />
           )} */}
 
-{(fromChat || fromSetting) && selectedList?.length > 0 && (
+          {(fromChat || fromSetting) && selectedList?.length > 0 && (
             <View style={styles.selectedPetsSection}>
               <View style={styles.selectedPetsHeader}>
                 <Text style={styles.selectedPetsTitle}>
@@ -529,7 +529,7 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
 
             />
             {!fromChat && !fromSetting && <Menu>
-              <MenuTrigger onPress={() => {}}>
+              <MenuTrigger onPress={() => { }}>
                 <View style={styles.filterButton}>
                   <Text style={styles.filterText}>{displayedFilter}</Text>
                   <Icon name="chevron-down-outline" size={18} color="white" />
@@ -574,7 +574,7 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
                 keyExtractor={(item) => item.name}
                 renderItem={renderItem}
                 showsVerticalScrollIndicator={false}
-                removeClippedSubviews={true}
+                removeClippedSubviews={false}
                 numColumns={!config.isNoman ? 1 : 1}
                 refreshing={refreshing}
                 onRefresh={handleRefresh}
@@ -613,9 +613,10 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
 };
 export const getStyles = (isDarkMode) =>
   StyleSheet.create({
-    container: { paddingHorizontal: 8, marginHorizontal: 2, flex: 1, paddingTop:10 },
+    container: { paddingHorizontal: 8, marginHorizontal: 2, flex: 1, paddingTop: 10 },
     searchFilterContainer: { flexDirection: 'row', marginVertical: 5, alignItems: 'center' },
-    searchInput: {   height: 40,
+    searchInput: {
+      height: 40,
       borderColor: isDarkMode ? config.colors.primary : 'white',
       backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
 
@@ -625,8 +626,8 @@ export const getStyles = (isDarkMode) =>
       paddingHorizontal: 10,
       color: isDarkMode ? 'white' : 'black',
       flex: 1,
-      borderRadius: 10, marginRight:10 // Ensure smooth corners
-       },
+      borderRadius: 10, marginRight: 10 // Ensure smooth corners
+    },
     filterDropdown: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E0E0E0', padding: 10, borderRadius: 10, height: 40, marginLeft: 10 },
     filterOption: { padding: 10, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
     filterTextOption: { fontSize: 12 },
@@ -635,31 +636,31 @@ export const getStyles = (isDarkMode) =>
     icon: { width: 50, height: 50, borderRadius: 5, marginRight: 10 },
     infoContainer: { flex: 1 },
     name: {
-      fontSize: 16, fontFamily: 'Lato-Bold',
+      fontSize: 16, fontWeight: 'bold',
       color: isDarkMode ? '#fff' : '#000',
       lineHeight: 18,
     },
     value: {
-      fontSize: 10, fontFamily: 'Lato-Regular',
+      fontSize: 10,
       color: isDarkMode ? '#fff' : '#000',
       lineHeight: 14,
     },
     permanentValue: {
-      fontSize: 10, fontFamily: 'Lato-Regular', color: 'white', lineHeight: 14,
+      fontSize: 10, color: 'white', lineHeight: 14,
     },
     beliPrice: {
-      fontSize: 10, fontFamily: 'Lato-Regular', color: 'white', lineHeight: 14,
+      fontSize: 10, color: 'white', lineHeight: 14,
     },
     robuxPrice: {
-      fontSize: 10, fontFamily: 'Lato-Regular', color: 'white', lineHeight: 14,
+      fontSize: 10, color: 'white', lineHeight: 14,
     },
     // statusContainer: { alignItems: 'left', alignSelf: 'flex-end', position: 'absolute', bottom: 0 },
     status: {
-      paddingHorizontal: 8, paddingVertical: 4, borderTopLeftRadius: 10, borderBottomRightRadius: 10, color: '#FFF', fontSize: 12, fontFamily: 'Lato-Bold'
+      paddingHorizontal: 8, paddingVertical: 4, borderTopLeftRadius: 10, borderBottomRightRadius: 10, color: '#FFF', fontSize: 12, fontWeight: 'bold'
     },
-    filterText: { fontSize: 14, fontFamily: 'Lato-Regular', marginRight: 5 },
+    filterText: { fontSize: 14, marginRight: 5 },
     description: {
-      fontSize: 14, lineHeight: 18, marginVertical: 10, fontFamily: 'Lato-Regular',
+      fontSize: 14, lineHeight: 18, marginVertical: 10,
     },
     loadingIndicator: { marginVertical: 20, alignSelf: 'center' },
     containerBannerAd: {
@@ -676,7 +677,7 @@ export const getStyles = (isDarkMode) =>
       justifyContent: 'space-between',
       // flex: 1,
       alignItems: 'center',
-      
+
     },
     headerContainer: {
       flexDirection: 'row',
@@ -684,7 +685,7 @@ export const getStyles = (isDarkMode) =>
       flex: 1,
       alignItems: 'center',
       width: '100%',
-      marginBottom:3
+      marginBottom: 3
 
     },
     devider: {
@@ -721,7 +722,7 @@ export const getStyles = (isDarkMode) =>
     editButtonText: {
       color: "#fff",
       fontSize: 12,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
     },
     modalContainer: {
       backgroundColor: "#fff",
@@ -744,7 +745,7 @@ export const getStyles = (isDarkMode) =>
     ,
     modalTitle: {
       fontSize: 18,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       marginBottom: 10,
     },
     input: {
@@ -763,7 +764,7 @@ export const getStyles = (isDarkMode) =>
     saveButtonText: {
       color: "#fff",
       fontSize: 14,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       textAlign: "center",
     },
     cencelButton: {
@@ -823,7 +824,7 @@ export const getStyles = (isDarkMode) =>
     filterText: {
       color: "white",
       fontSize: 14,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       marginRight: 5,
     },
     filterOptionText: {
@@ -832,7 +833,7 @@ export const getStyles = (isDarkMode) =>
       color: "#333",
     },
     selectedOption: {
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       color: "#34C759",
     },
     adContainer: {
@@ -843,7 +844,7 @@ export const getStyles = (isDarkMode) =>
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      borderWidth:1,
+      borderWidth: 1,
 
     },
     adContent: {
@@ -859,13 +860,13 @@ export const getStyles = (isDarkMode) =>
     },
     adTitle: {
       fontSize: 18,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       color: '#333',
       // marginBottom: 5, // Adds space below the title
     },
     tryNowText: {
       fontSize: 14,
-      fontFamily: 'Lato-Regular',
+
       color: config.colors.primary, // Adds a distinct color for the "Try Now" text
       // marginTop: 5, // Adds space between the title and the "Try Now" text
     },
@@ -879,7 +880,7 @@ export const getStyles = (isDarkMode) =>
     downloadButtonText: {
       color: 'white',
       fontSize: 14,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
     },
     selectedPetsSection: {
       paddingHorizontal: 8,
@@ -916,8 +917,8 @@ export const getStyles = (isDarkMode) =>
       shadowOpacity: 0.1,
       shadowRadius: 2,
       elevation: 2,
-      justifyContent:'center',
-      alignItems:'center'
+      justifyContent: 'center',
+      alignItems: 'center'
     },
     selectedPetImage: {
       width: 20,
@@ -942,7 +943,7 @@ export const getStyles = (isDarkMode) =>
       alignItems: 'center',
       backgroundColor: 'rgba(0,0,0,0.6)',
     },
-  
+
   });
 
 

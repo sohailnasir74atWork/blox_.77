@@ -1,4 +1,4 @@
-import React, {  useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, StyleSheet, ScrollView, Image } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import TradeList from './Trades';
@@ -75,7 +75,7 @@ export const TradeStack = ({ selectedTheme }) => {
     () => ({
       headerStyle: { backgroundColor: selectedTheme.colors.background },
       headerTintColor: selectedTheme.colors.text,
-      headerTitleStyle: { fontFamily: 'Lato-Bold', fontSize: 24 },
+      headerTitleStyle: { fontWeight: 'bold', fontSize: 24 },
     }),
     [selectedTheme]
   );
@@ -92,14 +92,14 @@ export const TradeStack = ({ selectedTheme }) => {
             title: t("tabs.trade"),
             headerRight: () => (
               <View style={{ flexDirection: 'row', }}>
-                <TouchableOpacity onPress={() => navigation.navigate('Trade Notifier')} style={{  alignItems:'center', justifyContent:'center', paddingHorizontal:16}}>
-                <Icon
+                <TouchableOpacity onPress={() => navigation.navigate('Trade Notifier')} style={{ alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 }}>
+                  <Icon
                     name="notifications"
                     size={20}
                     color={config.colors.hasBlockGreen}
                   />
                 </TouchableOpacity>
-          
+
                 <TouchableOpacity onPress={() => setModalVisible(true)} style={{ marginRight: 8 }}>
                   <Icon
                     name="information-circle-outline"
@@ -110,7 +110,7 @@ export const TradeStack = ({ selectedTheme }) => {
               </View>
             ),
           })}
-          
+
         />
 
         {/* Private Chat Screen */}
@@ -135,33 +135,33 @@ export const TradeStack = ({ selectedTheme }) => {
           }}
         /> */}
 
-<Stack.Screen
-  name="PrivateChatTrade"
-  options={({ route }) => ({
-    headerTitle: () => (
-      <PrivateChatHeader
-        selectedUser={route.params?.selectedUser}
-        selectedTheme={selectedTheme}
-        bannedUsers={bannedUsers}
-        isDrawerVisible={isDrawerVisible}
-        setIsDrawerVisible={setIsDrawerVisible}
-      />
-    ),
-  })}
->
-  {(props) => (
-    <PrivateChatScreen
-      {...props}
-      bannedUsers={bannedUsers}
-      isDrawerVisible={isDrawerVisible}
-      setIsDrawerVisible={setIsDrawerVisible}
-    />
-  )}
-</Stack.Screen>
+        <Stack.Screen
+          name="PrivateChatTrade"
+          options={({ route }) => ({
+            headerTitle: () => (
+              <PrivateChatHeader
+                selectedUser={route.params?.selectedUser}
+                selectedTheme={selectedTheme}
+                bannedUsers={bannedUsers}
+                isDrawerVisible={isDrawerVisible}
+                setIsDrawerVisible={setIsDrawerVisible}
+              />
+            ),
+          })}
+        >
+          {(props) => (
+            <PrivateChatScreen
+              {...props}
+              bannedUsers={bannedUsers}
+              isDrawerVisible={isDrawerVisible}
+              setIsDrawerVisible={setIsDrawerVisible}
+            />
+          )}
+        </Stack.Screen>
         <Stack.Screen
           name="Trade Notifier"
           component={NotifierDrawer}
-         
+
         />
       </Stack.Navigator>
 
@@ -196,17 +196,17 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
   },
 
   modalText: {
     fontSize: 14,
     textAlign: 'left',
-    fontFamily: 'Lato-Regular',
+
     lineHeight: 24,
   },
   highlightedText: {
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     color: config.colors.primary,
   },
   closeButton: {
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
   },
   closeButtonText: {
     fontSize: 16,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
   },
 });
 

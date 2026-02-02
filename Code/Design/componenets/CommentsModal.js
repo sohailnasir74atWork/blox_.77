@@ -37,7 +37,7 @@ const CommentModal = ({ visible, onClose, postId }) => {
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState([]);
   const inputRef = useRef(null);
-  const { user, theme, firestoreDB } = useGlobalState();
+  const { user, theme, firestoreDB, strikeInfo, isAdmin } = useGlobalState();
   const { localState } = useLocalState();
   const navigation = useNavigation();
   const isDarkMode = theme === 'dark';
@@ -92,6 +92,30 @@ const CommentModal = ({ visible, onClose, postId }) => {
     const text = commentText.trim();
     if (!text || !firestoreDB || !user?.id) return;
 
+    // ✅ Block users with strikes from commenting (admins are exempt)
+    if (strikeInfo && !isAdmin) {
+      const { strikeCount, bannedUntil } = strikeInfo;
+      const now = Date.now();
+
+      if (bannedUntil === 'permanent') {
+        Alert.alert('⛔ Permanently Banned', 'You are permanently banned from commenting.');
+        return;
+      }
+
+      if (typeof bannedUntil === 'number' && now < bannedUntil) {
+        const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+        Alert.alert(
+          `⚠️ Strike ${strikeCount}`,
+          `You are banned from commenting for ${timeLeftText} more minute(s).`
+        );
+        return;
+      }
+    }
+
     // ✅ Content moderation: Check comment for inappropriate content
     const contentValidation = validateContent(text);
     if (!contentValidation.isValid) {
@@ -115,7 +139,7 @@ const CommentModal = ({ visible, onClose, postId }) => {
       await updateDoc(postRef, {
         commentCount: increment(1),
       });
-      
+
       setCommentText('');
       inputRef.current?.focus();
     } catch (error) {
@@ -125,14 +149,14 @@ const CommentModal = ({ visible, onClose, postId }) => {
   }, [commentText, user, postId, firestoreDB]);
 
   const renderItem = useCallback(({ item }) => (
-    <TouchableOpacity 
-      onPress={() => handleChatNavigation(item)} 
+    <TouchableOpacity
+      onPress={() => handleChatNavigation(item)}
       style={[styles.comment, isDarkMode && styles.commentDark]}
       activeOpacity={0.7}
     >
-      <Image 
-        source={{ uri: item.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }} 
-        style={styles.avatar} 
+      <Image
+        source={{ uri: item.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }}
+        style={styles.avatar}
       />
       <View style={styles.commentContent}>
         <View style={styles.commentHeader}>
@@ -169,71 +193,71 @@ const CommentModal = ({ visible, onClose, postId }) => {
         style={styles.overlay}
         onPress={onClose}
       />
-      <ConditionalKeyboardWrapper style={{backgroundColor:'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end'}}>
-       
-          <View style={[styles.drawer, isDarkMode && styles.drawerDark]}>
-            {/* Handle Bar */}
-            <View style={styles.handleContainer}>
-              <View style={[styles.handleBar, isDarkMode && styles.handleBarDark]} />
-            </View>
+      <ConditionalKeyboardWrapper style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' }}>
 
-            {/* Header */}
-            <View style={[styles.header, isDarkMode && styles.headerDark]}>
-              <Text style={[styles.headerTitle, isDarkMode && styles.textDark]}>
-                Comments ({comments.length})
-              </Text>
-              <TouchableOpacity 
-                onPress={onClose} 
-                style={[styles.closeIconButton, isDarkMode && styles.closeIconButtonDark]}
-              >
-                <Text style={[styles.closeIcon, isDarkMode && styles.textDark]}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Comments List */}
-            <FlatList
-              data={comments}
-              keyExtractor={(item) => item.id}
-              renderItem={renderItem}
-              keyboardShouldPersistTaps="always"
-              keyboardDismissMode="none"
-              contentContainerStyle={styles.listContent}
-              ListEmptyComponent={ListEmptyComponent}
-              showsVerticalScrollIndicator={false}
-            />
-
-            {/* Input Row */}
-            <View style={[styles.inputContainer, isDarkMode && styles.inputContainerDark]}>
-              <TextInput
-                ref={inputRef}
-                placeholder="Write a comment..."
-                placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
-                value={commentText}
-                onChangeText={setCommentText}
-                style={[styles.input, isDarkMode && styles.inputDark]}
-                returnKeyType="send"
-                onSubmitEditing={handleAddComment}
-                multiline
-                maxLength={500}
-                blurOnSubmit={false}
-              />
-              <TouchableOpacity 
-                onPress={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleAddComment();
-                }} 
-                style={[
-                  styles.sendBtn, 
-                  (!commentText.trim() || !user?.id) && styles.sendBtnDisabled
-                ]}
-                disabled={!commentText.trim() || !user?.id}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.sendText}>Send</Text>
-              </TouchableOpacity>
-            </View>
+        <View style={[styles.drawer, isDarkMode && styles.drawerDark]}>
+          {/* Handle Bar */}
+          <View style={styles.handleContainer}>
+            <View style={[styles.handleBar, isDarkMode && styles.handleBarDark]} />
           </View>
+
+          {/* Header */}
+          <View style={[styles.header, isDarkMode && styles.headerDark]}>
+            <Text style={[styles.headerTitle, isDarkMode && styles.textDark]}>
+              Comments ({comments.length})
+            </Text>
+            <TouchableOpacity
+              onPress={onClose}
+              style={[styles.closeIconButton, isDarkMode && styles.closeIconButtonDark]}
+            >
+              <Text style={[styles.closeIcon, isDarkMode && styles.textDark]}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Comments List */}
+          <FlatList
+            data={comments}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            keyboardShouldPersistTaps="always"
+            keyboardDismissMode="none"
+            contentContainerStyle={styles.listContent}
+            ListEmptyComponent={ListEmptyComponent}
+            showsVerticalScrollIndicator={false}
+          />
+
+          {/* Input Row */}
+          <View style={[styles.inputContainer, isDarkMode && styles.inputContainerDark]}>
+            <TextInput
+              ref={inputRef}
+              placeholder="Write a comment..."
+              placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
+              value={commentText}
+              onChangeText={setCommentText}
+              style={[styles.input, isDarkMode && styles.inputDark]}
+              returnKeyType="send"
+              onSubmitEditing={handleAddComment}
+              multiline
+              maxLength={500}
+              blurOnSubmit={false}
+            />
+            <TouchableOpacity
+              onPress={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleAddComment();
+              }}
+              style={[
+                styles.sendBtn,
+                (!commentText.trim() || !user?.id) && styles.sendBtnDisabled
+              ]}
+              disabled={!commentText.trim() || !user?.id}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.sendText}>Send</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </ConditionalKeyboardWrapper>
     </Modal>
   );
@@ -256,7 +280,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 12,
     elevation: 20,
-    
+
   },
   drawerDark: {
     backgroundColor: '#1F2937',
@@ -289,7 +313,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     color: '#111827',
   },
   closeIconButton: {
@@ -306,7 +330,7 @@ const styles = StyleSheet.create({
   closeIcon: {
     fontSize: 18,
     color: '#6B7280',
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
   },
   listContent: {
     paddingBottom: 16,
@@ -339,13 +363,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   name: {
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     fontSize: 15,
     color: '#111827',
     flex: 1,
   },
   text: {
-    fontFamily: 'Lato-Regular',
+
     fontSize: 14,
     color: '#374151',
     lineHeight: 20,
@@ -354,7 +378,7 @@ const styles = StyleSheet.create({
   timestamp: {
     fontSize: 11,
     color: '#9CA3AF',
-    fontFamily: 'Lato-Regular',
+
   },
   timestampDark: {
     color: '#6B7280',
@@ -381,7 +405,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 20,
     color: '#111827',
-    fontFamily: 'Lato-Regular',
+
     fontSize: 14,
     maxHeight: 100,
     backgroundColor: '#fff',
@@ -406,7 +430,7 @@ const styles = StyleSheet.create({
   },
   sendText: {
     color: '#fff',
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     fontSize: 14,
   },
   emptyContainer: {
@@ -415,7 +439,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    fontFamily: 'Lato-Regular',
+
     color: '#9CA3AF',
     textAlign: 'center',
   },

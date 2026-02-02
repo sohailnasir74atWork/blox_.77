@@ -124,7 +124,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
     },
     tabBarLabelStyle: {
       fontSize: 9, // 👈 Your custom label font size
-      fontFamily: 'Lato-Bold', // Optional: Custom font family
+      fontWeight: 'bold', // Optional: Custom font family
     },
     tabBarActiveTintColor: config.colors.primary,
     tabBarInactiveTintColor: selectedTheme.colors.text,
@@ -132,7 +132,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
       backgroundColor: selectedTheme.colors.background,
     },
     headerTintColor: selectedTheme.colors.text,
-    headerTitleStyle: { fontFamily: 'Lato-Bold', fontSize: 24 },
+    headerTitleStyle: { fontWeight: 'bold', fontSize: 24 },
   }), [selectedTheme, getTabIcon]);
 
   // Memoize Calculator headerRight function

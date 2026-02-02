@@ -68,7 +68,7 @@ const GroupChatScreen = () => {
   const lastLoadedKeyRef = useRef(null); // Oldest message ID (for pagination)
   const newestMessageIdRef = useRef(null); // Newest message ID (for real-time listener)
   const previousGroupIdRef = useRef(null);
-  const hasSentMessageRef = useRef(false); // Track if user sent a message (for exit ad)
+  const hasSentMessageRef = useRef(0); // Track count of messages user sent (for exit ad)
   const chatEnterTimeRef = useRef(null); // Track when user entered chat (for exit ad)
   const { t } = useTranslation();
 
@@ -142,7 +142,7 @@ const GroupChatScreen = () => {
   // ✅ Function to load a batch of member statuses
   const loadMemberStatusesBatch = useCallback(async (memberIds) => {
     if (!appdatabase || memberIds.length === 0 || loadingMemberStatuses) return;
-    
+
     // ✅ Filter out already loaded members to prevent duplicate checks
     const unloadedIds = memberIds.filter(id => !loadedMemberStatuses.has(id));
     if (unloadedIds.length === 0) {
@@ -165,7 +165,7 @@ const GroupChatScreen = () => {
       });
 
       const results = await Promise.all(presencePromises);
-      
+
       // ✅ Update online members list
       setOnlineMembers((prev) => {
         const newSet = new Set(prev);
@@ -235,13 +235,13 @@ const GroupChatScreen = () => {
         where('status', '==', 'pending')
       );
       const snapshot = await getDocs(invitationsQuery);
-      
+
       const invitations = [];
       const memberIds = groupData.memberIds || [];
-      
+
       // ✅ OPTIMIZED: Use stored invited user data first, only fetch from RTDB users node if needed (lazy loading)
       let onlineUsersMap = null; // Lazy load only if needed
-      
+
       // ✅ Process invitations - Show the INVITED USER's info (not the creator who sent it)
       for (const docSnapshot of snapshot.docs) {
         const data = docSnapshot.data();
@@ -251,7 +251,7 @@ const GroupChatScreen = () => {
           const invitedUserId = data.invitedUserId;
           let displayName = 'Anonymous';
           let avatar = 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png';
-          
+
           // 1. First priority: Use stored data from invitation document (NO Firestore read needed)
           if (data.invitedUserDisplayName) {
             displayName = data.invitedUserDisplayName;
@@ -259,7 +259,7 @@ const GroupChatScreen = () => {
           if (data.invitedUserAvatar) {
             avatar = data.invitedUserAvatar;
           }
-          
+
           // 2. Fallback: Lazy load from RTDB users node ONLY if stored data not available
           // ✅ OPTIMIZED: Fetch only displayName and avatar instead of full user object
           if (displayName === 'Anonymous' && invitedUserId && onlineUsersMap === null) {
@@ -268,13 +268,13 @@ const GroupChatScreen = () => {
                 get(ref(appdatabase, `users/${invitedUserId}/displayName`)).catch(() => null),
                 get(ref(appdatabase, `users/${invitedUserId}/avatar`)).catch(() => null),
               ]);
-              
+
               if (displayNameSnap?.exists() || avatarSnap?.exists()) {
                 onlineUsersMap = {
                   [invitedUserId]: {
                     displayName: displayNameSnap?.exists() ? displayNameSnap.val() : 'Anonymous',
-                    avatar: avatarSnap?.exists() ? avatarSnap.val() 
-                           : 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+                    avatar: avatarSnap?.exists() ? avatarSnap.val()
+                      : 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
                   }
                 };
               } else {
@@ -285,7 +285,7 @@ const GroupChatScreen = () => {
               onlineUsersMap = {}; // Mark as loaded (empty) to avoid retrying
             }
           }
-          
+
           // 3. Use RTDB users node data if available
           if (displayName === 'Anonymous' && invitedUserId && onlineUsersMap) {
             const invitedUserData = onlineUsersMap[invitedUserId];
@@ -294,7 +294,7 @@ const GroupChatScreen = () => {
               avatar = invitedUserData.avatar || avatar;
             }
           }
-          
+
           invitations.push({
             id: docSnapshot.id,
             invitedUserId: invitedUserId, // The person who was invited
@@ -321,7 +321,7 @@ const GroupChatScreen = () => {
 
     // ✅ Only show pending invitations to creator
     const isCreator = groupData.createdBy === user.id;
-    
+
     if (isCreator) {
       fetchPendingInvitations();
     } else {
@@ -367,7 +367,7 @@ const GroupChatScreen = () => {
         let parsedMessages = Object.entries(data)
           .map(([key, value]) => ({ id: key, ...value }))
           .sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0)); // ✅ DESCENDING: newest -> oldest (for inverted FlatList)
-        
+
         // ✅ Filter out the lastKey itself when loading more (to avoid duplicate)
         if (!reset && lastKey && parsedMessages.length > 0) {
           parsedMessages = parsedMessages.filter(msg => String(msg.id) !== String(lastKey));
@@ -386,7 +386,7 @@ const GroupChatScreen = () => {
 
         // ✅ Track new messages for pagination key update
         const newMessagesRef = { value: parsedMessages };
-        
+
         setMessages((prev) => {
           if (!Array.isArray(prev)) return parsedMessages;
           const existingIds = new Set(prev.map((m) => String(m?.id)));
@@ -467,7 +467,6 @@ const GroupChatScreen = () => {
       }
 
       // ✅ Skip if this is the newest message we already have (from initial load)
-      // This prevents duplicate from initial listener attach
       if (newestMessageIdRef.current && String(newMessage.id) === String(newestMessageIdRef.current)) {
         return;
       }
@@ -475,11 +474,11 @@ const GroupChatScreen = () => {
       setMessages((prev) => {
         if (!Array.isArray(prev)) return [newMessage];
         const exists = prev.some((m) => String(m?.id) === String(newMessage.id));
-        if (exists) return prev; // don't duplicate
+        if (exists) return prev;
 
-        // ✅ Keep DESCENDING order: add to the beginning (newest first for inverted FlatList)
+        // ✅ Keep DESCENDING order
         const updated = [newMessage, ...prev].sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
-        // ✅ Update newest message ID for tracking
+
         if (updated.length > 0) {
           newestMessageIdRef.current = updated[0]?.id;
         }
@@ -488,21 +487,25 @@ const GroupChatScreen = () => {
     };
 
     // ✅ OPTIMIZED: Use limitToLast(1) to only listen to the latest message
-    // This ensures child_added only fires for the most recent message, not all existing ones
-    // When a new message is added, it becomes the latest and triggers the listener
     const query = messagesRef.orderByKey().limitToLast(1);
-    const unsubscribe = query.on('child_added', handleChildAdded);
+
+    try {
+      // ✅ Explicitly pass the function standard way
+      query.on('child_added', handleChildAdded);
+    } catch (e) {
+      console.error('Error attaching listener:', e);
+    }
 
     return () => {
       isMounted = false;
-      if (unsubscribe && typeof unsubscribe === 'function') {
-        unsubscribe();
-      } else if (messagesRef) {
-        // Fallback: try to remove listener if unsubscribe is not a function
-        messagesRef.off('child_added', handleChildAdded);
+      try {
+        // ✅ Explicitly remove the SAME function
+        query.off('child_added', handleChildAdded);
+      } catch (e) {
+        console.error('Error removing listener:', e);
       }
     };
-  }, [messagesRef, isMember]); // Re-run when messagesRef or isMember changes
+  }, [messagesRef, isMember]);
 
   // Set active chat and reset unread count
   useFocusEffect(
@@ -514,7 +517,7 @@ const GroupChatScreen = () => {
       setActiveGroupChat(user.id, groupId);
 
       // Reset refs when entering chat (for exit ad logic)
-      hasSentMessageRef.current = false;
+      hasSentMessageRef.current = 0;
       chatEnterTimeRef.current = Date.now();
 
       // Reset unreadCount when entering chat
@@ -526,10 +529,10 @@ const GroupChatScreen = () => {
       return () => {
         clearActiveChat(user.id);
         clearActiveGroupChat(user.id, groupId);
-        
-        // Show ad when leaving if: 10+ seconds spent AND message sent AND not Pro
+
+        // Show ad when leaving if: 20+ seconds spent AND 3+ messages sent AND not Pro
         const timeSpent = Date.now() - (chatEnterTimeRef.current || Date.now());
-        if (timeSpent >= 10000 && hasSentMessageRef.current && !localState?.isPro) {
+        if (timeSpent >= 20000 && hasSentMessageRef.current >= 3 && !localState?.isPro) {
           InterstitialAdManager.showAd();
         }
       };
@@ -735,7 +738,7 @@ const GroupChatScreen = () => {
         } else {
           // Clear reply after successful send
           setReplyTo(null);
-          hasSentMessageRef.current = true; // Track that user sent a message (for exit ad)
+          hasSentMessageRef.current += 1; // Track count of messages sent
         }
       } catch (error) {
         console.error('Error sending message:', error);
@@ -787,7 +790,7 @@ const GroupChatScreen = () => {
   const handleMakeCreator = useCallback((memberId, memberName) => {
     // Close members modal first to avoid nested modal issues on iOS
     setShowMembersModal(false);
-    
+
     // Use setTimeout to ensure modal closes before showing alert
     setTimeout(() => {
       Alert.alert(
@@ -972,10 +975,10 @@ const GroupChatScreen = () => {
     navigation.setOptions({
       headerBackVisible: true,
       headerTitle: () => (
-        <Text 
-          style={{ 
-            fontSize: 18, 
-            fontFamily: 'Lato-Bold', 
+        <Text
+          style={{
+            fontSize: 18,
+            fontWeight: 'bold',
             color: isDarkMode ? '#fff' : '#000',
             textAlign: 'center',
           }}
@@ -992,7 +995,7 @@ const GroupChatScreen = () => {
           style={{ flexDirection: 'row', alignItems: 'center', marginRight: 15 }}
         >
           <Icon name="people" size={20} color={isDarkMode ? '#fff' : '#000'} />
-          <Text style={{ marginLeft: 6, color: isDarkMode ? '#fff' : '#000', fontFamily: 'Lato-SemiBold', fontSize: 14 }}>
+          <Text style={{ marginLeft: 6, color: isDarkMode ? '#fff' : '#000', fontWeight: '600', fontSize: 14 }}>
             {memberCount}
           </Text>
         </TouchableOpacity>
@@ -1022,7 +1025,7 @@ const GroupChatScreen = () => {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
         <Icon name="mail-outline" size={64} color={isDarkMode ? '#8B5CF6' : '#8B5CF6'} />
-        <Text style={[styles.text, { fontSize: 24, fontFamily: 'Lato-Bold', marginTop: 20, marginBottom: 10 }]}>
+        <Text style={[styles.text, { fontSize: 24, fontWeight: 'bold', marginTop: 20, marginBottom: 10 }]}>
           Group Invitation
         </Text>
         <Text style={[styles.text, { fontSize: 16, textAlign: 'center', marginBottom: 30, opacity: 0.7 }]} numberOfLines={2} ellipsizeMode="tail">
@@ -1038,7 +1041,7 @@ const GroupChatScreen = () => {
               backgroundColor: isDarkMode ? '#374151' : '#E5E7EB',
             }}
           >
-            <Text style={{ color: isDarkMode ? '#fff' : '#000', fontFamily: 'Lato-SemiBold' }}>Decline</Text>
+            <Text style={{ color: isDarkMode ? '#fff' : '#000', fontWeight: '600' }}>Decline</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={handleAcceptInvite}
@@ -1049,7 +1052,7 @@ const GroupChatScreen = () => {
               backgroundColor: '#8B5CF6',
             }}
           >
-            <Text style={{ color: '#fff', fontFamily: 'Lato-SemiBold' }}>Accept</Text>
+            <Text style={{ color: '#fff', fontWeight: '600' }}>Accept</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -1061,7 +1064,7 @@ const GroupChatScreen = () => {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
         <Icon name="lock-closed-outline" size={64} color={isDarkMode ? '#9CA3AF' : '#6B7280'} />
-        <Text style={[styles.text, { fontSize: 24, fontFamily: 'Lato-Bold', marginTop: 20, marginBottom: 10 }]}>
+        <Text style={[styles.text, { fontSize: 24, fontWeight: 'bold', marginTop: 20, marginBottom: 10 }]}>
           Access Denied
         </Text>
         <Text style={[styles.text, { fontSize: 16, textAlign: 'center', marginBottom: 30, opacity: 0.7 }]}>
@@ -1076,7 +1079,7 @@ const GroupChatScreen = () => {
             backgroundColor: '#8B5CF6',
           }}
         >
-          <Text style={{ color: '#fff', fontFamily: 'Lato-SemiBold' }}>Go Back</Text>
+          <Text style={{ color: '#fff', fontWeight: '600' }}>Go Back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -1093,215 +1096,215 @@ const GroupChatScreen = () => {
 
   return (
     <>
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ConditionalKeyboardWrapper style={{ flex: 1 }} privatechatscreen={true}>
-        <View style={[styles.container, { position: 'relative' }]}>
-          {messages.length === 0 && !loading ? (
-            // No messages yet - show empty state but keep input visible
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No messages yet</Text>
-            </View>
-          ) : (
-            <GroupMessageList
-              messages={messages}
-              userId={user?.id}
-              user={user}
-              groupData={groupData}
-              handleLoadMore={handleLoadMore}
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              loading={loading}
-              isPaginating={isPaginating}
-              onUserPress={handleUserPress}
-              onReply={handleReply}
-              scrollToMessage={scrollToMessage}
-              highlightedMessageId={highlightedMessageId}
-              flatListRef={flatListRef}
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <ConditionalKeyboardWrapper style={{ flex: 1 }} privatechatscreen={true}>
+          <View style={[styles.container, { position: 'relative' }]}>
+            {messages.length === 0 && !loading ? (
+              // No messages yet - show empty state but keep input visible
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No messages yet</Text>
+              </View>
+            ) : (
+              <GroupMessageList
+                messages={messages}
+                userId={user?.id}
+                user={user}
+                groupData={groupData}
+                handleLoadMore={handleLoadMore}
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                loading={loading}
+                isPaginating={isPaginating}
+                onUserPress={handleUserPress}
+                onReply={handleReply}
+                scrollToMessage={scrollToMessage}
+                highlightedMessageId={highlightedMessageId}
+                flatListRef={flatListRef}
+              />
+            )}
+
+            <GroupMessageInput
+              onSend={(text, image, fruits) => sendMessage(text, image, fruits, replyTo)}
+              isBanned={false}
+              petModalVisible={petModalVisible}
+              setPetModalVisible={setPetModalVisible}
+              selectedFruits={selectedFruits}
+              setSelectedFruits={setSelectedFruits}
+              replyTo={replyTo}
+              onCancelReply={handleCancelReply}
             />
-          )}
+          </View>
+        </ConditionalKeyboardWrapper>
 
-          <GroupMessageInput
-            onSend={(text, image, fruits) => sendMessage(text, image, fruits, replyTo)}
-            isBanned={false}
-            petModalVisible={petModalVisible}
-            setPetModalVisible={setPetModalVisible}
-            selectedFruits={selectedFruits}
-            setSelectedFruits={setSelectedFruits}
-            replyTo={replyTo}
-            onCancelReply={handleCancelReply}
-          />
-        </View>
-      </ConditionalKeyboardWrapper>
+        {/* Members Modal */}
+        <Modal
+          visible={showMembersModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowMembersModal(false)}
+        >
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+            <View style={{ backgroundColor: isDarkMode ? '#1F2937' : '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%' }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: isDarkMode ? '#374151' : '#E5E7EB' }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: isDarkMode ? '#fff' : '#000' }}>
+                  Members ({memberCount})
+                </Text>
+                <TouchableOpacity onPress={() => setShowMembersModal(false)}>
+                  <Icon name="close" size={24} color={isDarkMode ? '#fff' : '#000'} />
+                </TouchableOpacity>
+              </View>
 
-      {/* Members Modal */}
-      <Modal
-        visible={showMembersModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowMembersModal(false)}
-      >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: isDarkMode ? '#1F2937' : '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%' }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: isDarkMode ? '#374151' : '#E5E7EB' }}>
-              <Text style={{ fontSize: 20, fontFamily: 'Lato-Bold', color: isDarkMode ? '#fff' : '#000' }}>
-                Members ({memberCount})
-              </Text>
-              <TouchableOpacity onPress={() => setShowMembersModal(false)}>
-                <Icon name="close" size={24} color={isDarkMode ? '#fff' : '#000'} />
-              </TouchableOpacity>
-            </View>
+              <FlatList
+                data={[
+                  // Actual members
+                  ...Array.from(new Set(groupData?.memberIds || [])).map(id => ({ type: 'member', id })),
+                  // Pending invitations
+                  ...pendingInvitations.map(inv => ({ type: 'pending', id: inv.invitedUserId, inviteData: inv }))
+                ]}
+                keyExtractor={(item) => `${item.type}-${item.id}`}
+                onEndReached={() => {
+                  // ✅ Load next batch of member statuses on scroll
+                  // ✅ Prevent loading if already loading or if all members are loaded
+                  if (loadingMemberStatuses || !groupData?.memberIds) return;
 
-            <FlatList
-              data={[
-                // Actual members
-                ...(groupData?.memberIds || []).map(id => ({ type: 'member', id })),
-                // Pending invitations
-                ...pendingInvitations.map(inv => ({ type: 'pending', id: inv.invitedUserId, inviteData: inv }))
-              ]}
-              keyExtractor={(item) => `${item.type}-${item.id}`}
-              onEndReached={() => {
-                // ✅ Load next batch of member statuses on scroll
-                // ✅ Prevent loading if already loading or if all members are loaded
-                if (loadingMemberStatuses || !groupData?.memberIds) return;
-                
-                const allMemberIds = groupData.memberIds || [];
-                const unloadedIds = allMemberIds.filter(id => !loadedMemberStatuses.has(id));
-                
-                // ✅ Only load if there are unloaded members
-                if (unloadedIds.length > 0) {
-                  const nextBatch = unloadedIds.slice(0, MEMBER_STATUS_BATCH_SIZE);
-                  loadMemberStatusesBatch(nextBatch);
+                  const allMemberIds = groupData.memberIds || [];
+                  const unloadedIds = allMemberIds.filter(id => !loadedMemberStatuses.has(id));
+
+                  // ✅ Only load if there are unloaded members
+                  if (unloadedIds.length > 0) {
+                    const nextBatch = unloadedIds.slice(0, MEMBER_STATUS_BATCH_SIZE);
+                    loadMemberStatusesBatch(nextBatch);
+                  }
+                }}
+                onEndReachedThreshold={0.1}
+                scrollEnabled={true}
+                removeClippedSubviews={false}
+                ListFooterComponent={
+                  loadingMemberStatuses ? (
+                    <View style={{ padding: 10, alignItems: 'center' }}>
+                      <ActivityIndicator size="small" color={isDarkMode ? '#8B5CF6' : '#8B5CF6'} />
+                    </View>
+                  ) : null
                 }
-              }}
-              onEndReachedThreshold={0.1}
-              scrollEnabled={true}
-              removeClippedSubviews={false}
-              ListFooterComponent={
-                loadingMemberStatuses ? (
-                  <View style={{ padding: 10, alignItems: 'center' }}>
-                    <ActivityIndicator size="small" color={isDarkMode ? '#8B5CF6' : '#8B5CF6'} />
-                  </View>
-                ) : null
-              }
-              renderItem={({ item }) => {
-                if (item.type === 'pending') {
-                  // ✅ Render pending invitation - Shows the INVITED USER (the person who was invited)
-                  const inviteData = item.inviteData;
+                renderItem={({ item }) => {
+                  if (item.type === 'pending') {
+                    // ✅ Render pending invitation - Shows the INVITED USER (the person who was invited)
+                    const inviteData = item.inviteData;
+                    return (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: isDarkMode ? '#374151' : '#E5E7EB' }}>
+                        <Image
+                          source={{ uri: inviteData.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }}
+                          style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12, opacity: 0.6 }}
+                        />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 16, fontWeight: '600', color: isDarkMode ? '#fff' : '#000' }}>
+                            {inviteData.displayName || 'Anonymous'}
+                          </Text>
+                          <Text style={{ fontSize: 12, color: isDarkMode ? '#9CA3AF' : '#6B7280', marginTop: 2 }}>
+                            Pending to Join
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  }
+
+                  // Render actual member
+                  const memberId = item.id;
+                  const member = groupData?.members?.[memberId] || {};
+                  const isOnline = onlineMembers.includes(memberId);
+                  const isCurrentUser = memberId === user?.id;
+                  const isMemberCreator = groupData?.createdBy === memberId;
+                  const canRemove = isCreator && !isCurrentUser && !isMemberCreator;
+                  const canMakeCreator = isCreator && !isCurrentUser && !isMemberCreator;
+
                   return (
                     <View style={{ flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: isDarkMode ? '#374151' : '#E5E7EB' }}>
                       <Image
-                        source={{ uri: inviteData.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }}
-                        style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12, opacity: 0.6 }}
+                        source={{ uri: member.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }}
+                        style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
                       />
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 16, fontFamily: 'Lato-SemiBold', color: isDarkMode ? '#fff' : '#000' }}>
-                          {inviteData.displayName || 'Anonymous'}
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Text style={{ fontSize: 16, fontWeight: '600', color: isDarkMode ? '#fff' : '#000' }}>
+                            {member.displayName || 'Anonymous'}
+                          </Text>
+                          {isMemberCreator && (
+                            <View style={{
+                              backgroundColor: '#8B5CF6',
+                              paddingHorizontal: 4,
+                              paddingVertical: 1,
+                              borderRadius: 3,
+                              marginLeft: 6,
+                            }}>
+                              <Text style={{
+                                color: '#FFF',
+                                fontSize: 9,
+                                fontWeight: '600'
+                              }}>Creator</Text>
+                            </View>
+                          )}
+                          {isOnline && (
+                            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#10B981', marginLeft: 8 }} />
+                          )}
+                        </View>
+                        <Text style={{ fontSize: 12, color: isDarkMode ? '#9CA3AF' : '#6B7280', marginTop: 2 }}>
+                          {isOnline ? 'Online' : ''}
                         </Text>
-                        <Text style={{ fontSize: 12, fontFamily: 'Lato-Regular', color: isDarkMode ? '#9CA3AF' : '#6B7280', marginTop: 2 }}>
-                          Pending to Join
-                        </Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        {canMakeCreator && (
+                          <TouchableOpacity
+                            onPress={() => handleMakeCreator(memberId, member.displayName)}
+                            style={{ padding: 8 }}
+                          >
+                            <Icon name="star-outline" size={20} color="#F59E0B" />
+                          </TouchableOpacity>
+                        )}
+                        {canRemove && (
+                          <TouchableOpacity
+                            onPress={() => handleRemoveMember(memberId, member.displayName)}
+                            style={{ padding: 8 }}
+                          >
+                            <Icon name="trash-outline" size={20} color="#EF4444" />
+                          </TouchableOpacity>
+                        )}
                       </View>
                     </View>
                   );
-                }
-
-                // Render actual member
-                const memberId = item.id;
-                const member = groupData?.members?.[memberId] || {};
-                const isOnline = onlineMembers.includes(memberId);
-                const isCurrentUser = memberId === user?.id;
-                const isMemberCreator = groupData?.createdBy === memberId;
-                const canRemove = isCreator && !isCurrentUser && !isMemberCreator;
-                const canMakeCreator = isCreator && !isCurrentUser && !isMemberCreator;
-
-                return (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: isDarkMode ? '#374151' : '#E5E7EB' }}>
-                    <Image
-                      source={{ uri: member.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }}
-                      style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Text style={{ fontSize: 16, fontFamily: 'Lato-SemiBold', color: isDarkMode ? '#fff' : '#000' }}>
-                          {member.displayName || 'Anonymous'}
-                        </Text>
-                        {isMemberCreator && (
-                          <View style={{
-                            backgroundColor: '#8B5CF6',
-                            paddingHorizontal: 4,
-                            paddingVertical: 1,
-                            borderRadius: 3,
-                            marginLeft: 6,
-                          }}>
-                            <Text style={{
-                              color: '#FFF',
-                              fontSize: 9,
-                              fontWeight: '600',
-                            }}>Creator</Text>
-                          </View>
-                        )}
-                        {isOnline && (
-                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#10B981', marginLeft: 8 }} />
-                        )}
-                      </View>
-                      <Text style={{ fontSize: 12, fontFamily: 'Lato-Regular', color: isDarkMode ? '#9CA3AF' : '#6B7280', marginTop: 2 }}>
-                        {isOnline ? 'Online' : ''}
-                      </Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      {canMakeCreator && (
-                        <TouchableOpacity
-                          onPress={() => handleMakeCreator(memberId, member.displayName)}
-                          style={{ padding: 8 }}
-                        >
-                          <Icon name="star-outline" size={20} color="#F59E0B" />
-                        </TouchableOpacity>
-                      )}
-                      {canRemove && (
-                        <TouchableOpacity
-                          onPress={() => handleRemoveMember(memberId, member.displayName)}
-                          style={{ padding: 8 }}
-                        >
-                          <Icon name="trash-outline" size={20} color="#EF4444" />
-                        </TouchableOpacity>
-                      )}
-                    </View>
+                }}
+                ListEmptyComponent={
+                  <View style={{ padding: 40, alignItems: 'center' }}>
+                    <Text style={{ color: isDarkMode ? '#9CA3AF' : '#6B7280' }}>No members found</Text>
                   </View>
-                );
-              }}
-              ListEmptyComponent={
-                <View style={{ padding: 40, alignItems: 'center' }}>
-                  <Text style={{ color: isDarkMode ? '#9CA3AF' : '#6B7280' }}>No members found</Text>
-                </View>
-              }
-            />
+                }
+              />
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-      {/* Profile Bottom Drawer */}
-      <ProfileBottomDrawer
-        isVisible={isDrawerVisible}
-        toggleModal={() => setIsDrawerVisible(false)}
-        startChat={() => {
-          setIsDrawerVisible(false);
-          // Navigate to private chat if needed
-        }}
-        selectedUser={selectedUserForDrawer}
-        isOnline={selectedUserOnline}
-        bannedUsers={bannedUsers}
-        fromPvtChat={true}
-      />
+        {/* Profile Bottom Drawer */}
+        <ProfileBottomDrawer
+          isVisible={isDrawerVisible}
+          toggleModal={() => setIsDrawerVisible(false)}
+          startChat={() => {
+            setIsDrawerVisible(false);
+            // Navigate to private chat if needed
+          }}
+          selectedUser={selectedUserForDrawer}
+          isOnline={selectedUserOnline}
+          bannedUsers={bannedUsers}
+          fromPvtChat={true}
+        />
 
-      <PetModal
-        fromChat={true}
-        visible={petModalVisible}
-        onClose={() => setPetModalVisible(false)}
-        selectedFruits={selectedFruits}
-        setSelectedFruits={setSelectedFruits}
-      />
-    </GestureHandlerRootView>
-    {!localState.isPro && <BannerAdComponent />}
+        <PetModal
+          fromChat={true}
+          visible={petModalVisible}
+          onClose={() => setPetModalVisible(false)}
+          selectedFruits={selectedFruits}
+          setSelectedFruits={setSelectedFruits}
+        />
+      </GestureHandlerRootView>
+      {!localState.isPro && <BannerAdComponent />}
     </>
   );
 };

@@ -70,7 +70,7 @@ const AdminHeader = ({
       // ✅ Use unified database path
       const banRef = ref(db, `banned_users_by_email/${encodeEmail(email)}`);
       await set(banRef, null); // Clear the ban entry
-  
+
       Alert.alert('User Unbanned', 'Ban has been lifted.');
     } catch (err) {
       console.error('Unban error:', err);
@@ -226,11 +226,11 @@ export const getStyles = (isDarkMode) =>
       borderBottomColor: 'lightgrey',
     },
     stackHeader: {
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       fontSize: 24,
       lineHeight: 24,
       color: isDarkMode ? 'white' : 'black',
-      
+
     },
     pinnedContainer: {
       // paddingHorizontal: 10,
@@ -255,12 +255,12 @@ export const getStyles = (isDarkMode) =>
     pinnedTextheader: {
       fontSize: 12,
       paddingRight: 20,
-      fontFamily: 'Lato-Regular',
+
       color: config.colors.primary,
     },
     pinnedText: {
       fontSize: 12,
-      fontFamily: 'Lato-Regular',
+
       color: isDarkMode ? 'white' : 'black'
     },
     pinIcon: {
@@ -283,7 +283,7 @@ export const getStyles = (isDarkMode) =>
     },
     modalTitle: {
       fontSize: 20,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       marginBottom: 20,
       color: isDarkMode ? 'white' : 'black',
     },
@@ -297,7 +297,7 @@ export const getStyles = (isDarkMode) =>
     closeButtonText: {
       color: '#fff',
       fontSize: 16,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
     },
     badge: {
       position: 'absolute',
@@ -314,7 +314,7 @@ export const getStyles = (isDarkMode) =>
     badgeText: {
       color: '#fff',
       fontSize: 10,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
     },
   });
 

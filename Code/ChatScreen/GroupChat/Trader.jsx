@@ -15,7 +15,7 @@ import MessagesList from './MessagesList';
 import MessageInput from './MessageInput';
 import { getStyles } from '../Style';
 import getAdUnitId from '../../Ads/ads';
-import { banUser, handleDeleteLast300Messages, isUserOnline,  unbanUser } from '../utils';
+import { banUser, handleDeleteLast300Messages, isUserOnline, unbanUser } from '../utils';
 import { useIsFocused, useNavigation, useFocusEffect } from '@react-navigation/native';
 import ProfileBottomDrawer from './BottomDrawer';
 import leoProfanity from 'leo-profanity';
@@ -38,7 +38,7 @@ leoProfanity.loadDictionary('en');
 const bannerAdUnitId = getAdUnitId('banner');
 const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatFocused,
   setModalVisibleChatinfo, unreadMessagesCount, unreadcount, setunreadcount, onlineUsersVisible, setOnlineUsersVisible }) => {
-    const { user, theme, onlineMembersCount, appdatabase, setUser, isAdmin, proTagBought, currentUserEmail, proGranted, strikeInfo } = useGlobalState();
+  const { user, theme, onlineMembersCount, appdatabase, setUser, isAdmin, proTagBought, currentUserEmail, proGranted, strikeInfo } = useGlobalState();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [replyTo, setReplyTo] = useState(null);
@@ -62,7 +62,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   const isFocused = useIsFocused();
   const [selectedEmoji, setSelectedEmoji] = useState(null);
   const [petModalVisible, setPetModalVisible] = useState(false);
-  const [selectedFruits, setSelectedFruits] = useState([]); 
+  const [selectedFruits, setSelectedFruits] = useState([]);
   const [device, setDevice] = useState(null);
 
   // ✅ Track last sent message to prevent duplicates (session-based, no Firebase cost)
@@ -84,7 +84,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       try {
         const snapshot = await pinnedMessagesRef.once('value');
         const pinnedMessagesData = snapshot.val() || {};
-  
+
         // ✅ Safety check and transform data into an array
         const pinnedMessagesArray = Object.entries(pinnedMessagesData)
           .map(([key, value]) => {
@@ -95,15 +95,15 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
             };
           })
           .filter(Boolean);
-  
+
         setPinnedMessages(pinnedMessagesArray);
       } catch (error) {
         console.error('Error loading pinned messages:', error);
       }
     };
-  
+
     fetchPinnedMessages();  // Fetch pinned messages initially
-  
+
     // Listen to real-time updates on pinned messages
     const listener = pinnedMessagesRef.on('child_added', (snapshot) => {
       if (!snapshot || !snapshot.key) return;
@@ -116,35 +116,39 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         return exists ? prev : [...prev, newPinnedMessage];
       });
     });
-  
+
     return () => {
       if (pinnedMessagesRef) {
         pinnedMessagesRef.off('child_added', listener);
       }
     };
   }, []);
-// ✅ Memoize openProfileDrawer
-const openProfileDrawer = useCallback(async (userData) => {
-  if (!userData || !userData.senderId) return;
+  // ✅ Memoize openProfileDrawer
+  const openProfileDrawer = useCallback(async (userData) => {
+    if (!userData || !userData.senderId) return;
 
-  setSelectedUser(userData);
-  setIsDrawerVisible(true);
+    setSelectedUser(userData);
+    setIsDrawerVisible(true);
 
-  try {
-    const online = await isUserOnline(userData.senderId);
-    setIsOnline(online);
-  } catch (error) {
-    console.error('🔥 Error checking online status:', error);
-    setIsOnline(false);
-  }
-}, []);
+    try {
+      const online = await isUserOnline(userData.senderId);
+      setIsOnline(online);
+    } catch (error) {
+      console.error('🔥 Error checking online status:', error);
+      setIsOnline(false);
+    }
+  }, []);
 
-// ✅ Memoize closeProfileDrawer
-const closeProfileDrawer = useCallback(() => {
-  setIsDrawerVisible(false);
-}, []);
+  // ✅ Memoize closeProfileDrawer
+  const closeProfileDrawer = useCallback(() => {
+    setIsDrawerVisible(false);
+  }, []);
+
+  // ✅ Ref to track isAtBottom without triggering re-renders in listener
+  const isAtBottomRef = useRef(isAtBottom);
 
   useEffect(() => {
+    isAtBottomRef.current = isAtBottom;
     if (isAtBottom && pendingMessages.length > 0) {
       // console.log("✅ User scrolled to bottom. Releasing held messages...");
       setMessages((prev) => [...pendingMessages, ...prev]);
@@ -158,35 +162,35 @@ const closeProfileDrawer = useCallback(() => {
   const navigation = useNavigation()
 
 
-// ✅ Memoize toggleDrawer
-const toggleDrawer = useCallback(async (userData = null) => {
-  setSelectedUser(userData);
-  setIsDrawerVisible((prev) => !prev);
+  // ✅ Memoize toggleDrawer
+  const toggleDrawer = useCallback(async (userData = null) => {
+    setSelectedUser(userData);
+    setIsDrawerVisible((prev) => !prev);
 
-  if (userData?.senderId) {
-    try {
-      const online = await isUserOnline(userData.senderId);
-      setIsOnline(online);
-    } catch (error) {
-      console.error("🔥 Error checking online status:", error);
+    if (userData?.senderId) {
+      try {
+        const online = await isUserOnline(userData.senderId);
+        setIsOnline(online);
+      } catch (error) {
+        console.error("🔥 Error checking online status:", error);
+        setIsOnline(false);
+      }
+    } else {
       setIsOnline(false);
     }
-  } else {
-    setIsOnline(false);
-  }
-}, []);
+  }, []);
 
-// ✅ Memoize startPrivateChat
-const startPrivateChat = useCallback(() => {
-  const callbackfunction = () => {
-    closeProfileDrawer();
-    if (navigation && typeof navigation.navigate === 'function') {
-      navigation.navigate('PrivateChat', { selectedUser, selectedTheme });
-    }
-    mixpanel.track("Inbox Chat");
-  };
-  callbackfunction();
-}, [selectedUser, selectedTheme,  closeProfileDrawer]);
+  // ✅ Memoize startPrivateChat
+  const startPrivateChat = useCallback(() => {
+    const callbackfunction = () => {
+      closeProfileDrawer();
+      if (navigation && typeof navigation.navigate === 'function') {
+        navigation.navigate('PrivateChat', { selectedUser, selectedTheme });
+      }
+      mixpanel.track("Inbox Chat");
+    };
+    callbackfunction();
+  }, [selectedUser, selectedTheme, closeProfileDrawer]);
 
 
   // const isAdmin = user?.admin || false;
@@ -196,12 +200,12 @@ const startPrivateChat = useCallback(() => {
   const validateMessage = useCallback((message) => {
     const text = (message?.text ?? "").toString();
     const trimmed = text.trim();
-  
+
     const hasFruits = Array.isArray(message?.fruits) && message.fruits.length > 0;
     const hasGif = !!message?.gif;
-  
+
     const hasContent = trimmed.length > 0 || hasFruits || hasGif;
-  
+
     return {
       ...message,
       sender: (message?.sender ?? "Anonymous").toString().trim() || "Anonymous",
@@ -215,8 +219,8 @@ const startPrivateChat = useCallback(() => {
       _invalid: !hasContent,
     };
   }, []);
-  
-  
+
+
 
   const loadMessages = useCallback(
     async (reset = false) => {
@@ -226,38 +230,38 @@ const startPrivateChat = useCallback(() => {
           setLoading(true);
           setLastLoadedKey(null);
         }
-  
+
         // console.log(`[loadMessages] Fetching messages... reset: ${reset}, lastLoadedKey: ${lastLoadedKey}`);
-  
+
         const messageQuery = reset
           ? chatRef.orderByKey().limitToLast(PAGE_SIZE)
           : chatRef.orderByKey().endAt(lastLoadedKey).limitToLast(PAGE_SIZE);
-  
+
         const snapshot = await messageQuery.once('value');
         const data = snapshot.val() || {};
-  
+
         // ✅ Safety check for bannedUsers array
         const bannedIds = Array.isArray(bannedUsers)
-        ? bannedUsers.map(u => (typeof u === "string" ? u : u?.id)).filter(Boolean)
-        : [];
-                const parsedMessages = Object.entries(data)
+          ? bannedUsers.map(u => (typeof u === "string" ? u : u?.id)).filter(Boolean)
+          : [];
+        const parsedMessages = Object.entries(data)
           .map(([key, value]) => {
             if (!key || !value || typeof value !== 'object') return null;
             return validateMessage({ id: key, ...value });
           })
           .filter(Boolean)
           .filter(msg => msg?.senderId && !bannedIds.includes(msg.senderId)).sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
-  
+
         if (!reset && parsedMessages[parsedMessages.length - 1]?.id === lastLoadedKey) {
           // console.log(`[loadMessages] Removing duplicate key: ${lastLoadedKey}`);
           parsedMessages.pop();
         }
-  
+
         if (parsedMessages.length === 0) {
           // console.log('[loadMessages] Reached end of messages, not loading more.');
           return;
         }
-  
+
         if (reset) {
           setMessages(parsedMessages);
           // console.log(`[loadMessages] Loaded ${parsedMessages.length} messages (reset)`);
@@ -265,14 +269,14 @@ const startPrivateChat = useCallback(() => {
           setMessages((prev) => [...prev, ...parsedMessages]);
           // console.log(`[loadMessages] Appending ${parsedMessages.length} messages`);
         }
-  
+
         const newLastKey = parsedMessages[parsedMessages.length - 1]?.id;
-  
+
         if (newLastKey === lastLoadedKey) {
           // console.log(`[loadMessages] Reached end of list or same key: ${lastLoadedKey}`);
           return;
         }
-  
+
         setLastLoadedKey(newLastKey);
         // console.log(`[loadMessages] New lastLoadedKey: ${newLastKey}`);
       } catch (error) {
@@ -283,18 +287,18 @@ const startPrivateChat = useCallback(() => {
     },
     [chatRef, lastLoadedKey, validateMessage, bannedUsers, appdatabase]
   );
-  
+
 
   useEffect(() => {
     const platform = Platform.OS; // "ios" or "android"
-  
+
     // console.log('Initial loading of messages.');
     loadMessages(true); // Reset and load the latest messages
     if (setChatFocused && typeof setChatFocused === 'function') {
       setChatFocused(false);
     }
     setDevice(platform);
-  }, [ setChatFocused]);
+  }, [setChatFocused]);
 
   // const bannedUserIds = bannedUsers.map((user) => user.id); // Extract IDs from bannedUsers
 
@@ -310,7 +314,7 @@ const startPrivateChat = useCallback(() => {
         // Step 1: Get only the latest message KEY (minimal download)
         initialLoadQuery = chatRef.orderByKey().limitToLast(1);
         const initialSnapshot = await initialLoadQuery.once('value');
-        
+
         if (initialSnapshot.exists()) {
           const data = initialSnapshot.val();
           const keys = Object.keys(data);
@@ -318,20 +322,20 @@ const startPrivateChat = useCallback(() => {
             newestMessageIdRef.current = keys[0];
           }
         }
-        
+
         hasInitializedRef.current = true;
 
         // Step 2: Listen for NEW messages only (skips initial data)
         const newMessagesQuery = chatRef.orderByKey().limitToLast(1);
-        
+
         listener = newMessagesQuery.on('child_added', (snapshot) => {
           if (!snapshot || !snapshot.key) return;
-          
+
           // ✅ Skip if this is the message we already loaded during initialization
           if (hasInitializedRef.current && snapshot.key === newestMessageIdRef.current) {
             return; // Skip initial message
           }
-          
+
           // Update newest message ID for future skips
           newestMessageIdRef.current = snapshot.key;
 
@@ -350,7 +354,8 @@ const startPrivateChat = useCallback(() => {
             const seenKeys = new Set(prev.map((msg) => msg?.id).filter(Boolean));
             if (seenKeys.has(newMessage.id)) return prev;
 
-            if (isAtBottom) {
+            // ✅ Use ref for isAtBottom to prevent listener recreation
+            if (isAtBottomRef.current) {
               // Insert immediately
               // console.log("📥 User is at bottom, adding message now");
               return [newMessage, ...prev];
@@ -381,7 +386,9 @@ const startPrivateChat = useCallback(() => {
             if (!Array.isArray(prev)) return [newMessage];
             const seenKeys = new Set(prev.map((msg) => msg?.id).filter(Boolean));
             if (seenKeys.has(newMessage.id)) return prev;
-            if (isAtBottom) {
+
+            // ✅ Use ref for fallback too
+            if (isAtBottomRef.current) {
               return [newMessage, ...prev];
             } else {
               setPendingMessages((prevPending) => {
@@ -407,8 +414,8 @@ const startPrivateChat = useCallback(() => {
       }
       hasInitializedRef.current = false;
     };
-  }, [chatRef, validateMessage, isAtBottom, isFocused, bannedUsers]);
-  
+  }, [chatRef, validateMessage, isFocused, bannedUsers]); // ✅ Removed isAtBottom from dependencies
+
 
 
 
@@ -529,15 +536,15 @@ const startPrivateChat = useCallback(() => {
     // fetchChats()
   };
 
-const handleSendMessage = async (replyToArg, trimmedInputArg, fruits, emojiUrl) => {
-  const hasEmoji  = !!emojiUrl;
+  const handleSendMessage = async (replyToArg, trimmedInputArg, fruits, emojiUrl) => {
+    const hasEmoji = !!emojiUrl;
 
-  // console.log(emojiUrl)
-  const hasFruits = Array.isArray(fruits) && fruits.length > 0;
+    // console.log(emojiUrl)
+    const hasFruits = Array.isArray(fruits) && fruits.length > 0;
 
-  const MAX_CHARACTERS = 250;
-  const MESSAGE_COOLDOWN = 100; // ms
-  const LINK_REGEX = /(https?:\/\/[^\s]+)/i; // no "g" flag
+    const MAX_CHARACTERS = 250;
+    const MESSAGE_COOLDOWN = 100; // ms
+    const LINK_REGEX = /(https?:\/\/[^\s]+)/i; // no "g" flag
     if (!user?.id || !currentUserEmail) {
       showMessage({
         message: 'You are not loggedin',
@@ -578,124 +585,125 @@ const handleSendMessage = async (replyToArg, trimmedInputArg, fruits, emojiUrl) 
         return;
       }
     }
-  // Use the argument, not external state
-  const trimmedInput = (trimmedInputArg || '').trim();
+    // Use the argument, not external state
+    const trimmedInput = (trimmedInputArg || '').trim();
 
-  // ✅ Validate fruits count - maximum 18 fruits allowed
-  if (hasFruits && fruits.length > 18) {
-    Alert.alert(t('home.alert.error'), 'You can only send up to 18 pets in a message.');
-    return;
-  }
+    // ✅ Validate fruits count - maximum 18 fruits allowed
+    if (hasFruits && fruits.length > 18) {
+      Alert.alert(t('home.alert.error'), 'You can only send up to 18 pets in a message.');
+      return;
+    }
 
-  // Disallow empty text + no fruits
-  if (!trimmedInput && !hasFruits && !emojiUrl) {
-    Alert.alert(t('home.alert.error'), 'Message cannot be empty.');
-    return;
-  }
+    // Disallow empty text + no fruits
+    if (!trimmedInput && !hasFruits && !emojiUrl) {
+      Alert.alert(t('home.alert.error'), 'Message cannot be empty.');
+      return;
+    }
 
-  // Profanity check
-  if (trimmedInput && leoProfanity.check(trimmedInput)) {
-    Alert.alert(t('home.alert.error'), t('misc.inappropriateLanguage'));
-    return;
-  }
+    // Profanity check
+    if (trimmedInput && leoProfanity.check(trimmedInput)) {
+      Alert.alert(t('home.alert.error'), t('misc.inappropriateLanguage'));
+      return;
+    }
 
-  // Length check
-  if (trimmedInput.length > MAX_CHARACTERS) {
-    Alert.alert(t('home.alert.error'), t('misc.messageTooLong'));
-    return;
-  }
+    // Length check
+    if (trimmedInput.length > MAX_CHARACTERS) {
+      Alert.alert(t('home.alert.error'), t('misc.messageTooLong'));
+      return;
+    }
 
-  // Cooldown check
-  if (isCooldown) {
-    Alert.alert(t('home.alert.error'), t('misc.sendingTooQuickly'));
-    return;
-  }
+    // Cooldown check
+    if (isCooldown) {
+      Alert.alert(t('home.alert.error'), t('misc.sendingTooQuickly'));
+      return;
+    }
 
-  // ✅ Duplicate message check - prevent copy-paste spam (no Firebase cost, client-side only)
-  const currentMessage = {
-    text: trimmedInput,
-    fruits: hasFruits ? JSON.stringify(fruits.sort((a, b) => (a?.id || '').localeCompare(b?.id || ''))) : null,
-    emoji: emojiUrl || null,
-  };
-  
-  if (lastSentMessageRef.current) {
-    const lastMessage = lastSentMessageRef.current;
-    const isDuplicate = 
-      lastMessage.text === currentMessage.text &&
-      lastMessage.fruits === currentMessage.fruits &&
-      lastMessage.emoji === currentMessage.emoji;
-    
-    if (isDuplicate) {
+    // ✅ Duplicate message check - prevent copy-paste spam (no Firebase cost, client-side only)
+    const currentMessage = {
+      text: trimmedInput,
+      fruits: hasFruits ? JSON.stringify(fruits.sort((a, b) => (a?.id || '').localeCompare(b?.id || ''))) : null,
+      emoji: emojiUrl || null,
+    };
+
+    if (lastSentMessageRef.current) {
+      const lastMessage = lastSentMessageRef.current;
+      const isDuplicate =
+        lastMessage.text === currentMessage.text &&
+        lastMessage.fruits === currentMessage.fruits &&
+        lastMessage.emoji === currentMessage.emoji;
+
+      if (isDuplicate) {
+        Alert.alert(
+          t('home.alert.error'),
+          'You cannot send the same message twice. Please modify your message.',
+        );
+        return;
+      }
+    }
+
+    // Link check - disallow links for all users
+    const containsLink = trimmedInput ? LINK_REGEX.test(trimmedInput) : false;
+    if (containsLink) {
+      Alert.alert(t('home.alert.error'), 'Links are not allowed in messages.');
+      return;
+    }
+
+    try {
+      // ✅ Use chatRef instead of creating new ref
+      if (!chatRef) {
+        console.error('❌ Chat ref not available');
+        return;
+      }
+
+      // Push to Firebase Realtime Database
+      const now = Date.now();
+      const hasRecentWin =
+        typeof user?.lastGameWinAt === 'number' &&
+        now - user.lastGameWinAt <= 24 * 60 * 60 * 1000; // last win within 24h
+
+      await chatRef.push({
+        text: trimmedInput || null, // allow fruits-only messages
+        timestamp: database.ServerValue.TIMESTAMP,
+        sender: user.displayName || 'Anonymous',
+        senderId: user.id,
+        avatar:
+          user.avatar ||
+          'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+        flage: user?.flage || null, // ✅ Include flag/flag emoji
+        replyTo: replyToArg
+          ? { id: replyToArg.id, text: replyToArg.text }
+          : null,
+        reportCount: 0,
+        isPro: !!localState?.isPro,
+        isAdmin: !!isAdmin,
+        strikeCount: strikeInfo?.strikeCount ?? null,
+        fruits: hasFruits ? fruits : [],
+        gif: hasEmoji ? emojiUrl : null,
+        OS: Platform.OS, // ✅ Store platform (Android/iOS) - only visible to admins
+        robloxUsernameVerified: user?.robloxUsernameVerified || false,
+        hasRecentGameWin: hasRecentWin,
+        lastGameWinAt: user?.lastGameWinAt || null,
+        isModerator: !!user?.isModerator, // ✅ Include Moderator status
+      });
+
+      // ✅ Store last sent message to prevent duplicates (session-based, no Firebase cost)
+      lastSentMessageRef.current = currentMessage;
+
+      // Reset local input state
+      setInput('');
+      setReplyTo(null);
+
+      // Start cooldown
+      setIsCooldown(true);
+      setTimeout(() => setIsCooldown(false), MESSAGE_COOLDOWN);
+    } catch (error) {
+      console.error('Error sending message:', error);
       Alert.alert(
         t('home.alert.error'),
-        'You cannot send the same message twice. Please modify your message.',
+        'Could not send your message. Please try again.',
       );
-      return;
     }
-  }
-
-  // Link check - disallow links for all users
-  const containsLink = trimmedInput ? LINK_REGEX.test(trimmedInput) : false;
-  if (containsLink) {
-    Alert.alert(t('home.alert.error'), 'Links are not allowed in messages.');
-    return;
-  }
-
-  try {
-    // ✅ Use chatRef instead of creating new ref
-    if (!chatRef) {
-      console.error('❌ Chat ref not available');
-      return;
-    }
-
-    // Push to Firebase Realtime Database
-    const now = Date.now();
-    const hasRecentWin =
-      typeof user?.lastGameWinAt === 'number' &&
-      now - user.lastGameWinAt <= 24 * 60 * 60 * 1000; // last win within 24h
-
-    await chatRef.push({
-      text: trimmedInput || null, // allow fruits-only messages
-      timestamp: database.ServerValue.TIMESTAMP,
-      sender: user.displayName || 'Anonymous',
-      senderId: user.id,
-      avatar:
-        user.avatar ||
-        'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
-      flage: user?.flage || null, // ✅ Include flag/flag emoji
-      replyTo: replyToArg
-        ? { id: replyToArg.id, text: replyToArg.text }
-        : null,
-      reportCount: 0,
-      isPro: !!localState?.isPro,
-      isAdmin: !!isAdmin,
-      strikeCount: strikeInfo?.strikeCount ?? null,
-      fruits: hasFruits ? fruits : [],
-      gif: hasEmoji ? emojiUrl : null,
-      OS: Platform.OS, // ✅ Store platform (Android/iOS) - only visible to admins
-      robloxUsernameVerified: user?.robloxUsernameVerified || false,
-      hasRecentGameWin: hasRecentWin,
-      lastGameWinAt: user?.lastGameWinAt || null,
-    });
-
-    // ✅ Store last sent message to prevent duplicates (session-based, no Firebase cost)
-    lastSentMessageRef.current = currentMessage;
-
-    // Reset local input state
-    setInput('');
-    setReplyTo(null);
-
-    // Start cooldown
-    setIsCooldown(true);
-    setTimeout(() => setIsCooldown(false), MESSAGE_COOLDOWN);
-  } catch (error) {
-    console.error('Error sending message:', error);
-    Alert.alert(
-      t('home.alert.error'),
-      'Could not send your message. Please try again.',
-    );
-  }
-};
+  };
 
   // console.log(user.flage)
   return (
@@ -743,10 +751,10 @@ const handleSendMessage = async (replyToArg, trimmedInputArg, fruits, emojiUrl) 
                 setMessages={setMessages}
                 isAdmin={isAdmin}
                 toggleDrawer={openProfileDrawer}
-                
+
               />
             )}
-                 
+
 
             {user.id ? (
               <MessageInput
@@ -774,18 +782,18 @@ const handleSendMessage = async (replyToArg, trimmedInputArg, fruits, emojiUrl) 
                 <Text style={styles.loginText}>{t('misc.loginToStartChat')}</Text>
               </TouchableOpacity>
             )}
-             {(!localState.isPro && !proGranted) && <BannerAdComponent />}
-             <PetModal
-               fromChat={true}
-      visible={petModalVisible}
-      onClose={() => setPetModalVisible(false)}
-        selectedFruits={selectedFruits}
-        setSelectedFruits={setSelectedFruits}
+            {(!localState.isPro && !proGranted) && <BannerAdComponent />}
+            <PetModal
+              fromChat={true}
+              visible={petModalVisible}
+              onClose={() => setPetModalVisible(false)}
+              selectedFruits={selectedFruits}
+              setSelectedFruits={setSelectedFruits}
 
 
 
-      
-    />
+
+            />
           </ConditionalKeyboardWrapper>
 
           <SignInDrawer
@@ -799,7 +807,7 @@ const handleSendMessage = async (replyToArg, trimmedInputArg, fruits, emojiUrl) 
         </View>
         <ProfileBottomDrawer
           isVisible={isDrawerVisible}
-          toggleModal={closeProfileDrawer}  
+          toggleModal={closeProfileDrawer}
           startChat={startPrivateChat}
           selectedUser={selectedUser}
           isOnline={isOnline}

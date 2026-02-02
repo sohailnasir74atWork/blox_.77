@@ -47,7 +47,7 @@ const StyledUsernamePreview = ({
       ).start();
     }
   }, [variant]);
-  
+
 
   const finalText = options.caps ? text.toUpperCase() : text;
   const colors = options.blackwhite
@@ -70,7 +70,7 @@ const StyledUsernamePreview = ({
           {
             lineHeight,
             fontSize,
-            fontFamily: 'Lato-Regular',
+
           },
           options.blur && styles.blurGlowWrapper,
         ]}
@@ -85,7 +85,7 @@ const StyledUsernamePreview = ({
                   color,
                   fontSize,
                   lineHeight,
-                  fontFamily: 'Lato-Regular',
+
                 },
                 options.bold && styles.bold,
                 options.italic && styles.italic,

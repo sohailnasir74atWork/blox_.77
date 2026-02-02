@@ -48,10 +48,10 @@ const setNavigationBarAppearance = (theme) => {
 // const adUnitId = getAdUnitId('openapp');
 
 function App() {
-  const { theme, single_offer_wall} = useGlobalState();
+  const { theme, single_offer_wall } = useGlobalState();
   const { t } = useTranslation();
   const { localState, updateLocalState } = useLocalState();
-  
+
   const [chatFocused, setChatFocused] = useState(true);
   const [modalVisibleChatinfo, setModalVisibleChatinfo] = useState(false)
   const [loading, setLoading] = useState(false);
@@ -134,7 +134,7 @@ function App() {
     );
   }
 
-  
+
 
 
   // ✅ Fixed: Use ref to track if reviewCount was updated to prevent infinite loop
@@ -160,9 +160,9 @@ function App() {
         // ✅ Silently handle errors to prevent crashes
       }
     }
-    if (reviewCount && reviewCount % 15 === 0 && reviewCount > 0) {
-      setShowofferwall(true);
-    }
+    // if (reviewCount && reviewCount % 15 === 0 && reviewCount > 0) {
+    //   setShowofferwall(true);
+    // }
   }, [localState?.reviewCount]); // ✅ Only depend on reviewCount, not updateLocalState
 
   // ✅ Memoize saveConsentStatus to prevent recreation - use ref to avoid dependency
@@ -178,7 +178,7 @@ function App() {
   const handleUserConsent = useCallback(async () => {
     try {
       const consentInfo = await AdsConsent.requestInfoUpdate();
-      await MobileAds().initialize();  
+      await MobileAds().initialize();
       // await MobileAds().openAdInspector();
 
       if (
@@ -205,12 +205,12 @@ function App() {
 
   // Memoize screen render functions to prevent unnecessary re-renders
   const renderMainTabs = useCallback(() => (
-    <MainTabs 
-      selectedTheme={selectedTheme} 
-      setChatFocused={setChatFocused} 
-      chatFocused={chatFocused} 
-      setModalVisibleChatinfo={setModalVisibleChatinfo} 
-      modalVisibleChatinfo={modalVisibleChatinfo} 
+    <MainTabs
+      selectedTheme={selectedTheme}
+      setChatFocused={setChatFocused}
+      chatFocused={chatFocused}
+      setModalVisibleChatinfo={setModalVisibleChatinfo}
+      modalVisibleChatinfo={modalVisibleChatinfo}
     />
   ), [selectedTheme, chatFocused, modalVisibleChatinfo]);
 
@@ -248,7 +248,7 @@ function App() {
               {renderMainTabs}
             </Stack.Screen>
 
-            
+
             <Stack.Screen
               name="Admin"
               options={{
@@ -294,14 +294,14 @@ function App() {
             >
               {renderSettingsScreen}
             </Stack.Screen>
-           
+
           </Stack.Navigator>
           {/* <AppUpdateChecker /> */}
         </NavigationContainer>
         {modalVisible && (
           <RewardRulesModal visible={modalVisible} onClose={handleCloseModal} selectedTheme={selectedTheme} />
         )}
-         <SubscriptionScreen visible={showofferwall} onClose={handleCloseOfferWall} track='Home' showoffer={!single_offer_wall}   oneWallOnly={single_offer_wall}/>
+        <SubscriptionScreen visible={showofferwall} onClose={handleCloseOfferWall} track='Home' showoffer={!single_offer_wall} oneWallOnly={single_offer_wall} />
       </Animated.View>
     </SafeAreaView>
   );
@@ -310,7 +310,7 @@ function App() {
 export default function AppWrapper() {
   const { localState, updateLocalState } = useLocalState();
   const { theme, proGranted } = useGlobalState();
-  
+
   useEffect(() => {
     if (localState.isAppReady) {
       InteractionManager.runAfterInteractions(() => {

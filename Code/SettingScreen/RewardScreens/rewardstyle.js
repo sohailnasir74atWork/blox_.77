@@ -10,10 +10,10 @@ export const getStyles = (isDarkMode, config) =>
         },
         sectionTitle: {
             fontSize: 14,
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
             color: '#333',
             // marginVertical: 10,
-            fontFamily: 'Lato-Regular',
+
             color: isDarkMode ? 'lightgrey' : '#333',
 
         },
@@ -35,7 +35,7 @@ export const getStyles = (isDarkMode, config) =>
         },
         userName: {
             fontSize: 12,
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
             lineHeight: 18,
             color: isDarkMode ? 'lightgrey' : '#333',
 
@@ -43,7 +43,7 @@ export const getStyles = (isDarkMode, config) =>
         userStatus: {
             fontSize: 10,
             color: isDarkMode ? 'lightgrey' : '#333',
-            fontFamily: 'Lato-Regular',
+
 
         },
         participateButton: {
@@ -55,7 +55,7 @@ export const getStyles = (isDarkMode, config) =>
         participateText: {
             color: '#FFF',
             fontSize: 12,
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
         },
 
         // Countdown Timer
@@ -65,24 +65,24 @@ export const getStyles = (isDarkMode, config) =>
             borderRadius: 10,
             alignItems: 'center',
             marginBottom: 10,
-            fontFamily: 'Lato-Regular',
+
 
         },
         timerTitle: {
             fontSize: 12,
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
             color: '#FFF',
         },
         timerText: {
             fontSize: 12,
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
             color: '#FFF',
             marginVertical: 5,
         },
         timerPrize: {
             fontSize: 12,
             color: '#FFF',
-            fontFamily: 'Lato-Regular',
+
 
         },
 
@@ -96,12 +96,12 @@ export const getStyles = (isDarkMode, config) =>
         },
         winnerTitle: {
             fontSize: 14,
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
             color: '#333',
         },
         winnerName: {
             fontSize: 14,
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
             color: '#000',
             // marginTop: 5,
         },
@@ -109,14 +109,14 @@ export const getStyles = (isDarkMode, config) =>
             fontSize: 14,
             color: '#555',
             marginTop: 5,
-            fontFamily: 'Lato-Regular',
+
 
         },
         winnerDate: {
             fontSize: 12,
             color: '#666',
             marginTop: 5,
-            fontFamily: 'Lato-Regular',
+
 
         },
 
@@ -124,7 +124,7 @@ export const getStyles = (isDarkMode, config) =>
         historyCard: {
             flexDirection: 'row',
             justifyContent: 'space-between',
-            backgroundColor: isDarkMode ?  "#121212" :'#ECF0F1',
+            backgroundColor: isDarkMode ? "#121212" : '#ECF0F1',
             padding: 10,
             borderRadius: 6,
             marginVertical: 5,
@@ -133,7 +133,7 @@ export const getStyles = (isDarkMode, config) =>
         },
         historyName: {
             fontSize: 14,
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
             color: isDarkMode ? 'lightgrey' : '#333',
 
         },
@@ -141,13 +141,13 @@ export const getStyles = (isDarkMode, config) =>
             fontSize: 12,
             color: isDarkMode ? 'lightgrey' : '#333',
             marginTop: 2,
-            fontFamily: 'Lato-Regular',
+
         },
         historyDate: {
             fontSize: 10,
             color: isDarkMode ? 'lightgrey' : '#333',
             marginTop: 2,
-            fontFamily: 'Lato-Regular',
+
 
         },
         placeholder: {
@@ -161,12 +161,12 @@ export const getStyles = (isDarkMode, config) =>
         placeholderText: {
             fontSize: 12,
             color: '#777',
-            fontFamily: 'Lato-Regular',
+
             textAlign: 'center',
         },
         guest: {
             fontSize: 12,
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
             color: config.colors.secondary,
             lineHeight: 24
         },
@@ -191,7 +191,7 @@ export const getStyles = (isDarkMode, config) =>
         },
         modalTitle: {
             fontSize: 12,
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
             marginBottom: 10,
         },
         input: {
@@ -211,7 +211,7 @@ export const getStyles = (isDarkMode, config) =>
         submitText: {
             color: '#FFF',
             fontSize: 12,
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
         },
         closeButton: {
             marginTop: 10,
@@ -229,7 +229,7 @@ export const getStyles = (isDarkMode, config) =>
         claimText: {
             color: '#333',
             fontSize: 10,
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
         },
         adminButton: {
             backgroundColor: '#FF4500',
@@ -241,11 +241,11 @@ export const getStyles = (isDarkMode, config) =>
         adminText: {
             color: '#FFF',
             fontSize: 12,
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
         },
         userNameLogout: {
             fontSize: 16,
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
             color: config.colors.secondary,
             lineHeight: 24
         },
@@ -266,7 +266,7 @@ export const getStyles = (isDarkMode, config) =>
         enrollButtonText: {
             color: "#fff",
             fontSize: 12,
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
         },
         pointsContainer: {
             flexDirection: 'row',
@@ -291,14 +291,14 @@ export const getStyles = (isDarkMode, config) =>
         pointsLabel: {
             fontSize: 12,
             color: isDarkMode ? '#ECF0F1' : '#2C3E50', // Light text for dark mode, Dark text for light mode
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
             paddingTop: 12,
 
         },
         pointsValue: {
             fontSize: 14,
             color: isDarkMode ? '#1ABC9C' : '#27AE60', // Greenish values (Different shades for themes)
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
             marginTop: 5,
             // paddingVertical: 12,
 
@@ -316,7 +316,7 @@ export const getStyles = (isDarkMode, config) =>
         getPointsText: {
             color: 'white',
             fontSize: 12,
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
         },
         tabContainer: {
             marginVertical: 20,
@@ -339,18 +339,18 @@ export const getStyles = (isDarkMode, config) =>
         },
         tabText: {
             fontSize: 10,
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
             color: '#555',
         },
         activeTabText: {
             color: 'white',
         },
         tabContent: {
-            backgroundColor: isDarkMode ? '#34495E': '#FFF',
+            backgroundColor: isDarkMode ? '#34495E' : '#FFF',
             padding: 10,
             borderRadius: 8,
             marginTop: 10,
-            
+
         },
 
         // Leaderboard Card
@@ -375,66 +375,66 @@ export const getStyles = (isDarkMode, config) =>
             alignItems: 'center'
         },
         rankText: {
-            fontFamily: 'Lato-Bold',
+            fontWeight: 'bold',
             color: isDarkMode ? 'white' : '#3498DB',
             paddingRight: 10
         },
         playerName: {
             fontSize: 10,
-            fontFamily: 'Lato-Bold',
-            color: isDarkMode ? 'white' :'black',
+            fontWeight: 'bold',
+            color: isDarkMode ? 'white' : 'black',
         },
         playerScore: {
             fontSize: 10,
-            color: isDarkMode ? 'white' :'#333',
+            color: isDarkMode ? 'white' : '#333',
         },
         avatar: {
             height: 30,
             width: 30,
             marginRight: 10,
-            borderRadius:15
+            borderRadius: 15
         },
         tabBar: {
             flexDirection: 'row',
             justifyContent: 'space-around',
             // marginBottom: 20,
-            borderRadius:12,
+            borderRadius: 12,
             backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF',
-            padding:5,
-            marginBottom:5
-           
-          },
-          tabButtonLeft: {
+            padding: 5,
+            marginBottom: 5
+
+        },
+        tabButtonLeft: {
             paddingVertical: 15,
             // backgroundColor: '#ccc',
             // borderRadius: 5,
-            width:'50%',
-            borderRadius:12,
+            width: '50%',
+            borderRadius: 12,
             // borderTopRightRadius:12
-        
-          },
-          tabButtonRight: {
+
+        },
+        tabButtonRight: {
             paddingVertical: 15,
             // backgroundColor: '#ccc',
             // borderRadius: 5,
-            width:'50%',
+            width: '50%',
             // borderTopLeftRadius:12,
-            borderRadius:12
-        
-          },
-          tabText: {
+            borderRadius: 12
+
+        },
+        tabText: {
             fontSize: 16,
             color: 'grey',
-            alignSelf:'center',
-            fontFamily:'Lato-Bold'
-          },
-          tabTextActive: {
+            alignSelf: 'center',
+            fontWeight: 'bold'
+        },
+        tabTextActive: {
             fontSize: 16,
             color: 'white',
-            alignSelf:'center',
-            fontFamily:'Lato-Bold'
-          },
-          activeTab: {
+            alignSelf: 'center',
+            fontWeight: 'bold'
+        },
+        activeTab: {
             backgroundColor: config.colors.primary,
-          },
+        },
     });

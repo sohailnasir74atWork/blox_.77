@@ -20,7 +20,7 @@ const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false 
   const [customReason, setCustomReason] = useState("");
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { theme, appdatabase, user } = useGlobalState();
+  const { theme, appdatabase, user, strikeInfo, isAdmin } = useGlobalState();
   const isDarkMode = theme === "dark";
   const { t } = useTranslation();
 
@@ -30,8 +30,32 @@ const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false 
       return;
     }
 
+    // ✅ Block users with strikes from reporting (admins are exempt)
+    if (strikeInfo && !isAdmin) {
+      const { strikeCount, bannedUntil } = strikeInfo;
+      const now = Date.now();
+
+      if (bannedUntil === 'permanent') {
+        Alert.alert("⛔ Permanently Banned", "You are permanently banned from making reports.");
+        return;
+      }
+
+      if (typeof bannedUntil === 'number' && now < bannedUntil) {
+        const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+        Alert.alert(
+          `⚠️ Strike ${strikeCount}`,
+          `You are banned from making reports for ${timeLeftText} more minute(s).`
+        );
+        return;
+      }
+    }
+
     setLoading(true);
-    
+
     try {
       let messageRef;
       let senderEmail = null;
@@ -40,7 +64,7 @@ const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false 
         // ✅ Private chat: messages are in private_messages/{chatId}/messages/{messageId}
         // Message ID is the timestamp (Firebase key)
         let messageId = null;
-        
+
         // Try to get message ID from various possible fields
         if (message.id && message.id !== 'undefined' && message.id !== 'null') {
           messageId = String(message.id);
@@ -50,16 +74,16 @@ const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false 
           console.error("❌ Private chat message missing ID:", JSON.stringify(message, null, 2));
           throw new Error("Invalid message ID for private chat - missing both id and timestamp");
         }
-        
+
         if (!chatId || chatId === 'undefined' || chatId === 'null') {
           console.error("❌ Invalid chatId:", chatId);
           throw new Error("Invalid chatId for private chat");
         }
-        
+
         const messagePath = `private_messages/${chatId}/messages/${messageId}`;
         // console.log("🔍 Reporting private chat message - Path:", messagePath, "Message ID:", messageId, "ChatId:", chatId);
         messageRef = ref(appdatabase, messagePath);
-        
+
         // ✅ Fetch sender's email from user data
         if (message.senderId) {
           try {
@@ -68,7 +92,7 @@ const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false 
             if (userSnap.exists()) {
               const userData = userSnap.val();
               senderEmail = userData.email || null;
-              
+
               // ✅ Log for debugging
               if (!senderEmail) {
                 console.warn("⚠️ Sender email not found in user data for userId:", message.senderId);
@@ -90,11 +114,11 @@ const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false 
         const sanitizedId = message.id.startsWith("chat-")
           ? message.id.replace("chat-", "")
           : message.id;
-        
+
         if (!sanitizedId) {
           throw new Error("Invalid message ID");
         }
-        
+
         messageRef = ref(appdatabase, `chat_new/${sanitizedId}`);
         senderEmail = message.currentUserEmail || null;
       }
@@ -102,7 +126,7 @@ const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false 
       const snapshot = await get(messageRef);
       if (!snapshot.exists()) {
         // ✅ Better error message with debugging info
-        const errorMsg = isPrivateChat 
+        const errorMsg = isPrivateChat
           ? `Message not found in private chat. Path: private_messages/${chatId}/messages/${message.id}`
           : `Message not found in group chat. ID: ${message.id}`;
         console.error("❌", errorMsg);
@@ -118,7 +142,21 @@ const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false 
         if (senderEmail) {
           // console.log("🔨 Applying ban to email:", senderEmail, "from private chat report");
           try {
-            await banUserwithEmail(senderEmail, false); // false = not admin, so no alert shown
+            // ✅ Construct rich user data for the ban record
+            const userInfo = {
+              id: message.senderId,
+              displayName: message.sender || 'Unknown',
+              avatar: message.avatar || null,
+              email: senderEmail
+            };
+
+            const bannerInfo = {
+              id: user?.id,
+              displayName: user?.userName || 'System',
+              avatar: user?.avatar || null
+            };
+
+            await banUserwithEmail(senderEmail, false, message.senderId, userInfo, bannerInfo); // false = not admin, so no alert shown
             // console.log("✅ Ban applied successfully");
           } catch (banError) {
             console.error("❌ Error applying ban:", banError);
@@ -144,8 +182,8 @@ const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false 
     }
   };
 
-  
-  
+
+
 
   const styles = getStyles(isDarkMode);
 
@@ -159,7 +197,7 @@ const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false 
 
           {/* Standard Reasons */}
           <View style={styles.optionsContainer}>
-            {[ t("chat.spam"),  t("chat.religious"),  t("chat.hate_speech")].map((reason) => (
+            {[t("chat.spam"), t("chat.religious"), t("chat.hate_speech")].map((reason) => (
               <TouchableOpacity
                 key={reason}
                 style={[
@@ -196,7 +234,7 @@ const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false 
                   showCustomInput && styles.selectedOptionText,
                 ]}
               >
-                { t("chat.other")}
+                {t("chat.other")}
               </Text>
             </TouchableOpacity>
           </View>
@@ -255,7 +293,7 @@ const getStyles = (isDarkMode) =>
     },
     title: {
       fontSize: 18,
-      fontFamily: "Lato-Bold",
+      fontWeight: 'bold',
       marginBottom: 10,
       color: isDarkMode ? "white" : "black",
     },

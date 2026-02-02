@@ -81,7 +81,7 @@ const HomeScreen = ({ selectedTheme }) => {
     const diffMs = now - lastUpdatedTime;
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
-    
+
     if (diffMins < 1) return 'Just now';
     if (diffMins === 1) return '1 min ago';
     if (diffMins < 60) return `${diffMins} min ago`;
@@ -93,7 +93,7 @@ const HomeScreen = ({ selectedTheme }) => {
   // ✅ Hard refresh values - reloads data from CDN/Firebase
   const handleRefresh = useCallback(async () => {
     if (refreshing || !isMountedRef.current) return;
-    
+
     triggerHapticFeedback('impactLight');
     setRefreshing(true);
 
@@ -200,15 +200,44 @@ const HomeScreen = ({ selectedTheme }) => {
         }
       }
 
+      // ✅ Admins are exempt from blocking
+      if (strikeInfo && !isAdmin) {
+        const { strikeCount, bannedUntil } = strikeInfo;
+        const now = Date.now();
+
+        if (bannedUntil === 'permanent') {
+          showErrorMessage(
+            t("home.alert.error"),
+            "You are permanently banned from creating trades."
+          );
+          setIsSubmitting(false);
+          return;
+        }
+
+        if (typeof bannedUntil === 'number' && now < bannedUntil) {
+          const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
+          const hours = Math.floor(totalMinutes / 60);
+          const minutes = totalMinutes % 60;
+          const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+          showErrorMessage(
+            t("home.alert.error"),
+            `You are banned from creating trades for ${timeLeftText} more minute(s).`
+          );
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       // ✅ MIGRATED: Fetch rating from Firestore user_ratings_summary instead of RTDB
       let userRating = null;
       let ratingCount = 0;
-      
+
       if (user?.id && firestoreDB) {
         try {
           const summaryRef = doc(firestoreDB, 'user_ratings_summary', user.id);
           const summarySnap = await getDoc(summaryRef);
-          
+
           if (summarySnap.exists) {
             const summaryData = summarySnap.data();
             userRating = summaryData.averageRating || null;
@@ -239,25 +268,25 @@ const HomeScreen = ({ selectedTheme }) => {
       const createSearchTokens = (itemName) => {
         const name = itemName.toLowerCase().trim();
         const tokens = [name]; // Full name for exact match
-        
+
         // Split into words and add each word as a token (for partial word matching)
         const words = name.split(/\s+/).filter(w => w.length > 0);
         tokens.push(...words);
-        
+
         // ✅ OPTIMIZED: Don't store prefixes here - they're generated on search side
         // This reduces storage costs significantly (from ~10-20 tokens/item to ~2-3 tokens/item)
-        
+
         return [...new Set(tokens)]; // Remove duplicates
       };
-      
+
       const hasItemNames = hasItems
         .filter(item => item && item.Name)
         .flatMap(item => createSearchTokens(item.Name));
-      
+
       const wantsItemNames = wantsItems
         .filter(item => item && item.Name)
         .flatMap(item => createSearchTokens(item.Name));
-      
+
       // ✅ Calculate trade status and convert to single letter: 'w' (win), 'l' (lose), 'f' (fair)
       const getTradeStatus = (hasTotal, wantsTotal) => {
         if (hasTotal.value <= 0 && wantsTotal.value <= 0) return 'fair';
@@ -551,16 +580,16 @@ const HomeScreen = ({ selectedTheme }) => {
 
     // Convert parsedData to array if it's an object
     const dataArray = Array.isArray(parsedData) ? parsedData : Object.values(parsedData || {});
-    
+
     const demandMap = {};
 
     allItems.forEach((item) => {
       if (!item?.Name) return;
-      
+
       // Find the original item from data by matching name
       const originalItem = dataArray.find(
-        (dataItem) => 
-          dataItem?.name && 
+        (dataItem) =>
+          dataItem?.name &&
           dataItem.name.toLowerCase() === item.Name.toLowerCase()
       );
 
@@ -568,10 +597,10 @@ const HomeScreen = ({ selectedTheme }) => {
         // Get demand from original item
         // For normal items (Type === 'n'), use demand
         // For permanent items (Type === 'p'), use permDemand
-        const demandString = item.Type === 'p' 
+        const demandString = item.Type === 'p'
           ? (originalItem.permDemand || '0/10')
           : (originalItem.demand || '0/10');
-        
+
         const itemKey = item.Name.replace(/[^a-zA-Z0-9]/g, '_');
         demandMap[itemKey] = {
           demand: demandString, // Store as string like "10/10"
@@ -621,16 +650,16 @@ const HomeScreen = ({ selectedTheme }) => {
     // Calculate average demand (not sum) - keeps result in "X/10" format
     const calculateAggregate = (fractions) => {
       if (fractions.length === 0) return '0/10';
-      
+
       // Calculate average numerator (sum of numerators / count)
       let sumNumerator = 0;
       fractions.forEach(({ numerator }) => {
         sumNumerator += numerator;
       });
-      
+
       // Average numerator
       const avgNumerator = Math.round(sumNumerator / fractions.length);
-      
+
       // Return in "X/10" format (assuming all denominators are 10)
       return `${avgNumerator}/10`;
     };
@@ -735,7 +764,7 @@ const HomeScreen = ({ selectedTheme }) => {
                   style={styles.icon}
                 />}
                 {/* ✅ Refresh Button */}
-               
+
               </View>
 
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -852,9 +881,9 @@ const HomeScreen = ({ selectedTheme }) => {
                   })}
                 </View>
               </View>
-            
-{/* Last Updated Section */}
-              <TouchableOpacity 
+
+              {/* Last Updated Section */}
+              <TouchableOpacity
                 style={styles.lastUpdatedContainer}
                 onPress={handleRefresh}
                 disabled={refreshing}
@@ -874,7 +903,7 @@ const HomeScreen = ({ selectedTheme }) => {
                   )}
                 </View>
               </TouchableOpacity>
-                
+
 
 
               <View style={styles.divider}>
@@ -922,10 +951,10 @@ const HomeScreen = ({ selectedTheme }) => {
             <View style={styles.createtrade}>
               <TouchableOpacity style={styles.createtradeButton} onPress={() => handleCreateTradePress('create')}>
                 <Icon name="enter-outline" size={18} color="white" style={{ padding: 4 }} />
-                <Text style={{ color: 'white', fontSize: 12, fontFamily: 'Lato-Bold' }}>{t('home.create_trade')}</Text>
+                <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>{t('home.create_trade')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.shareTradeButton} onPress={() => handleCreateTradePress('share')}>
-                <Text style={{ color: 'white', fontSize: 12, fontFamily: 'Lato-Bold' }}>{t('home.share_trade')}</Text>
+                <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>{t('home.share_trade')}</Text>
                 <Icon name="share-outline" size={18} color="white" style={{ padding: 4 }} />
               </TouchableOpacity>
             </View>
@@ -991,12 +1020,12 @@ const HomeScreen = ({ selectedTheme }) => {
                           }
                           const dataArray = Array.isArray(parsedData) ? parsedData : Object.values(parsedData || {});
                           const originalItem = dataArray.find(
-                            (dataItem) => 
-                              dataItem?.name && 
+                            (dataItem) =>
+                              dataItem?.name &&
                               dataItem.name.toLowerCase() === item.Name.toLowerCase()
                           );
                           if (originalItem) {
-                            demandString = item.Type === 'p' 
+                            demandString = item.Type === 'p'
                               ? (originalItem.permDemand || '0/10')
                               : (originalItem.demand || '0/10');
                           }
@@ -1004,7 +1033,7 @@ const HomeScreen = ({ selectedTheme }) => {
                           // Silently fail, use default
                         }
                       }
-                      
+
                       return (
                         <TouchableOpacity style={[styles.itemBlock, { backgroundColor: item.Type === 'p' ? '#e1a900' : isDarkMode ? '#34495E' : '#CCCCFF' }]} onPress={() => selectItem(item)}>
                           <>
@@ -1122,13 +1151,13 @@ const getStyles = (isDarkMode) =>
       lineHeight: 20,
       color: 'white',
       textAlign: 'center',
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
     },
     priceValue: {
       color: 'white',
       textAlign: 'center',
       marginTop: 5,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
     },
     itemRow: {
       flexDirection: 'row',
@@ -1170,7 +1199,7 @@ const getStyles = (isDarkMode) =>
     itemText: {
       color: isDarkMode ? 'white' : 'black',
       textAlign: 'center',
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       fontSize: 12
     },
     fruitNameText: {
@@ -1200,7 +1229,7 @@ const getStyles = (isDarkMode) =>
     },
     lastUpdatedText: {
       fontSize: 12,
-      fontFamily: 'Lato-Regular',
+
     },
     drawerContainer: {
       borderTopLeftRadius: 10,
@@ -1215,8 +1244,8 @@ const getStyles = (isDarkMode) =>
       right: 0,
     },
     profitLossBox: { flexDirection: 'row', justifyContent: 'center', marginVertical: 0, alignItems: 'center', paddingBottom: 10 },
-    profitLossText: { fontSize: 14, fontFamily: 'Lato-Bold' },
-    profitLossValue: { fontSize: 14, marginLeft: 5, fontFamily: 'Lato-Bold' },
+    profitLossText: { fontSize: 14, fontWeight: 'bold' },
+    profitLossValue: { fontSize: 14, marginLeft: 5, fontWeight: 'bold' },
     modalOverlay: {
       backgroundColor: 'rgba(0, 0, 0, 0.5)',
       flex: 1,
@@ -1242,7 +1271,7 @@ const getStyles = (isDarkMode) =>
     closeButtonText: {
       color: 'white',
       textAlign: 'center',
-      fontFamily: 'Lato-Regular',
+
       fontSize: 12
     },
     flatListContainer: {
@@ -1295,13 +1324,13 @@ const getStyles = (isDarkMode) =>
       fontSize: 12,
       marginBottom: 4,
       color: isDarkMode ? 'white' : 'black',
-      fontFamily: 'Lato-Regular'
+
     },
     modalMessagefooter: {
       fontSize: 10,
       marginBottom: 10,
       color: isDarkMode ? 'grey' : 'grey',
-      fontFamily: 'Lato-Regular'
+
     },
     input: {
       width: '100%',
@@ -1312,7 +1341,7 @@ const getStyles = (isDarkMode) =>
       paddingHorizontal: 10,
       marginBottom: 20,
       color: isDarkMode ? 'white' : 'black',
-      fontFamily: 'Lato-Ragular'
+      fontWeight: 'bold'
     },
     buttonContainer: {
       flexDirection: 'row',
@@ -1335,7 +1364,7 @@ const getStyles = (isDarkMode) =>
     buttonText: {
       color: 'white',
       fontSize: 14,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
     },
     createtradeAds: {
       paddingHorizontal: 16,
@@ -1376,7 +1405,7 @@ const getStyles = (isDarkMode) =>
     removeAdsTitle: {
       color: '#1f2933',
       fontSize: 12,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
     },
     demandBadgeText: {
       position: 'absolute',
@@ -1386,7 +1415,7 @@ const getStyles = (isDarkMode) =>
       paddingLeft: 2,
       color: isDarkMode ? 'white' : 'black',
       fontSize: 8, // Match fruit name font size
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       zIndex: 10,
     },
     refreshButtonContainer: {

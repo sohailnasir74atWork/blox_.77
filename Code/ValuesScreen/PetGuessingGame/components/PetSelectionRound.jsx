@@ -44,12 +44,12 @@ const PetSelectionRound = ({ roomData, currentUser, onSelectPet, roomId }) => {
     const baseImgUrl = localState.isGG ? localState.imgurlGG : localState.imgurl;
     return (item) => {
       if (!item || !item.name) return '';
-      
+
       if (localState.isGG) {
         const encoded = encodeURIComponent(item.name);
         return `${baseImgUrl?.replace(/"/g, '')}/items/${encoded}.webp`;
       }
-      
+
       if (!item.image || !baseImgUrl) return '';
       return `${baseImgUrl.replace(/"/g, '').replace(/\/$/, '')}/${item.image.replace(/^\//, '')}`;
     };
@@ -140,7 +140,7 @@ const PetSelectionRound = ({ roomData, currentUser, onSelectPet, roomId }) => {
   const handleHype = () => {
     const emojis = ['🎉', '🔥', '✨', '💫', '⭐', '🎊', '🚀'];
     const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
-    
+
     triggerHapticFeedback('impactLight');
     setHypeEmojis((prev) => [
       ...prev,
@@ -294,16 +294,16 @@ const styles = StyleSheet.create({
   },
   countdownText: {
     fontSize: 32,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     color: '#fff',
   },
   countdownLabel: {
     fontSize: 14,
-    fontFamily: 'Lato-Regular',
+
   },
   instructionText: {
     fontSize: 18,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 16,
   },
@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
   },
   waitingText: {
     fontSize: 14,
-    fontFamily: 'Lato-Regular',
+
   },
   hypeButton: {
     paddingHorizontal: 16,
@@ -327,7 +327,7 @@ const styles = StyleSheet.create({
   hypeButtonText: {
     color: '#fff',
     fontSize: 14,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
   },
   selectedContainer: {
     alignItems: 'center',
@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
   },
   selectedLabel: {
     fontSize: 14,
-    fontFamily: 'Lato-Regular',
+
     marginBottom: 8,
   },
   selectedPetCard: {
@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
   },
   selectedPetName: {
     fontSize: 16,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     textAlign: 'center',
   },
   petGridContainer: {
@@ -386,7 +386,7 @@ const styles = StyleSheet.create({
   },
   petName: {
     fontSize: 9,
-    fontFamily: 'Lato-Regular',
+
     textAlign: 'center',
   },
   checkmark: {

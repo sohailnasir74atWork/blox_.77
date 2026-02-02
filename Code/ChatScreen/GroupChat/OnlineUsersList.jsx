@@ -30,9 +30,9 @@ const INITIAL_LOAD = 5; // Fetch first 10 online users
 const LOAD_MORE = 5; // Load 5 more on scroll
 const MAX_GROUP_MEMBERS = 50;
 
-const OnlineUsersList = ({ 
-  visible, 
-  onClose, 
+const OnlineUsersList = ({
+  visible,
+  onClose,
   mode = 'view',
   // Game invitation props (only used when mode === 'gameInvite')
   roomId = null,
@@ -49,23 +49,23 @@ const OnlineUsersList = ({
   const { t } = useTranslation();
   const { triggerHapticFeedback } = useHaptic();
   const isDarkMode = theme === 'dark';
-  
+
   // ✅ Store online users from RTDB (id, displayName, avatar, etc.)
   const [allOnlineUsers, setAllOnlineUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [allOnlineUserIds, setAllOnlineUserIds] = useState([]); // All online user IDs from presence
   const [loadedUserIds, setLoadedUserIds] = useState(new Set()); // Track which user IDs we've loaded
-  
+
   // ✅ Group creation state (only used in 'select' mode)
   const [isSelectionMode, setIsSelectionMode] = useState(mode === 'select');
   const [selectedUserIds, setSelectedUserIds] = useState(new Set());
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
-  
+
   // ✅ User's existing group state (only used in 'select' mode)
   const [userGroup, setUserGroup] = useState(null);
   const [checkingGroup, setCheckingGroup] = useState(false);
-  
+
   // ✅ Game invitation state (only used in 'gameInvite' mode)
   const [invitingIds, setInvitingIds] = useState(new Set());
   const [invitedIds, setInvitedIds] = useState(new Set());
@@ -119,10 +119,10 @@ const OnlineUsersList = ({
       // ✅ STEP 1: Check cache first (avoid Firebase downloads for cached users)
       const uncachedIds = [];
       const cachedUsers = [];
-      
+
       userIds.forEach(userId => {
         if (alreadyLoaded.has(userId)) return; // Skip if already loaded in this session
-        
+
         const cached = getUserData(userId);
         if (cached) {
           // Remove cachedAt from cached data before using
@@ -138,21 +138,21 @@ const OnlineUsersList = ({
       const userPromises = uncachedIds.map(async (userId) => {
         try {
           // ✅ Fetch only the fields we need (parallel requests to specific child paths)
-          const [displayNameSnap, avatarSnap, isProSnap, robloxUsernameVerifiedSnap, 
-                 lastGameWinAtSnap, isAdminSnap, OSSnap, isPlayingSnap] = await Promise.all([
-            get(ref(appdatabase, `users/${userId}/displayName`)).catch(() => null),
-            get(ref(appdatabase, `users/${userId}/avatar`)).catch(() => null),
-            get(ref(appdatabase, `users/${userId}/isPro`)).catch(() => null),
-            get(ref(appdatabase, `users/${userId}/robloxUsernameVerified`)).catch(() => null),
-            get(ref(appdatabase, `users/${userId}/lastGameWinAt`)).catch(() => null),
-            get(ref(appdatabase, `users/${userId}/isAdmin`)).catch(() => null),
-            get(ref(appdatabase, `users/${userId}/OS`)).catch(() => null),
-            get(ref(appdatabase, `users/${userId}/isPlaying`)).catch(() => null),
-          ]);
+          const [displayNameSnap, avatarSnap, isProSnap, robloxUsernameVerifiedSnap,
+            lastGameWinAtSnap, isAdminSnap, OSSnap, isPlayingSnap] = await Promise.all([
+              get(ref(appdatabase, `users/${userId}/displayName`)).catch(() => null),
+              get(ref(appdatabase, `users/${userId}/avatar`)).catch(() => null),
+              get(ref(appdatabase, `users/${userId}/isPro`)).catch(() => null),
+              get(ref(appdatabase, `users/${userId}/robloxUsernameVerified`)).catch(() => null),
+              get(ref(appdatabase, `users/${userId}/lastGameWinAt`)).catch(() => null),
+              get(ref(appdatabase, `users/${userId}/isAdmin`)).catch(() => null),
+              get(ref(appdatabase, `users/${userId}/OS`)).catch(() => null),
+              get(ref(appdatabase, `users/${userId}/isPlaying`)).catch(() => null),
+            ]);
 
           // ✅ Extract values (only if snapshots exist)
           const displayName = displayNameSnap?.exists() ? displayNameSnap.val() : null;
-          
+
           // If no displayName found, user might not exist - return null
           if (!displayNameSnap || (!displayNameSnap.exists() && !avatarSnap?.exists())) {
             return null;
@@ -161,8 +161,8 @@ const OnlineUsersList = ({
           const userData = {
             id: userId,
             displayName: displayName || 'Anonymous',
-            avatar: avatarSnap?.exists() ? avatarSnap.val() : 
-                   'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+            avatar: avatarSnap?.exists() ? avatarSnap.val() :
+              'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
             isPro: isProSnap?.exists() ? isProSnap.val() : false,
             robloxUsernameVerified: robloxUsernameVerifiedSnap?.exists() ? robloxUsernameVerifiedSnap.val() : false,
             lastGameWinAt: lastGameWinAtSnap?.exists() ? lastGameWinAtSnap.val() : null,
@@ -173,7 +173,7 @@ const OnlineUsersList = ({
 
           // ✅ STEP 3: Cache the fetched user data for future use
           cacheUserData(userId, userData);
-          
+
           return userData;
         } catch (error) {
           console.error(`Error fetching user ${userId}:`, error);
@@ -182,7 +182,7 @@ const OnlineUsersList = ({
       });
 
       const fetchedUsers = (await Promise.all(userPromises)).filter((u) => u !== null);
-      
+
       // ✅ STEP 4: Combine cached and fetched users
       const allUsers = [...cachedUsers, ...fetchedUsers];
 
@@ -267,13 +267,13 @@ const OnlineUsersList = ({
   // ✅ Load more users on scroll (next 5 IDs from presence)
   const handleLoadMore = useCallback(async () => {
     if (loadingMore) return;
-    
+
     // ✅ Find next batch of user IDs that haven't been loaded
     const unloadedIds = allOnlineUserIds.filter((id) => !loadedUserIds.has(id));
     if (unloadedIds.length === 0) return; // All users loaded
 
     setLoadingMore(true);
-    
+
     // ✅ Load next batch (5 users)
     const nextBatch = unloadedIds.slice(0, LOAD_MORE);
     await loadUserBatch(nextBatch, loadedUserIds);
@@ -332,7 +332,7 @@ const OnlineUsersList = ({
     if (userGroup?.groupId) {
       const selectedIds = Array.from(selectedUserIds);
       setLoading(true);
-      
+
       try {
         // ✅ Build user data map from allOnlineUsers to avoid extra Firestore read
         const invitedUsersMap = {};
@@ -523,7 +523,7 @@ const OnlineUsersList = ({
             <Text style={styles.userName} numberOfLines={1}>
               {`${item.displayName || 'Anonymous'}`}
             </Text>
-            
+
             {/* Pro badge */}
             {item?.isPro && (
               <Image
@@ -544,11 +544,11 @@ const OnlineUsersList = ({
             {(item?.hasRecentGameWin ||
               (typeof item?.lastGameWinAt === 'number' &&
                 Date.now() - item.lastGameWinAt <= 24 * 60 * 60 * 1000)) && (
-              <Image
-                source={require('../../../assets/trophy.webp')}
-                style={{ width: 10, height: 10, marginLeft: 4 }}
-              />
-            )}
+                <Image
+                  source={require('../../../assets/trophy.webp')}
+                  style={{ width: 10, height: 10, marginLeft: 4 }}
+                />
+              )}
 
             {/* Platform badge (for admins) */}
             {item?.isAdmin && item?.OS && (
@@ -614,8 +614,8 @@ const OnlineUsersList = ({
       transparent={true}
       onRequestClose={onClose}
     >
-      <TouchableOpacity 
-        style={styles.modalOverlay} 
+      <TouchableOpacity
+        style={styles.modalOverlay}
         activeOpacity={1}
         onPress={onClose}
       >
@@ -623,107 +623,107 @@ const OnlineUsersList = ({
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1, justifyContent: 'flex-end' }}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-      >
-        <View 
-          style={styles.modalContent}
-          onStartShouldSetResponder={() => true}
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>
-              {mode === 'select' ? 'Select Members' : mode === 'gameInvite' ? 'Invite Friends to Play' : 'Online Users'}
-            </Text>
-            <View style={styles.headerRight}>
-              {mode === 'select' ? (
-                // Selection mode header
-                <>
-                  <TouchableOpacity
-                    onPress={onClose}
-                    style={styles.headerButton}
-                  >
-                    <Text style={styles.cancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                  {selectedUserIds.size > 0 && (
+          <View
+            style={styles.modalContent}
+            onStartShouldSetResponder={() => true}
+          >
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>
+                {mode === 'select' ? 'Select Members' : mode === 'gameInvite' ? 'Invite Friends to Play' : 'Online Users'}
+              </Text>
+              <View style={styles.headerRight}>
+                {mode === 'select' ? (
+                  // Selection mode header
+                  <>
                     <TouchableOpacity
-                      onPress={handleCreateOrAddMembers}
-                      style={[styles.headerButton, styles.createGroupButton]}
-                      disabled={loading}
+                      onPress={onClose}
+                      style={styles.headerButton}
                     >
-                      <Text style={styles.createGroupText}>
-                        {userGroup ? `Add (${selectedUserIds.size})` : `Create (${selectedUserIds.size})`}
-                      </Text>
+                      <Text style={styles.cancelText}>Cancel</Text>
                     </TouchableOpacity>
-                  )}
-                </>
-              ) : (
-                // View mode or game invite mode header (just close button)
-                <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                  <Icon name="close" size={22} color={isDarkMode ? '#FFFFFF' : '#000000'} />
-                </TouchableOpacity>
-              )}
+                    {selectedUserIds.size > 0 && (
+                      <TouchableOpacity
+                        onPress={handleCreateOrAddMembers}
+                        style={[styles.headerButton, styles.createGroupButton]}
+                        disabled={loading}
+                      >
+                        <Text style={styles.createGroupText}>
+                          {userGroup ? `Add (${selectedUserIds.size})` : `Create (${selectedUserIds.size})`}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
+                ) : (
+                  // View mode or game invite mode header (just close button)
+                  <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                    <Icon name="close" size={22} color={isDarkMode ? '#FFFFFF' : '#000000'} />
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
-          </View>
 
-          {/* Users List */}
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={config.colors.primary} />
-            </View>
-          ) : allOnlineUsers.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Icon 
-                name="people-outline" 
-                size={64} 
-                color={isDarkMode ? '#4B5563' : '#D1D5DB'} 
+            {/* Users List */}
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={config.colors.primary} />
+              </View>
+            ) : allOnlineUsers.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Icon
+                  name="people-outline"
+                  size={64}
+                  color={isDarkMode ? '#4B5563' : '#D1D5DB'}
+                />
+                <Text style={styles.emptyText}>
+                  No online users
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={allOnlineUsers}
+                renderItem={renderUserItem}
+                keyExtractor={keyExtractor}
+                style={styles.list}
+                contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={false}
+                removeClippedSubviews={false}
+                maxToRenderPerBatch={5}
+                windowSize={5}
+                initialNumToRender={5}
+                onEndReached={handleLoadMore}
+                onEndReachedThreshold={0.5}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                ListFooterComponent={
+                  allOnlineUserIds.length > loadedUserIds.size ? (
+                    <View style={styles.loadMoreContainer}>
+                      {loadingMore ? (
+                        <ActivityIndicator size="small" color={config.colors.primary} />
+                      ) : (
+                        <Text style={styles.loadMoreText}>
+                          {allOnlineUserIds.length - loadedUserIds.size} more users available
+                        </Text>
+                      )}
+                    </View>
+                  ) : null
+                }
               />
-              <Text style={styles.emptyText}>
-                No online users
+            )}
+
+            {/* Footer Info */}
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>
+                {mode === 'select'
+                  ? selectedUserIds.size > 0
+                    ? `${selectedUserIds.size} selected (max ${MAX_GROUP_MEMBERS - 1})`
+                    : 'Select users to create a group'
+                  : `${allOnlineUserIds.length} ${allOnlineUserIds.length === 1 ? 'user' : 'users'} online${allOnlineUsers.length < allOnlineUserIds.length ? ` (loaded ${allOnlineUsers.length})` : ''}`
+                }
               </Text>
             </View>
-          ) : (
-            <FlatList
-              data={allOnlineUsers}
-              renderItem={renderUserItem}
-              keyExtractor={keyExtractor}
-              style={styles.list}
-              contentContainerStyle={styles.listContent}
-              showsVerticalScrollIndicator={false}
-              removeClippedSubviews={true}
-              maxToRenderPerBatch={5}
-              windowSize={5}
-              initialNumToRender={5}
-              onEndReached={handleLoadMore}
-              onEndReachedThreshold={0.5}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-              ListFooterComponent={
-                allOnlineUserIds.length > loadedUserIds.size ? (
-                  <View style={styles.loadMoreContainer}>
-                    {loadingMore ? (
-                      <ActivityIndicator size="small" color={config.colors.primary} />
-                    ) : (
-                      <Text style={styles.loadMoreText}>
-                        {allOnlineUserIds.length - loadedUserIds.size} more users available
-                      </Text>
-                    )}
-                  </View>
-                ) : null
-              }
-            />
-          )}
-
-          {/* Footer Info */}
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              {mode === 'select'
-                ? selectedUserIds.size > 0
-                  ? `${selectedUserIds.size} selected (max ${MAX_GROUP_MEMBERS - 1})`
-                  : 'Select users to create a group'
-                : `${allOnlineUserIds.length} ${allOnlineUserIds.length === 1 ? 'user' : 'users'} online${allOnlineUsers.length < allOnlineUserIds.length ? ` (loaded ${allOnlineUsers.length})` : ''}`
-              }
-            </Text>
           </View>
-        </View>
         </KeyboardAvoidingView>
       </TouchableOpacity>
 
@@ -768,7 +768,7 @@ const getStyles = (isDark) =>
       fontSize: 18,
       fontWeight: '700',
       color: isDark ? '#FFFFFF' : '#111827',
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
     },
     headerRight: {
       flexDirection: 'row',
@@ -780,7 +780,7 @@ const getStyles = (isDark) =>
     },
     cancelText: {
       fontSize: 14,
-      fontFamily: 'Lato-SemiBold',
+      fontWeight: '600',
       color: isDark ? '#FFFFFF' : '#111827',
     },
     createGroupButton: {
@@ -791,7 +791,7 @@ const getStyles = (isDark) =>
     },
     createGroupText: {
       fontSize: 13,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       color: '#FFFFFF',
     },
     closeButton: {
@@ -862,13 +862,12 @@ const getStyles = (isDark) =>
     },
     userName: {
       fontSize: 14,
-      fontWeight: '600',
       color: isDark ? '#FFFFFF' : '#111827',
-      fontFamily: 'Lato-SemiBold',
+      fontWeight: '600'
     },
     statusText: {
       fontSize: 12,
-      fontFamily: 'Lato-Regular',
+
       marginTop: 2,
     },
     inviteButton: {
@@ -909,7 +908,7 @@ const getStyles = (isDark) =>
       marginTop: 12,
       fontSize: 14,
       color: isDark ? '#9CA3AF' : '#6B7280',
-      fontFamily: 'Lato-Regular',
+
     },
     footer: {
       padding: 10,
@@ -921,7 +920,7 @@ const getStyles = (isDark) =>
     footerText: {
       fontSize: 12,
       color: isDark ? '#9CA3AF' : '#6B7280',
-      fontFamily: 'Lato-Regular',
+
     },
     loadMoreContainer: {
       paddingVertical: 12,
@@ -931,7 +930,7 @@ const getStyles = (isDark) =>
     loadMoreText: {
       fontSize: 12,
       color: isDark ? '#9CA3AF' : '#6B7280',
-      fontFamily: 'Lato-Regular',
+
     },
   });
 

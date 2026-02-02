@@ -5,8 +5,8 @@ import {
   Alert,
   Text,
   Image,
-  TouchableOpacity,  TextInput,
-  TouchableWithoutFeedback,  
+  TouchableOpacity, TextInput,
+  TouchableWithoutFeedback,
 
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -18,7 +18,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import { clearActiveChat, isUserOnline, setActiveChat } from '../utils';
 import { useLocalState } from '../../LocalGlobelStats';
-import  { get, increment, ref, update } from '@react-native-firebase/database';
+import { get, increment, ref, update } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
 import BannerAdComponent from '../../Ads/bannerAds';
@@ -38,13 +38,14 @@ import ProfileBottomDrawer from '../GroupChat/BottomDrawer';
 
 const PAGE_SIZE = 15;
 
-const PrivateChatScreen = ({route, bannedUsers, isDrawerVisible, setIsDrawerVisible }) => {
-  const { selectedUser, selectedTheme, item } = route.params || {};
+const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVisible }) => {
+  const { selectedUser: initialSelectedUser, selectedTheme, item } = route.params || {};
+  const [currentSelectedUser, setCurrentSelectedUser] = useState(initialSelectedUser);
 
   const { user, theme, appdatabase, updateLocalStateAndDatabase, firestoreDB, currentUserEmail, strikeInfo, isAdmin } = useGlobalState();
 
-  
-    const [trade, setTrade] = useState(null)
+
+  const [trade, setTrade] = useState(null)
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -55,20 +56,20 @@ const PrivateChatScreen = ({route, bannedUsers, isDrawerVisible, setIsDrawerVisi
   const [input, setInput] = useState('');
   const [isAdVisible, setIsAdVisible] = useState(true);
   const { localState } = useLocalState()
-  const selectedUserId = selectedUser?.senderId;
+  const selectedUserId = currentSelectedUser?.senderId;
   const myUserId = user?.id;
   const { t } = useTranslation();
   const [canRate, setCanRate] = useState(false);
-const [hasRated, setHasRated] = useState(false);
-const [showRatingModal, setShowRatingModal] = useState(false);
-const [rating, setRating] = useState(0);
-const [petModalVisible, setPetModalVisible] = useState(false);
-const [selectedFruits, setSelectedFruits] = useState([]); 
-const [reviewText, setReviewText] = useState('');
-const [startRating,setStartRating] = useState(false);
-const [isOnline, setIsOnline] = useState(false);
-const hasSentMessageRef = useRef(false); // ✅ Use ref to avoid closure issue in cleanup
-const chatEnterTimeRef = useRef(null); // ✅ Track when user entered chat
+  const [hasRated, setHasRated] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [petModalVisible, setPetModalVisible] = useState(false);
+  const [selectedFruits, setSelectedFruits] = useState([]);
+  const [reviewText, setReviewText] = useState('');
+  const [startRating, setStartRating] = useState(false);
+  const [isOnline, setIsOnline] = useState(false);
+  const hasSentMessageRef = useRef(0); // ✅ Track count of messages user sent (for exit ad)
+  const chatEnterTimeRef = useRef(null); // ✅ Track when user entered chat
 
   useEffect(() => {
     if (item) {
@@ -77,33 +78,57 @@ const chatEnterTimeRef = useRef(null); // ✅ Track when user entered chat
   }, [item]);
 
 
+
   useEffect(() => {
     if (selectedUserId) {
       isUserOnline(selectedUserId).then(setIsOnline).catch(() => setIsOnline(false));
+
+      // ✅ Fetch latest role data (Moderator/Admin) for tag consistency
+      if (appdatabase) {
+        const fetchLatestRole = async () => {
+          try {
+            const userRef = ref(appdatabase, `users/${selectedUserId}`);
+            const snapshot = await get(userRef);
+            if (snapshot.exists()) {
+              const data = snapshot.val();
+              setCurrentSelectedUser(prev => ({
+                ...prev,
+                isAdmin: data.admin || false,
+                isModerator: data.isModerator || false,
+                avatar: data.avatar || prev?.avatar, // Also update avatar if changed
+                sender: data.robloxUsername || data.displayName || prev?.sender
+              }));
+            }
+          } catch (err) {
+            console.error("Error fetching latest user role:", err);
+          }
+        };
+        fetchLatestRole();
+      }
     }
-  }, [selectedUserId]);
+  }, [selectedUserId, appdatabase]);
 
   useEffect(() => {
     if (!Array.isArray(messages) || messages.length === 0) return;
     if (!myUserId || !selectedUserId) return;
-  
+
     const myMsgs = messages.filter(m => m?.senderId === myUserId);
     const theirMsgs = messages.filter(m => m?.senderId === selectedUserId);
-  
+
     if (myMsgs.length > 1 && theirMsgs.length > 1) {
       setCanRate(true);
     } else {
       setCanRate(false);
     }
   }, [messages, myUserId, selectedUserId]);
-  
+
   useEffect(() => {
     if (!selectedUserId || !myUserId || !firestoreDB) return;
-  
+
     // ✅ MIGRATED: Check rating from Firestore instead of RTDB
     const reviewDocId = `${selectedUserId}_${myUserId}`;
     const reviewRef = doc(firestoreDB, "reviews", reviewDocId);
-    
+
     getDoc(reviewRef)
       .then(snapshot => {
         if (snapshot.exists) {
@@ -122,7 +147,7 @@ const chatEnterTimeRef = useRef(null); // ✅ Track when user entered chat
   const closeProfileDrawer = () => {
     setIsDrawerVisible(false);
   };
-  
+
   const isBanned = useMemo(() => {
     if (!selectedUserId) return false;
     const banned = Array.isArray(bannedUsers) ? bannedUsers : [];
@@ -188,77 +213,77 @@ const chatEnterTimeRef = useRef(null); // ✅ Track when user entered chat
       showErrorMessage("Error", "Missing required data. Please try again.");
       return;
     }
-  
+
     try {
-    setStartRating(true)
-    
-    // ✅ MIGRATED: Get old rating from Firestore instead of RTDB
-    const reviewDocId = `${selectedUserId}_${myUserId}`;
-    const reviewRef = doc(firestoreDB, "reviews", reviewDocId);
-    const existingSnap = await getDoc(reviewRef);
-    const oldRating = existingSnap.exists ? existingSnap.data()?.rating : undefined;
-    
-    // ✅ Get current summary from Firestore to calculate new average
-    const summaryRef = doc(firestoreDB, 'user_ratings_summary', selectedUserId);
-    const summarySnap = await getDoc(summaryRef);
-    const summaryData = summarySnap.exists ? summarySnap.data() : null;
-    const oldAverage = summaryData?.averageRating || 0;
-    const oldCount = summaryData?.count || 0;
+      setStartRating(true)
 
-    let newAverage = 0;
-    let newCount = oldCount;
+      // ✅ MIGRATED: Get old rating from Firestore instead of RTDB
+      const reviewDocId = `${selectedUserId}_${myUserId}`;
+      const reviewRef = doc(firestoreDB, "reviews", reviewDocId);
+      const existingSnap = await getDoc(reviewRef);
+      const oldRating = existingSnap.exists ? existingSnap.data()?.rating : undefined;
 
-    if (oldRating !== undefined) {
-      newAverage = ((oldAverage * oldCount) - oldRating + rating) / oldCount;
-    } else {
-      newCount = oldCount + 1;
-      newAverage = ((oldAverage * oldCount) + rating) / newCount;
-    }
-    
-    const trimmedReview = (reviewText || "").trim();
+      // ✅ Get current summary from Firestore to calculate new average
+      const summaryRef = doc(firestoreDB, 'user_ratings_summary', selectedUserId);
+      const summarySnap = await getDoc(summaryRef);
+      const summaryData = summarySnap.exists ? summarySnap.data() : null;
+      const oldAverage = summaryData?.averageRating || 0;
+      const oldCount = summaryData?.count || 0;
 
-    let reviewWasSaved = false;
-    let reviewWasUpdated = false;
-    
-    // ✅ MIGRATED: Save ALL ratings to Firestore only (removed RTDB writes)
-    // Note: reviewRef and existingSnap already fetched above, reuse them
-    const now = serverTimestamp();
-    const isUpdate = existingSnap.exists;
-  
-    await setDoc(
-      reviewRef,
-      {
-        fromUserId: myUserId,
-        toUserId: selectedUserId,
-        rating,
-        userName: user?.displayName || user?.displayname || null,
-        review: trimmedReview || null, // Can be null if no review text
-        createdAt: isUpdate ? existingSnap.data()?.createdAt ?? now : now,
-        updatedAt: now,
-        edited: isUpdate,
-      },
-      { merge: true }
-    );
-  
-    reviewWasSaved = true;
-    reviewWasUpdated = isUpdate;
+      let newAverage = 0;
+      let newCount = oldCount;
 
-    // ✅ OPTIMIZED: Update user_ratings_summary collection (background update, doesn't block UI)
-    // This maintains aggregated data for efficient leaderboard queries
-    updateUserRatingSummary(firestoreDB, selectedUserId).catch((err) => {
-      console.error('Error updating rating summary:', err);
-      // Don't show error to user - this is a background operation
-    });
-    
-    showSuccessMessage(
-      "Success",
-      reviewWasSaved
-        ? reviewWasUpdated
-          ? "Your review was updated."
-          : "Thanks for your review!"
-        : "Thanks for your rating!"
-    );
-    
+      if (oldRating !== undefined) {
+        newAverage = ((oldAverage * oldCount) - oldRating + rating) / oldCount;
+      } else {
+        newCount = oldCount + 1;
+        newAverage = ((oldAverage * oldCount) + rating) / newCount;
+      }
+
+      const trimmedReview = (reviewText || "").trim();
+
+      let reviewWasSaved = false;
+      let reviewWasUpdated = false;
+
+      // ✅ MIGRATED: Save ALL ratings to Firestore only (removed RTDB writes)
+      // Note: reviewRef and existingSnap already fetched above, reuse them
+      const now = serverTimestamp();
+      const isUpdate = existingSnap.exists;
+
+      await setDoc(
+        reviewRef,
+        {
+          fromUserId: myUserId,
+          toUserId: selectedUserId,
+          rating,
+          userName: user?.displayName || user?.displayname || null,
+          review: trimmedReview || null, // Can be null if no review text
+          createdAt: isUpdate ? existingSnap.data()?.createdAt ?? now : now,
+          updatedAt: now,
+          edited: isUpdate,
+        },
+        { merge: true }
+      );
+
+      reviewWasSaved = true;
+      reviewWasUpdated = isUpdate;
+
+      // ✅ OPTIMIZED: Update user_ratings_summary collection (background update, doesn't block UI)
+      // This maintains aggregated data for efficient leaderboard queries
+      updateUserRatingSummary(firestoreDB, selectedUserId).catch((err) => {
+        console.error('Error updating rating summary:', err);
+        // Don't show error to user - this is a background operation
+      });
+
+      showSuccessMessage(
+        "Success",
+        reviewWasSaved
+          ? reviewWasUpdated
+            ? "Your review was updated."
+            : "Thanks for your review!"
+          : "Thanks for your rating!"
+      );
+
       setShowRatingModal(false);
       setHasRated(true);
       setReviewText('');
@@ -266,7 +291,7 @@ const chatEnterTimeRef = useRef(null); // ✅ Track when user entered chat
         await updateUserPoints(user.id, 100);
       }
       setStartRating(false);
-  
+
     } catch (error) {
       console.error("Rating error:", error);
       showErrorMessage("Error", "Error submitting rating. Try again!");
@@ -276,15 +301,15 @@ const chatEnterTimeRef = useRef(null); // ✅ Track when user entered chat
 
 
 
-const messagesRef = useMemo(
-  () => (chatKey ? ref(appdatabase, `private_messages/${chatKey}/messages`) : null),
-  [chatKey, appdatabase],
-);
+  const messagesRef = useMemo(
+    () => (chatKey ? ref(appdatabase, `private_messages/${chatKey}/messages`) : null),
+    [chatKey, appdatabase],
+  );
 
   const loadMessages = useCallback(
     async (reset = false) => {
       if (!messagesRef) return;
-  
+
       if (reset) {
         setLoading(true);
         setMessages([]);
@@ -292,12 +317,12 @@ const messagesRef = useMemo(
       }
       try {
         let query = messagesRef.orderByKey();
-  
+
         const lastKey = lastLoadedKeyRef.current;
         if (!reset && lastKey) {
           query = query.endAt(lastKey);
         }
-  
+
         query = query.limitToLast(PAGE_SIZE);
 
         const snapshot = await query.once('value');
@@ -317,7 +342,7 @@ const messagesRef = useMemo(
           if (!Array.isArray(prev)) return parsedMessages;
           const existingIds = new Set(prev.map(m => String(m?.id)));
           const onlyNew = parsedMessages.filter(m => !existingIds.has(String(m?.id)));
-          
+
           if (reset) {
             return parsedMessages;
           } else {
@@ -325,23 +350,24 @@ const messagesRef = useMemo(
             return combined.sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
           }
         });
-    
+
         lastLoadedKeyRef.current = parsedMessages[parsedMessages.length - 1]?.id;
-    
+
       } catch (error) {
         console.error('Error loading messages:', error);
       } finally {
-        if (reset) setLoading(false);      }
+        if (reset) setLoading(false);
+      }
     },
     [messagesRef]
   );
   // ✅ OPTIMIZED: Initial load with pagination, then use child_added for new messages only
   useEffect(() => {
     if (!messagesRef) return;
-    
+
     const currentChatKey = chatKey;
     const previousChatKey = previousChatKeyRef.current;
-    
+
     if (currentChatKey !== previousChatKey) {
       previousChatKeyRef.current = currentChatKey;
       loadMessages(true);
@@ -350,11 +376,11 @@ const messagesRef = useMemo(
       loadMessages(true);
     }
   }, [chatKey, messagesRef, loadMessages]);
-  
+
   const handleLoadMore = useCallback(() => {
     loadMessages(false);
   }, [loadMessages]);
-  
+
   const groupItems = useCallback((items) => {
     if (!Array.isArray(items)) return [];
     const grouped = {};
@@ -364,7 +390,7 @@ const messagesRef = useMemo(
       if (grouped[key]) {
         grouped[key].count = (grouped[key].count || 0) + 1;
       } else {
-        grouped[key] = { 
+        grouped[key] = {
           ...item,
           count: 1
         };
@@ -385,7 +411,7 @@ const messagesRef = useMemo(
 
     const chatId = [myUserId, selectedUserId].sort().join('_');
     const tradeRef = ref(appdatabase, `private_messages/${chatId}/trade`);
-  
+
     if (item && typeof item === 'object') {
       setTrade(item);
       tradeRef.set(item).catch((error) => {
@@ -406,7 +432,7 @@ const messagesRef = useMemo(
         });
     }
   }, [item, myUserId, selectedUserId, appdatabase]);
-  
+
 
   const groupedHasItems = useMemo(() => {
     if (!trade || !trade.hasItems || !Array.isArray(trade.hasItems)) return [];
@@ -418,18 +444,17 @@ const messagesRef = useMemo(
     return groupItems(trade.wantsItems);
   }, [trade?.wantsItems, groupItems]);
 
- 
-  
+
+
   const sendMessage = useCallback(async (text, image, fruits) => {
     const trimmedText = (text || '').trim();
     const hasImage = !!image;
     const hasFruits = Array.isArray(fruits) && fruits.length > 0;
-  
+
     if (!myUserId || !currentUserEmail) {
       showErrorMessage(t("home.alert.error"), "You must be logged in to send messages.");
       return;
     }
-
     // ✅ Admins are exempt from blocking
     if (strikeInfo && !isAdmin) {
       const { strikeCount, bannedUntil } = strikeInfo;
@@ -453,17 +478,41 @@ const messagesRef = useMemo(
         return;
       }
     }
-  
+    // ✅ Admins are exempt from blocking
+    if (strikeInfo && !isAdmin) {
+      const { strikeCount, bannedUntil } = strikeInfo;
+      const now = Date.now();
+
+      if (bannedUntil === 'permanent') {
+        showErrorMessage(t("home.alert.error"), "You are permanently banned from sending messages.");
+        return;
+      }
+
+      if (typeof bannedUntil === 'number' && now < bannedUntil) {
+        const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+        showErrorMessage(
+          t("home.alert.error"),
+          `You are banned from chatting for ${timeLeftText} more minute(s).`
+        );
+        return;
+      }
+    }
+
+
     if (hasFruits && fruits.length > 18) {
       showErrorMessage(t("home.alert.error"), "You can only send up to 18 pets in a message.");
       return;
     }
-  
+
     if (!trimmedText && !hasImage && !hasFruits) {
       showErrorMessage(t("home.alert.error"), t("chat.cannot_empty"));
       return;
     }
-  
+
     if (!myUserId || !selectedUserId || !appdatabase) {
       showErrorMessage(t("home.alert.error"), "Missing required data. Please try again.");
       return;
@@ -475,31 +524,31 @@ const messagesRef = useMemo(
     const chatId = [myUserId, selectedUserId].sort().join('_');
 
 
-    const messageRef       = ref(appdatabase, `private_messages/${chatId}/messages/${timestamp}`);
-    const senderChatRef    = ref(appdatabase, `chat_meta_data/${myUserId}/${selectedUserId}`);
-    const receiverChatRef  = ref(appdatabase, `chat_meta_data/${selectedUserId}/${myUserId}`);
+    const messageRef = ref(appdatabase, `private_messages/${chatId}/messages/${timestamp}`);
+    const senderChatRef = ref(appdatabase, `chat_meta_data/${myUserId}/${selectedUserId}`);
+    const receiverChatRef = ref(appdatabase, `chat_meta_data/${selectedUserId}/${myUserId}`);
     const receiverStatusRef = ref(appdatabase, `users/${selectedUserId}/activeChat`);
     const messageData = {
       text: trimmedText,
       senderId: myUserId,
       timestamp,
     };
-  
+
     if (hasImage) {
-      messageData.imageUrl = image;     
+      messageData.imageUrl = image;
     }
-  
+
     if (hasFruits) {
-      messageData.fruits = fruits;       
+      messageData.fruits = fruits;
     }
-  
+
     const lastMessagePreview =
       trimmedText ||
       (hasImage ? '📷 Photo' : hasFruits ? `🐾 ${fruits.length} pet(s)` : '');
-  
+
     try {
       await messageRef.set(messageData);
-  
+
 
       const snapshot = await receiverStatusRef.once('value');
       const isReceiverInChat = snapshot.val() === chatId;
@@ -508,8 +557,8 @@ const messagesRef = useMemo(
       await senderChatRef.update({
         chatId,
         receiverId: selectedUserId,
-        receiverName: selectedUser?.sender || "Anonymous",
-        receiverAvatar: selectedUser?.avatar || "https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png",
+        receiverName: currentSelectedUser?.sender || "Anonymous",
+        receiverAvatar: currentSelectedUser?.avatar || "https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png",
         lastMessage: lastMessagePreview,
         timestamp,
         unreadCount: 0,
@@ -526,12 +575,12 @@ const messagesRef = useMemo(
       });
 
       setReplyTo(null);
-      hasSentMessageRef.current = true; // ✅ Track that user sent a message (for exit ad)
+      hasSentMessageRef.current += 1; // ✅ Increment message count
     } catch (error) {
       console.error("Error sending message:", error);
       Alert.alert("Error", "Could not send your message. Please try again.");
     }
-  }, [myUserId, selectedUserId, appdatabase, selectedUser, user, t, currentUserEmail, strikeInfo, isAdmin]);
+  }, [myUserId, selectedUserId, appdatabase, currentSelectedUser, user, t, currentUserEmail, strikeInfo, isAdmin]);
 
   useFocusEffect(
     useCallback(() => {
@@ -544,20 +593,20 @@ const messagesRef = useMemo(
       setActiveChat(user.id, chatKey);
 
       // ✅ Reset refs when entering chat
-      hasSentMessageRef.current = false;
+      hasSentMessageRef.current = 0;
       chatEnterTimeRef.current = Date.now();
 
       return () => {
         clearActiveChat(user.id);
-        // ✅ Show ad when leaving if: 10+ seconds spent AND message sent AND not Pro
+        // ✅ Show ad when leaving if: 20+ seconds spent AND 3+ messages sent AND not Pro
         const timeSpent = Date.now() - (chatEnterTimeRef.current || Date.now());
-        if (timeSpent >= 10000 && hasSentMessageRef.current && !localState?.isPro) {
+        if (timeSpent >= 20000 && hasSentMessageRef.current >= 3 && !localState?.isPro) {
           InterstitialAdManager.showAd();
         }
       };
     }, [user?.id, selectedUserId, chatKey, localState?.isPro])
   );
- 
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadMessages(true);
@@ -578,7 +627,7 @@ const messagesRef = useMemo(
     // This prevents downloading all historical messages when listener is attached
     // Initial load is handled by loadMessages() with pagination
     const newMessagesQuery = messagesRef.orderByKey().limitToLast(1);
-    
+
     const handleChildAdded = snapshot => {
       if (!snapshot || !snapshot.key) return;
       const data = snapshot.val();
@@ -607,8 +656,8 @@ const messagesRef = useMemo(
       }
     };
   }, [messagesRef]);
-  
-  
+
+
 
 
 
@@ -619,210 +668,211 @@ const messagesRef = useMemo(
       <GestureHandlerRootView>
         <View style={styles.container}>
           <ConditionalKeyboardWrapper style={{ flex: 1 }} chatscreen={true}>
-          <TouchableWithoutFeedback
-    onPress={Keyboard.dismiss}
-    accessible={false}
-  >
-            <View style={{ flex: 1 }}>
-              {trade && (
-                <View>
-                <View style={styles.tradeDetails}>
-                  <View style={styles.itemList}>
-                    {groupedHasItems?.map((hasItem, index) => (
-                      <View key={`${hasItem.name}-${hasItem.type}`} style={{ justifyContent: 'center', alignItems: 'center'}}>
-                        <Image
-                          source={{
-                            uri: hasItem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(hasItem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(hasItem.name)}_Icon.webp`,
-                          }}
-                          style={[styles.itemImage, { backgroundColor: hasItem.type === 'p' ? '#FFCC00' : '' }]}
-                        />
-                        <Text style={styles.names}>
-                          {hasItem.name || ''}{hasItem.type === 'p' ? ' (P)' : ''}
-                        </Text>
-                        {hasItem.count > 1 && (
-                          <View style={styles.tagcount}>
-                            <Text style={styles.tagcounttext}>{hasItem.count}</Text>
+            <TouchableWithoutFeedback
+              onPress={Keyboard.dismiss}
+              accessible={false}
+            >
+              <View style={{ flex: 1 }}>
+                {trade && (
+                  <View>
+                    <View style={styles.tradeDetails}>
+                      <View style={styles.itemList}>
+                        {groupedHasItems?.map((hasItem, index) => (
+                          <View key={`${hasItem.name}-${hasItem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
+                            <Image
+                              source={{
+                                uri: hasItem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(hasItem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(hasItem.name)}_Icon.webp`,
+                              }}
+                              style={[styles.itemImage, { backgroundColor: hasItem.type === 'p' ? '#FFCC00' : '' }]}
+                            />
+                            <Text style={styles.names}>
+                              {hasItem.name || ''}{hasItem.type === 'p' ? ' (P)' : ''}
+                            </Text>
+                            {hasItem.count > 1 && (
+                              <View style={styles.tagcount}>
+                                <Text style={styles.tagcounttext}>{hasItem.count}</Text>
+                              </View>
+                            )}
                           </View>
-                        )}
+                        ))}
                       </View>
-                    ))}
-                  </View>
-                  <View style={styles.transfer}>
-                    <Image source={require('../../../assets/transfer.png')} style={styles.transferImage} />
-                  </View>
-                  <View style={styles.itemList}>
-                  {groupedWantsItems?.map((wantitem, index) => (
-                    <View key={`${wantitem.name}-${wantitem.type}`} style={{ justifyContent: 'center', alignItems: 'center'}}>
-                      <Image
-                        source={{
-                          uri: wantitem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(wantitem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(wantitem.name)}_Icon.webp`,
-                        }}
-                        style={[styles.itemImage, { backgroundColor: wantitem.type === 'p' ? '#FFCC00' : '' }]}
-                      />
-                      <Text style={styles.names}>
-                        {wantitem.name || ''}{wantitem.type === 'p' ? ' (P)' : ''}
-                      </Text>
-                      {wantitem.count > 1 && (
-                        <View style={styles.tagcount}>
-                          <Text style={styles.tagcounttext}>{wantitem.count}</Text>
-                        </View>
-                      )}
+                      <View style={styles.transfer}>
+                        <Image source={require('../../../assets/transfer.png')} style={styles.transferImage} />
+                      </View>
+                      <View style={styles.itemList}>
+                        {groupedWantsItems?.map((wantitem, index) => (
+                          <View key={`${wantitem.name}-${wantitem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
+                            <Image
+                              source={{
+                                uri: wantitem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(wantitem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(wantitem.name)}_Icon.webp`,
+                              }}
+                              style={[styles.itemImage, { backgroundColor: wantitem.type === 'p' ? '#FFCC00' : '' }]}
+                            />
+                            <Text style={styles.names}>
+                              {wantitem.name || ''}{wantitem.type === 'p' ? ' (P)' : ''}
+                            </Text>
+                            {wantitem.count > 1 && (
+                              <View style={styles.tagcount}>
+                                <Text style={styles.tagcounttext}>{wantitem.count}</Text>
+                              </View>
+                            )}
+                          </View>
+                        ))}
+                      </View>
                     </View>
-                  ))}
                   </View>
-                </View>
-                </View>
-              )}
-              {messages.length === 0 ? (
-  loading ? (
-    <ActivityIndicator
-      size="large"
-      color="#1E88E5"
-      style={{ flex: 1, justifyContent: 'center' }}
-    />
-  ) : (
-    <View style={styles.emptyContainer}>
-      <Text style={styles.emptyText}>{t('chat.no_messages_yet')}</Text>
-    </View>
-  )
-) : (
-                <PrivateMessageList
-                  messages={messages}
-                  userId={myUserId}
-                  handleLoadMore={handleLoadMore}
-                  refreshing={refreshing}
-                  onRefresh={handleRefresh}
+                )}
+                {messages.length === 0 ? (
+                  loading ? (
+                    <ActivityIndicator
+                      size="large"
+                      color="#1E88E5"
+                      style={{ flex: 1, justifyContent: 'center' }}
+                    />
+                  ) : (
+                    <View style={styles.emptyContainer}>
+                      <Text style={styles.emptyText}>{t('chat.no_messages_yet')}</Text>
+                    </View>
+                  )
+                ) : (
+                  <PrivateMessageList
+                    messages={messages}
+                    userId={myUserId}
+                    handleLoadMore={handleLoadMore}
+                    refreshing={refreshing}
+                    onRefresh={handleRefresh}
+                    isBanned={isBanned}
+                    selectedUser={currentSelectedUser}
+                    user={user}
+                    isAdmin={isAdmin} // ✅ Pass global admin status
+                    onReply={(message) => setReplyTo(message)}
+                    canRate={canRate}
+                    hasRated={hasRated}
+                    setShowRatingModal={setShowRatingModal}
+                    chatKey={chatKey}
+                  />
+                )}
+                <PrivateMessageInput
+                  onSend={sendMessage}
                   isBanned={isBanned}
-                  selectedUser={selectedUser}
-                  user={user}
-                  onReply={(message) => setReplyTo(message)}
-                  canRate={canRate}
-    hasRated={hasRated}
-    setShowRatingModal={setShowRatingModal}
-                  chatKey={chatKey}
+                  bannedUsers={bannedUsers}
+                  replyTo={replyTo}
+                  onCancelReply={() => setReplyTo(null)}
+                  input={input}
+                  setInput={setInput}
+                  selectedTheme={selectedTheme}
+                  petModalVisible={petModalVisible}
+                  setPetModalVisible={setPetModalVisible}
+                  selectedFruits={selectedFruits}
+                  setSelectedFruits={setSelectedFruits}
                 />
-              )}
-              <PrivateMessageInput
-                onSend={sendMessage}
-                isBanned={isBanned}
-                bannedUsers={bannedUsers}
-                replyTo={replyTo}
-                onCancelReply={() => setReplyTo(null)}
-                input={input}
-                setInput={setInput}
-                selectedTheme={selectedTheme}
-                petModalVisible={petModalVisible}
-                setPetModalVisible={setPetModalVisible}
-                selectedFruits={selectedFruits}
-                setSelectedFruits={setSelectedFruits}
-              />
-              <PetModal
-                fromChat={true}
-                visible={petModalVisible}
-                onClose={() => setPetModalVisible(false)}
-                selectedFruits={selectedFruits}
-                setSelectedFruits={setSelectedFruits}
-              />
-            </View>
-          </TouchableWithoutFeedback>
+                <PetModal
+                  fromChat={true}
+                  visible={petModalVisible}
+                  onClose={() => setPetModalVisible(false)}
+                  selectedFruits={selectedFruits}
+                  setSelectedFruits={setSelectedFruits}
+                />
+              </View>
+            </TouchableWithoutFeedback>
           </ConditionalKeyboardWrapper>
         </View>
       </GestureHandlerRootView>
       {!localState.isPro && <BannerAdComponent />}
       {showRatingModal && (
-  <View
-    style={{
-      position: 'absolute',
-      top: 0, left: 0, right: 0, bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 9999,
-    }}
-  >
-    <View
-      style={{
-        backgroundColor: 'white',
-        padding: 20,
-        borderRadius: 10,
-        width: '80%',
-        alignItems: 'center',
-        position: 'relative',
-      }}
-    >
-      <TouchableOpacity
-        onPress={() => setShowRatingModal(false)}
-        style={{
-          position: 'absolute',
-          top: -5,
-          right: 1,
-          zIndex: 100,
-          padding: 5,
-        }}
-      >
-        <Text style={{ fontSize: 18, color: '#888' }}>✖</Text>
-      </TouchableOpacity>
+        <View
+          style={{
+            position: 'absolute',
+            top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 9999,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: 'white',
+              padding: 20,
+              borderRadius: 10,
+              width: '80%',
+              alignItems: 'center',
+              position: 'relative',
+            }}
+          >
+            <TouchableOpacity
+              onPress={() => setShowRatingModal(false)}
+              style={{
+                position: 'absolute',
+                top: -5,
+                right: 1,
+                zIndex: 100,
+                padding: 5,
+              }}
+            >
+              <Text style={{ fontSize: 18, color: '#888' }}>✖</Text>
+            </TouchableOpacity>
 
-      <Text style={{ fontSize: 16, marginBottom: 10, textAlign: 'center', fontWeight:'600' }}>
-        Rate this Trader
-      </Text>
-
-      <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 15 }}>
-        {[1, 2, 3, 4, 5].map((num) => (
-          <TouchableOpacity key={num} onPress={() => setRating(num)}>
-            <Text style={{ fontSize: 32, color: num <= rating ? '#FFD700' : '#ccc', marginHorizontal: 4 }}>
-              ★
+            <Text style={{ fontSize: 16, marginBottom: 10, textAlign: 'center', fontWeight: '600' }}>
+              Rate this Trader
             </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      <TextInput
-  style={{
-    width: '100%',
-    minHeight: 60,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    marginBottom: 12,
-    textAlignVertical: 'top',
-    fontSize: 14,
-  }}
-  placeholder="Write an optional review..."
-  placeholderTextColor="#999"
-  multiline
-  value={reviewText}
-  onChangeText={setReviewText}
-/>
 
-      <TouchableOpacity
-        style={{
-          backgroundColor: config.colors.primary,
-          paddingVertical: 10,
-          paddingHorizontal: 20,
-          borderRadius: 8,
-          width: '100%',
-        }}
-        onPress={handleRating}
-      >
-        <Text style={{ color: 'white', fontSize: 14, textAlign: 'center' }}>
-        { !startRating ?'Submit Rating' : 'Submitting'}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-)}
+            <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 15 }}>
+              {[1, 2, 3, 4, 5].map((num) => (
+                <TouchableOpacity key={num} onPress={() => setRating(num)}>
+                  <Text style={{ fontSize: 32, color: num <= rating ? '#FFD700' : '#ccc', marginHorizontal: 4 }}>
+                    ★
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput
+              style={{
+                width: '100%',
+                minHeight: 60,
+                borderWidth: 1,
+                borderColor: '#ddd',
+                borderRadius: 8,
+                paddingHorizontal: 10,
+                paddingVertical: 8,
+                marginBottom: 12,
+                textAlignVertical: 'top',
+                fontSize: 14,
+              }}
+              placeholder="Write an optional review..."
+              placeholderTextColor="#999"
+              multiline
+              value={reviewText}
+              onChangeText={setReviewText}
+            />
 
-<ProfileBottomDrawer
-          isVisible={isDrawerVisible}
-          toggleModal={closeProfileDrawer}  
-          startChat={()=>{}}
-          selectedUser={selectedUser}
-          isOnline={isOnline}
-          bannedUsers={bannedUsers}
-          fromPvtChat={true}
-        />
+            <TouchableOpacity
+              style={{
+                backgroundColor: config.colors.primary,
+                paddingVertical: 10,
+                paddingHorizontal: 20,
+                borderRadius: 8,
+                width: '100%',
+              }}
+              onPress={handleRating}
+            >
+              <Text style={{ color: 'white', fontSize: 14, textAlign: 'center' }}>
+                {!startRating ? 'Submit Rating' : 'Submitting'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      <ProfileBottomDrawer
+        isVisible={isDrawerVisible}
+        toggleModal={closeProfileDrawer}
+        startChat={() => { }}
+        selectedUser={currentSelectedUser}
+        isOnline={isOnline}
+        bannedUsers={bannedUsers}
+        fromPvtChat={true}
+      />
     </>
   );
 };

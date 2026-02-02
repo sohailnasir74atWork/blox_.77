@@ -19,7 +19,7 @@ const RewardedAdComponent = ({ adsWatched, setAdsWatched, user, updateLocalState
       if (rewardedAdRef.current) rewardedAdRef.current = null;
     };
   }, []);
-  useEffect(()=>{if(user.id){loadAd()} },[user.id])
+  useEffect(() => { if (user.id) { loadAd() } }, [user.id])
 
   // Function to load the ad when the button is pressed
   const loadAd = () => {
@@ -109,31 +109,31 @@ const RewardedAdComponent = ({ adsWatched, setAdsWatched, user, updateLocalState
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-evenly', width: '100%', flexWrap: 'wrap' }}>
       {adsWatched.slice(0, 3).map((watched, index) => (
-      <TouchableOpacity
-      key={index}
-      style={{
-        marginBottom: 20,
-        backgroundColor: watched ? 'gray' : '#4CAF50',
-        padding: 10,
-        borderRadius: 12,
-        width: 120,
-        justifyContent: 'center',
-        alignItems: 'center', // Ensure content is centered horizontally
-      }}
-      onPress={() => showAd(index)}
-    >
-      <Text
-        style={{
-          color: isDarkMode ? 'white' : 'black',
-          textAlign: 'center', // Center the text horizontally
-          fontFamily:'Lato-Regular',
-          fontSize:12
-        }}
-      >
-        {watched ? `Ad ${index + 1} Watched` : `Watch Ad ${index + 1} ${'\n'}(Earn 5 Coins)`}
-      </Text>
-    </TouchableOpacity>
-    
+        <TouchableOpacity
+          key={index}
+          style={{
+            marginBottom: 20,
+            backgroundColor: watched ? 'gray' : '#4CAF50',
+            padding: 10,
+            borderRadius: 12,
+            width: 120,
+            justifyContent: 'center',
+            alignItems: 'center', // Ensure content is centered horizontally
+          }}
+          onPress={() => showAd(index)}
+        >
+          <Text
+            style={{
+              color: isDarkMode ? 'white' : 'black',
+              textAlign: 'center', // Center the text horizontally
+
+              fontSize: 12
+            }}
+          >
+            {watched ? `Ad ${index + 1} Watched` : `Watch Ad ${index + 1} ${'\n'}(Earn 5 Coins)`}
+          </Text>
+        </TouchableOpacity>
+
       ))}
     </View>
   );

@@ -86,7 +86,7 @@ const MessagesList = ({
   // const [isAtBottom, setIsAtBottom] = useState(true);
   const { t } = useTranslation();
   // const { language, changeLanguage } = useLanguage();
-  const { isAdmin, api, freeTranslation , proGranted, appdatabase} = useGlobalState()
+  const { isAdmin, api, freeTranslation, proGranted, appdatabase } = useGlobalState()
   const { canTranslate, incrementTranslationCount, getRemainingTranslationTries, localState } = useLocalState();
   const deviceLanguage = useMemo(() => getDeviceLanguage(), []);
 
@@ -99,20 +99,20 @@ const MessagesList = ({
   const scrollToMessage = useCallback(
     (targetId) => {
       if (!flatListRef?.current || !targetId) return;
-  
+
       const index = messages.findIndex((m) => m.id === targetId);
       if (index === -1) return;
-  
+
       try {
         flatListRef.current.scrollToIndex({
           index,
           animated: true,
           viewPosition: 0.5,
         });
-  
+
         // highlight only the scrolled-to message
         setHighlightedMessageId(targetId);
-  
+
         setTimeout(() => {
           setHighlightedMessageId((current) =>
             current === targetId ? null : current,
@@ -124,24 +124,24 @@ const MessagesList = ({
     },
     [flatListRef, messages],
   );
-  
-  
-  
-  
-  
+
+
+
+
+
   const fruitColors = useMemo(
     () => ({
       wrapperBg: isDarkMode ? '#0f172a55' : '#e5e7eb55',
-      name:      isDarkMode ? '#f9fafb' : '#111827',
-      value:     isDarkMode ? '#e5e7eb' : '#4b5563',
-      divider:   isDarkMode ? '#ffffff22' : '#00000011',
-      totalLabel:isDarkMode ? '#e5e7eb' : '#4b5563',
-      totalValue:isDarkMode ? '#f97373' : '#b91c1c',
+      name: isDarkMode ? '#f9fafb' : '#111827',
+      value: isDarkMode ? '#e5e7eb' : '#4b5563',
+      divider: isDarkMode ? '#ffffff22' : '#00000011',
+      totalLabel: isDarkMode ? '#e5e7eb' : '#4b5563',
+      totalValue: isDarkMode ? '#f97373' : '#b91c1c',
     }),
     [isDarkMode],
   );
 
-// console.log(messages)
+  // console.log(messages)
 
   const translateText = async (text, targetLang = deviceLanguage) => {
     const placeholders = {};
@@ -246,25 +246,25 @@ const MessagesList = ({
   };
   const getReplyPreview = (replyTo) => {
     if (!replyTo) return '[Deleted message]';
-  
+
     if (replyTo.text && replyTo.text.trim().length > 0) {
       return replyTo.text;
     }
-  
+
     if (replyTo.gif) {
       return '[Emoji]';
     }
-  
+
     if (replyTo.hasFruits) {
       const count = replyTo.fruitsCount || 0;
       return count > 0
         ? `[${count} pet(s) message]`
         : '[Pets message]';
     }
-  
+
     return '[Deleted message]';
   };
-  
+
 
   const handleProfileClick = (item) => {
     // console.log(item)
@@ -276,9 +276,9 @@ const MessagesList = ({
   // ✅ Scroll to bottom handler
   const handleScrollToBottom = useCallback(() => {
     if (!flatListRef?.current) return;
-    
+
     triggerHapticFeedback('impactLight');
-    
+
     try {
       // Since FlatList is inverted, index 0 is the bottom (newest message)
       flatListRef.current.scrollToIndex({
@@ -319,13 +319,13 @@ const MessagesList = ({
     const totalFruitValue = hasFruits
       ? fruits.reduce((sum, f) => sum + (Number(f.value) || 0), 0)
       : 0;
-    
+
     // ✅ Trophy badge (recent win within 24 hours)
     const hasRecentWin =
       !!item?.hasRecentGameWin ||
       (typeof item?.lastGameWinAt === 'number' &&
         Date.now() - item.lastGameWinAt <= 24 * 60 * 60 * 1000);
-  
+
     // console.log(user.id)
 
     return (
@@ -338,7 +338,7 @@ const MessagesList = ({
         )}
 
         {/* Render the message */}
-      { !item.isReportedByUser &&  <View
+        {!item.isReportedByUser && <View
           style={[
             item.senderId === user?.id ? styles.mymessageBubble : styles.othermessageBubble,
             (item.senderId === user?.id || item.isAdmin) ? styles.myMessage : styles.otherMessage, item.isReportedByUser && styles.reportedMessage,
@@ -365,18 +365,18 @@ const MessagesList = ({
           </View>
 
           <View style={styles.messageTextBox}>
-          {item.replyTo && (
-  <TouchableOpacity
-    style={styles.replyContainer}
-    activeOpacity={0.7}
-    onPress={() => scrollToMessage(item.replyTo.id)}
-  >
-    <Text style={styles.replyText} numberOfLines={2}>
-      Replying to: {'\n'}
-      {getReplyPreview(item.replyTo)}
-    </Text>
-  </TouchableOpacity>
-)}
+            {item.replyTo && (
+              <TouchableOpacity
+                style={styles.replyContainer}
+                activeOpacity={0.7}
+                onPress={() => scrollToMessage(item.replyTo.id)}
+              >
+                <Text style={styles.replyText} numberOfLines={2}>
+                  Replying to: {'\n'}
+                  {getReplyPreview(item.replyTo)}
+                </Text>
+              </TouchableOpacity>
+            )}
 
 
 
@@ -386,147 +386,153 @@ const MessagesList = ({
                 customStyles={{ triggerTouchable: { activeOpacity: 1 } }}
               >
                 <View style={[item.senderId === user?.id ? styles.myMessageText : styles.otherMessageText, isAdmin && item.strikeCount === 1
-                    ? { backgroundColor: 'pink' }
-                    : item.strikeCount >= 2
-                      ? { backgroundColor: 'red' }
-                      : null,]}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-                      {item?.style ? (
-                        <StyledUsernamePreview
-                          text={item.sender}
-                          variant={item.style.variant}
-                          options={item.style}
-                          fontSize={14}
-                          lineHeight={18}
-                          marginVertical={0}
-                        />
-                      ) : (
-                        <Text style={styles.userName}>{item.sender}</Text>
-                      )}
-                      {item?.isPro && (
-                        <Image
-                          source={require('../../../assets/pro.png')}
-                          style={styles.icon}
-                        />
-                      )}
-                      {item?.proGranted && (
-                        <Image
-                          source={require('../../../assets/progranted.png')}
-                          style={{ width: 16, height: 16, marginLeft: 2 }}
-                        />
-                      )}
-                      {Array.isArray(item.icons) && item.icons.slice(0, 4).map(iconKey => (
-                        <Image
-                          key={iconKey}
-                          source={iconMap[iconKey]}
-                          style={{ width: 16, height: 16, marginLeft: 2, resizeMode: 'contain' }}
-                        />
-                      ))}
-                      {item?.robloxUsernameVerified && (
-                        <Image
-                          source={require('../../../assets/verification.png')}
-                          style={styles.icon}
-                        />
-                      )}
-                      {hasRecentWin && (
-                        <Image
-                          source={require('../../../assets/trophy.webp')}
-                          style={{ width: 10, height: 10, marginLeft: 4 }}
-                        />
-                      )}
-                      <Text>{''}</Text>
-   {(!!item.isAdmin) &&
+                  ? { backgroundColor: 'pink' }
+                  : item.strikeCount >= 2
+                    ? { backgroundColor: 'red' }
+                    : null,]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                    {item?.style ? (
+                      <StyledUsernamePreview
+                        text={item.sender}
+                        variant={item.style.variant}
+                        options={item.style}
+                        fontSize={14}
+                        lineHeight={18}
+                        marginVertical={0}
+                      />
+                    ) : (
+                      <Text style={styles.userName}>{item.sender}</Text>
+                    )}
+                    {item?.isPro && (
+                      <Image
+                        source={require('../../../assets/pro.png')}
+                        style={styles.icon}
+                      />
+                    )}
+                    {item?.proGranted && (
+                      <Image
+                        source={require('../../../assets/progranted.png')}
+                        style={{ width: 16, height: 16, marginLeft: 2 }}
+                      />
+                    )}
+                    {Array.isArray(item.icons) && item.icons.slice(0, 4).map(iconKey => (
+                      <Image
+                        key={iconKey}
+                        source={iconMap[iconKey]}
+                        style={{ width: 16, height: 16, marginLeft: 2, resizeMode: 'contain' }}
+                      />
+                    ))}
+                    {item?.robloxUsernameVerified && (
+                      <Image
+                        source={require('../../../assets/verification.png')}
+                        style={styles.icon}
+                      />
+                    )}
+                    {hasRecentWin && (
+                      <Image
+                        source={require('../../../assets/trophy.webp')}
+                        style={{ width: 10, height: 10, marginLeft: 4 }}
+                      />
+                    )}
+                    <Text>{''}</Text>
+                    {(!!item.isAdmin) &&
                       <View style={styles.adminContainer}>
                         <Text style={styles.admin}>{t("chat.admin")}</Text>
                       </View>}
 
-  {isAdmin && item.OS && (
-    <View
-      style={[
-        styles.platformBadge,
-      ]}
-    >
-      <Icon
-        name={item.OS === 'ios' ? 'logo-apple' : 'logo-android'}
-        size={14}
-        color={item.OS === 'ios' ? '#007AFF' : '#34C759' }
-      />
-    </View>
-  )}
+                    {/* ✅ Moderator Tag */}
+                    {(!item.isAdmin && !!item.isModerator) &&
+                      <View style={styles.moderatorContainer}>
+                        <Text style={styles.moderator}>MOD</Text>
+                      </View>}
 
-                    </View>
-
-
-                 
-                    {/* {'\n'} */}
-
-                    {item.gif && <View><Image src={item.gif} style={{ height: 50, width: 50, resizeMode: 'contain' }} /></View>}
-                    {/* {'\n'} */}
-                    <Text style={item.senderId === user?.id ? styles.myMessageTextOnly : styles.otherMessageTextOnly}>{parseMessageText(item?.text)}</Text>
-
-                    {/* ✅ Fruits list inside bubble */}
-                    {hasFruits && (
+                    {isAdmin && item.OS && (
                       <View
                         style={[
-                          fruitStyles.fruitsWrapper,
-                          { backgroundColor: fruitColors.wrapperBg },
+                          styles.platformBadge,
                         ]}
                       >
-                        {fruits.map((fruit, index) => {
-                          const formatName = (name) => name.replace(/^\+/, '').replace(/\s+/g, '-');
-
-                          return (
-                            <View
-                              key={`${fruit.id || fruit.name}-${index}`}
-                              style={fruitStyles.fruitCard}
-                            >
-                              <Image
-                                source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/${fruit.type === 'n' ? '09' : '08'}/${formatName(fruit.name)}_Icon.webp` }}
-                                style={fruitStyles.fruitImage}
-                              />
-
-                              <View style={fruitStyles.fruitInfo}>
-                                <Text
-                                  style={[fruitStyles.fruitName, { color: fruitColors.name }]}
-                                  numberOfLines={1}
-                                >
-                                  {`${fruit.name || fruit.Name} ${fruit.type === 'n' ? '' : '(P)'} `}
-                                </Text>
-
-                                <Text
-                                  style={[fruitStyles.fruitValue, { color: fruitColors.value }]}
-                                >
-                                  · Value: {Number(fruit.value || 0).toLocaleString()}
-                                </Text>
-                              </View>
-                            </View>
-                          );
-                        })}
-
-                        {/* ✅ Total row – only if more than one fruit */}
-                        {fruits.length > 1 && (
-                          <View
-                            style={[
-                              fruitStyles.totalRow,
-                              { borderTopColor: fruitColors.divider },
-                            ]}
-                          >
-                            <Text
-                              style={[fruitStyles.totalLabel, { color: fruitColors.totalLabel }]}
-                            >
-                              Total:
-                            </Text>
-                            <Text
-                              style={[fruitStyles.totalValue, { color: fruitColors.totalValue }]}
-                            >
-                              {totalFruitValue.toLocaleString()}
-                            </Text>
-                          </View>
-                        )}
+                        <Icon
+                          name={item.OS === 'ios' ? 'logo-apple' : 'logo-android'}
+                          size={14}
+                          color={item.OS === 'ios' ? '#007AFF' : '#34C759'}
+                        />
                       </View>
                     )}
 
                   </View>
+
+
+
+                  {/* {'\n'} */}
+
+                  {item.gif && <View><Image src={item.gif} style={{ height: 50, width: 50, resizeMode: 'contain' }} /></View>}
+                  {/* {'\n'} */}
+                  <Text style={item.senderId === user?.id ? styles.myMessageTextOnly : styles.otherMessageTextOnly}>{parseMessageText(item?.text)}</Text>
+
+                  {/* ✅ Fruits list inside bubble */}
+                  {hasFruits && (
+                    <View
+                      style={[
+                        fruitStyles.fruitsWrapper,
+                        { backgroundColor: fruitColors.wrapperBg },
+                      ]}
+                    >
+                      {fruits.map((fruit, index) => {
+                        const formatName = (name) => name.replace(/^\+/, '').replace(/\s+/g, '-');
+
+                        return (
+                          <View
+                            key={`${fruit.id || fruit.name}-${index}`}
+                            style={fruitStyles.fruitCard}
+                          >
+                            <Image
+                              source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/${fruit.type === 'n' ? '09' : '08'}/${formatName(fruit.name)}_Icon.webp` }}
+                              style={fruitStyles.fruitImage}
+                            />
+
+                            <View style={fruitStyles.fruitInfo}>
+                              <Text
+                                style={[fruitStyles.fruitName, { color: fruitColors.name }]}
+                                numberOfLines={1}
+                              >
+                                {`${fruit.name || fruit.Name} ${fruit.type === 'n' ? '' : '(P)'} `}
+                              </Text>
+
+                              <Text
+                                style={[fruitStyles.fruitValue, { color: fruitColors.value }]}
+                              >
+                                · Value: {Number(fruit.value || 0).toLocaleString()}
+                              </Text>
+                            </View>
+                          </View>
+                        );
+                      })}
+
+                      {/* ✅ Total row – only if more than one fruit */}
+                      {fruits.length > 1 && (
+                        <View
+                          style={[
+                            fruitStyles.totalRow,
+                            { borderTopColor: fruitColors.divider },
+                          ]}
+                        >
+                          <Text
+                            style={[fruitStyles.totalLabel, { color: fruitColors.totalLabel }]}
+                          >
+                            Total:
+                          </Text>
+                          <Text
+                            style={[fruitStyles.totalValue, { color: fruitColors.totalValue }]}
+                          >
+                            {totalFruitValue.toLocaleString()}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+
+                </View>
               </MenuTrigger>
               <MenuOptions customStyles={{
                 optionsContainer: styles.menuoptions,
@@ -579,18 +585,18 @@ const MessagesList = ({
                 />
               </MenuTrigger>
               <MenuOptions >
-                  {/* <MenuOption onSelect={() => onPinMessage(item)} style={styles.pinButton}>
+                {/* <MenuOption onSelect={() => onPinMessage(item)} style={styles.pinButton}>
                     <Text style={styles.adminTextAction}>Pin</Text>
                   </MenuOption> */}
-                  <MenuOption onSelect={() => onDeleteMessage(item.id)} >
-                    <Text style={[{backgroundColor:'red',padding:10, color:'white'}]}>Delete</Text>
-                  </MenuOption>
-               
-                
-                
-              
-                  
-                  {/* {isAdmin && (
+                <MenuOption onSelect={() => onDeleteMessage(item.id)} >
+                  <Text style={[{ backgroundColor: 'red', padding: 10, color: 'white' }]}>Delete</Text>
+                </MenuOption>
+
+
+
+
+
+                {/* {isAdmin && (
                     <MenuOption onSelect={() => makeadmin(item.senderId)} style={styles.deleteButton}>
                       <Text style={styles.adminTextAction}>Make Admin</Text>
                     </MenuOption>
@@ -623,49 +629,9 @@ const MessagesList = ({
                   <MenuOption onSelect={() => onDeleteAllMessage(item?.senderId)} style={styles.deleteButton}>
                     <Text style={styles.adminTextAction}>Delete All</Text>
                   </MenuOption>
-                  <MenuOption onSelect={async () => {
-                    // ✅ Fetch email on-demand for old messages (new messages don't have currentUserEmail)
-                    let email = item.currentUserEmail;
-                    if (!email && item.senderId && appdatabase) {
-                      try {
-                        const { ref, get } = require('@react-native-firebase/database');
-                        const emailSnap = await get(ref(appdatabase, `users/${item.senderId}/email`));
-                        email = emailSnap.exists() ? emailSnap.val() : null;
-                      } catch (error) {
-                        console.error('Error fetching email:', error);
-                      }
-                    }
-                    if (email) {
-                      await banUserwithEmail(email, item.isAdmin);
-                    } else {
-                      Alert.alert('Error', 'Could not find user email');
-                    }
-                  }} style={styles.deleteButton}>
-                    <Text style={styles.adminTextAction}>Block</Text>
-                  </MenuOption>
-                  <MenuOption onSelect={async () => {
-                    // ✅ Fetch email on-demand for old messages (new messages don't have currentUserEmail)
-                    let email = item.currentUserEmail;
-                    if (!email && item.senderId && appdatabase) {
-                      try {
-                        const { ref, get } = require('@react-native-firebase/database');
-                        const emailSnap = await get(ref(appdatabase, `users/${item.senderId}/email`));
-                        email = emailSnap.exists() ? emailSnap.val() : null;
-                      } catch (error) {
-                        console.error('Error fetching email:', error);
-                      }
-                    }
-                    if (email) {
-                      await unbanUserWithEmail(email);
-                    } else {
-                      Alert.alert('Error', 'Could not find user email');
-                    }
-                  }} style={styles.deleteButton}>
-                    <Text style={styles.adminTextAction}>Unblock</Text>
-                  </MenuOption>
-                  <MenuOption onSelect={() => onPinMessage(item)} style={styles.deleteButton}>
-                    <Text style={styles.adminTextAction}>Pin Message</Text>
-                  </MenuOption>
+
+
+
                   {/* {isAdmin && (
                     <MenuOption onSelect={() => makeadmin(item.senderId)} style={styles.deleteButton}>
                       <Text style={styles.adminTextAction}>Make Admin</Text>
@@ -696,10 +662,10 @@ const MessagesList = ({
         renderItem={({ item, index }) => renderMessage({ item, index })}
         contentContainerStyle={styles.chatList}
         inverted
+        removeClippedSubviews={false}
         extraData={highlightedMessageId}
         ref={flatListRef}
         scrollEventThrottle={16}
-        removeClippedSubviews={false}
         onScroll={({ nativeEvent }) => {
           const { contentOffset } = nativeEvent;
           const atBottom = contentOffset.y <= 60;
@@ -779,9 +745,9 @@ export const fruitStyles = StyleSheet.create({
   fruitCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    justifyContent:'flex-start',
-   
-    flex:1,
+    justifyContent: 'flex-start',
+
+    flex: 1,
 
   },
   fruitImage: {
@@ -793,10 +759,10 @@ export const fruitStyles = StyleSheet.create({
   },
   fruitInfo: {
     // flex: 1,
-    flexDirection:'row',
-    justifyContent:'flex-start',
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
     // backgroundColor:'red',
-    alignItems:'center'
+    alignItems: 'center'
   },
   fruitName: {
     fontSize: 12,

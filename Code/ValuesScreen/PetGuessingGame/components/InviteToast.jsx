@@ -92,7 +92,7 @@ const InviteToast = ({ visible, fromUserName, fromUserAvatar, onPress, onDismiss
       <TouchableOpacity
         style={[
           styles.toast,
-          { 
+          {
             backgroundColor: isDarkMode ? '#1a1a1a' : '#fff',
             borderLeftColor: '#8B5CF6',
           },
@@ -188,12 +188,12 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 13,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     marginBottom: 3,
   },
   message: {
     fontSize: 10,
-    fontFamily: 'Lato-Regular',
+
     lineHeight: 14,
   },
   avatar: {

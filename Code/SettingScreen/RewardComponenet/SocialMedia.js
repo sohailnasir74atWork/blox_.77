@@ -222,7 +222,7 @@ export default function SocialTasks({ user, appdatabase, setOpenSignin }) {
                   <Text style={styles.submitText}>{statusText}</Text>
                 </View>
               ) : statusText === 'Disapproved Resubmit' ? (
-                <TouchableOpacity style={[styles.submitBtn, {backgroundColor : statusText === 'Disapproved Resubmit' && config.colors.wantBlockRed}]} onPress={() => openSubmitModal(item)}>
+                <TouchableOpacity style={[styles.submitBtn, { backgroundColor: statusText === 'Disapproved Resubmit' && config.colors.wantBlockRed }]} onPress={() => openSubmitModal(item)}>
                   <Text style={styles.submitText}>Disapproved Resubmit</Text>
                 </TouchableOpacity>
               ) : (
@@ -238,79 +238,79 @@ export default function SocialTasks({ user, appdatabase, setOpenSignin }) {
 
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalBackdrop}>
-        <ConditionalKeyboardWrapper>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Step-by-Step Guide</Text>
+          <ConditionalKeyboardWrapper>
+            <View style={styles.modalBox}>
+              <Text style={styles.modalTitle}>Step-by-Step Guide</Text>
 
-            <ScrollView style={styles.scrollView}>
-              <Text style={styles.stepText}>
-                🟢 <Text style={styles.bold}>Step 1:</Text> Take a Screenshot{"\n"}
-                Open the app and take a screenshot of the home, Trade or Stock screen.
-              </Text>
+              <ScrollView style={styles.scrollView}>
+                <Text style={styles.stepText}>
+                  🟢 <Text style={styles.bold}>Step 1:</Text> Take a Screenshot{"\n"}
+                  Open the app and take a screenshot of the home, Trade or Stock screen.
+                </Text>
 
-              <Text style={styles.stepText}>
-                🟢 <Text style={styles.bold}>Step 2:</Text> Write a Description{"\n"}
-                Add a short caption or description. You can use this template or write your own:
-                {"\n"}
-                “Blox Fruit Values Calc is the best app for Roblox players: https://play.google.com/store/apps/details?id=com.bloxfruitevalues”
-              </Text>
+                <Text style={styles.stepText}>
+                  🟢 <Text style={styles.bold}>Step 2:</Text> Write a Description{"\n"}
+                  Add a short caption or description. You can use this template or write your own:
+                  {"\n"}
+                  “Blox Fruit Values Calc is the best app for Roblox players: https://play.google.com/store/apps/details?id=com.bloxfruitevalues”
+                </Text>
 
-              <Text style={styles.stepText}>
-                🟢 <Text style={styles.bold}>Step 3:</Text> Share on Social Media{"\n"}
-                Post the screenshot + description on one of these platforms:
-                {"\n"}
-                - TikTok{"\n"}
-                - Instagram{"\n"}
-                - Facebook{"\n"}
-                - YouTube Shorts
-              </Text>
+                <Text style={styles.stepText}>
+                  🟢 <Text style={styles.bold}>Step 3:</Text> Share on Social Media{"\n"}
+                  Post the screenshot + description on one of these platforms:
+                  {"\n"}
+                  - TikTok{"\n"}
+                  - Instagram{"\n"}
+                  - Facebook{"\n"}
+                  - YouTube Shorts
+                </Text>
 
-              <Text style={styles.stepText}>
-                🟢 <Text style={styles.bold}>Step 4:</Text> Submit Proof{"\n"}
-                Submit your post link in the submission field.
-              </Text>
+                <Text style={styles.stepText}>
+                  🟢 <Text style={styles.bold}>Step 4:</Text> Submit Proof{"\n"}
+                  Submit your post link in the submission field.
+                </Text>
 
-              <Text style={styles.rulesText}>
-                ⚠️ <Text style={styles.bold}>Important Rules:</Text>{"\n"}
-                - Make sure the post is public or visible for at least 24 hours.{"\n"}
-                - Don't delete your post before the reward is given.{"\n"}
-                - Points will be credited after your submission is reviewed (usually within 24–48 hours).
-              </Text>
-            </ScrollView>
+                <Text style={styles.rulesText}>
+                  ⚠️ <Text style={styles.bold}>Important Rules:</Text>{"\n"}
+                  - Make sure the post is public or visible for at least 24 hours.{"\n"}
+                  - Don't delete your post before the reward is given.{"\n"}
+                  - Points will be credited after your submission is reviewed (usually within 24–48 hours).
+                </Text>
+              </ScrollView>
 
-            {/* Share App Button */}
-            <TouchableOpacity onPress={handleShare} style={styles.shareBtn}>
-              <Text style={styles.shareBtnText}>📤 Share App</Text>
-            </TouchableOpacity>
+              {/* Share App Button */}
+              <TouchableOpacity onPress={handleShare} style={styles.shareBtn}>
+                <Text style={styles.shareBtnText}>📤 Share App</Text>
+              </TouchableOpacity>
 
-            {/* Platform Name Input (for "Other") */}
-            {selectedPlatform?.name === 'Other' && (
+              {/* Platform Name Input (for "Other") */}
+              {selectedPlatform?.name === 'Other' && (
+                <TextInput
+                  placeholder="Platform Name"
+                  value={customPlatformName}
+                  onChangeText={setCustomPlatformName}
+                  style={styles.input}
+                />
+              )}
+
+              {/* Link Input */}
               <TextInput
-                placeholder="Platform Name"
-                value={customPlatformName}
-                onChangeText={setCustomPlatformName}
+                placeholder="Paste your post link here"
+                value={link}
+                onChangeText={setLink}
                 style={styles.input}
               />
-            )}
 
-            {/* Link Input */}
-            <TextInput
-              placeholder="Paste your post link here"
-              value={link}
-              onChangeText={setLink}
-              style={styles.input}
-            />
-
-            {/* Modal Actions */}
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.submitBtnBig} onPress={handleSubmit}>
-                <Text style={styles.submitText}>Submit</Text>
-              </TouchableOpacity>
+              {/* Modal Actions */}
+              <View style={styles.modalActions}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.submitBtnBig} onPress={handleSubmit}>
+                  <Text style={styles.submitText}>Submit</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
           </ConditionalKeyboardWrapper>
 
         </View>
@@ -352,12 +352,12 @@ const styles = StyleSheet.create({
   },
   platformName: {
     fontSize: 16,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     color: '#F9FBE7',
   },
   pointsText: {
     color: '#F9FBE7',
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     marginRight: 10,
     fontSize: 14,
   },
@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
   },
   submitText: {
     color: '#F9FBE7',
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     fontSize: 14,
   },
   modalBackdrop: {
@@ -387,7 +387,7 @@ const styles = StyleSheet.create({
     maxHeight: '80%',
   },
   modalTitle: {
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     fontSize: 18,
     paddingBottom: 12,
     textAlign: 'center',
@@ -397,15 +397,15 @@ const styles = StyleSheet.create({
   },
   stepText: {
     fontSize: 14,
-    fontFamily: 'Lato-Regular',
+
     marginBottom: 10,
   },
   bold: {
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
   },
   rulesText: {
     fontSize: 14,
-    fontFamily: 'Lato-Regular',
+
     marginTop: 20,
     color: 'red',
   },
@@ -418,7 +418,7 @@ const styles = StyleSheet.create({
   },
   shareBtnText: {
     color: '#fff',
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     fontSize: 14,
   },
   input: {
@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     color: '#999',
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
   },
   submitBtnBig: {
     backgroundColor: '#2196f3',
@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
   },
   submitText: {
     color: '#fff',
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     fontSize: 16,
   },
 });

@@ -183,12 +183,12 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 14,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     marginBottom: 2,
   },
   message: {
     fontSize: 12,
-    fontFamily: 'Lato-Regular',
+
     color: '#10B981',
   },
   petImage: {

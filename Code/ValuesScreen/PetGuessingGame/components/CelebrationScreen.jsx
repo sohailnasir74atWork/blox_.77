@@ -74,7 +74,7 @@ const CelebrationScreen = ({ winner, onPlayAgain, onClose }) => {
         {/* Winner Card */}
         <View style={styles.winnerCard}>
           <Text style={styles.congratsText}>🎉 Congratulations! 🎉</Text>
-          
+
           <View style={styles.winnerInfo}>
             <Text style={[styles.winnerName, { color: isDarkMode ? '#fff' : '#000' }]}>
               {winner.playerName}
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
   confetti: {
     position: 'absolute',
     fontSize: 30,
-    fontFamily: 'Lato-Regular',
+
   },
   winnerCard: {
     alignItems: 'center',
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   },
   congratsText: {
     fontSize: 24,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     marginBottom: 16,
     textAlign: 'center',
   },
@@ -191,12 +191,12 @@ const styles = StyleSheet.create({
   },
   winnerName: {
     fontSize: 28,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     marginBottom: 4,
   },
   winnerLabel: {
     fontSize: 16,
-    fontFamily: 'Lato-Regular',
+
   },
   winnerPetImage: {
     width: 150,
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
   },
   petName: {
     fontSize: 20,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
     marginBottom: 16,
   },
   traitContainer: {
@@ -216,12 +216,12 @@ const styles = StyleSheet.create({
   },
   traitLabel: {
     fontSize: 12,
-    fontFamily: 'Lato-Regular',
+
     marginBottom: 4,
   },
   traitText: {
     fontSize: 14,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
   },
   actionsContainer: {
     width: '100%',
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
   playAgainText: {
     color: '#fff',
     fontSize: 16,
-    fontFamily: 'Lato-Bold',
+    fontWeight: 'bold',
   },
   closeButton: {
     paddingVertical: 12,
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
   },
   closeText: {
     fontSize: 14,
-    fontFamily: 'Lato-Regular',
+
   },
 });
 

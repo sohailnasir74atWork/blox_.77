@@ -65,7 +65,7 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
 
           Object.entries(fetchedData).forEach(([chatPartnerId, chatData]) => {
             if (!chatData || typeof chatData !== 'object') return;
-            
+
             const isBlocked = banned.includes(chatPartnerId);
             const rawUnread = chatData?.unreadCount || 0;
 
@@ -100,10 +100,10 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
       const updateChatsList = () => {
         const updatedChats = Array.from(chatsMap.values())
           .sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp);
-        
+
         setLocalChats(updatedChats);
         setDisplayedChatsCount(INITIAL_LOAD);
-        
+
         if (setChats && typeof setChats === 'function') {
           setChats(updatedChats);
         }
@@ -188,89 +188,89 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
       setDisplayedChatsCount(prev => Math.min(prev + LOAD_MORE, filteredChats.length));
     }
   }, [displayedChatsCount, filteredChats.length]);
-  
+
   // const [loading, setLoading] = useState(false);
   const isDarkMode = theme === 'dark';
   // ✅ Memoize styles
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
 
- // ✅ Memoize handleDelete with useCallback
- const handleDelete = useCallback((chatId) => {
-  // ✅ Safety check
-  if (!chatId) {
-    console.error('❌ Invalid chatId for handleDelete');
-    return;
-  }
+  // ✅ Memoize handleDelete with useCallback
+  const handleDelete = useCallback((chatId) => {
+    // ✅ Safety check
+    if (!chatId) {
+      console.error('❌ Invalid chatId for handleDelete');
+      return;
+    }
 
-  Alert.alert(
-    t("chat.delete_chat"),
-    t("chat.delete_chat_confirmation"),
-    [
-      { text: t("chat.cancel"), style: 'cancel' },
-      {
-        text: t("chat.delete"),
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            // ✅ Safety checks
-            if (!user?.id) {
-              console.error('❌ User ID not available');
-              return;
-            }
+    Alert.alert(
+      t("chat.delete_chat"),
+      t("chat.delete_chat_confirmation"),
+      [
+        { text: t("chat.cancel"), style: 'cancel' },
+        {
+          text: t("chat.delete"),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // ✅ Safety checks
+              if (!user?.id) {
+                console.error('❌ User ID not available');
+                return;
+              }
 
-            if (!Array.isArray(allChats) || allChats.length === 0) {
-              console.error('❌ Chats array not available');
-              return;
-            }
+              if (!Array.isArray(allChats) || allChats.length === 0) {
+                console.error('❌ Chats array not available');
+                return;
+              }
 
-            const chatToDelete = allChats.find(chat => chat?.chatId === chatId);
-            if (!chatToDelete) {
-              console.error('❌ Chat not found');
-              return;
-            }
+              const chatToDelete = allChats.find(chat => chat?.chatId === chatId);
+              if (!chatToDelete) {
+                console.error('❌ Chat not found');
+                return;
+              }
 
-            const otherUserId = chatToDelete.otherUserId;
-            if (!otherUserId) {
-              console.error('❌ Other user ID not available');
-              return;
-            }
+              const otherUserId = chatToDelete.otherUserId;
+              if (!otherUserId) {
+                console.error('❌ Other user ID not available');
+                return;
+              }
 
-            // 1. Delete chat metadata for the current user
-            const senderChatRef = database().ref(`chat_meta_data/${user.id}/${otherUserId}`);
-            const snapshot = await senderChatRef.once('value');
+              // 1. Delete chat metadata for the current user
+              const senderChatRef = database().ref(`chat_meta_data/${user.id}/${otherUserId}`);
+              const snapshot = await senderChatRef.once('value');
 
-            if (snapshot.exists()) {
-              await senderChatRef.remove();
-            }
+              if (snapshot.exists()) {
+                await senderChatRef.remove();
+              }
 
-            // 2. Delete full chat thread using chatId
-            const fullChatRef = database().ref(`private_messages/${chatId}`);
-            await fullChatRef.remove();
+              // 2. Delete full chat thread using chatId
+              const fullChatRef = database().ref(`private_messages/${chatId}`);
+              await fullChatRef.remove();
 
-            // 3. Update local state - ✅ Validate setChats callback
-            setLocalChats((prevChats) => {
-              if (!Array.isArray(prevChats)) return [];
-              return prevChats.filter((chat) => chat?.chatId !== chatId);
-            });
-            
-            if (setChats && typeof setChats === 'function') {
-              setChats((prevChats) => {
+              // 3. Update local state - ✅ Validate setChats callback
+              setLocalChats((prevChats) => {
                 if (!Array.isArray(prevChats)) return [];
                 return prevChats.filter((chat) => chat?.chatId !== chatId);
               });
-            }
 
-            showSuccessMessage(t("home.alert.success"), t("chat.chat_success_message"));
-          } catch (error) {
-            console.error('❌ Error deleting chat:', error);
-            Alert.alert('Error', 'Failed to delete chat. Please try again.');
-          }
+              if (setChats && typeof setChats === 'function') {
+                setChats((prevChats) => {
+                  if (!Array.isArray(prevChats)) return [];
+                  return prevChats.filter((chat) => chat?.chatId !== chatId);
+                });
+              }
+
+              showSuccessMessage(t("home.alert.success"), t("chat.chat_success_message"));
+            } catch (error) {
+              console.error('❌ Error deleting chat:', error);
+              Alert.alert('Error', 'Failed to delete chat. Please try again.');
+            }
+          },
         },
-      },
-    ],
-    { cancelable: true }
-  );
-}, [allChats, user?.id, setChats, t]);
+      ],
+      { cancelable: true }
+    );
+  }, [allChats, user?.id, setChats, t]);
 
 
 
@@ -286,7 +286,7 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
       console.error('❌ Invalid chat parameters');
       return;
     }
-  
+
     try {
       // ✅ Update local state to reset unread count
       setLocalChats((prevChats) => {
@@ -295,7 +295,7 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
           chat?.chatId === chatId ? { ...chat, unreadCount: 0 } : chat
         );
       });
-      
+
       // ✅ Also update parent state if provided
       if (setChats && typeof setChats === 'function') {
         setChats((prevChats) => {
@@ -305,7 +305,7 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
           );
         });
       }
-  
+
       // ✅ Navigate to PrivateChat with isOnline status
       if (navigation && typeof navigation.navigate === 'function') {
         navigation.navigate('PrivateChat', {
@@ -316,13 +316,13 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
           },
         });
       }
-  
+
     } catch (error) {
       console.error("Error opening chat:", error);
       Alert.alert('Error', 'Failed to open chat. Please try again.');
     }
   }, [user?.id, setChats, navigation]);
-  
+
 
 
 
@@ -350,11 +350,11 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
           style={styles.chatItem}
           onPress={() => handleOpenChat(chatId, otherUserId, otherUserName, otherUserAvatar)}
         >
-          <Image 
-            source={{ 
-              uri: otherUserId !== user?.id ? otherUserAvatar : userAvatar 
-            }} 
-            style={styles.avatar} 
+          <Image
+            source={{
+              uri: otherUserId !== user?.id ? otherUserAvatar : userAvatar
+            }}
+            style={styles.avatar}
           />
           <View style={styles.textContainer}>
             <Text style={styles.userName}>
@@ -406,7 +406,7 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
           data={displayedChats}
           keyExtractor={(item, index) => item?.chatId || `chat-${index}`}
           renderItem={renderChatItem}
-          removeClippedSubviews={true}
+          removeClippedSubviews={false}
           maxToRenderPerBatch={10}
           windowSize={10}
           onEndReached={handleLoadMore}
@@ -462,7 +462,7 @@ const getStyles = (isDarkMode) =>
     },
     userName: {
       fontSize: 14,
-      fontFamily: 'Lato-Bold',
+      fontWeight: 'bold',
       color: isDarkMode ? '#fff' : '#333',
     },
     lastMessage: {
@@ -499,7 +499,7 @@ const getStyles = (isDarkMode) =>
       marginTop: 8,
       fontSize: 12,
       color: isDarkMode ? '#9CA3AF' : '#6B7280',
-      fontFamily: 'Lato-Regular',
+
     }
   });
 
