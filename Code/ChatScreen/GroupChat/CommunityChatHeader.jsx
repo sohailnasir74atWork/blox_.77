@@ -226,11 +226,26 @@ const CommunityChatHeader = ({
             />
           </TouchableOpacity>
 
+          {/* Friends / Social Dashboard Button */}
+          <TouchableOpacity
+            onPress={() => {
+              navigation.navigate('SocialDashboard');
+              triggerHapticFeedback('impactLight');
+            }}
+            style={{ position: 'relative', padding: 8, marginRight: 4 }}
+          >
+            <Icon
+              name="people-outline"
+              size={24}
+              color={config.colors.primary}
+            />
+          </TouchableOpacity>
+
           {/* Admin Dashboard Button (Only for Admins/Moderators) */}
           {(isAdmin || isModerator) && (
             <TouchableOpacity
               onPress={() => {
-                navigation.navigate('AdminDashboard');
+                navigation.navigate('Admin');
                 triggerHapticFeedback('impactLight');
               }}
               style={{ position: 'relative', padding: 8, marginRight: 4 }}

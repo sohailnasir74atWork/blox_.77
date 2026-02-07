@@ -15,6 +15,7 @@ import { ref, update } from '@react-native-firebase/database';
 import CommunityChatHeader from './GroupChat/CommunityChatHeader';
 import LeaderboardScreen from './GroupChat/LeaderboardScreen';
 import AdminDashboard from '../AppHelper/AdminDashboard';
+import SocialDashboard from '../AppHelper/SocialDashboard';
 
 const Stack = createNativeStackNavigator();
 
@@ -316,6 +317,12 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
         name="AdminDashboard"
         component={AdminDashboard}
         options={{ title: '', headerShown: false }} // AdminDashboard has its own header
+      />
+
+      <Stack.Screen
+        name="SocialDashboard"
+        component={SocialDashboard}
+        options={{ title: 'Friends' }}
       />
     </Stack.Navigator>
 

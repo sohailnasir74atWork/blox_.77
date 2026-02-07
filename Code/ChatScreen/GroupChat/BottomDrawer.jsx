@@ -32,11 +32,15 @@ import {
   orderBy,
   limit,
   startAfter,
+  setDoc,
+  deleteDoc,
+  serverTimestamp,
+  getCountFromServer,
 } from '@react-native-firebase/firestore';
 import { ref, get } from '@react-native-firebase/database';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { banUserwithEmail, unbanUserWithEmail, checkBanStatus, makeModerator, removeModerator } from '../utils'; // ✅ Import moderator utils
+import { banUserwithEmail, unbanUserWithEmail, setUserStrike, checkBanStatus, makeModerator, removeModerator } from '../utils'; // ✅ Import moderator utils
 import auth from '@react-native-firebase/auth'; // ✅ Import auth
 
 // Initialize dayjs plugins
@@ -143,6 +147,9 @@ const ProfileBottomDrawer = ({
   const [loadingRating, setLoadingRating] = useState(false);
   const [userBio, setUserBio] = useState(null);
 
+  // 👥 Follower Count
+  const [followersCount, setFollowersCount] = useState(0);
+
   // joined text
   const [createdAtText, setCreatedAtText] = useState(null);
 
@@ -174,6 +181,8 @@ const ProfileBottomDrawer = ({
   const [userData, setUserData] = useState(null);
   // ✅ State for ban status (fetched dynamically)
   const [isBanned, setIsBanned] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
 
 
 
@@ -394,86 +403,45 @@ const ProfileBottomDrawer = ({
 
   // ─────────────────────────────────────────────
   // Ban / Unban Logic (Admin)
-  const handleBanUser = async () => {
-    let targetEmail = null; // Start null to force fetch
-
-    // 1️⃣ Try Auth (if banning self) to satisfy "use auth" request
-    const currentUser = auth().currentUser;
-    if (currentUser && currentUser.uid === selectedUserId) {
-      targetEmail = currentUser.email;
-    }
-
-    // 2️⃣ Try Firebase Realtime Database (Truth for others)
+  const getTargetEmail = async () => {
+    let targetEmail = null;
+    const authUser = auth().currentUser;
+    if (authUser && authUser.uid === selectedUserId) targetEmail = authUser.email;
     if (!targetEmail) {
       try {
-        const userRef = ref(appdatabase, `users/${selectedUserId}`);
-        const userSnap = await get(userRef);
-
+        const userSnap = await get(ref(appdatabase, `users/${selectedUserId}`));
         if (userSnap.exists()) {
-          const userData = userSnap.val();
-
-          if (userData.email) {
-            targetEmail = userData.email;
-          } else if (userData.userEmail) { // Potential alternate key
-            targetEmail = userData.userEmail;
-          }
+          const d = userSnap.val();
+          targetEmail = d.email || d.userEmail || null;
         }
-      } catch (err) {
-        console.error("Error fetching user data:", err);
-      }
+      } catch (_) { }
     }
+    return targetEmail || selectedUser?.email || null;
+  };
 
-    // 3️⃣ Fallback to prop
-    if (!targetEmail && selectedUser?.email) {
-      targetEmail = selectedUser.email;
-    }
-
+  const handleSetStrike = async (strikeCount) => {
+    const targetEmail = await getTargetEmail();
     if (!targetEmail) {
       Alert.alert("Error", "User email not found. Cannot ban user without email.");
       return;
     }
-
-    // 4️⃣ Hierarchy Check
     const targetIsAdmin = mergedUser?.isAdmin || false;
     const targetIsMod = mergedUser?.isModerator || false;
-
-    // Moderators cannot ban Admins or other Moderators
     if (!isAdmin && (targetIsAdmin || targetIsMod)) {
       Alert.alert("Permission Denied", "Moderators cannot ban Admins or other Moderators.");
       return;
     }
 
-    Alert.alert(
-      'Ban User',
-      `Are you sure you want to ban ${userName}? This will apply a strike.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Ban",
-          style: "destructive",
-          onPress: async () => {
-            // ✅ Construct rich user data for the ban record
-            const userInfo = {
-              ...mergedUser,
-              id: selectedUser.id || selectedUser.senderId,
-              displayName: mergedUser.displayName || mergedUser.sender || 'Unknown',
-              avatar: mergedUser.avatar || null,
-              email: targetEmail
-            };
+    const bannerInfo = { id: user?.id, displayName: user?.userName || user?.displayName || 'Admin', avatar: user?.avatar };
+    const userInfo = {
+      displayName: mergedUser?.displayName || mergedUser?.sender || userName,
+      avatar: mergedUser?.avatar
+    };
 
-            const bannerInfo = {
-              id: user?.id,
-              displayName: user?.userName || user?.displayName || 'System',
-              avatar: user?.avatar || null
-            };
-
-            // ✅ Pass actual isAdmin flag!
-            const success = await banUserwithEmail(targetEmail, isAdmin, userInfo.id, userInfo, bannerInfo);
-            if (success) setIsBanned(true);
-          }
-        }
-      ]
-    );
+    // Both Admins and Moderators should see confirmation and success alerts
+    const isStaff = isAdmin || isGlobalModerator;
+    const success = await setUserStrike(targetEmail, strikeCount, selectedUserId, isStaff, bannerInfo, userInfo, isStaff);
+    if (success) setIsBanned(true);
   };
 
   const handleUnbanUser = async () => {
@@ -567,6 +535,79 @@ const ProfileBottomDrawer = ({
     );
   };
 
+  // ✅ Check if current user is following this user (Firestore)
+  useEffect(() => {
+    if (!user?.id || !selectedUserId || !firestoreDB || user.id === selectedUserId) {
+      setIsFollowing(false);
+      return;
+    }
+
+    const checkFollowStatus = async () => {
+      try {
+        const followSnapshot = await getDocs(
+          query(
+            collection(firestoreDB, 'following'),
+            where('followerId', '==', user.id),
+            where('followingId', '==', selectedUserId)
+          )
+        );
+        setIsFollowing(!followSnapshot.empty);
+      } catch (err) {
+        console.error('Error checking follow status:', err);
+        setIsFollowing(false);
+      }
+    };
+
+    checkFollowStatus();
+  }, [user?.id, selectedUserId, firestoreDB]);
+
+  // ✅ Follow / Unfollow toggle (Firestore)
+  const handleFollowToggle = useCallback(async () => {
+    if (!user?.id || !selectedUserId || !firestoreDB || user.id === selectedUserId) return;
+
+    setFollowLoading(true);
+    try {
+      if (isFollowing) {
+        const followSnapshot = await getDocs(
+          query(
+            collection(firestoreDB, 'following'),
+            where('followerId', '==', user.id),
+            where('followingId', '==', selectedUserId)
+          )
+        );
+
+        if (!followSnapshot.empty) {
+          const batch = firestoreDB.batch ? firestoreDB.batch() : null;
+          if (batch) {
+            followSnapshot.docs.forEach(docSnap => batch.delete(docSnap.ref));
+            await batch.commit();
+          } else {
+            await Promise.all(followSnapshot.docs.map(docSnap =>
+              deleteDoc(doc(firestoreDB, 'following', docSnap.id))
+            ));
+          }
+        }
+        setIsFollowing(false);
+        setFollowersCount(prev => Math.max(0, prev - 1));
+        triggerHapticFeedback('impactLight');
+      } else {
+        await setDoc(doc(collection(firestoreDB, 'following')), {
+          followerId: user.id,
+          followingId: selectedUserId,
+          createdAt: serverTimestamp(),
+        });
+        setIsFollowing(true);
+        setFollowersCount(prev => prev + 1);
+        triggerHapticFeedback('notificationSuccess');
+      }
+    } catch (err) {
+      console.error('Error toggling follow:', err);
+      Alert.alert('Error', 'Could not update follow status.');
+    } finally {
+      setFollowLoading(false);
+    }
+  }, [user?.id, selectedUserId, firestoreDB, isFollowing, triggerHapticFeedback]);
+
   // ─────────────────────────────────────────────
   // Ban / Unban
   const handleBanToggle = async () => {
@@ -627,6 +668,7 @@ const ProfileBottomDrawer = ({
       setLoadDetails(false);
       setRatingSummary(null);
       setUserBio(null);
+      setFollowersCount(0);
       setOwnedPets([]);
       setWishlistPets([]);
       setReviews([]);
@@ -661,14 +703,20 @@ const ProfileBottomDrawer = ({
         );
 
         // ✅ OPTIMIZED: Fetch only rewardPoints field instead of full user object
-        const [reviewsSnap, createdSnap, rewardPointsSnap, reviewDocSnap] = await Promise.all([
+        const [reviewsSnap, createdSnap, rewardPointsSnap, reviewDocSnap, countSnapshot] = await Promise.all([
           getDocs(reviewsQuery),
           get(ref(appdatabase, `users/${selectedUserId}/createdAt`)),
           get(ref(appdatabase, `users/${selectedUserId}/rewardPoints`)),
           getDoc(doc(firestoreDB, 'reviews', selectedUserId)), // ✅ Load bio from Firestore
+          getCountFromServer(query(collection(firestoreDB, 'following'), where('followingId', '==', selectedUserId))).catch(() => null),
         ]);
 
         if (!isMounted) return;
+
+        // ✅ Set Follower Count
+        if (countSnapshot && typeof countSnapshot.data === 'function') {
+          setFollowersCount(countSnapshot.data().count || 0);
+        }
 
         // ✅ Calculate rating summary from Firestore reviews
         if (reviewsSnap && !reviewsSnap.empty) {
@@ -1413,23 +1461,70 @@ const ProfileBottomDrawer = ({
                 </Text>
 
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {/* Ban Button (Server Ban) */}
-                  <TouchableOpacity
-                    onPress={isBanned ? handleUnbanUser : handleBanUser}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      backgroundColor: isBanned ? '#10B981' : config.colors.wantBlockRed,
-                      paddingVertical: 6,
-                      paddingHorizontal: 12,
-                      borderRadius: 6
-                    }}
-                  >
-                    <Icon name={isBanned ? "checkmark-circle-outline" : "hammer-outline"} size={16} color="white" />
-                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 12, marginLeft: 4 }}>
-                      {isBanned ? "Unban User" : "Ban User"}
-                    </Text>
-                  </TouchableOpacity>
+                  {isBanned ? (
+                    <TouchableOpacity
+                      onPress={handleUnbanUser}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: '#10B981',
+                        paddingVertical: 6,
+                        paddingHorizontal: 12,
+                        borderRadius: 6
+                      }}
+                    >
+                      <Icon name="checkmark-circle-outline" size={16} color="white" />
+                      <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 12, marginLeft: 4 }}>Unban User</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <>
+                      <TouchableOpacity
+                        onPress={() => handleSetStrike(1)}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          backgroundColor: '#FF9500',
+                          paddingVertical: 6,
+                          paddingHorizontal: 10,
+                          borderRadius: 6
+                        }}
+                      >
+                        <Icon name="hammer-outline" size={14} color="white" />
+                        <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 11, marginLeft: 4 }}>Strike 1</Text>
+                        <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 9, marginLeft: 2 }}>(3h)</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleSetStrike(2)}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          backgroundColor: '#FF6B00',
+                          paddingVertical: 6,
+                          paddingHorizontal: 10,
+                          borderRadius: 6
+                        }}
+                      >
+                        <Icon name="hammer-outline" size={14} color="white" />
+                        <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 11, marginLeft: 4 }}>Strike 2</Text>
+                        <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 9, marginLeft: 2 }}>(3d)</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleSetStrike(3)}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          backgroundColor: config.colors.wantBlockRed,
+                          paddingVertical: 6,
+                          paddingHorizontal: 10,
+                          borderRadius: 6
+                        }}
+                      >
+                        <Icon name="hammer-outline" size={14} color="white" />
+                        <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 11, marginLeft: 4 }}>Strike 3+</Text>
+                        <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 9, marginLeft: 2 }}>(perm)</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
 
                   {/* Promote/Demote Moderator (Admin Only) */}
                   {isAdmin && (
@@ -1513,8 +1608,8 @@ const ProfileBottomDrawer = ({
                   )}
                 </View>
 
-                {/* 💰 Points and Game Wins */}
-                {!loadingRating && (userPoints !== null || gameWins !== null) && (
+                {/* 💰 Points, Game Wins, Followers */}
+                {!loadingRating && (userPoints !== null || gameWins !== null || followersCount >= 0) && (
                   <View
                     style={{
                       flexDirection: 'row',
@@ -1575,6 +1670,31 @@ const ProfileBottomDrawer = ({
                         </Text>
                       </View>
                     )}
+                    {/* ✅ Followers Count */}
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: isDarkMode ? '#1e293b' : '#e0e7ff',
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor: isDarkMode ? '#334155' : '#c7d2fe',
+                      }}
+                    >
+                      <Icon name="people" size={12} color="#6366f1" />
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 'bold',
+                          color: isDarkMode ? '#a5b4fc' : '#4f46e5',
+                          marginLeft: 4,
+                        }}
+                      >
+                        {followersCount || 0} Followers
+                      </Text>
+                    </View>
                   </View>
                 )}
               </View>
@@ -2011,14 +2131,43 @@ const ProfileBottomDrawer = ({
 
                 <TouchableOpacity
                   style={[styles.saveButton, { backgroundColor: isBanned ? '#34C759' : '#FF3B30' }]}
-                  onPress={isBanned ? handleUnbanUser : handleBanUser}
+                  onPress={isBanned ? handleUnbanUser : () => handleSetStrike(1)}
                 >
                   <Text style={styles.saveButtonText}>
-                    {isBanned ? "Unban User" : "Ban User (Strike)"}
+                    {isBanned ? "Unban User" : "Apply Strike"}
                   </Text>
                 </TouchableOpacity>
               </View>
             )} */}
+
+            {/* Follow / Unfollow Button */}
+            {!fromPvtChat && user?.id !== selectedUserId && (
+              <TouchableOpacity
+                style={[
+                  styles.saveButton,
+                  {
+                    backgroundColor: isFollowing ? '#8E8E93' : config.colors.primary,
+                    marginBottom: 10,
+                    flexDirection: 'row',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  },
+                ]}
+                onPress={handleFollowToggle}
+                disabled={followLoading}
+              >
+                {followLoading ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <>
+                    <Icon name={isFollowing ? 'person-remove-outline' : 'person-add-outline'} size={18} color="#FFF" style={{ marginRight: 8 }} />
+                    <Text style={styles.saveButtonText}>
+                      {isFollowing ? 'Unfollow' : 'Follow'}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
 
             {/* Start chat button */}
             {!fromPvtChat && (

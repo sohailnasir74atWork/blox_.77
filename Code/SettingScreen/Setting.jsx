@@ -486,6 +486,13 @@ export default function SettingsScreen({ selectedTheme }) {
   const [loadingModalReceivedReviews, setLoadingModalReceivedReviews] = useState(false);
   const [showMyTradesModal, setShowMyTradesModal] = useState(false); // Modal visibility for My Trades
   const [modalMyTrades, setModalMyTrades] = useState([]); // Trades shown in modal
+
+  // Followers modal (load 2 by 2 like adoptme)
+  const [showFollowersModal, setShowFollowersModal] = useState(false);
+  const [modalFollowers, setModalFollowers] = useState([]);
+  const [modalLastFollowerDoc, setModalLastFollowerDoc] = useState(null);
+  const [modalHasMoreFollowers, setModalHasMoreFollowers] = useState(false);
+  const [loadingModalFollowers, setLoadingModalFollowers] = useState(false);
   const [modalLastTradeDoc, setModalLastTradeDoc] = useState(null); // Last doc for modal pagination
   const [modalHasMoreTrades, setModalHasMoreTrades] = useState(false); // Whether there are more trades
   const [loadingModalMyTrades, setLoadingModalMyTrades] = useState(false);
@@ -1675,6 +1682,114 @@ export default function SettingsScreen({ selectedTheme }) {
     loadMyTrades();
   }, [showMyTradesModal, user?.id, firestoreDB]);
 
+  // Load Followers modal when opens (2 by 2 like adoptme)
+  useEffect(() => {
+    if (!showFollowersModal || !user?.id || !firestoreDB || !appdatabase) return;
+
+    const loadFollowers = async () => {
+      setLoadingModalFollowers(true);
+      try {
+        let followersSnapshot;
+        let usedOrderBy = true;
+        try {
+          const q = query(
+            collection(firestoreDB, 'following'),
+            where('followingId', '==', user.id),
+            orderBy('createdAt', 'desc'),
+            limit(2)
+          );
+          followersSnapshot = await getDocs(q);
+        } catch (idxErr) {
+          usedOrderBy = false;
+          const fallbackQuery = query(
+            collection(firestoreDB, 'following'),
+            where('followingId', '==', user.id),
+            limit(2)
+          );
+          followersSnapshot = await getDocs(fallbackQuery);
+        }
+        const docs = followersSnapshot.docs;
+        const followerIds = docs.map(d => d.data().followerId).filter(Boolean);
+
+        const followersWithDetails = await Promise.all(
+          followerIds.map(async (followerId) => {
+            try {
+              const [displayNameSnap, avatarSnap] = await Promise.all([
+                get(ref(appdatabase, `users/${followerId}/displayName`)),
+                get(ref(appdatabase, `users/${followerId}/avatar`)),
+              ]);
+              return {
+                id: followerId,
+                displayName: displayNameSnap.val() || 'Unknown',
+                avatar: avatarSnap.val() || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+              };
+            } catch {
+              return { id: followerId, displayName: 'Unknown', avatar: 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' };
+            }
+          })
+        );
+
+        setModalFollowers(followersWithDetails);
+        setModalLastFollowerDoc(usedOrderBy ? (docs[docs.length - 1] || null) : null);
+        setModalHasMoreFollowers(usedOrderBy && docs.length === 2);
+      } catch (error) {
+        console.error('Error loading followers:', error);
+        setModalFollowers([]);
+        setModalHasMoreFollowers(false);
+      } finally {
+        setLoadingModalFollowers(false);
+      }
+    };
+
+    loadFollowers();
+  }, [showFollowersModal, user?.id, firestoreDB, appdatabase]);
+
+  // Load more Followers (2 at a time)
+  const loadMoreFollowers = useCallback(async () => {
+    if (!user?.id || !firestoreDB || !appdatabase || loadingModalFollowers || !modalLastFollowerDoc) return;
+
+    setLoadingModalFollowers(true);
+    try {
+      const followersQuery = query(
+        collection(firestoreDB, 'following'),
+        where('followingId', '==', user.id),
+        orderBy('createdAt', 'desc'),
+        startAfter(modalLastFollowerDoc),
+        limit(2)
+      );
+      const followersSnapshot = await getDocs(followersQuery);
+      const docs = followersSnapshot.docs;
+      const followerIds = docs.map(d => d.data().followerId).filter(Boolean);
+
+      const newFollowers = await Promise.all(
+        followerIds.map(async (followerId) => {
+          try {
+            const [displayNameSnap, avatarSnap] = await Promise.all([
+              get(ref(appdatabase, `users/${followerId}/displayName`)),
+              get(ref(appdatabase, `users/${followerId}/avatar`)),
+            ]);
+            return {
+              id: followerId,
+              displayName: displayNameSnap.val() || 'Unknown',
+              avatar: avatarSnap.val() || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+            };
+          } catch {
+            return { id: followerId, displayName: 'Unknown', avatar: 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' };
+          }
+        })
+      );
+
+      setModalFollowers(prev => [...prev, ...newFollowers]);
+      setModalLastFollowerDoc(docs[docs.length - 1] || null);
+      setModalHasMoreFollowers(docs.length === 2);
+    } catch (error) {
+      console.error('Error loading more followers:', error);
+      setModalHasMoreFollowers(false);
+    } finally {
+      setLoadingModalFollowers(false);
+    }
+  }, [user?.id, firestoreDB, appdatabase, modalLastFollowerDoc, loadingModalFollowers]);
+
   // Load more "My Trades" in modal
   const loadMoreMyTrades = useCallback(async () => {
     if (!user?.id || !firestoreDB || loadingModalMyTrades || !modalLastTradeDoc) return;
@@ -2678,9 +2793,42 @@ export default function SettingsScreen({ selectedTheme }) {
                         ⚠️ Unverified - Click "Verify" to prove ownership
                       </Text>
                     )}
-                  </View>
-                </View>
-              )}
+              </View>
+              </View>
+            )}
+
+              {/* Followers Section */}
+              <View style={styles.reviewsSection}>
+                <Text style={{ fontSize: 14, fontWeight: 'bold', color: isDarkMode ? '#e5e7eb' : '#111827', marginBottom: 12 }}>
+                  Followers
+                </Text>
+
+                {!user?.id ? (
+                  <Text style={styles.reviewsEmptyText}>
+                    Login to see your followers
+                  </Text>
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => setShowFollowersModal(true)}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
+                      borderRadius: 10,
+                      paddingVertical: 12,
+                      paddingHorizontal: 12,
+                      borderWidth: 1,
+                      borderColor: isDarkMode ? '#1f2937' : '#e5e7eb',
+                    }}
+                  >
+                    <Icon name="people-outline" size={18} color="#4A90E2" style={{ marginRight: 6 }} />
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: isDarkMode ? '#e5e7eb' : '#111827' }}>
+                      View Followers
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
 
               {/* Reviews Section - Two Small Modern Buttons */}
               <View style={styles.reviewsSection}>
@@ -3489,6 +3637,107 @@ export default function SettingsScreen({ selectedTheme }) {
                         disabled={loadingModalMyTrades}
                       >
                         {loadingModalMyTrades ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
+                            Load More
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                  </>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Followers Modal */}
+        <Modal
+          visible={showFollowersModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => {
+            setShowFollowersModal(false);
+            setModalFollowers([]);
+            setModalLastFollowerDoc(null);
+            setModalHasMoreFollowers(false);
+          }}
+        >
+          <Pressable
+            style={styles.overlay}
+            onPress={() => {
+              setShowFollowersModal(false);
+              setModalFollowers([]);
+              setModalLastFollowerDoc(null);
+              setModalHasMoreFollowers(false);
+            }}
+          />
+          <View style={{
+            flex: 1,
+            justifyContent: 'flex-end',
+            backgroundColor: 'rgba(0,0,0,0.5)'
+          }}>
+            <View style={[styles.drawer, { maxHeight: '90%' }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <Text style={styles.drawerSubtitle}>Followers</Text>
+                <TouchableOpacity onPress={() => {
+                  setShowFollowersModal(false);
+                  setModalFollowers([]);
+                  setModalLastFollowerDoc(null);
+                  setModalHasMoreFollowers(false);
+                }}>
+                  <Icon name="close" size={24} color={isDarkMode ? '#fff' : '#000'} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {loadingModalFollowers && modalFollowers.length === 0 ? (
+                  <ActivityIndicator size="small" color={config.colors.primary} style={{ marginVertical: 20 }} />
+                ) : modalFollowers.length === 0 ? (
+                  <Text style={{ textAlign: 'center', color: isDarkMode ? '#9ca3af' : '#6b7280', marginVertical: 20 }}>
+                    No followers yet
+                  </Text>
+                ) : (
+                  <>
+                    {modalFollowers.map((follower) => (
+                      <TouchableOpacity
+                        key={follower.id}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          paddingVertical: 12,
+                          paddingHorizontal: 8,
+                          borderBottomWidth: 1,
+                          borderBottomColor: isDarkMode ? '#374151' : '#e5e7eb',
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Image
+                          source={{ uri: follower.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }}
+                          style={{ width: 44, height: 44, borderRadius: 22 }}
+                        />
+                        <Text style={{ marginLeft: 12, fontSize: 15, fontWeight: '600', color: isDarkMode ? '#e5e7eb' : '#111827' }} numberOfLines={1}>
+                          {follower.displayName}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+
+                    {modalHasMoreFollowers && (
+                      <TouchableOpacity
+                        style={{
+                          backgroundColor: config.colors.primary,
+                          paddingVertical: 12,
+                          paddingHorizontal: 16,
+                          borderRadius: 8,
+                          alignItems: 'center',
+                          marginTop: 8,
+                          marginBottom: 16,
+                        }}
+                        onPress={loadMoreFollowers}
+                        disabled={loadingModalFollowers}
+                      >
+                        {loadingModalFollowers ? (
                           <ActivityIndicator size="small" color="#FFFFFF" />
                         ) : (
                           <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>

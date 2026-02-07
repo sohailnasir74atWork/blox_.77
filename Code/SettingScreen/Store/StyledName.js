@@ -22,6 +22,7 @@ const StyledUsernamePreview = ({
   fontSize = 24,
   lineHeight = 30,
   marginVertical = 8,
+  overrideColor, // When set (e.g. for golden bubble), use this color for all text for contrast
 }) => {
   const floatAnim = useRef(new Animated.Value(0)).current;
 
@@ -76,7 +77,7 @@ const StyledUsernamePreview = ({
         ]}
       >
         {finalText.split('').map((char, i) => {
-          const color = colors[i % colors.length];
+          const color = overrideColor || colors[i % colors.length];
           return (
             <Text
               key={i}

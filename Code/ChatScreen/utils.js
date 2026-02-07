@@ -424,11 +424,11 @@ export const handleDeleteLast300Messages = async (senderId, showAlert = false) =
   }
 };
 
-export const banUserwithEmail = async (email, isAdmin = false, senderId = null, userInfo = {}, bannerInfo = {}) => {
+export const banUserwithEmail = async (email, isAdmin = false, senderId = null, userInfo = {}, bannerInfo = {}, showConfirm = false, showAlert = false) => {
   // ✅ Safety check: handle undefined/null email
   if (!email || typeof email !== 'string' || email.trim().length === 0) {
     console.error('❌ Invalid email for banUserwithEmail');
-    if (isAdmin) Alert.alert('Error', 'Invalid email address.');
+    if (showConfirm || showAlert) Alert.alert('Error', 'Invalid email address.');
     return false;
   }
 
@@ -437,75 +437,208 @@ export const banUserwithEmail = async (email, isAdmin = false, senderId = null, 
   const banRef = ref(database, `banned_users_by_email/${encodeEmail(email)}`);
 
   // ✅ Hierarchy Check (Redundant but safe)
-  // If the bumper (isAdmin=false) tries to ban an Admin or Mod (userInfo has roles), deny it.
   if (!isAdmin && (userInfo?.isAdmin || userInfo?.isModerator)) {
     console.warn("Moderators cannot ban Admins or other Moderators.");
-    Alert.alert("Permission Denied", "You cannot ban this user.");
+    if (showConfirm || showAlert) Alert.alert("Permission Denied", "You cannot ban this user.");
     return false;
   }
 
-  try {
-    const snap = await get(banRef);
+  const executeBan = async () => {
+    try {
+      const snap = await get(banRef);
 
-    let strikeCount = 1;
-    let bannedUntil = Date.now() + 24 * 60 * 60 * 1000; // 24 hours (First Strike)
-    let banDuration = '24 hours';
+      let strikeCount = 1;
+      let bannedUntil = Date.now() + 24 * 60 * 60 * 1000; // 24 hours (First Strike)
+      let banDuration = '24 hours';
 
-    if (snap.exists()) {
-      const data = snap.val();
-      if (data && typeof data === 'object') {
-        const currentStrikeCount = data.strikeCount || 0;
-        strikeCount = currentStrikeCount + 1;
+      if (snap.exists()) {
+        const data = snap.val();
+        if (data && typeof data === 'object') {
+          const currentStrikeCount = data.strikeCount || 0;
+          strikeCount = currentStrikeCount + 1;
 
-        if (strikeCount === 2) {
-          bannedUntil = Date.now() + 3 * 24 * 60 * 60 * 1000; // 3 days (Second Strike)
-          banDuration = '3 days';
-        } else if (strikeCount >= 3) {
-          bannedUntil = "permanent"; // Permanent (Third Strike)
-          banDuration = 'permanent';
+          if (strikeCount === 2) {
+            bannedUntil = Date.now() + 3 * 24 * 60 * 60 * 1000; // 3 days (Second Strike)
+            banDuration = '3 days';
+          } else if (strikeCount >= 3) {
+            bannedUntil = "permanent"; // Permanent (Third Strike)
+            banDuration = 'permanent';
+          }
         }
       }
-    }
 
-    // Save complete ban info
-    await set(banRef, {
-      strikeCount,
-      bannedUntil,
-      reason: `Strike ${strikeCount}`,
-      email: email,
-      displayName: userInfo?.displayName || 'Unknown',
-      avatar: userInfo?.avatar || null,
-      userId: userInfo?.id || senderId || null, // Ensure ID is saved
-      bannedAt: Date.now(),
-      bannedBy: {
-        uid: bannerInfo?.id || null,
-        displayName: bannerInfo?.displayName || 'System',
-        avatar: bannerInfo?.avatar || null,
-        role: isAdmin ? 'Admin' : 'Moderator'
+      // Save complete ban info
+      await set(banRef, {
+        strikeCount,
+        bannedUntil,
+        reason: `Strike ${strikeCount}`,
+        email: email,
+        displayName: userInfo?.displayName || 'Unknown',
+        avatar: userInfo?.avatar || null,
+        userId: userInfo?.id || senderId || null, // Ensure ID is saved
+        bannedAt: Date.now(),
+        bannedBy: {
+          uid: bannerInfo?.id || null,
+          displayName: bannerInfo?.displayName || 'System',
+          avatar: bannerInfo?.avatar || null,
+          role: isAdmin ? 'Admin' : 'Moderator'
+        }
+      });
+
+      // Delete messages if senderId provided
+      let deletedCount = 0;
+      if (senderId) {
+        const deleteResult = await handleDeleteLast300Messages(senderId, false);
+        deletedCount = deleteResult?.count || 0;
       }
-    });
 
-    // Delete messages if senderId provided
-    let deletedCount = 0;
-    if (senderId) {
-      const deleteResult = await handleDeleteLast300Messages(senderId, false);
-      deletedCount = deleteResult?.count || 0;
+      if (showAlert) {
+        Alert.alert(
+          'User Banned',
+          `Strike ${strikeCount} applied (${banDuration}).\nUser: ${userInfo?.displayName || email}${deletedCount > 0 ? `\n${deletedCount} messages deleted.` : ''}`
+        );
+      }
+      return true;
+    } catch (err) {
+      console.error('Ban error:', err);
+      if (showAlert) Alert.alert('Error', 'Could not ban user.');
+      return false;
     }
+  };
 
-    // ✅ Always show alert to admin who performed the action
-    if (isAdmin) {
+  if (showConfirm) {
+    return new Promise((resolve) => {
       Alert.alert(
-        'User Banned',
-        `Strike ${strikeCount} applied (${banDuration}).\nUser: ${userInfo?.displayName || email}${deletedCount > 0 ? `\n${deletedCount} messages deleted.` : ''}`
+        'Confirm Ban',
+        `Are you sure you want to ban ${userInfo?.displayName || email}?`,
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Ban User', style: 'destructive', onPress: async () => resolve(await executeBan()) }
+        ]
       );
-    }
+    });
+  }
 
-    return true;
-  } catch (err) {
-    console.error('Ban error:', err);
-    if (isAdmin) Alert.alert('Error', 'Could not ban user.');
+  return await executeBan();
+};
+
+/**
+ * Set a specific strike level (1, 2, or 3) on a user - used by AdminDashboard
+ * Strike 1: 3 hours | Strike 2: 3 days | Strike 3+: Permanent
+ * @param {string} email - User email
+ * @param {number} strikeCount - 1, 2, or 3
+ * @param {string} userId - User ID (for fetching displayName/avatar)
+ * @param {boolean} showAlert - Show success/error alert
+ * @param {object} bannerInfo - Optional { id, displayName, avatar } of admin applying strike
+ * @param {object} userInfo - Optional { displayName, avatar } of user being banned - prevents name becoming "Unknown"
+ */
+export const setUserStrike = async (email, strikeCount, userId = null, showAlert = true, bannerInfo = {}, userInfo = {}, showConfirm = true) => {
+  if (!email || typeof email !== 'string' || email.trim().length === 0) {
+    if (showAlert) Alert.alert('Error', 'User has no email associated.');
     return false;
   }
+  if (![1, 2, 3].includes(strikeCount)) {
+    if (showAlert) Alert.alert('Error', 'Invalid strike count. Use 1, 2, or 3.');
+    return false;
+  }
+
+  const encodeEmail = (em) => em.replace(/\./g, '(dot)');
+  const database = getDatabase();
+  const banRef = ref(database, `banned_users_by_email/${encodeEmail(email)}`);
+
+  const executeStrike = async () => {
+    try {
+      let bannedUntil;
+      let banDuration;
+      if (strikeCount === 1) {
+        bannedUntil = Date.now() + 3 * 60 * 60 * 1000; // 3 hours
+        banDuration = '3 hours';
+      } else if (strikeCount === 2) {
+        bannedUntil = Date.now() + 3 * 24 * 60 * 60 * 1000; // 3 days
+        banDuration = '3 days';
+      } else {
+        bannedUntil = 'permanent';
+        banDuration = 'permanent';
+      }
+
+      // Get user displayName & avatar
+      let displayName = userInfo?.displayName || userInfo?.userName || null;
+      let avatar = userInfo?.avatar || null;
+      if (!displayName || displayName === 'Unknown') {
+        try {
+          const snap = await get(banRef);
+          if (snap.exists() && snap.val()?.displayName) {
+            displayName = snap.val().displayName;
+            avatar = avatar || snap.val().avatar;
+          }
+        } catch (_) { /* ignore */ }
+      }
+      if (!displayName && userId) {
+        try {
+          const userRef = ref(database, `users/${userId}`);
+          const userSnap = await get(userRef);
+          if (userSnap.exists()) {
+            const data = userSnap.val();
+            displayName = data?.displayName || data?.userName || null;
+            avatar = avatar || data?.avatar || null;
+          }
+        } catch (_) { /* ignore */ }
+      }
+      displayName = displayName || 'Unknown';
+
+      await set(banRef, {
+        strikeCount,
+        bannedUntil,
+        reason: `Strike ${strikeCount}`,
+        email,
+        displayName,
+        avatar,
+        userId: userId || null,
+        bannedAt: Date.now(),
+        bannedBy: {
+          uid: bannerInfo?.id || null,
+          displayName: bannerInfo?.displayName || 'Admin',
+          avatar: bannerInfo?.avatar || null,
+          role: 'Admin'
+        }
+      });
+
+      // Delete messages if userId provided
+      if (userId) {
+        handleDeleteLast300Messages(userId, false).catch(() => { });
+      }
+
+      if (showAlert) {
+        Alert.alert(
+          'Strike Applied',
+          `Strike ${strikeCount} applied (${banDuration}).\nUser: ${displayName}`
+        );
+      }
+      return true;
+    } catch (err) {
+      console.error('setUserStrike error:', err);
+      if (showAlert) Alert.alert('Error', 'Could not apply strike.');
+      return false;
+    }
+  };
+
+  if (showConfirm) {
+    const durationText = strikeCount === 1 ? '3 hours' : strikeCount === 2 ? '3 days' : 'permanently';
+    const userName = userInfo?.displayName || userInfo?.userName || email || 'this user';
+
+    return new Promise((resolve) => {
+      Alert.alert(
+        'Confirm Strike',
+        `Are you sure you want to apply Strike ${strikeCount} to ${userName}? This will ban them ${durationText}.`,
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Apply Strike', style: 'destructive', onPress: async () => resolve(await executeStrike()) }
+        ]
+      );
+    });
+  }
+
+  return await executeStrike();
 };
 
 export const unbanUserWithEmail = async (email, showAlert = true) => {

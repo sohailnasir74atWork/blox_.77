@@ -35,7 +35,8 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete, onD
 
   }, [localState.bannedUsers]);
 
-  const { theme, isAdmin } = useGlobalState();
+  const { theme, isAdmin, isModerator } = useGlobalState();
+  const canModerate = isAdmin || isModerator;
   const isDark = theme === 'dark';
   const getTagColor = (tag) => {
     switch (tag.toLowerCase()) {
@@ -160,10 +161,21 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete, onD
           <MenuTrigger>
             <Icon name="ellipsis-v" size={18} color={isDark ? 'lightgrey' : 'grey'} style={{ marginRight: 5 }} />
           </MenuTrigger>
-          <MenuOptions>
+          <MenuOptions
+            customStyles={{
+              optionsContainer: {
+                backgroundColor: isDark ? '#2c2c2e' : '#fff',
+                padding: 8,
+                borderRadius: 8,
+              },
+            }}
+          >
             <View>
-              <MenuOption onSelect={() => setShowReportModal(true)} text="Report" style={{ marginVertical: 5, }} /></View>
-            {(userId === item.userId || isAdmin) && (
+              <MenuOption onSelect={() => setShowReportModal(true)}>
+                <Text style={{ marginVertical: 5, color: isDark ? '#fff' : '#333', fontSize: 14 }}>Report</Text>
+              </MenuOption>
+            </View>
+            {(userId === item.userId || canModerate) && (
               <MenuOption
                 onSelect={() => {
                   Alert.alert(
@@ -177,13 +189,13 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete, onD
                 }}
               >
                 <View style={[{ borderTopWidth: 1 }]}>
-                  <Text style={[themedStyles.tagText, { marginVertical: 15, }]}>Delete</Text>
+                  <Text style={[themedStyles.tagText, { marginVertical: 15, color: isDark ? '#fff' : '#333' }]}>Delete</Text>
                 </View>
               </MenuOption>
 
 
             )}
-            {isAdmin && <MenuOption
+            {canModerate && <MenuOption
               onSelect={() => {
                 Alert.alert(
                   'Delete Post',
@@ -196,7 +208,7 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete, onD
               }}
             >
               <View style={[{ borderTopWidth: 1 }]}>
-                <Text style={[themedStyles.tagText, { marginVertical: 15, }]}>Delete All</Text>
+                <Text style={[themedStyles.tagText, { marginVertical: 15, color: isDark ? '#fff' : '#333' }]}>Delete All</Text>
               </View>
             </MenuOption>}
           </MenuOptions>

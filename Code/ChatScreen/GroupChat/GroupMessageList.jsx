@@ -52,7 +52,7 @@ const GroupMessageList = ({
     () => ({
       wrapperBg: isDarkMode ? '#0f172a55' : '#e5e7eb55',
       name: isDarkMode ? '#f9fafb' : '#111827',
-      value: isDarkMode ? '#e5e7eb' : '#4b5563',
+      valueColor: isDarkMode ? '#e5e7eb' : '#4b5563',
       divider: isDarkMode ? '#ffffff22' : '#00000011',
       totalLabel: isDarkMode ? '#e5e7eb' : '#4b5563',
       totalValue: isDarkMode ? '#f97373' : '#b91c1c',
@@ -109,6 +109,8 @@ const GroupMessageList = ({
       if (!item || typeof item !== 'object') return null;
 
       const isMyMessage = item.senderId === userId;
+      const isSenderAdminOrMod = item.isAdmin || item.isModerator ||
+        groupData?.members?.[item.senderId]?.isAdmin || groupData?.members?.[item.senderId]?.isModerator;
       const senderName = item.sender || 'Anonymous';
       const senderAvatar =
         item.avatar ||
@@ -195,6 +197,7 @@ const GroupMessageList = ({
                 {/* Message Content Wrapper - matching main chat structure */}
                 <View style={[
                   isMyMessage ? styles.myMessageText : styles.otherMessageText,
+                  isSenderAdminOrMod && { backgroundColor: '#D4AF37' },
                 ]}>
                   <TouchableOpacity
                     onPress={() => {
@@ -216,9 +219,11 @@ const GroupMessageList = ({
                       flexWrap: 'nowrap',
                     }}>
                       <Text
-                        style={[styles.userNameText, {
-                          flexShrink: 1,
-                        }]}
+                        style={[
+                          styles.userNameText,
+                          { flexShrink: 1 },
+                          isSenderAdminOrMod && { color: '#1a1a1a' },
+                        ]}
                         numberOfLines={1}
                         ellipsizeMode="tail"
                       >
@@ -309,14 +314,20 @@ const GroupMessageList = ({
 
                             <View style={fruitStyles.fruitInfo}>
                               <Text
-                                style={[fruitStyles.fruitName, { color: fruitColors.name }]}
+                                style={[
+                                  fruitStyles.fruitName,
+                                  { color: isSenderAdminOrMod ? '#1a1a1a' : fruitColors.name },
+                                ]}
                                 numberOfLines={1}
                               >
                                 {`${fruit.name || fruit.Name}  `}
                               </Text>
 
                               <Text
-                                style={[fruitStyles.fruitValue, { color: fruitColors.value }]}
+                                style={[
+                                  fruitStyles.fruitValue,
+                                  { color: isSenderAdminOrMod ? '#1a1a1a' : fruitColors.valueColor },
+                                ]}
                               >
                                 · Value: {Number(fruit.value || 0).toLocaleString()}
                               </Text>
@@ -353,16 +364,22 @@ const GroupMessageList = ({
                         <View
                           style={[
                             fruitStyles.totalRow,
-                            { borderTopColor: fruitColors.divider },
+                            { borderTopColor: isSenderAdminOrMod ? '#1a1a1a33' : fruitColors.divider },
                           ]}
                         >
                           <Text
-                            style={[fruitStyles.totalLabel, { color: fruitColors.totalLabel }]}
+                            style={[
+                              fruitStyles.totalLabel,
+                              { color: isSenderAdminOrMod ? '#1a1a1a' : fruitColors.totalLabel },
+                            ]}
                           >
                             Total:
                           </Text>
                           <Text
-                            style={[fruitStyles.totalValue, { color: fruitColors.totalValue }]}
+                            style={[
+                              fruitStyles.totalValue,
+                              { color: isSenderAdminOrMod ? '#1a1a1a' : fruitColors.totalValue },
+                            ]}
                           >
                             {totalFruitValue.toLocaleString()}
                           </Text>
@@ -373,7 +390,10 @@ const GroupMessageList = ({
 
                   {/* Normal text (can be empty if only fruits) - matching main chat */}
                   {!!item.text && (
-                    <Text style={isMyMessage ? styles.myMessageTextOnly : styles.otherMessageTextOnly}>
+                    <Text style={[
+                      isMyMessage ? styles.myMessageTextOnly : styles.otherMessageTextOnly,
+                      isSenderAdminOrMod && { color: '#1a1a1a' },
+                    ]}>
                       {parseMessageText(item.text)}
                     </Text>
                   )}

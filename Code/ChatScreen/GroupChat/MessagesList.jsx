@@ -133,7 +133,7 @@ const MessagesList = ({
     () => ({
       wrapperBg: isDarkMode ? '#0f172a55' : '#e5e7eb55',
       name: isDarkMode ? '#f9fafb' : '#111827',
-      value: isDarkMode ? '#e5e7eb' : '#4b5563',
+      valueColor: isDarkMode ? '#e5e7eb' : '#4b5563', // renamed from 'value' to avoid Reanimated false positive on .value
       divider: isDarkMode ? '#ffffff22' : '#00000011',
       totalLabel: isDarkMode ? '#e5e7eb' : '#4b5563',
       totalValue: isDarkMode ? '#f97373' : '#b91c1c',
@@ -385,11 +385,13 @@ const MessagesList = ({
                 onLongPress={() => handleLongPress(item)}
                 customStyles={{ triggerTouchable: { activeOpacity: 1 } }}
               >
-                <View style={[item.senderId === user?.id ? styles.myMessageText : styles.otherMessageText, isAdmin && item.strikeCount === 1
-                  ? { backgroundColor: 'pink' }
-                  : item.strikeCount >= 2
-                    ? { backgroundColor: 'red' }
-                    : null,]}>
+                <View style={[
+                  item.senderId === user?.id ? styles.myMessageText : styles.otherMessageText,
+                  isAdmin && item.strikeCount === 1 ? { backgroundColor: 'pink' }
+                    : item.strikeCount >= 2 ? { backgroundColor: 'red' }
+                    : (item.isAdmin || item.isModerator) ? { backgroundColor: '#D4AF37' }
+                    : null,
+                ]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
                     {item?.style ? (
                       <StyledUsernamePreview
@@ -399,9 +401,13 @@ const MessagesList = ({
                         fontSize={14}
                         lineHeight={18}
                         marginVertical={0}
+                        overrideColor={(item.isAdmin || item.isModerator) ? '#1a1a1a' : undefined}
                       />
                     ) : (
-                      <Text style={styles.userName}>{item.sender}</Text>
+                      <Text style={[
+                        styles.userName,
+                        (item.isAdmin || item.isModerator) && { color: '#1a1a1a' },
+                      ]}>{item.sender}</Text>
                     )}
                     {item?.isPro && (
                       <Image
@@ -468,7 +474,10 @@ const MessagesList = ({
 
                   {item.gif && <View><Image src={item.gif} style={{ height: 50, width: 50, resizeMode: 'contain' }} /></View>}
                   {/* {'\n'} */}
-                  <Text style={item.senderId === user?.id ? styles.myMessageTextOnly : styles.otherMessageTextOnly}>{parseMessageText(item?.text)}</Text>
+                  <Text style={[
+                    item.senderId === user?.id ? styles.myMessageTextOnly : styles.otherMessageTextOnly,
+                    (item.isAdmin || item.isModerator) && { color: '#1a1a1a' },
+                  ]}>{parseMessageText(item?.text)}</Text>
 
                   {/* ✅ Fruits list inside bubble */}
                   {hasFruits && (
@@ -493,14 +502,20 @@ const MessagesList = ({
 
                             <View style={fruitStyles.fruitInfo}>
                               <Text
-                                style={[fruitStyles.fruitName, { color: fruitColors.name }]}
+                                style={[
+                                  fruitStyles.fruitName,
+                                  { color: (item.isAdmin || item.isModerator) ? '#1a1a1a' : fruitColors.name },
+                                ]}
                                 numberOfLines={1}
                               >
                                 {`${fruit.name || fruit.Name} ${fruit.type === 'n' ? '' : '(P)'} `}
                               </Text>
 
                               <Text
-                                style={[fruitStyles.fruitValue, { color: fruitColors.value }]}
+                                style={[
+                                  fruitStyles.fruitValue,
+                                  { color: (item.isAdmin || item.isModerator) ? '#1a1a1a' : fruitColors.valueColor },
+                                ]}
                               >
                                 · Value: {Number(fruit.value || 0).toLocaleString()}
                               </Text>
@@ -514,16 +529,22 @@ const MessagesList = ({
                         <View
                           style={[
                             fruitStyles.totalRow,
-                            { borderTopColor: fruitColors.divider },
+                            { borderTopColor: (item.isAdmin || item.isModerator) ? '#1a1a1a33' : fruitColors.divider },
                           ]}
                         >
                           <Text
-                            style={[fruitStyles.totalLabel, { color: fruitColors.totalLabel }]}
+                            style={[
+                              fruitStyles.totalLabel,
+                              { color: (item.isAdmin || item.isModerator) ? '#1a1a1a' : fruitColors.totalLabel },
+                            ]}
                           >
                             Total:
                           </Text>
                           <Text
-                            style={[fruitStyles.totalValue, { color: fruitColors.totalValue }]}
+                            style={[
+                              fruitStyles.totalValue,
+                              { color: (item.isAdmin || item.isModerator) ? '#1a1a1a' : fruitColors.totalValue },
+                            ]}
                           >
                             {totalFruitValue.toLocaleString()}
                           </Text>

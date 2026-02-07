@@ -62,7 +62,7 @@ const PrivateMessageList = ({
     () => ({
       wrapperBg: isDarkMode ? '#0f172a55' : '#e5e7eb55',
       name: isDarkMode ? '#f9fafb' : '#111827',
-      value: isDarkMode ? '#e5e7eb' : '#4b5563',
+      valueColor: isDarkMode ? '#e5e7eb' : '#4b5563',
       divider: isDarkMode ? '#ffffff22' : '#00000011',
       totalLabel: isDarkMode ? '#e5e7eb' : '#4b5563',
       totalValue: isDarkMode ? '#f97373' : '#b91c1c',
@@ -260,7 +260,7 @@ const PrivateMessageList = ({
               <View
                 style={[
                   fruitStyles.fruitsWrapper,
-                  { backgroundColor: fruitColors.wrapperBg },
+                  { backgroundColor: (isSenderAdmin || isSenderMod) ? '#D4AF37' : fruitColors.wrapperBg },
                 ]}
               >
                 {fruits.map((fruit, index) => {
@@ -282,14 +282,20 @@ const PrivateMessageList = ({
 
                       <View style={fruitStyles.fruitInfo}>
                         <Text
-                          style={[fruitStyles.fruitName, { color: fruitColors.name }]}
+                          style={[
+                            fruitStyles.fruitName,
+                            { color: (isSenderAdmin || isSenderMod) ? '#1a1a1a' : fruitColors.name },
+                          ]}
                           numberOfLines={1}
                         >
                           {`${fruit.name || fruit.Name || ''}  `}
                         </Text>
 
                         <Text
-                          style={[fruitStyles.fruitValue, { color: fruitColors.value }]}
+                          style={[
+                            fruitStyles.fruitValue,
+                            { color: (isSenderAdmin || isSenderMod) ? '#1a1a1a' : fruitColors.valueColor },
+                          ]}
                         >
                           · Value: {Number(fruit.value || 0).toLocaleString()}
                           {/* {fruit.category
@@ -308,16 +314,22 @@ const PrivateMessageList = ({
                   <View
                     style={[
                       fruitStyles.totalRow,
-                      { borderTopColor: fruitColors.divider },
+                      { borderTopColor: (isSenderAdmin || isSenderMod) ? '#1a1a1a33' : fruitColors.divider },
                     ]}
                   >
                     <Text
-                      style={[fruitStyles.totalLabel, { color: fruitColors.totalLabel }]}
+                      style={[
+                        fruitStyles.totalLabel,
+                        { color: (isSenderAdmin || isSenderMod) ? '#1a1a1a' : fruitColors.totalLabel },
+                      ]}
                     >
                       Total:
                     </Text>
                     <Text
-                      style={[fruitStyles.totalValue, { color: fruitColors.totalValue }]}
+                      style={[
+                        fruitStyles.totalValue,
+                        { color: (isSenderAdmin || isSenderMod) ? '#1a1a1a' : fruitColors.totalValue },
+                      ]}
                     >
                       {totalFruitValue.toLocaleString()}
                     </Text>
@@ -332,7 +344,10 @@ const PrivateMessageList = ({
             {/* Normal text (can be empty if only fruits) */}
             {!!item.text && (
               <Text
-                style={isMyMessage ? styles.myMessageText : styles.otherMessageText}
+                style={[
+                  isMyMessage ? styles.myMessageText : styles.otherMessageText,
+                  (isSenderAdmin || isSenderMod) && { backgroundColor: '#D4AF37', color: '#1a1a1a' },
+                ]}
               >
                 <View style={{ flexDirection: 'row', marginBottom: (!!item.text) ? 2 : 0 }}>
                   {isSenderAdmin && (
