@@ -132,23 +132,7 @@ const PetGuessingGameScreen = () => {
       // ✅ Show interstitial ad at the end of every game for this player (both winner & loser),
       //    as long as they're not Pro. Uses in‑memory ref only (no local storage).
       //    Delay ad by 2 seconds so user can see the result screen first
-      if (data.status === 'finished' && user?.id) {
-        const gameId = data.id || currentRoomId;
-        const adKey = `${gameId}:${user.id}`;
-        if (!gameEndAdShownRef.current.has(adKey)) {
-          gameEndAdShownRef.current.add(adKey);
-          if (!localState?.isPro) {
-            // ✅ Delay ad by 2 seconds so result screen is visible first
-            setTimeout(() => {
-              try {
-                InterstitialAdManager.showAd();
-              } catch (err) {
-                console.warn('[AdManager] Failed to show game end ad:', err);
-              }
-            }, 2000);
-          }
-        }
-      }
+      // Game end ad removed
 
       // Handle game finished due to timeout or player leaving
       if (data.status === 'finished' && data.gameData?.timeoutReason) {

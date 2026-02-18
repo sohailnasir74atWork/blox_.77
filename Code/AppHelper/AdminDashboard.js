@@ -296,9 +296,15 @@ const AdminDashboard = () => {
   // ─────────────────────────────────────────────
   // Search Users (RTDB)
   const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
+    // ✅ Sanitize: strip emojis, symbols, and special chars — keep only letters, numbers, spaces, underscores, dots
+    const sanitized = searchQuery.replace(/[^\w\s.@-]/gi, '').trim();
 
-    if (searchQuery.length < 3) {
+    if (!sanitized) {
+      Alert.alert('Invalid Search', 'Please enter letters or numbers to search.');
+      return;
+    }
+
+    if (sanitized.length < 3) {
       Alert.alert('Optimization', 'Please enter at least 3 characters to search efficiently.');
       return;
     }
@@ -312,8 +318,8 @@ const AdminDashboard = () => {
       const q = query(
         ref(db, 'users'),
         orderByChild('displayName'),
-        startAt(searchQuery),
-        endAt(searchQuery + '\uf8ff'),
+        startAt(sanitized),
+        endAt(sanitized + '\uf8ff'),
         limitToFirst(20)
       );
 

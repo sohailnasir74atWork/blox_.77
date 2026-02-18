@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, TextInput, TouchableOpacity, Text, Modal, Image, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
 import { getStyles } from './../Style';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -43,6 +43,7 @@ const MessageInput = ({
   setPetModalVisible,
   selectedFruits,
   setSelectedFruits,
+  activeChannelId, // ✅ Channel ID for cooldown control
 }) => {
   const styles = getStyles(selectedTheme.colors.text === 'white');
   const [isSending, setIsSending] = useState(false);
@@ -58,6 +59,8 @@ const MessageInput = ({
 
   const [showEmojiPopup, setShowEmojiPopup] = useState(false); // To show the emoji selection popup
   const [showGifPopup, setShowGifPopup] = useState(false); // To show GIF selection popup
+  const lastSendTimeRef = useRef(0); // ✅ Track last send time for cooldown
+  const COOLDOWN_MS = 25000; // ✅ 25-sec cooldown for non-pro users
   const hasFruits = Array.isArray(selectedFruits) && selectedFruits.length > 0;
   const maxFruitsReached = Array.isArray(selectedFruits) && selectedFruits.length >= 4;
   const hasContent = (input || '').trim().length > 0 || hasFruits || selectedEmoji;
@@ -77,6 +80,21 @@ const MessageInput = ({
     if (!trimmedInput && !hasFruits && !hasEmoji) return;
     if (isSending) return;
 
+    // ✅ 25-sec cooldown for non-pro users (Trade Chat only)
+    if (!localState?.isPro && activeChannelId === 'trade') {
+      const now = Date.now();
+      const elapsed = now - lastSendTimeRef.current;
+      if (elapsed < COOLDOWN_MS) {
+        const secondsLeft = Math.ceil((COOLDOWN_MS - elapsed) / 1000);
+        showMessage({
+          message: `Please wait ${secondsLeft}s before sending another message.`,
+          type: 'warning',
+          duration: 2000,
+        });
+        return;
+      }
+    }
+
     // ✅ Comprehensive content moderation check
     if (trimmedInput) {
       const validation = validateContent(trimmedInput);
@@ -95,7 +113,15 @@ const MessageInput = ({
     const adCallback = () => setIsSending(false);
   
     try {
-      await handleSendMessage(replyTo, trimmedInput, fruits, emojiToSend);
+      const success = await handleSendMessage(replyTo, trimmedInput, fruits, emojiToSend);
+
+      // ✅ Don't clear input if validation failed — keep user's typed message
+      if (success !== true) {
+        setIsSending(false);
+        return;
+      }
+
+      lastSendTimeRef.current = Date.now(); // ✅ Update cooldown timer after successful send
   
       setInput('');
       setSelectedFruits([]);
@@ -105,7 +131,7 @@ const MessageInput = ({
       const newCount = messageCount + 1;
       setMessageCount(newCount);
   
-      if (!localState?.isPro && newCount % 10 === 0) {
+      if (!localState?.isPro && newCount % 12 === 0) {
         InterstitialAdManager.showAd(adCallback);
       } else {
         setIsSending(false);

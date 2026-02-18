@@ -29,12 +29,7 @@ export default function ScamSafetyBox({
       });
     };
 
-    // Show ad for non-pro users
-    if (!localState?.isPro) {
-      InterstitialAdManager.showAd(openLink);
-    } else {
-      openLink();
-    }
+    openLink();
   }, [tradingServerLink, localState?.isPro]);
 
   // ✅ Memoize handleOpenRating

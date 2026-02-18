@@ -109,8 +109,43 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
         }
       };
 
-      // ✅ OPTIMIZED: Use child listeners for updates (only downloads changed chats)
-      const handleChildChange = (snapshot) => {
+      // ✅ OPTIMIZED: Separate handler for child_added that SKIPS already-loaded chats
+      // This prevents double-downloading: once('value') loads all, then child_added would re-fire for all existing children
+      const handleChildAdded = (snapshot) => {
+        if (!snapshot || !snapshot.key) return;
+        // ✅ Skip if already loaded from once('value') — prevents redundant processing & re-renders
+        if (chatsMap.has(snapshot.key)) return;
+
+        const chatData = snapshot.val();
+        if (!chatData || typeof chatData !== 'object') return;
+
+        const chatPartnerId = snapshot.key;
+        const isBlocked = banned.includes(chatPartnerId);
+        const rawUnread = chatData?.unreadCount || 0;
+
+        if (isBlocked && rawUnread > 0) {
+          const { update } = require('@react-native-firebase/database');
+          const blockedChatRef = ref(appdatabase, `chat_meta_data/${user.id}/${chatPartnerId}`);
+          update(blockedChatRef, { unreadCount: 0 }).catch((error) => {
+            console.error("Error resetting unread count:", error);
+          });
+        }
+
+        chatsMap.set(chatPartnerId, {
+          chatId: chatData.chatId,
+          otherUserId: chatPartnerId,
+          lastMessage: chatData.lastMessage || 'No messages yet',
+          lastMessageTimestamp: chatData.timestamp || 0,
+          unreadCount: isBlocked ? 0 : rawUnread,
+          otherUserAvatar: chatData.receiverAvatar || 'https://example.com/default-avatar.jpg',
+          otherUserName: chatData.receiverName || 'Anonymous',
+        });
+
+        updateChatsList();
+      };
+
+      // ✅ Handler for child_changed — always process (data actually changed)
+      const handleChildChanged = (snapshot) => {
         if (!snapshot || !snapshot.key) return;
         const chatData = snapshot.val();
         if (!chatData || typeof chatData !== 'object') return;
@@ -149,15 +184,16 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
       // Load initial data
       loadInitialChats();
 
-      // Listen to individual chat changes (only downloads changed chats, not all)
-      userChatsRef.on('child_added', handleChildChange);
-      userChatsRef.on('child_changed', handleChildChange);
+      // ✅ OPTIMIZED: child_added skips already-loaded chats (prevents double-download)
+      // child_changed handles updates, child_removed handles deletions
+      userChatsRef.on('child_added', handleChildAdded);
+      userChatsRef.on('child_changed', handleChildChanged);
       userChatsRef.on('child_removed', handleChildRemoved);
 
       // ✅ Cleanup listeners when screen loses focus
       return () => {
-        userChatsRef.off('child_added', handleChildChange);
-        userChatsRef.off('child_changed', handleChildChange);
+        userChatsRef.off('child_added', handleChildAdded);
+        userChatsRef.off('child_changed', handleChildChanged);
         userChatsRef.off('child_removed', handleChildRemoved);
         setDisplayedChatsCount(INITIAL_LOAD);
       };
@@ -407,8 +443,10 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
           keyExtractor={(item, index) => item?.chatId || `chat-${index}`}
           renderItem={renderChatItem}
           removeClippedSubviews={false}
-          maxToRenderPerBatch={10}
-          windowSize={10}
+          initialNumToRender={10}
+          maxToRenderPerBatch={8}
+          windowSize={5}
+          updateCellsBatchingPeriod={100}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
           ListFooterComponent={

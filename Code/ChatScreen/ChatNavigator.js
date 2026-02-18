@@ -28,7 +28,6 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
   const [unreadcount, setunreadcount] = useState(0);
   const { localState, updateLocalState } = useLocalState()
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
-  const [pinnedMessages, setPinnedMessages] = useState([]);
   const [groups, setGroups] = useState([]);
   const [groupsLoading, setGroupsLoading] = useState(false);
   const [groupUnreadCount, setGroupUnreadCount] = useState(0); // Total unread count for groups

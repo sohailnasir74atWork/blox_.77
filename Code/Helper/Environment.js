@@ -8,6 +8,8 @@ const isNoman = true; // Toggle this to switch configurations
 //waqas pkgName = com.bloxfruitstock
 const rev_cat_id = Platform.OS === 'ios' ? 'appl_QKRWvOpeEbPWTIEzrRZScJuJDtz' : 'goog_vbOdGmvwsPRXPVNHgrVHiCRtnez'
 
+
+
 const config = {
   appName: isNoman ? 'Blox Fruit Values Calc' : 'Blox Fruit Stock',
   andriodBanner: isNoman ? 'ca-app-pub-5740215782746766/5225162749' : 'ca-app-pub-3701208411582706/4133745803',
@@ -50,12 +52,12 @@ otherapplink2: Platform.OS == 'android' ? 'https://play.google.com/store/apps/de
       black:'black'
     }
     : {
-      primary: '#697565', // Deep navy blue
-      secondary: '#457B9D', // Muted teal
-      hasBlockGreen: '#B8860B', // Light mint green
-      wantBlockRed: '#E63946', // Warm, soft red
-      backgroundLight: '#f2f2f7',
-      backgroundDark: '#121212',
+      primary: '#9b7401ff', // Deep ocean navy
+      secondary: '#FF6B35', // Vibrant coral orange
+      hasBlockGreen: '#00B4A0', // Fresh teal emerald
+      wantBlockRed: '#F72585', // Hot magenta pink
+      backgroundLight: '#F0F4F8',
+      backgroundDark: '#0A1628',
        white:'white',
       black:'black'
     },

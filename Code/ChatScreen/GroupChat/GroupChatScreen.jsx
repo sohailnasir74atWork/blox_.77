@@ -26,7 +26,7 @@ import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-m
 import Icon from 'react-native-vector-icons/Ionicons';
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
 import ProfileBottomDrawer from './BottomDrawer';
-import { isUserOnline } from '../utils';
+import { isUserOnline, handleDeleteLast300Messages } from '../utils';
 import { useLocalState } from '../../LocalGlobelStats';
 import PetModal from '../PrivateChat/PetsModel';
 import config from '../../Helper/Environment';
@@ -529,12 +529,6 @@ const GroupChatScreen = () => {
       return () => {
         clearActiveChat(user.id);
         clearActiveGroupChat(user.id, groupId);
-
-        // Show ad when leaving if: 20+ seconds spent AND 3+ messages sent AND not Pro
-        const timeSpent = Date.now() - (chatEnterTimeRef.current || Date.now());
-        if (timeSpent >= 20000 && hasSentMessageRef.current >= 3 && !localState?.isPro) {
-          InterstitialAdManager.showAd();
-        }
       };
     }, [user?.id, groupId, appdatabase, localState?.isPro])
   );
@@ -1117,6 +1111,13 @@ const GroupChatScreen = () => {
                 isPaginating={isPaginating}
                 onUserPress={handleUserPress}
                 onReply={handleReply}
+                onDeleteMessage={(messageId) => {
+                  if (!messagesRef) return;
+                  messagesRef.child(messageId).remove()
+                    .then(() => setMessages(prev => prev.filter(m => m.id !== messageId)))
+                    .catch(err => console.error('Delete message error:', err));
+                }}
+                onDeleteAllMessage={(senderId) => handleDeleteLast300Messages(senderId)}
                 scrollToMessage={scrollToMessage}
                 highlightedMessageId={highlightedMessageId}
                 flatListRef={flatListRef}
@@ -1179,6 +1180,10 @@ const GroupChatScreen = () => {
                 onEndReachedThreshold={0.1}
                 scrollEnabled={true}
                 removeClippedSubviews={false}
+                initialNumToRender={10}
+                maxToRenderPerBatch={8}
+                windowSize={5}
+                updateCellsBatchingPeriod={100}
                 ListFooterComponent={
                   loadingMemberStatuses ? (
                     <View style={{ padding: 10, alignItems: 'center' }}>

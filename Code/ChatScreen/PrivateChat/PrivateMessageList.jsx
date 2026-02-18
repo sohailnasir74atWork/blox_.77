@@ -414,6 +414,10 @@ const PrivateMessageList = ({
               onTouchStart={() => Keyboard.dismiss()}
               keyboardShouldPersistTaps="handled" // Ensures taps o
               // onTouchStart={() => Keyboard.dismiss()}
+              initialNumToRender={15}
+              maxToRenderPerBatch={8}
+              windowSize={5}
+              updateCellsBatchingPeriod={100}
               refreshControl={
                 <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
               }

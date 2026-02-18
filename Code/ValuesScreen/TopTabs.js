@@ -22,6 +22,7 @@ import NewsScreen from "./News";
 import CodesScreen from "./CodesScreen";
 import { useGlobalState } from "../GlobelStats";
 import NewsFeedbackReport from "./AdminReport";
+import AnalyticsScreen from "../Analytics/AnalyticsScreen";
 import { Platform } from "react-native";
 
 const MemoValueScreen = React.memo(ValueScreen);
@@ -46,6 +47,7 @@ const CustomTopTabs = ({ selectedTheme }) => {
         icon: "code-slash-outline",
         iconActive: "code-slash",
       },
+      
       {
         label: "HD Wallpaper",
         key: "wallpaper",
@@ -59,6 +61,18 @@ const CustomTopTabs = ({ selectedTheme }) => {
         iconActive: "newspaper",
       },
     ];
+     if (!config.isNoman) {
+      base.push(
+       {
+        label: "Analytics",
+        key: "analytics",
+        icon: "bar-chart-outline",
+        iconActive: "bar-chart",
+        badge: true,
+      },
+    );
+      
+    }
 
     if (isAdmin) {
       base.push({
@@ -67,6 +81,7 @@ const CustomTopTabs = ({ selectedTheme }) => {
         icon: "analytics-outline",
         iconActive: "analytics",
       });
+      
     }
 
     return base;
@@ -189,6 +204,9 @@ const CustomTopTabs = ({ selectedTheme }) => {
                   >
                     {tab.label}
                   </Text>
+                  {tab.badge && (
+                    <View style={styles.badgeDot} />
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -252,6 +270,17 @@ const CustomTopTabs = ({ selectedTheme }) => {
           </View>
         )}
 
+        {mountedTabs.analytics && (
+          <View
+            style={[
+              styles.screen,
+              activeKey !== "analytics" && styles.hiddenScreen,
+            ]}
+          >
+            <AnalyticsScreen />
+          </View>
+        )}
+
         {/* 🔹 Admin tab content, only mounted if the tab exists & was visited */}
         {mountedTabs.Admin && isAdmin && (
           <View
@@ -291,6 +320,16 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     marginRight: 8,
     borderWidth: 1,
+    position: "relative",
+  },
+  badgeDot: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#EF4444",
   },
   tabText: {
     fontSize: 12,

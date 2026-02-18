@@ -649,8 +649,9 @@ const SocialDashboard = () => {
                             contentContainerStyle={styles.listContent}
                             renderItem={renderUserCard}
                             initialNumToRender={10}
-                            maxToRenderPerBatch={10}
+                            maxToRenderPerBatch={8}
                             windowSize={5}
+                            updateCellsBatchingPeriod={100}
                             onEndReached={loadMoreFriends}
                             onEndReachedThreshold={0.5}
                             ListFooterComponent={FriendListFooter}
@@ -693,8 +694,9 @@ const SocialDashboard = () => {
                             contentContainerStyle={styles.listContent}
                             renderItem={renderUserCard}
                             initialNumToRender={10}
-                            maxToRenderPerBatch={10}
+                            maxToRenderPerBatch={8}
                             windowSize={5}
+                            updateCellsBatchingPeriod={100}
                             ListEmptyComponent={
                                 hasSearched ? (
                                     <View style={styles.emptyState}>

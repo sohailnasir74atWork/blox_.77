@@ -1036,6 +1036,147 @@ const TradeList = ({ route }) => {
     return Object.values(grouped);
   };
 
+  // ── Alternate trade card renderer (non-Noman) ──
+  const renderTradeAlt = ({ item, index }) => {
+    const { deal, tradeRatio } = getTradeDeal(item.hasTotal, item.wantsTotal);
+    const tradePercentage = Math.abs(((tradeRatio - 1) * 100).toFixed(0));
+    const isProfit = tradeRatio > 1;
+    const neutral = tradeRatio === 1;
+    const formattedTime = item.timestamp ? dayjs(item.timestamp.toDate()).fromNow() : "Anonymous";
+    const groupedHasItems = groupItems(item.hasItems || []);
+    const groupedWantsItems = groupItems(item.wantsItems || []);
+
+    const handleChatNavigation = async () => {
+      const callbackfunction = () => {
+        if (!user?.id) { setIsSigninDrawerVisible(true); return; }
+        mixpanel.track("Inbox Trade");
+        navigation.navigate('PrivateChatTrade', {
+          selectedUser: { senderId: item.userId, sender: item.traderName, avatar: item.avatar, flage: item?.flage || null },
+          item,
+        });
+      };
+      try { callbackfunction(); } catch (error) {
+        console.error('Error navigating to PrivateChat:', error);
+        Alert.alert('Error', 'Unable to navigate to the chat. Please try again later.');
+      }
+    };
+
+    return (
+      <View style={[styles.altTradeCard, item.isFeatured && { backgroundColor: isDarkMode ? '#2a2a3a' : '#fffbeb' }]}>
+        {item.isFeatured && <View style={styles.altFeaturedBadge}><Text style={styles.altFeaturedText}>FEATURED</Text></View>}
+
+        {/* Header row */}
+        <View style={styles.altTradeHeader}>
+          <TouchableOpacity style={styles.altTradeUserRow} onPress={() => handleOpenProfile(item)}>
+            <Image
+              source={{ uri: item.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }}
+              style={styles.altTradeAvatar}
+            />
+            <View style={{ flex: 1, marginLeft: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                {(item?.style && Object.keys(item?.style).length > 0) ? (
+                  <StyledUsernamePreview text={item.traderName} variant={item.style.variant} options={item.style} fontSize={13} lineHeight={15} marginVertical={0} />
+                ) : (
+                  <Text style={styles.altTradeName}>{item.traderName}</Text>
+                )}
+                {item?.isPro && <Image source={require('../../assets/pro.png')} style={{ width: 10, height: 10, marginLeft: 4 }} />}
+                {item?.robloxUsernameVerified && <Image source={require('../../assets/verification.png')} style={{ width: 10, height: 10, marginLeft: 4 }} />}
+                {(() => {
+                  const hasRecentWin = !!item?.hasRecentGameWin || (typeof item?.lastGameWinAt === 'number' && Date.now() - item.lastGameWinAt <= 24 * 60 * 60 * 1000);
+                  return hasRecentWin ? <Image source={require('../../assets/trophy.webp')} style={{ width: 10, height: 10, marginLeft: 4 }} /> : null;
+                })()}
+                {(item?.isProGranted || item.proTagBought) && <Image source={require('../../assets/progranted.png')} style={{ width: 14, height: 14, marginLeft: 4 }} />}
+                {Array.isArray(item.icons) && item.icons.slice(0, 4).map(iconKey => (
+                  <Image key={iconKey} source={iconMap[iconKey]} style={{ width: 14, height: 14, marginLeft: 4, resizeMode: 'contain' }} />
+                ))}
+              </View>
+              <Text style={styles.altTradeTime}>{formattedTime}</Text>
+            </View>
+          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {item.rating ? (
+              <View style={styles.altRatingPill}>
+                <Icon name="star" size={10} color="#fff" />
+                <Text style={styles.altRatingText}>{parseFloat(item.rating).toFixed(1)}</Text>
+              </View>
+            ) : null}
+            <TouchableOpacity onPress={() => handleOpenProfile(item)} style={{ marginLeft: 8 }}>
+              <FontAwesome name='message' size={18} color={config.colors.primary} solid={false} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Totals bar at top of items */}
+        <View style={styles.altTotalsBar}>
+          {groupedHasItems.length > 0 && <View style={[styles.altTotalPill, { backgroundColor: config.colors.hasBlockGreen }]}>
+            <Text style={styles.altTotalPillText}>ME {formatValue(item.hasTotal.value)}</Text>
+          </View>}
+          {(groupedHasItems.length > 0 && groupedWantsItems.length > 0) && <Text style={[styles.altPercentText, { color: !isProfit ? config.colors.hasBlockGreen : config.colors.wantBlockRed }]}>
+            {tradePercentage}% {!neutral && <Icon name={isProfit ? 'arrow-down-outline' : 'arrow-up-outline'} size={10} color={isProfit ? config.colors.wantBlockRed : config.colors.hasBlockGreen} />}
+          </Text>}
+          {groupedWantsItems.length > 0 && <View style={[styles.altTotalPill, { backgroundColor: config.colors.wantBlockRed }]}>
+            <Text style={styles.altTotalPillText}>YOU {formatValue(item.wantsTotal.value)}</Text>
+          </View>}
+        </View>
+
+        {/* Items displayed in a unified horizontal scroll-like row */}
+        <View style={styles.altItemsRow}>
+          <View style={styles.altItemsSection}>
+            {groupedHasItems.length > 0 ? groupedHasItems.map((hasItem) => (
+              <View key={`${hasItem.name}-${hasItem.type}`} style={styles.altItemBubble}>
+                <Image
+                  source={{ uri: hasItem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(hasItem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(hasItem.name)}_Icon.webp` }}
+                  style={[styles.altItemImg, { backgroundColor: hasItem.type === 'p' ? '#FFCC00' : 'transparent' }]}
+                  resizeMode="contain"
+                />
+                <Text style={styles.altItemLabel}>{hasItem.name}{hasItem.type === 'p' && " (P)"}</Text>
+                {hasItem.count > 1 && <View style={styles.altCountBadge}><Text style={styles.altCountText}>{hasItem.count}</Text></View>}
+              </View>
+            )) : (
+              <TouchableOpacity style={styles.altOfferBtn} onPress={() => handleOpenProfile(item)}>
+                <Text style={styles.altOfferBtnText}>Give offer</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <View style={styles.altTransferIcon}>
+            <Image source={require('../../assets/transfer.png')} style={{ width: 14, height: 14 }} />
+          </View>
+          <View style={styles.altItemsSection}>
+            {groupedWantsItems.length > 0 ? groupedWantsItems.map((wantItem) => (
+              <View key={`${wantItem.name}-${wantItem.type}`} style={styles.altItemBubble}>
+                <Image
+                  source={{ uri: wantItem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(wantItem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(wantItem.name)}_Icon.webp` }}
+                  style={[styles.altItemImg, { backgroundColor: wantItem.type === 'p' ? '#FFCC00' : 'transparent' }]}
+                  resizeMode="contain"
+                />
+                <Text style={styles.altItemLabel}>{wantItem.name}{wantItem.type === 'p' && " (P)"}</Text>
+                {wantItem.count > 1 && <View style={styles.altCountBadge}><Text style={styles.altCountText}>{wantItem.count}</Text></View>}
+              </View>
+            )) : (
+              <TouchableOpacity style={styles.altOfferBtn} onPress={handleChatNavigation}>
+                <Text style={styles.altOfferBtnText}>Give offer</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {item.description && <Text style={styles.description}>{renderTextWithUsername(item.description)}</Text>}
+        {item.userId === user.id && (
+          <View style={styles.altFooterRow}>
+            {!item.isFeatured && <TouchableOpacity onPress={() => handleMakeFeatureTrade(item)} style={styles.altBoostBtn}>
+              <Icon name="rocket-outline" size={12} color="white" />
+              <Text style={styles.altBoostText}>BOOST</Text>
+            </TouchableOpacity>}
+            <TouchableOpacity onPress={() => handleDelete(item)} style={styles.altDeleteBtn}>
+              <Icon name="trash-outline" size={12} color="white" />
+              <Text style={styles.altBoostText}>DELETE</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    );
+  };
+
   const renderTrade = ({ item, index }) => {
     const { deal, tradeRatio } = getTradeDeal(item.hasTotal, item.wantsTotal);
     const tradePercentage = Math.abs(((tradeRatio - 1) * 100).toFixed(0));
@@ -1431,7 +1572,7 @@ const TradeList = ({ route }) => {
       <FlatList
         ref={flatListRef}
         data={isSearchMode ? trades : filteredTrades}
-        renderItem={renderTrade}
+        renderItem={config.isNoman ? renderTrade : renderTradeAlt}
         keyExtractor={(item, index) => {
           // ✅ FIX: Featured trades already have 'featured-' prefix in their id
           // Use the id directly, or add index for uniqueness
@@ -1446,10 +1587,10 @@ const TradeList = ({ route }) => {
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
         removeClippedSubviews={false} // ✅ FIX: Disable to prevent blank spaces during scrolling
-        initialNumToRender={15} // ✅ FIX: Render more items initially for smoother scrolling
-        maxToRenderPerBatch={10} // ✅ FIX: Larger batches for better rendering performance
-        updateCellsBatchingPeriod={50} // ✅ FIX: More frequent updates for smoother experience
-        windowSize={10} // ✅ FIX: Larger window size to keep more items in memory
+        initialNumToRender={10} // ✅ FIX: Reduced to prevent text view overload on low-end devices
+        maxToRenderPerBatch={8} // ✅ FIX: Smaller batches to reduce per-frame view creation pressure
+        updateCellsBatchingPeriod={100} // ✅ FIX: Spread rendering across more frames
+        windowSize={7} // ✅ FIX: Balanced window size
         refreshing={refreshing} // Add Pull-to-Refresh
         onRefresh={handleRefresh} // Attach Refresh Handler
         onScroll={({ nativeEvent }) => {
@@ -1542,7 +1683,7 @@ const getStyles = (isDarkMode) =>
   StyleSheet.create({
     container: {
       paddingHorizontal: 8,
-      backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
+      backgroundColor: isDarkMode ? config.colors.backgroundDark : config.colors.backgroundLight,
       flex: 1,
     },
     tradeItem: {
@@ -1551,9 +1692,8 @@ const getStyles = (isDarkMode) =>
       // marginHorizontal: 10,
       backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
 
-      borderRadius: 10, // Smooth rounded corners
-      borderWidth: !config.isNoman ? 3 : 0,
-      borderColor: config.colors.hasBlockGreen,
+      borderRadius: 10,
+      borderWidth: 0,
     },
 
     searchInput: {
@@ -1885,7 +2025,179 @@ const getStyles = (isDarkMode) =>
       fontSize: 15,
       fontWeight: 'bold',
     },
-
+    // ── Alternate (non-Noman) styles ──
+    altTradeCard: {
+      padding: 12,
+      marginVertical: 5,
+      backgroundColor: isDarkMode ? '#152238' : '#ffffff',
+      borderRadius: 14,
+      borderTopWidth: 4,
+      borderTopColor: config.colors.primary,
+    },
+    altFeaturedBadge: {
+      position: 'absolute',
+      top: -8,
+      left: 12,
+      backgroundColor: config.colors.hasBlockGreen,
+     borderRadius:6,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+    },
+    altFeaturedText: {
+      color: 'white',
+      fontSize: 8,
+      fontWeight: 'bold',
+    },
+    altTradeHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    altTradeUserRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
+    altTradeAvatar: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: '#eee',
+    },
+    altTradeName: {
+      fontWeight: 'bold',
+      fontSize: 13,
+      color: isDarkMode ? 'white' : 'black',
+    },
+    altTradeTime: {
+      fontSize: 9,
+      color: isDarkMode ? '#aaa' : '#888',
+      marginTop: 1,
+    },
+    altRatingPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#ffb300',
+      borderRadius: 10,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+    },
+    altRatingText: {
+      fontSize: 10,
+      color: 'white',
+      fontWeight: 'bold',
+      marginLeft: 3,
+    },
+    altTotalsBar: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 8,
+      gap: 8,
+    },
+    altTotalPill: {
+      borderRadius: 12,
+      paddingVertical: 3,
+      paddingHorizontal: 12,
+    },
+    altTotalPillText: {
+      color: 'white',
+      fontSize: 10,
+      fontWeight: 'bold',
+    },
+    altPercentText: {
+      fontSize: 11,
+      fontWeight: 'bold',
+    },
+    altItemsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      paddingVertical: 6,
+    },
+    altItemsSection: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'center',
+      width: '42%',
+      gap: 4,
+    },
+    altItemBubble: {
+      justifyContent: 'center',
+      alignItems: 'center',
+      position: 'relative',
+    },
+    altItemImg: {
+      width: 34,
+      height: 34,
+      borderRadius: 8,
+      marginVertical: 2,
+    },
+    altItemLabel: {
+      fontWeight: 'bold',
+      fontSize: 7,
+      color: isDarkMode ? 'white' : 'black',
+      textAlign: 'center',
+    },
+    altCountBadge: {
+      position: 'absolute',
+      top: 0,
+      left: -2,
+      backgroundColor: config.colors.secondary,
+      borderRadius: 8,
+      paddingHorizontal: 4,
+      paddingVertical: 1,
+    },
+    altCountText: {
+      color: 'white',
+      fontWeight: 'bold',
+      fontSize: 9,
+    },
+    altTransferIcon: {
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingTop: 10,
+    },
+    altOfferBtn: {
+      backgroundColor: config.colors.primary,
+      borderRadius: 8,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+    },
+    altOfferBtnText: {
+      color: 'white',
+      fontWeight: 'bold',
+      fontSize: 9,
+    },
+    altFooterRow: {
+      flexDirection: 'row',
+      marginTop: 8,
+      gap: 8,
+    },
+    altBoostBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'purple',
+      borderRadius: 14,
+      paddingVertical: 4,
+      paddingHorizontal: 10,
+      gap: 4,
+    },
+    altDeleteBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#333',
+      borderRadius: 14,
+      paddingVertical: 4,
+      paddingHorizontal: 10,
+      gap: 4,
+    },
+    altBoostText: {
+      color: 'white',
+      fontWeight: 'bold',
+      fontSize: 10,
+    },
   });
 
 export default TradeList;

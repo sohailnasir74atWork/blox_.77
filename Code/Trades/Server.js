@@ -137,12 +137,7 @@ const ServerScreen = () => {
             voters: { [user?.id]: true }
         })
             .then(() => {
-                // 👇 Show ad with callback
-                if ((!localState.isPro && proGrantedd) && InterstitialAdManager) {
-                    InterstitialAdManager.showAd(callbackfunction);
-                } else {
-                    callbackfunction();
-                }
+                callbackfunction();
             })
             .catch((error) => {
                 showErrorMessage('Error', '❌ Submission failed');
@@ -180,12 +175,7 @@ const ServerScreen = () => {
             });
         };
 
-        if (!localState.isPro && proGranted) {
-            InterstitialAdManager.showAd(openLink);
-        } else {
-            openLink();
-            //   mixpanel.track("Server Open");
-        }
+        openLink();
     };
 
 

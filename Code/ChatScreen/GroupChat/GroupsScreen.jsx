@@ -281,12 +281,8 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
       }
     };
 
-    if (!localState?.isPro) {
-      InterstitialAdManager.showAd(callbackFunction);
-    } else {
-      callbackFunction();
-    }
-  }, [user?.id, firestoreDB, appdatabase, navigation, localState?.isPro]);
+    callbackFunction();
+  }, [user?.id, firestoreDB, appdatabase, navigation]);
 
   const handleDeclineInvitation = useCallback(async (inviteId) => {
     if (!user?.id) return;
@@ -1391,8 +1387,10 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
             keyExtractor={(item, index) => item?.groupId || `group-${index}`}
             renderItem={renderGroupItem}
             removeClippedSubviews={false}
-            maxToRenderPerBatch={10}
-            windowSize={10}
+            initialNumToRender={8}
+            maxToRenderPerBatch={8}
+            windowSize={5}
+            updateCellsBatchingPeriod={100}
           />
         )
       ) : (
@@ -1417,6 +1415,11 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
               }
             }}
             onEndReachedThreshold={0.5}
+            removeClippedSubviews={false}
+            initialNumToRender={8}
+            maxToRenderPerBatch={8}
+            windowSize={5}
+            updateCellsBatchingPeriod={100}
             ListFooterComponent={
               allGroupsLoadingMore ? (
                 <View style={{ padding: 16, alignItems: 'center' }}>
@@ -1643,9 +1646,6 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                 </View>
               );
             }}
-            removeClippedSubviews={false}
-            maxToRenderPerBatch={10}
-            windowSize={10}
           />
         )
       )}

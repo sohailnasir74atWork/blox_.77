@@ -346,6 +346,82 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
   };
 
 
+  // ── Alternate item renderer (non-Noman) ──
+  const renderItemAlt = React.useCallback(({ item }) => (
+    <View style={styles.altCard} disabled={!fromChat && !fromSetting}>
+      {/* Top row: icon, name, rarity */}
+      <View style={styles.altCardTop}>
+        <Image
+          source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.name)}_Icon.webp` }}
+          style={styles.altCardIcon}
+          resizeMode="cover"
+        />
+        <View style={styles.altCardNameWrap}>
+          <Text style={styles.altCardName}>{item.name}</Text>
+          <View style={styles.altCardPriceRow}>
+            <Text style={styles.altCardPriceText}>Robux: ${Number(item?.robux).toLocaleString()}</Text>
+            <Text style={styles.altCardPriceText}>  Beli: ${Number(item?.beli).toLocaleString()}</Text>
+          </View>
+        </View>
+        <View style={styles.altRarityPill}>
+          <Text style={styles.altRarityText}>{item.rarity}</Text>
+        </View>
+      </View>
+
+      {/* Stats row: horizontal inline pills */}
+      <View style={styles.altStatsRow}>
+        <View style={styles.altStatPill}>
+          <Text style={styles.altStatLabel}>Value</Text>
+          <Text style={styles.altStatValue}>${item?.value ? Number(item?.value).toLocaleString() : 'N/A'}</Text>
+        </View>
+        <View style={styles.altStatPill}>
+          <Text style={styles.altStatLabel}>Demand</Text>
+          <Text style={styles.altStatValue}>{item?.demand || 'N/A'}</Text>
+        </View>
+        <View style={styles.altStatPill}>
+          <Text style={styles.altStatLabel}>Status</Text>
+          <Text style={styles.altStatValue}>{item?.physicalStatus || 'N/A'}</Text>
+        </View>
+      </View>
+
+      {/* Perm stats row */}
+      <View style={styles.altStatsRow}>
+        <View style={[styles.altStatPill, { backgroundColor: isDarkMode ? '#2a2a1a' : '#fff8e0' }]}>
+          <Text style={styles.altStatLabel}>Perm Val</Text>
+          <Text style={styles.altStatValue}>${item?.permValue ? Number(item?.permValue).toLocaleString() : 'N/A'}</Text>
+        </View>
+        <View style={[styles.altStatPill, { backgroundColor: isDarkMode ? '#2a2a1a' : '#fff8e0' }]}>
+          <Text style={styles.altStatLabel}>P.Demand</Text>
+          <Text style={styles.altStatValue}>{item?.permDemand || 'N/A'}</Text>
+        </View>
+        <View style={[styles.altStatPill, { backgroundColor: isDarkMode ? '#2a2a1a' : '#fff8e0' }]}>
+          <Text style={styles.altStatLabel}>P.Status</Text>
+          <Text style={styles.altStatValue}>{item?.permanentStatus || 'N/A'}</Text>
+        </View>
+      </View>
+
+      {/* Type & best used for */}
+      {!fromChat && !fromSetting && (
+        <View style={styles.altTypeRow}>
+          <Text style={styles.altTypeLabel}>Type: <Text style={styles.altTypeValue}>{item.type || 'N/A'}</Text></Text>
+          <Text style={styles.altTypeLabel}>Best for: <Text style={styles.altTypeValue}>{item.bestUsedFor || 'N/A'}</Text></Text>
+        </View>
+      )}
+
+      {/* Chat/Setting select buttons */}
+      {(fromChat || fromSetting) && (
+        <View style={styles.altSelectRow}>
+          <TouchableOpacity style={styles.altSelectBtn} onPress={() => handlePress(item, 'n')}>
+            <Text style={styles.altSelectText}>Select Normal</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.altSelectBtn, { backgroundColor: '#e1a900' }]} onPress={() => handlePress(item, 'p')}>
+            <Text style={styles.altSelectText}>Select Permanent</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  ));
+
   const renderItem = React.useCallback(({ item }) => (
     <View style={styles.itemContainer} disabled={!fromChat && !fromSetting}>
       <View style={styles.headerContainer}>
@@ -572,13 +648,16 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
               <FlatList
                 data={filteredData}
                 keyExtractor={(item) => item.name}
-                renderItem={renderItem}
+                renderItem={config.isNoman ? renderItem : renderItemAlt}
                 showsVerticalScrollIndicator={false}
                 removeClippedSubviews={false}
-                numColumns={!config.isNoman ? 1 : 1}
+                numColumns={1}
                 refreshing={refreshing}
                 onRefresh={handleRefresh}
-              // columnWrapperStyle={!config.isNoman ? styles.columnWrapper : styles.columnWrapper}
+                initialNumToRender={10}
+                maxToRenderPerBatch={8}
+                windowSize={5}
+                updateCellsBatchingPeriod={100}
               />
               {/* {isModalVisible && selectedFruit && <EditFruitModal />} */}
             </>
@@ -704,7 +783,7 @@ export const getStyles = (isDarkMode) =>
       borderRadius: 10,
       paddingVertical: 10,
       // backgroundColor: config.colors.primary,
-      width: !config.isNoman ? '99%' : '99%',
+      width: '99%',
       // marginBottom: !config.isNoman ? 10 : 10,
       // ...(!config.isNoman && {
       //   borderWidth: 5,
@@ -943,7 +1022,113 @@ export const getStyles = (isDarkMode) =>
       alignItems: 'center',
       backgroundColor: 'rgba(0,0,0,0.6)',
     },
-
+    // ── Alternate (non-Noman) styles ──
+    altCard: {
+      backgroundColor: isDarkMode ? '#152238' : '#ffffff',
+      borderRadius: 14,
+      padding: 12,
+      marginBottom: 10,
+      borderLeftWidth: 4,
+      borderLeftColor: config.colors.primary,
+    },
+    altCardTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    altCardIcon: {
+      width: 46,
+      height: 46,
+      borderRadius: 10,
+      marginRight: 10,
+    },
+    altCardNameWrap: {
+      flex: 1,
+    },
+    altCardName: {
+      fontSize: 15,
+      fontWeight: 'bold',
+      color: isDarkMode ? '#fff' : '#000',
+    },
+    altCardPriceRow: {
+      flexDirection: 'row',
+      marginTop: 2,
+    },
+    altCardPriceText: {
+      fontSize: 10,
+      color: isDarkMode ? '#aaa' : '#666',
+    },
+    altRarityPill: {
+      backgroundColor: config.colors.secondary,
+      borderRadius: 10,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+    },
+    altRarityText: {
+      color: 'white',
+      fontSize: 10,
+      fontWeight: 'bold',
+    },
+    altStatsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 6,
+      gap: 6,
+    },
+    altStatPill: {
+      flex: 1,
+      backgroundColor: isDarkMode ? '#1a2d4a' : '#f5f5f5',
+      borderRadius: 8,
+      paddingVertical: 6,
+      paddingHorizontal: 8,
+      alignItems: 'center',
+    },
+    altStatLabel: {
+      fontSize: 8,
+      fontWeight: 'bold',
+      color: config.colors.primary,
+      marginBottom: 2,
+    },
+    altStatValue: {
+      fontSize: 10,
+      fontWeight: '600',
+      color: isDarkMode ? '#fff' : '#000',
+    },
+    altTypeRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      backgroundColor: isDarkMode ? '#1a2d4a' : '#e8f0fe',
+      borderRadius: 8,
+      padding: 8,
+      marginTop: 4,
+    },
+    altTypeLabel: {
+      fontSize: 10,
+      fontWeight: 'bold',
+      color: config.colors.primary,
+    },
+    altTypeValue: {
+      fontWeight: '500',
+      color: isDarkMode ? '#ccc' : '#444',
+    },
+    altSelectRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: 8,
+      gap: 8,
+    },
+    altSelectBtn: {
+      flex: 1,
+      backgroundColor: config.colors.hasBlockGreen,
+      borderRadius: 10,
+      paddingVertical: 8,
+      alignItems: 'center',
+    },
+    altSelectText: {
+      color: 'white',
+      fontWeight: 'bold',
+      fontSize: 12,
+    },
   });
 
 

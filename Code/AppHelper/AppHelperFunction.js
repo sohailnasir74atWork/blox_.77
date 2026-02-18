@@ -1,6 +1,5 @@
 // themes.js
 import { DefaultTheme, DarkTheme } from '@react-navigation/native';
-import { AppOpenAd, AdEventType } from 'react-native-google-mobile-ads';
 import InAppReview from 'react-native-in-app-review';
 import { AdsConsent, AdsConsentStatus } from 'react-native-google-mobile-ads';
 
@@ -25,48 +24,6 @@ export const MyDarkTheme = {
   },
 };
 
-
-// adHelper.js
-
-export const initializeAds = async () => {
-  await mobileAds().initialize();
-};
-
-
-export const loadAppOpenAd = async (
-  adUnitId,
-  lastAdShownTime,
-  adCooldown,
-  setLastAdShownTime,
-  setIsAdLoaded,
-  isPro
-) => {
-  if (isPro) return; // Return immediately if the user is Pro
-
-  const now = Date.now();
-  if (now - lastAdShownTime < adCooldown) return; // Ensure cooldown is respected
-
-  try {
-    const appOpenAd = AppOpenAd.createForAdRequest(adUnitId);
-
-    appOpenAd.addAdEventListener(AdEventType.LOADED, () => {
-      setIsAdLoaded(true); // Mark ad as loaded
-      appOpenAd.show();
-      setLastAdShownTime(Date.now());
-      setIsAdLoaded(false); // Reset ad loaded state
-    });
-
-    appOpenAd.addAdEventListener(AdEventType.ERROR, (error) => {
-      console.error('Ad Error:', error);
-      setIsAdLoaded(false);
-    });
-
-    await appOpenAd.load(); // Load the ad
-  } catch (error) {
-    console.error('Error loading App Open Ad:', error);
-    setIsAdLoaded(false);
-  }
-};
 
 
 // reviewHelper.js

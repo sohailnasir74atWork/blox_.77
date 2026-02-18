@@ -94,6 +94,10 @@ const FruitSelectionDrawer = ({ visible, onClose, onSelect, data, selectedTheme 
             numColumns={3}
             contentContainerStyle={styles.flatListContainer}
             columnWrapperStyle={styles.columnWrapper}
+            initialNumToRender={12}
+            maxToRenderPerBatch={9}
+            windowSize={5}
+            updateCellsBatchingPeriod={100}
           />
         </View>
       </Pressable>

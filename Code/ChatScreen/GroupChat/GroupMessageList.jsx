@@ -35,11 +35,13 @@ const GroupMessageList = ({
   isPaginating,
   onUserPress, // Callback to open profile drawer
   onReply, // Callback to reply to a message
+  onDeleteMessage, // Callback to delete a single message
+  onDeleteAllMessage, // Callback to delete all messages from a user
   scrollToMessage, // Function to scroll to a message
   highlightedMessageId, // ID of highlighted message
   flatListRef, // Ref for FlatList
 }) => {
-  const { theme } = useGlobalState();
+  const { theme, isAdmin, isModerator } = useGlobalState();
   const isDarkMode = theme === 'dark';
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
   const { t } = useTranslation();
@@ -415,6 +417,16 @@ const GroupMessageList = ({
                     <Text style={styles.menuOptionText}>{t('chat.reply')}</Text>
                   </MenuOption>
                 )}
+                {(isAdmin || isModerator) && onDeleteMessage && (
+                  <MenuOption onSelect={() => onDeleteMessage(item.id)}>
+                    <Text style={[styles.menuOptionText, { color: '#FF3B30' }]}>Delete</Text>
+                  </MenuOption>
+                )}
+                {(isAdmin || isModerator) && onDeleteAllMessage && (
+                  <MenuOption onSelect={() => onDeleteAllMessage(item?.senderId)}>
+                    <Text style={[styles.menuOptionText, { color: '#FF3B30' }]}>Delete All</Text>
+                  </MenuOption>
+                )}
               </MenuOptions>
             </Menu>
           </View>
@@ -471,8 +483,9 @@ const GroupMessageList = ({
       onEndReached={handleLoadMore} // ✅ Fires when scrolling to top (for inverted list)
       onEndReachedThreshold={0.3} // ✅ Trigger earlier for smoother loading
       initialNumToRender={15} // ✅ Render 15 messages initially
-      maxToRenderPerBatch={10} // ✅ Render 10 per batch
+      maxToRenderPerBatch={8} // ✅ Smaller batches to reduce per-frame view creation pressure
       windowSize={5} // ✅ Optimize memory usage
+      updateCellsBatchingPeriod={100} // ✅ Spread rendering across more frames
       removeClippedSubviews={false} // ✅ Fix for getChildDrawingOrder crash
       ListFooterComponent={
         isPaginating ? (

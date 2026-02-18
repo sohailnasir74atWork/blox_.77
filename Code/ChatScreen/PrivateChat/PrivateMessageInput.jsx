@@ -210,7 +210,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
 
     setMessageCount(prevCount => {
       const newCount = prevCount + 1;
-      if (!localState.isPro && newCount % 10 === 0) {
+      if (!localState?.isPro && newCount % 12 === 0) {
         // Show ad only if user is NOT pro
         InterstitialAdManager.showAd(() => {});
       } else {
@@ -460,7 +460,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
 
                     setMessageCount(prevCount => {
                       const newCount = prevCount + 1;
-                      if (!localState.isPro && newCount % 10 === 0) {
+                      if (!localState?.isPro && newCount % 12 === 0) {
                         InterstitialAdManager.showAd(() => {});
                       } else {
                         setIsSending(false);

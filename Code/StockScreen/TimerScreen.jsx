@@ -95,10 +95,10 @@ const TimerScreen = ({ selectedTheme }) => {
     }
 
     // ✅ Restriction: Free users can select up to 2 fruits, Pro users have no limit
-    if ((!localState.isPro && !stockNotifierPurchase) && selectedFruits.length >= 2) {
+    if ((!localState.isPro && !stockNotifierPurchase) && selectedFruits.length >= 3) {
       Alert.alert(
         "Selection Limit Reached",
-        "You can only select up to 2 fruits as a free user. Upgrade to Pro or purchse notifier to select more.",
+        "You can only select up to 3 fruits as a free user. Upgrade to Pro or purchse notifier to select more.",
         [{ text: "OK", onPress: () => { } }]
       );
       return;
@@ -114,13 +114,7 @@ const TimerScreen = ({ selectedTheme }) => {
       }, 300);
     };
 
-    // ✅ Show ad when selecting 2nd fruit (once per session, non-pro users only)
-    if (selectedFruits.length === 1 && !hasAdBeenShown && !localState.isPro) {
-      setHasAdBeenShown(true);
-      InterstitialAdManager.showAd(addFruitAndClose, addFruitAndClose);
-    } else {
-      addFruitAndClose();
-    }
+    addFruitAndClose();
   };
 
 
@@ -265,8 +259,203 @@ const TimerScreen = ({ selectedTheme }) => {
 
 
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
-  // console.log(state.premirageStock)
-  // console.log(localState.normalStock, localState.mi)
+
+  // ── Alternate stock item renderer for non-Noman ──
+  const renderItemAlt = ({ item, index, isLastItem }) => (
+    <View style={[styles.altStockItem, isLastItem && { marginBottom: 0 }]}>
+      <View style={styles.altStockLeft}>
+        <Image
+          source={{
+            uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${item.Normal.replace(/^\+/, '').replace(/\s+/g, '-')}_Icon.webp`,
+          }}
+          style={styles.altStockIcon}
+        />
+        <Text style={[styles.altStockName, { color: selectedTheme.colors.text }]}>{item.Normal}</Text>
+      </View>
+      <View style={styles.altStockRight}>
+        <View style={styles.altPricePill}>
+          <Text style={styles.altPricePillText}>{item.price}</Text>
+        </View>
+        <View style={[styles.altPricePill, { backgroundColor: config.colors.secondary, marginLeft: 6 }]}>
+          <Text style={styles.altPricePillText}>{item.value}</Text>
+        </View>
+      </View>
+    </View>
+  );
+
+  // ── Alternate (non-Noman) layout ──
+  if (!config.isNoman) {
+    return (
+      <>
+        <GestureHandlerRootView>
+          <View style={styles.container}>
+            <ScrollView
+              contentContainerStyle={styles.scrollViewContent}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+              }
+            >
+              {/* Alt: Notification cards stacked vertically */}
+              <View style={styles.altNotifCard}>
+                <View style={styles.altNotifRow}>
+                  <View style={styles.altNotifIconCircle}>
+                    <Icon
+                      name={user.isReminderEnabled ? 'notifications' : 'notifications-outline'}
+                      size={20}
+                      color="white"
+                    />
+                  </View>
+                  <View style={styles.altNotifTextWrap}>
+                    <Text style={styles.altNotifTitle}>{t('stock.stock_updates')}</Text>
+                  </View>
+                  <Switch value={user.isReminderEnabled} onValueChange={toggleSwitch} />
+                </View>
+              </View>
+
+              <View style={styles.altNotifCard}>
+                <View style={styles.altNotifRow}>
+                  <View style={[styles.altNotifIconCircle, { backgroundColor: config.colors.secondary }]}>
+                    <Icon name="star" size={18} color="white" />
+                  </View>
+                  <View style={styles.altNotifTextWrap}>
+                    <Text style={styles.altNotifTitle}>{t('stock.selected_fruit_notification')}</Text>
+                    <Text style={styles.altNotifDesc}>{t('stock.selected_fruit_notification_description')}</Text>
+                  </View>
+                  <Switch value={user.isSelectedReminderEnabled} onValueChange={toggleSwitch2} />
+                  <TouchableOpacity
+                    onPress={openDrawer}
+                    style={[styles.altAddFruitBtn, { backgroundColor: user?.isSelectedReminderEnabled ? config.colors.hasBlockGreen : '#999' }]}
+                    disabled={!user.isSelectedReminderEnabled}
+                  >
+                    <Icon name="add" size={20} color="white" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Alt: Selected fruits as horizontal chips */}
+              {user.selectedFruits?.length > 0 && (
+                <View style={styles.altChipRow}>
+                  {user.selectedFruits.map((item) => (
+                    <View key={item.name || item.Name} style={styles.altChip}>
+                      <Image
+                        source={{
+                          uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${item.name?.replace(/^\+/, '').replace(/\s+/g, '-') || item.Name?.replace(/^\+/, '').replace(/\s+/g, '-')}_Icon.webp`,
+                        }}
+                        style={styles.altChipIcon}
+                      />
+                      <Text style={[styles.altChipText, { color: selectedTheme.colors.text }]}>{item.name || item.Name}</Text>
+                      <TouchableOpacity onPress={() => handleRemoveFruit(item)}>
+                        <Icon name="close-circle" size={18} color={config.colors.wantBlockRed} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Alt: Timer banner for Normal Stock */}
+              <View style={styles.altTimerBanner}>
+                <Text style={styles.altTimerLabel}>{t('stock.normal_stock')}</Text>
+                <View style={styles.altTimerBox}>
+                  <Icon name="time-outline" size={14} color="white" />
+                  <Text style={styles.altTimerText}>{normalTimer}</Text>
+                </View>
+              </View>
+              <View style={styles.altStockContainer}>
+                {normalStock.length > 0 && normalStock[0]?.value === 'Fetching...' ? (
+                  <Text style={styles.loadingText}>{t('stock.fetching_data')}</Text>
+                ) : (
+                  normalStock.length > 0 &&
+                  normalStock.map((item, index) => {
+                    const isLastItem = index === normalStock.length - 1;
+                    return <View key={item.id || index}>{renderItemAlt({ item, index, isLastItem })}</View>;
+                  })
+                )}
+              </View>
+
+              {/* Alt: Timer banner for Mirage Stock */}
+              <View style={[styles.altTimerBanner, { backgroundColor: config.colors.secondary }]}>
+                <Text style={styles.altTimerLabel}>{t('stock.mirage_stock')}</Text>
+                <View style={[styles.altTimerBox, { backgroundColor: 'rgba(0,0,0,0.25)' }]}>
+                  <Icon name="time-outline" size={14} color="white" />
+                  <Text style={styles.altTimerText}>{mirageTimer}</Text>
+                </View>
+              </View>
+              <View style={styles.altStockContainer}>
+                {mirageStock.length > 0 && mirageStock[0]?.value === 'Fetching...' ? (
+                  <Text style={styles.loadingText}>{t('stock.fetching_data')}</Text>
+                ) : (
+                  mirageStock.length > 0 &&
+                  mirageStock.map((item, index) => {
+                    const isLastItem = index === mirageStock.length - 1;
+                    return <View key={item.id || index}>{renderItemAlt({ item, index, isLastItem })}</View>;
+                  })
+                )}
+              </View>
+
+              {/* Alt: Refresh pill */}
+              <TouchableOpacity style={styles.altRefreshPill} onPress={handleRefresh}>
+                <Icon name="refresh" size={16} color="white" />
+                <Text style={styles.altRefreshText}>REFRESH</Text>
+              </TouchableOpacity>
+
+              {/* Alt: Previous stock label */}
+              <View style={styles.altPrevLabel}>
+                <View style={styles.altPrevLine} />
+                <Text style={[styles.altPrevText, { color: isDarkMode ? '#666' : '#aaa' }]}>{t('stock.previous_stock')}</Text>
+                <View style={styles.altPrevLine} />
+              </View>
+
+              {/* Previous Normal Stock */}
+              <View style={[styles.altTimerBanner, { opacity: 0.4 }]}>
+                <Text style={styles.altTimerLabel}>{t('stock.normal_stock')}</Text>
+                <View style={styles.altTimerBox}>
+                  <Text style={styles.altTimerText}>00:00</Text>
+                </View>
+              </View>
+              <View style={[styles.altStockContainer, { opacity: 0.4 }]}>
+                {prenormalStock.length > 0 && prenormalStock.map((item, index) => {
+                  const isLastItem = index === prenormalStock.length - 1;
+                  return <View key={item.id || index}>{renderItemAlt({ item, index, isLastItem })}</View>;
+                })}
+              </View>
+
+              {/* Previous Mirage Stock */}
+              <View style={[styles.altTimerBanner, { backgroundColor: config.colors.secondary, opacity: 0.4 }]}>
+                <Text style={styles.altTimerLabel}>{t('stock.mirage_stock')}</Text>
+                <View style={[styles.altTimerBox, { backgroundColor: 'rgba(0,0,0,0.25)' }]}>
+                  <Text style={styles.altTimerText}>00:00</Text>
+                </View>
+              </View>
+              <View style={[styles.altStockContainer, { opacity: 0.4 }]}>
+                {premirageStock.length > 0 && premirageStock.map((item, index) => {
+                  const isLastItem = index === premirageStock.length - 1;
+                  return <View key={item.id || index}>{renderItemAlt({ item, index, isLastItem })}</View>;
+                })}
+              </View>
+
+              <FruitSelectionDrawer
+                visible={isDrawerVisible}
+                onClose={closeDrawer}
+                onSelect={handleFruitSelect}
+                data={fruitRecords}
+                selectedTheme={selectedTheme}
+              />
+              <SigninDrawer
+                visible={isSigninDrawerVisible}
+                onClose={handleLoginSuccess}
+                selectedTheme={selectedTheme}
+                message={t('stock.signin_required_message')}
+                screen="Stock"
+              />
+            </ScrollView>
+          </View>
+        </GestureHandlerRootView>
+      </>
+    );
+  }
+
+  // ── Original (Noman) layout ──
   return (
     <>
       <GestureHandlerRootView>
@@ -278,10 +467,6 @@ const TimerScreen = ({ selectedTheme }) => {
               <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
             }
           >
-            {/* <View style={{ backgroundColor: config.colors.secondary, padding: 5, borderRadius: 10, marginVertical: 10 }}>
-              <Text style={[styles.description]}>
-                {t("stock.description")}
-              </Text></View> */}
             <View style={styles.reminderContainer}>
               <View style={styles.row}>
                 <Text style={styles.title}>{t("stock.stock_updates")}</Text>
@@ -296,7 +481,7 @@ const TimerScreen = ({ selectedTheme }) => {
                 </View>
               </View>
 
-              <View style={config.isNoman ? styles.row2 : styles.row}>
+              <View style={styles.row2}>
                 <Text style={[styles.title]}>{t("stock.selected_fruit_notification")} {'\n'}
                   <Text style={styles.footer}>
                     {t("stock.selected_fruit_notification_description")}
@@ -332,10 +517,7 @@ const TimerScreen = ({ selectedTheme }) => {
                 </View>
               ))}
             </View>
-            {/* <MyNativeAdComponent/> */}
 
-            {/* <View> */}
-            {/* Normal Stock Section */}
             <View>
               <View style={styles.headerContainer}>
                 <Text style={[styles.title, { color: selectedTheme.colors.text }]}>  {t("stock.normal_stock")}</Text>
@@ -359,10 +541,7 @@ const TimerScreen = ({ selectedTheme }) => {
                   })
                 )}
               </View>
-              {/* {!localState.isPro && <MyNativeAdComponent />} */}
 
-
-              {/* Mirage Stock Section */}
               <View style={styles.headerContainer}>
                 <Text style={[styles.title, { color: selectedTheme.colors.text }]}>  {t("stock.mirage_stock")}</Text>
                 <Text style={[styles.timer, { color: selectedTheme.colors.text }]}>
@@ -384,8 +563,6 @@ const TimerScreen = ({ selectedTheme }) => {
                   })
                 )}
               </View>
-
-
             </View>
             <TouchableOpacity style={styles.preContrefresh} onPress={handleRefresh}>
               <Text style={styles.pre}>REFRESH</Text>
@@ -394,9 +571,6 @@ const TimerScreen = ({ selectedTheme }) => {
               <Text style={styles.pre}>  {t("stock.previous_stock")}</Text>
             </View>
 
-
-            {/* <View> */}
-            {/* Normal Stock Section */}
             <View>
               <View style={styles.headerContainerpre}>
                 <Text style={[styles.title, { color: selectedTheme.colors.text }]}>{t("stock.normal_stock")}</Text>
@@ -416,7 +590,6 @@ const TimerScreen = ({ selectedTheme }) => {
                 })}
               </View>
 
-              {/* Mirage Stock Section */}
               <View style={styles.headerContainerpre}>
                 <Text style={[styles.title, { color: selectedTheme.colors.text }]}>{t("stock.mirage_stock")}</Text>
                 <Text style={[styles.timer, { color: selectedTheme.colors.text }]}>
@@ -481,7 +654,7 @@ const TimerScreen = ({ selectedTheme }) => {
 const getStyles = (isDarkMode, user) =>
   StyleSheet.create({
     container: {
-      flex: 1, paddingHorizontal: 10, backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
+      flex: 1, paddingHorizontal: 10, backgroundColor: isDarkMode ? config.colors.backgroundDark : config.colors.backgroundLight,
     },
     description: { fontSize: 14, lineHeight: 18, marginVertical: 10, color: 'white' },
     headerContainer: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 10, paddingHorizontal: 10 },
@@ -494,13 +667,7 @@ const getStyles = (isDarkMode, user) =>
       alignItems: 'center',
       borderColor: isDarkMode ? '#333333' : '#cccccc',
       borderBottomWidth: 1,
-      marginBottom: !config.isNoman ? 10 : 0,
-
-      ...(!config.isNoman && {
-        borderWidth: 1,
-        borderColor: config.colors.hasBlockGreen,
-        padding: 5
-      }),
+      marginBottom: 0,
     },
 
     icon: { width: 50, height: 50, borderRadius: 5, marginRight: 10 },
@@ -525,9 +692,9 @@ const getStyles = (isDarkMode, user) =>
 
     },
     row: {
-      flexDirection: !config.isNoman ? 'column' : 'row',
-      width: !config.isNoman ? '100%' : '100%',
-      justifyContent: !config.isNoman ? 'center' : 'space-between',
+      flexDirection: 'row',
+      width: '100%',
+      justifyContent: 'space-between',
       alignItems: 'center',
       padding: 10,
       paddingVertical: 10,
@@ -535,20 +702,20 @@ const getStyles = (isDarkMode, user) =>
       borderBottomWidth: 1
     },
     row2: {
-      flexDirection: !config.isNoman ? 'column' : 'row',
-      width: !config.isNoman ? '100%' : '100%',
-      justifyContent: !config.isNoman ? 'center' : 'space-between',
+      flexDirection: 'row',
+      width: '100%',
+      justifyContent: 'space-between',
       alignItems: 'center',
       padding: 10,
       paddingVertical: 10,
-      overflow: 'hidden', // Prevents text from overflowing outside the container
-      flexWrap: 'wrap', // This ensures the text wraps when it exceeds maxWidth
+      overflow: 'hidden',
+      flexWrap: 'wrap',
     },
     title: { fontSize: 14, fontWeight: 'bold', color: isDarkMode ? 'white' : 'black' },
     rightSide: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginTop: !config.isNoman ? 20 : 0
+      marginTop: 0
     },
     iconNew: {
       marginLeft: 20,
@@ -634,7 +801,180 @@ const getStyles = (isDarkMode, user) =>
       fontSize: 14,
       alignSelf: 'center',
       color: config.colors.hasBlockGreen
-    }
+    },
+    // ── Alternate (non-Noman) styles ──
+    altNotifCard: {
+      backgroundColor: isDarkMode ? '#152238' : '#ffffff',
+      borderRadius: 14,
+      padding: 14,
+      marginTop: 10,
+      borderLeftWidth: 4,
+      borderLeftColor: config.colors.primary,
+    },
+    altNotifRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    altNotifIconCircle: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: config.colors.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 10,
+    },
+    altNotifTextWrap: {
+      flex: 1,
+    },
+    altNotifTitle: {
+      fontSize: 13,
+      fontWeight: 'bold',
+      color: isDarkMode ? 'white' : 'black',
+    },
+    altNotifDesc: {
+      fontSize: 9,
+      color: isDarkMode ? '#aaa' : '#777',
+      marginTop: 2,
+    },
+    altAddFruitBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginLeft: 8,
+    },
+    altChipRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      marginTop: 10,
+      gap: 6,
+    },
+    altChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: isDarkMode ? '#1a2d4a' : '#e8f0fe',
+      borderRadius: 20,
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+    },
+    altChipIcon: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      marginRight: 6,
+    },
+    altChipText: {
+      fontSize: 11,
+      fontWeight: '600',
+      marginRight: 6,
+    },
+    altTimerBanner: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: config.colors.primary,
+      borderRadius: 12,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      marginTop: 14,
+    },
+    altTimerLabel: {
+      color: 'white',
+      fontWeight: 'bold',
+      fontSize: 14,
+    },
+    altTimerBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(0,0,0,0.2)',
+      borderRadius: 8,
+      paddingVertical: 4,
+      paddingHorizontal: 10,
+    },
+    altTimerText: {
+      color: 'white',
+      fontWeight: 'bold',
+      fontSize: 13,
+      marginLeft: 4,
+    },
+    altStockContainer: {
+      backgroundColor: isDarkMode ? '#152238' : '#ffffff',
+      borderRadius: 12,
+      padding: 10,
+      marginTop: 6,
+    },
+    altStockItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 8,
+      marginBottom: 6,
+      borderBottomWidth: 1,
+      borderBottomColor: isDarkMode ? '#333' : '#eee',
+    },
+    altStockLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
+    altStockIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 10,
+      marginRight: 10,
+    },
+    altStockName: {
+      fontSize: 15,
+      fontWeight: 'bold',
+    },
+    altStockRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    altPricePill: {
+      backgroundColor: config.colors.hasBlockGreen,
+      borderRadius: 10,
+      paddingVertical: 4,
+      paddingHorizontal: 10,
+    },
+    altPricePillText: {
+      color: 'white',
+      fontSize: 12,
+      fontWeight: 'bold',
+    },
+    altRefreshPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: config.colors.hasBlockGreen,
+      borderRadius: 24,
+      paddingVertical: 12,
+      marginTop: 14,
+      marginHorizontal: 40,
+    },
+    altRefreshText: {
+      color: 'white',
+      fontWeight: 'bold',
+      fontSize: 13,
+      marginLeft: 8,
+    },
+    altPrevLabel: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginVertical: 16,
+    },
+    altPrevLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: isDarkMode ? '#333' : '#ddd',
+    },
+    altPrevText: {
+      fontSize: 12,
+      fontWeight: 'bold',
+      marginHorizontal: 12,
+    },
   });
 
 export default TimerScreen;

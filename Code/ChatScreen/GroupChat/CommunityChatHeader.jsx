@@ -149,7 +149,7 @@ const CommunityChatHeader = ({
             <Icon
               name="game-controller-outline"
               size={24}
-              color={config.colors.primary}
+              color={ config.colors.primary}
             />
             {hasValidInvite && (
               <View style={{ position: 'absolute', top: 4, right: 4, backgroundColor: '#8B5CF6', borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 }}>
@@ -172,7 +172,7 @@ const CommunityChatHeader = ({
             <Icon
               name="chatbox-outline"
               size={24}
-              color={config.colors.primary}
+              color={ config.colors.primary}
             />
             {unreadcount > 0 && (
               <View style={{ position: 'absolute', top: 4, right: 4, backgroundColor: 'red', borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 }}>
@@ -197,7 +197,7 @@ const CommunityChatHeader = ({
             <Icon
               name="people-circle-outline"
               size={24}
-              color={config.colors.primary}
+              color={ config.colors.primary}
             />
             {/* Show "!" if there are pending invitations or join requests (prioritized), otherwise show unread count */}
             {(pendingGroupInvitationsCount > 0 || pendingJoinRequestsCount > 0 || groupUnreadCount > 0) && (
@@ -222,7 +222,7 @@ const CommunityChatHeader = ({
             <Icon
               name="trophy-outline"
               size={24}
-              color={config.colors.primary}
+              color={ config.colors.primary}
             />
           </TouchableOpacity>
 
@@ -237,7 +237,7 @@ const CommunityChatHeader = ({
             <Icon
               name="people-outline"
               size={24}
-              color={config.colors.primary}
+              color={ config.colors.primary}
             />
           </TouchableOpacity>
 
@@ -253,7 +253,7 @@ const CommunityChatHeader = ({
               <Icon
                 name="shield-checkmark-outline"
                 size={24}
-                color={config.colors.primary}
+                color={ config.colors.primary}
               />
             </TouchableOpacity>
           )}

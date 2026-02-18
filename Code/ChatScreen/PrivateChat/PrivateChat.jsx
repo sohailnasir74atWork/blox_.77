@@ -546,6 +546,18 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       trimmedText ||
       (hasImage ? '📷 Photo' : hasFruits ? `🐾 ${fruits.length} pet(s)` : '');
 
+    // ✅ Optimistic: add message to local state immediately (no waiting for Firebase)
+    const optimisticMsg = {
+      id: String(timestamp),
+      ...messageData,
+      sender: user?.displayName || 'You',
+      avatar: user?.avatar || null,
+    };
+    setMessages(prev => {
+      if (!Array.isArray(prev)) return [optimisticMsg];
+      return [optimisticMsg, ...prev].sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
+    });
+
     try {
       await messageRef.set(messageData);
 
@@ -598,11 +610,6 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
 
       return () => {
         clearActiveChat(user.id);
-        // ✅ Show ad when leaving if: 20+ seconds spent AND 3+ messages sent AND not Pro
-        const timeSpent = Date.now() - (chatEnterTimeRef.current || Date.now());
-        if (timeSpent >= 20000 && hasSentMessageRef.current >= 3 && !localState?.isPro) {
-          InterstitialAdManager.showAd();
-        }
       };
     }, [user?.id, selectedUserId, chatKey, localState?.isPro])
   );

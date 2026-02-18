@@ -337,11 +337,7 @@ const HomeScreen = ({ selectedTheme }) => {
           setSelectedTrade(newTrade);
           setOpenShareModel(true);
           mixpanel.track("Start Sharing");
-          if (!localState.isPro && !proGranted) {
-            InterstitialAdManager.showAd(showSuccessCallback, showSuccessCallback);
-          } else {
-            showSuccessCallback();
-          }
+          showSuccessCallback();
         }, 300);
       } else {
         const now = Date.now();
@@ -387,7 +383,7 @@ const HomeScreen = ({ selectedTheme }) => {
           timeoutRefs.current[timeoutKey1] = setTimeout(() => {
             if (!isMountedRef.current) return;
 
-            if (!localState.isPro && !proGranted) {
+            if (!localState?.isPro) {
               rafRefs.current[rafKey2] = requestAnimationFrame(() => {
                 if (!isMountedRef.current) return;
 
@@ -726,6 +722,388 @@ const HomeScreen = ({ selectedTheme }) => {
   const lastFilledIndexHas = hasItems.reduce((lastIndex, item, index) => (item ? index : lastIndex), -1);
   const lastFilledIndexWant = wantsItems.reduce((lastIndex, item, index) => (item ? index : lastIndex), -1);
 
+  // ── Alternate (non-Noman) layout ──
+  if (!config.isNoman) {
+    return (
+      <>
+        <GestureHandlerRootView>
+          <View style={styles.container} key={language}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <ViewShot ref={viewRef} style={styles.screenshotView}>
+
+                {/* Hero profit/loss card */}
+                <View style={styles.altHeroCard}>
+                  <View style={styles.altHeroTop}>
+                    <View style={styles.altHeroIconWrap}>
+                      <Icon
+                        name={isProfit ? 'trending-up' : (neutral ? 'remove' : 'trending-down')}
+                        size={28}
+                        color={'white'}
+                      />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 14 }}>
+                      <Text style={styles.altHeroLabel}>
+                        {isProfit ? t('home.profit') : (neutral ? 'Even' : t('home.loss'))}
+                      </Text>
+                      <Text style={styles.altHeroAmount}>
+                        ${formatValue(Math.abs(profitLoss))}
+                      </Text>
+                    </View>
+                    <View style={styles.altHeroPercentBadge}>
+                      <Text style={styles.altHeroPercentText}>{profitPercentage}%</Text>
+                    </View>
+                  </View>
+                  {/* Quick stats row inside hero */}
+                  <View style={styles.altHeroStatsRow}>
+                    <View style={styles.altHeroStat}>
+                      <Text style={styles.altHeroStatLabel}>ME Value</Text>
+                      <Text style={styles.altHeroStatVal}>{formatValue(hasTotal.value || 0)}</Text>
+                    </View>
+                    <View style={[styles.altHeroStatDivider]} />
+                    <View style={styles.altHeroStat}>
+                      <Text style={styles.altHeroStatLabel}>YOU Value</Text>
+                      <Text style={styles.altHeroStatVal}>{formatValue(wantsTotal.value || 0)}</Text>
+                    </View>
+                    <View style={[styles.altHeroStatDivider]} />
+                    <View style={styles.altHeroStat}>
+                      <Text style={styles.altHeroStatLabel}>ME Price</Text>
+                      <Text style={styles.altHeroStatVal}>${formatValue(hasTotal.price || 0)}</Text>
+                    </View>
+                    <View style={[styles.altHeroStatDivider]} />
+                    <View style={styles.altHeroStat}>
+                      <Text style={styles.altHeroStatLabel}>YOU Price</Text>
+                      <Text style={styles.altHeroStatVal}>${formatValue(wantsTotal.price || 0)}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* ME Section */}
+                <View style={styles.altSectionHeader}>
+                  <View style={styles.altSectionDot} />
+                  <Text style={styles.altSectionTitle}>ME</Text>
+                  <View style={{ flex: 1 }} />
+                  <View style={styles.altSectionBadge}>
+                    <Text style={styles.altSectionBadgeText}>Demand: {aggregateDemand.buy || '0/10'}</Text>
+                  </View>
+                </View>
+                <View style={styles.altItemGrid}>
+                  {hasItems?.map((item, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.altItemCard,
+                        item?.Type === 'p' && styles.altItemCardPerm,
+                      ]}
+                      onPress={() => handleCellPress(index, true)}
+                    >
+                      {item ? (
+                        <>
+                          {(() => {
+                            const itemKey = item.Name.replace(/[^a-zA-Z0-9]/g, '_');
+                            const demand = demandData[itemKey];
+                            const demandString = demand?.demand || '0/10';
+                            return demandString !== '0/10' ? (
+                              <View style={styles.altDemandChip}><Text style={styles.altDemandText}>{demandString}</Text></View>
+                            ) : null;
+                          })()}
+                          <Image
+                            source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
+                            style={styles.altItemImage}
+                          />
+                          <View style={styles.altItemInfo}>
+                            <Text style={[styles.altItemName, { color: item.Type === 'p' ? '#3a2a00' : (isDarkMode ? '#fff' : '#1a1a2e') }]} numberOfLines={1}>{item.Name}</Text>
+                            <Text style={[styles.altItemValue, { color: item.Type === 'p' ? '#5a4a00' : config.colors.secondary }]}>
+                              {(() => {
+                                const value = item.usePermanent
+                                  ? (Number(item.Permanent) === 0 ? 0 : Number(item.Permanent))
+                                  : (Number(item.Value) === 0 ? 0 : Number(item.Value));
+                                return value === 0 ? 'N/A' : formatValue(value);
+                              })()}
+                            </Text>
+                          </View>
+                        </>
+                      ) : (
+                        index === lastFilledIndexHas + 1 && (
+                          <View style={styles.altAddBtn}>
+                            <View style={styles.altAddCircle}>
+                              <Icon name="add" size={20} color={config.colors.hasBlockGreen} />
+                            </View>
+                            {/* <Text style={[styles.altAddText, { color: isDarkMode ? '#666' : '#aaa' }]}>Add</Text> */}
+                          </View>
+                        )
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Divider with circular reset */}
+                <View style={styles.altDividerRow}>
+                  <View style={styles.altDividerLine} />
+                  <TouchableOpacity style={styles.altDividerIcon} onPress={resetState} activeOpacity={0.7}>
+                    <Icon name="refresh" size={18} color="white" />
+                  </TouchableOpacity>
+                  <View style={styles.altDividerLine} />
+                </View>
+
+                {/* YOU Section */}
+                <View style={styles.altSectionHeader}>
+                  <View style={[styles.altSectionDot, { backgroundColor: config.colors.wantBlockRed }]} />
+                  <Text style={[styles.altSectionTitle, { color: config.colors.wantBlockRed }]}>YOU</Text>
+                  <View style={{ flex: 1 }} />
+                  <View style={[styles.altSectionBadge, { backgroundColor: config.colors.wantBlockRed }]}>
+                    <Text style={styles.altSectionBadgeText}>Demand: {aggregateDemand.sale || '0/10'}</Text>
+                  </View>
+                </View>
+                <View style={styles.altItemGrid}>
+                  {wantsItems?.map((item, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.altItemCard,
+                        item?.Type === 'p' && styles.altItemCardPerm,
+                      ]}
+                      onPress={() => handleCellPress(index, false)}
+                    >
+                      {item ? (
+                        <>
+                          {(() => {
+                            const itemKey = item.Name.replace(/[^a-zA-Z0-9]/g, '_');
+                            const demand = demandData[itemKey];
+                            const demandString = demand?.demand || '0/10';
+                            return demandString !== '0/10' ? (
+                              <View style={styles.altDemandChip}><Text style={styles.altDemandText}>{demandString}</Text></View>
+                            ) : null;
+                          })()}
+                          <Image
+                            source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
+                            style={styles.altItemImage}
+                          />
+                          <View style={styles.altItemInfo}>
+                            <Text style={[styles.altItemName, { color: item.Type === 'p' ? '#3a2a00' : (isDarkMode ? '#fff' : '#1a1a2e') }]} numberOfLines={1}>{item.Name}</Text>
+                            <Text style={[styles.altItemValue, { color: item.Type === 'p' ? '#5a4a00' : config.colors.secondary }]}>
+                              {(() => {
+                                const value = item.usePermanent
+                                  ? (Number(item.Permanent) === 0 ? 0 : Number(item.Permanent))
+                                  : (Number(item.Value) === 0 ? 0 : Number(item.Value));
+                                return value === 0 ? 'N/A' : formatValue(value);
+                              })()}
+                            </Text>
+                          </View>
+                        </>
+                      ) : (
+                        index === lastFilledIndexWant + 1 && (
+                          <View style={styles.altAddBtn}>
+                            <View style={[styles.altAddCircle, { borderColor: config.colors.wantBlockRed }]}>
+                              <Icon name="add" size={20} color={config.colors.wantBlockRed} />
+                            </View>
+                            {/* <Text style={[styles.altAddText, { color: isDarkMode ? '#666' : '#aaa' }]}>Add</Text> */}
+                          </View>
+                        )
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Last Updated */}
+                <TouchableOpacity
+                  style={styles.altUpdatedRow}
+                  onPress={handleRefresh}
+                  disabled={refreshing}
+                  activeOpacity={0.7}
+                >
+                  {refreshing ? (
+                    <ActivityIndicator size="small" color={config.colors.secondary} style={{ marginRight: 6 }} />
+                  ) : (
+                    <Icon name="time-outline" size={13} color={isDarkMode ? '#556' : '#99a'} style={{ marginRight: 6 }} />
+                  )}
+                  <Text style={[styles.altUpdatedText, { color: isDarkMode ? '#556' : '#99a' }]}>
+                    {refreshing ? 'Updating...' : `Updated ${getLastUpdatedText()}`}
+                  </Text>
+                  {!refreshing && (
+                    <Icon name="refresh-outline" size={13} color={config.colors.secondary} style={{ marginLeft: 6 }} />
+                  )}
+                </TouchableOpacity>
+              </ViewShot>
+
+              {/* Action buttons */}
+              <View style={styles.altActionRow}>
+                <TouchableOpacity style={styles.altCreateBtn} onPress={() => handleCreateTradePress('create')} activeOpacity={0.85}>
+                  <Icon name="paper-plane-outline" size={16} color="white" />
+                  <Text style={styles.altBtnText}>{t('home.create_trade')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.altShareBtn} onPress={() => handleCreateTradePress('share')} activeOpacity={0.85}>
+                  <Icon name="share-social-outline" size={16} color="white" />
+                  <Text style={styles.altBtnText}>{t('home.share_trade')}</Text>
+                </TouchableOpacity>
+              </View>
+              {!localState.isPro && <View style={styles.createtradeAds}>
+                <TouchableOpacity
+                  style={styles.removeAdsButton}
+                  activeOpacity={0.9}
+                  onPress={() => { setShowofferwall(true); }}
+                >
+                  <View style={styles.removeAdsContent}>
+                    <View style={styles.crownWrapper}>
+                      <Image
+                        source={require('../../assets/pro.png')}
+                        style={{ width: 20, height: 20 }}
+                        resizeMode="contain"
+                      />
+                    </View>
+                    <View style={styles.removeAdsTextWrapper}>
+                      <Text style={styles.removeAdsTitle}>Remove Ads</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              </View>}
+            </ScrollView>
+            <Modal
+              visible={isDrawerVisible}
+              transparent={true}
+              animationType="slide"
+              onRequestClose={closeDrawer}
+            >
+              <Pressable style={styles.modalOverlay} onPress={closeDrawer} />
+              <ConditionalKeyboardWrapper>
+                <View>
+                  <View style={[styles.drawerContainer, { backgroundColor: isDarkMode ? '#0d1f3c' : 'white' }]}>
+                    <View style={{
+                      flexDirection: 'row', justifyContent: 'space-between', marginVertical: 10,
+                    }}>
+                      <TextInput
+                        style={styles.searchInput}
+                        placeholder={t('home.search_placeholder')}
+                        value={searchText}
+                        onChangeText={setSearchText}
+                        placeholderTextColor={isDarkMode ? '#8899aa' : '#888'}
+                      />
+                      <TouchableOpacity onPress={closeDrawer} style={styles.closeButton}>
+                        <Text style={styles.closeButtonText}>{t('home.close')}</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <FlatList
+                      onScroll={() => Keyboard.dismiss()}
+                      onTouchStart={() => Keyboard.dismiss()}
+                      keyboardShouldPersistTaps="handled"
+                      data={filteredData}
+                      keyExtractor={(item) => item.Name}
+                      renderItem={({ item }) => {
+                        let demandString = '0/10';
+                        if (localState.data) {
+                          try {
+                            let parsedData = localState.data;
+                            if (typeof localState.data === 'string') {
+                              parsedData = JSON.parse(localState.data);
+                            }
+                            const dataArray = Array.isArray(parsedData) ? parsedData : Object.values(parsedData || {});
+                            const originalItem = dataArray.find(
+                              (dataItem) =>
+                                dataItem?.name &&
+                                dataItem.name.toLowerCase() === item.Name.toLowerCase()
+                            );
+                            if (originalItem) {
+                              demandString = item.Type === 'p'
+                                ? (originalItem.permDemand || '0/10')
+                                : (originalItem.demand || '0/10');
+                            }
+                          } catch (error) {
+                            // Silently fail, use default
+                          }
+                        }
+
+                        return (
+                          <TouchableOpacity style={[styles.altDrawerItem, { backgroundColor: item.Type === 'p' ? '#e1a900' : isDarkMode ? '#152642' : '#e8f0fe' }]} onPress={() => selectItem(item)}>
+                            <>
+                              {demandString !== '0/10' && (
+                                <Text style={styles.demandBadgeText}>{demandString}</Text>
+                              )}
+                              <Image
+                                source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
+                                style={[styles.itemImageOverlay]}
+                              />
+                              <Text style={[[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : '#1a1a2e') }
+                              ]]}>${Number(item.Value)?.toLocaleString()}</Text>
+                              <Text style={[[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : '#1a1a2e') }
+                              ]]}>{item.Type === 'p' && 'Perm'} {item.Name}</Text>
+                            </>
+                          </TouchableOpacity>
+                        );
+                      }}
+                      numColumns={3}
+                      contentContainerStyle={styles.flatListContainer}
+                      columnWrapperStyle={styles.columnWrapper}
+                      initialNumToRender={12}
+                      maxToRenderPerBatch={9}
+                      windowSize={5}
+                      updateCellsBatchingPeriod={100}
+                    />
+                  </View>
+                </View>
+              </ConditionalKeyboardWrapper>
+            </Modal>
+            <Modal
+              visible={modalVisible}
+              transparent
+              animationType="slide"
+              onRequestClose={() => setModalVisible(false)}
+            >
+              <Pressable style={styles.modalOverlay} onPress={() => setModalVisible(false)} />
+              <ConditionalKeyboardWrapper>
+                <View>
+                  <View style={[styles.drawerContainer, { backgroundColor: isDarkMode ? '#0d1f3c' : 'white' }]}>
+                    <Text style={styles.modalMessage}>
+                      {t("home.trade_description")}
+                    </Text>
+                    <Text style={styles.modalMessagefooter}>
+                      {t("home.trade_description_hint")}
+                    </Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder={t("home.write_description")}
+                      maxLength={40}
+                      value={description}
+                      onChangeText={setDescription}
+                    />
+                    <View style={styles.buttonContainer}>
+                      <TouchableOpacity
+                        style={[styles.button, styles.cancelButton]}
+                        onPress={() => setModalVisible(false)}
+                      >
+                        <Text style={styles.buttonText}>{t('home.cancel')}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.button, styles.confirmButton]}
+                        onPress={handleCreateTrade}
+                        disabled={isSubmitting}
+                      >
+                        <Text style={styles.buttonText}>{isSubmitting ? t('home.submit') : t('home.confirm')}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              </ConditionalKeyboardWrapper>
+            </Modal>
+            <ShareTradeModal
+              visible={openShareModel}
+              onClose={() => setOpenShareModel(false)}
+              tradeData={selectedTrade}
+            />
+            <SignInDrawer
+              visible={isSigninDrawerVisible}
+              onClose={handleLoginSuccess}
+              selectedTheme={selectedTheme}
+              screen='Chat'
+              message={t("home.alert.sign_in_required")}
+            />
+          </View>
+          <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} track='Remove Ads' oneWallOnly={single_offer_wall} />
+        </GestureHandlerRootView>
+        {(!localState.isPro && !proGranted) && <BannerAdComponent />}
+      </>
+    );
+  }
+
+  // ── Original (Noman) layout ──
   return (
     <>
       <GestureHandlerRootView>
@@ -1056,6 +1434,10 @@ const HomeScreen = ({ selectedTheme }) => {
                     numColumns={3}
                     contentContainerStyle={styles.flatListContainer}
                     columnWrapperStyle={styles.columnWrapper}
+                    initialNumToRender={12}
+                    maxToRenderPerBatch={9}
+                    windowSize={5}
+                    updateCellsBatchingPeriod={100}
                   />
                 </View>
               </View>
@@ -1127,7 +1509,7 @@ const getStyles = (isDarkMode) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
+      backgroundColor: isDarkMode ? config.colors.backgroundDark : config.colors.backgroundLight,
       paddingBottom: 5,
     },
     summaryContainer: {
@@ -1191,10 +1573,6 @@ const getStyles = (isDarkMode) =>
       borderRadius: 10,
       marginBottom: 10,
       position: 'relative',
-      ...(!config.isNoman && {
-        borderWidth: 5,
-        borderColor: config.colors.hasBlockGreen,
-      }),
     },
     itemText: {
       color: isDarkMode ? 'white' : 'black',
@@ -1429,6 +1807,284 @@ const getStyles = (isDarkMode) =>
       // borderRadius: 15,
       // alignItems: 'center',
       // justifyContent: 'center',
+    },
+    // ── Alternate (non-Noman) styles ──
+    altHeroCard: {
+      backgroundColor: config.colors.primary,
+      borderRadius: 20,
+      padding: 18,
+      marginBottom: 16,
+      shadowColor: config.colors.primary,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.35,
+      shadowRadius: 12,
+      elevation: 8,
+    },
+    altHeroTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 14,
+    },
+    altHeroIconWrap: {
+      width: 48,
+      height: 48,
+      borderRadius: 14,
+      backgroundColor: 'rgba(255,255,255,0.18)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    altHeroLabel: {
+      color: 'rgba(255,255,255,0.7)',
+      fontSize: 12,
+      fontWeight: '600',
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
+    },
+    altHeroAmount: {
+      color: 'white',
+      fontSize: 26,
+      fontWeight: '800',
+      marginTop: 2,
+    },
+    altHeroPercentBadge: {
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+    },
+    altHeroPercentText: {
+      color: 'white',
+      fontWeight: 'bold',
+      fontSize: 16,
+    },
+    altHeroStatsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: 'rgba(255,255,255,0.1)',
+      borderRadius: 12,
+      paddingVertical: 10,
+      paddingHorizontal: 6,
+    },
+    altHeroStat: {
+      flex: 1,
+      alignItems: 'center',
+    },
+    altHeroStatLabel: {
+      color: 'rgba(255,255,255,0.55)',
+      fontSize: 9,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      letterSpacing: 0.3,
+    },
+    altHeroStatVal: {
+      color: 'white',
+      fontSize: 12,
+      fontWeight: 'bold',
+      marginTop: 2,
+    },
+    altHeroStatDivider: {
+      width: 1,
+      height: 24,
+      backgroundColor: 'rgba(255,255,255,0.15)',
+    },
+    altSectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 10,
+      marginTop: 6,
+    },
+    altSectionDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: config.colors.hasBlockGreen,
+      marginRight: 8,
+    },
+    altSectionTitle: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: config.colors.hasBlockGreen,
+      letterSpacing: 0.5,
+    },
+    altSectionBadge: {
+      backgroundColor: config.colors.hasBlockGreen,
+      borderRadius: 14,
+      paddingHorizontal: 12,
+      paddingVertical: 4,
+    },
+    altSectionBadgeText: {
+      color: 'white',
+      fontSize: 10,
+      fontWeight: 'bold',
+    },
+    altItemGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'space-between',
+      marginBottom: 4,
+      // minHeight: 62,
+    },
+    altItemCard: {
+      width: '48%',
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: isDarkMode ? '#152238' : '#ffffff',
+      borderRadius: 14,
+      padding: 10,
+      marginBottom: 10,
+      minHeight: 62,
+      position: 'relative',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.3 : 0.08,
+      shadowRadius: 6,
+      elevation: 3,
+      borderWidth: 1,
+      borderColor: isDarkMode ? '#1e3354' : '#eef2f6',
+    },
+    altItemCardPerm: {
+      backgroundColor: '#FFF3CC',
+      borderColor: '#e1a900',
+    },
+    altItemImage: {
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      marginRight: 10,
+    },
+    altItemInfo: {
+      flex: 1,
+    },
+    altItemName: {
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    altItemValue: {
+      fontSize: 11,
+      fontWeight: '600',
+      marginTop: 3,
+    },
+    altDemandChip: {
+      position: 'absolute',
+      top: -4,
+      right: -4,
+      backgroundColor: config.colors.secondary,
+      borderRadius: 8,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      zIndex: 10,
+    },
+    altDemandText: {
+      color: 'white',
+      fontSize: 8,
+      fontWeight: 'bold',
+    },
+    altAddBtn: {
+      width: '100%',
+      alignItems: 'center',
+      justifyContent: 'center',
+      // paddingVertical: 8,
+    },
+    altAddCircle: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      borderWidth: 2,
+      borderColor: config.colors.hasBlockGreen,
+      borderStyle: 'dashed',
+      justifyContent: 'center',
+      alignItems: 'center',
+      // marginBottom: 4,
+    },
+    altAddText: {
+      fontSize: 10,
+      fontWeight: '600',
+    },
+    altDividerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginVertical: 10,
+    },
+    altDividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: isDarkMode ? '#1e3354' : '#e0e6ee',
+    },
+    altDividerIcon: {
+      backgroundColor: config.colors.secondary,
+      borderRadius: 20,
+      width: 36,
+      height: 36,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginHorizontal: 14,
+      shadowColor: config.colors.secondary,
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.3,
+      shadowRadius: 6,
+      elevation: 4,
+    },
+    altUpdatedRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 10,
+      marginBottom: 6,
+    },
+    altUpdatedText: {
+      fontSize: 11,
+      fontWeight: '500',
+    },
+    altActionRow: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      marginTop: 12,
+      marginBottom: 8,
+      gap: 10,
+    },
+    altCreateBtn: {
+      // flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: config.colors.hasBlockGreen,
+      padding: 14,
+      borderRadius: 14,
+      shadowColor: config.colors.hasBlockGreen,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    altShareBtn: {
+      // flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: config.colors.secondary,
+      padding: 14,
+      borderRadius: 14,
+      shadowColor: config.colors.secondary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    altBtnText: {
+      color: 'white',
+      fontSize: 13,
+      fontWeight: 'bold',
+      marginLeft: 8,
+    },
+    altDrawerItem: {
+      width: '32%',
+      height: 110,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderRadius: 12,
+      marginBottom: 10,
+      position: 'relative',
     },
   });
 

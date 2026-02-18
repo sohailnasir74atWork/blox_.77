@@ -46,8 +46,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     };
 
     const sharewithAds = () => {
-        if (!localState.isPro && proGranted) { InterstitialAdManager.showAd(callbackfunction); }
-        else { callbackfunction() }
+        callbackfunction();
     }
 
     const handleShare = async () => {

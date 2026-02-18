@@ -6,8 +6,12 @@ import {
   TouchableOpacity,
   Text,
   Platform,
+  ScrollView,
+  StyleSheet as RNStyleSheet,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import FontAwesome from 'react-native-vector-icons/FontAwesome6';
+import config from '../../Helper/Environment';
 import { useGlobalState } from '../../GlobelStats';
 import SignInDrawer from '../../Firebase/SigninDrawer';
 import ChatHeaderContent from './ChatHeaderContent';
@@ -34,6 +38,12 @@ import PetModal from '../PrivateChat/PetsModel';
 leoProfanity.add(['hell', 'shit']);
 leoProfanity.loadDictionary('en');
 
+const CHANNELS = [
+  { id: 'trade', label: 'Trade', icon: 'handshake', path: 'chat_new' },
+  { id: 'raid', label: 'Raids', icon: 'bolt', path: 'chat_raid' },
+  { id: 'help', label: 'Help', icon: 'circle-question', path: 'chat_help' },
+  { id: 'playing', label: 'Playing', icon: 'gamepad', path: 'chat_playing' },
+];
 
 const bannerAdUnitId = getAdUnitId('banner');
 const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatFocused,
@@ -44,7 +54,6 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   const [replyTo, setReplyTo] = useState(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [pinnedMessages, setPinnedMessages] = useState([]);
   const [lastLoadedKey, setLastLoadedKey] = useState(null);
   const [isSigninDrawerVisible, setIsSigninDrawerVisible] = useState(false);
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
@@ -52,6 +61,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   const [isOnline, setIsOnline] = useState(false);
   const [isAdVisible, setIsAdVisible] = useState(true);
   const [isCooldown, setIsCooldown] = useState(false);
+  const cooldownEndRef = useRef(0);
   const [signinMessage, setSigninMessage] = useState(false);
   const { triggerHapticFeedback } = useHaptic();
   const { localState } = useLocalState()
@@ -64,6 +74,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   const [petModalVisible, setPetModalVisible] = useState(false);
   const [selectedFruits, setSelectedFruits] = useState([]);
   const [device, setDevice] = useState(null);
+  const [activeChannel, setActiveChannel] = useState(CHANNELS[0]); // ✅ Default to Trade Chat
 
   // ✅ Track last sent message to prevent duplicates (session-based, no Firebase cost)
   const lastSentMessageRef = useRef(null);
@@ -74,55 +85,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   const flatListRef = useRef();
   const gifAllowed = true; // Always allow GIFs/emojis
 
-  const chatRef = useMemo(() => ref(appdatabase, 'chat_new'), []);
-  const pinnedMessagesRef = useMemo(() => ref(appdatabase, 'pin_messages'), []);
-
-  useEffect(() => {
-    if (!pinnedMessagesRef) return;
-
-    const fetchPinnedMessages = async () => {
-      try {
-        const snapshot = await pinnedMessagesRef.once('value');
-        const pinnedMessagesData = snapshot.val() || {};
-
-        // ✅ Safety check and transform data into an array
-        const pinnedMessagesArray = Object.entries(pinnedMessagesData)
-          .map(([key, value]) => {
-            if (!key || !value || typeof value !== 'object') return null;
-            return {
-              firebaseKey: key,
-              ...value,
-            };
-          })
-          .filter(Boolean);
-
-        setPinnedMessages(pinnedMessagesArray);
-      } catch (error) {
-        console.error('Error loading pinned messages:', error);
-      }
-    };
-
-    fetchPinnedMessages();  // Fetch pinned messages initially
-
-    // Listen to real-time updates on pinned messages
-    const listener = pinnedMessagesRef.on('child_added', (snapshot) => {
-      if (!snapshot || !snapshot.key) return;
-      const data = snapshot.val();
-      if (!data || typeof data !== 'object') return;
-      const newPinnedMessage = { firebaseKey: snapshot.key, ...data };
-      setPinnedMessages((prev) => {
-        // ✅ Prevent duplicates
-        const exists = prev.some(msg => msg.firebaseKey === snapshot.key);
-        return exists ? prev : [...prev, newPinnedMessage];
-      });
-    });
-
-    return () => {
-      if (pinnedMessagesRef) {
-        pinnedMessagesRef.off('child_added', listener);
-      }
-    };
-  }, []);
+  const chatRef = useMemo(() => ref(appdatabase, activeChannel.path), [activeChannel.path]);
   // ✅ Memoize openProfileDrawer
   const openProfileDrawer = useCallback(async (userData) => {
     if (!userData || !userData.senderId) return;
@@ -223,7 +186,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
 
   const loadMessages = useCallback(
-    async (reset = false) => {
+    async (reset = false, refOverride = null) => {
+      const activeRef = refOverride || chatRef;
       try {
         if (reset) {
           // console.log('[loadMessages] Resetting messages...');
@@ -234,8 +198,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         // console.log(`[loadMessages] Fetching messages... reset: ${reset}, lastLoadedKey: ${lastLoadedKey}`);
 
         const messageQuery = reset
-          ? chatRef.orderByKey().limitToLast(PAGE_SIZE)
-          : chatRef.orderByKey().endAt(lastLoadedKey).limitToLast(PAGE_SIZE);
+          ? activeRef.orderByKey().limitToLast(PAGE_SIZE)
+          : activeRef.orderByKey().endAt(lastLoadedKey).limitToLast(PAGE_SIZE);
 
         const snapshot = await messageQuery.once('value');
         const data = snapshot.val() || {};
@@ -289,31 +253,92 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   );
 
 
+  // ✅ Initial setup (runs once on mount)
   useEffect(() => {
-    const platform = Platform.OS; // "ios" or "android"
-
-    // console.log('Initial loading of messages.');
-    loadMessages(true); // Reset and load the latest messages
     if (setChatFocused && typeof setChatFocused === 'function') {
       setChatFocused(false);
     }
-    setDevice(platform);
+    setDevice(Platform.OS);
   }, [setChatFocused]);
+
+  // ✅ Channel switch handler — resets state for new channel
+  const handleChannelSwitch = useCallback((channel) => {
+    if (channel.id === activeChannel.id) return;
+    setActiveChannel(channel);
+    setMessages([]);
+    setPendingMessages([]);
+    setLastLoadedKey(null);
+    setReplyTo(null);
+    setInput('');
+    newestMessageIdRef.current = null;
+    hasInitializedRef.current = false;
+    lastSentMessageRef.current = null;
+  }, [activeChannel.id]);
+
+  // ✅ Load messages when channel changes (covers initial mount + every switch)
+  //    Fully inlined to avoid ANY stale-closure issues with loadMessages/chatRef
+  useEffect(() => {
+    if (!appdatabase || !activeChannel?.path) return;
+    let cancelled = false;
+    const currentRef = ref(appdatabase, activeChannel.path);
+
+    const load = async () => {
+      try {
+        setLoading(true);
+        setLastLoadedKey(null);
+
+        const snapshot = await currentRef.orderByKey().limitToLast(PAGE_SIZE).once('value');
+        if (cancelled) return;
+
+        const data = snapshot.val() || {};
+        const bannedIds = Array.isArray(bannedUsers)
+          ? bannedUsers.map(u => (typeof u === 'string' ? u : u?.id)).filter(Boolean)
+          : [];
+
+        const parsed = Object.entries(data)
+          .map(([key, value]) => {
+            if (!key || !value || typeof value !== 'object') return null;
+            return validateMessage({ id: key, ...value });
+          })
+          .filter(Boolean)
+          .filter(msg => msg?.senderId && !bannedIds.includes(msg.senderId))
+          .sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
+
+        if (cancelled) return;
+
+        setMessages(parsed);
+        const newLastKey = parsed.length > 0 ? parsed[parsed.length - 1]?.id : null;
+        setLastLoadedKey(newLastKey);
+      } catch (error) {
+        if (!cancelled) console.error('[channel load] Error:', error);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    load();
+    return () => { cancelled = true; };
+  }, [activeChannel.path, appdatabase, bannedUsers, validateMessage]);
 
   // const bannedUserIds = bannedUsers.map((user) => user.id); // Extract IDs from bannedUsers
 
-  // ✅ OPTIMIZED: Skip initial data download in listener to reduce wildcard downloads
+  // ✅ OPTIMIZED: Real-time listener — creates its own ref from activeChannel.path
+  //    to guarantee it always points to the correct channel
   useEffect(() => {
-    if (!isFocused || !chatRef) return;
+    if (!isFocused || !appdatabase || !activeChannel?.path) return;
 
+    let cancelled = false;
+    const currentRef = ref(appdatabase, activeChannel.path);
+    let listenerQueryRef = null;   // ← store the EXACT query the listener is on
     let listener = null;
     let initialLoadQuery = null;
 
     const initializeListener = async () => {
       try {
         // Step 1: Get only the latest message KEY (minimal download)
-        initialLoadQuery = chatRef.orderByKey().limitToLast(1);
+        initialLoadQuery = currentRef.orderByKey().limitToLast(1);
         const initialSnapshot = await initialLoadQuery.once('value');
+        if (cancelled) return;
 
         if (initialSnapshot.exists()) {
           const data = initialSnapshot.val();
@@ -326,10 +351,10 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         hasInitializedRef.current = true;
 
         // Step 2: Listen for NEW messages only (skips initial data)
-        const newMessagesQuery = chatRef.orderByKey().limitToLast(1);
+        listenerQueryRef = currentRef.orderByKey().limitToLast(1);
 
-        listener = newMessagesQuery.on('child_added', (snapshot) => {
-          if (!snapshot || !snapshot.key) return;
+        listener = listenerQueryRef.on('child_added', (snapshot) => {
+          if (cancelled || !snapshot || !snapshot.key) return;
 
           // ✅ Skip if this is the message we already loaded during initialization
           if (hasInitializedRef.current && snapshot.key === newestMessageIdRef.current) {
@@ -356,12 +381,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
             // ✅ Use ref for isAtBottom to prevent listener recreation
             if (isAtBottomRef.current) {
-              // Insert immediately
-              // console.log("📥 User is at bottom, adding message now");
               return [newMessage, ...prev];
             } else {
-              // Hold in pending
-              // console.log("⏳ Holding new message, user not at bottom");
               setPendingMessages((prevPending) => {
                 const pendingIds = new Set(prevPending.map((msg) => msg?.id).filter(Boolean));
                 if (pendingIds.has(newMessage.id)) return prevPending;
@@ -372,10 +393,12 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
           });
         });
       } catch (error) {
+        if (cancelled) return;
         console.error('Error initializing chat listener:', error);
         // Fallback to original listener if initialization fails
-        listener = chatRef.limitToLast(1).on('child_added', (snapshot) => {
-          if (!snapshot || !snapshot.key) return;
+        listenerQueryRef = currentRef.limitToLast(1);
+        listener = listenerQueryRef.on('child_added', (snapshot) => {
+          if (cancelled || !snapshot || !snapshot.key) return;
           const data = snapshot.val();
           if (!data || typeof data !== 'object') return;
           const newMessage = validateMessage({ id: snapshot.key, ...data });
@@ -387,7 +410,6 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
             const seenKeys = new Set(prev.map((msg) => msg?.id).filter(Boolean));
             if (seenKeys.has(newMessage.id)) return prev;
 
-            // ✅ Use ref for fallback too
             if (isAtBottomRef.current) {
               return [newMessage, ...prev];
             } else {
@@ -406,15 +428,19 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     initializeListener();
 
     return () => {
-      if (listener && chatRef) {
-        chatRef.off('child_added', listener);
+      cancelled = true;
+      // ✅ Remove listener from the EXACT query ref it was attached to
+      if (listener && listenerQueryRef) {
+        listenerQueryRef.off('child_added', listener);
       }
+      // ✅ Safety net: remove ALL listeners on this path
+      currentRef.off();
       if (initialLoadQuery) {
         initialLoadQuery.off('value');
       }
       hasInitializedRef.current = false;
     };
-  }, [chatRef, validateMessage, isFocused, bannedUsers]); // ✅ Removed isAtBottom from dependencies
+  }, [activeChannel.path, appdatabase, validateMessage, isFocused, bannedUsers]);
 
 
 
@@ -443,60 +469,6 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
 
 
-
-  const handlePinMessage = async (message) => {
-    try {
-      const pinnedMessage = { ...message, pinnedAt: Date.now() };
-      const newRef = await pinnedMessagesRef.push(pinnedMessage);
-
-      // Use the Firebase key for tracking the message
-      setPinnedMessages((prev) => [
-        ...prev,
-        { firebaseKey: newRef.key, ...pinnedMessage },
-      ]);
-      // console.log('Pinned message added with firebaseKey:', newRef.key);
-    } catch (error) {
-      console.error('Error pinning message:', error);
-      Alert.alert(t('home.alert.error'), 'Could not pin the message. Please try again.');
-    }
-  };
-
-
-
-  const unpinSingleMessage = async (firebaseKey) => {
-    try {
-      // console.log(`Received firebaseKey for unpinning: ${firebaseKey}`);
-
-      // Remove the message from Firebase
-      const messageRef = pinnedMessagesRef.child(firebaseKey);
-      // console.log(`Firebase reference for removal: ${messageRef.toString()}`);
-      await messageRef.remove();
-      // console.log(`Message with Firebase key: ${firebaseKey} successfully removed from Firebase.`);
-
-      // Update the local state by filtering out the removed message
-      setPinnedMessages((prev) => {
-        const updatedMessages = prev.filter((msg) => msg.firebaseKey !== firebaseKey);
-        // console.log('Updated pinned messages after removal:', updatedMessages);
-        return updatedMessages;
-      });
-    } catch (error) {
-      console.error('Error unpinning message:', error);
-      Alert.alert(t('home.alert.error'), 'Could not unpin the message. Please try again.');
-    }
-  };
-
-
-
-
-  const clearAllPinnedMessages = async () => {
-    try {
-      await pinnedMessagesRef.remove();
-      setPinnedMessages([]);
-    } catch (error) {
-      console.error('Error clearing pinned messages:', error);
-      Alert.alert(t('home.alert.error'), 'Could not clear pinned messages. Please try again.');
-    }
-  };
 
   const handleLoginSuccess = () => {
     setIsSigninDrawerVisible(false);
@@ -543,7 +515,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     const hasFruits = Array.isArray(fruits) && fruits.length > 0;
 
     const MAX_CHARACTERS = 250;
-    const MESSAGE_COOLDOWN = 100; // ms
+    const MESSAGE_COOLDOWN = 20 * 1000; // ms
     const LINK_REGEX = /(https?:\/\/[^\s]+)/i; // no "g" flag
     if (!user?.id || !currentUserEmail) {
       showMessage({
@@ -551,7 +523,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         description: 'You must be logged in to send Messages',
         type: 'danger',
       });
-      return;
+      return false;
 
     }
 
@@ -566,7 +538,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
           description: 'You are permanently banned from sending messages.',
           type: 'danger',
         });
-        return;
+        return false;
       }
 
       if (typeof bannedUntil === 'number' && now < bannedUntil) {
@@ -582,7 +554,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
           duration: 5000,
 
         });
-        return;
+        return false;
       }
     }
     // Use the argument, not external state
@@ -590,32 +562,33 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
     // ✅ Validate fruits count - maximum 18 fruits allowed
     if (hasFruits && fruits.length > 18) {
-      Alert.alert(t('home.alert.error'), 'You can only send up to 18 pets in a message.');
-      return;
+      showMessage({ message: t('home.alert.error'), description: 'You can only send up to 18 pets in a message.', type: 'danger' });
+      return false;
     }
 
     // Disallow empty text + no fruits
     if (!trimmedInput && !hasFruits && !emojiUrl) {
-      Alert.alert(t('home.alert.error'), 'Message cannot be empty.');
-      return;
+      showMessage({ message: t('home.alert.error'), description: 'Message cannot be empty.', type: 'danger' });
+      return false;
     }
 
     // Profanity check
     if (trimmedInput && leoProfanity.check(trimmedInput)) {
-      Alert.alert(t('home.alert.error'), t('misc.inappropriateLanguage'));
-      return;
+      showMessage({ message: t('home.alert.error'), description: t('misc.inappropriateLanguage'), type: 'danger' });
+      return false;
     }
 
     // Length check
     if (trimmedInput.length > MAX_CHARACTERS) {
-      Alert.alert(t('home.alert.error'), t('misc.messageTooLong'));
-      return;
+      showMessage({ message: t('home.alert.error'), description: t('misc.messageTooLong'), type: 'danger' });
+      return false;
     }
 
     // Cooldown check
     if (isCooldown) {
-      Alert.alert(t('home.alert.error'), t('misc.sendingTooQuickly'));
-      return;
+      const secondsLeft = Math.ceil((cooldownEndRef.current - Date.now()) / 1000);
+      showMessage({ message: `Please wait ${secondsLeft > 0 ? secondsLeft : 1}s before sending another message.`, type: 'warning', duration: 2000 });
+      return false;
     }
 
     // ✅ Duplicate message check - prevent copy-paste spam (no Firebase cost, client-side only)
@@ -633,19 +606,16 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         lastMessage.emoji === currentMessage.emoji;
 
       if (isDuplicate) {
-        Alert.alert(
-          t('home.alert.error'),
-          'You cannot send the same message twice. Please modify your message.',
-        );
-        return;
+        showMessage({ message: t('home.alert.error'), description: 'You cannot send the same message twice. Please modify your message.', type: 'warning' });
+        return false;
       }
     }
 
     // Link check - disallow links for all users
     const containsLink = trimmedInput ? LINK_REGEX.test(trimmedInput) : false;
     if (containsLink) {
-      Alert.alert(t('home.alert.error'), 'Links are not allowed in messages.');
-      return;
+      showMessage({ message: t('home.alert.error'), description: 'Links are not allowed in messages.', type: 'danger' });
+      return false;
     }
 
     try {
@@ -694,14 +664,14 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       setReplyTo(null);
 
       // Start cooldown
+      cooldownEndRef.current = Date.now() + MESSAGE_COOLDOWN;
       setIsCooldown(true);
       setTimeout(() => setIsCooldown(false), MESSAGE_COOLDOWN);
+      return true;
     } catch (error) {
       console.error('Error sending message:', error);
-      Alert.alert(
-        t('home.alert.error'),
-        'Could not send your message. Please try again.',
-      );
+      showMessage({ message: t('home.alert.error'), description: 'Could not send your message. Please try again.', type: 'danger' });
+      return false;
     }
   };
 
@@ -711,9 +681,50 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       <GestureHandlerRootView>
 
         <View style={styles.container}>
+          {/* ✅ Channel Pill Switcher */}
+          <ScrollView
+            horizontal
+            maxHeight={35}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={channelTabStyles.scrollContent}
+          >
+            {CHANNELS.map((channel) => {
+              const isActive = channel.id === activeChannel.id;
+              return (
+                <TouchableOpacity
+                  key={channel.id}
+                  style={[
+                    channelTabStyles.pill,
+                    isActive
+                      ? { backgroundColor: config.colors.primary, borderColor: config.colors.primary }
+                      : { backgroundColor: 'transparent', borderColor: theme === 'dark' ? '#444' : '#ccc' },
+                  ]}
+                  onPress={() => handleChannelSwitch(channel)}
+                  activeOpacity={0.8}
+                >
+                  <FontAwesome
+                    name={channel.icon}
+                    size={11}
+                    color={isActive ? '#fff' : (theme === 'dark' ? '#aaa' : '#666')}
+                    solid={isActive}
+                    style={{ marginRight: 5 }}
+                  />
+                  <Text
+                    style={[
+                      channelTabStyles.pillText,
+                      { color: isActive ? '#fff' : (theme === 'dark' ? '#aaa' : '#666') },
+                      isActive && channelTabStyles.pillTextActive,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {channel.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
           <ChatHeaderContent
-            pinnedMessages={pinnedMessages}
-            onUnpinMessage={unpinSingleMessage}
             selectedTheme={selectedTheme}
             modalVisibleChatinfo={modalVisibleChatinfo}
             setModalVisibleChatinfo={setModalVisibleChatinfo}
@@ -731,14 +742,13 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                 user={user}
                 flatListRef={flatListRef}
                 isDarkMode={theme === 'dark'}
-                onPinMessage={handlePinMessage}
-                onDeleteMessage={(messageId) => chatRef.child(messageId.replace('chat_new-', '')).remove()}
+                onDeleteMessage={(messageId) => chatRef.child(messageId.replace(`${activeChannel.path}-`, '')).remove()}
                 // isAdmin={isAdmin}
                 refreshing={refreshing}
                 onRefresh={handleRefresh}
                 handleLoadMore={handleLoadMore}
                 onReply={(message) => { setReplyTo(message); triggerHapticFeedback('impactLight'); }} // Pass selected message to MessageInput
-                onDeleteAllMessage={(senderId) => handleDeleteLast300Messages(senderId)}
+                onDeleteAllMessage={(senderId) => handleDeleteLast300Messages(senderId, false, activeChannel.path)}
                 banUser={banUser}
                 // makeadmin={makeAdmin}
                 // onReport={onReport}
@@ -771,6 +781,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                 gifAllowed={gifAllowed}
                 selectedEmoji={selectedEmoji}
                 setSelectedEmoji={setSelectedEmoji}
+                activeChannelId={activeChannel.id}
               />
             ) : (
               <TouchableOpacity
@@ -831,5 +842,31 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     </>
   );
 };
+
+const channelTabStyles = RNStyleSheet.create({
+  scrollContent: {
+    paddingHorizontal: 10,
+    // paddingVertical: 8,
+    alignItems: 'center',
+    maxHeight: 36,
+    
+    gap: 8,
+  },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  pillText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  pillTextActive: {
+    fontWeight: '700',
+  },
+});
 
 export default ChatScreen;

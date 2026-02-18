@@ -366,7 +366,7 @@ export const clearActiveGroupChat = async (userId, groupId) => {
 };
 
 
-export const handleDeleteLast300Messages = async (senderId, showAlert = false) => {
+export const handleDeleteLast300Messages = async (senderId, showAlert = false, chatPath = 'chat_new') => {
   // ✅ Safety check
   if (!senderId) {
     console.error('❌ Invalid senderId for handleDeleteLast300Messages');
@@ -376,7 +376,7 @@ export const handleDeleteLast300Messages = async (senderId, showAlert = false) =
   try {
     const db = getDatabase();
     const chatQuery = query(
-      ref(db, 'chat_new'),
+      ref(db, chatPath),
       orderByChild('senderId'),
       equalTo(senderId),
       limitToLast(80)
@@ -402,7 +402,7 @@ export const handleDeleteLast300Messages = async (senderId, showAlert = false) =
     const updates = {};
     sorted.forEach(([key]) => {
       if (key) {
-        updates[`chat_new/${key}`] = null;
+        updates[`${chatPath}/${key}`] = null;
       }
     });
 

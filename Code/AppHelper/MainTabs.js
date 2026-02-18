@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import { Image, TouchableOpacity, View } from 'react-native';
+import { Image, TouchableOpacity, View, Text, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Ionicons';
 import HomeScreen from '../Homescreen/HomeScreen';
@@ -92,7 +92,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
       <AnimatedTabIcon
         focused={focused}
         iconName={getTabIcon(route.name)}
-        color={config.colors.primary}
+        color={focused ? config.colors.secondary : selectedTheme.colors.text}
         size={14}
       />
     ),
@@ -126,7 +126,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
       fontSize: 9, // 👈 Your custom label font size
       fontWeight: 'bold', // Optional: Custom font family
     },
-    tabBarActiveTintColor: config.colors.primary,
+    tabBarActiveTintColor: config.colors.secondary,
     tabBarInactiveTintColor: selectedTheme.colors.text,
     headerStyle: {
       backgroundColor: selectedTheme.colors.background,
@@ -141,7 +141,33 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
       {/* <TouchableOpacity style={{ marginRight: 12 }} onPress={() => navigation.navigate('Store')}>
         <BouncingCartIcon />
       </TouchableOpacity> */}
-    
+
+      {config.isNoman && (
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Analytics')}
+          style={{
+            marginRight: 12,
+            paddingHorizontal: 8,
+            paddingVertical: 4,
+            position: 'relative',
+          }}
+        >
+          <FontAwesome name="chart-line" size={18} color={config.colors.primary} solid />
+          <View style={{
+            position: 'absolute',
+            top: -6,
+            right: -10,
+            backgroundColor: '#EF4444',
+            borderRadius: 6,
+            paddingVertical: 1,
+            minWidth: 30,
+            alignItems: 'center',
+          }}>
+            <Text style={{ color: '#fff', fontSize: 7, fontWeight: '600' }}>NEW</Text>
+          </View>
+        </TouchableOpacity>
+      )}
+
       {isAdmin && (
         <TouchableOpacity onPress={() => navigation.navigate('Admin')}>
           <Image

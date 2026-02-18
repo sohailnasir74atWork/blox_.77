@@ -4,6 +4,7 @@ import getAdUnitId from './ads';
 const adUnitId = getAdUnitId('openapp');
 
 class AppOpenAdManager {
+  // ✅ Pre-create ad instance at import time so it's ready ASAP
   static appOpenAd = AppOpenAd.createForAdRequest(adUnitId);
   static isAdLoaded = false;
   static hasInitialized = false;
@@ -11,7 +12,9 @@ class AppOpenAdManager {
   static retryCount = 0;
   static maxRetries = 5;
   static unsubscribeEvents = [];
+  static retryTimer = null;
 
+  // ✅ Called once on app open (not on bg→fg) — shows ad immediately when loaded
   static initAndShow() {
     if (this.hasInitialized || this.hasShownOnce) return;
     this.hasInitialized = true;
@@ -24,60 +27,43 @@ class AppOpenAdManager {
         try {
           await this.appOpenAd.show();
           this.hasShownOnce = true;
-
-          // ✅ DO NOT LOAD NEXT AD
-          // this.appOpenAd.load(); ❌ REMOVE this line
         } catch (err) {
-          // console.warn("Ad show error:", err);
+          // Show failed silently
         }
       }
     });
 
-    const onError = this.appOpenAd.addAdEventListener(AdEventType.ERROR, (error) => {
+    const onError = this.appOpenAd.addAdEventListener(AdEventType.ERROR, () => {
       this.isAdLoaded = false;
 
       if (this.retryCount < this.maxRetries && !this.hasShownOnce) {
         const delay = Math.pow(2, this.retryCount) * 1000;
-        setTimeout(() => {
+        this.retryTimer = setTimeout(() => {
           this.retryCount += 1;
-          this.appOpenAd.load();
+          if (this.appOpenAd) this.appOpenAd.load();
         }, delay);
       }
     });
 
     const onClosed = this.appOpenAd.addAdEventListener(AdEventType.CLOSED, () => {
       this.isAdLoaded = false;
-      // ❌ Don’t load again after close
-      // this.appOpenAd.load();
     });
 
     this.unsubscribeEvents = [onLoaded, onError, onClosed];
-    this.appOpenAd.load(); // Load once
-  }
-
-  static async showAd() {
-    if (!this.hasInitialized || this.hasShownOnce) return;
-
-    if (this.isAdLoaded) {
-      try {
-        await this.appOpenAd.show();
-        this.hasShownOnce = true;
-        this.isAdLoaded = false;
-
-        // ❌ Don't preload next
-        // this.appOpenAd.load();
-      } catch (err) {
-        // console.warn("Show failed:", err);
-      }
-    }
+    this.appOpenAd.load();
   }
 
   static cleanup() {
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
     this.unsubscribeEvents.forEach((u) => u());
     this.unsubscribeEvents = [];
     this.hasInitialized = false;
     this.isAdLoaded = false;
     this.hasShownOnce = false;
+    this.retryCount = 0;
   }
 }
 

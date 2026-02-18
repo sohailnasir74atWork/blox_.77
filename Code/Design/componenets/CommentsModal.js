@@ -77,11 +77,7 @@ const CommentModal = ({ visible, onClose, postId }) => {
     };
 
     try {
-      if (!localState?.isPro) {
-        InterstitialAdManager.showAd(callback);
-      } else {
-        callback();
-      }
+      callback();
     } catch (error) {
       console.error('Navigation Error:', error);
       Alert.alert('Error', 'Failed to navigate to chat.');

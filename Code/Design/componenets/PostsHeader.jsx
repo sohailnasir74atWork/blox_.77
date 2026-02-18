@@ -53,11 +53,7 @@ const PostsHeader = ({
               fetchInitialPosts();
             };
 
-            if (!localState.isPro) {
-              InterstitialAdManager.showAd(handleAction);
-            } else {
-              handleAction();
-            }
+            handleAction();
           }}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingHorizontal: 10 }}>
@@ -77,11 +73,7 @@ const PostsHeader = ({
               fetchMyPosts();
             };
 
-            if (!localState.isPro) {
-              InterstitialAdManager.showAd(handleAction);
-            } else {
-              handleAction();
-            }
+            handleAction();
           }}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingHorizontal: 10 }}>
@@ -109,11 +101,7 @@ const PostsHeader = ({
                 setSelectedTag(tag);
                 fetchPostsByTag(tag);
               };
-              if (!localState.isPro) {
-                InterstitialAdManager.showAd(handleAction);
-              } else {
-                handleAction();
-              }
+              handleAction();
             }}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingHorizontal: 10 }}>

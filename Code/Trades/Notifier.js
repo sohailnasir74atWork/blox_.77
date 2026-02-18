@@ -211,12 +211,7 @@ const NotifierDrawer = () => {
       });
     };
 
-    if (!adShown && !localState?.isPro) {
-      setAdShown(true); // mark ad as shown for this session
-      InterstitialAdManager.showAd(proceedToRemove);
-    } else {
-      proceedToRemove();
-    }
+    proceedToRemove();
   };
 
 

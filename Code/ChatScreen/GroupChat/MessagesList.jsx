@@ -86,7 +86,7 @@ const MessagesList = ({
   // const [isAtBottom, setIsAtBottom] = useState(true);
   const { t } = useTranslation();
   // const { language, changeLanguage } = useLanguage();
-  const { isAdmin, api, freeTranslation, proGranted, appdatabase } = useGlobalState()
+  const { isAdmin, isModerator, api, freeTranslation, proGranted, appdatabase } = useGlobalState()
   const { canTranslate, incrementTranslationCount, getRemainingTranslationTries, localState } = useLocalState();
   const deviceLanguage = useMemo(() => getDeviceLanguage(), []);
 
@@ -630,7 +630,7 @@ const MessagesList = ({
               </MenuOptions>
             </Menu>
           )}
-          {(isAdmin) && (
+          {(isAdmin || isModerator) && (
             <Menu>
               <MenuTrigger>
                 <Icon
@@ -695,9 +695,10 @@ const MessagesList = ({
         }}
         onEndReachedThreshold={0.1}
         onEndReached={handleLoadMore}
-        initialNumToRender={20} // Render the first 20 messages upfront
-        maxToRenderPerBatch={10} // Render 10 items per batch for smoother performance
+        initialNumToRender={15} // Render 15 messages initially to reduce text view overload
+        maxToRenderPerBatch={8} // Smaller batches to reduce per-frame view creation pressure
         windowSize={5} // Adjust the window size for rendering nearby items
+        updateCellsBatchingPeriod={100} // Spread rendering across more frames
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

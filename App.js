@@ -33,6 +33,7 @@ import SystemNavigationBar from 'react-native-system-navigation-bar';
 import AdminUnbanScreen from './Code/AppHelper/AdminDashboard';
 import { checkForUpdate } from './Code/AppHelper/InAppUpdateCheck';
 import SubscriptionScreen from './Code/SettingScreen/OfferWall';
+import AnalyticsScreen from './Code/Analytics/AnalyticsScreen';
 
 
 
@@ -86,44 +87,6 @@ function App() {
 
     return () => listener.remove();
   }, [theme]);
-
-
-  // useEffect(() => {
-  //   let isMounted = true;
-  //   let unsubscribe;
-
-  //   const initializeAds = async () => {
-  //     try {
-  //       await AppOpenAdManager.init();
-  //     } catch (error) {
-  //       console.error('❌ Error initializing ads:', error);
-  //     }
-  //   };
-
-  //   const handleAppStateChange = async (state) => {
-  //     if (!isMounted) return;
-
-  //     try {
-  //       if (state === 'active' && !localState?.isPro) {
-  //         await AppOpenAdManager.showAd();
-  //       }
-  //     } catch (error) {
-  //       console.error('❌ Error showing ad:', error);
-  //     }
-  //   };
-
-  //   initializeAds();
-  //   unsubscribe = AppState.addEventListener('change', handleAppStateChange);
-
-  //   return () => {
-  //     isMounted = false;
-  //     if (unsubscribe) {
-  //       unsubscribe.remove();
-  //     }
-  //     AppOpenAdManager.cleanup();
-  //   };
-  // }, [localState?.isPro]);
-
 
 
   if (loading) {
@@ -283,6 +246,18 @@ function App() {
 
             {/* Move this outside of <Stack.Navigator> */}
 
+
+            <Stack.Screen
+              name="Analytics"
+              options={{
+                title: 'Market Analytics',
+                headerStyle: { backgroundColor: selectedTheme.colors.background },
+                headerTintColor: selectedTheme.colors.text,
+                headerTitleStyle: { fontWeight: 'bold' },
+              }}
+            >
+              {() => <AnalyticsScreen />}
+            </Stack.Screen>
 
             <Stack.Screen
               name="Setting"
