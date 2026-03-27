@@ -24,6 +24,7 @@ import SubscriptionScreen from '../SettingScreen/OfferWall';
 const HomeScreen = ({ selectedTheme }) => {
   const { theme, user, proGranted, proTagBought, firestoreDB, single_offer_wall, currentUserEmail, appdatabase, strikeInfo, isAdmin, reload } = useGlobalState();
   const tradesCollection = collection(firestoreDB, 'trades_new');
+  const MAX_ITEMS_PER_SIDE = 8;
   const initialItems = [null, null, null, null];
   const [hasItems, setHasItems] = useState(initialItems);
   const [fruitRecords, setFruitRecords] = useState([]);
@@ -666,21 +667,41 @@ const HomeScreen = ({ selectedTheme }) => {
     };
   }, [hasItems, wantsItems, demandData]);
 
+  // ── Always keep slots in pairs, expand by 2 only when current capacity is full ──
+  const withTrailingSlots = (items) => {
+    const filledCount = items.filter(Boolean).length;
+    // Start at 4. Expand capacity by 2 each time all current slots are filled.
+    let capacity = 4;
+    while (capacity < MAX_ITEMS_PER_SIDE && filledCount >= capacity) {
+      capacity += 2;
+    }
+    const result = items.filter(Boolean);
+    while (result.length < capacity) result.push(null);
+    return result;
+  };
+
   const selectItem = (item) => {
     triggerHapticFeedback('impactLight');
-    const newItem = { ...item, usePermanent: false };
-    const updateItems = selectedSection === 'has' ? [...hasItems] : [...wantsItems];
-    const nextEmptyIndex = updateItems.indexOf(null);
-    if (nextEmptyIndex !== -1) {
-      updateItems[nextEmptyIndex] = newItem;
-    } else {
-      updateItems.push(newItem);
+    const currentItems = selectedSection === 'has' ? [...hasItems] : [...wantsItems];
+    const filledCount = currentItems.filter(Boolean).length;
+    if (filledCount >= MAX_ITEMS_PER_SIDE) {
+      showErrorMessage(t('home.alert.error'), `Maximum ${MAX_ITEMS_PER_SIDE} items allowed per side.`);
+      closeDrawer();
+      return;
     }
+    const newItem = { ...item, usePermanent: false };
+    const nextEmptyIndex = currentItems.indexOf(null);
+    if (nextEmptyIndex !== -1) {
+      currentItems[nextEmptyIndex] = newItem;
+    } else {
+      currentItems.push(newItem);
+    }
+    const finalItems = withTrailingSlots(currentItems);
     if (selectedSection === 'has') {
-      setHasItems(updateItems);
+      setHasItems(finalItems);
       updateTotal(newItem, 'has', true, true);
     } else {
-      setWantsItems(updateItems);
+      setWantsItems(finalItems);
       updateTotal(newItem, 'wants', true, true);
     }
     closeDrawer();
@@ -691,20 +712,28 @@ const HomeScreen = ({ selectedTheme }) => {
     const item = items[index];
 
     if (item) {
+      // Remove item: compact, then restore 2 trailing empty slots
       triggerHapticFeedback('impactLight');
       const section = isHas ? 'has' : 'wants';
       const updatedItems = [...items];
       updatedItems[index] = null;
-      const filteredItems = updatedItems.filter((item, i) => item !== null || i < 4);
-      if (isHas) setHasItems(filteredItems);
-      else setWantsItems(filteredItems);
+      const finalItems = withTrailingSlots(updatedItems);
+      if (isHas) setHasItems(finalItems);
+      else setWantsItems(finalItems);
       updateTotal(item, section, false, true);
     } else {
+      // Tap on empty slot — open picker
+      const filledCount = items.filter(Boolean).length;
+      if (filledCount >= MAX_ITEMS_PER_SIDE) {
+        showErrorMessage(t('home.alert.error'), `Maximum ${MAX_ITEMS_PER_SIDE} items allowed per side.`);
+        return;
+      }
       triggerHapticFeedback('impactLight');
       setSelectedSection(isHas ? 'has' : 'wants');
       setIsDrawerVisible(true);
     }
   };
+
 
   const filteredData = fruitRecords.filter((item) =>
     item.Name.toLowerCase().includes(searchText.toLowerCase())
@@ -787,7 +816,7 @@ const HomeScreen = ({ selectedTheme }) => {
                   </View>
                 </View>
                 <View style={styles.altItemGrid}>
-                  {hasItems?.map((item, index) => (
+                  {hasItems.map((item, index) => (
                     <TouchableOpacity
                       key={index}
                       style={[
@@ -803,7 +832,9 @@ const HomeScreen = ({ selectedTheme }) => {
                             const demand = demandData[itemKey];
                             const demandString = demand?.demand || '0/10';
                             return demandString !== '0/10' ? (
-                              <View style={styles.altDemandChip}><Text style={styles.altDemandText}>{demandString}</Text></View>
+                              <View style={styles.altDemandChip}>
+                                <Text style={[styles.altDemandText, item.Type === 'p' && { color: '#3a2a00' }]}>{demandString}</Text>
+                              </View>
                             ) : null;
                           })()}
                           <Image
@@ -828,14 +859,12 @@ const HomeScreen = ({ selectedTheme }) => {
                             <View style={styles.altAddCircle}>
                               <Icon name="add" size={20} color={config.colors.hasBlockGreen} />
                             </View>
-                            {/* <Text style={[styles.altAddText, { color: isDarkMode ? '#666' : '#aaa' }]}>Add</Text> */}
                           </View>
                         )
                       )}
                     </TouchableOpacity>
                   ))}
                 </View>
-
                 {/* Divider with circular reset */}
                 <View style={styles.altDividerRow}>
                   <View style={styles.altDividerLine} />
@@ -855,7 +884,7 @@ const HomeScreen = ({ selectedTheme }) => {
                   </View>
                 </View>
                 <View style={styles.altItemGrid}>
-                  {wantsItems?.map((item, index) => (
+                  {wantsItems.map((item, index) => (
                     <TouchableOpacity
                       key={index}
                       style={[
@@ -871,7 +900,9 @@ const HomeScreen = ({ selectedTheme }) => {
                             const demand = demandData[itemKey];
                             const demandString = demand?.demand || '0/10';
                             return demandString !== '0/10' ? (
-                              <View style={styles.altDemandChip}><Text style={styles.altDemandText}>{demandString}</Text></View>
+                              <View style={styles.altDemandChip}>
+                                <Text style={[styles.altDemandText, item.Type === 'p' && { color: '#3a2a00' }]}>{demandString}</Text>
+                              </View>
                             ) : null;
                           })()}
                           <Image
@@ -896,15 +927,15 @@ const HomeScreen = ({ selectedTheme }) => {
                             <View style={[styles.altAddCircle, { borderColor: config.colors.wantBlockRed }]}>
                               <Icon name="add" size={20} color={config.colors.wantBlockRed} />
                             </View>
-                            {/* <Text style={[styles.altAddText, { color: isDarkMode ? '#666' : '#aaa' }]}>Add</Text> */}
                           </View>
                         )
                       )}
                     </TouchableOpacity>
                   ))}
                 </View>
+                {/* ── Add More button: shows when all current slots have items ── */}
+                {/* Removed the explicit "Add More Items" button */}
 
-                {/* Last Updated */}
                 <TouchableOpacity
                   style={styles.altUpdatedRow}
                   onPress={handleRefresh}
@@ -936,26 +967,7 @@ const HomeScreen = ({ selectedTheme }) => {
                   <Text style={styles.altBtnText}>{t('home.share_trade')}</Text>
                 </TouchableOpacity>
               </View>
-              {!localState.isPro && <View style={styles.createtradeAds}>
-                <TouchableOpacity
-                  style={styles.removeAdsButton}
-                  activeOpacity={0.9}
-                  onPress={() => { setShowofferwall(true); }}
-                >
-                  <View style={styles.removeAdsContent}>
-                    <View style={styles.crownWrapper}>
-                      <Image
-                        source={require('../../assets/pro.png')}
-                        style={{ width: 20, height: 20 }}
-                        resizeMode="contain"
-                      />
-                    </View>
-                    <View style={styles.removeAdsTextWrapper}>
-                      <Text style={styles.removeAdsTitle}>Remove Ads</Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              </View>}
+
             </ScrollView>
             <Modal
               visible={isDrawerVisible}
@@ -2001,6 +2013,40 @@ const getStyles = (isDarkMode) =>
       fontSize: 10,
       fontWeight: '600',
     },
+    // ── Add More Items button ──
+    addMoreRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginHorizontal: 4,
+      marginTop: 6,
+      marginBottom: 2,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderStyle: 'dashed',
+      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+      gap: 8,
+    },
+    addMoreCircle: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    addMoreText: {
+      flex: 1,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    addMoreCount: {
+      fontSize: 10,
+      fontWeight: '600',
+      color: isDarkMode ? '#556' : '#aab',
+    },
+
     altDividerRow: {
       flexDirection: 'row',
       alignItems: 'center',

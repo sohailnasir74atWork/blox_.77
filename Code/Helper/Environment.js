@@ -26,7 +26,7 @@ const config = {
   IOsRewarded: isNoman ? 'ca-app-pub-5740215782746766/9755679519' : '',
   IOsOpenApp: isNoman ? 'ca-app-pub-5740215782746766/1499878996' : '',
   IOsNative: isNoman ? 'ca-app-pub-5740215782746766/8838394066' : '',
-  andriodRewarded_int_ios:isNoman ? 'ca-app-pub-5740215782746766/8838394066' : '',
+  andriodRewarded_int_ios: isNoman ? 'ca-app-pub-5740215782746766/8838394066' : '',
 
   apiKey: isNoman ? rev_cat_id : 'goog_hNbzYuzixIbRtuJzgHltVeZzYos',
 
@@ -38,8 +38,8 @@ const config = {
 
   isNoman: isNoman ? true : false,
 
-otherapplink: Platform.OS == 'android' ? 'https://play.google.com/store/apps/details?id=com.adoptmevaluescalc' : 'https://apps.apple.com/us/app/adoptme-values/id6745400111',
-otherapplink2: Platform.OS == 'android' ? 'https://play.google.com/store/apps/details?id=com.mm2tradesvalues' : 'https://apps.apple.com/us/app/adoptme-values/id6745400111',
+  otherapplink: Platform.OS == 'android' ? 'https://play.google.com/store/apps/details?id=com.adoptmevaluescalc' : 'https://apps.apple.com/us/app/adoptme-values/id6745400111',
+  otherapplink2: Platform.OS == 'android' ? 'https://play.google.com/store/apps/details?id=com.mm2tradesvalues' : 'https://apps.apple.com/us/app/adoptme-values/id6745400111',
   colors: isNoman
     ? {
       primary: '#6A5ACD', // Muted grayish blue
@@ -47,9 +47,9 @@ otherapplink2: Platform.OS == 'android' ? 'https://play.google.com/store/apps/de
       hasBlockGreen: '#29AB87', // Vibrant success green
       wantBlockRed: '#FF3B30', // Vivid warning red
       backgroundLight: '#f2f2f7',
-      backgroundDark: '#121212',
-      white:'white',
-      black:'black'
+      backgroundDark: '#0f172a',
+      white: 'white',
+      black: 'black'
     }
     : {
       primary: '#9b7401ff', // Deep ocean navy
@@ -57,10 +57,21 @@ otherapplink2: Platform.OS == 'android' ? 'https://play.google.com/store/apps/de
       hasBlockGreen: '#00B4A0', // Fresh teal emerald
       wantBlockRed: '#F72585', // Hot magenta pink
       backgroundLight: '#F0F4F8',
-      backgroundDark: '#0A1628',
-       white:'white',
-      black:'black'
+      backgroundDark: '#0f172a',
+      white: 'white',
+      black: 'black'
     },
+
+  // ── Unified Dark Mode Palette (Slate-based) ─────────────────────────────────
+  darkColors: {
+    bg: '#0f172a',   // Slate-900 — main screen background
+    surface: '#1e293b',   // Slate-800 — cards, bubbles, inputs
+    elevated: '#334155',   // Slate-700 — modals, drawers, active pills
+    border: '#3b4f66',   // border, dividers
+    textPrimary: '#f1f5f9',   // Slate-100 — main text
+    textSecondary: '#94a3b8',   // Slate-400 — muted text, timestamps
+    textMuted: '#64748b',   // Slate-500 — placeholder, disabled
+  },
 
 };
 

@@ -39,10 +39,23 @@ leoProfanity.add(['hell', 'shit']);
 leoProfanity.loadDictionary('en');
 
 const CHANNELS = [
-  { id: 'trade', label: 'Trade', icon: 'handshake', path: 'chat_new' },
+  // ── Core channels ──────────────────────────────────────────────────────────
+  { id: 'chat', label: 'English', icon: 'handshake', path: 'chat_new' },
   { id: 'raid', label: 'Raids', icon: 'bolt', path: 'chat_raid' },
   { id: 'help', label: 'Help', icon: 'circle-question', path: 'chat_help' },
   { id: 'playing', label: 'Playing', icon: 'gamepad', path: 'chat_playing' },
+  // ── Language channels ──────────────────────────────────────────────────────
+  { id: 'es', label: '🇪🇸 Español', icon: 'globe', path: 'chat_es' },
+  { id: 'ar', label: '🇸🇦 Arabic', icon: 'globe', path: 'chat_ar' },
+  { id: 'pt', label: '🇧🇷 Português', icon: 'globe', path: 'chat_pt' },
+  { id: 'fr', label: '🇫🇷 Français', icon: 'globe', path: 'chat_fr' },
+  { id: 'de', label: '🇩🇪 Deutsch', icon: 'globe', path: 'chat_de' },
+  { id: 'tr', label: '🇹🇷 Türkçe', icon: 'globe', path: 'chat_tr' },
+  { id: 'ru', label: '🇷🇺 Русский', icon: 'globe', path: 'chat_ru' },
+  { id: 'id', label: '🇮🇩 Indonesia', icon: 'globe', path: 'chat_id' },
+  { id: 'ja', label: '🇯🇵 日本語', icon: 'globe', path: 'chat_ja' },
+  { id: 'ko', label: '🇰🇷 한국어', icon: 'globe', path: 'chat_ko' },
+  { id: 'ph', label: '🇵🇭 Filipino', icon: 'globe', path: 'chat_ph' },
 ];
 
 const bannerAdUnitId = getAdUnitId('banner');
@@ -515,7 +528,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     const hasFruits = Array.isArray(fruits) && fruits.length > 0;
 
     const MAX_CHARACTERS = 250;
-    const MESSAGE_COOLDOWN = 20 * 1000; // ms
+    const MESSAGE_COOLDOWN = 10 * 1000; // ms
     const LINK_REGEX = /(https?:\/\/[^\s]+)/i; // no "g" flag
     if (!user?.id || !currentUserEmail) {
       showMessage({
@@ -697,7 +710,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                     channelTabStyles.pill,
                     isActive
                       ? { backgroundColor: config.colors.primary, borderColor: config.colors.primary }
-                      : { backgroundColor: 'transparent', borderColor: theme === 'dark' ? '#444' : '#ccc' },
+                      : { backgroundColor: theme === 'dark' ? config.darkColors.surface : 'transparent', borderColor: theme === 'dark' ? config.darkColors.border : '#ccc' },
                   ]}
                   onPress={() => handleChannelSwitch(channel)}
                   activeOpacity={0.8}
@@ -705,14 +718,14 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                   <FontAwesome
                     name={channel.icon}
                     size={11}
-                    color={isActive ? '#fff' : (theme === 'dark' ? '#aaa' : '#666')}
+                    color={isActive ? '#fff' : (theme === 'dark' ? config.darkColors.textSecondary : '#666')}
                     solid={isActive}
                     style={{ marginRight: 5 }}
                   />
                   <Text
                     style={[
                       channelTabStyles.pillText,
-                      { color: isActive ? '#fff' : (theme === 'dark' ? '#aaa' : '#666') },
+                      { color: isActive ? '#fff' : (theme === 'dark' ? config.darkColors.textSecondary : '#666') },
                       isActive && channelTabStyles.pillTextActive,
                     ]}
                     numberOfLines={1}
@@ -846,17 +859,16 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 const channelTabStyles = RNStyleSheet.create({
   scrollContent: {
     paddingHorizontal: 10,
-    // paddingVertical: 8,
+    paddingVertical: 5,
     alignItems: 'center',
-    maxHeight: 36,
-    
+    maxHeight: 38,
     gap: 8,
   },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: 999,
     borderWidth: 1,
   },

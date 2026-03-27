@@ -21,8 +21,8 @@ import { validateContent } from '../../Helper/ContentModeration';
 
 const BUNNY_STORAGE_HOST = 'storage.bunnycdn.com';
 const BUNNY_STORAGE_ZONE = 'post-gag';
-const BUNNY_ACCESS_KEY   = '1b7e1a85-dff7-4a98-ba701fc7f9b9-6542-46e2';
-const BUNNY_CDN_BASE     = 'https://pull-gag.b-cdn.net';
+const BUNNY_ACCESS_KEY = '1b7e1a85-dff7-4a98-ba701fc7f9b9-6542-46e2';
+const BUNNY_CDN_BASE = 'https://pull-gag.b-cdn.net';
 
 // 🔹 simple inline base64 → Uint8Array decoder (no atob / extra libs)
 const base64ToBytes = (base64) => {
@@ -87,10 +87,10 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
   const [showTemplates, setShowTemplates] = useState(false);
 
   const [messageCount, setMessageCount] = useState(0);
-  const {localState}= useLocalState()
-  
+  const { localState } = useLocalState()
 
-  const { theme , user} = useGlobalState();
+
+  const { theme, user } = useGlobalState();
   const isDark = theme === 'dark';
   const { t } = useTranslation();
 
@@ -141,9 +141,9 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
       const userId = user?.id ?? 'anon';
 
       try {
-        const filename   = `${Date.now()}-${Math.floor(Math.random() * 1e6)}.jpg`;
+        const filename = `${Date.now()}-${Math.floor(Math.random() * 1e6)}.jpg`;
         const remotePath = `uploads/${encodeURIComponent(userId)}/${encodeURIComponent(filename)}`;
-        const uploadUrl  = `https://${BUNNY_STORAGE_HOST}/${BUNNY_STORAGE_ZONE}/${remotePath}`;
+        const uploadUrl = `https://${BUNNY_STORAGE_HOST}/${BUNNY_STORAGE_ZONE}/${remotePath}`;
 
         // read file as base64
         const base64 = await RNFS.readFile(uri.replace('file://', ''), 'base64');
@@ -180,8 +180,8 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
 
 
   const handleSend = async () => {
-   const trimmedInput = (input || '').trim();
-    const hasImage  = !!imageUri;
+    const trimmedInput = (input || '').trim();
+    const hasImage = !!imageUri;
     const hasFruits = Array.isArray(selectedFruits) && selectedFruits.length > 0;
 
     // nothing to send
@@ -198,8 +198,8 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
     }
 
     setIsSending(true);
-    const textToSend   = trimmedInput;
-    const imageToSend  = imageUri;
+    const textToSend = trimmedInput;
+    const imageToSend = imageUri;
     const fruitsToSend = Array.isArray(selectedFruits) ? [...selectedFruits] : [];
 
     // clear UI
@@ -212,7 +212,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
       const newCount = prevCount + 1;
       if (!localState?.isPro && newCount % 12 === 0) {
         // Show ad only if user is NOT pro
-        InterstitialAdManager.showAd(() => {});
+        InterstitialAdManager.showAd(() => { });
       } else {
         setIsSending(false);
       }
@@ -257,7 +257,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
 
       {/* Input Container */}
       <View style={styles.inputContainer}>
-      <TouchableOpacity
+        <TouchableOpacity
           style={[styles.sendButton, { marginRight: 3, paddingHorizontal: 3 }]}
           onPress={() => setPetModalVisible(true)}
           disabled={isSending || isBanned}
@@ -308,8 +308,8 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
           style={[
             styles.sendButton,
             {
-              backgroundColor: 
-              hasContent && !isSending ? '#1E88E5' : config.colors.primary,
+              backgroundColor:
+                hasContent && !isSending ? '#1E88E5' : config.colors.primary,
             },
           ]}
           onPress={handleSend}
@@ -436,7 +436,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
                   }}
                   onPress={async () => {
                     setShowTemplates(false);
-                    
+
                     // Auto-send the template message
                     const trimmedInput = item.trim();
                     if (!trimmedInput || isSending) return;
@@ -458,20 +458,8 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
                     setImageUri(null);
                     setSelectedFruits([]);
 
-                    setMessageCount(prevCount => {
-                      const newCount = prevCount + 1;
-                      if (!localState?.isPro && newCount % 12 === 0) {
-                        InterstitialAdManager.showAd(() => {});
-                      } else {
-                        setIsSending(false);
-                      }
-                      return newCount;
-                    });
-
                     try {
                       let imageUrl = null;
-                      // No image for template messages
-                      
                       await onSend(textToSend, imageUrl, fruitsToSend);
                       if (onCancelReply) onCancelReply();
                     } catch (error) {

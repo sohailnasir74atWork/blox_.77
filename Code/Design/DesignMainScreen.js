@@ -214,22 +214,7 @@ const DesignFeedScreen = ({ route }) => {
     fetchInitialPosts();
   }, []);
 
-  // Update header when filter state changes
-  useEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <PostsHeader
-          selectedTag={selectedTag}
-          filterMyPosts={filterMyPosts}
-          setFilterMyPosts={setFilterMyPosts}
-          setSelectedTag={setSelectedTag}
-          fetchInitialPosts={fetchInitialPosts}
-          fetchMyPosts={fetchMyPosts}
-          fetchPostsByTag={fetchPostsByTag}
-        />
-      ),
-    });
-  }, [navigation, selectedTag, filterMyPosts, fetchInitialPosts, fetchMyPosts, fetchPostsByTag]);
+  // PostsHeader is now rendered inline as part of the FlatList ListHeaderComponent
 
   // ✅ OPTIMIZED: Removed per-post onSnapshot listeners to reduce Firestore reads
   // Real-time updates removed - posts will refresh on manual refresh or when screen refocuses
@@ -484,64 +469,77 @@ const DesignFeedScreen = ({ route }) => {
 
   return (
     <View style={[styles.container, isDarkMode && styles.darkContainer]}>
-      <FlatList
-        data={dataToRender}
-        keyExtractor={keyExtractor}
-        renderItem={renderItem}
-        onEndReached={loadMorePosts}
-        onEndReachedThreshold={0.5}
-        refreshing={refreshing}
-        onRefresh={() => {
-          setRefreshing(true);
-          fetchInitialPosts();
-        }}
-        ListFooterComponent={
-          loadingMore && !initialLoading ? (
-            <ActivityIndicator size="small" color={config.colors.primary} />
-          ) : null
-        }
-        ListEmptyComponent={
-          !initialLoading && (
-            <Text style={{ textAlign: 'center', padding: 20, color: isDarkMode ? '#ccc' : '#666' }}>
-              {filterMyPosts
-                ? "You don't have any posts in the loaded data."
-                : "No posts found."}
-            </Text>
-          )
-        }
 
+      {/* ── Filter Bar (outside FlatList to avoid touch conflicts) ── */}
+      <PostsHeader
+        selectedTag={selectedTag}
+        filterMyPosts={filterMyPosts}
+        setFilterMyPosts={setFilterMyPosts}
+        setSelectedTag={setSelectedTag}
+        fetchInitialPosts={fetchInitialPosts}
+        fetchMyPosts={fetchMyPosts}
+        fetchPostsByTag={fetchPostsByTag}
       />
 
-      {/* <TouchableOpacity
-        style={styles.fab}
-        onPress={() =>
-          user?.id ? setModalVisible(true) : setSigninDrawerVisible(true)
-        }
-      >
-        <Icon name="plus" size={24} color="white" />
-      </TouchableOpacity> */}
-      <TouchableOpacity style={styles.fab} onPress={() =>
-        user?.id ? setModalVisible(true) : setSigninDrawerVisible(true)
-      }>
-        <FontAwesome name="circle-plus" size={44} color={config.colors.primary} />
-      </TouchableOpacity>
+      <View style={{ flex: 1 }}>
+        <FlatList
+          data={dataToRender}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }}
+          onEndReached={loadMorePosts}
+          onEndReachedThreshold={0.5}
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            fetchInitialPosts();
+          }}
+          ListFooterComponent={
+            loadingMore && !initialLoading ? (
+              <ActivityIndicator size="small" color={config.colors.primary} style={{ marginVertical: 16 }} />
+            ) : null
+          }
+          ListEmptyComponent={
+            !initialLoading && (
+              <View style={styles.emptyState}>
+                <FontAwesome name="newspaper" size={48} color={isDarkMode ? '#334155' : '#cbd5e1'} />
+                <Text style={styles.emptyTitle}>
+                  {filterMyPosts ? "You have no posts yet." : "No posts found."}
+                </Text>
+                <Text style={styles.emptySubtitle}>Be the first to post!</Text>
+              </View>
+            )
+          }
+        />
 
-      <UploadModal
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-        onUpload={handleUploadPost}
-        user={user}
-      />
+        {/* ── FAB ── */}
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => user?.id ? setModalVisible(true) : setSigninDrawerVisible(true)}
+          activeOpacity={0.85}
+        >
+          <View style={styles.fabInner}>
+            <FontAwesome name="plus" size={20} color={'#fff'} />
+          </View>
+        </TouchableOpacity>
 
-      <SignInDrawer
-        visible={isSigninDrawerVisible}
-        onClose={() => setSigninDrawerVisible(false)}
-        selectedTheme={selectedTheme}
-        screen="Design"
-        message="Sign in to upload designs"
-      />
-      {!localState.isPro && <BannerAdComponent />}
+        <UploadModal
+          visible={modalVisible}
+          onClose={() => setModalVisible(false)}
+          onUpload={handleUploadPost}
+          user={user}
+        />
 
+        <SignInDrawer
+          visible={isSigninDrawerVisible}
+          onClose={() => setSigninDrawerVisible(false)}
+          selectedTheme={selectedTheme}
+          screen="Design"
+          message="Sign in to upload designs"
+        />
+        {!localState.isPro && <BannerAdComponent />}
+
+      </View>
     </View>
   );
 };
@@ -549,29 +547,50 @@ const DesignFeedScreen = ({ route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    // backgroundColor: '#fff',
   },
   darkContainer: {
-    backgroundColor: '#121212',
+    backgroundColor: '#0a0f1e',
   },
   fab: {
     position: 'absolute',
-    bottom: 60,
-    right: 10,
-    // backgroundColor: config.colors.primary,
-    width: 60,
-    height: 60,
-    borderRadius: 25,
+    bottom: 72,
+    right: 16,
+  },
+  fabInner: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: config.colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    // backgroundColor:'white'
-    // elevation: 4,
+    shadowColor: config.colors.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    elevation: 8,
   },
   skeletonPost: {
-    height: 250,
-    margin: 10,
+    height: 180,
+    marginHorizontal: 12,
+    marginVertical: 6,
     backgroundColor: '#e0e0e0',
-    borderRadius: 10,
+    borderRadius: 20,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    gap: 12,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#94a3b8',
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: '#64748b',
   },
 });
 

@@ -23,6 +23,7 @@ import CodesScreen from "./CodesScreen";
 import { useGlobalState } from "../GlobelStats";
 import NewsFeedbackReport from "./AdminReport";
 import AnalyticsScreen from "../Analytics/AnalyticsScreen";
+import ScammerDatabaseScreen from "./ScammerDatabaseScreen";
 import { Platform } from "react-native";
 
 const MemoValueScreen = React.memo(ValueScreen);
@@ -47,7 +48,12 @@ const CustomTopTabs = ({ selectedTheme }) => {
         icon: "code-slash-outline",
         iconActive: "code-slash",
       },
-      
+      {
+        label: "Scammers",
+        key: "scammers",
+        icon: "shield-outline",
+        iconActive: "shield",
+      },
       {
         label: "HD Wallpaper",
         key: "wallpaper",
@@ -61,17 +67,17 @@ const CustomTopTabs = ({ selectedTheme }) => {
         iconActive: "newspaper",
       },
     ];
-     if (!config.isNoman) {
+    if (!config.isNoman) {
       base.push(
-       {
-        label: "Analytics",
-        key: "analytics",
-        icon: "bar-chart-outline",
-        iconActive: "bar-chart",
-        badge: true,
-      },
-    );
-      
+        {
+          label: "Analytics",
+          key: "analytics",
+          icon: "bar-chart-outline",
+          iconActive: "bar-chart",
+          badge: true,
+        },
+      );
+
     }
 
     if (isAdmin) {
@@ -81,7 +87,7 @@ const CustomTopTabs = ({ selectedTheme }) => {
         icon: "analytics-outline",
         iconActive: "analytics",
       });
-      
+
     }
 
     return base;
@@ -267,6 +273,17 @@ const CustomTopTabs = ({ selectedTheme }) => {
             ]}
           >
             <NewsScreen />
+          </View>
+        )}
+
+        {mountedTabs.scammers && (
+          <View
+            style={[
+              styles.screen,
+              activeKey !== "scammers" && styles.hiddenScreen,
+            ]}
+          >
+            <ScammerDatabaseScreen />
           </View>
         )}
 

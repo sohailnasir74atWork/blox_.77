@@ -11,7 +11,7 @@ import {
   Alert,
   StyleSheet,
   TouchableOpacity,
-} from 'react-native';
+} from 'react-native'; // Image kept for fruit icons and chat images
 import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
 import { useGlobalState } from '../../GlobelStats';
 import { getStyles } from '../Style';
@@ -183,8 +183,20 @@ const PrivateMessageList = ({
     }
   };
 
+  // ✅ Date separator helper
+  const getDateLabel = (timestamp) => {
+    if (!timestamp) return '';
+    const msgDate = new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (msgDate.toDateString() === today.toDateString()) return 'Today';
+    if (msgDate.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    return msgDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
   // Render a single message
-  const renderMessage = ({ item }) => {
+  const renderMessage = ({ item, index }) => {
     // ✅ Safety check
     if (!item || typeof item !== 'object') return null;
 
@@ -193,9 +205,7 @@ const PrivateMessageList = ({
     // console.log(isMyMessage)
     // console.log(item, isMyMessage);
     // console.log('Selected User Avatar:', selectedUser?.avatar);
-    const avatarUri = item.senderId !== userId
-      ? selectedUser?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png'
-      : user?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png';
+
     const fruits = Array.isArray(item.fruits) ? item.fruits : [];
     const hasFruits = fruits.length > 0;
     const totalFruitValue = hasFruits
@@ -218,179 +228,158 @@ const PrivateMessageList = ({
     const isSenderAdmin = isMyMessage ? (isAdmin || user?.isAdmin) : (selectedUser?.isAdmin || false);
     const isSenderMod = senderData?.isModerator || false;
 
-    return (
+    const bubble = (
       <View
         style={
           isMyMessage
-            ? [styles.mymessageBubble, styles.myMessage, { width: '80%' }]
-            : [styles.othermessageBubble, styles.otherMessage, { width: '80%' }]
+            ? styles.pvtMyBubbleRow
+            : styles.pvtOtherBubbleRow
         }
       >
-        {/* Avatar */}
-        <Image
-          source={{ uri: avatarUri }}
-          style={styles.profileImagePvtChat}
-        />
-        {/* Message Content */}
-        <Menu>
-          {item.imageUrl && (
-            <View style={{ marginBottom: 4 }}>
+        {/* Bubble wrapper — contains message + timestamp */}
+        <View style={isMyMessage ? styles.pvtMyBubble : styles.pvtOtherBubble}>
+          <Menu>
+            {item.imageUrl && (
               <TouchableOpacity
-                activeOpacity={0.8}
+                activeOpacity={0.85}
                 onPress={() =>
                   navigation.navigate('ImageViewerScreenChat', {
-                    // if your viewer expects an array of images:
                     images: [item.imageUrl],
-                    initialIndex: 0, // only one image here
+                    initialIndex: 0,
                   })
                 }
+                style={{ marginBottom: 6 }}
               >
                 <Image
                   source={{ uri: item.imageUrl }}
                   style={styles.chatImage}
                 />
               </TouchableOpacity>
-            </View>
-          )}
-          <MenuTrigger
-            onLongPress={() => Vibration.vibrate(50)}
-            customStyles={{ triggerTouchable: { activeOpacity: 1 } }}
-          >
-            {hasFruits && (
-              <View
-                style={[
-                  fruitStyles.fruitsWrapper,
-                  { backgroundColor: (isSenderAdmin || isSenderMod) ? '#D4AF37' : fruitColors.wrapperBg },
-                ]}
-              >
-                {fruits.map((fruit, index) => {
-                  const valueType = (fruit.valueType || 'd').toLowerCase(); // 'd' | 'n' | 'm'
-
-                  let valueBadgeStyle = fruitStyles.badgeDefault;
-                  if (valueType === 'n') valueBadgeStyle = fruitStyles.badgeNeon;
-                  if (valueType === 'm') valueBadgeStyle = fruitStyles.badgeMega;
-
-                  return (
-                    <View
-                      key={`${fruit.id || fruit.name}-${index}`}
-                      style={fruitStyles.fruitCard}
-                    >
-                      <Image
-                        source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/${fruit.type === 'n' ? '09' : '08'}/${formatName(fruit.name)}_Icon.webp` }}
-                        style={fruitStyles.fruitImage}
-                      />
-
-                      <View style={fruitStyles.fruitInfo}>
-                        <Text
-                          style={[
-                            fruitStyles.fruitName,
-                            { color: (isSenderAdmin || isSenderMod) ? '#1a1a1a' : fruitColors.name },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {`${fruit.name || fruit.Name || ''}  `}
-                        </Text>
-
-                        <Text
-                          style={[
-                            fruitStyles.fruitValue,
-                            { color: (isSenderAdmin || isSenderMod) ? '#1a1a1a' : fruitColors.valueColor },
-                          ]}
-                        >
-                          · Value: {Number(fruit.value || 0).toLocaleString()}
-                          {/* {fruit.category
-                ? `  ·  ${String(fruit.category).toUpperCase()}  `
-                : ''} */}{' '}
-                        </Text>
-
-
+            )}
+            <MenuTrigger
+              onLongPress={() => Vibration.vibrate(50)}
+              customStyles={{ triggerTouchable: { activeOpacity: 1 } }}
+            >
+              {hasFruits && (
+                <View
+                  style={[
+                    fruitStyles.fruitsWrapper,
+                    { backgroundColor: (isSenderAdmin || isSenderMod) ? '#D4AF37' : fruitColors.wrapperBg },
+                  ]}
+                >
+                  {fruits.map((fruit, index) => {
+                    const valueType = (fruit.valueType || 'd').toLowerCase();
+                    let valueBadgeStyle = fruitStyles.badgeDefault;
+                    if (valueType === 'n') valueBadgeStyle = fruitStyles.badgeNeon;
+                    if (valueType === 'm') valueBadgeStyle = fruitStyles.badgeMega;
+                    return (
+                      <View
+                        key={`${fruit.id || fruit.name}-${index}`}
+                        style={fruitStyles.fruitCard}
+                      >
+                        <Image
+                          source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/${fruit.type === 'n' ? '09' : '08'}/${formatName(fruit.name)}_Icon.webp` }}
+                          style={fruitStyles.fruitImage}
+                        />
+                        <View style={fruitStyles.fruitInfo}>
+                          <Text
+                            style={[fruitStyles.fruitName, { color: (isSenderAdmin || isSenderMod) ? '#1a1a1a' : fruitColors.name }]}
+                            numberOfLines={1}
+                          >
+                            {`${fruit.name || fruit.Name || ''}  `}
+                          </Text>
+                          <Text style={[fruitStyles.fruitValue, { color: (isSenderAdmin || isSenderMod) ? '#1a1a1a' : fruitColors.valueColor }]}>
+                            · Value: {Number(fruit.value || 0).toLocaleString()}{' '}
+                          </Text>
+                        </View>
                       </View>
-                    </View>
-                  );
-                })}
-
-                {/* ✅ Total row – only if more than one fruit */}
-                {fruits.length > 1 && (
-                  <View
-                    style={[
-                      fruitStyles.totalRow,
-                      { borderTopColor: (isSenderAdmin || isSenderMod) ? '#1a1a1a33' : fruitColors.divider },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        fruitStyles.totalLabel,
-                        { color: (isSenderAdmin || isSenderMod) ? '#1a1a1a' : fruitColors.totalLabel },
-                      ]}
-                    >
-                      Total:
-                    </Text>
-                    <Text
-                      style={[
-                        fruitStyles.totalValue,
-                        { color: (isSenderAdmin || isSenderMod) ? '#1a1a1a' : fruitColors.totalValue },
-                      ]}
-                    >
-                      {totalFruitValue.toLocaleString()}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/* ✅ Role Badges for Private Chat */}
-
-
-            {/* Normal text (can be empty if only fruits) */}
-            {!!item.text && (
-              <Text
-                style={[
-                  isMyMessage ? styles.myMessageText : styles.otherMessageText,
-                  (isSenderAdmin || isSenderMod) && { backgroundColor: '#D4AF37', color: '#1a1a1a' },
-                ]}
-              >
-                <View style={{ flexDirection: 'row', marginBottom: (!!item.text) ? 2 : 0 }}>
-                  {isSenderAdmin && (
-                    <View style={[styles.adminContainer, { marginBottom: 2 }]}>
-                      <Text style={styles.admin}>{t("chat.admin")}</Text>
+                    );
+                  })}
+                  {fruits.length > 1 && (
+                    <View style={[fruitStyles.totalRow, { borderTopColor: (isSenderAdmin || isSenderMod) ? '#1a1a1a33' : fruitColors.divider }]}>
+                      <Text style={[fruitStyles.totalLabel, { color: (isSenderAdmin || isSenderMod) ? '#1a1a1a' : fruitColors.totalLabel }]}>Total:</Text>
+                      <Text style={[fruitStyles.totalValue, { color: (isSenderAdmin || isSenderMod) ? '#1a1a1a' : fruitColors.totalValue }]}>{totalFruitValue.toLocaleString()}</Text>
                     </View>
                   )}
-                  {(!isSenderAdmin && isSenderMod) && (
-                    <View style={[styles.moderatorContainer, { marginBottom: 2 }]}>
-                      <Text style={styles.moderator}>MOD</Text>
-                    </View>
-                  )}
-                </View>{"\n"}
-                {item.text}
-              </Text>
-            )}
+                </View>
+              )}
 
-          </MenuTrigger>
-          <MenuOptions customStyles={{
-            optionsContainer: styles.menuoptions,
-            optionWrapper: styles.menuOption,
-            optionText: styles.menuOptionText,
-          }}>
-            <MenuOption onSelect={() => handleCopy(item)}>
-              <Text style={styles.menuOptionText}>Copy</Text>
-            </MenuOption>
-            <MenuOption onSelect={() => handleTranslate(item)}>
-              <Text style={styles.menuOptionText}>Translate</Text>
-            </MenuOption>
-            {!isMyMessage && (
-              <MenuOption onSelect={() => handleReport(item)}>
-                <Text style={styles.menuOptionText}>{t("chat.report")}</Text>
+              {!!item.text && (
+                <Text
+                  style={[
+                    isMyMessage ? styles.pvtMyText : styles.pvtOtherText,
+                    (isSenderAdmin || isSenderMod) && { color: '#1a1a1a' },
+                  ]}
+                >
+                  {(isSenderAdmin || isSenderMod) && (
+                    <View style={{ flexDirection: 'row', marginBottom: 2 }}>
+                      {isSenderAdmin && (
+                        <View style={[styles.adminContainer, { marginBottom: 2 }]}>
+                          <Text style={styles.admin}>{t("chat.admin")}</Text>
+                        </View>
+                      )}
+                      {(!isSenderAdmin && isSenderMod) && (
+                        <View style={[styles.moderatorContainer, { marginBottom: 2 }]}>
+                          <Text style={styles.moderator}>MOD</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}{(isSenderAdmin || isSenderMod) ? "\n" : ""}{item.text}
+                </Text>
+              )}
+            </MenuTrigger>
+            <MenuOptions customStyles={{
+              optionsContainer: styles.menuoptions,
+              optionWrapper: styles.menuOption,
+              optionText: styles.menuOptionText,
+            }}>
+              <MenuOption onSelect={() => handleCopy(item)}>
+                <Text style={styles.menuOptionText}>Copy</Text>
               </MenuOption>
-            )}
-          </MenuOptions>
-        </Menu>
-        <Text style={styles.timestamp}>
-          {item.timestamp ? new Date(item.timestamp).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          }) : ''}
-        </Text>
+              <MenuOption onSelect={() => handleTranslate(item)}>
+                <Text style={styles.menuOptionText}>Translate</Text>
+              </MenuOption>
+              {!isMyMessage && (
+                <MenuOption onSelect={() => handleReport(item)}>
+                  <Text style={styles.menuOptionText}>{t("chat.report")}</Text>
+                </MenuOption>
+              )}
+            </MenuOptions>
+          </Menu>
+
+          {/* Timestamp — lives inside the bubble */}
+          <Text style={isMyMessage ? styles.pvtTimestampMy : styles.pvtTimestampOther}>
+            {item.timestamp ? new Date(item.timestamp).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            }) : ''}
+          </Text>
+        </View>
       </View>
+    );
+
+    // Date separator: in inverted list, next item in data array is older
+    const nextMsg = messages[index + 1];
+    const showDateSep = !nextMsg || getDateLabel(item.timestamp) !== getDateLabel(nextMsg.timestamp);
+
+    return (
+      <>
+        {bubble}
+        {showDateSep && (
+          <View style={{ alignItems: 'center', marginVertical: 8 }}>
+            <View style={{
+              backgroundColor: isDarkMode ? '#334155' : '#e2e8f0',
+              borderRadius: 12,
+              paddingHorizontal: 14,
+              paddingVertical: 4,
+            }}>
+              <Text style={{ fontSize: 11, color: isDarkMode ? '#94a3b8' : '#64748b', fontWeight: '600' }}>
+                {getDateLabel(item.timestamp)}
+              </Text>
+            </View>
+          </View>
+        )}
+      </>
     );
   };
 

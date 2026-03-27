@@ -20,6 +20,9 @@ const ANALYTICS_CACHE_MS = 3 * 60 * 60 * 1000; // 3 hours
 
 // CDN URL — push RTDB /analytics data here after cloud function runs
 const ANALYTICS_CDN_URL = 'https://analytics-blox.b-cdn.net';
+const VALUE_CHANGES_CDN_URL = 'https://blox-api.b-cdn.net/diff.json';
+const CHANGES_CACHE_MS = 60 * 60 * 1000; // 1 hour
+const CHANGES_PAGE_SIZE = 15;
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -33,11 +36,123 @@ const FUN_COLORS = {
   orange: '#FB923C', red: '#F87171', yellow: '#FBBF24', cyan: '#22D3EE',
 };
 const BAR_COLORS = [
-  '#4F8CFF','#A78BFA','#F472B6','#FB923C','#34D399','#FBBF24',
-  '#22D3EE','#F87171','#4F8CFF','#A78BFA','#F472B6','#FB923C',
-  '#34D399','#FBBF24','#22D3EE','#F87171','#4F8CFF','#A78BFA',
-  '#F472B6','#FB923C','#34D399','#FBBF24','#22D3EE','#F87171',
+  '#4F8CFF', '#A78BFA', '#F472B6', '#FB923C', '#34D399', '#FBBF24',
+  '#22D3EE', '#F87171', '#4F8CFF', '#A78BFA', '#F472B6', '#FB923C',
+  '#34D399', '#FBBF24', '#22D3EE', '#F87171', '#4F8CFF', '#A78BFA',
+  '#F472B6', '#FB923C', '#34D399', '#FBBF24', '#22D3EE', '#F87171',
 ];
+
+// ── Change Row Component ──
+const ChangeRow = ({ item, index, isDarkMode, formatNumber, styles }) => {
+  const changedFields = item.changedFields || {};
+  const fieldKeys = Object.keys(changedFields);
+  if (fieldKeys.length === 0) return null;
+
+  // Primary field for the main arrow display (prefer value or permValue)
+  const primaryKey = changedFields.value ? 'value'
+    : changedFields.permValue ? 'permValue'
+      : fieldKeys[0];
+  const primary = changedFields[primaryKey] || {};
+  const isNum = typeof primary.newVal === 'number';
+  const oldNum = isNum ? primary.oldVal : parseFloat(primary.oldVal) || 0;
+  const newNum = isNum ? primary.newVal : parseFloat(primary.newVal) || 0;
+  const isUp = newNum > oldNum;
+  const isZero = newNum === oldNum;
+  const pct = oldNum > 0 ? Math.round(((newNum - oldNum) / oldNum) * 100) : 0;
+
+  const formatName = (name) => name?.replace(/^\+/, '').replace(/\s+/g, '-') || '';
+  const imageUri = `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.name)}_Icon.webp`;
+
+  const FIELD_LABELS = {
+    value: 'Normal Val',
+    permValue: 'Perm Val',
+    demand: 'Demand',
+    permDemand: 'Perm Demand',
+    physicalStatus: 'Status',
+    permanentStatus: 'Perm Status',
+  };
+
+  return (
+    <View style={[styles.changeRow, index % 2 === 0 && styles.itemRowAlt]}>
+      {/* Top row */}
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={styles.changeLeft}>
+          <View style={styles.itemImageWrap}>
+            <Image
+              source={{ uri: imageUri }}
+              style={styles.itemImage}
+              defaultSource={require('../../assets/logo.png')}
+            />
+          </View>
+          <View style={styles.changeInfo}>
+            <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.itemType}>{item.rarity || item.type || ''}</Text>
+              {item.date && <Text style={styles.changeDateText}>{item.date}</Text>}
+            </View>
+          </View>
+        </View>
+
+        {/* Primary change */}
+        {isNum && (
+          <View style={styles.changeRight}>
+            <View style={styles.changeValuesRow}>
+              <Text style={styles.changeOldValue}>{formatNumber(oldNum)}</Text>
+              <Text style={{ fontSize: 12 }}>{'\u{27A1}\u{FE0F}'}</Text>
+              <Text style={[styles.changeNewValue, { color: isUp ? FUN_COLORS.green : isZero ? (isDarkMode ? '#aaa' : '#666') : FUN_COLORS.red }]}>
+                {formatNumber(newNum)}
+              </Text>
+            </View>
+            <View style={[styles.changePctBadge, {
+              backgroundColor: isUp ? FUN_COLORS.green + '25' : isZero ? (isDarkMode ? '#33333340' : '#eee') : FUN_COLORS.red + '25',
+            }]}>
+              {!isZero && <Text style={{ fontSize: 10 }}>{isUp ? '\u{2B06}\u{FE0F}' : '\u{2B07}\u{FE0F}'}</Text>}
+              <Text style={[styles.changePctText, {
+                color: isUp ? FUN_COLORS.green : isZero ? (isDarkMode ? '#888' : '#999') : FUN_COLORS.red,
+              }]}>
+                {isZero ? '0%' : `${isUp ? '+' : ''}${pct}%`}
+              </Text>
+            </View>
+          </View>
+        )}
+      </View>
+
+      {/* All changed sub-fields */}
+      {fieldKeys.length > 0 && (
+        <View style={styles.subValuesGrid}>
+          {fieldKeys.map(fk => {
+            const fv = changedFields[fk];
+            const fOld = parseFloat(fv.oldVal) || fv.oldVal;
+            const fNew = parseFloat(fv.newVal) || fv.newVal;
+            const fIsNum = typeof fOld === 'number' && typeof fNew === 'number';
+            const fUp = fIsNum ? fNew > fOld : false;
+            const fSame = fOld === fNew;
+            const fPct = fIsNum && fOld > 0 ? Math.round(((fNew - fOld) / fOld) * 100) : 0;
+            return (
+              <View key={fk} style={[styles.subValueItem, fk === primaryKey && styles.subValueItemPrimary]}>
+                <Text style={[styles.subValueLabel, fk === primaryKey && { color: config.colors.primary }]}>
+                  {FIELD_LABELS[fk] || fk}
+                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                  <Text style={styles.subValueOld}>{fIsNum ? formatNumber(fOld) : fv.oldVal}</Text>
+                  <Icon name="arrow-forward" size={8} color={isDarkMode ? '#444' : '#ccc'} />
+                  <Text style={[styles.subValueNew, { color: fUp ? FUN_COLORS.green : fSame ? (isDarkMode ? '#888' : '#999') : FUN_COLORS.red }]}>
+                    {fIsNum ? formatNumber(fNew) : fv.newVal}
+                  </Text>
+                </View>
+                {fIsNum && (
+                  <Text style={[styles.subValuePct, { color: fUp ? FUN_COLORS.green : fSame ? (isDarkMode ? '#666' : '#bbb') : FUN_COLORS.red }]}>
+                    {fSame ? '0%' : `${fUp ? '+' : ''}${fPct}%`}
+                  </Text>
+                )}
+              </View>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+};
 
 const AnalyticsScreen = ({ navigation }) => {
   const { theme, single_offer_wall } = useGlobalState();
@@ -51,6 +166,12 @@ const AnalyticsScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [showOfferwall, setShowOfferwall] = useState(false);
+
+  // ── Value Changes state ──
+  const [valueChanges, setValueChanges] = useState(null);
+  const [valueChangesLoading, setValueChangesLoading] = useState(false);
+  const [changesFilter, setChangesFilter] = useState('all'); // 'all' | 'increased' | 'decreased'
+  const [changesVisible, setChangesVisible] = useState(CHANGES_PAGE_SIZE);
 
   // ── Fetch from Bunny CDN with MMKV caching ──
   const fetchFromCDN = useCallback(async (url, cacheKey, cacheDuration) => {
@@ -80,6 +201,46 @@ const AnalyticsScreen = ({ navigation }) => {
     }
   }, []);
 
+  const normalizeDiffPayload = useCallback((data) => {
+    if (!data || typeof data !== 'object') return null;
+
+    // Blox Fruit diff.json format: { meta, changed, added, removed }
+    const rawList = Array.isArray(data.changed) ? data.changed : [];
+    const generatedDate = data.meta?.generatedAt
+      ? data.meta.generatedAt.split('T')[0]
+      : new Date().toISOString().split('T')[0];
+
+    // Fields we want to show diffs for
+    const VALUE_FIELDS = ['value', 'permValue', 'demand', 'permDemand', 'physicalStatus', 'permanentStatus'];
+    const SKIP_FIELDS = new Set(['name', 'rarity', 'type', 'image', 'id']);
+
+    const changes = rawList.map(item => {
+      const changedFields = {};
+      Object.keys(item).forEach(k => {
+        if (SKIP_FIELDS.has(k)) return;
+        const v = item[k];
+        if (v && typeof v === 'object' && 'oldVal' in v && 'newVal' in v) {
+          changedFields[k] = { oldVal: v.oldVal, newVal: v.newVal };
+        }
+      });
+      if (Object.keys(changedFields).length === 0) return null;
+      return {
+        name: item.name || '',
+        rarity: item.rarity || '',
+        type: item.type || '',
+        date: generatedDate,
+        changedFields,
+      };
+    }).filter(Boolean);
+
+    return {
+      lastUpdated: data.meta?.generatedAt || new Date().toISOString(),
+      note: `${changes.length} fruit${changes.length !== 1 ? 's' : ''} changed`,
+      meta: data.meta || {},
+      changes,
+    };
+  }, []);
+
   const fetchAnalytics = useCallback(async (isRefresh) => {
     try {
       if (isRefresh) {
@@ -100,9 +261,36 @@ const AnalyticsScreen = ({ navigation }) => {
     }
   }, [fetchFromCDN]);
 
+  const fetchValueChanges = useCallback(async (isRefresh = false) => {
+    try {
+      setValueChangesLoading(true);
+      if (isRefresh) {
+        analyticsCache.delete('value_changes');
+        analyticsCache.delete('value_changes_time');
+      }
+      const raw = await fetchFromCDN(VALUE_CHANGES_CDN_URL, 'value_changes', CHANGES_CACHE_MS);
+      const data = normalizeDiffPayload(raw);
+      if (data && Array.isArray(data.changes)) setValueChanges(data);
+    } catch (error) {
+      console.warn('Could not fetch value changes:', error.message);
+    } finally {
+      setValueChangesLoading(false);
+    }
+  }, [fetchFromCDN, normalizeDiffPayload]);
+
   useEffect(() => {
     fetchAnalytics(false);
+    // Value changes lazy-loaded when tab is first opened
   }, [fetchAnalytics]);
+
+  // ── Lazy-load changes tab on first open ──
+  const valueChangesFetchedRef = React.useRef(false);
+  useEffect(() => {
+    if (activeTab === 'changes' && !valueChangesFetchedRef.current) {
+      valueChangesFetchedRef.current = true;
+      fetchValueChanges();
+    }
+  }, [activeTab, fetchValueChanges]);
 
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
 
@@ -281,9 +469,43 @@ const AnalyticsScreen = ({ navigation }) => {
     </View>
   );
 
+  // ── Derived filter data for changes tab ──
+  const filteredChanges = useMemo(() => {
+    if (activeTab !== 'changes') return [];
+    if (!valueChanges?.changes) return [];
+    if (changesFilter === 'increased') {
+      return valueChanges.changes.filter(c => {
+        const fv = c.changedFields.value || c.changedFields.permValue || Object.values(c.changedFields)[0];
+        if (!fv) return false;
+        return parseFloat(fv.newVal) > parseFloat(fv.oldVal);
+      });
+    }
+    if (changesFilter === 'decreased') {
+      return valueChanges.changes.filter(c => {
+        const fv = c.changedFields.value || c.changedFields.permValue || Object.values(c.changedFields)[0];
+        if (!fv) return false;
+        return parseFloat(fv.newVal) < parseFloat(fv.oldVal);
+      });
+    }
+    return valueChanges.changes;
+  }, [activeTab, valueChanges, changesFilter]);
+
+  const filterCounts = useMemo(() => {
+    if (!valueChanges?.changes) return { all: 0, up: 0, down: 0 };
+    let up = 0, down = 0;
+    for (const c of valueChanges.changes) {
+      const fv = c.changedFields.value || c.changedFields.permValue || Object.values(c.changedFields)[0];
+      if (!fv) continue;
+      const o = parseFloat(fv.oldVal), n = parseFloat(fv.newVal);
+      if (n > o) up++; else if (n < o) down++;
+    }
+    return { all: valueChanges.changes.length, up, down };
+  }, [valueChanges]);
+
   // ── Tab Bar ──
   const tabs = [
     { key: 'overview', label: 'Overview', emoji: '\u{1F3E0}' },
+    { key: 'changes', label: 'Values', emoji: '\u{1F4CA}' },
     { key: 'movers', label: 'Movers', emoji: '\u{1F680}' },
     { key: 'demand', label: 'Demand', emoji: '\u{1F525}' },
     { key: 'predict', label: 'Predict', emoji: '\u{1F52E}' },
@@ -325,7 +547,10 @@ const AnalyticsScreen = ({ navigation }) => {
           <TouchableOpacity
             key={tab.key}
             style={[styles.tab, activeTab === tab.key && styles.tabActive]}
-            onPress={() => setActiveTab(tab.key)}
+            onPress={() => {
+              setActiveTab(tab.key);
+              setChangesVisible(CHANGES_PAGE_SIZE);
+            }}
           >
             <Text style={{ fontSize: 16 }}>{tab.emoji}</Text>
             <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]} numberOfLines={1}>
@@ -339,7 +564,17 @@ const AnalyticsScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => fetchAnalytics(true)} tintColor={FUN_COLORS.purple} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              fetchAnalytics(true);
+              if (activeTab === 'changes') {
+                valueChangesFetchedRef.current = false;
+                fetchValueChanges(true);
+              }
+            }}
+            tintColor={FUN_COLORS.purple}
+          />
         }
       >
         {/* ═══════════════ OVERVIEW TAB ═══════════════ */}
@@ -430,6 +665,113 @@ const AnalyticsScreen = ({ navigation }) => {
                 {(analytics.topByValue || []).slice(0, 5).map((item, i) => (
                   <ItemRow key={'value-' + i} item={item} index={i} showValue />
                 ))}
+              </View>
+            )}
+          </>
+        )}
+
+        {/* ═══════════════ VALUES / CHANGES TAB ═══════════════ */}
+        {activeTab === 'changes' && (
+          <>
+            {/* Header card */}
+            <View style={[styles.card, { backgroundColor: isDarkMode ? '#1a2a1a' : '#ECFDF5', borderWidth: 1, borderColor: FUN_COLORS.green + '30' }]}>
+              <View style={styles.predictionHeader}>
+                <Text style={{ fontSize: 28 }}>{'\u{1F4CA}'}</Text>
+                <View style={{ marginLeft: 12, flex: 1 }}>
+                  <Text style={[styles.sectionTitle, { color: FUN_COLORS.green }]}>Value Changes</Text>
+                  <Text style={styles.predictionSubtext}>
+                    {valueChanges?.note || 'Latest fruit value updates'}
+                    {valueChanges?.meta?.generatedAt
+                      ? ' \u2022 ' + new Date(valueChanges.meta.generatedAt).toLocaleDateString()
+                      : ''}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Meta summary pills */}
+            {valueChanges?.meta && (
+              <View style={styles.metaRow}>
+                <View style={[styles.metaPill, { backgroundColor: FUN_COLORS.blue + '20' }]}>
+                  <Text style={[styles.metaPillText, { color: FUN_COLORS.blue }]}>
+                    {'\u{1F4CA}'} {valueChanges.meta.changedCount ?? 0} Changed
+                  </Text>
+                </View>
+                {(valueChanges.meta.addedCount ?? 0) > 0 && (
+                  <View style={[styles.metaPill, { backgroundColor: FUN_COLORS.green + '20' }]}>
+                    <Text style={[styles.metaPillText, { color: FUN_COLORS.green }]}>
+                      {'\u{2795}'} {valueChanges.meta.addedCount} Added
+                    </Text>
+                  </View>
+                )}
+                {(valueChanges.meta.removedCount ?? 0) > 0 && (
+                  <View style={[styles.metaPill, { backgroundColor: FUN_COLORS.red + '20' }]}>
+                    <Text style={[styles.metaPillText, { color: FUN_COLORS.red }]}>
+                      {'\u{2796}'} {valueChanges.meta.removedCount} Removed
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Filter buttons */}
+            <View style={styles.changesFilterRow}>
+              {[
+                { key: 'all', label: 'All', emoji: '\u{1F4CB}' },
+                { key: 'increased', label: 'Increased', emoji: '\u{2B06}\u{FE0F}' },
+                { key: 'decreased', label: 'Decreased', emoji: '\u{2B07}\u{FE0F}' },
+              ].map(f => (
+                <TouchableOpacity
+                  key={f.key}
+                  style={[styles.changesFilterBtn, changesFilter === f.key && styles.changesFilterBtnActive]}
+                  onPress={() => { setChangesFilter(f.key); setChangesVisible(CHANGES_PAGE_SIZE); }}
+                >
+                  <Text style={{ fontSize: 14 }}>{f.emoji}</Text>
+                  <Text style={[styles.changesFilterText, changesFilter === f.key && styles.changesFilterTextActive]}>
+                    {f.label}
+                    {f.key === 'all' && filterCounts.all > 0 ? ` (${filterCounts.all})` : ''}
+                    {f.key === 'increased' && filterCounts.up > 0 ? ` (${filterCounts.up})` : ''}
+                    {f.key === 'decreased' && filterCounts.down > 0 ? ` (${filterCounts.down})` : ''}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Content */}
+            {valueChangesLoading ? (
+              <View style={[styles.card, { alignItems: 'center', padding: 32 }]}>
+                <ActivityIndicator size="large" color={FUN_COLORS.green} />
+                <Text style={[styles.loadingText, { marginTop: 12 }]}>Loading value changes...</Text>
+              </View>
+            ) : filteredChanges.length === 0 ? (
+              <View style={[styles.card, { alignItems: 'center', padding: 32 }]}>
+                <Text style={{ fontSize: 36 }}>{'\u{1F4C2}'}</Text>
+                <Text style={[styles.emptyTitle, { marginTop: 8 }]}>No Changes Found</Text>
+                <Text style={styles.emptySubtitle}>No value updates match this filter.</Text>
+              </View>
+            ) : (
+              <View style={styles.card}>
+                <SectionHeader emoji={'\u{1F4C8}'} title={'Changed Values'} subtitle={`${filteredChanges.length} fruit${filteredChanges.length !== 1 ? 's' : ''} updated`} />
+                {filteredChanges.slice(0, changesVisible).map((item, i) => (
+                  <ChangeRow
+                    key={`change-${i}`}
+                    item={item}
+                    index={i}
+                    isDarkMode={isDarkMode}
+                    formatNumber={formatNumber}
+                    styles={styles}
+                  />
+                ))}
+                {changesVisible < filteredChanges.length && (
+                  <TouchableOpacity
+                    style={styles.loadMoreBtn}
+                    onPress={() => setChangesVisible(v => v + CHANGES_PAGE_SIZE)}
+                  >
+                    <Text style={styles.loadMoreText}>
+                      {'\u{1F4E5}'} Load more ({filteredChanges.length - changesVisible} remaining)
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
           </>
@@ -1056,6 +1398,149 @@ const getStyles = (isDarkMode) =>
     updatedText: {
       fontSize: 11,
       color: isDarkMode ? '#777' : '#999',
+    },
+
+    // ── Changes Tab styles ──
+    changeRow: {
+      paddingVertical: 10,
+      paddingHorizontal: 6,
+      borderRadius: 10,
+      gap: 6,
+    },
+    changeLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
+    changeInfo: {
+      flex: 1,
+      marginLeft: 2,
+    },
+    changeRight: {
+      alignItems: 'flex-end',
+      minWidth: 110,
+    },
+    changeValuesRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    changeOldValue: {
+      fontSize: 11,
+      color: isDarkMode ? '#777' : '#999',
+      textDecorationLine: 'line-through',
+    },
+    changeNewValue: {
+      fontSize: 13,
+      fontWeight: '800',
+    },
+    changePctBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 10,
+      marginTop: 4,
+      alignSelf: 'flex-end',
+    },
+    changePctText: {
+      fontSize: 11,
+      fontWeight: '800',
+    },
+    changeDateText: {
+      fontSize: 10,
+      color: isDarkMode ? '#666' : '#bbb',
+    },
+    subValuesGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+      marginTop: 6,
+      paddingLeft: 48,
+    },
+    subValueItem: {
+      backgroundColor: isDarkMode ? '#22223a' : '#f0f2ff',
+      borderRadius: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 5,
+      gap: 2,
+      minWidth: 80,
+    },
+    subValueItemPrimary: {
+      borderWidth: 1,
+      borderColor: config.colors.primary + '50',
+    },
+    subValueLabel: {
+      fontSize: 9,
+      fontWeight: '700',
+      color: isDarkMode ? '#888' : '#999',
+      textTransform: 'uppercase',
+    },
+    subValueOld: {
+      fontSize: 10,
+      color: isDarkMode ? '#666' : '#bbb',
+      textDecorationLine: 'line-through',
+    },
+    subValueNew: {
+      fontSize: 10,
+      fontWeight: '800',
+    },
+    subValuePct: {
+      fontSize: 9,
+      fontWeight: '700',
+    },
+    changesFilterRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 10,
+    },
+    changesFilterBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 20,
+      backgroundColor: isDarkMode ? '#22223a' : '#eef0f8',
+    },
+    changesFilterBtnActive: {
+      backgroundColor: config.colors.primary + '22',
+      borderWidth: 1,
+      borderColor: config.colors.primary + '60',
+    },
+    changesFilterText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: isDarkMode ? '#888' : '#999',
+    },
+    changesFilterTextActive: {
+      color: config.colors.primary,
+    },
+    metaRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginBottom: 10,
+    },
+    metaPill: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 14,
+    },
+    metaPillText: {
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    loadMoreBtn: {
+      alignItems: 'center',
+      paddingVertical: 12,
+      marginTop: 4,
+    },
+    loadMoreText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: config.colors.primary,
     },
   });
 

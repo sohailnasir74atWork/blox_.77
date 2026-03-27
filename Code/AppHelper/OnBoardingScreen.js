@@ -156,8 +156,8 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
 
   return (
     <GestureHandlerRootView>
-      <View style={[styles.container, { backgroundColor: isDarkMode ? '#121212' : '#f2f2f7' }]}>
-        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={isDarkMode ? '#121212' : '#f2f2f7'} />
+      <View style={[styles.container, { backgroundColor: isDarkMode ? '#0f172a' : '#f2f2f7' }]}>
+        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={isDarkMode ? '#0f172a' : '#f2f2f7'} />
         {renderScreen()}
 
         {screenIndex !== 2 && <View style={styles.bottomContainer}>
@@ -174,7 +174,7 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
 
         <SignInDrawer visible={openSignin} onClose={handleLoginSuccess} selectedTheme={selectedTheme} screen='On Boarding' />
         <Modal visible={languageModalVisible} animationType="slide" transparent>
-          <View style={[styles.modalContainer, { backgroundColor: isDarkMode ? '#121212' : '#f2f2f7' }]}>
+          <View style={[styles.modalContainer, { backgroundColor: isDarkMode ? '#0f172a' : '#f2f2f7' }]}>
             {/* <Text style={[styles.modalTitle, { color: isDarkMode ? 'white' : '#666' }]}>{t("settings.select_language")}</Text>
             <FlatList
               data={languageOptions}

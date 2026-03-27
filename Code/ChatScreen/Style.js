@@ -6,7 +6,7 @@ export const getStyles = (isDarkMode) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
+      backgroundColor: isDarkMode ? config.darkColors.bg : '#f2f2f7',
     },
     loader: {
       flex: 1,
@@ -68,33 +68,31 @@ export const getStyles = (isDarkMode) =>
 
     },
     myMessageText: {
-      fontSize: 13,
-      color: isDarkMode ? 'white' : 'black',
-      backgroundColor: isDarkMode ? config.colors.primary : 'lightgreen',
-      paddingVertical: 5,
-      paddingHorizontal: 10,
-      borderRadius: 10,
-
-      // lineHeight:14,
-      // flexDirection:'row'
-
-
+      fontSize: 14,
+      color: '#ffffff',
+      backgroundColor: isDarkMode ? '#2563EB' : '#3B82F6',
+      paddingVertical: 9,
+      paddingHorizontal: 14,
+      borderRadius: 18,
+      borderBottomRightRadius: 4,
+      overflow: 'hidden',
+      lineHeight: 20,
     },
     otherMessageText: {
-      fontSize: 13,
-      color: isDarkMode ? 'white' : 'black',
-      backgroundColor: isDarkMode ? '#34495E' : 'white',
-      paddingHorizontal: 10,
-      // lineHeight: 20,
-      borderRadius: 10,
-      paddingBottom: 5,
-
-      paddingRight: 20,
-      // lineHeight:14,
-
-      // backgroundColor:'red'
-
-
+      fontSize: 14,
+      color: isDarkMode ? '#f1f5f9' : '#1e293b',
+      backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+      paddingVertical: 9,
+      paddingHorizontal: 14,
+      borderRadius: 18,
+      borderBottomLeftRadius: 4,
+      overflow: 'hidden',
+      lineHeight: 20,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: isDarkMode ? 0 : 0.06,
+      shadowRadius: 4,
+      elevation: 1,
     },
     myMessageTextOnly: {
       fontSize: 13,
@@ -129,6 +127,82 @@ export const getStyles = (isDarkMode) =>
       textAlign: 'right',
       paddingHorizontal: 5
     },
+    // ── Private Chat: avatar-free premium bubble system ─────────────────────
+
+    // Row — transparent, just for alignment
+    pvtMyBubbleRow: {
+      alignSelf: 'flex-end',
+      maxWidth: '80%',
+      marginBottom: 4,
+      marginRight: 12,
+      alignItems: 'flex-end',
+    },
+    pvtOtherBubbleRow: {
+      alignSelf: 'flex-start',
+      maxWidth: '80%',
+      marginBottom: 4,
+      marginLeft: 12,
+      alignItems: 'flex-start',
+    },
+
+    // Actual visual bubble
+    pvtMyBubble: {
+      backgroundColor: isDarkMode ? '#2563EB' : '#dcf8c6',
+      paddingHorizontal: 9,
+      paddingTop: 5,
+      paddingBottom: 3,
+      borderRadius: 12,
+      borderBottomRightRadius: 2,
+      minWidth: 58,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+    pvtOtherBubble: {
+      backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+      paddingHorizontal: 9,
+      paddingTop: 5,
+      paddingBottom: 3,
+      borderRadius: 12,
+      borderBottomLeftRadius: 2,
+      minWidth: 58,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: isDarkMode ? 0 : 0.07,
+      shadowRadius: 2,
+      elevation: 1,
+      borderWidth: isDarkMode ? 0 : 1,
+      borderColor: '#ebebeb',
+    },
+
+    // Text inside bubble — no background, just typography
+    pvtMyText: {
+      fontSize: 14,
+      color: isDarkMode ? '#ffffff' : '#1a1a1a',
+      lineHeight: 19,
+    },
+    pvtOtherText: {
+      fontSize: 14,
+      color: isDarkMode ? '#e2e8f0' : '#1a1a1a',
+      lineHeight: 19,
+    },
+
+    // Timestamp — compact, sits inside bubble bottom-right
+    pvtTimestampMy: {
+      fontSize: 10,
+      color: isDarkMode ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.4)',
+      alignSelf: 'flex-end',
+      marginTop: 1,
+    },
+    pvtTimestampOther: {
+      fontSize: 10,
+      color: isDarkMode ? 'rgba(148,163,184,0.7)' : 'rgba(0,0,0,0.38)',
+      alignSelf: 'flex-end',
+      marginTop: 1,
+    },
+    // ─────────────────────────────────────────────────────────────────────────
     inputContainer: {
       flexDirection: 'row', // Maintains horizontal alignment with the send button
       alignItems: 'flex-start', // Align items at the top to allow wrapping
@@ -138,15 +212,16 @@ export const getStyles = (isDarkMode) =>
 
     },
     input: {
-      flex: 1, // Ensures the input takes available space
+      flex: 1,
       borderRadius: 20,
       padding: 5,
       marginRight: 10,
       fontSize: 16,
-      heighteight: 30, // Minimum height for a single line
-      maxHeight: 120, // Limit input growth to a max height
-      textAlignVertical: 'top', // Ensures text starts at the top
-      backgroundColor: isDarkMode ? '#333' : '#fff', // Optional background for better visibility
+      minHeight: 30,
+      maxHeight: 120,
+      textAlignVertical: 'top',
+      backgroundColor: isDarkMode ? config.darkColors.elevated : '#fff',
+      color: isDarkMode ? config.darkColors.textPrimary : '#000',
     },
 
     // sendButton: {
@@ -225,7 +300,7 @@ export const getStyles = (isDarkMode) =>
       alignSelf: 'center',
       width: '100%',
       borderTopWidth: 1,
-      borderColor: isDarkMode ? '#333333' : '#cccccc',
+      borderColor: isDarkMode ? config.darkColors.border : '#cccccc',
 
       //  borderRadius:10
 
@@ -241,19 +316,17 @@ export const getStyles = (isDarkMode) =>
       paddingHorizontal: 10,
       paddingVertical: 3,
       borderTopWidth: 1,
-      borderTopColor: isDarkMode ? '#333' : '#ddd',
-      backgroundColor: isDarkMode ? '#222' : '#fff',
-      // backgroundColor:'red',
-
+      borderTopColor: isDarkMode ? config.darkColors.border : '#ddd',
+      backgroundColor: isDarkMode ? config.darkColors.surface : '#fff',
     },
     replyContainer: {
-      backgroundColor: isDarkMode ? '#333' : '#f0f0f0',
+      backgroundColor: isDarkMode ? config.darkColors.elevated : '#f0f0f0',
       padding: 10,
       borderRadius: 8,
       marginBottom: 10,
     },
     replyText: {
-      color: isDarkMode ? '#fff' : '#333',
+      color: isDarkMode ? config.darkColors.textPrimary : '#333',
       fontSize: 14,
     },
     cancelReplyButton: {
@@ -287,23 +360,23 @@ export const getStyles = (isDarkMode) =>
       fontSize: 16,
     },
     replyContainer: {
-      backgroundColor: isDarkMode ? '#333' : '#f0f0f0',
+      backgroundColor: isDarkMode ? config.darkColors.elevated : '#f0f0f0',
       borderLeftWidth: 3,
-      borderLeftColor: isDarkMode ? '#1E88E5' : '#007BFF',
+      borderLeftColor: isDarkMode ? '#60a5fa' : '#007BFF',
       padding: 5,
       marginBottom: 5,
       borderRadius: 5,
     },
     replyText: {
       fontSize: 10,
-      color: isDarkMode ? '#1E88E5' : '#007BFF',
+      color: isDarkMode ? '#60a5fa' : '#007BFF',
       width: '95%'
 
     },
     replySenderText: {
       fontSize: 12,
       fontWeight: 'bold',
-      color: isDarkMode ? '#FFF' : '#000',
+      color: isDarkMode ? config.darkColors.textPrimary : '#000',
     },
     profileImage: {
       height: 34,
@@ -320,9 +393,13 @@ export const getStyles = (isDarkMode) =>
     },
 
     userName: {
-      color: '#aaa',
+      color: isDarkMode ? '#94a3b8' : '#aaa',
       fontSize: 10,
-
+    },
+    userNameText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: isDarkMode ? '#e2e8f0' : '#1a1a1a',
     },
     adminActions: {
       // flexDirection: 'row',
@@ -373,14 +450,13 @@ export const getStyles = (isDarkMode) =>
       paddingHorizontal: 10,
       paddingVertical: 15,
       borderBottomWidth: 1,
-      borderColor: 'lightgrey',
-      backgroundColor: 'white',
+      borderColor: isDarkMode ? '#334155' : '#e5e5e5',
+      backgroundColor: isDarkMode ? '#1e293b' : 'white',
       borderRadius: 10,
-
     },
     menuOptionText: {
       fontSize: 16,
-      color: '#000',
+      color: isDarkMode ? '#e2e8f0' : '#000',
     },
     reportIcon: {
       position: 'absolute',
@@ -403,7 +479,7 @@ export const getStyles = (isDarkMode) =>
 
     },
     emptyText: {
-      color: isDarkMode ? 'white' : 'black',
+      color: isDarkMode ? config.darkColors.textPrimary : 'black',
     }
     ,
     tradeDetails: {

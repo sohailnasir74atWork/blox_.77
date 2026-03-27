@@ -5,7 +5,7 @@ export const getStyles = (isDarkMode, config) =>
         container: {
             flex: 1,
             paddingHorizontal: 10,
-            backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
+            backgroundColor: isDarkMode ? '#0f172a' : '#f2f2f7',
 
         },
         sectionTitle: {
@@ -124,7 +124,7 @@ export const getStyles = (isDarkMode, config) =>
         historyCard: {
             flexDirection: 'row',
             justifyContent: 'space-between',
-            backgroundColor: isDarkMode ? "#121212" : '#ECF0F1',
+            backgroundColor: isDarkMode ? "#1e293b" : '#ECF0F1',
             padding: 10,
             borderRadius: 6,
             marginVertical: 5,
@@ -357,7 +357,7 @@ export const getStyles = (isDarkMode, config) =>
         leaderboardCard: {
             flexDirection: 'row',
             justifyContent: 'space-between',
-            backgroundColor: isDarkMode ? '#121212' : '#ECF0F1',
+            backgroundColor: isDarkMode ? '#1e293b' : '#ECF0F1',
             padding: 10,
             borderRadius: 6,
             marginVertical: 5,

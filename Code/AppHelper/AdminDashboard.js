@@ -623,7 +623,7 @@ const AdminDashboard = () => {
         onPress={() => handleSelectUser(merged)}
         style={[
           styles.card,
-          { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF', borderColor: isDark ? '#2C2C2E' : '#F2F2F7' }
+          { backgroundColor: isDark ? '#1e293b' : '#FFFFFF', borderColor: isDark ? '#334155' : '#F2F2F7' }
         ]}
       >
         <Image source={{ uri: avatarUri }} style={styles.avatar} />
@@ -678,7 +678,7 @@ const AdminDashboard = () => {
             onChangeText={setSearchQuery}
             placeholder="Search by display name..."
             placeholderTextColor={isDark ? '#666' : '#999'}
-            style={[styles.searchInput, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', color: isDark ? '#FFF' : '#000' }]}
+            style={[styles.searchInput, { backgroundColor: isDark ? '#1e293b' : '#FFF', color: isDark ? '#FFF' : '#000' }]}
             returnKeyType="search"
             onSubmitEditing={handleSearch}
           />
@@ -697,7 +697,7 @@ const AdminDashboard = () => {
               onChangeText={setBannedSearchQuery}
               placeholder="Search banned users..."
               placeholderTextColor={isDark ? '#666' : '#999'}
-              style={[styles.searchInput, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', color: isDark ? '#FFF' : '#000' }]}
+              style={[styles.searchInput, { backgroundColor: isDark ? '#1e293b' : '#FFF', color: isDark ? '#FFF' : '#000' }]}
             />
             <View style={styles.searchBtn}>
               <Ionicons name="search" size={20} color="#FFF" />
@@ -799,7 +799,7 @@ const AdminDashboard = () => {
               {loadingDetails ? (
                 <ActivityIndicator size="small" color="#007AFF" style={{ marginBottom: 16 }} />
               ) : userDetails && (
-                <View style={[styles.statsSection, { backgroundColor: isDark ? '#1C1C1E' : '#FFF' }]}>
+                <View style={[styles.statsSection, { backgroundColor: isDark ? '#1e293b' : '#FFF' }]}>
                   {userDetails.createdAt && (
                     <View style={styles.statRow}>
                       <Ionicons name="calendar-outline" size={18} color={isDark ? '#888' : '#666'} />
@@ -841,7 +841,7 @@ const AdminDashboard = () => {
                     const dateText = formatDateSafe(review?.createdAt) || formatDateSafe(review?.updatedAt) || '';
 
                     return (
-                      <View key={review.id} style={[styles.reviewCard, { backgroundColor: isDark ? '#1C1C1E' : '#FFF' }]}>
+                      <View key={review.id} style={[styles.reviewCard, { backgroundColor: isDark ? '#1e293b' : '#FFF' }]}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
                           <Ionicons name="star" size={14} color="#FFD700" />
                           <Text style={{ color: isDark ? '#FFF' : '#000', marginLeft: 4, fontWeight: '600' }}>
@@ -987,7 +987,7 @@ const styles = StyleSheet.create({
   proBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1C1C1E',
+    backgroundColor: '#1e293b',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,

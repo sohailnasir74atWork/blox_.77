@@ -292,6 +292,11 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       }
       setStartRating(false);
 
+      // ✅ Show interstitial ad after review submit/edit (non-Pro only)
+      if (!localState?.isPro) {
+        InterstitialAdManager.showAd(() => { });
+      }
+
     } catch (error) {
       console.error("Rating error:", error);
       showErrorMessage("Error", "Error submitting rating. Try again!");

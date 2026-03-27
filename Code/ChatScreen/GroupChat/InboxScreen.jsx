@@ -470,7 +470,7 @@ const getStyles = (isDarkMode) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
+      backgroundColor: isDarkMode ? '#0f172a' : '#f2f2f7',
     },
     itemContainer: {
       flex: 1,

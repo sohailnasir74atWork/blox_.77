@@ -239,7 +239,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                 <Text style={styles.footerText}>Created with {config.appName}</Text>
 
                                 <Image
-                                    source={require('../../assets/logo.webp')} // Replace with the actual local image path
+                                    source={require('../../assets/logo.png')} // Replace with the actual local image path
                                     style={styles.footerImage}
                                 />
                             </View>
@@ -340,7 +340,7 @@ const getStyles = (isDarkMode) =>
             alignItems: 'center',
         },
         modalContainer: {
-            backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
+            backgroundColor: isDarkMode ? '#0f172a' : '#f2f2f7',
             // paddingVertical: 10,
             borderRadius: 8,
             width: '98%',
@@ -374,7 +374,7 @@ const getStyles = (isDarkMode) =>
         switchLabel: {
             fontSize: 12,
 
-            color: isDarkMode ? '#f2f2f7' : '#121212',
+            color: isDarkMode ? '#f2f2f7' : '#0f172a',
         },
         buttonContainer: {
             flexDirection: 'row',

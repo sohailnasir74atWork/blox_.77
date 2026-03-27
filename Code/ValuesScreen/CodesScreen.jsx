@@ -56,7 +56,7 @@ const CodesScreen = () => {
   };
 
   const renderCodeItem = ({ item }) => (
-    <View style={[styles.codeItem, { backgroundColor: isDarkMode ? '#1e1e1e' : '#fff' }]}>
+    <View style={[styles.codeItem, { backgroundColor: isDarkMode ? '#1e293b' : '#fff' }]}>
       <View style={styles.codeHeader}>
         <Icon name="gift-outline" size={20} color={config.colors.primary} />
         <Text style={[styles.codeText, { color: isDarkMode ? '#fff' : '#000' }]}>
@@ -87,7 +87,7 @@ const CodesScreen = () => {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: isDarkMode ? '#121212' : '#f5f5f5' }]}>
+    <View style={[styles.container, { backgroundColor: isDarkMode ? '#0f172a' : '#f5f5f5' }]}>
       <FlatList
         data={normalizedCodes}
         keyExtractor={(item, index) => index.toString()}

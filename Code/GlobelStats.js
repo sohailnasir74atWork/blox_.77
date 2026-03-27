@@ -269,6 +269,17 @@ export const GlobalStateProvider = ({ children }) => {
       clearUserCache();
       return;
     }
+
+    // ✅ Block unverified email/password users from entering the app.
+    // Firebase auto-signs-in users immediately after createUserWithEmailAndPassword,
+    // so onAuthStateChanged fires BEFORE signOut() is called in SigninDrawer.
+    // This guard prevents that race condition from granting unverified users access.
+    const isEmailProvider = loggedInUser.providerData?.some(
+      (p) => p.providerId === 'password'
+    );
+    if (isEmailProvider && !loggedInUser.emailVerified) {
+      return; // SigninDrawer will call signOut() — wait for the null callback
+    }
     try {
       const userId = loggedInUser.uid;
       const userRef = ref(appdatabase, `users/${userId}`);
@@ -293,19 +304,33 @@ export const GlobalStateProvider = ({ children }) => {
         // ✅ Also check admin from DB if not hardcoded
         if (existing.admin || existing.isAdmin) setIsAdmin(true);
 
+        // 🩹 Heal bad displayNames ('Anonymous', empty, or missing) left by the
+        // registration race condition or any other cause
+        const { generateOnePieceUsername } = require('./Helper/RendomNamegen');
+        const isBadName = !existing.displayName ||
+          existing.displayName.trim() === '' ||
+          existing.displayName.trim() === 'Anonymous';
+
+        const healedDisplayName = isBadName
+          ? (loggedInUser.displayName || generateOnePieceUsername())
+          : existing.displayName;
+
+        if (isBadName) {
+          await update(userRef, { displayName: healedDisplayName });
+        }
+
         userData = {
           ...existing,
           id: userId,
-          createdAt: existing.createdAt || Date.now(),   // fallback if missing
-          email: loggedInUser.email || existing.email || null, // ✅ Store email in user data
+          displayName: healedDisplayName,
+          createdAt: existing.createdAt || Date.now(),
+          email: loggedInUser.email || existing.email || null,
         };
 
         // ✅ Update email in Firebase if it's missing or changed
         if (loggedInUser.email && existing.email !== loggedInUser.email) {
           await update(userRef, { email: loggedInUser.email });
         }
-        // console.log(userData, 'userData')
-
 
       } else {
         // console.log(robloxUsernameRef?.current, 'robloxUsername_inside')

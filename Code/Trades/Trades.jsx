@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { View, FlatList, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, TextInput, Alert, Platform, Animated } from 'react-native';
+import { View, FlatList, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, TextInput, Alert, Platform, Animated, ScrollView } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -1062,8 +1062,14 @@ const TradeList = ({ route }) => {
     };
 
     return (
-      <View style={[styles.altTradeCard, item.isFeatured && { backgroundColor: isDarkMode ? '#2a2a3a' : '#fffbeb' }]}>
-        {item.isFeatured && <View style={styles.altFeaturedBadge}><Text style={styles.altFeaturedText}>FEATURED</Text></View>}
+      <View style={[styles.altTradeCard, item.isFeatured && styles.altTradeCardFeatured]}>
+        {item.isFeatured && (
+          <View style={styles.altFeaturedRow}>
+            <View style={styles.altFeaturedBadge}>
+              <Text style={styles.altFeaturedText}>⭐ FEATURED</Text>
+            </View>
+          </View>
+        )}
 
         {/* Header row */}
         <View style={styles.altTradeHeader}>
@@ -1222,8 +1228,14 @@ const TradeList = ({ route }) => {
     };
 
     return (
-      <View style={[styles.tradeItem, item.isFeatured && { backgroundColor: isDarkMode ? '#34495E' : 'rgba(245, 222, 179, 0.6)' }]}>
-        {item.isFeatured && <View style={styles.tag}></View>}
+      <View style={[styles.tradeItem, item.isFeatured && styles.tradeItemFeatured]}>
+        {item.isFeatured && (
+          <View style={styles.featuredTopRow}>
+            <View style={styles.featuredTopLabel}>
+              <Text style={styles.featuredTopLabelText}>⭐ Featured</Text>
+            </View>
+          </View>
+        )}
 
         <View style={styles.tradeHeader}>
           <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }} onPress={() => handleOpenProfile(item)}>
@@ -1306,27 +1318,6 @@ const TradeList = ({ route }) => {
           </TouchableOpacity>
 
           <View style={{ flexDirection: 'row', }}>
-            {/* {(groupedHasItems.length > 0 && groupedWantsItems.length > 0) &&  <View style={[styles.dealContainer, { backgroundColor: deal.color }]}>
-              <Text style={styles.dealText}>
-
-                {t(deal.label)}
-              </Text>
-
-            </View>} */}
-            <FontAwesome
-              name='message'
-              size={18}
-              color={config.colors.primary}
-              onPress={() => handleOpenProfile(item)}
-
-              solid={false}
-            />
-            {/* <Icon
-              name="chatbox-outline"
-              size={18}
-              color={config.colors.secondary}
-              onPress={handleChatNavigation}
-            /> */}
           </View>
         </View>
         {/* Trade Items */}
@@ -1419,30 +1410,26 @@ const TradeList = ({ route }) => {
         {/* Description */}
         {item.description && <Text style={styles.description}>{renderTextWithUsername(item.description)}
         </Text>}
-        {item.userId === user.id && (<View style={styles.footer}>
-          {!item.isFeatured &&
-            <TouchableOpacity onPress={() => handleMakeFeatureTrade(item)} style={[styles.boost, { backgroundColor: 'purple' }]}>
-              <Text
+        {item.userId === user?.id && (
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+            {!item.isFeatured && (
+              <TouchableOpacity onPress={() => handleMakeFeatureTrade(item)} style={styles.tradeBoostBtn}>
+                <Icon name="rocket-outline" size={11} color="white" />
+                <Text style={styles.tradeBtnText}>BOOST</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={() => handleDelete(item)} style={styles.tradeDeleteBtn}>
+              <Icon name="trash-outline" size={11} color="white" />
+              <Text style={styles.tradeBtnText}>DELETE</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-
-
-
-                style={{ color: 'white', }}
-              >BOOST IT</Text>
-            </TouchableOpacity>}
-          <TouchableOpacity onPress={() => handleDelete(item)} style={[styles.boost, { backgroundColor: 'black' }]}>
-            <Text
-
-
-              color={config.colors.secondary}
-
-              style={{ color: 'white', }}
-            >DELETE IT</Text>
-          </TouchableOpacity>
-
-
-
-        </View>)}
+        {/* ── Absolute Chat button ── */}
+        <TouchableOpacity style={styles.tradeChatBtn} onPress={() => handleOpenProfile(item)} activeOpacity={0.8}>
+          <Icon name="paper-plane-outline" size={11} color="#fff" />
+          <Text style={styles.tradeChatBtnLabel}>Chat</Text>
+        </TouchableOpacity>
         {/* <ShareTradeModal
           visible={openShareModel}
           onClose={() => setOpenShareModel(false)}
@@ -1468,13 +1455,18 @@ const TradeList = ({ route }) => {
 
   return (
     <View style={styles.container}>
-      {/* ✅ Modern Search Container */}
-      <View style={[styles.searchContainer, { backgroundColor: isDarkMode ? '#1e1e1e' : '#fff' }]}>
+      {/* ── Compact Search Bar ─────────────────────────────────────────────── */}
+      <View style={[
+        styles.searchContainer,
+        { backgroundColor: isDarkMode ? config.darkColors.surface : '#fff' }
+      ]}>
+        {/* Input row */}
         <View style={styles.searchInputContainer}>
+          <Icon name="search" size={15} color={isDarkMode ? '#94a3b8' : '#999'} style={{ marginLeft: 10, marginRight: 6 }} />
           <TextInput
-            style={[styles.searchInput, { color: isDarkMode ? '#fff' : '#000' }]}
-            placeholder={t("trade.search_placeholder") || "Search items..."}
-            placeholderTextColor={isDarkMode ? '#888' : '#666'}
+            style={[styles.searchInput, { color: isDarkMode ? '#f1f5f9' : '#000' }]}
+            placeholder={t("trade.search_placeholder") || "Search items…"}
+            placeholderTextColor={isDarkMode ? '#64748b' : '#aaa'}
             value={searchQuery}
             onChangeText={setSearchQuery}
             onSubmitEditing={() => {
@@ -1493,22 +1485,20 @@ const TradeList = ({ route }) => {
                 setSearchHasMore(true);
                 fetchInitialTrades();
               }}
-              style={styles.clearSearchButton}
+              style={{ paddingHorizontal: 6 }}
             >
-              <Icon name="close-circle" size={20} color={isDarkMode ? '#999' : '#666'} />
+              <Icon name="close-circle" size={16} color={isDarkMode ? '#64748b' : '#bbb'} />
             </TouchableOpacity>
           )}
-          {/* ✅ Search Button - Inside input container on right side */}
           <TouchableOpacity
             style={[
               styles.searchButtonInline,
               {
-                backgroundColor: searchQuery.trim() ? config.colors.primary : (isDarkMode ? '#333' : '#ddd'),
-                opacity: searchQuery.trim() && !isSearching ? 1 : 0.6
+                backgroundColor: searchQuery.trim() ? config.colors.primary : (isDarkMode ? '#334155' : '#e2e8f0'),
+                opacity: searchQuery.trim() && !isSearching ? 1 : 0.65,
               }
             ]}
             onPress={() => {
-              // ✅ Reset pagination for new search
               setSearchLastDoc(null);
               setSearchHasMore(true);
               handleSearchTrades(false);
@@ -1519,56 +1509,92 @@ const TradeList = ({ route }) => {
             {isSearching ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Icon name="search" size={18} color="#fff" />
+              <Icon name="arrow-forward" size={14} color="#fff" />
             )}
           </TouchableOpacity>
         </View>
 
-        {/* ✅ Search Options Checkboxes */}
+        {/* ME / YOU chips — only shown while typing */}
         {searchQuery.length > 0 && (
           <View style={styles.searchOptionsContainer}>
             <TouchableOpacity
-              style={[styles.checkboxContainer, !searchInHas && styles.checkboxUnchecked]}
+              style={[styles.searchChip, searchInHas && styles.searchChipActive]}
               onPress={() => {
                 triggerHapticFeedback('impactLight');
-                // ✅ Ensure at least one checkbox is always checked
-                if (!searchInHas && !searchInWants) {
-                  setSearchInWants(true);
-                }
+                if (!searchInHas && !searchInWants) setSearchInWants(true);
                 setSearchInHas(!searchInHas);
               }}
               activeOpacity={0.7}
             >
-              <View style={[styles.checkbox, searchInHas && styles.checkboxChecked]}>
-                {searchInHas && <Icon name="checkmark" size={14} color="#fff" />}
-              </View>
-              <Text style={[styles.checkboxLabel, { color: isDarkMode ? '#fff' : '#000' }]}>
-                Search in ME side
-              </Text>
+              <Text style={[styles.searchChipText, searchInHas && styles.searchChipTextActive]}>ME side</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
-              style={[styles.checkboxContainer, !searchInWants && styles.checkboxUnchecked]}
+              style={[styles.searchChip, searchInWants && styles.searchChipActive]}
               onPress={() => {
                 triggerHapticFeedback('impactLight');
-                // ✅ Ensure at least one checkbox is always checked
-                if (!searchInHas && !searchInWants) {
-                  setSearchInHas(true);
-                }
+                if (!searchInHas && !searchInWants) setSearchInHas(true);
                 setSearchInWants(!searchInWants);
               }}
               activeOpacity={0.7}
             >
-              <View style={[styles.checkbox, searchInWants && styles.checkboxChecked]}>
-                {searchInWants && <Icon name="checkmark" size={14} color="#fff" />}
-              </View>
-              <Text style={[styles.checkboxLabel, { color: isDarkMode ? '#fff' : '#000' }]}>
-                Search in YOU side
-              </Text>
+              <Text style={[styles.searchChipText, searchInWants && styles.searchChipTextActive]}>YOU side</Text>
             </TouchableOpacity>
           </View>
         )}
       </View>
+      {/* ✅ Filter Pill Bar — matching adoptme */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ flexGrow: 0, flexShrink: 0 }}
+        contentContainerStyle={{ flexDirection: 'row', paddingHorizontal: 4, paddingVertical: 6, gap: 8 }}
+      >
+        {[
+          { id: 'win', label: '🏆 Win', color: '#10B981' },
+          { id: 'lose', label: '❌ Lose', color: '#EF4444' },
+          { id: 'fair', label: '⚖️ Fair', color: '#F59E0B' },
+          { id: 'myTrades', label: '👤 My Trades', color: config.colors.primary },
+        ].map(({ id, label, color }) => {
+          const active = selectedFilters.includes(id);
+          return (
+            <TouchableOpacity
+              key={id}
+              onPress={() => {
+                triggerHapticFeedback('impactLight');
+                setSelectedFilters(prev =>
+                  prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]
+                );
+              }}
+              style={{
+                paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
+                backgroundColor: active ? color : (isDarkMode ? '#1e1e2e' : '#f0f0f5'),
+                borderWidth: 1,
+                borderColor: active ? color : (isDarkMode ? '#333' : '#ddd'),
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={{
+                fontSize: 12, fontWeight: '700',
+                color: active ? '#fff' : (isDarkMode ? '#aaa' : '#555'),
+              }}>{label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+        {selectedFilters.length > 0 && (
+          <TouchableOpacity
+            onPress={() => { triggerHapticFeedback('impactLight'); setSelectedFilters([]); }}
+            style={{
+              paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
+              backgroundColor: isDarkMode ? '#2a1a1a' : '#fee2e2',
+              borderWidth: 1, borderColor: '#EF4444',
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={{ fontSize: 12, fontWeight: '700', color: '#EF4444' }}>✕ Clear</Text>
+          </TouchableOpacity>
+        )}
+      </ScrollView>
+
       <FlatList
         ref={flatListRef}
         data={isSearchMode ? trades : filteredTrades}
@@ -1688,23 +1714,42 @@ const getStyles = (isDarkMode) =>
     },
     tradeItem: {
       padding: 10,
+      paddingBottom: 44,
       marginBottom: 10,
-      // marginHorizontal: 10,
-      backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
-
+      backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
       borderRadius: 10,
       borderWidth: 0,
+      position: 'relative',
+    },
+    tradeItemFeatured: {
+      borderWidth: 1.5,
+      borderColor: '#F59E0B',
+      backgroundColor: isDarkMode ? '#1e293b' : '#fffbeb',
+    },
+    featuredTopRow: {
+      marginBottom: 8,
+    },
+    featuredTopLabel: {
+      alignSelf: 'flex-start',
+      backgroundColor: '#F59E0B',
+      borderRadius: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+    },
+    featuredTopLabelText: {
+      color: '#fff',
+      fontSize: 9,
+      fontWeight: '800',
     },
 
     searchInput: {
-      height: 40,
-      borderColor: 'transparent',
+      flex: 1,
+      height: 36,
       backgroundColor: 'transparent',
       borderWidth: 0,
-      marginVertical: 8,
-      paddingHorizontal: 10,
-      color: isDarkMode ? 'white' : '#1a1a1a',
-      flex: 1,
+      paddingHorizontal: 4,
+      fontSize: 13,
+      color: isDarkMode ? '#f1f5f9' : '#1a1a1a',
     },
     tradeHeader: {
       flexDirection: 'row',
@@ -1939,24 +1984,63 @@ const getStyles = (isDarkMode) =>
       justifyContent: 'center',
       alignItems: 'center',
     },
+    // ── Trade card action bar ─────────────────────────────────────────────────
+    tradeActionBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 8,
+    },
+    tradeBoostBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      backgroundColor: '#7C3AED',
+      paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+    },
+    tradeDeleteBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      backgroundColor: '#EF4444',
+      paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+    },
+    tradeBtnText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+    tradeChatBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 4,
+      position: 'absolute',
+      bottom: 8,
+      right: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 999,
+      backgroundColor: config.colors.primary,
+      shadowColor: config.colors.primary,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+      elevation: 4,
+    },
+    tradeChatBtnLabel: {
+      color: '#ffffff',
+      fontWeight: '700',
+      fontSize: 10,
+    },
+    // ── (end) ─────────────────────────────────────────────────────────────────
     searchContainer: {
-      padding: 6,
-      borderRadius: 12,
-      marginVertical: 8,
-      // shadowColor: '#000',
-      // shadowOffset: { width: 0, height: 2 },
-      // shadowOpacity: 0.3,
-      // shadowRadius: 4,
-      // elevation: 3,
+      paddingHorizontal: 4,
+      paddingVertical: 4,
+      marginTop: 4,
+      marginBottom: 2,
     },
     searchInputContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: isDarkMode ? '#2a2a2a' : '#f0f0f0',
-      borderRadius: 10,
-      paddingHorizontal: 6,
-      borderWidth: 1.5,
-      borderColor: isDarkMode ? '#444' : '#c5c5c5',
+      backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9',
+      borderRadius: 24,
+      borderWidth: 1,
+      borderColor: isDarkMode ? '#334155' : '#e2e8f0',
+      height: 36,
+      overflow: 'hidden',
     },
     searchIcon: {
       marginRight: 8,
@@ -1967,9 +2051,29 @@ const getStyles = (isDarkMode) =>
     },
     searchOptionsContainer: {
       flexDirection: 'row',
-      justifyContent: 'space-around',
-      // marginBottom: 10,
-      paddingVertical: 8,
+      gap: 8,
+      paddingTop: 6,
+      paddingHorizontal: 6,
+    },
+    searchChip: {
+      paddingHorizontal: 10,
+      paddingVertical: 3,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: isDarkMode ? '#334155' : '#e2e8f0',
+      backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9',
+    },
+    searchChipActive: {
+      backgroundColor: config.colors.primary,
+      borderColor: config.colors.primary,
+    },
+    searchChipText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: isDarkMode ? '#94a3b8' : '#666',
+    },
+    searchChipTextActive: {
+      color: '#fff',
     },
     checkboxContainer: {
       flexDirection: 'row',
@@ -2029,17 +2133,25 @@ const getStyles = (isDarkMode) =>
     altTradeCard: {
       padding: 12,
       marginVertical: 5,
-      backgroundColor: isDarkMode ? '#152238' : '#ffffff',
+      backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
       borderRadius: 14,
       borderTopWidth: 4,
       borderTopColor: config.colors.primary,
     },
+    altTradeCardFeatured: {
+      borderWidth: 1.5,
+      borderTopWidth: 4,
+      borderColor: '#F59E0B',
+      borderTopColor: '#F59E0B',
+      backgroundColor: isDarkMode ? '#1e293b' : '#fffbeb',
+    },
+    altFeaturedRow: {
+      marginBottom: 8,
+    },
     altFeaturedBadge: {
-      position: 'absolute',
-      top: -8,
-      left: 12,
-      backgroundColor: config.colors.hasBlockGreen,
-     borderRadius:6,
+      alignSelf: 'flex-start',
+      backgroundColor: '#F59E0B',
+      borderRadius: 6,
       paddingHorizontal: 8,
       paddingVertical: 2,
     },

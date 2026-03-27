@@ -60,7 +60,7 @@ const MessageInput = ({
   const [showEmojiPopup, setShowEmojiPopup] = useState(false); // To show the emoji selection popup
   const [showGifPopup, setShowGifPopup] = useState(false); // To show GIF selection popup
   const lastSendTimeRef = useRef(0); // ✅ Track last send time for cooldown
-  const COOLDOWN_MS = 25000; // ✅ 25-sec cooldown for non-pro users
+  const COOLDOWN_MS = 10000; // ✅ 10-sec cooldown for non-pro users
   const hasFruits = Array.isArray(selectedFruits) && selectedFruits.length > 0;
   const maxFruitsReached = Array.isArray(selectedFruits) && selectedFruits.length >= 4;
   const hasContent = (input || '').trim().length > 0 || hasFruits || selectedEmoji;
@@ -70,13 +70,13 @@ const MessageInput = ({
 
   const handleSend = async (emojiArg) => {
     triggerHapticFeedback('impactLight');
-  
+
     const trimmedInput = (input || '').trim();
     const emojiFromArg = typeof emojiArg === 'string' ? emojiArg : undefined;
-    const emojiToSend  = emojiFromArg || selectedEmoji || null;
-    const hasEmoji     = !!emojiToSend;
-    const fruits       = hasFruits ? [...selectedFruits] : [];
-  
+    const emojiToSend = emojiFromArg || selectedEmoji || null;
+    const hasEmoji = !!emojiToSend;
+    const fruits = hasFruits ? [...selectedFruits] : [];
+
     if (!trimmedInput && !hasFruits && !hasEmoji) return;
     if (isSending) return;
 
@@ -107,11 +107,11 @@ const MessageInput = ({
         return;
       }
     }
-  
+
     setIsSending(true);
-  
+
     const adCallback = () => setIsSending(false);
-  
+
     try {
       const success = await handleSendMessage(replyTo, trimmedInput, fruits, emojiToSend);
 
@@ -122,15 +122,15 @@ const MessageInput = ({
       }
 
       lastSendTimeRef.current = Date.now(); // ✅ Update cooldown timer after successful send
-  
+
       setInput('');
       setSelectedFruits([]);
       if (selectedEmoji) setSelectedEmoji(null);
       if (onCancelReply) onCancelReply();
-  
+
       const newCount = messageCount + 1;
       setMessageCount(newCount);
-  
+
       if (!localState?.isPro && newCount % 12 === 0) {
         InterstitialAdManager.showAd(adCallback);
       } else {
@@ -141,8 +141,8 @@ const MessageInput = ({
       setIsSending(false);
     }
   };
-  
-  
+
+
   const handleImageLoad = () => {
     setLoadingImage(false); // Image has finished loading
   };
@@ -156,7 +156,7 @@ const MessageInput = ({
     if (gifAllowed) {
       setSelectedEmoji(emojiUrl);
       handleSend(emojiUrl);
-       setShowEmojiPopup(false);   // close picker
+      setShowEmojiPopup(false);   // close picker
     } else {
       showMessage({
         message: "You need to purchase this item from the store in the reward section.",
@@ -165,7 +165,7 @@ const MessageInput = ({
       });
     }
   };
-  
+
 
   // GIF selection function
 
@@ -185,11 +185,11 @@ const MessageInput = ({
       )}
 
       <View style={styles.inputContainer}>
-      <TouchableOpacity
+        <TouchableOpacity
           style={[
-            styles.sendButton, 
-            { 
-              marginRight: 3, 
+            styles.sendButton,
+            {
+              marginRight: 3,
               paddingHorizontal: 3,
               opacity: maxFruitsReached ? 0.5 : 1
             }
@@ -203,7 +203,7 @@ const MessageInput = ({
             }
           }}
           disabled={isSending || maxFruitsReached}
-          >
+        >
           <Icon
             name="logo-octocat"
             size={20}
@@ -265,15 +265,15 @@ const MessageInput = ({
                 hasContent && !isSending ? '#1E88E5' : config.colors.primary,
             },
           ]}
-          onPress={()=>handleSend()}
+          onPress={() => handleSend()}
           disabled={isSending || !hasContent}
-          >
+        >
           <Text style={styles.sendButtonText}>{isSending ? t("chat.sending") : t("chat.send")}</Text>
         </TouchableOpacity>
 
       </View>
-   
-    {hasFruits && (
+
+      {hasFruits && (
         <View
           style={{
             paddingHorizontal: 10,
@@ -304,27 +304,27 @@ const MessageInput = ({
         </View>
       )}
       {/* Emoji Popup Modal */}
-    {/* Emoji Popup Modal */}
-<Modal visible={showEmojiPopup} transparent animationType="slide">
-  <TouchableOpacity style={modalStyles.backdrop} onPress={() => setShowEmojiPopup(false)}>
-    <View style={modalStyles.sheet} onPress={(e) => e.stopPropagation()}>
-      <View style={modalStyles.emojiListContainer}>
-        {Emojies.map((item) => (
-          <TouchableOpacity
-            key={item}
-            onPress={() => selectEmoji(`https://bloxfruitscalc.com/wp-content/uploads/2025/Emojies/${item}`)}
-            style={modalStyles.emojiContainer}
-          >
-            <Image
-              source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2025/Emojies/${item}` }}
-              style={modalStyles.emojiImage}
-            />
-          </TouchableOpacity>
-        ))}
-      </View>
-    </View>
-  </TouchableOpacity>
-</Modal>
+      {/* Emoji Popup Modal */}
+      <Modal visible={showEmojiPopup} transparent animationType="slide">
+        <TouchableOpacity style={modalStyles.backdrop} onPress={() => setShowEmojiPopup(false)}>
+          <View style={modalStyles.sheet} onPress={(e) => e.stopPropagation()}>
+            <View style={modalStyles.emojiListContainer}>
+              {Emojies.map((item) => (
+                <TouchableOpacity
+                  key={item}
+                  onPress={() => selectEmoji(`https://bloxfruitscalc.com/wp-content/uploads/2025/Emojies/${item}`)}
+                  style={modalStyles.emojiContainer}
+                >
+                  <Image
+                    source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2025/Emojies/${item}` }}
+                    style={modalStyles.emojiImage}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
 
 

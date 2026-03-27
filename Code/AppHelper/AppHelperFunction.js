@@ -18,7 +18,7 @@ export const MyDarkTheme = {
   ...DarkTheme,
   colors: {
     ...DarkTheme.colors,
-    background: '#121212',
+    background: '#0f172a',
     text: 'white',
     primary: '#BB86FC',
   },
@@ -31,8 +31,8 @@ export const MyDarkTheme = {
 export const requestReview = () => {
   if (InAppReview.isAvailable()) {
     InAppReview.RequestInAppReview()
-      .then(() => {/* console.log('In-App review flow completed') */})
-      .catch((error) => {/* console.error('In-App review error:', error) */});
+      .then(() => {/* console.log('In-App review flow completed') */ })
+      .catch((error) => {/* console.error('In-App review error:', error) */ });
   }
 };
 

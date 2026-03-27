@@ -20,7 +20,7 @@ import SocialDashboard from '../AppHelper/SocialDashboard';
 const Stack = createNativeStackNavigator();
 
 export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo, setModalVisibleChatinfo }) => {
-  const { user, unreadMessagesCount, appdatabase } = useGlobalState();
+  const { user, unreadMessagesCount, appdatabase, onlineMembersCount } = useGlobalState();
   const [bannedUsers, setBannedUsers] = useState([]);
   const { triggerHapticFeedback } = useHaptic();
   const [chats, setChats] = useState([]);

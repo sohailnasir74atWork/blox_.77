@@ -5,7 +5,7 @@ export const getStyles = (isDark) => StyleSheet.create({
     container: {
         flex: 1,
         marginVertical: 8,
-        backgroundColor: isDark ? '#121212' : '#f0f4ff',
+        backgroundColor: isDark ? '#0f172a' : '#f0f4ff',
     },
     itemBox: {
         width: '49%',

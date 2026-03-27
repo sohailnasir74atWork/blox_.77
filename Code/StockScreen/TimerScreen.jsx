@@ -248,7 +248,7 @@ const TimerScreen = ({ selectedTheme }) => {
         />
         <Text style={[styles.name, { color: selectedTheme.colors.text }]}>{item.Normal}</Text>
         <Text style={styles.price}>{item.price}</Text>
-        <Text style={styles.robux}>{item.value}</Text>
+        {!!item.value && <Text style={styles.robux}>{item.value}</Text>}
       </View>
     );
   };
@@ -678,7 +678,7 @@ const getStyles = (isDarkMode, user) =>
       backgroundColor: config.colors.primary,
       padding: 10,
       borderRadius: 10,
-      backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+      backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
 
 
     },
@@ -686,7 +686,7 @@ const getStyles = (isDarkMode, user) =>
       backgroundColor: config.colors.primary,
       padding: 10,
       borderRadius: 10,
-      backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+      backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
       opacity: .3
 
 
@@ -726,7 +726,7 @@ const getStyles = (isDarkMode, user) =>
     selectedContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+      backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
       borderRadius: 20,
       paddingVertical: 1,
       paddingHorizontal: 5,
@@ -759,7 +759,7 @@ const getStyles = (isDarkMode, user) =>
     },
     reminderContainer: {
       flexDirection: 'column',
-      backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+      backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
       padding: 10,
       borderRadius: 10,
       marginTop: 10
@@ -804,7 +804,7 @@ const getStyles = (isDarkMode, user) =>
     },
     // ── Alternate (non-Noman) styles ──
     altNotifCard: {
-      backgroundColor: isDarkMode ? '#152238' : '#ffffff',
+      backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
       borderRadius: 14,
       padding: 14,
       marginTop: 10,
@@ -854,7 +854,7 @@ const getStyles = (isDarkMode, user) =>
     altChip: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: isDarkMode ? '#1a2d4a' : '#e8f0fe',
+      backgroundColor: isDarkMode ? '#1e293b' : '#e8f0fe',
       borderRadius: 20,
       paddingVertical: 4,
       paddingHorizontal: 8,
@@ -900,7 +900,7 @@ const getStyles = (isDarkMode, user) =>
       marginLeft: 4,
     },
     altStockContainer: {
-      backgroundColor: isDarkMode ? '#152238' : '#ffffff',
+      backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
       borderRadius: 12,
       padding: 10,
       marginTop: 6,

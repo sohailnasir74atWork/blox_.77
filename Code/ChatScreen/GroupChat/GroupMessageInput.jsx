@@ -156,7 +156,9 @@ const GroupMessageInput = ({
     setMessageCount((prevCount) => {
       const newCount = prevCount + 1;
       if (!localState?.isPro && newCount % 12 === 0) {
-        InterstitialAdManager.showAd(() => {});
+        InterstitialAdManager.showAd(() => setIsSending(false));
+      } else {
+        setIsSending(false);
       }
       return newCount;
     });
@@ -169,7 +171,7 @@ const GroupMessageInput = ({
       }
 
       await onSend(textToSend, imageUrl, fruitsToSend, replyTo);
-      
+
       // Clear reply after successful send
       if (onCancelReply) {
         onCancelReply();
@@ -223,7 +225,7 @@ const GroupMessageInput = ({
     <View style={styles.inputWrapper}>
       {/* Reply context UI */}
       {replyTo && (
-        <View style={[styles.replyContainer, { 
+        <View style={[styles.replyContainer, {
           backgroundColor: isDark ? '#374151' : '#E5E7EB',
           flexDirection: 'row',
           alignItems: 'center',

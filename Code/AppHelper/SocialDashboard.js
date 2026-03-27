@@ -35,7 +35,7 @@ const UserCard = memo(({ item, isDark, isFollowing, onPress }) => (
     <TouchableOpacity
         activeOpacity={0.7}
         onPress={onPress}
-        style={[styles.card, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF', borderColor: isDark ? '#2C2C2E' : '#F2F2F7' }]}
+        style={[styles.card, { backgroundColor: isDark ? '#1e293b' : '#FFFFFF', borderColor: isDark ? '#334155' : '#F2F2F7' }]}
     >
         <Image source={{ uri: item.avatar }} style={styles.avatar} />
         <View style={styles.cardContent}>
@@ -77,7 +77,7 @@ const ActivityCard = memo(({ item, isDark, onPress }) => {
         <TouchableOpacity
             activeOpacity={0.7}
             onPress={onPress}
-            style={[styles.activityCard, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF', borderColor: isDark ? '#2C2C2E' : '#F2F2F7' }]}
+            style={[styles.activityCard, { backgroundColor: isDark ? '#1e293b' : '#FFFFFF', borderColor: isDark ? '#334155' : '#F2F2F7' }]}
         >
             <Image source={{ uri: item.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }} style={styles.activityAvatar} />
             <View style={styles.activityContent}>
@@ -631,7 +631,7 @@ const SocialDashboard = () => {
                             }}
                             placeholder="Search friends..."
                             placeholderTextColor={isDark ? '#666' : '#999'}
-                            style={[styles.searchInput, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', color: isDark ? '#FFF' : '#000' }]}
+                            style={[styles.searchInput, { backgroundColor: isDark ? '#1e293b' : '#FFF', color: isDark ? '#FFF' : '#000' }]}
                             returnKeyType="search"
                             onSubmitEditing={handleFriendSearch}
                         />
@@ -677,7 +677,7 @@ const SocialDashboard = () => {
                             onChangeText={setSearchQuery}
                             placeholder="Search users..."
                             placeholderTextColor={isDark ? '#666' : '#999'}
-                            style={[styles.searchInput, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', color: isDark ? '#FFF' : '#000' }]}
+                            style={[styles.searchInput, { backgroundColor: isDark ? '#1e293b' : '#FFF', color: isDark ? '#FFF' : '#000' }]}
                             returnKeyType="search"
                             onSubmitEditing={handleSearch}
                         />

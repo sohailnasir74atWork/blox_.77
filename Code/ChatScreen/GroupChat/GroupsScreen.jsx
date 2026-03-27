@@ -21,7 +21,7 @@ import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-m
 import { useTranslation } from 'react-i18next';
 import { leaveGroup, acceptGroupInvite, declineGroupInvite, updateGroupAvatar, approveJoinRequest, rejectJoinRequest, getAllGroups, sendJoinRequest, deleteGroup } from '../utils/groupUtils';
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
-import { collection, query, where, onSnapshot, doc, getDoc } from '@react-native-firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc, getCountFromServer } from '@react-native-firebase/firestore';
 import { ref, get, set } from '@react-native-firebase/database';
 import InterstitialAdManager from '../../Ads/IntAd';
 import { useLocalState } from '../../LocalGlobelStats';
@@ -108,9 +108,26 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
   const [groupInfoModalVisible, setGroupInfoModalVisible] = useState(false);
   const [selectedGroupInfo, setSelectedGroupInfo] = useState(null);
   const [groupInfoLoading, setGroupInfoLoading] = useState(false);
+  const [totalGroupCount, setTotalGroupCount] = useState(null);
 
   const isDarkMode = theme === 'dark';
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
+
+  // ✅ Fetch total group count (same as adoptme pattern)
+  useEffect(() => {
+    if (!firestoreDB) return;
+    const fetchCount = async () => {
+      try {
+        const coll = collection(firestoreDB, 'groups');
+        const q = query(coll, where('isActive', '==', true));
+        const snapshot = await getCountFromServer(q);
+        setTotalGroupCount(snapshot.data().count);
+      } catch (err) {
+        console.error('Error fetching group count:', err);
+      }
+    };
+    fetchCount();
+  }, [firestoreDB]);
 
   // Set header with info icon
   useEffect(() => {
@@ -1191,7 +1208,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
               : (isDarkMode ? '#9CA3AF' : '#6B7280'),
             letterSpacing: 0.3,
           }}>
-            All Groups
+            All Groups{totalGroupCount != null ? ` (${totalGroupCount.toLocaleString()})` : ''}
           </Text>
         </TouchableOpacity>
       </View>
@@ -1938,7 +1955,7 @@ const getStyles = (isDarkMode) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
+      backgroundColor: isDarkMode ? '#0f172a' : '#f2f2f7',
     },
     itemContainer: {
       flex: 1,

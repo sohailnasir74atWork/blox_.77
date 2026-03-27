@@ -1,11 +1,17 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
-import FontAwesome from 'react-native-vector-icons/FontAwesome6';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import FontAwesome6 from 'react-native-vector-icons/FontAwesome6';
 import config from '../../Helper/Environment';
 import { useGlobalState } from '../../GlobelStats';
-import { useLocalState } from '../../LocalGlobelStats';
-import InterstitialAdManager from '../../Ads/IntAd';
+
+const TAG_CONFIG = {
+  'Scam Alert': { icon: 'shield-halved', color: '#EF4444' },
+  'Looking for Trade': { icon: 'handshake', color: '#10B981' },
+  'Discussion': { icon: 'comments', color: '#3B82F6' },
+  'Real or Fake': { icon: 'magnifying-glass', color: '#8B5CF6' },
+  'Need Help': { icon: 'circle-question', color: '#F59E0B' },
+  'Misc': { icon: 'ellipsis', color: '#6B7280' },
+};
 
 const availableTags = ['Scam Alert', 'Looking for Trade', 'Discussion', 'Real or Fake', 'Need Help', 'Misc'];
 
@@ -19,105 +25,140 @@ const PostsHeader = ({
   fetchPostsByTag,
 }) => {
   const { theme } = useGlobalState();
-  const { localState } = useLocalState();
-  const isDarkMode = theme === 'dark';
+  const isDark = theme === 'dark';
+
+  const handleSelectTag = (value) => {
+    if (selectedTag === value) {
+      setFilterMyPosts(false);
+      setSelectedTag(null);
+      fetchInitialPosts();
+    } else {
+      setFilterMyPosts(false);
+      setSelectedTag(value);
+      fetchPostsByTag(value);
+    }
+  };
+
+  const handleMyPosts = () => {
+    if (filterMyPosts) {
+      setFilterMyPosts(false);
+      setSelectedTag(null);
+      fetchInitialPosts();
+    } else {
+      setFilterMyPosts(true);
+      setSelectedTag(null);
+      fetchMyPosts();
+    }
+  };
+
+  const handleAll = () => {
+    setFilterMyPosts(false);
+    setSelectedTag(null);
+    fetchInitialPosts();
+  };
+
+  const isAll = !filterMyPosts && !selectedTag;
 
   return (
-    <Menu>
-      <MenuTrigger style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        // marginRight: 16,
-        paddingVertical: 8,
-        paddingHorizontal: 8,
-      }}>
-        {selectedTag && (
-          <Text style={{ color: config.colors.primary, fontSize: 10, fontWeight: '900', marginRight: 4 }}>
-            {selectedTag}
-          </Text>
-        )}
-        <FontAwesome
-          name="filter"
-          size={20}
-          color={filterMyPosts || selectedTag ? config.colors.primary : isDarkMode ? '#ccc' : '#444'}
-        />
-      </MenuTrigger>
-      <MenuOptions customStyles={{ optionsContainer: { width: 200 } }}>
-        {/* All Posts */}
-        <MenuOption
-          onSelect={() => {
-            const handleAction = () => {
-              setFilterMyPosts(false);
-              setSelectedTag(null);
-              fetchInitialPosts();
-            };
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={[
+        styles.tabBarScroll,
+        { backgroundColor: isDark ? '#0f172a' : '#fff', borderBottomColor: isDark ? '#1e293b' : '#e8e8f0' }
+      ]}
+      contentContainerStyle={styles.tabBar}
+    >
+      {/* All */}
+      <TouchableOpacity
+        style={[styles.tab, isAll && { backgroundColor: config.colors.primary + '20' }]}
+        onPress={handleAll}
+        activeOpacity={0.8}
+      >
+        <FontAwesome6 name="border-all" size={11} color={isAll ? config.colors.primary : isDark ? '#888' : '#999'} solid />
+        <Text style={[styles.tabText, { color: isDark ? '#888' : '#999' }, isAll && { color: config.colors.primary }]}>
+          All Posts
+        </Text>
+      </TouchableOpacity>
 
-            handleAction();
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingHorizontal: 10 }}>
-            <Text style={{ fontSize: 14, color: !filterMyPosts && !selectedTag ? config.colors.primary : '#333', fontWeight: !filterMyPosts && !selectedTag ? 'bold' : 'normal' }}>
-              All Posts
-            </Text>
-            {!filterMyPosts && !selectedTag && <FontAwesome name="check" size={14} color={config.colors.primary} />}
-          </View>
-        </MenuOption>
+      {/* My Posts */}
+      <TouchableOpacity
+        style={[styles.tab, filterMyPosts && { backgroundColor: config.colors.primary + '20' }]}
+        onPress={handleMyPosts}
+        activeOpacity={0.8}
+      >
+        <FontAwesome6 name="user" size={11} color={filterMyPosts ? config.colors.primary : isDark ? '#888' : '#999'} solid />
+        <Text style={[styles.tabText, { color: isDark ? '#888' : '#999' }, filterMyPosts && { color: config.colors.primary }]}>
+          My Posts
+        </Text>
+      </TouchableOpacity>
 
-        {/* My Posts */}
-        <MenuOption
-          onSelect={() => {
-            const handleAction = () => {
-              setFilterMyPosts(true);
-              setSelectedTag(null);
-              fetchMyPosts();
-            };
+      {/* Separator */}
+      <View style={[styles.separator, { backgroundColor: isDark ? '#334155' : '#e2e8f0' }]} />
 
-            handleAction();
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingHorizontal: 10 }}>
-            <Text style={{ fontSize: 14, color: filterMyPosts ? config.colors.primary : '#333', fontWeight: filterMyPosts ? 'bold' : 'normal' }}>
-              My Posts
-            </Text>
-            {filterMyPosts && <FontAwesome name="check" size={14} color={config.colors.primary} />}
-          </View>
-        </MenuOption>
-
-        {/* Divider & Label */}
-        <View style={{ paddingHorizontal: 10, paddingTop: 6, paddingBottom: 4, borderTopWidth: 1, borderColor: '#ccc' }}>
-          <Text style={{ fontWeight: 'bold', fontSize: 12, color: isDarkMode ? '#aaa' : '#444', fontWeight: 'bold' }}>
-            Filter by Tag
-          </Text>
-        </View>
-
-        {/* Tag Filters */}
-        {availableTags.map((tag, index) => (
-          <MenuOption
-            key={index}
-            onSelect={() => {
-              const handleAction = () => {
-                setFilterMyPosts(false);
-                setSelectedTag(tag);
-                fetchPostsByTag(tag);
-              };
-              handleAction();
-            }}
+      {/* Tag pills */}
+      {availableTags.map((tag) => {
+        const cfg = TAG_CONFIG[tag] || { icon: 'tag', color: config.colors.primary };
+        const isActive = selectedTag === tag;
+        return (
+          <TouchableOpacity
+            key={tag}
+            style={[styles.tab, isActive && { backgroundColor: cfg.color + '20' }]}
+            onPress={() => handleSelectTag(tag)}
+            activeOpacity={0.8}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingHorizontal: 10 }}>
-              <Text style={{ fontSize: 14, color: selectedTag === tag ? config.colors.primary : '#333', fontWeight: selectedTag === tag ? 'bold' : 'normal' }}>
-                {tag}
-              </Text>
-              {selectedTag === tag && (
-                <FontAwesome name="check" size={14} color={config.colors.primary} />
-              )}
-            </View>
-          </MenuOption>
-        ))}
-      </MenuOptions>
-    </Menu>
+            <FontAwesome6
+              name={cfg.icon}
+              size={11}
+              color={isActive ? cfg.color : isDark ? '#888' : '#999'}
+              solid
+            />
+            <Text style={[
+              styles.tabText,
+              { color: isDark ? '#888' : '#999' },
+              isActive && { color: cfg.color, fontWeight: '800' },
+            ]}>
+              {tag}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
   );
 };
 
-export default PostsHeader;
+const styles = StyleSheet.create({
+  tabBarScroll: {
+    flexGrow: 0,
+    flexShrink: 0,
+    borderBottomWidth: 1,
+  },
+  tabBar: {
+    flexDirection: 'row',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    gap: 4,
+    alignItems: 'center',
+  },
+  tab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    gap: 6,
+  },
+  tabText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  separator: {
+    width: 1,
+    height: 20,
+    borderRadius: 999,
+    marginHorizontal: 4,
+  },
+});
 
+export default PostsHeader;

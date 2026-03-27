@@ -493,7 +493,7 @@ const PetGuessingGameScreen = () => {
 
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
 
-  const containerBgColor = isDarkMode ? '#121212' : '#f2f2f7';
+  const containerBgColor = isDarkMode ? '#0f172a' : '#f2f2f7';
 
   return (
     <>
@@ -794,7 +794,7 @@ const getStyles = (isDarkMode) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
+      backgroundColor: isDarkMode ? '#0f172a' : '#f2f2f7',
     },
     scrollContent: {
       padding: 8,

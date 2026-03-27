@@ -277,7 +277,7 @@ export const getStyles = (isDarkMode) =>
     },
     modalContent: {
       width: '95%',
-      backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
+      backgroundColor: isDarkMode ? '#0f172a' : '#f2f2f7',
       borderRadius: 10,
       padding: 20,
     },

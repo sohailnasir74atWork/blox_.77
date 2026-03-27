@@ -38,8 +38,8 @@ const BlockedUsersScreen = () => {
       }
 
       try {
-        const bannedUserIds = Array.isArray(localState?.bannedUsers) 
-          ? localState.bannedUsers 
+        const bannedUserIds = Array.isArray(localState?.bannedUsers)
+          ? localState.bannedUsers
           : [];
 
         if (bannedUserIds.length === 0) {
@@ -68,8 +68,8 @@ const BlockedUsersScreen = () => {
             return {
               id,
               displayName: displayNameSnap?.exists() ? (displayNameSnap.val()?.trim() || 'Anonymous') : 'Anonymous',
-              avatar: avatarSnap?.exists() ? (avatarSnap.val()?.trim() || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png') 
-                     : 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+              avatar: avatarSnap?.exists() ? (avatarSnap.val()?.trim() || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png')
+                : 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
             };
           } catch (error) {
             console.error(`❌ Error fetching user ${id}:`, error);
@@ -97,7 +97,7 @@ const BlockedUsersScreen = () => {
       isMounted = false;
     };
   }, [user?.id, localState?.bannedUsers, appdatabase]);
-// console.log(blockedUsers)
+  // console.log(blockedUsers)
   const handleUnblockUser = async (selectedUserId) => {
     try {
       const updatedBannedUsers = (localState.bannedUsers || []).filter(id => id !== selectedUserId);
@@ -155,7 +155,7 @@ export const getStyles = (isDarkMode) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: isDarkMode ? '#121212' : '#f2f2f7',
+      backgroundColor: isDarkMode ? '#0f172a' : '#f2f2f7',
       padding: 10,
     },
     centerContainer: {
