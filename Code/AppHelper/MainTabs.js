@@ -1,8 +1,8 @@
-import React, { useCallback, useMemo } from 'react';
-import { Image, TouchableOpacity, View, Text, Platform } from 'react-native';
+import React, { useCallback, useMemo, useEffect } from 'react';
+import { TouchableOpacity, View, Text, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import Icon from 'react-native-vector-icons/Ionicons';
 import HomeScreen from '../Homescreen/HomeScreen';
+import HomeTabScreen from '../HomeTab/HomeTabScreen';
 import ValueScreen from '../ValuesScreen/ValueScreen';
 import TimerScreen from '../StockScreen/TimerScreen';
 import { ChatStack } from '../ChatScreen/ChatNavigator';
@@ -13,8 +13,11 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import BouncingCartIcon from './CartIcon';
 import TopLevelStockComponent from '../StockScreen/StockNavigator';
 import DesignStack from '../Design/DesignNavigation';
-import { useGlobalState } from '../GlobelStats';
 import CustomTopTabs from '../ValuesScreen/TopTabs';
+import ThemeHeader from '../Design/componenets/ThemeHeader';
+import { useGlobalState } from '../GlobelStats';
+import { checkDailyStreak } from '../ChatScreen/GroupChat/badgeUtils';
+import { syncMyCosmetics } from '../Helper/cosmeticsCache';
 
 
 
@@ -34,13 +37,21 @@ const AnimatedTabIcon = React.memo(({ iconName, color, size, focused }) => {
 
 const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modalVisibleChatinfo, setModalVisibleChatinfo }) => {
   const { t } = useTranslation();
-  const {isAdmin, } = useGlobalState()
+  const { user, appdatabase } = useGlobalState();
 
-  
+  // 🔥 Daily login streak check (fire-and-forget)
+  useEffect(() => {
+    if (user?.id && appdatabase) {
+      checkDailyStreak(appdatabase, user.id);
+      syncMyCosmetics(appdatabase, user.id, true); // ✅ Sync cosmetics on app start
+    }
+  }, [user?.id, appdatabase]);
+
   const getTabIcon = useCallback((routeName, focused) => {
 
     const icons = {
-      Calculator: ['house', 'house'], // Solid icons look same for focused/unfocused
+      HomeTab: ['house', 'house'],
+      Calculator: ['calculator', 'calculator'],
       Stock: ['cart-shopping', 'cart-shopping'],
       Trade: ['handshake', 'handshake'],
       Chat: ['envelope', 'envelope'],
@@ -52,6 +63,10 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
   }, []);
 
   // Memoize screen render functions to prevent unnecessary re-renders
+  const renderHomeTabScreen = useCallback(() => (
+    <HomeTabScreen selectedTheme={selectedTheme} />
+  ), [selectedTheme]);
+
   const renderHomeScreen = useCallback(() => (
     <HomeScreen selectedTheme={selectedTheme} />
   ), [selectedTheme]);
@@ -135,66 +150,27 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
     headerTitleStyle: { fontWeight: 'bold', fontSize: 24 },
   }), [selectedTheme, getTabIcon]);
 
-  // Memoize Calculator headerRight function
-  const renderCalculatorHeaderRight = useCallback(({ navigation }) => (
-    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-      {/* <TouchableOpacity style={{ marginRight: 12 }} onPress={() => navigation.navigate('Store')}>
-        <BouncingCartIcon />
-      </TouchableOpacity> */}
-
-      {config.isNoman && (
-        <TouchableOpacity
-          onPress={() => navigation.navigate('Analytics')}
-          style={{
-            marginRight: 12,
-            paddingHorizontal: 8,
-            paddingVertical: 4,
-            position: 'relative',
-          }}
-        >
-          <FontAwesome name="chart-line" size={18} color={config.colors.primary} solid />
-          <View style={{
-            position: 'absolute',
-            top: -6,
-            right: -10,
-            backgroundColor: '#EF4444',
-            borderRadius: 6,
-            paddingVertical: 1,
-            minWidth: 30,
-            alignItems: 'center',
-          }}>
-            <Text style={{ color: '#fff', fontSize: 7, fontWeight: '600' }}>NEW</Text>
-          </View>
-        </TouchableOpacity>
-      )}
-
-      {isAdmin && (
-        <TouchableOpacity onPress={() => navigation.navigate('Admin')}>
-          <Image
-            source={require('../../assets/trophy.webp')} // ✅ Ensure the correct path
-            style={{ width: 20, height: 20, marginRight: 16 }}
-          />
-        </TouchableOpacity>
-      )}
-    
-      <TouchableOpacity onPress={() => navigation.navigate('Setting')} style={{ marginRight: 16 }}>
-        <Icon
-          name="settings"
-          size={24}
-          color={selectedTheme.colors.text}
-        />
-      </TouchableOpacity>
-    </View>
-  ), [isAdmin, selectedTheme.colors.text]);
-
   // Memoize Calculator tab options
-  const calculatorOptions = useCallback(({ navigation }) => ({
-    title: t('tabs.calculator'), // Translation applied here
-    headerRight: () => renderCalculatorHeaderRight({ navigation }),
-  }), [t, renderCalculatorHeaderRight]);
+  const calculatorOptions = useCallback(() => ({
+    header: () => (
+      <ThemeHeader 
+        title={t('tabs.calculator', { defaultValue: 'Calculator' })} 
+      />
+    ),
+  }), [t]);
 
   return (
     <Tab.Navigator screenOptions={screenOptions}>
+      <Tab.Screen
+        name="HomeTab"
+        options={{
+          title: t('tabs.home', { defaultValue: 'Home' }),
+          headerShown: false,
+        }}
+      >
+        {renderHomeTabScreen}
+      </Tab.Screen>
+
       <Tab.Screen
         name="Calculator"
         options={calculatorOptions}
@@ -205,7 +181,8 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
       <Tab.Screen
         name="Stock"
         options={{
-          title: 'Stocks', // Translation applied here
+          headerShown: false,
+          title: 'Stocks',
         }}
       >
         {renderTopLevelStockComponent}
@@ -249,15 +226,6 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
         {renderChatStack}
       </Tab.Screen>
 
-      <Tab.Screen
-        name="Values"
-        options={{
-          title: 'More',
-          headerShown: false,
-        }}
-      >
-        {renderCustomTopTabs}
-      </Tab.Screen>
     </Tab.Navigator>
   );
 });

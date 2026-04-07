@@ -2,10 +2,24 @@ import { Text, Alert } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { Linking } from 'react-native';
 
+// ✅ Pre-compile regex patterns for better performance
+const URL_REGEX = /^https?:\/\/\S+$/;
+const MENTION_REGEX = /^@\w+/;
+
 export const parseMessageText = (text) => {
+  // ✅ Safety check: handle null/undefined/empty text
+  if (!text || typeof text !== 'string') {
+    return '';
+  }
+
+  // ✅ Early return for empty strings
+  if (text.trim().length === 0) {
+    return text;
+  }
+
   return text.split(/(\s+)/).map((part, index) => {
     // ✅ Check if part is a URL (starts with http:// or https://)
-    if (/^https?:\/\/\S+$/.test(part)) {
+    if (URL_REGEX.test(part)) {
       return (
         <Text
           key={`link-${index}`}
@@ -22,7 +36,7 @@ export const parseMessageText = (text) => {
     }
 
     // ✅ Check if part is a mention (starts with @username)
-    if (/^@\w+/.test(part)) {
+    if (MENTION_REGEX.test(part)) {
       return (
         <Text
           key={`mention-${index}`}

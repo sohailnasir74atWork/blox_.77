@@ -17,7 +17,7 @@ import GroupMessageList from './GroupMessageList';
 import { useGlobalState } from '../../GlobelStats';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { setActiveChat, clearActiveChat, setActiveGroupChat, clearActiveGroupChat } from '../utils';
-import { get, ref, update, query as dbQuery, orderByKey, limitToLast, orderByValue, equalTo } from '@react-native-firebase/database';
+import { get, ref, update, query as dbQuery, orderByKey, limitToLast, orderByValue, equalTo, endAt, onChildAdded } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import { sendGroupMessage, removeMemberFromGroup, hasGroupPermission, getPendingInviteForGroup, acceptGroupInvite, declineGroupInvite, leaveGroup, makeMemberCreator } from '../utils/groupUtils';
@@ -32,6 +32,7 @@ import PetModal from '../PrivateChat/PetsModel';
 import config from '../../Helper/Environment';
 import BannerAdComponent from '../../Ads/bannerAds';
 import InterstitialAdManager from '../../Ads/IntAd';
+import { seedCurrentUser } from '../../Helper/profileCache';
 
 const INITIAL_PAGE_SIZE = 15; // ✅ Initial load: 15 messages
 const PAGE_SIZE = 10; // ✅ Pagination: load 10 messages per batch
@@ -101,6 +102,11 @@ const GroupChatScreen = () => {
     fetchInviteData();
   }, [groupId, firestoreDB, user?.id]);
 
+  // Seed current user's profile + cosmetics into cache on mount
+  useEffect(() => {
+    if (user?.id) seedCurrentUser(user, localState, appdatabase);
+  }, [user?.id]);
+
   useEffect(() => {
     if (!groupId || !firestoreDB || !user?.id) return;
 
@@ -109,13 +115,13 @@ const GroupChatScreen = () => {
     const unsubscribe = onSnapshot(
       groupRef,
       (snapshot) => {
-        if (snapshot.exists) {
+        if (snapshot.exists()) {
           const data = snapshot.data();
           setGroupData(data);
 
-          // Check if user is a member
+          // Check if user is a member (admin/moderator bypass for monitoring)
           const memberIds = data.memberIds || [];
-          const userIsMember = memberIds.includes(user.id);
+          const userIsMember = memberIds.includes(user.id) || isAdmin || !!user?.isModerator;
           setIsMember(userIsMember);
 
           // ✅ OPTIMIZED: Only update invite state if membership status changed
@@ -345,23 +351,15 @@ const GroupChatScreen = () => {
       }
 
       try {
-        // ✅ Use same query pattern as private chat for consistency
-        let query = messagesRef.orderByKey();
-
+        // ✅ Use modular query pattern for consistency
         const lastKey = lastLoadedKeyRef.current;
-        if (!reset && lastKey) {
-          // ✅ Get older messages (messages before lastKey)
-          // endAt includes lastKey, but we'll filter it out to avoid duplicates
-          query = query.endAt(lastKey);
-        }
-
-        // ✅ Apply limit ONLY ONCE, at the end
-        // limitToLast gets the last N messages from the query result
-        // Use INITIAL_PAGE_SIZE for first load, PAGE_SIZE for pagination
         const limitSize = reset ? INITIAL_PAGE_SIZE : PAGE_SIZE;
-        query = query.limitToLast(limitSize);
 
-        const snapshot = await query.once('value');
+        const msgQuery = (!reset && lastKey)
+          ? dbQuery(messagesRef, orderByKey(), endAt(lastKey), limitToLast(limitSize))
+          : dbQuery(messagesRef, orderByKey(), limitToLast(limitSize));
+
+        const snapshot = await get(msgQuery);
         const data = snapshot.val() || {};
 
         let parsedMessages = Object.entries(data)
@@ -487,22 +485,19 @@ const GroupChatScreen = () => {
     };
 
     // ✅ OPTIMIZED: Use limitToLast(1) to only listen to the latest message
-    const query = messagesRef.orderByKey().limitToLast(1);
+    const listenerQuery = dbQuery(messagesRef, orderByKey(), limitToLast(1));
+    let unsubscribe;
 
     try {
-      // ✅ Explicitly pass the function standard way
-      query.on('child_added', handleChildAdded);
+      unsubscribe = onChildAdded(listenerQuery, handleChildAdded);
     } catch (e) {
       console.error('Error attaching listener:', e);
     }
 
     return () => {
       isMounted = false;
-      try {
-        // ✅ Explicitly remove the SAME function
-        query.off('child_added', handleChildAdded);
-      } catch (e) {
-        console.error('Error removing listener:', e);
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
       }
     };
   }, [messagesRef, isMember]);
@@ -520,17 +515,20 @@ const GroupChatScreen = () => {
       hasSentMessageRef.current = 0;
       chatEnterTimeRef.current = Date.now();
 
-      // Reset unreadCount when entering chat
-      const groupMetaRef = ref(appdatabase, `group_meta_data/${user.id}/${groupId}`);
-      update(groupMetaRef, { unreadCount: 0 }).catch((error) => {
-        console.error('Error resetting unread count:', error);
-      });
+      // Reset unreadCount when entering chat (only for actual members, not admin/mod monitoring)
+      const isActualMember = groupData?.memberIds?.includes(user.id);
+      if (isActualMember) {
+        const groupMetaRef = ref(appdatabase, `group_meta_data/${user.id}/${groupId}`);
+        update(groupMetaRef, { unreadCount: 0 }).catch((error) => {
+          console.error('Error resetting unread count:', error);
+        });
+      }
 
       return () => {
         clearActiveChat(user.id);
         clearActiveGroupChat(user.id, groupId);
       };
-    }, [user?.id, groupId, appdatabase, localState?.isPro])
+    }, [user?.id, groupId, appdatabase, localState?.isPro, groupData?.memberIds])
   );
 
   // Handle refresh
@@ -654,12 +652,12 @@ const GroupChatScreen = () => {
         }
       }
 
-      // Check if user is member and not muted
+      // Check if user is member and not muted (admin/moderator bypass for monitoring)
       if (groupData) {
-        const isMember = groupData.memberIds?.includes(user.id);
+        const isMemberOrAdmin = groupData.memberIds?.includes(user.id) || isAdmin || !!user?.isModerator;
         const isMuted = groupData.members?.[user.id]?.muted;
 
-        if (!isMember) {
+        if (!isMemberOrAdmin) {
           showErrorMessage('Error', 'You are not a member of this group');
           return;
         }
@@ -679,13 +677,16 @@ const GroupChatScreen = () => {
       // Check if user is creator
       const isCreator = groupData?.createdBy === user.id;
 
-      // Build message payload
+      // ✅ Cost opt: Drop fields that are either unused by GroupMessageList
+      // (isBabyMod/isTrusted/isCMSR/isGrinder/isRaider/flage) or already resolved
+      // from profileCache on render (chatTextColor/chatBubbleBg/profileFrame).
+      // Backwards compatible: old messages still have these fields and resolveProfile
+      // falls back to cache for cosmetics.
       const messageData = {
         text: trimmedText,
         senderId: user.id,
         sender: user.displayName || 'Anonymous',
         avatar: user.avatar || null,
-        flage: user?.flage || null, // ✅ Include flag/flag emoji
         timestamp: Date.now(),
         isPro: !!localState?.isPro,
         robloxUsernameVerified: user?.robloxUsernameVerified || false,
@@ -857,6 +858,12 @@ const GroupChatScreen = () => {
         showSuccessMessage('Success', 'You joined the group!');
         setPendingInvite(null);
         setIsMember(true);
+
+        // 🐝 Track group joins for socialBee badge
+        try {
+          const { incrementAndCheckBadge, GROUP_CHAT_BADGE_THRESHOLDS } = require('./badgeUtils');
+          incrementAndCheckBadge(appdatabase, user.id, 'groupJoinCount', GROUP_CHAT_BADGE_THRESHOLDS);
+        } catch (e) {}
       } else {
         showErrorMessage('Error', result.error || 'Failed to accept invitation');
       }

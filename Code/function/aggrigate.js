@@ -10,7 +10,7 @@ const rtdb = admin.database();
  * aggregateTradeAnalytics — Blox Fruit Edition
  *
  * SCHEDULED Cloud Function — runs every 12 hours.
- * Reads trades from Firestore (trades_new collection).
+ * Reads trades from Firestore (trades_new_upgrade collection).
  * Writes aggregated analytics to RTDB at /analytics.
  *
  * After this runs, push the RTDB data to Bunny CDN.
@@ -66,7 +66,7 @@ exports.aggregateTradeAnalytics = functions
 
       // ── Fetch ALL trades from last 7 days (paginated) ──
       const weekTradeDocs = await fetchAllDocs(
-        firestore.collection('trades_new')
+        firestore.collection('trades_new_upgrade')
           .where('timestamp', '>=', admin.firestore.Timestamp.fromDate(oneWeekAgo))
           .orderBy('timestamp', 'desc')
       );

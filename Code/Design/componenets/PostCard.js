@@ -1,4 +1,4 @@
-import React, { useState, useCallback, memo, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, memo, useEffect, useMemo, useRef } from 'react';
 import {
   View, Text, Image, StyleSheet, TouchableOpacity, Alert, Animated,
 } from 'react-native';
@@ -16,6 +16,10 @@ import dayjs from 'dayjs';
 import ProfileBottomDrawer from '../../ChatScreen/GroupChat/BottomDrawer';
 import { banUserwithEmail as banUserwithEmailUtils } from '../../ChatScreen/utils';
 import { isUserOnline } from '../../ChatScreen/utils';
+import RoleBadges from './RoleBadges';
+import FramedAvatar from '../../ChatScreen/GroupChat/FramedAvatar';
+
+const REACTION_EMOJIS = ['❤️', '🔥', '😍', '💀', '🎯'];
 
 const TAG_CONFIG = {
   'scam alert': { color: '#EF4444', icon: 'shield-halved' },
@@ -27,17 +31,43 @@ const TAG_CONFIG = {
   'misc': { color: '#6B7280', icon: 'ellipsis' },
 };
 
-const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete, onDeleteAll }) => {
+const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete, onDeleteAll }) => {
   const navigation = useNavigation();
-  const liked = !!item.likes?.[userId];
-  const likeCount = item.likes ? Object.keys(item.likes).length : 0;
 
   const [showComments, setShowComments] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
   const [bannedUsers, setBannedUsers] = useState([]);
   const [isOnline, setIsOnline] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [heartScale] = useState(new Animated.Value(1));
+
+  // Merge legacy likes + new reactions
+  const mergedReactions = useMemo(() => {
+    const map = {};
+    if (item.likes) {
+      Object.keys(item.likes).forEach(uid => {
+        if (!item.reactions?.[uid]) map[uid] = '❤️';
+      });
+    }
+    if (item.reactions) {
+      Object.entries(item.reactions).forEach(([uid, emoji]) => {
+        map[uid] = emoji;
+      });
+    }
+    return map;
+  }, [item.likes, item.reactions]);
+
+  const myReaction = mergedReactions[userId] || null;
+  const totalReactions = Object.keys(mergedReactions).length;
+
+  const reactionCounts = useMemo(() => {
+    const counts = {};
+    Object.values(mergedReactions).forEach(emoji => {
+      counts[emoji] = (counts[emoji] || 0) + 1;
+    });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  }, [mergedReactions]);
 
   useEffect(() => {
     setBannedUsers(localState.bannedUsers);
@@ -90,13 +120,14 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete, onD
     navigation.navigate('PrivateChatDesign', { selectedUser, item });
   }, [userId, item, navigation]);
 
-  const handleLikePress = useCallback(() => {
+  const handleEmojiTap = useCallback((emoji) => {
+    setShowEmojiPicker(false);
     Animated.sequence([
       Animated.spring(heartScale, { toValue: 1.4, useNativeDriver: true, speed: 40 }),
       Animated.spring(heartScale, { toValue: 1.0, useNativeDriver: true, speed: 40 }),
     ]).start();
-    onLike(item);
-  }, [item, onLike]);
+    onReaction(item, emoji);
+  }, [item, onReaction]);
 
   const s = getStyles(isDark);
   const formattedTime = item.createdAt ? dayjs(item.createdAt.toDate()).fromNow() : 'Anonymous';
@@ -109,13 +140,19 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete, onD
       <View style={s.header}>
         <TouchableOpacity onPress={openProfileDrawer} activeOpacity={0.8}>
           <View style={s.avatarWrapper}>
-            <Image source={{ uri: item.avatar }} style={s.avatar} />
+            <FramedAvatar
+              avatarUri={item.avatar}
+              frame={item.profileFrame || null}
+              isDarkMode={isDark}
+              avatarSize={40}
+            />
           </View>
         </TouchableOpacity>
 
         <TouchableOpacity style={{ marginLeft: 10, flex: 1 }} onPress={openProfileDrawer} activeOpacity={0.8}>
           <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
             <Text style={s.name} numberOfLines={1}>{item.displayName}</Text>
+            <RoleBadges userItem={item} />
             {item.isPro && (
               <Image source={require('../../../assets/pro.png')} style={s.badge} />
             )}
@@ -247,23 +284,45 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete, onD
         </View>
       )}
 
+      {/* Description below images when both exist */}
+      {!hasNoImages && !!item?.desc && (
+        <View style={{ paddingHorizontal: 14, paddingBottom: 8 }}>
+          <Text style={s.desc}>{item.desc}</Text>
+        </View>
+      )}
+
       {hasNoImages && (
         <ReportModal visible={showReportModal} onClose={() => setShowReportModal(false)} item={item} />
       )}
 
+      {/* ── Reaction Summary ── */}
+      {reactionCounts.length > 0 && (
+        <View style={s.reactionSummary}>
+          {reactionCounts.map(([emoji, count]) => (
+            <View key={emoji} style={[s.reactionChip, mergedReactions[userId] === emoji && s.reactionChipActive]}>
+              <Text style={{ fontSize: 11 }}>{emoji}</Text>
+              <Text style={s.reactionChipCount}>{count}</Text>
+            </View>
+          ))}
+          {totalReactions > 0 && (
+            <Text style={s.totalReactionsText}>{totalReactions} {totalReactions === 1 ? 'reaction' : 'reactions'}</Text>
+          )}
+        </View>
+      )}
+
       {/* ── Action Bar ── */}
       <View style={s.actionBar}>
-        {/* Like */}
+        {/* React */}
         <Animated.View style={{ transform: [{ scale: heartScale }] }}>
           <TouchableOpacity
-            style={[s.actionBtn, liked && s.actionBtnLiked]}
-            onPress={handleLikePress}
+            style={[s.actionBtn, myReaction && s.actionBtnActive]}
+            onPress={() => setShowEmojiPicker(v => !v)}
             activeOpacity={0.75}
           >
-            <Icon name={liked ? 'heart' : 'heart-o'} size={14} color={liked ? '#EF4444' : isDark ? '#94a3b8' : '#64748b'} />
-            <Text style={[s.actionBtnLabel, liked && { color: '#EF4444' }]}>
-              {likeCount > 0 ? `${likeCount} ${likeCount === 1 ? 'like' : 'likes'}` : 'Like'}
-            </Text>
+            <Text style={{ fontSize: 14 }}>{myReaction || '🤍'}</Text>
+            {totalReactions > 0 && (
+              <Text style={[s.actionBtnLabel, myReaction && { color: '#EF4444' }]}>{totalReactions}</Text>
+            )}
           </TouchableOpacity>
         </Animated.View>
 
@@ -283,6 +342,22 @@ const PostCard = ({ item, userId, onLike, localState, appdatabase, onDelete, onD
           <Text style={s.chatBtnLabel}>Chat</Text>
         </TouchableOpacity>
       </View>
+
+      {/* ── Emoji Picker ── */}
+      {showEmojiPicker && (
+        <View style={s.emojiPicker}>
+          {REACTION_EMOJIS.map((emoji) => (
+            <TouchableOpacity
+              key={emoji}
+              style={[s.emojiBtn, myReaction === emoji && s.emojiBtnActive]}
+              onPress={() => handleEmojiTap(emoji)}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 22 }}>{emoji}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       <CommentModal
         visible={showComments}
@@ -511,7 +586,7 @@ const getStyles = (isDark) =>
       borderWidth: 1,
       borderColor: isDark ? '#334155' : '#e2e8f0',
     },
-    actionBtnLiked: {
+    actionBtnActive: {
       backgroundColor: isDark ? '#1e293b' : '#fff1f2',
       borderColor: '#EF4444',
     },
@@ -520,6 +595,72 @@ const getStyles = (isDark) =>
       fontWeight: '600',
       color: isDark ? '#94a3b8' : '#64748b',
     },
+
+    /* Reaction summary */
+    reactionSummary: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 14,
+      paddingBottom: 6,
+      flexWrap: 'wrap',
+    },
+    reactionChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 999,
+      backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
+      borderWidth: 1,
+      borderColor: isDark ? '#334155' : '#e2e8f0',
+    },
+    reactionChipActive: {
+      backgroundColor: isDark ? '#1e3a5f' : '#eff6ff',
+      borderColor: isDark ? '#3b82f6' : '#bfdbfe',
+    },
+    reactionChipCount: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: isDark ? '#94a3b8' : '#64748b',
+    },
+    totalReactionsText: {
+      fontSize: 10,
+      color: isDark ? '#475569' : '#94a3b8',
+      marginLeft: 2,
+    },
+
+    /* Emoji picker */
+    emojiPicker: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 10,
+      marginHorizontal: 14,
+      marginBottom: 10,
+      backgroundColor: isDark ? '#0f172a' : '#f8fafc',
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: isDark ? '#334155' : '#e2e8f0',
+    },
+    emojiBtn: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: isDark ? '#1e293b' : '#ffffff',
+      borderWidth: 1,
+      borderColor: isDark ? '#334155' : '#e2e8f0',
+    },
+    emojiBtnActive: {
+      backgroundColor: isDark ? '#1e3a5f' : '#eff6ff',
+      borderWidth: 2,
+      borderColor: config.colors.primary,
+    },
+
     chatBtn: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -545,8 +686,11 @@ export default memo(PostCard, (prevProps, nextProps) => {
   return (
     prevProps.item.id === nextProps.item.id &&
     prevProps.item.likes === nextProps.item.likes &&
+    prevProps.item.reactions === nextProps.item.reactions &&
+    prevProps.item.commentCount === nextProps.item.commentCount &&
     prevProps.userId === nextProps.userId &&
     prevProps.localState?.isPro === nextProps.localState?.isPro &&
-    prevProps.appdatabase === nextProps.appdatabase
+    prevProps.appdatabase === nextProps.appdatabase &&
+    prevProps.onReaction === nextProps.onReaction
   );
 });

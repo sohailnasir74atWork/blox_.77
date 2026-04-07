@@ -17,6 +17,7 @@ import Icon from 'react-native-vector-icons/FontAwesome'; // Ensure FontAwesome 
 import appleAuth, { AppleButton } from '@invertase/react-native-apple-authentication';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { useGlobalState } from '../GlobelStats';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ConditionalKeyboardWrapper from '../Helper/keyboardAvoidingContainer';
 import { useTranslation } from 'react-i18next';
 import { showSuccessMessage, showErrorMessage, showWarningMessage } from '../Helper/MessageHelper';
@@ -50,6 +51,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     const [robloxUsernameError, setRobloxUsernameError] = useState('');
 
     const { triggerHapticFeedback } = useHaptic();
+    const insets = useSafeAreaInsets();
     const { theme, robloxUsernameRef } = useGlobalState()
     const [robloxUsernamelocal, setRobloxUsernamelocal] = useState()
     useEffect(() => { robloxUsernameRef.current = robloxUsernamelocal }, [robloxUsernamelocal])
@@ -374,7 +376,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
             <Pressable style={styles.modalOverlay} onPress={onClose} />
             <ConditionalKeyboardWrapper>
                 <Pressable onPress={() => { }}>
-                    <View style={[styles.drawer, { backgroundColor: isDarkMode ? '#3B404C' : 'white' }]}>
+                    <View style={[styles.drawer, { backgroundColor: isDarkMode ? '#3B404C' : 'white', paddingBottom: insets.bottom + 16 }]}>
                         <Text style={[styles.title, { color: selectedTheme.colors.text }]}>
                             {isRegisterMode ? t("signin.title_register") : isForgotPasswordMode ? 'Forget Password' : t("signin.title_signin")}
                         </Text>

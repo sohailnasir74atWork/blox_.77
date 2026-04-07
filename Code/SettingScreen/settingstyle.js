@@ -93,8 +93,6 @@ export const getStyles = (isDarkMode) =>
     drawer: {
       backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
       padding: 16,
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
       shadowColor: '#000',
       shadowOpacity: 0.25,
       shadowRadius: 10,

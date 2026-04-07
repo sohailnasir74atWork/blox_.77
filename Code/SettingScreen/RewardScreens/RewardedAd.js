@@ -11,6 +11,7 @@ import { getStyles } from '../settingstyle';
 import getAdUnitId from '../../Ads/ads';
 import { useTranslation } from 'react-i18next';
 import { useGlobalState } from '../../GlobelStats';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showMessage } from 'react-native-flash-message';
 
 const adUnitId = getAdUnitId('rewarded');
@@ -27,6 +28,7 @@ const RewardedAdComponent = ({
   const { theme } = useGlobalState();
   const isDarkMode = theme === 'dark';
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
+  const insets = useSafeAreaInsets();
 
   const [loaded, setLoaded] = useState(false);
   const [lastRewardTime, setLastRewardTime] = useState(user?.lastRewardtime || 0);
@@ -150,7 +152,7 @@ const RewardedAdComponent = ({
     <Modal animationType="slide" transparent={true} visible={isAdsDrawerVisible}>
       <Pressable style={styles.overlay} onPress={() => setIsAdsDrawerVisible(false)} />
       <View style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-        <View style={styles.drawer}>
+        <View style={[styles.drawer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <Text style={styles.drawerSubtitle}>{t('settings.watch_ad')}</Text>
           <Text style={styles.rewardDescription}>{t('settings.watch_ad_message')}</Text>
           <TouchableOpacity style={styles.saveButton} onPress={showAd}>

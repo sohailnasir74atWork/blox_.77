@@ -14,6 +14,7 @@ import {
   Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGlobalState } from '../../../GlobelStats';
 import {
   getOnlineUserIdsForInvite,
@@ -25,6 +26,7 @@ import { showSuccessMessage, showErrorMessage } from '../../../Helper/MessageHel
 const InviteUsersModal = ({ visible, onClose, roomId, currentUser, onInviteSent }) => {
   const { appdatabase, firestoreDB, theme } = useGlobalState();
   const isDarkMode = theme === 'dark';
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
 
   // ✅ OPTIMIZED: Store only user IDs (lightweight)
@@ -247,7 +249,7 @@ const InviteUsersModal = ({ visible, onClose, roomId, currentUser, onInviteSent 
           style={{ flex: 1, justifyContent: 'flex-end' }}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         >
-          <View style={[styles.container, { backgroundColor: isDarkMode ? '#1a1a1a' : '#fff' }]}>
+          <View style={[styles.container, { backgroundColor: isDarkMode ? '#1a1a1a' : '#fff', paddingBottom: Math.max(insets.bottom, 16) }]}>
             <View style={styles.header}>
               <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>
                 Invite Friends to Play

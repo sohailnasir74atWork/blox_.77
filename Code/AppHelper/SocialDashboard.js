@@ -9,35 +9,39 @@ import {
     TextInput,
     TouchableOpacity,
     RefreshControl,
-    Image,
 } from 'react-native';
 import { getDatabase, ref, get, query, orderByChild, startAt, endAt, limitToFirst } from '@react-native-firebase/database';
-import { collection, getDocs, query as firestoreQuery, where, orderBy, limit, startAfter, deleteDoc, doc } from '@react-native-firebase/firestore';
+import { collection, getDocs, query as firestoreQuery, where } from '@react-native-firebase/firestore';
 import { useGlobalState } from '../GlobelStats';
 import { useNavigation } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
+import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
 import config from '../Helper/Environment';
 import { useTranslation } from 'react-i18next';
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-
-dayjs.extend(relativeTime);
 
 // ✅ Constants for optimization
-const ACTIVITY_PAGE_SIZE = 15;
 const FRIEND_PAGE_SIZE = 15;
 const SEARCH_LIMIT = 15;
 const FIRESTORE_IN_BATCH_SIZE = 10; // Smaller batch for better cost efficiency
+
+// ✅ Sanitize search query — strip chars invalid in Firebase RTDB queries
+const sanitizeSearchQuery = (q) => q.replace(/[.#$\[\]\/\\]/g, '');
+
+// ✅ Helper: check if a string looks like a Firebase user ID (not a display name)
+const looksLikeUserId = (val) => {
+    if (!val || typeof val !== 'string') return false;
+    return val.length >= 15 && /^[a-zA-Z0-9]+$/.test(val);
+};
 
 // ✅ Memoized User Card to prevent re-renders
 const UserCard = memo(({ item, isDark, isFollowing, onPress }) => (
     <TouchableOpacity
         activeOpacity={0.7}
         onPress={onPress}
-        style={[styles.card, { backgroundColor: isDark ? '#1e293b' : '#FFFFFF', borderColor: isDark ? '#334155' : '#F2F2F7' }]}
+        style={[styles.card, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF', borderColor: isDark ? '#2C2C2E' : '#F2F2F7' }]}
     >
-        <Image source={{ uri: item.avatar }} style={styles.avatar} />
+        <FramedAvatar avatarUri={item.avatar} frame={item.profileFrame || null} isDarkMode={isDark} avatarSize={48} />
         <View style={styles.cardContent}>
             <Text style={[styles.name, { color: isDark ? '#FFF' : '#000' }]} numberOfLines={1}>
                 {item.displayName}
@@ -64,54 +68,20 @@ const UserCard = memo(({ item, isDark, isFollowing, onPress }) => (
     </TouchableOpacity>
 ));
 
-// ✅ Memoized Activity Card to prevent re-renders
-const ActivityCard = memo(({ item, isDark, onPress }) => {
-    const timeAgo = item.createdAt?.toDate ? dayjs(item.createdAt.toDate()).fromNow() : 'recently';
-    const activityType = item.type === 'design_post'
-        ? 'posted a new design'
-        : item.type === 'trade_post'
-            ? 'posted a new trade'
-            : 'shared an update';
 
-    return (
-        <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={onPress}
-            style={[styles.activityCard, { backgroundColor: isDark ? '#1e293b' : '#FFFFFF', borderColor: isDark ? '#334155' : '#F2F2F7' }]}
-        >
-            <Image source={{ uri: item.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }} style={styles.activityAvatar} />
-            <View style={styles.activityContent}>
-                <Text style={[styles.activityHeader, { color: isDark ? '#FFF' : '#000' }]}>
-                    <Text style={styles.activityName}>{item.displayName}</Text> {activityType}
-                </Text>
-                {item.preview && (
-                    <Text style={[styles.activityPreview, { color: isDark ? '#8E8E93' : '#666' }]} numberOfLines={2}>
-                        {item.preview}
-                    </Text>
-                )}
-                <Text style={[styles.activityTime, { color: isDark ? '#555' : '#999' }]}>{timeAgo}</Text>
-            </View>
-            {item.imagePreview && (
-                <Image source={{ uri: item.imagePreview }} style={styles.activityImage} />
-            )}
-        </TouchableOpacity>
-    );
-});
 
 const SocialDashboard = () => {
     const { theme, user: currentUser, appdatabase, firestoreDB } = useGlobalState();
-    useTranslation(); // Keep for i18n context (strings are plain English)
+    const { t } = useTranslation();
     const navigation = useNavigation();
     const isDark = theme === 'dark';
     const db = useMemo(() => appdatabase || getDatabase(), [appdatabase]);
 
-    // Tabs: 'friends' or 'search' (no activity tracking in this project)
+    // Tabs: 'friends' or 'search'
     const [activeTab, setActiveTab] = useState('friends');
 
     // ✅ Refs for preventing duplicate fetches
     const friendIdsCacheRef = useRef('');
-    const activitiesFetchedRef = useRef(false);
-    const lastActivityDocRef = useRef(null);
     const isMounted = useRef(true);
     const friendsRef = useRef([]); // ✅ New Ref to track friends
 
@@ -127,11 +97,7 @@ const SocialDashboard = () => {
     const [isFriendSearchActive, setIsFriendSearchActive] = useState(false);
     const [loadingFriendSearch, setLoadingFriendSearch] = useState(false);
 
-    // Activity Data
-    const [activities, setActivities] = useState([]);
-    const [loadingActivities, setLoadingActivities] = useState(false);
-    const [hasMoreActivities, setHasMoreActivities] = useState(true);
-    const [loadingMoreActivities, setLoadingMoreActivities] = useState(false);
+
 
     // Search Data
     const [searchQuery, setSearchQuery] = useState('');
@@ -164,11 +130,12 @@ const SocialDashboard = () => {
         const results = await Promise.all(
             ids.map(async (friendId) => {
                 try {
-                    const [displayNameSnap, avatarSnap, robloxUsernameSnap, robloxVerifiedSnap] = await Promise.all([
+                    const [displayNameSnap, avatarSnap, robloxUsernameSnap, robloxVerifiedSnap, profileFrameSnap] = await Promise.all([
                         get(ref(db, `users/${friendId}/displayName`)),
                         get(ref(db, `users/${friendId}/avatar`)),
                         get(ref(db, `users/${friendId}/robloxUsername`)),
                         get(ref(db, `users/${friendId}/robloxUsernameVerified`)),
+                        get(ref(db, `users/${friendId}/profileFrame`)),
                     ]);
 
                     return {
@@ -177,6 +144,7 @@ const SocialDashboard = () => {
                         avatar: avatarSnap.val() || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
                         robloxUsername: robloxUsernameSnap.val() || null,
                         robloxUsernameVerified: robloxVerifiedSnap.val() || false,
+                        profileFrame: profileFrameSnap.val() || null,
                     };
                 } catch (err) {
                     console.error('Error fetching friend data:', err);
@@ -250,13 +218,7 @@ const SocialDashboard = () => {
             if (!isMounted.current) return;
             setFriends(friendsData);
 
-            // ✅ Reset activities when friends change
-            if (forceRefresh) {
-                activitiesFetchedRef.current = false;
-                lastActivityDocRef.current = null;
-                setActivities([]);
-                setHasMoreActivities(true);
-            }
+
         } catch (err) {
             console.error('Error fetching friends:', err);
         } finally {
@@ -290,124 +252,26 @@ const SocialDashboard = () => {
         }
     }, [loadingMoreFriends, loadingFriends, friends.length, friendIds, fetchUsersFromRTDB, isFriendSearchActive]);
 
-    // ─────────────────────────────────────────────
-    // ✅ OPTIMIZED: Fetch Activity Feed with Pagination
-    const fetchActivities = useCallback(async (loadMore = false) => {
-        if (!currentUser?.id || !firestoreDB || friendIds.length === 0) {
-            setLoadingActivities(false);
-            return;
-        }
-
-        // ✅ Prevent duplicate initial fetches
-        if (!loadMore && activitiesFetchedRef.current) {
-            return;
-        }
-
-        if (loadMore) {
-            setLoadingMoreActivities(true);
-        } else {
-            setLoadingActivities(true);
-        }
-
-        try {
-            // ✅ Use smaller batch size for cost efficiency
-            const batchSize = FIRESTORE_IN_BATCH_SIZE;
-            const allActivities = [];
-
-            // ✅ Only fetch from first batch of friend IDs to limit reads
-            const friendBatch = friendIds.slice(0, batchSize);
-
-            let activityQuery = firestoreQuery(
-                collection(firestoreDB, 'user_activity'),
-                where('userId', 'in', friendBatch),
-                orderBy('createdAt', 'desc'),
-                limit(ACTIVITY_PAGE_SIZE)
-            );
-
-            // ✅ Pagination: use startAfter for load more
-            if (loadMore && lastActivityDocRef.current) {
-                activityQuery = firestoreQuery(
-                    collection(firestoreDB, 'user_activity'),
-                    where('userId', 'in', friendBatch),
-                    orderBy('createdAt', 'desc'),
-                    startAfter(lastActivityDocRef.current),
-                    limit(ACTIVITY_PAGE_SIZE)
-                );
-            }
-
-            const activitySnapshot = await getDocs(activityQuery);
-
-            if (!isMounted.current) return;
-
-            activitySnapshot.docs.forEach(doc => {
-                allActivities.push({ id: doc.id, ...doc.data() });
-            });
-
-            // ✅ Track last document for pagination
-            if (activitySnapshot.docs.length > 0) {
-                lastActivityDocRef.current = activitySnapshot.docs[activitySnapshot.docs.length - 1];
-            }
-
-            // ✅ Check if more data available
-            setHasMoreActivities(activitySnapshot.docs.length >= ACTIVITY_PAGE_SIZE);
-
-            if (loadMore) {
-                setActivities(prev => [...prev, ...allActivities]);
-            } else {
-                setActivities(allActivities);
-                activitiesFetchedRef.current = true;
-            }
-
-            // ✅ Auto-delete seen activities (As requested: "when seen delete from the data base")
-            if (allActivities.length > 0) {
-                // Perform deletion in background to not block UI
-                Promise.all(allActivities.map(activity =>
-                    deleteDoc(doc(firestoreDB, 'user_activity', activity.id))
-                )).catch(err => console.error('Error deleting seen activities:', err));
-            }
-        } catch (err) {
-            console.error('Error fetching activities:', err);
-        } finally {
-            if (isMounted.current) {
-                setLoadingActivities(false);
-                setLoadingMoreActivities(false);
-            }
-        }
-    }, [firestoreDB, currentUser?.id, friendIds]);
-
     // ✅ Initial fetch - only friends on mount
     useEffect(() => {
         fetchFriends();
     }, [fetchFriends]);
 
-    // ✅ Lazy load activities only when Activity tab is active AND friends loaded
-    useEffect(() => {
-        if (activeTab === 'activity' && friendIds.length > 0 && !activitiesFetchedRef.current) {
-            fetchActivities();
-        }
-    }, [activeTab, friendIds.length, fetchActivities]);
-
     const onRefresh = useCallback(() => {
         setRefreshing(true);
-        activitiesFetchedRef.current = false;
-        lastActivityDocRef.current = null;
-        fetchFriends(true); // This also resets search mode
+        fetchFriends(true);
     }, [fetchFriends]);
 
     // ─────────────────────────────────────────────
     // ✅ Memoized Set for O(1) lookup
     const friendIdSet = useMemo(() => new Set(friendIds), [friendIds]);
 
-    // ✅ NEW: Handle Friend Search (Server Side)
+    // ✅ Handle Friend Search (Server Side) — robust: symbols, case-insensitive
     const handleFriendSearch = useCallback(async () => {
-        if (!searchQuery.trim()) {
+        const raw = searchQuery.trim();
+        if (!raw) {
             setIsFriendSearchActive(false);
             setFriendSearchResults([]);
-            return;
-        }
-
-        if (searchQuery.length < 3) {
-            Alert.alert("Search", "Please enter at least 3 characters.");
             return;
         }
 
@@ -416,28 +280,17 @@ const SocialDashboard = () => {
         setFriendSearchResults([]);
 
         try {
-            // 1. Search Global Users - case-insensitive via dual query
-            const lower = searchQuery.trim().toLowerCase();
-            const upperFirst = lower.charAt(0).toUpperCase() + lower.slice(1);
-            const variants = lower === upperFirst ? [lower] : [lower, upperFirst];
-
             const seen = new Set();
             const results = [];
 
-            for (const v of variants) {
-                const q = query(
-                    ref(db, 'users'),
-                    orderByChild('displayName'),
-                    startAt(v),
-                    endAt(v + "\uf8ff"),
-                    limitToFirst(50)
-                );
-                const snapshot = await get(q);
+            if (looksLikeUserId(raw)) {
+                // ── ID SEARCH: direct lookup by Firebase user key ──
+                const userSnap = await get(ref(db, `users/${raw}`));
                 if (!isMounted.current) return;
-                if (snapshot.exists()) {
-                    const data = snapshot.val();
-                    for (const [id, u] of Object.entries(data)) {
-                        if (!friendIdSet.has(id) || seen.has(id)) continue;
+                if (userSnap.exists()) {
+                    const u = userSnap.val();
+                    const id = raw;
+                    if (friendIdSet.has(id)) {
                         seen.add(id);
                         results.push({
                             id,
@@ -445,7 +298,76 @@ const SocialDashboard = () => {
                             avatar: u.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
                             robloxUsername: u.robloxUsername,
                             robloxUsernameVerified: u.robloxUsernameVerified,
+                            profileFrame: u.profileFrame || null,
                         });
+                    }
+                }
+            } else {
+                // ── NAME SEARCH: multiple case variants + client-side filter ──
+                const lower = raw.toLowerCase();
+                const upperFirst = lower.charAt(0).toUpperCase() + lower.slice(1);
+                const allUpper = raw.toUpperCase();
+                const variants = [...new Set([lower, upperFirst, allUpper, raw])];
+
+                for (const v of variants) {
+                    if (seen.size >= 50) break;
+                    try {
+                        const q = query(
+                            ref(db, 'users'),
+                            orderByChild('displayName'),
+                            startAt(v),
+                            endAt(v + "\uf8ff"),
+                            limitToFirst(50)
+                        );
+                        const snapshot = await get(q);
+                        if (!isMounted.current) return;
+                        if (snapshot.exists()) {
+                            snapshot.forEach((child) => {
+                                const id = child.key;
+                                const u = child.val();
+                                if (!friendIdSet.has(id) || seen.has(id)) return;
+                                seen.add(id);
+                                results.push({
+                                    id,
+                                    displayName: u.displayName || u.userName || 'Unknown',
+                                    avatar: u.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+                                    robloxUsername: u.robloxUsername,
+                                    robloxUsernameVerified: u.robloxUsernameVerified,
+                                });
+                            });
+                        }
+                    } catch (variantErr) {
+                        console.warn(`Friend search variant "${v}" failed:`, variantErr.message);
+                    }
+                }
+
+                // Fallback: client-side contains match for symbol names
+                if (results.length < 10 && lower.length >= 2) {
+                    try {
+                        const broadQ = query(ref(db, 'users'), orderByChild('displayName'), limitToFirst(500));
+                        const broadSnap = await get(broadQ);
+                        if (!isMounted.current) return;
+                        if (broadSnap.exists()) {
+                            broadSnap.forEach((child) => {
+                                if (seen.size >= 50) return;
+                                const id = child.key;
+                                const u = child.val();
+                                if (!friendIdSet.has(id) || seen.has(id)) return;
+                                const name = (u.displayName || u.userName || '').toLowerCase();
+                                if (name.includes(lower)) {
+                                    seen.add(id);
+                                    results.push({
+                                        id,
+                                        displayName: u.displayName || u.userName || 'Unknown',
+                                        avatar: u.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+                                        robloxUsername: u.robloxUsername,
+                                        robloxUsernameVerified: u.robloxUsernameVerified,
+                                    });
+                                }
+                            });
+                        }
+                    } catch (broadErr) {
+                        console.warn('Broad friend search failed:', broadErr.message);
                     }
                 }
             }
@@ -462,42 +384,27 @@ const SocialDashboard = () => {
     }, [db, searchQuery, friendIdSet]);
 
     // ─────────────────────────────────────────────
-    // ✅ OPTIMIZED: Search Users (limited results)
+    // ✅ Search Users (Find Users tab) — robust: symbols, case-insensitive
     const handleSearch = useCallback(async () => {
-        if (!searchQuery.trim()) return;
-
-        if (searchQuery.length < 3) {
-            Alert.alert("Search", "Please enter at least 3 characters.");
-            return;
-        }
+        const raw = searchQuery.trim();
+        if (!raw) return;
 
         setLoadingSearch(true);
         setHasSearched(true);
         setSearchResults([]);
 
         try {
-            // Case-insensitive search via dual query
-            const lower = searchQuery.trim().toLowerCase();
-            const upperFirst = lower.charAt(0).toUpperCase() + lower.slice(1);
-            const variants = lower === upperFirst ? [lower] : [lower, upperFirst];
-
             const seen = new Set();
             const results = [];
 
-            for (const v of variants) {
-                const q = query(
-                    ref(db, 'users'),
-                    orderByChild('displayName'),
-                    startAt(v),
-                    endAt(v + "\uf8ff"),
-                    limitToFirst(SEARCH_LIMIT)
-                );
-                const snapshot = await get(q);
+            if (looksLikeUserId(raw)) {
+                // ── ID SEARCH: direct lookup by Firebase user key ──
+                const userSnap = await get(ref(db, `users/${raw}`));
                 if (!isMounted.current) return;
-                if (snapshot.exists()) {
-                    const data = snapshot.val();
-                    for (const [id, u] of Object.entries(data)) {
-                        if (id === currentUser?.id || seen.has(id)) continue;
+                if (userSnap.exists()) {
+                    const u = userSnap.val();
+                    const id = raw;
+                    if (id !== currentUser?.id) {
                         seen.add(id);
                         results.push({
                             id,
@@ -505,15 +412,85 @@ const SocialDashboard = () => {
                             avatar: u.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
                             robloxUsername: u.robloxUsername,
                             robloxUsernameVerified: u.robloxUsernameVerified,
+                            profileFrame: u.profileFrame || null,
                         });
+                    }
+                }
+            } else {
+                // ── NAME SEARCH: multiple case variants + client-side filter ──
+                const lower = raw.toLowerCase();
+                const upperFirst = lower.charAt(0).toUpperCase() + lower.slice(1);
+                const allUpper = raw.toUpperCase();
+                const variants = [...new Set([lower, upperFirst, allUpper, raw])];
+                const limitSize = 50;
+
+                for (const v of variants) {
+                    if (seen.size >= 50) break;
+                    try {
+                        const q = query(
+                            ref(db, 'users'),
+                            orderByChild('displayName'),
+                            startAt(v),
+                            endAt(v + "\uf8ff"),
+                            limitToFirst(limitSize)
+                        );
+                        const snapshot = await get(q);
+                        if (!isMounted.current) return;
+                        if (snapshot.exists()) {
+                            snapshot.forEach((child) => {
+                                const id = child.key;
+                                const u = child.val();
+                                if (id === currentUser?.id || seen.has(id)) return;
+                                seen.add(id);
+                                results.push({
+                                    id,
+                                    displayName: u.displayName || u.userName || 'Unknown',
+                                    avatar: u.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+                                    robloxUsername: u.robloxUsername,
+                                    robloxUsernameVerified: u.robloxUsernameVerified,
+                                });
+                            });
+                        }
+                    } catch (variantErr) {
+                        console.warn(`Search variant "${v}" failed:`, variantErr.message);
+                    }
+                }
+
+                // Fallback: client-side contains match for symbol names
+                if (results.length < 10 && lower.length >= 2) {
+                    try {
+                        const broadQ = query(ref(db, 'users'), orderByChild('displayName'), limitToFirst(500));
+                        const broadSnap = await get(broadQ);
+                        if (!isMounted.current) return;
+                        if (broadSnap.exists()) {
+                            broadSnap.forEach((child) => {
+                                if (seen.size >= 50) return;
+                                const id = child.key;
+                                const u = child.val();
+                                if (id === currentUser?.id || seen.has(id)) return;
+                                const name = (u.displayName || u.userName || '').toLowerCase();
+                                if (name.includes(lower)) {
+                                    seen.add(id);
+                                    results.push({
+                                        id,
+                                        displayName: u.displayName || u.userName || 'Unknown',
+                                        avatar: u.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+                                        robloxUsername: u.robloxUsername,
+                                        robloxUsernameVerified: u.robloxUsernameVerified,
+                                    });
+                                }
+                            });
+                        }
+                    } catch (broadErr) {
+                        console.warn('Broad search failed:', broadErr.message);
                     }
                 }
             }
 
-            setSearchResults(results.slice(0, SEARCH_LIMIT));
+            setSearchResults(results.slice(0, 50));
         } catch (err) {
             console.error("Search error:", err);
-            Alert.alert("Search Failed", "Could not search users.");
+            Alert.alert("Search Failed", err.message || "Could not search users.");
         } finally {
             if (isMounted.current) {
                 setLoadingSearch(false);
@@ -530,9 +507,30 @@ const SocialDashboard = () => {
             avatar: user.avatar,
             robloxUsername: user.robloxUsername,
             robloxUsernameVerified: user.robloxUsernameVerified,
+            profileFrame: user.profileFrame || null,
         });
         setIsDrawerVisible(true);
     }, []);
+
+    // ✅ Real-time follow/unfollow handler — updates friends list & search results instantly
+    const handleFollowChange = useCallback((userId, isNowFollowing) => {
+        if (isNowFollowing) {
+            // Add to friendIds
+            setFriendIds(prev => prev.includes(userId) ? prev : [...prev, userId]);
+            // Add user to friends list from selectedUser or search results
+            const userInfo = searchResults.find(u => u.id === userId) || friendSearchResults.find(u => u.id === userId);
+            if (userInfo) {
+                setFriends(prev => prev.some(f => f.id === userId) ? prev : [userInfo, ...prev]);
+            }
+        } else {
+            // Remove from friendIds
+            setFriendIds(prev => prev.filter(id => id !== userId));
+            // Remove from friends list
+            setFriends(prev => prev.filter(f => f.id !== userId));
+            // Remove from friend search results too
+            setFriendSearchResults(prev => prev.filter(f => f.id !== userId));
+        }
+    }, [searchResults, friendSearchResults]);
 
     // ─────────────────────────────────────────────
     // ✅ Memoized render functions
@@ -545,13 +543,6 @@ const SocialDashboard = () => {
         />
     ), [isDark, friendIdSet, handleOpenProfile]);
 
-    const renderActivityCard = useCallback(({ item }) => (
-        <ActivityCard
-            item={item}
-            isDark={isDark}
-            onPress={() => handleOpenProfile({ id: item.userId, displayName: item.displayName, avatar: item.avatar })}
-        />
-    ), [isDark, handleOpenProfile]);
 
     // ─────────────────────────────────────────────
     // Filter friends based on search (memoized)
@@ -565,18 +556,7 @@ const SocialDashboard = () => {
         );
     }, [friends, searchQuery]);
 
-    // ✅ Load More Activities Footer
-    const ActivityListFooter = useCallback(() => {
-        if (!hasMoreActivities) return null;
-        if (loadingMoreActivities) {
-            return <ActivityIndicator style={{ marginVertical: 16 }} color={config.colors.primary} />;
-        }
-        return (
-            <TouchableOpacity onPress={() => fetchActivities(true)} style={styles.loadMoreBtn}>
-                <Text style={styles.loadMoreText}>Load More</Text>
-            </TouchableOpacity>
-        );
-    }, [hasMoreActivities, loadingMoreActivities, fetchActivities]);
+
 
     // ✅ Stable key extractors
     const keyExtractor = useCallback((item) => item.id, []);
@@ -590,7 +570,7 @@ const SocialDashboard = () => {
     return (
         <View style={[styles.container, { backgroundColor: isDark ? '#000' : '#F2F2F7' }]}>
 
-            {/* Tabs (Friends + Find Users only - no activity tracking) */}
+            {/* Tabs */}
             <View style={styles.tabContainer}>
                 <TouchableOpacity
                     style={[styles.tab, activeTab === 'friends' && styles.activeTab]}
@@ -601,7 +581,7 @@ const SocialDashboard = () => {
                     }}
                 >
                     <Text style={[styles.tabText, { color: activeTab === 'friends' ? config.colors.primary : (isDark ? '#888' : '#666') }]}>
-                        Friends
+                        💛 Following
                     </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -612,12 +592,13 @@ const SocialDashboard = () => {
                     }}
                 >
                     <Text style={[styles.tabText, { color: activeTab === 'search' ? config.colors.primary : (isDark ? '#888' : '#666') }]}>
-                        Find Users
+                        🔍 Discover
                     </Text>
                 </TouchableOpacity>
             </View>
 
-            {/* Friends Tab - Updated UI for Search */}
+
+            {/* 💛 Following Tab */}
             {activeTab === 'friends' && (
                 <View style={{ flex: 1 }}>
                     <View style={styles.searchContainer}>
@@ -631,7 +612,7 @@ const SocialDashboard = () => {
                             }}
                             placeholder="Search friends..."
                             placeholderTextColor={isDark ? '#666' : '#999'}
-                            style={[styles.searchInput, { backgroundColor: isDark ? '#1e293b' : '#FFF', color: isDark ? '#FFF' : '#000' }]}
+                            style={[styles.searchInput, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', color: isDark ? '#FFF' : '#000' }]}
                             returnKeyType="search"
                             onSubmitEditing={handleFriendSearch}
                         />
@@ -649,9 +630,8 @@ const SocialDashboard = () => {
                             contentContainerStyle={styles.listContent}
                             renderItem={renderUserCard}
                             initialNumToRender={10}
-                            maxToRenderPerBatch={8}
+                            maxToRenderPerBatch={10}
                             windowSize={5}
-                            updateCellsBatchingPeriod={100}
                             onEndReached={loadMoreFriends}
                             onEndReachedThreshold={0.5}
                             ListFooterComponent={FriendListFooter}
@@ -668,7 +648,7 @@ const SocialDashboard = () => {
                 </View>
             )}
 
-            {/* Search Tab */}
+            {/* 🔍 Discover Tab */}
             {activeTab === 'search' && (
                 <View style={{ flex: 1 }}>
                     <View style={styles.searchContainer}>
@@ -677,7 +657,7 @@ const SocialDashboard = () => {
                             onChangeText={setSearchQuery}
                             placeholder="Search users..."
                             placeholderTextColor={isDark ? '#666' : '#999'}
-                            style={[styles.searchInput, { backgroundColor: isDark ? '#1e293b' : '#FFF', color: isDark ? '#FFF' : '#000' }]}
+                            style={[styles.searchInput, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', color: isDark ? '#FFF' : '#000' }]}
                             returnKeyType="search"
                             onSubmitEditing={handleSearch}
                         />
@@ -694,9 +674,8 @@ const SocialDashboard = () => {
                             contentContainerStyle={styles.listContent}
                             renderItem={renderUserCard}
                             initialNumToRender={10}
-                            maxToRenderPerBatch={8}
+                            maxToRenderPerBatch={10}
                             windowSize={5}
-                            updateCellsBatchingPeriod={100}
                             ListEmptyComponent={
                                 hasSearched ? (
                                     <View style={styles.emptyState}>
@@ -719,24 +698,27 @@ const SocialDashboard = () => {
                 isVisible={isDrawerVisible}
                 toggleModal={() => {
                     setIsDrawerVisible(false);
-                    // fetchFriends(true); // Don't force refresh blindly on close, cleaner to leave as is or basic refresh
                 }}
                 startChat={() => {
                     if (selectedUser) {
                         setIsDrawerVisible(false);
-                        navigation.navigate('PrivateChat', {
-                            selectedUser: {
-                                senderId: selectedUser.senderId,
-                                sender: selectedUser.sender,
-                                avatar: selectedUser.avatar,
-                            },
-                        });
+                        // Small delay so drawer close animation finishes before navigation
+                        setTimeout(() => {
+                            navigation.navigate('PrivateChatRoot', {
+                                selectedUser: {
+                                    senderId: selectedUser.senderId,
+                                    sender: selectedUser.sender,
+                                    avatar: selectedUser.avatar,
+                                },
+                            });
+                        }, 300);
                     }
                 }}
                 selectedUser={selectedUser}
                 isOnline={false}
                 bannedUsers={[]}
                 fromPvtChat={false}
+                onFollowChange={handleFollowChange}
             />
         </View>
     );
@@ -765,15 +747,7 @@ const styles = StyleSheet.create({
     notFollowingBadge: { backgroundColor: '#8E8E93', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
     notFollowingText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
 
-    // Activity Card Styles
-    activityCard: { flexDirection: 'row', padding: 12, borderRadius: 16, marginBottom: 10, borderWidth: 1 },
-    activityAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#DDD' },
-    activityContent: { flex: 1, marginLeft: 12 },
-    activityHeader: { fontSize: 14 },
-    activityName: { fontWeight: '600' },
-    activityPreview: { fontSize: 13, marginTop: 4 },
-    activityTime: { fontSize: 11, marginTop: 4 },
-    activityImage: { width: 50, height: 50, borderRadius: 8, marginLeft: 8 },
+
 
     emptyState: { alignItems: 'center', marginTop: 60, opacity: 0.7, paddingHorizontal: 20 },
     emptyText: { marginTop: 16, fontSize: 16, textAlign: 'center' },

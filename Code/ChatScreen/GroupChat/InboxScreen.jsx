@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useEffect, useState } from 'react';
+import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,201 +8,131 @@ import {
   ActivityIndicator,
   Image,
   Alert,
+  InteractionManager,
 } from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { useGlobalState } from '../../GlobelStats';
+import { getThemeColors } from '../../Helper/themeColors';
 import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
 import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
 import { useTranslation } from 'react-i18next';
-import database, { ref, onValue, get } from '@react-native-firebase/database';
-import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
+import { ref, update, remove, onChildAdded, onChildChanged, onChildRemoved } from '@react-native-firebase/database';
+import { showSuccessMessage } from '../../Helper/MessageHelper';
 
 // ✅ Constants for pagination (moved outside component to avoid recreation)
 const INITIAL_LOAD = 15; // ✅ Initial chats to display
 const LOAD_MORE = 10; // ✅ Load 10 more on scroll
 
-const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
+const InboxScreen = ({ bannedUsers }) => {
   const navigation = useNavigation();
   const { user, theme, appdatabase } = useGlobalState();
   const { t } = useTranslation();
   const [localLoading, setLocalLoading] = useState(false);
   const [localChats, setLocalChats] = useState([]);
-  const [displayedChatsCount, setDisplayedChatsCount] = useState(INITIAL_LOAD); // ✅ Start with 15 chats
+  const [displayedChatsCount, setDisplayedChatsCount] = useState(INITIAL_LOAD);
+  const debounceTimerRef = useRef(null); // ✅ Debounce updateChatsList
+  const hasLoadedOnce = useRef(false); // ✅ Track if initial load is done
 
-  // ✅ OPTIMIZED: Use get() for initial load + child listeners for updates
-  // This prevents re-downloading entire chat_meta_data on every change
-  // Only downloads changed chats instead of all chats
-  useFocusEffect(
-    useCallback(() => {
-      if (!user?.id || !appdatabase) {
-        setLocalChats([]);
-        setLocalLoading(false);
-        return;
+  // ✅ OPTIMIZED: Use child listeners only — no get() call to avoid double-downloading
+  // useEffect keeps listeners attached across tab switches (no re-download on every focus)
+  const chatsMapRef = useRef(new Map());
+  const initialLoadTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (!user?.id || !appdatabase) {
+      setLocalChats([]);
+      setLocalLoading(false);
+      return;
+    }
+
+    if (!hasLoadedOnce.current) {
+      setLocalLoading(true);
+      // Safety timeout — if user has no chats, onChildAdded never fires
+      initialLoadTimerRef.current = setTimeout(() => {
+        if (!hasLoadedOnce.current) {
+          setLocalLoading(false);
+          hasLoadedOnce.current = true;
+        }
+      }, 2000);
+    }
+
+    const userChatsRef = ref(appdatabase, `chat_meta_data/${user.id}`);
+    const chatsMap = chatsMapRef.current;
+    chatsMap.clear();
+    const banned = Array.isArray(bannedUsers) ? bannedUsers : [];
+
+    // ✅ Debounced helper to batch rapid child events
+    const updateChatsList = () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = setTimeout(() => {
+        InteractionManager.runAfterInteractions(() => {
+          const updatedChats = Array.from(chatsMap.values())
+            .sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp);
+          setLocalChats(updatedChats);
+          setDisplayedChatsCount(INITIAL_LOAD);
+          if (!hasLoadedOnce.current) {
+            setLocalLoading(false);
+            hasLoadedOnce.current = true;
+            if (initialLoadTimerRef.current) clearTimeout(initialLoadTimerRef.current);
+          }
+        });
+      }, 500);
+    };
+
+    // ✅ Unified handler for child_added and child_changed
+    const handleChildChange = (snapshot) => {
+      if (!snapshot || !snapshot.key) return;
+      const chatData = snapshot.val();
+      if (!chatData || typeof chatData !== 'object') return;
+
+      const chatPartnerId = snapshot.key;
+      const isBlocked = banned.includes(chatPartnerId);
+      const rawUnread = chatData?.unreadCount || 0;
+
+      if (isBlocked && rawUnread > 0) {
+        const blockedChatRef = ref(appdatabase, `chat_meta_data/${user.id}/${chatPartnerId}`);
+        update(blockedChatRef, { unreadCount: 0 }).catch((error) => {
+          console.error("Error resetting unread count:", error);
+        });
       }
 
-      setLocalLoading(true);
-      const userChatsRef = ref(appdatabase, `chat_meta_data/${user.id}`);
-      const chatsMap = new Map(); // Track chats locally
-      const banned = Array.isArray(bannedUsers) ? bannedUsers : [];
+      chatsMap.set(chatPartnerId, {
+        chatId: chatData.chatId,
+        otherUserId: chatPartnerId,
+        lastMessage: chatData.lastMessage || 'No messages yet',
+        lastMessageTimestamp: chatData.timestamp || 0,
+        unreadCount: isBlocked ? 0 : rawUnread,
+        otherUserAvatar: chatData.receiverAvatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+        otherUserName: chatData.receiverName || 'Anonymous',
+      });
 
-      // ✅ OPTIMIZED: Initial load with get() (one-time read)
-      const loadInitialChats = async () => {
-        try {
-          const snapshot = await userChatsRef.once('value');
-          if (!snapshot.exists()) {
-            setLocalChats([]);
-            setLocalLoading(false);
-            return;
-          }
+      updateChatsList();
+    };
 
-          const fetchedData = snapshot.val();
-          if (!fetchedData || typeof fetchedData !== 'object') {
-            setLocalChats([]);
-            setLocalLoading(false);
-            return;
-          }
+    const handleChildRemoved = (snapshot) => {
+      if (!snapshot || !snapshot.key) return;
+      chatsMap.delete(snapshot.key);
+      updateChatsList();
+    };
 
-          Object.entries(fetchedData).forEach(([chatPartnerId, chatData]) => {
-            if (!chatData || typeof chatData !== 'object') return;
+    // ✅ NO get() call — onChildAdded fires for all existing children on first attach
+    // This eliminates the double-download (get + onChildAdded was downloading 2x)
+    const unsubAdded = onChildAdded(userChatsRef, handleChildChange);
+    const unsubChanged = onChildChanged(userChatsRef, handleChildChange);
+    const unsubRemoved = onChildRemoved(userChatsRef, handleChildRemoved);
 
-            const isBlocked = banned.includes(chatPartnerId);
-            const rawUnread = chatData?.unreadCount || 0;
+    return () => {
+      unsubAdded();
+      unsubChanged();
+      unsubRemoved();
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      if (initialLoadTimerRef.current) clearTimeout(initialLoadTimerRef.current);
+    };
+  }, [user?.id, appdatabase, bannedUsers]);
 
-            if (isBlocked && rawUnread > 0) {
-              const { update } = require('@react-native-firebase/database');
-              const blockedChatRef = ref(appdatabase, `chat_meta_data/${user.id}/${chatPartnerId}`);
-              update(blockedChatRef, { unreadCount: 0 }).catch((error) => {
-                console.error("Error resetting unread count:", error);
-              });
-            }
-
-            chatsMap.set(chatPartnerId, {
-              chatId: chatData.chatId,
-              otherUserId: chatPartnerId,
-              lastMessage: chatData.lastMessage || 'No messages yet',
-              lastMessageTimestamp: chatData.timestamp || 0,
-              unreadCount: isBlocked ? 0 : rawUnread,
-              otherUserAvatar: chatData.receiverAvatar || 'https://example.com/default-avatar.jpg',
-              otherUserName: chatData.receiverName || 'Anonymous',
-            });
-          });
-
-          updateChatsList();
-          setLocalLoading(false);
-        } catch (error) {
-          console.error("❌ Error loading initial chats:", error);
-          setLocalLoading(false);
-        }
-      };
-
-      // ✅ Helper function to update chats list from map
-      const updateChatsList = () => {
-        const updatedChats = Array.from(chatsMap.values())
-          .sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp);
-
-        setLocalChats(updatedChats);
-        setDisplayedChatsCount(INITIAL_LOAD);
-
-        if (setChats && typeof setChats === 'function') {
-          setChats(updatedChats);
-        }
-      };
-
-      // ✅ OPTIMIZED: Separate handler for child_added that SKIPS already-loaded chats
-      // This prevents double-downloading: once('value') loads all, then child_added would re-fire for all existing children
-      const handleChildAdded = (snapshot) => {
-        if (!snapshot || !snapshot.key) return;
-        // ✅ Skip if already loaded from once('value') — prevents redundant processing & re-renders
-        if (chatsMap.has(snapshot.key)) return;
-
-        const chatData = snapshot.val();
-        if (!chatData || typeof chatData !== 'object') return;
-
-        const chatPartnerId = snapshot.key;
-        const isBlocked = banned.includes(chatPartnerId);
-        const rawUnread = chatData?.unreadCount || 0;
-
-        if (isBlocked && rawUnread > 0) {
-          const { update } = require('@react-native-firebase/database');
-          const blockedChatRef = ref(appdatabase, `chat_meta_data/${user.id}/${chatPartnerId}`);
-          update(blockedChatRef, { unreadCount: 0 }).catch((error) => {
-            console.error("Error resetting unread count:", error);
-          });
-        }
-
-        chatsMap.set(chatPartnerId, {
-          chatId: chatData.chatId,
-          otherUserId: chatPartnerId,
-          lastMessage: chatData.lastMessage || 'No messages yet',
-          lastMessageTimestamp: chatData.timestamp || 0,
-          unreadCount: isBlocked ? 0 : rawUnread,
-          otherUserAvatar: chatData.receiverAvatar || 'https://example.com/default-avatar.jpg',
-          otherUserName: chatData.receiverName || 'Anonymous',
-        });
-
-        updateChatsList();
-      };
-
-      // ✅ Handler for child_changed — always process (data actually changed)
-      const handleChildChanged = (snapshot) => {
-        if (!snapshot || !snapshot.key) return;
-        const chatData = snapshot.val();
-        if (!chatData || typeof chatData !== 'object') return;
-
-        const chatPartnerId = snapshot.key;
-        const isBlocked = banned.includes(chatPartnerId);
-        const rawUnread = chatData?.unreadCount || 0;
-
-        if (isBlocked && rawUnread > 0) {
-          const { update } = require('@react-native-firebase/database');
-          const blockedChatRef = ref(appdatabase, `chat_meta_data/${user.id}/${chatPartnerId}`);
-          update(blockedChatRef, { unreadCount: 0 }).catch((error) => {
-            console.error("Error resetting unread count:", error);
-          });
-        }
-
-        chatsMap.set(chatPartnerId, {
-          chatId: chatData.chatId,
-          otherUserId: chatPartnerId,
-          lastMessage: chatData.lastMessage || 'No messages yet',
-          lastMessageTimestamp: chatData.timestamp || 0,
-          unreadCount: isBlocked ? 0 : rawUnread,
-          otherUserAvatar: chatData.receiverAvatar || 'https://example.com/default-avatar.jpg',
-          otherUserName: chatData.receiverName || 'Anonymous',
-        });
-
-        updateChatsList();
-      };
-
-      const handleChildRemoved = (snapshot) => {
-        if (!snapshot || !snapshot.key) return;
-        chatsMap.delete(snapshot.key);
-        updateChatsList();
-      };
-
-      // Load initial data
-      loadInitialChats();
-
-      // ✅ OPTIMIZED: child_added skips already-loaded chats (prevents double-download)
-      // child_changed handles updates, child_removed handles deletions
-      userChatsRef.on('child_added', handleChildAdded);
-      userChatsRef.on('child_changed', handleChildChanged);
-      userChatsRef.on('child_removed', handleChildRemoved);
-
-      // ✅ Cleanup listeners when screen loses focus
-      return () => {
-        userChatsRef.off('child_added', handleChildAdded);
-        userChatsRef.off('child_changed', handleChildChanged);
-        userChatsRef.off('child_removed', handleChildRemoved);
-        setDisplayedChatsCount(INITIAL_LOAD);
-      };
-    }, [user?.id, appdatabase, bannedUsers, setChats])
-  );
-
-  // ✅ Use local chats if available, fallback to props for backward compatibility
-  const allChats = localChats.length > 0 ? localChats : (chats || []);
-  const displayLoading = localLoading || loading;
+  const allChats = localChats;
+  const displayLoading = localLoading;
 
   // ✅ Safety check for bannedUsers array and filter
   const filteredChats = useMemo(() => {
@@ -225,14 +155,13 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
     }
   }, [displayedChatsCount, filteredChats.length]);
 
-  // const [loading, setLoading] = useState(false);
   const isDarkMode = theme === 'dark';
+  const c = getThemeColors(isDarkMode);
   // ✅ Memoize styles
-  const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
+  const styles = useMemo(() => getStyles(isDarkMode, c), [isDarkMode]);
 
   // ✅ Memoize handleDelete with useCallback
   const handleDelete = useCallback((chatId) => {
-    // ✅ Safety check
     if (!chatId) {
       console.error('❌ Invalid chatId for handleDelete');
       return;
@@ -248,7 +177,6 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              // ✅ Safety checks
               if (!user?.id) {
                 console.error('❌ User ID not available');
                 return;
@@ -271,30 +199,15 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
                 return;
               }
 
-              // 1. Delete chat metadata for the current user
-              const senderChatRef = database().ref(`chat_meta_data/${user.id}/${otherUserId}`);
-              const snapshot = await senderChatRef.once('value');
+              // Delete chat metadata for the current user only
+              const senderChatRef = ref(appdatabase, `chat_meta_data/${user.id}/${otherUserId}`);
+              await remove(senderChatRef);
 
-              if (snapshot.exists()) {
-                await senderChatRef.remove();
-              }
-
-              // 2. Delete full chat thread using chatId
-              const fullChatRef = database().ref(`private_messages/${chatId}`);
-              await fullChatRef.remove();
-
-              // 3. Update local state - ✅ Validate setChats callback
+              // Update local state
               setLocalChats((prevChats) => {
                 if (!Array.isArray(prevChats)) return [];
                 return prevChats.filter((chat) => chat?.chatId !== chatId);
               });
-
-              if (setChats && typeof setChats === 'function') {
-                setChats((prevChats) => {
-                  if (!Array.isArray(prevChats)) return [];
-                  return prevChats.filter((chat) => chat?.chatId !== chatId);
-                });
-              }
 
               showSuccessMessage(t("home.alert.success"), t("chat.chat_success_message"));
             } catch (error) {
@@ -306,13 +219,10 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
       ],
       { cancelable: true }
     );
-  }, [allChats, user?.id, setChats, t]);
-
-
+  }, [allChats, user?.id, t]);
 
   // ✅ Memoize handleOpenChat with useCallback
   const handleOpenChat = useCallback(async (chatId, otherUserId, otherUserName, otherUserAvatar) => {
-    // ✅ Safety checks
     if (!user?.id) {
       console.error('❌ User ID not available');
       return;
@@ -332,17 +242,7 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
         );
       });
 
-      // ✅ Also update parent state if provided
-      if (setChats && typeof setChats === 'function') {
-        setChats((prevChats) => {
-          if (!Array.isArray(prevChats)) return prevChats;
-          return prevChats.map((chat) =>
-            chat?.chatId === chatId ? { ...chat, unreadCount: 0 } : chat
-          );
-        });
-      }
-
-      // ✅ Navigate to PrivateChat with isOnline status
+      // ✅ Navigate to PrivateChat
       if (navigation && typeof navigation.navigate === 'function') {
         navigation.navigate('PrivateChat', {
           selectedUser: {
@@ -357,17 +257,10 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
       console.error("Error opening chat:", error);
       Alert.alert('Error', 'Failed to open chat. Please try again.');
     }
-  }, [user?.id, setChats, navigation]);
-
-
-
-
-
-
+  }, [user?.id, navigation]);
 
   // ✅ Memoize renderChatItem with useCallback
   const renderChatItem = useCallback(({ item }) => {
-    // ✅ Safety checks
     if (!item || typeof item !== 'object') return null;
 
     const chatId = item.chatId;
@@ -396,7 +289,7 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
             <Text style={styles.userName}>
               {otherUserName}
               {isOnline && !isBanned && (
-                <Text style={{ color: config.colors.hasBlockGreen }}> - Online</Text>
+                <Text style={{ color: '#22c55e' }}> - Online</Text>
               )}
             </Text>
             <Text style={styles.lastMessage} numberOfLines={1}>
@@ -420,7 +313,19 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
               style={{ paddingLeft: 10 }}
             />
           </MenuTrigger>
-          <MenuOptions>
+          <MenuOptions customStyles={{
+            optionsContainer: {
+              borderRadius: 8,
+              padding: 4,
+              backgroundColor: isDarkMode ? '#1e293b' : '#fff',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.15,
+              shadowRadius: 4,
+              elevation: 5,
+              width: 150,
+            },
+          }}>
             <MenuOption onSelect={() => handleDelete(chatId)}>
               <Text style={{ color: 'red', fontSize: 16, padding: 10 }}> {t("chat.delete")}</Text>
             </MenuOption>
@@ -429,6 +334,7 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
       </View>
     );
   }, [styles, user, handleOpenChat, handleDelete, t]);
+
   return (
     <View style={styles.container}>
       {displayLoading ? (
@@ -442,11 +348,9 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
           data={displayedChats}
           keyExtractor={(item, index) => item?.chatId || `chat-${index}`}
           renderItem={renderChatItem}
-          removeClippedSubviews={false}
-          initialNumToRender={10}
-          maxToRenderPerBatch={8}
-          windowSize={5}
-          updateCellsBatchingPeriod={100}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          windowSize={10}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
           ListFooterComponent={
@@ -466,7 +370,7 @@ const InboxScreen = ({ chats, setChats, loading, bannedUsers }) => {
 };
 
 // Styles
-const getStyles = (isDarkMode) =>
+const getStyles = (isDarkMode, c) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -499,7 +403,7 @@ const getStyles = (isDarkMode) =>
       flex: 1,
     },
     userName: {
-      fontSize: 14,
+      fontSize: 15,
       fontWeight: 'bold',
       color: isDarkMode ? '#fff' : '#333',
     },
@@ -525,7 +429,7 @@ const getStyles = (isDarkMode) =>
       alignItems: 'center',
     },
     emptyText: {
-      color: isDarkMode ? 'white' : 'black',
+      color: c.text,
       textAlign: 'center'
     },
     loadMoreContainer: {
@@ -536,9 +440,9 @@ const getStyles = (isDarkMode) =>
     loadMoreText: {
       marginTop: 8,
       fontSize: 12,
-      color: isDarkMode ? '#9CA3AF' : '#6B7280',
+      color: c.textSecondary,
 
     }
   });
 
-export default InboxScreen;
+export default React.memo(InboxScreen);

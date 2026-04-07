@@ -7,7 +7,8 @@ import { createNewUser, firebaseConfig, registerForNotifications } from './Globe
 import { useLocalState } from './LocalGlobelStats';
 import { requestPermission } from './Helper/PermissionCheck';
 import { useColorScheme, InteractionManager, AppState } from 'react-native';
-import { getFlag } from './Helper/CountryCheck';
+import { clearUserCache } from './Helper/UserDataCache';
+import { generateOnePieceUsername } from './Helper/RendomNamegen';
 const app = getApps();
 const auth = getAuth(app);
 const firestoreDB = getFirestore(app);
@@ -38,6 +39,11 @@ export const GlobalStateProvider = ({ children }) => {
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [isModerator, setIsModerator] = useState(false); // ✅ Global Moderator State
+  const [isBabyMod, setIsBabyMod] = useState(false); // ✅ Global JMD State
+  const [isTrusted, setIsTrusted] = useState(false); // ✅ Global Trusted State
+  const [isCMSR, setIsCMSR] = useState(false); // ✅ Global CMSR State
+  const [isGrinder, setIsGrinder] = useState(false); // ✅ Global Grinder State
+  const [isRaider, setIsRaider] = useState(false); // ✅ Global Raider State
   const [isInActiveGame, setIsInActiveGame] = useState(false); // ✅ Track if user is in active game
   const [user, setUser] = useState({
     id: null,
@@ -265,7 +271,6 @@ export const GlobalStateProvider = ({ children }) => {
       setIsAdmin(false);
       setIsModerator(false); // ✅ Reset moderator status
       // ✅ Clear user data cache on logout
-      const { clearUserCache } = require('./Helper/UserDataCache');
       clearUserCache();
       return;
     }
@@ -299,14 +304,29 @@ export const GlobalStateProvider = ({ children }) => {
       if (snapshot.exists()) {
         const existing = snapshot.val();
 
+        // ✅ Persist hardcoded admin flag to RTDB once (so RoleBadges / profile cache see it)
+        if (makeadmin && !existing.isAdmin && !existing.admin) {
+          update(userRef, { isAdmin: true }).catch(() => {});
+          existing.isAdmin = true;
+        }
+
         // ✅ Check if user is moderator from DB
         if (existing.isModerator) setIsModerator(true);
         // ✅ Also check admin from DB if not hardcoded
         if (existing.admin || existing.isAdmin) setIsAdmin(true);
+        // ✅ Check if user is JMD (Baby Mod)
+        if (existing.isBabyMod) setIsBabyMod(true);
+        // ✅ Check if user is Trusted
+        if (existing.isTrusted) setIsTrusted(true);
+        // ✅ Check if user is CMSR
+        if (existing.isCMSR) setIsCMSR(true);
+        // ✅ Check if user is Grinder
+        if (existing.isGrinder) setIsGrinder(true);
+        // ✅ Check if user is Raider
+        if (existing.isRaider) setIsRaider(true);
 
         // 🩹 Heal bad displayNames ('Anonymous', empty, or missing) left by the
         // registration race condition or any other cause
-        const { generateOnePieceUsername } = require('./Helper/RendomNamegen');
         const isBadName = !existing.displayName ||
           existing.displayName.trim() === '' ||
           existing.displayName.trim() === 'Anonymous';
@@ -368,12 +388,6 @@ export const GlobalStateProvider = ({ children }) => {
     run();
   }, [user?.id]);
 
-  useEffect(() => {
-    // console.log(user)
-    if (!isAdmin)
-      updateLocalStateAndDatabase({ flage: getFlag() })
-    // getFlag()
-  }, [user.id])
 
   // ✅ Ensure useEffect runs only when necessary
   useEffect(() => {
@@ -493,27 +507,29 @@ export const GlobalStateProvider = ({ children }) => {
 
 
 
-  const fetchStockData = async (refresh) => {
+  // ✅ Ref to always have latest localState without adding it to useCallback deps
+  const localStateRef = useRef(localState);
+  useEffect(() => { localStateRef.current = localState; }, [localState]);
+
+  const fetchStockData = useCallback(async (refresh) => {
+    const currentLocalState = localStateRef.current;
     try {
       setLoading(true);
 
       // ✅ Check when `codes & data` were last fetched
-      const lastActivity = localState.lastActivity ? new Date(localState.lastActivity).getTime() : 0;
+      const lastActivity = currentLocalState.lastActivity ? new Date(currentLocalState.lastActivity).getTime() : 0;
       const now = Date.now();
       const timeElapsed = now - lastActivity;
 
-
-      // ✅ Fetch `codes & data` only if 24 hours have passed OR they are missing
-      const EXPIRY_LIMIT = refresh ? 1 * 1000 : 6 * 60 * 1000; // 10s for refresh, 6min default
+      // ✅ Fetch `codes & data` only if 6min have passed OR they are missing
+      const EXPIRY_LIMIT = refresh ? 1 * 1000 : 6 * 60 * 1000;
 
       const shouldFetch =
         timeElapsed > EXPIRY_LIMIT ||
-        !localState.data ||
-        !Object.keys(localState.data).length
+        !currentLocalState.data ||
+        !Object.keys(currentLocalState.data).length
 
       if (shouldFetch) {
-        // console.log("📌 Fetching codes & data from database...");
-
         let codes = {};
         let data = {};
 
@@ -529,7 +545,6 @@ export const GlobalStateProvider = ({ children }) => {
             })
           ]);
 
-          // ✅ Check if responses are OK
           if (!codesRes.ok || !dataRes.ok) {
             throw new Error(`CDN request failed: codes=${codesRes.status}, data=${dataRes.status}`);
           }
@@ -537,27 +552,20 @@ export const GlobalStateProvider = ({ children }) => {
           const codesJson = await codesRes.json();
           const dataJson = await dataRes.json();
 
-          // Assign values or keep as empty object
           codes = codesJson || {};
           data = dataJson || {};
 
-          // ✅ Validate data is not empty
           if (!Object.keys(codes).length || !Object.keys(data).length) {
             throw new Error('CDN data incomplete: empty response');
           }
 
-          // console.log('✅ Loaded codes & data from CDN');
-
         } catch (err) {
-          // ✅ REMOVED: Firebase fallback - only use CDN (bunny CDN)
-          // If CDN fails, log error and use cached data if available
           console.error('❌ Failed to fetch from CDN:', err.message);
 
-          // ✅ Use cached data if available, otherwise keep empty objects
-          if (localState.codes && localState.data) {
+          if (currentLocalState.codes && currentLocalState.data) {
             try {
-              codes = typeof localState.codes === 'string' ? JSON.parse(localState.codes) : localState.codes;
-              data = typeof localState.data === 'string' ? JSON.parse(localState.data) : localState.data;
+              codes = typeof currentLocalState.codes === 'string' ? JSON.parse(currentLocalState.codes) : currentLocalState.codes;
+              data = typeof currentLocalState.data === 'string' ? JSON.parse(currentLocalState.data) : currentLocalState.data;
               console.warn('⚠️ Using cached codes & data due to CDN failure');
             } catch (parseErr) {
               console.error('❌ Failed to parse cached data:', parseErr);
@@ -571,61 +579,72 @@ export const GlobalStateProvider = ({ children }) => {
           }
         }
 
-
-
-
-
         // ✅ Store fetched data locally
-        await updateLocalState('codes', JSON.stringify(codes));
-        await updateLocalState('data', JSON.stringify(data));
-        // console.log(data)
-        // ✅ Update last fetch timestamp
-        // await updateLocalState('lastActivity', new Date().toISOString());
-
-
-        // console.log("✅ Data updated successfully.");
-      } else {
-        // console.log("⏳ Using cached codes & data, no need to fetch.");
+        updateLocalState('codes', JSON.stringify(codes));
+        updateLocalState('data', JSON.stringify(data));
       }
 
-      // ✅ Always fetch stock data (`calcData`) on app load
-      // console.log("📌 Fetching fresh stock data...");
-      const calcSnapshot = await get(ref(appdatabase, 'calcData'));
+      // ✅ OPTIMIZED: Cache calcData — only fetch from Firebase if 5 min have passed
+      const lastCalcDataFetch = currentLocalState.lastCalcDataFetch
+        ? parseInt(currentLocalState.lastCalcDataFetch, 10)
+        : 0;
+      const fiveMinutes = 5 * 60 * 1000;
+      const shouldFetchCalcData = refresh || (Date.now() - lastCalcDataFetch > fiveMinutes)
+        || !currentLocalState.cachedNormalStock || !currentLocalState.cachedMirageStock;
 
-      // ✅ Extract relevant stock data
-      const normalStock = calcSnapshot.exists() ? calcSnapshot.val()?.test || {} : {};
-      const mirageStock = calcSnapshot.exists() ? calcSnapshot.val()?.mirage || {} : {};
+      let normalStock = {};
+      let mirageStock = {};
+
+      if (shouldFetchCalcData) {
+        const calcSnapshot = await get(ref(appdatabase, 'calcData'));
+        normalStock = calcSnapshot.exists() ? calcSnapshot.val()?.test || {} : {};
+        mirageStock = calcSnapshot.exists() ? calcSnapshot.val()?.mirage || {} : {};
+
+        updateLocalState('cachedNormalStock', JSON.stringify(normalStock));
+        updateLocalState('cachedMirageStock', JSON.stringify(mirageStock));
+        updateLocalState('lastCalcDataFetch', Date.now().toString());
+      } else {
+        try {
+          normalStock = typeof currentLocalState.cachedNormalStock === 'string'
+            ? JSON.parse(currentLocalState.cachedNormalStock)
+            : (currentLocalState.cachedNormalStock || {});
+          mirageStock = typeof currentLocalState.cachedMirageStock === 'string'
+            ? JSON.parse(currentLocalState.cachedMirageStock)
+            : (currentLocalState.cachedMirageStock || {});
+        } catch (parseErr) {
+          console.error('❌ Failed to parse cached calcData:', parseErr);
+          const calcSnapshot = await get(ref(appdatabase, 'calcData'));
+          normalStock = calcSnapshot.exists() ? calcSnapshot.val()?.test || {} : {};
+          mirageStock = calcSnapshot.exists() ? calcSnapshot.val()?.mirage || {} : {};
+        }
+      }
 
       // ✅ OPTIMIZED: Cache previousStock - only fetch once per hour
-      // This reduces data download by ~80% (from 3.35 MB to ~0.67 MB)
-      const lastPreviousStockFetch = localState.lastPreviousStockFetch
-        ? parseInt(localState.lastPreviousStockFetch, 10)
+      const lastPreviousStockFetch = currentLocalState.lastPreviousStockFetch
+        ? parseInt(currentLocalState.lastPreviousStockFetch, 10)
         : 0;
-      const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
+      const oneHour = 60 * 60 * 1000;
       const shouldFetchPreviousStock = refresh || (Date.now() - lastPreviousStockFetch > oneHour);
 
       let prenormalStock = {};
       let premirageStock = {};
 
       if (shouldFetchPreviousStock) {
-        // ✅ Fetch previousStock from Firebase
         const preSnapshot = await get(ref(appdatabase, 'previousStock'));
         prenormalStock = preSnapshot.exists() ? preSnapshot.val()?.normalStock || {} : {};
         premirageStock = preSnapshot.exists() ? preSnapshot.val()?.mirageStock || {} : {};
 
-        // ✅ Store fetched data and update timestamp
-        await updateLocalState('prenormalStock', JSON.stringify(prenormalStock));
-        await updateLocalState('premirageStock', JSON.stringify(premirageStock));
-        await updateLocalState('lastPreviousStockFetch', Date.now().toString());
+        updateLocalState('prenormalStock', JSON.stringify(prenormalStock));
+        updateLocalState('premirageStock', JSON.stringify(premirageStock));
+        updateLocalState('lastPreviousStockFetch', Date.now().toString());
       } else {
-        // ✅ Use cached previousStock data
         try {
-          prenormalStock = typeof localState.prenormalStock === 'string'
-            ? JSON.parse(localState.prenormalStock)
-            : (localState.prenormalStock || {});
-          premirageStock = typeof localState.premirageStock === 'string'
-            ? JSON.parse(localState.premirageStock)
-            : (localState.premirageStock || {});
+          prenormalStock = typeof currentLocalState.prenormalStock === 'string'
+            ? JSON.parse(currentLocalState.prenormalStock)
+            : (currentLocalState.prenormalStock || {});
+          premirageStock = typeof currentLocalState.premirageStock === 'string'
+            ? JSON.parse(currentLocalState.premirageStock)
+            : (currentLocalState.premirageStock || {});
         } catch (parseErr) {
           console.error('❌ Failed to parse cached previousStock:', parseErr);
           prenormalStock = {};
@@ -634,29 +653,28 @@ export const GlobalStateProvider = ({ children }) => {
       }
 
       // ✅ Store frequently updated stock data
-      await updateLocalState('normalStock', JSON.stringify(normalStock));
-      await updateLocalState('mirageStock', JSON.stringify(mirageStock));
+      updateLocalState('normalStock', JSON.stringify(normalStock));
+      updateLocalState('mirageStock', JSON.stringify(mirageStock));
 
     } catch (error) {
       console.error("❌ Error fetching stock data:", error);
     } finally {
       setLoading(false);
     }
-  };
-  // console.log(user)
+  }, [appdatabase, updateLocalState]); // ✅ Stable deps only — localState accessed via ref
 
   // ✅ Run the function only if needed
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => {
-      fetchStockData(); // ✅ Now runs after main thread is free
+      fetchStockData();
     });
 
     return () => task.cancel();
-  }, []);
+  }, [fetchStockData]);
 
-  const reload = () => {
+  const reload = useCallback(() => {
     fetchStockData(true);
-  };
+  }, [fetchStockData]);
 
   // ✅ Check if user is blocked by email (centralized - used everywhere)
   useEffect(() => {
@@ -830,56 +848,51 @@ export const GlobalStateProvider = ({ children }) => {
     };
   }, [user?.id, appdatabase, localState?.showOnlineStatus, isUserBlocked, isAdmin]);
 
-  // ✅ Fetch trading server link (cached for 3 hours)
+  // ✅ Fetch trading server link (cached for 3 hours) — runs once on mount
   useEffect(() => {
-    if (!appdatabase || !updateLocalState) return;
+    if (!appdatabase) return;
 
     const fetchTradingServerLink = async () => {
+      const currentLocal = localStateRef.current;
       try {
-        const lastServerFetch = localState.lastServerFetch ? new Date(localState.lastServerFetch).getTime() : 0;
+        const lastServerFetch = currentLocal.lastServerFetch ? new Date(currentLocal.lastServerFetch).getTime() : 0;
         const now = Date.now();
         const timeElapsed = now - lastServerFetch;
         const EXPIRY_LIMIT = 3 * 60 * 60 * 1000; // 3 hours
 
         // Only fetch if expired or not cached
-        if (timeElapsed > EXPIRY_LIMIT || !localState.tradingServerLink) {
+        if (timeElapsed > EXPIRY_LIMIT || !currentLocal.tradingServerLink) {
           const serverRef = ref(appdatabase, 'server');
           const snapshot = await get(serverRef);
 
           if (snapshot.exists()) {
             const serverData = snapshot.val();
-            // Convert to array and get first server link
             const serverList = Object.entries(serverData).map(([id, value]) => ({ id, ...value }));
-
-            // Get the first server link (or you can filter by name if needed)
             const firstServer = serverList.length > 0 ? serverList[0] : null;
             const serverLink = firstServer?.link || null;
 
             if (serverLink) {
               setTradingServerLink(serverLink);
-              await updateLocalState('tradingServerLink', serverLink);
-              await updateLocalState('lastServerFetch', new Date().toISOString());
+              updateLocalState('tradingServerLink', serverLink);
+              updateLocalState('lastServerFetch', new Date().toISOString());
             }
           }
         } else {
           // Use cached link
-          if (localState.tradingServerLink) {
-            setTradingServerLink(localState.tradingServerLink);
+          if (currentLocal.tradingServerLink) {
+            setTradingServerLink(currentLocal.tradingServerLink);
           }
         }
       } catch (error) {
         console.error('Error fetching trading server link:', error);
-        // Fallback to cached link if available
-        if (localState.tradingServerLink) {
-          setTradingServerLink(localState.tradingServerLink);
+        if (currentLocal.tradingServerLink) {
+          setTradingServerLink(currentLocal.tradingServerLink);
         }
       }
     };
 
-    if (appdatabase) {
-      fetchTradingServerLink();
-    }
-  }, [appdatabase, localState.lastServerFetch, localState.tradingServerLink, updateLocalState]);
+    fetchTradingServerLink();
+  }, [appdatabase, updateLocalState]);
 
   // console.log(user)
 
@@ -899,6 +912,11 @@ export const GlobalStateProvider = ({ children }) => {
       freeTranslation,
       isAdmin,
       isModerator, // ✅ Export moderator status
+      isBabyMod, // ✅ Export JMD status
+      isTrusted, // ✅ Export Trusted status
+      isCMSR, // ✅ Export CMSR status
+      isGrinder, // ✅ Export Grinder status
+      isRaider, // ✅ Export Raider status
       reload,
       robloxUsernameRef, api, proTagBought, stockNotifierPurchase, proGranted, currentUserEmail, single_offer_wall,
       isInActiveGame,
@@ -908,7 +926,7 @@ export const GlobalStateProvider = ({ children }) => {
       isUserBlocked, // ✅ Boolean flag if user is currently blocked
 
     }),
-    [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api, freeTranslation, proTagBought, currentUserEmail, auth, isInActiveGame, setIsInActiveGame, tradingServerLink, strikeInfo, isUserBlocked, isAdmin, isModerator]
+    [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api, freeTranslation, proTagBought, stockNotifierPurchase, proGranted, currentUserEmail, single_offer_wall, auth, isInActiveGame, setIsInActiveGame, tradingServerLink, strikeInfo, isUserBlocked, isAdmin, isModerator, isBabyMod, isTrusted, isCMSR, isGrinder, isRaider, updateLocalStateAndDatabase, reload]
   );
 
   return (

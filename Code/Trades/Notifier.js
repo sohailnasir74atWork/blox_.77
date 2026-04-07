@@ -9,11 +9,13 @@ import InterstitialAdManager from '../Ads/IntAd';
 import { requestPermission } from '../Helper/PermissionCheck';
 import { showMessage } from 'react-native-flash-message';
 import config from '../Helper/Environment';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const NotifierDrawer = () => {
   const { user, appdatabase, theme } = useGlobalState();
   const { localState } = useLocalState();
   const isDarkMode = theme === 'dark';
+  const insets = useSafeAreaInsets();
 
   const [mode, setMode] = useState('buy');
   const [savedItems, setSavedItems] = useState({ buy: {}, sale: {} });
@@ -284,7 +286,7 @@ const NotifierDrawer = () => {
 
 
       <Modal visible={isDrawerVisible} animationType="slide">
-        <View style={[styles.drawerContainer, { backgroundColor: isDarkMode ? '#1e1e1e' : '#fff' }]}>
+        <View style={[styles.drawerContainer, { backgroundColor: isDarkMode ? '#1e1e1e' : '#fff', paddingBottom: Math.max(insets.bottom, 16) }]}>
           <Text style={[styles.sectionTitle, { fontWeight: 'bold', color: isDarkMode ? '#fff' : '#000' }]}>Select Items to Notify</Text>
 
           <FlatList

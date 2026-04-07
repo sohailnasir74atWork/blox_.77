@@ -15,7 +15,7 @@ import { ref, get, update, remove } from "@react-native-firebase/database";
 import { useTranslation } from "react-i18next";
 import { banUserwithEmail } from "./utils";
 
-const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false }) => {
+const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false, chatPath = 'chat_new_upgrade' }) => {
   const [selectedReason, setSelectedReason] = useState("Spam");
   const [customReason, setCustomReason] = useState("");
   const [showCustomInput, setShowCustomInput] = useState(false);
@@ -119,7 +119,7 @@ const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false 
           throw new Error("Invalid message ID");
         }
 
-        messageRef = ref(appdatabase, `chat_new/${sanitizedId}`);
+        messageRef = ref(appdatabase, `${chatPath}/${sanitizedId}`);
         senderEmail = message.currentUserEmail || null;
       }
 

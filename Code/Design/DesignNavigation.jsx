@@ -9,6 +9,7 @@ import DesignFeedScreen from './DesignMainScreen';
 import PrivateChatScreen from '../ChatScreen/PrivateChat/PrivateChat';
 import PrivateChatHeader from '../ChatScreen/PrivateChat/PrivateChatHeader';
 import ImageViewerScreen from './componenets/ImageViewer';
+import ThemeHeader from './componenets/ThemeHeader';
 
 const Stack = createNativeStackNavigator();
 
@@ -28,6 +29,8 @@ export const DesignStack = ({ selectedTheme }) => {
       headerStyle: { backgroundColor: selectedTheme.colors.background },
       headerTintColor: selectedTheme.colors.text,
       headerTitleStyle: { fontWeight: 'bold', fontSize: 24 },
+      animation: 'fade',
+      animationDuration: 200,
     }),
     [selectedTheme]
   );
@@ -68,7 +71,7 @@ export const DesignStack = ({ selectedTheme }) => {
         name="DesignScreen"
         component={DesignFeedScreen}
         initialParams={sharedParams}
-        options={{ headerShown: true, title: 'Feed' }}
+        options={{ header: () => <ThemeHeader title="Community Feed" /> }}
       />
 
       <Stack.Screen name="PrivateChatDesign" options={getPrivateChatOptions}>

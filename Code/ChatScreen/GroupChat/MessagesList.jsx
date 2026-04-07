@@ -29,6 +29,11 @@ import { getDeviceLanguage } from '../../../i18n';
 import { mixpanel } from '../../AppHelper/MixPenel';
 import StyledUsernamePreview from '../../SettingScreen/Store/StyledName';
 import { banUserwithEmail, unbanUserWithEmail } from '../utils';
+import RoleBadges from '../../Design/componenets/RoleBadges';
+import { resolveProfile, seedFromMessage, warmProfileCache, getCachedProfile } from '../../Helper/profileCache';
+import { getSafeTextColor, RainbowText, isMultiColorText, getMultiColorPalette } from '../../Helper/contrastHelper';
+import FramedAvatar from './FramedAvatar';
+
 const FRUIT_KEYWORDS = [
   'rocket', 'spin', 'chop', 'spring', 'bomb', 'spike', 'blade',
   'smoke', 'flame', 'ice', 'sand', 'dark', 'diamond', 'falcon',
@@ -74,13 +79,14 @@ const MessagesList = ({
   // isOwner,
   toggleDrawer,
   onDeleteAllMessage,
-
+  chatPath,
   setMessages
 }) => {
   const styles = getStyles(isDarkMode);
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [showReportPopup, setShowReportPopup] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState(null); // 👈 NEW
+  const [profileCacheVersion, setProfileCacheVersion] = useState(0);
   const { triggerHapticFeedback } = useHaptic();
   const scrollButtonOpacity = useMemo(() => new Animated.Value(0), []);
   // const [isAtBottom, setIsAtBottom] = useState(true);
@@ -294,6 +300,26 @@ const MessagesList = ({
     }
   }, [flatListRef, triggerHapticFeedback, setIsAtBottom]);
 
+  // ✅ Warm profile cache for any senders not yet cached (fixes missing
+  // avatar/username on cold start when messages are slim).
+  useEffect(() => {
+    if (!appdatabase || !Array.isArray(messages) || messages.length === 0) return;
+    const uidsNeeded = [];
+    for (const m of messages) {
+      const uid = m?.senderId;
+      if (!uid) continue;
+      // Skip if message already carries avatar+sender (old format) or cache hit
+      if ((m.avatar && m.sender) || getCachedProfile(uid)) continue;
+      uidsNeeded.push(uid);
+    }
+    if (uidsNeeded.length === 0) return;
+    let cancelled = false;
+    warmProfileCache(appdatabase, uidsNeeded).then(() => {
+      if (!cancelled) setProfileCacheVersion(v => v + 1);
+    });
+    return () => { cancelled = true; };
+  }, [messages, appdatabase]);
+
   // ✅ Animate scroll button visibility
   useEffect(() => {
     Animated.timing(scrollButtonOpacity, {
@@ -320,11 +346,13 @@ const MessagesList = ({
       ? fruits.reduce((sum, f) => sum + (Number(f.value) || 0), 0)
       : 0;
 
+    // ✅ Resolve profile: message fields → cache → defaults (backwards compatible)
+    const profile = resolveProfile(item);
+    seedFromMessage(item); // Free cache population from old-format messages
+
+
     // ✅ Trophy badge (recent win within 24 hours)
-    const hasRecentWin =
-      !!item?.hasRecentGameWin ||
-      (typeof item?.lastGameWinAt === 'number' &&
-        Date.now() - item.lastGameWinAt <= 24 * 60 * 60 * 1000);
+    const hasRecentWin = profile.hasRecentGameWin;
 
     // console.log(user.id)
 
@@ -352,13 +380,11 @@ const MessagesList = ({
           >
 
             <TouchableOpacity onPress={() => handleProfileClick(item)}>
-              <Image
-                source={{
-                  uri: item.avatar
-                    ? item.avatar
-                    : 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
-                }}
-                style={styles.profileImage}
+              <FramedAvatar
+                avatarUri={profile.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png'}
+                frame={profile.profileFrame}
+                isDarkMode={isDarkMode}
+                avatarSize={28}
               />
             </TouchableOpacity>
 
@@ -388,28 +414,27 @@ const MessagesList = ({
                 <View style={[
                   item.senderId === user?.id ? styles.myMessageText : styles.otherMessageText,
                   isAdmin && item.strikeCount === 1 ? { backgroundColor: 'pink' }
-                    : item.strikeCount >= 2 ? { backgroundColor: 'red' }
-                    : (item.isAdmin || item.isModerator) ? { backgroundColor: '#D4AF37' }
-                    : null,
+                    : isAdmin && item.strikeCount >= 2 ? { backgroundColor: 'red' }
+                    : profile.chatBubbleBg
+                      ? { backgroundColor: isDarkMode ? profile.chatBubbleBg.darkColor : profile.chatBubbleBg.color }
+                      : null,
                 ]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
                     {item?.style ? (
                       <StyledUsernamePreview
-                        text={item.sender}
+                        text={profile.displayName || item.sender || 'Anonymous'}
                         variant={item.style.variant}
                         options={item.style}
                         fontSize={14}
                         lineHeight={18}
                         marginVertical={0}
-                        overrideColor={(item.isAdmin || item.isModerator) ? '#1a1a1a' : undefined}
                       />
                     ) : (
                       <Text style={[
                         styles.userName,
-                        (item.isAdmin || item.isModerator) && { color: '#1a1a1a' },
-                      ]}>{item.sender}</Text>
+                      ]}>{profile.displayName || item.sender || 'Anonymous'}</Text>
                     )}
-                    {item?.isPro && (
+                    {(profile.isPro || item?.isPro) && (
                       <Image
                         source={require('../../../assets/pro.png')}
                         style={styles.icon}
@@ -428,7 +453,7 @@ const MessagesList = ({
                         style={{ width: 16, height: 16, marginLeft: 2, resizeMode: 'contain' }}
                       />
                     ))}
-                    {item?.robloxUsernameVerified && (
+                    {(profile.robloxUsernameVerified || item?.robloxUsernameVerified) && (
                       <Image
                         source={require('../../../assets/verification.png')}
                         style={styles.icon}
@@ -441,16 +466,7 @@ const MessagesList = ({
                       />
                     )}
                     <Text>{''}</Text>
-                    {(!!item.isAdmin) &&
-                      <View style={styles.adminContainer}>
-                        <Text style={styles.admin}>{t("chat.admin")}</Text>
-                      </View>}
-
-                    {/* ✅ Moderator Tag */}
-                    {(!item.isAdmin && !!item.isModerator) &&
-                      <View style={styles.moderatorContainer}>
-                        <Text style={styles.moderator}>MOD</Text>
-                      </View>}
+                    <RoleBadges userItem={item} cacheVersion={profileCacheVersion} />
 
                     {isAdmin && item.OS && (
                       <View
@@ -473,11 +489,19 @@ const MessagesList = ({
                   {/* {'\n'} */}
 
                   {item.gif && <View><Image src={item.gif} style={{ height: 50, width: 50, resizeMode: 'contain' }} /></View>}
-                  {/* {'\n'} */}
-                  <Text style={[
-                    item.senderId === user?.id ? styles.myMessageTextOnly : styles.otherMessageTextOnly,
-                    (item.isAdmin || item.isModerator) && { color: '#1a1a1a' },
-                  ]}>{parseMessageText(item?.text)}</Text>
+                  {item?.text && (
+                    isMultiColorText(profile.chatTextColor)
+                      ? <RainbowText
+                          colors={getMultiColorPalette(profile.chatTextColor)}
+                          style={[item.senderId === user?.id ? styles.myMessageTextOnly : styles.otherMessageTextOnly]}
+                        >{parseMessageText(item.text)}</RainbowText>
+                      : <Text style={[
+                          item.senderId === user?.id ? styles.myMessageTextOnly : styles.otherMessageTextOnly,
+                          profile.chatTextColor
+                            ? { color: getSafeTextColor(profile.chatTextColor, profile.chatBubbleBg ? (isDarkMode ? profile.chatBubbleBg.darkColor : profile.chatBubbleBg.color) : null) }
+                            : null,
+                        ]}>{parseMessageText(item?.text)}</Text>
+                  )}
 
                   {/* ✅ Fruits list inside bubble */}
                   {hasFruits && (
@@ -504,7 +528,7 @@ const MessagesList = ({
                               <Text
                                 style={[
                                   fruitStyles.fruitName,
-                                  { color: (item.isAdmin || item.isModerator) ? '#1a1a1a' : fruitColors.name },
+                                  { color: fruitColors.name },
                                 ]}
                                 numberOfLines={1}
                               >
@@ -514,7 +538,7 @@ const MessagesList = ({
                               <Text
                                 style={[
                                   fruitStyles.fruitValue,
-                                  { color: (item.isAdmin || item.isModerator) ? '#1a1a1a' : fruitColors.valueColor },
+                                  { color: fruitColors.valueColor },
                                 ]}
                               >
                                 · Value: {Number(fruit.value || 0).toLocaleString()}
@@ -529,13 +553,13 @@ const MessagesList = ({
                         <View
                           style={[
                             fruitStyles.totalRow,
-                            { borderTopColor: (item.isAdmin || item.isModerator) ? '#1a1a1a33' : fruitColors.divider },
+                            { borderTopColor: fruitColors.divider },
                           ]}
                         >
                           <Text
                             style={[
                               fruitStyles.totalLabel,
-                              { color: (item.isAdmin || item.isModerator) ? '#1a1a1a' : fruitColors.totalLabel },
+                              { color: fruitColors.totalLabel },
                             ]}
                           >
                             Total:
@@ -543,7 +567,7 @@ const MessagesList = ({
                           <Text
                             style={[
                               fruitStyles.totalValue,
-                              { color: (item.isAdmin || item.isModerator) ? '#1a1a1a' : fruitColors.totalValue },
+                              { color: fruitColors.totalValue },
                             ]}
                           >
                             {totalFruitValue.toLocaleString()}
@@ -596,7 +620,7 @@ const MessagesList = ({
             </Text>
 
           </View>
-          {(!isAdmin && item.senderId === user?.id) && (
+          {(!isAdmin && !isModerator && item.senderId === user?.id) && (
             <Menu>
               <MenuTrigger>
                 <Icon
@@ -641,9 +665,9 @@ const MessagesList = ({
               </MenuTrigger>
               <MenuOptions>
                 <View style={styles.adminActions}>
-                  {/* <MenuOption onSelect={() => onPinMessage(item)} style={styles.pinButton}>
+                  <MenuOption onSelect={() => onPinMessage(item)} style={styles.pinButton}>
                     <Text style={styles.adminTextAction}>Pin</Text>
-                  </MenuOption> */}
+                  </MenuOption>
                   <MenuOption onSelect={() => onDeleteMessage(item.id)} style={styles.deleteButton}>
                     <Text style={styles.adminTextAction}>Delete</Text>
                   </MenuOption>
@@ -673,7 +697,7 @@ const MessagesList = ({
 
       </View>
     );
-  }, [messages, highlightedMessageId, user?.id]);
+  }, [messages, highlightedMessageId, user?.id, profileCacheVersion]);
 
   return (
     <>
@@ -684,7 +708,7 @@ const MessagesList = ({
         contentContainerStyle={styles.chatList}
         inverted
         removeClippedSubviews={false}
-        extraData={highlightedMessageId}
+        extraData={`${highlightedMessageId}-${profileCacheVersion}`}
         ref={flatListRef}
         scrollEventThrottle={16}
         onScroll={({ nativeEvent }) => {
@@ -744,6 +768,7 @@ const MessagesList = ({
       <ReportPopup
         visible={showReportPopup}
         message={selectedMessage}
+        chatPath={chatPath}
         onClose={(success) => {
           if (success) {
             handleReportSuccess(selectedMessage.id);

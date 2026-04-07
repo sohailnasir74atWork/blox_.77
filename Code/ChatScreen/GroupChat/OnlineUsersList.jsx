@@ -10,19 +10,23 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  TextInput,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../../GlobelStats';
-import { ref, get, query, orderByValue, equalTo, limitToFirst, startAfter } from '@react-native-firebase/database';
+import { ref, get, query, orderByValue, equalTo, limitToFirst, startAfter, orderByChild, startAt, endAt } from '@react-native-firebase/database';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import InterstitialAdManager from '../../Ads/IntAd';
 import { useLocalState } from '../../LocalGlobelStats';
 import { mixpanel } from '../../AppHelper/MixPenel';
 import config from '../../Helper/Environment';
+import RoleBadges from '../../Design/componenets/RoleBadges';
 import CreateGroupModal from './CreateGroupModal';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import { getUserAdminGroup, addMembersToGroup } from '../utils/groupUtils';
+import { getCachedProfile } from '../../Helper/profileCache';
+import FramedAvatar from './FramedAvatar';
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
 import { sendGameInvite, isUserInActiveGame } from '../../ValuesScreen/PetGuessingGame/utils/gameInviteSystem';
 import { getUserData, cacheUserData } from '../../Helper/UserDataCache';
@@ -70,6 +74,14 @@ const OnlineUsersList = ({
   const [invitingIds, setInvitingIds] = useState(new Set());
   const [invitedIds, setInvitedIds] = useState(new Set());
 
+  // ✅ User search state (for finding offline users to invite)
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+
+  // ✅ Tab state: 'online' = online users, 'search' = search database
+  const [activeTab, setActiveTab] = useState('online');
+
   // ✅ Memoize styles
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
 
@@ -83,9 +95,7 @@ const OnlineUsersList = ({
     setCheckingGroup(true);
     const checkUserGroup = async () => {
       try {
-        // Note: getUserAdminGroup might need to be updated to use RTDB instead of Firestore
-        // For now, keeping the original call but you may need to update groupUtils.js
-        const result = await getUserAdminGroup(null, user.id); // Pass null for firestoreDB if using RTDB
+        const result = await getUserAdminGroup(firestoreDB, user.id);
         if (result.success) {
           setUserGroup({ groupId: result.groupId, groupData: result.groupData });
         } else {
@@ -100,7 +110,7 @@ const OnlineUsersList = ({
     };
 
     checkUserGroup();
-  }, [mode, visible, appdatabase, user?.id]);
+  }, [mode, visible, appdatabase, firestoreDB, user?.id]);
 
   // ✅ Reset game invitation state when modal closes
   useEffect(() => {
@@ -139,7 +149,8 @@ const OnlineUsersList = ({
         try {
           // ✅ Fetch only the fields we need (parallel requests to specific child paths)
           const [displayNameSnap, avatarSnap, isProSnap, robloxUsernameVerifiedSnap,
-            lastGameWinAtSnap, isAdminSnap, OSSnap, isPlayingSnap] = await Promise.all([
+            lastGameWinAtSnap, isAdminSnap, OSSnap, isPlayingSnap,
+            isModeratorSnap, isBabyModSnap, isTrustedSnap, isCMSRSnap, isGrinderSnap, isRaiderSnap] = await Promise.all([
               get(ref(appdatabase, `users/${userId}/displayName`)).catch(() => null),
               get(ref(appdatabase, `users/${userId}/avatar`)).catch(() => null),
               get(ref(appdatabase, `users/${userId}/isPro`)).catch(() => null),
@@ -148,6 +159,12 @@ const OnlineUsersList = ({
               get(ref(appdatabase, `users/${userId}/isAdmin`)).catch(() => null),
               get(ref(appdatabase, `users/${userId}/OS`)).catch(() => null),
               get(ref(appdatabase, `users/${userId}/isPlaying`)).catch(() => null),
+              get(ref(appdatabase, `users/${userId}/isModerator`)).catch(() => null),
+              get(ref(appdatabase, `users/${userId}/isBabyMod`)).catch(() => null),
+              get(ref(appdatabase, `users/${userId}/isTrusted`)).catch(() => null),
+              get(ref(appdatabase, `users/${userId}/isCMSR`)).catch(() => null),
+              get(ref(appdatabase, `users/${userId}/isGrinder`)).catch(() => null),
+              get(ref(appdatabase, `users/${userId}/isRaider`)).catch(() => null),
             ]);
 
           // ✅ Extract values (only if snapshots exist)
@@ -169,6 +186,12 @@ const OnlineUsersList = ({
             isAdmin: isAdminSnap?.exists() ? isAdminSnap.val() : false,
             OS: OSSnap?.exists() ? OSSnap.val() : null,
             isPlaying: isPlayingSnap?.exists() ? isPlayingSnap.val() : false,
+            isModerator: !!(isModeratorSnap?.exists() && isModeratorSnap.val()),
+            isBabyMod: !!(isBabyModSnap?.exists() && isBabyModSnap.val()),
+            isTrusted: !!(isTrustedSnap?.exists() && isTrustedSnap.val()),
+            isCMSR: !!(isCMSRSnap?.exists() && isCMSRSnap.val()),
+            isGrinder: !!(isGrinderSnap?.exists() && isGrinderSnap.val()),
+            isRaider: !!(isRaiderSnap?.exists() && isRaiderSnap.val()),
           };
 
           // ✅ STEP 3: Cache the fetched user data for future use
@@ -288,8 +311,124 @@ const OnlineUsersList = ({
       setIsSelectionMode(mode === 'select');
       setSelectedUserIds(new Set());
       setShowCreateGroupModal(false);
+      // Reset search state
+      setSearchQuery('');
+      setSearchResults([]);
+      setSearching(false);
+      setActiveTab('online');
     }
   }, [visible, mode]);
+
+  // ✅ Search users by displayName/email/id in RTDB (for inviting offline users)
+  const searchUsers = useCallback(async (searchText) => {
+    if (!appdatabase || !searchText || searchText.trim().length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    setSearching(true);
+    try {
+      const usersRef = ref(appdatabase, 'users');
+      const raw = searchText.trim();
+      const allResults = new Map();
+
+      const buildUserResult = (child) => {
+        const userData = child.val();
+        if (!userData || child.key === user?.id || allResults.has(child.key)) return;
+        allResults.set(child.key, {
+          id: child.key,
+          displayName: userData.displayName || 'Anonymous',
+          avatar: userData.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+          isPro: userData.isPro || false,
+          robloxUsernameVerified: userData.robloxUsernameVerified || false,
+          isAdmin: userData.isAdmin || false,
+          isModerator: userData.isModerator || false,
+          isOnline: allOnlineUserIds.includes(child.key),
+        });
+      };
+
+      const isEmailSearch = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw) || raw.includes('(dot)');
+      const isIdSearch = raw.length >= 15 && /^[a-zA-Z0-9]+$/.test(raw);
+
+      if (isIdSearch) {
+        try {
+          const userSnap = await get(ref(appdatabase, `users/${raw}`));
+          if (userSnap.exists()) {
+            buildUserResult({ key: raw, val: () => userSnap.val() });
+          }
+        } catch (err) { /* ignore */ }
+      } else if (isEmailSearch) {
+        const email = raw.toLowerCase().trim();
+        const encodedEmail = email.replace(/\./g, '(dot)');
+        try {
+          const directSnap = await get(ref(appdatabase, `users/${encodedEmail}`));
+          if (directSnap.exists()) {
+            buildUserResult({ key: encodedEmail, val: () => directSnap.val() });
+          }
+        } catch (err) { /* ignore */ }
+
+        if (allResults.size === 0) {
+          try {
+            const emailQ = query(usersRef, orderByChild('email'), startAt(email), endAt(email + '\uf8ff'), limitToFirst(10));
+            const emailSnap = await get(emailQ);
+            if (emailSnap.exists()) {
+              emailSnap.forEach((child) => buildUserResult(child));
+            }
+          } catch (err) { /* ignore */ }
+        }
+      } else {
+        const lower = raw.toLowerCase();
+        const searchVariants = [...new Set([
+          raw,
+          lower.charAt(0).toUpperCase() + lower.slice(1),
+          lower,
+          raw.toUpperCase(),
+        ])];
+
+        const nameQueries = searchVariants.map(async (variant) => {
+          try {
+            const searchQ = query(usersRef, orderByChild('displayName'), startAt(variant), endAt(variant + '\uf8ff'), limitToFirst(30));
+            const snapshot = await get(searchQ);
+            if (snapshot.exists()) {
+              snapshot.forEach((child) => buildUserResult(child));
+            }
+          } catch (err) { /* ignore */ }
+        });
+
+        await Promise.all(nameQueries);
+
+        // Fallback: client-side contains match
+        if (allResults.size < 10 && lower.length >= 2) {
+          try {
+            const broadQ = query(usersRef, orderByChild('displayName'), limitToFirst(500));
+            const broadSnap = await get(broadQ);
+            if (broadSnap.exists()) {
+              broadSnap.forEach((child) => {
+                if (allResults.size >= 50) return;
+                const userData = child.val();
+                const name = (userData?.displayName || '').toLowerCase();
+                if (name.includes(lower)) {
+                  buildUserResult(child);
+                }
+              });
+            }
+          } catch (err) { /* ignore */ }
+        }
+      }
+
+      setSearchResults(Array.from(allResults.values()));
+    } catch (error) {
+      console.error('Error searching users:', error);
+      setSearchResults([]);
+    } finally {
+      setSearching(false);
+    }
+  }, [appdatabase, user?.id, allOnlineUserIds]);
+
+  const handleSearch = useCallback(() => {
+    if (!searchQuery || searchQuery.trim().length < 2) return;
+    searchUsers(searchQuery);
+  }, [searchQuery, searchUsers]);
 
   // ✅ Handle toggle selection mode (only in 'view' mode, 'select' mode is always in selection)
   const handleToggleSelectionMode = useCallback(() => {
@@ -334,10 +473,10 @@ const OnlineUsersList = ({
       setLoading(true);
 
       try {
-        // ✅ Build user data map from allOnlineUsers to avoid extra Firestore read
+        // ✅ Build user data map from allOnlineUsers + searchResults to avoid extra Firestore read
         const invitedUsersMap = {};
-        allOnlineUsers.forEach((u) => {
-          if (u.id && selectedIds.includes(u.id)) {
+        [...allOnlineUsers, ...searchResults].forEach((u) => {
+          if (u.id && selectedIds.includes(u.id) && !invitedUsersMap[u.id]) {
             invitedUsersMap[u.id] = {
               displayName: u.displayName || 'Anonymous',
               avatar: u.avatar || null,
@@ -346,7 +485,7 @@ const OnlineUsersList = ({
         });
 
         const result = await addMembersToGroup(
-          null, // firestoreDB - pass null if using RTDB only
+          firestoreDB,
           appdatabase,
           userGroup.groupId,
           selectedIds,
@@ -375,7 +514,7 @@ const OnlineUsersList = ({
       // Create new group
       setShowCreateGroupModal(true);
     }
-  }, [selectedUserIds, userGroup, user, appdatabase, allOnlineUsers, triggerHapticFeedback]);
+  }, [selectedUserIds, userGroup, user, appdatabase, firestoreDB, allOnlineUsers, searchResults, triggerHapticFeedback]);
 
   // ✅ Handle group created (navigate to group chat)
   const handleGroupCreated = useCallback((groupId) => {
@@ -482,10 +621,22 @@ const OnlineUsersList = ({
     callbackFunction();
   }, [mode, onClose, navigation, localState?.isPro, handleToggleUserSelection, handleGameInvite]);
 
-  // ✅ Get selected users for group creation
+  // ✅ Get selected users for group creation (from both online users AND search results)
   const selectedUsers = useMemo(() => {
-    return allOnlineUsers.filter((u) => selectedUserIds.has(u.id));
-  }, [allOnlineUsers, selectedUserIds]);
+    const combined = new Map();
+    [...allOnlineUsers, ...searchResults].forEach((u) => {
+      if (selectedUserIds.has(u.id) && !combined.has(u.id)) {
+        combined.set(u.id, u);
+      }
+    });
+    return Array.from(combined.values());
+  }, [allOnlineUsers, searchResults, selectedUserIds]);
+
+  // ✅ Choose which list to display based on activeTab
+  const displayUsers = useMemo(() => {
+    if (activeTab === 'search') return searchResults;
+    return allOnlineUsers;
+  }, [activeTab, searchResults, allOnlineUsers]);
 
   // ✅ Memoize render user item
   const renderUserItem = useCallback(({ item }) => {
@@ -511,10 +662,11 @@ const OnlineUsersList = ({
           </View>
         )}
         <View style={styles.userItemLeft}>
-          <Image
-            source={{ uri: item.avatar }}
-            style={styles.avatar}
-            defaultSource={{ uri: 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }}
+          <FramedAvatar
+            avatarUri={item.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png'}
+            frame={getCachedProfile(item.id)?.profileFrame || null}
+            isDarkMode={isDarkMode}
+            avatarSize={44}
           />
           <View style={styles.onlineIndicator} />
         </View>
@@ -523,6 +675,7 @@ const OnlineUsersList = ({
             <Text style={styles.userName} numberOfLines={1}>
               {`${item.displayName || 'Anonymous'}`}
             </Text>
+            <RoleBadges userItem={item} />
 
             {/* Pro badge */}
             {item?.isPro && (
@@ -664,12 +817,125 @@ const OnlineUsersList = ({
               </View>
             </View>
 
+            {/* Tab Bar (only in select mode) */}
+            {mode === 'select' && (
+              <View style={{
+                flexDirection: 'row',
+                marginHorizontal: 16,
+                marginTop: 12,
+                marginBottom: 8,
+                backgroundColor: isDarkMode ? '#374151' : '#F3F4F6',
+                borderRadius: 12,
+                padding: 4,
+              }}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setActiveTab('online');
+                    setSearchQuery('');
+                    setSearchResults([]);
+                  }}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 10,
+                    borderRadius: 8,
+                    backgroundColor: activeTab === 'online'
+                      ? (isDarkMode ? '#1F2937' : '#FFFFFF')
+                      : 'transparent',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{
+                    fontSize: 13,
+                    fontWeight: activeTab === 'online' ? '600' : '400',
+                    color: isDarkMode ? '#FFFFFF' : '#111827',
+                  }}>
+                    Online Users
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setActiveTab('search')}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 10,
+                    borderRadius: 8,
+                    backgroundColor: activeTab === 'search'
+                      ? (isDarkMode ? '#1F2937' : '#FFFFFF')
+                      : 'transparent',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{
+                    fontSize: 13,
+                    fontWeight: activeTab === 'search' ? '600' : '400',
+                    color: isDarkMode ? '#FFFFFF' : '#111827',
+                  }}>
+                    Search & Invite
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Search Input (only in search tab) */}
+            {mode === 'select' && activeTab === 'search' && (
+              <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: isDarkMode ? '#374151' : '#F3F4F6',
+                  borderRadius: 12,
+                  paddingLeft: 12,
+                  height: 44,
+                  overflow: 'hidden',
+                }}>
+                  <Icon name="search-outline" size={20} color={isDarkMode ? '#9CA3AF' : '#6B7280'} />
+                  <TextInput
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholder="Search by name, email, or ID"
+                    placeholderTextColor={isDarkMode ? '#6B7280' : '#9CA3AF'}
+                    style={{
+                      flex: 1,
+                      marginLeft: 8,
+                      fontSize: 14,
+                      color: isDarkMode ? '#FFFFFF' : '#111827',
+                    }}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    onSubmitEditing={handleSearch}
+                    returnKeyType="search"
+                  />
+                  {searchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => { setSearchQuery(''); setSearchResults([]); }} style={{ paddingHorizontal: 8 }}>
+                      <Icon name="close-circle" size={20} color={isDarkMode ? '#6B7280' : '#9CA3AF'} />
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    onPress={handleSearch}
+                    disabled={searchQuery.trim().length < 2 || searching}
+                    style={{
+                      backgroundColor: searchQuery.trim().length >= 2 ? (config.colors?.primary || '#8B5CF6') : (isDarkMode ? '#4B5563' : '#D1D5DB'),
+                      paddingHorizontal: 16,
+                      height: 44,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}
+                  >
+                    {searching ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 13 }}>Search</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
             {/* Users List */}
-            {loading ? (
+            {loading && activeTab === 'online' ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={config.colors.primary} />
               </View>
-            ) : allOnlineUsers.length === 0 ? (
+            ) : displayUsers.length === 0 && activeTab === 'online' ? (
               <View style={styles.emptyContainer}>
                 <Icon
                   name="people-outline"
@@ -680,9 +946,20 @@ const OnlineUsersList = ({
                   No online users
                 </Text>
               </View>
+            ) : displayUsers.length === 0 && activeTab === 'search' ? (
+              <View style={styles.emptyContainer}>
+                <Icon
+                  name="search-outline"
+                  size={64}
+                  color={isDarkMode ? '#4B5563' : '#D1D5DB'}
+                />
+                <Text style={styles.emptyText}>
+                  {searchQuery.trim().length === 0 ? 'Search users by name, email, or ID' : 'No users found'}
+                </Text>
+              </View>
             ) : (
               <FlatList
-                data={allOnlineUsers}
+                data={displayUsers}
                 renderItem={renderUserItem}
                 keyExtractor={keyExtractor}
                 style={styles.list}
@@ -697,7 +974,7 @@ const OnlineUsersList = ({
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
                 ListFooterComponent={
-                  allOnlineUserIds.length > loadedUserIds.size ? (
+                  activeTab === 'online' && allOnlineUserIds.length > loadedUserIds.size ? (
                     <View style={styles.loadMoreContainer}>
                       {loadingMore ? (
                         <ActivityIndicator size="small" color={config.colors.primary} />

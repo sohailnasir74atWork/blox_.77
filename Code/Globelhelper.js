@@ -163,8 +163,8 @@ export const createNewUser = (
 ) => ({
   id: userId,
   displayName:
-    robloxUsername ||
     loggedInUser.displayName ||
+    robloxUsername ||
     generateOnePieceUsername() ||
     'Anonymous',
   avatar:

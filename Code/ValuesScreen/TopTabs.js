@@ -25,13 +25,14 @@ import NewsFeedbackReport from "./AdminReport";
 import AnalyticsScreen from "../Analytics/AnalyticsScreen";
 import ScammerDatabaseScreen from "./ScammerDatabaseScreen";
 import { Platform } from "react-native";
+import ThemeHeader from '../../Code/Design/componenets/ThemeHeader';
 
 const MemoValueScreen = React.memo(ValueScreen);
 
 const CustomTopTabs = ({ selectedTheme }) => {
   const indicatorX = useRef(new Animated.Value(0)).current;
   const indicatorWidth = useRef(new Animated.Value(0)).current;
-  const { isAdmin } = useGlobalState();
+  const { isAdmin, isModerator } = useGlobalState();
 
   // 🔹 Build tabs list dynamically based on isAdmin
   const tabs = useMemo(() => {
@@ -80,7 +81,7 @@ const CustomTopTabs = ({ selectedTheme }) => {
 
     }
 
-    if (isAdmin) {
+    if (isAdmin || isModerator) {
       base.push({
         label: "Admin",
         key: "Admin",
@@ -91,7 +92,7 @@ const CustomTopTabs = ({ selectedTheme }) => {
     }
 
     return base;
-  }, [isAdmin]);
+  }, [isAdmin, isModerator]);
 
   const [activeKey, setActiveKey] = useState(tabs[0].key);
   const [mountedTabs, setMountedTabs] = useState({ [tabs[0].key]: true });
@@ -167,10 +168,15 @@ const CustomTopTabs = ({ selectedTheme }) => {
   const inactiveBorder = "grey";
   const inactiveText = "grey";
 
+  const { theme } = useGlobalState();
+  const isDarkMode = theme === 'dark';
+
   return (
-    <View style={styles.wrapper}>
-      {/* Tabs header */}
-      <View style={styles.container}>
+    <View style={{ flex: 1, backgroundColor: isDarkMode ? '#111827' : '#f8fafc' }}>
+      <ThemeHeader title="Fruit Values" showBack={true} />
+      <View style={styles.wrapper}>
+        {/* Tabs header */}
+        <View style={styles.container}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -299,7 +305,7 @@ const CustomTopTabs = ({ selectedTheme }) => {
         )}
 
         {/* 🔹 Admin tab content, only mounted if the tab exists & was visited */}
-        {mountedTabs.Admin && isAdmin && (
+        {mountedTabs.Admin && (isAdmin || isModerator) && (
           <View
             style={[
               styles.screen,
@@ -312,6 +318,7 @@ const CustomTopTabs = ({ selectedTheme }) => {
         )}
       </View>
     </View>
+    </View>
   );
 };
 
@@ -319,7 +326,7 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
     padding: 8,
-    paddingTop: Platform.OS === 'ios' ? 40 : 60,
+    paddingTop: 8,
   },
   container: {
     paddingBottom: 8,

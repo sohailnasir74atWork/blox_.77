@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   FlatList,
@@ -27,6 +27,7 @@ import {
   deleteField,
 
 } from '@react-native-firebase/firestore';
+import { ref as dbRef, get } from '@react-native-firebase/database';
 
 import { useGlobalState } from '../GlobelStats';
 import { useLocalState } from '../LocalGlobelStats';
@@ -36,17 +37,20 @@ import UploadModal from './componenets/UploadModal';
 import SignInDrawer from '../Firebase/SigninDrawer';
 import config from '../Helper/Environment';
 import { Platform } from 'react-native';
+import { getMyCosmetics } from '../Helper/cosmeticsCache';
 import { showMessage } from 'react-native-flash-message';
 // import { nativeAdPool } from '../Ads/NativeAdPool';
 import SingleNativeAd from '../Ads/SingleNative';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
 import PostsHeader from './componenets/PostsHeader';
+import PollCard from './componenets/PollCard';
+import { awardBadge, incrementAndCheckBadge, REACTION_BADGE_THRESHOLDS } from '../ChatScreen/GroupChat/badgeUtils';
 
 
 const DesignFeedScreen = ({ route }) => {
   const { selectedTheme } = route.params;
-  const { appdatabase, user, theme, firestoreDB } = useGlobalState();
+  const { appdatabase, user, theme, firestoreDB, isBabyMod, isTrusted, isCMSR, isGrinder, isRaider } = useGlobalState();
   const { localState } = useLocalState();
   const isDarkMode = theme === 'dark';
   const navigation = useNavigation();
@@ -62,11 +66,35 @@ const DesignFeedScreen = ({ route }) => {
   const [filterMyPosts, setFilterMyPosts] = useState(false);
   const [myPosts, setMyPosts] = useState([]);
   const [selectedTag, setSelectedTag] = useState(null);
+  const [filterFollowing, setFilterFollowing] = useState(false);
+  const [followingIds, setFollowingIds] = useState([]);
+  const [followingPosts, setFollowingPosts] = useState([]);
   const [bannedUsers, setBannedUsers] = useState([]);
   const [lastPostTime, setLastPostTime] = useState(null);
   const [isSubmittingPost, setIsSubmittingPost] = useState(false);
+  const [activeSort, setActiveSort] = useState('latest');
+  const [rankedPosts, setRankedPosts] = useState([]);
 
   const AD_FREQUENCY = 5;
+
+  // Polls
+  const [activePolls, setActivePolls] = useState([]);
+
+  const fetchActivePolls = useCallback(async () => {
+    try {
+      const pollsRef = collection(firestoreDB, 'polls');
+      const q = query(pollsRef, where('active', '==', true), limit(3));
+      const snapshot = await getDocs(q);
+      setActivePolls(snapshot.empty ? [] : snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.error('[Poll] Fetch polls error:', err);
+    }
+  }, [firestoreDB]);
+
+  useEffect(() => {
+    fetchActivePolls();
+  }, [fetchActivePolls]);
+
   useEffect(() => {
     // if (!user?.id) return;
     setBannedUsers(localState.bannedUsers)
@@ -90,14 +118,14 @@ const DesignFeedScreen = ({ route }) => {
     setInitialLoading(true);
     try {
       let q = query(
-        collection(firestoreDB, 'designPosts'),
+        collection(firestoreDB, 'designPosts_upgrade'),
         where('userId', '==', user.id),
         orderBy('createdAt', 'desc')
       );
 
       if (tag) {
         q = query(
-          collection(firestoreDB, 'designPosts'),
+          collection(firestoreDB, 'designPosts_upgrade'),
           where('userId', '==', user.id),
           where('selectedTags', 'array-contains', tag),
           orderBy('createdAt', 'desc')
@@ -122,7 +150,7 @@ const DesignFeedScreen = ({ route }) => {
     if (!userId) throw new Error('userId is required');
 
     const q = query(
-      collection(firestoreDB, 'designPosts'),
+      collection(firestoreDB, 'designPosts_upgrade'),
       where('userId', '==', userId),
       orderBy('createdAt', 'desc'),
       limit(n)
@@ -153,7 +181,7 @@ const DesignFeedScreen = ({ route }) => {
       setInitialLoading(true);
 
       const q = query(
-        collection(firestoreDB, 'designPosts'),
+        collection(firestoreDB, 'designPosts_upgrade'),
         where('selectedTags', 'array-contains', tag),
         orderBy('createdAt', 'desc'),
         limit(5)
@@ -178,7 +206,7 @@ const DesignFeedScreen = ({ route }) => {
   const skeletonArray = useMemo(() => Array.from({ length: 5 }), []);
   const handleDeletePost = async (postId) => {
     try {
-      await deleteDoc(doc(firestoreDB, 'designPosts', postId));
+      await deleteDoc(doc(firestoreDB, 'designPosts_upgrade', postId));
       setPosts(prev => prev.filter(p => p.id !== postId));
       showMessage({ message: 'Post deleted', type: 'success' });
     } catch (err) {
@@ -191,7 +219,7 @@ const DesignFeedScreen = ({ route }) => {
   const fetchInitialPosts = async () => {
     try {
       const q = query(
-        collection(firestoreDB, 'designPosts'),
+        collection(firestoreDB, 'designPosts_upgrade'),
         orderBy('createdAt', 'desc'),
         limit(5)
       );
@@ -214,6 +242,143 @@ const DesignFeedScreen = ({ route }) => {
     fetchInitialPosts();
   }, []);
 
+  // ── Fetch who I follow ──
+  useEffect(() => {
+    if (!user?.id || !firestoreDB) return;
+    (async () => {
+      try {
+        const q = query(
+          collection(firestoreDB, 'following'),
+          where('followerId', '==', user.id),
+          limit(200),
+        );
+        const snap = await getDocs(q);
+        const ids = snap.docs.map(d => d.data().followingId).filter(Boolean);
+        setFollowingIds(ids);
+      } catch (err) {
+        console.warn('[Posts] Error fetching following list:', err?.message);
+      }
+    })();
+  }, [user?.id, firestoreDB]);
+
+  // ── Fetch posts from followed users (PAGINATED) ──
+  const lastFollowingDocRef = useRef(null);
+  const followingHasMoreRef = useRef(true);
+
+  const fetchFollowingPosts = async (isLoadMore = false) => {
+    if (!user?.id || followingIds.length === 0) {
+      setFollowingPosts([]);
+      setInitialLoading(false);
+      return;
+    }
+
+    if (isLoadMore && !followingHasMoreRef.current) return;
+    if (!isLoadMore) {
+      setInitialLoading(true);
+      lastFollowingDocRef.current = null;
+      followingHasMoreRef.current = true;
+    } else {
+      setLoadingMore(true);
+    }
+
+    try {
+      const chunk = followingIds.slice(0, 30);
+      const PAGE = 5;
+
+      let q;
+      if (isLoadMore && lastFollowingDocRef.current) {
+        q = query(
+          collection(firestoreDB, 'designPosts_upgrade'),
+          where('userId', 'in', chunk),
+          orderBy('createdAt', 'desc'),
+          startAfter(lastFollowingDocRef.current),
+          limit(PAGE),
+        );
+      } else {
+        q = query(
+          collection(firestoreDB, 'designPosts_upgrade'),
+          where('userId', 'in', chunk),
+          orderBy('createdAt', 'desc'),
+          limit(PAGE),
+        );
+      }
+
+      const snap = await getDocs(q);
+      const newPosts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      lastFollowingDocRef.current = snap.docs[snap.docs.length - 1] || null;
+      followingHasMoreRef.current = snap.docs.length === PAGE;
+      setHasMore(snap.docs.length === PAGE);
+
+      if (isLoadMore) {
+        setFollowingPosts(prev => [...prev, ...newPosts]);
+      } else {
+        setFollowingPosts(newPosts);
+      }
+    } catch (err) {
+      console.error('[Posts] Error fetching following posts:', err);
+    } finally {
+      setInitialLoading(false);
+      setLoadingMore(false);
+      setRefreshing(false);
+    }
+  };
+
+  // ── Fetch ranked posts (Hot / Trending) from RTDB ──
+  const fetchRankedPosts = useCallback(async (sortKey) => {
+    if (!appdatabase || !firestoreDB) return;
+    setInitialLoading(true);
+    try {
+      const rankingRef = dbRef(appdatabase, `feedRanking/${sortKey}`);
+      const snap = await get(rankingRef);
+
+      if (!snap.exists()) {
+        setRankedPosts([]);
+        setInitialLoading(false);
+        return;
+      }
+
+      const ranking = snap.val();
+      if (!Array.isArray(ranking) || ranking.length === 0) {
+        setRankedPosts([]);
+        setInitialLoading(false);
+        return;
+      }
+
+      const postIds = ranking.map(r => r.postId).filter(Boolean);
+      const postPromises = postIds.map(id =>
+        getDoc(doc(firestoreDB, 'designPosts_upgrade', id))
+          .then(d => d.exists() ? { id: d.id, ...d.data() } : null)
+          .catch(() => null)
+      );
+
+      const fetchedPosts = await Promise.all(postPromises);
+      const validPosts = fetchedPosts.filter(Boolean);
+
+      const orderMap = new Map(postIds.map((id, idx) => [id, idx]));
+      validPosts.sort((a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999));
+
+      setRankedPosts(validPosts);
+      setHasMore(false);
+    } catch (err) {
+      console.warn(`[Feed] Error fetching ${sortKey} posts:`, err?.message);
+      setRankedPosts([]);
+    } finally {
+      setInitialLoading(false);
+      setRefreshing(false);
+    }
+  }, [appdatabase, firestoreDB]);
+
+  // ── Handle sort mode changes ──
+  const handleSortChange = useCallback((sortKey) => {
+    setActiveSort(sortKey);
+    if (sortKey === 'latest') {
+      fetchInitialPosts();
+    } else {
+      fetchRankedPosts(sortKey);
+    }
+  }, [fetchInitialPosts, fetchRankedPosts]);
+
   // PostsHeader is now rendered inline as part of the FlatList ListHeaderComponent
 
   // ✅ OPTIMIZED: Removed per-post onSnapshot listeners to reduce Firestore reads
@@ -222,7 +387,18 @@ const DesignFeedScreen = ({ route }) => {
   // Users can manually refresh if they need latest data
 
   const loadMorePosts = async () => {
-    if (loadingMore || !hasMore || !lastVisibleDoc) return;
+    if (loadingMore || !hasMore) return;
+
+    // Following filter has its own pagination
+    if (filterFollowing) {
+      fetchFollowingPosts(true);
+      return;
+    }
+
+    // Ranked posts (hot/trending) have no pagination
+    if (activeSort !== 'latest') return;
+
+    if (!lastVisibleDoc) return;
 
     setLoadingMore(true);
     try {
@@ -230,16 +406,15 @@ const DesignFeedScreen = ({ route }) => {
 
       if (selectedTag) {
         q = query(
-          collection(firestoreDB, 'designPosts'),
+          collection(firestoreDB, 'designPosts_upgrade'),
           where('selectedTags', 'array-contains', selectedTag),
           orderBy('createdAt', 'desc'),
           startAfter(lastVisibleDoc),
           limit(10)
         );
       } else {
-        // without tag filter
         q = query(
-          collection(firestoreDB, 'designPosts'),
+          collection(firestoreDB, 'designPosts_upgrade'),
           orderBy('createdAt', 'desc'),
           startAfter(lastVisibleDoc),
           limit(10)
@@ -259,64 +434,63 @@ const DesignFeedScreen = ({ route }) => {
   };
 
 
-  const handleLike = async (post) => {
-    if (!user?.id) return;
+  const handleReaction = useCallback(async (post, emoji) => {
+    const userId = user?.id;
+    if (!userId) return;
 
-    const postRef = doc(firestoreDB, 'designPosts', post.id);
-    const alreadyLiked = !!post.likes?.[user.id];
+    const postRef = doc(firestoreDB, 'designPosts_upgrade', post.id);
+    const currentReaction = post.reactions?.[userId];
+    const hadOldLike = !!post.likes?.[userId];
 
-    // ✅ Save original likes for error rollback
-    const originalLikes = { ...(post.likes || {}) };
-
-    // ✅ Optimistic update: Update local state immediately for instant UI feedback
-    const updateLocalState = (likes) => {
-      setPosts(prevPosts =>
-        prevPosts.map(p => {
-          if (p.id === post.id) {
-            return { ...p, likes };
-          }
-          return p;
-        })
-      );
-
-      // ✅ Also update myPosts if user is viewing their own posts
-      setMyPosts(prevMyPosts =>
-        prevMyPosts.map(p => {
-          if (p.id === post.id) {
-            return { ...p, likes };
-          }
-          return p;
-        })
-      );
+    // Optimistic local update
+    const optimisticUpdate = (p) => {
+      if (p.id !== post.id) return p;
+      const updatedReactions = { ...(p.reactions || {}) };
+      const updatedLikes = { ...(p.likes || {}) };
+      if (currentReaction === emoji) {
+        delete updatedReactions[userId];
+      } else {
+        updatedReactions[userId] = emoji;
+        if (hadOldLike) delete updatedLikes[userId];
+      }
+      return { ...p, reactions: updatedReactions, likes: updatedLikes };
     };
-
-    // ✅ Update local state immediately (optimistic update)
-    const newLikes = { ...(post.likes || {}) };
-    if (alreadyLiked) {
-      delete newLikes[user.id];
-    } else {
-      newLikes[user.id] = true;
-    }
-    updateLocalState(newLikes);
+    setPosts(prev => prev.map(optimisticUpdate));
+    setMyPosts(prev => prev.map(optimisticUpdate));
+    setRankedPosts(prev => prev.map(optimisticUpdate));
 
     try {
-      // ✅ Update Firestore (backend)
-      await updateDoc(postRef, {
-        [`likes.${user.id}`]: alreadyLiked ? deleteField() : true
-      });
+      if (currentReaction === emoji) {
+        await updateDoc(postRef, {
+          [`reactions.${userId}`]: deleteField(),
+        });
+      } else {
+        const updates = {
+          [`reactions.${userId}`]: emoji,
+        };
+        if (hadOldLike) {
+          updates[`likes.${userId}`] = deleteField();
+        }
+        await updateDoc(postRef, updates);
+
+        // 🏅 Badge tracking: reaction count for post author
+        if (appdatabase && post.userId && post.userId !== userId) {
+          incrementAndCheckBadge(appdatabase, post.userId, 'reactionCount', REACTION_BADGE_THRESHOLDS);
+        }
+      }
     } catch (error) {
-      console.error('Error updating like:', error);
-
-      // ✅ Revert optimistic update on error
-      updateLocalState(originalLikes);
-
+      console.error('Error updating reaction:', error);
+      // Revert on failure
+      setPosts(prev => prev.map(p => p.id === post.id ? post : p));
+      setMyPosts(prev => prev.map(p => p.id === post.id ? post : p));
+      setRankedPosts(prev => prev.map(p => p.id === post.id ? post : p));
       showMessage({
         message: 'Error',
-        description: 'Failed to update like. Please try again.',
+        description: 'Failed to update reaction. Please try again.',
         type: 'danger',
       });
     }
-  };
+  }, [user?.id, firestoreDB]);
 
   const handleUploadPost = async (desc, imageUrls, selectedTags, currentUserEmail) => {
     // ✅ Prevent multiple submissions - check if already submitting
@@ -379,10 +553,21 @@ const DesignFeedScreen = ({ route }) => {
           : (selectedTags ? [selectedTags] : ['Discussion']), // ✅ Always ensure tags exist
         email: currentUserEmail || null,
         report: false,
-        flage: user?.flage || null
+        flage: user?.flage || null,
+        isBabyMod: !!isBabyMod,
+        isTrusted: !!isTrusted,
+        isCMSR: !!isCMSR,
+        isGrinder: !!isGrinder,
+        isRaider: !!isRaider,
+        profileFrame: getMyCosmetics()?.profileFrame || null,
       };
 
-      await addDoc(collection(firestoreDB, 'designPosts'), post);
+      await addDoc(collection(firestoreDB, 'designPosts_upgrade'), post);
+
+      // 🏅 Badge tracking: first post
+      if (appdatabase && user?.id) {
+        awardBadge(appdatabase, user.id, 'firstPost');
+      }
 
       // ✅ Update last post time after successful upload
       setLastPostTime(now);
@@ -429,7 +614,7 @@ const DesignFeedScreen = ({ route }) => {
       <PostCard
         item={item}
         userId={user?.id}
-        onLike={handleLike}
+        onReaction={handleReaction}
         localState={localState}
         appdatabase={appdatabase}
         onDelete={handleDeletePost}
@@ -444,7 +629,13 @@ const DesignFeedScreen = ({ route }) => {
   //   : filterMyPosts
   //     ? myPosts
   //     : posts;
-  const baseList = initialLoading ? skeletonArray : (filterMyPosts ? myPosts : posts);
+  const baseList = initialLoading
+    ? skeletonArray
+    : filterMyPosts
+      ? myPosts
+      : filterFollowing
+        ? followingPosts
+        : (activeSort !== 'latest' ? rankedPosts : posts);
 
   // keep ads; drop banned users' posts
   const filteredBase = useMemo(() => {
@@ -475,10 +666,15 @@ const DesignFeedScreen = ({ route }) => {
         selectedTag={selectedTag}
         filterMyPosts={filterMyPosts}
         setFilterMyPosts={setFilterMyPosts}
+        filterFollowing={filterFollowing}
+        setFilterFollowing={setFilterFollowing}
         setSelectedTag={setSelectedTag}
         fetchInitialPosts={fetchInitialPosts}
         fetchMyPosts={fetchMyPosts}
+        fetchFollowingPosts={fetchFollowingPosts}
         fetchPostsByTag={fetchPostsByTag}
+        activeSort={activeSort}
+        onSortChange={handleSortChange}
       />
 
       <View style={{ flex: 1 }}>
@@ -492,8 +688,29 @@ const DesignFeedScreen = ({ route }) => {
           refreshing={refreshing}
           onRefresh={() => {
             setRefreshing(true);
-            fetchInitialPosts();
+            if (activeSort !== 'latest') {
+              fetchRankedPosts(activeSort);
+            } else {
+              fetchInitialPosts();
+            }
+            fetchActivePolls();
           }}
+          ListHeaderComponent={
+            activePolls.length > 0 ? (
+              <View style={{ paddingHorizontal: 10, paddingTop: 8 }}>
+                {activePolls.map((p) => (
+                  <PollCard
+                    key={p.id}
+                    poll={p}
+                    user={user}
+                    firestoreDB={firestoreDB}
+                    isDarkMode={isDarkMode}
+                    onRequireSignIn={() => setSigninDrawerVisible(true)}
+                  />
+                ))}
+              </View>
+            ) : null
+          }
           ListFooterComponent={
             loadingMore && !initialLoading ? (
               <ActivityIndicator size="small" color={config.colors.primary} style={{ marginVertical: 16 }} />
@@ -504,7 +721,7 @@ const DesignFeedScreen = ({ route }) => {
               <View style={styles.emptyState}>
                 <FontAwesome name="newspaper" size={48} color={isDarkMode ? '#334155' : '#cbd5e1'} />
                 <Text style={styles.emptyTitle}>
-                  {filterMyPosts ? "You have no posts yet." : "No posts found."}
+                  {filterMyPosts ? "You have no posts yet." : filterFollowing ? "No posts from people you follow." : "No posts found."}
                 </Text>
                 <Text style={styles.emptySubtitle}>Be the first to post!</Text>
               </View>

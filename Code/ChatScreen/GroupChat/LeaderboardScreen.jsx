@@ -19,6 +19,7 @@ import config from '../../Helper/Environment';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import ProfileBottomDrawer from './BottomDrawer';
 import { isUserOnline } from '../utils';
+import ThemeHeader from '../../../Code/Design/componenets/ThemeHeader';
 
 const CACHE_DURATION_MS = 2 * 24 * 60 * 60 * 1000; // 2 days in milliseconds (local app cache)
 // Note: Leaderboard data is pre-computed daily by Cloud Function with rating >= 3.7
@@ -198,21 +199,24 @@ const LeaderboardScreen = ({ route }) => {
     mixpanel.track("Leaderboard User Click");
   }, [triggerHapticFeedback]);
 
-  // ✅ Handle start chat from BottomDrawer
+  // ✅ Handle start chat from BottomDrawer — navigates to root-level PrivateChat with level gate
   const handleStartChat = useCallback(() => {
     if (!selectedUser) return;
 
     setIsDrawerVisible(false);
 
-    if (navigation && typeof navigation.navigate === 'function') {
-      navigation.navigate('PrivateChat', {
+    setTimeout(() => {
+      const rootNav = navigation?.getParent?.() || navigation;
+      if (!rootNav?.navigate) return;
+      rootNav.navigate('PrivateChatRoot', {
         selectedUser: {
           senderId: selectedUser.senderId,
           sender: selectedUser.sender,
           avatar: selectedUser.avatar,
         },
       });
-    }
+    }, 300);
+
     mixpanel.track("Leaderboard Start Chat");
   }, [selectedUser, navigation]);
 
@@ -258,7 +262,8 @@ const LeaderboardScreen = ({ route }) => {
   }, [styles, handleUserClick]);
 
   return (
-    <>
+    <View style={{ flex: 1, backgroundColor: isDarkMode ? '#111827' : '#f8fafc' }}>
+      <ThemeHeader title={t('home_tab.top_traders', { defaultValue: 'Top Traders' })} showBack={true} />
       <View style={styles.container}>
         {/* Loading Indicator */}
         {loading && leaderboardData.length === 0 ? (
@@ -300,7 +305,7 @@ const LeaderboardScreen = ({ route }) => {
         isOnline={isOnline}
         bannedUsers={bannedUsers}
       />
-    </>
+    </View>
   );
 };
 

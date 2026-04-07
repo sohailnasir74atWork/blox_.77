@@ -64,9 +64,7 @@ import customParseFormat from 'dayjs/plugin/customParseFormat';
 dayjs.extend(relativeTime);
 dayjs.extend(customParseFormat);
 
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-    UIManager.setLayoutAnimationEnabledExperimental(true);
-}
+
 
 // ── Bunny CDN ──
 const BUNNY_STORAGE_HOST = 'storage.bunnycdn.com';

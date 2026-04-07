@@ -1,70 +1,71 @@
-// 🏆 Note: With Fabric (new architecture) enabled, enableScreens() is not needed
-// and can cause crashes. Screens are automatically enabled with Fabric.
-// import { enableScreens } from 'react-native-screens';
-// enableScreens(); 
-
-import React, { useEffect, lazy, Suspense } from 'react';
+import React, { lazy, Suspense } from 'react';
 import { AppRegistry, Platform, StatusBar, Text } from 'react-native';
+import { getCrashlytics, recordError, log as crashlyticsLog } from '@react-native-firebase/crashlytics';
 import AppWrapper from './App';
 import { name as appName } from './app.json';
 import { GlobalStateProvider } from './Code/GlobelStats';
 import { LocalStateProvider } from './Code/LocalGlobelStats';
 import { MenuProvider } from 'react-native-popup-menu';
 import { LanguageProvider } from './Code/Translation/LanguageProvider';
-import messaging from '@react-native-firebase/messaging';
+import { getMessaging, setBackgroundMessageHandler } from '@react-native-firebase/messaging';
+import { createMMKV } from 'react-native-mmkv';
 import FlashMessage from 'react-native-flash-message';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // 🚀 Lazy load Notification Handler for better startup performance
 const NotificationHandler = lazy(() => import('./Code/Firebase/FrontendNotificationHandling'));
 
 // 👥 Lazy load Global Group Invite Toast for group invitations
 const GlobalGroupInviteToast = lazy(() => import('./Code/ValuesScreen/GlobalGroupInviteToast'));
-const STATUS_BAR_HEIGHT = Platform.OS === 'android' ? StatusBar.currentHeight || 18 : 44;
-// ✅ Background Notification Handler - Filter blocked users
-// Note: Background notifications are handled by OS when app is closed
-// This handler is for when app is in background (minimized) but not closed
-messaging().setBackgroundMessageHandler(async remoteMessage => {
+
+// ✅ Create a messaging instance (default Firebase app)
+const messaging = getMessaging();
+
+// ✅ Create MMKV storage instance for background access
+const storage = createMMKV();
+
+// ✅ Helper function to safely parse JSON from storage
+const safeParseJSON = (key, defaultValue) => {
   try {
-    // ✅ Import MMKV storage to check blocked users in background
-    const { MMKV } = require('react-native-mmkv');
-    const storage = new MMKV();
-    
-    // ✅ Read bannedUsers from MMKV (same pattern as LocalGlobelStats.js)
-    const bannedUsersStr = storage.getString('bannedUsers');
-    
-    let bannedUsersList = [];
-    if (bannedUsersStr) {
-      try {
-        bannedUsersList = JSON.parse(bannedUsersStr);
-        if (!Array.isArray(bannedUsersList)) {
-          bannedUsersList = [];
-        }
-      } catch (parseError) {
-        bannedUsersList = [];
-      }
-    }
-    
-    // ✅ Extract senderId from notification data
-    const senderId = remoteMessage?.data?.senderId || remoteMessage?.data?.sender_id || null;
-    
-    // ✅ Check if sender is blocked
+    const value = storage.getString(key);
+    return value ? JSON.parse(value) : defaultValue;
+  } catch (error) {
+    return defaultValue;
+  }
+};
+
+const STATUS_BAR_HEIGHT = Platform.OS === 'android' ? StatusBar.currentHeight || 18 : 44;
+
+// ✅ Background Notification Handler (modular API)
+setBackgroundMessageHandler(messaging, async remoteMessage => {
+  try {
+    if (!remoteMessage) return;
+
+    const { data } = remoteMessage || {};
+    const senderId = data?.senderId || data?.sender_id || null;
+
     if (senderId && typeof senderId === 'string' && senderId.trim() !== '') {
-      const normalizedSenderId = senderId.trim();
-      if (bannedUsersList.includes(normalizedSenderId) || bannedUsersList.includes(senderId)) {
-        // ✅ Sender is blocked, don't show notification
-        // Return early to prevent notification display
+      const bannedUsers = safeParseJSON('bannedUsers', []);
+      if (Array.isArray(bannedUsers) && bannedUsers.includes(senderId.trim())) {
         return;
       }
     }
-    
-    // ✅ Notification is allowed (not from blocked user), let OS handle it
-    // Background notifications are automatically displayed by the OS/FCM
   } catch (error) {
-    // ✅ On error, allow notification (fail open) to ensure users receive important notifications
-    // This prevents blocking legitimate notifications if there's a storage/parsing error
-    console.error('[Background Notification] Error checking blocked users:', error);
+    // Fail open to ensure users receive important notifications
   }
 });
+
+// 🔥 Global JS error handler → Crashlytics (modular API)
+const crashlyticsInstance = getCrashlytics();
+const originalHandler = ErrorUtils.getGlobalHandler();
+ErrorUtils.setGlobalHandler((error, isFatal) => {
+  try {
+    recordError(crashlyticsInstance, error);
+    crashlyticsLog(crashlyticsInstance, `Global error | Fatal: ${isFatal} | ${error?.message || error}`);
+  } catch (_) {}
+  originalHandler(error, isFatal);
+});
+
 class ErrorBoundary extends React.Component {
   state = { hasError: false };
   static getDerivedStateFromError(error) {
@@ -72,6 +73,10 @@ class ErrorBoundary extends React.Component {
   }
   componentDidCatch(error, info) {
     console.error('Caught in ErrorBoundary:', error, info);
+    try {
+      recordError(crashlyticsInstance, error);
+      crashlyticsLog(crashlyticsInstance, `ErrorBoundary: ${info?.componentStack || 'no stack'}`);
+    } catch (_) {}
   }
   render() {
     return this.state.hasError ? <Text>Something went wrong.</Text> : this.props.children;
@@ -80,30 +85,28 @@ class ErrorBoundary extends React.Component {
 
 // ✅ Memoized App component to prevent unnecessary re-renders
 const App = React.memo(() => (
-  <MenuProvider skipInstanceCheck>
-  <LanguageProvider>
-    <LocalStateProvider>
-      <GlobalStateProvider>
-        <ErrorBoundary>
-          <AppWrapper />
-        </ErrorBoundary>
-        <FlashMessage
-            position="top"
-            floating
-            statusBarHeight={STATUS_BAR_HEIGHT}
-          />
-        <Suspense fallback={null}>
-          <NotificationHandler />
-        </Suspense>
-        {/* 👥 Global Group Invite Toast - Shows on any screen when user receives a group invitation */}
-        <Suspense fallback={null}>
-          <GlobalGroupInviteToast />
-        </Suspense>
-      </GlobalStateProvider>
-    </LocalStateProvider>                
-  </LanguageProvider>
-</MenuProvider>
-
+  <SafeAreaProvider>
+    <MenuProvider skipInstanceCheck>
+      <LanguageProvider>
+        <LocalStateProvider>
+          <GlobalStateProvider>
+            <ErrorBoundary>
+              <AppWrapper />
+            </ErrorBoundary>
+            <FlashMessage
+              position="top"
+              floating
+              statusBarHeight={STATUS_BAR_HEIGHT}
+            />
+            <Suspense fallback={null}>
+              <NotificationHandler />
+              <GlobalGroupInviteToast />
+            </Suspense>
+          </GlobalStateProvider>
+        </LocalStateProvider>
+      </LanguageProvider>
+    </MenuProvider>
+  </SafeAreaProvider>
 ));
 
 AppRegistry.registerComponent(appName, () => App);

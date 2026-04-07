@@ -11,11 +11,12 @@ import BlockedUsersScreen from './PrivateChat/BlockUserList';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { useLocalState } from '../LocalGlobelStats';
 import ImageViewerScreenChat from './PrivateChat/ImageViewer';
-import { ref, update } from '@react-native-firebase/database';
+import { ref, update, get, onChildAdded, onChildChanged, onChildRemoved } from '@react-native-firebase/database';
 import CommunityChatHeader from './GroupChat/CommunityChatHeader';
 import LeaderboardScreen from './GroupChat/LeaderboardScreen';
 import AdminDashboard from '../AppHelper/AdminDashboard';
 import SocialDashboard from '../AppHelper/SocialDashboard';
+import ThemeHeader from '../Design/componenets/ThemeHeader';
 
 const Stack = createNativeStackNavigator();
 
@@ -23,8 +24,6 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
   const { user, unreadMessagesCount, appdatabase, onlineMembersCount } = useGlobalState();
   const [bannedUsers, setBannedUsers] = useState([]);
   const { triggerHapticFeedback } = useHaptic();
-  const [chats, setChats] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [unreadcount, setunreadcount] = useState(0);
   const { localState, updateLocalState } = useLocalState()
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
@@ -52,6 +51,8 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
     headerTintColor: selectedTheme.colors.text,
     headerTitleStyle: { fontWeight: 'bold', fontSize: 24 },
     headerBackTitleVisible: false,
+    animation: 'fade',
+    animationDuration: 200,
   }), [selectedTheme]);
 
 
@@ -111,19 +112,20 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
 
     // ✅ Listen to individual chat changes - child_added will fire for existing chats
     // This is more efficient than downloading all data at once
-    userChatsRef.on('child_added', handleChildChange);
-    userChatsRef.on('child_changed', handleChildChange);
-    userChatsRef.on('child_removed', handleChildRemoved);
+    const unsubAdded = onChildAdded(userChatsRef, handleChildChange);
+    const unsubChanged = onChildChanged(userChatsRef, handleChildChange);
+    const unsubRemoved = onChildRemoved(userChatsRef, handleChildRemoved);
 
     // ✅ Proper cleanup
     return () => {
-      userChatsRef.off('child_added', handleChildChange);
-      userChatsRef.off('child_changed', handleChildChange);
-      userChatsRef.off('child_removed', handleChildRemoved);
+      unsubAdded();
+      unsubChanged();
+      unsubRemoved();
     };
   }, [user?.id, appdatabase, bannedUsers]);
 
-  // ✅ Load groups from group_meta_data
+  // ✅ OPTIMIZED: Load groups from group_meta_data using get() + child listeners
+  // This prevents re-downloading ALL group metadata on every single change
   useEffect(() => {
     if (!user?.id || !appdatabase) {
       setGroups([]);
@@ -132,9 +134,35 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
 
     setGroupsLoading(true);
     const userGroupsRef = ref(appdatabase, `group_meta_data/${user.id}`);
+    const groupsMap = new Map(); // Track groups locally
 
-    const onValueChange = userGroupsRef.on('value', (snapshot) => {
+    const parseGroupData = (groupId, groupData) => {
+      if (!groupData || typeof groupData !== 'object') return null;
+      return {
+        groupId,
+        groupName: groupData.groupName || 'Group',
+        groupAvatar: groupData.groupAvatar || null,
+        lastMessage: groupData.lastMessage || 'No messages yet',
+        lastMessageTimestamp: groupData.lastMessageTimestamp || 0,
+        unreadCount: groupData.unreadCount || 0,
+        memberCount: groupData.memberCount || 0,
+        createdBy: groupData.createdBy || null,
+      };
+    };
+
+    const updateGroupsList = () => {
+      const updatedGroups = Array.from(groupsMap.values())
+        .sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp);
+      setGroups(updatedGroups);
+
+      const totalGroupUnread = updatedGroups.reduce((sum, group) => sum + (group.unreadCount || 0), 0);
+      setGroupUnreadCount(totalGroupUnread);
+    };
+
+    // ✅ Initial load with get() (one-time read)
+    const loadInitialGroups = async () => {
       try {
+        const snapshot = await get(userGroupsRef);
         if (!snapshot.exists()) {
           setGroups([]);
           setGroupUnreadCount(0);
@@ -150,78 +178,82 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
           return;
         }
 
-        const updatedGroups = Object.entries(fetchedData).map(([groupId, groupData]) => {
-          if (!groupData || typeof groupData !== 'object') {
-            return null;
-          }
+        Object.entries(fetchedData).forEach(([groupId, groupData]) => {
+          const parsed = parseGroupData(groupId, groupData);
+          if (parsed) groupsMap.set(groupId, parsed);
+        });
 
-          return {
-            groupId,
-            groupName: groupData.groupName || 'Group',
-            groupAvatar: groupData.groupAvatar || null,
-            lastMessage: groupData.lastMessage || 'No messages yet',
-            lastMessageTimestamp: groupData.lastMessageTimestamp || 0,
-            unreadCount: groupData.unreadCount || 0,
-            memberCount: groupData.memberCount || 0,
-            createdBy: groupData.createdBy || null, // Add creator info
-          };
-        }).filter(Boolean);
-
-        const sortedGroups = updatedGroups.sort(
-          (a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp
-        );
-        setGroups(sortedGroups);
-
-        // ✅ Calculate total group unread count
-        const totalGroupUnread = sortedGroups.reduce((sum, group) => sum + (group.unreadCount || 0), 0);
-        setGroupUnreadCount(totalGroupUnread);
-
+        updateGroupsList();
         setGroupsLoading(false);
       } catch (error) {
-        console.error('❌ Error fetching groups:', error);
+        console.error('Error loading initial groups:', error);
         setGroupsLoading(false);
       }
-    });
+    };
+
+    // ✅ Child listeners for real-time updates (only downloads changed data)
+    const handleChildAdded = (snapshot) => {
+      if (!snapshot || !snapshot.key) return;
+      if (groupsMap.has(snapshot.key)) return; // Skip already-loaded groups
+      const parsed = parseGroupData(snapshot.key, snapshot.val());
+      if (parsed) {
+        groupsMap.set(snapshot.key, parsed);
+        updateGroupsList();
+      }
+    };
+
+    const handleChildChanged = (snapshot) => {
+      if (!snapshot || !snapshot.key) return;
+      const parsed = parseGroupData(snapshot.key, snapshot.val());
+      if (parsed) {
+        groupsMap.set(snapshot.key, parsed);
+        updateGroupsList();
+      }
+    };
+
+    const handleChildRemoved = (snapshot) => {
+      if (!snapshot || !snapshot.key) return;
+      groupsMap.delete(snapshot.key);
+      updateGroupsList();
+    };
+
+    loadInitialGroups();
+
+    const unsubAdded = onChildAdded(userGroupsRef, handleChildAdded);
+    const unsubChanged = onChildChanged(userGroupsRef, handleChildChanged);
+    const unsubRemoved = onChildRemoved(userGroupsRef, handleChildRemoved);
 
     return () => {
-      userGroupsRef.off('value', onValueChange);
+      unsubAdded();
+      unsubChanged();
+      unsubRemoved();
     };
   }, [user?.id, appdatabase]);
 
   const [onlineUsersVisible, setOnlineUsersVisible] = useState(false);
 
   const getGroupChatOptions = useCallback(({ navigation }) => ({
-    title: user?.id ? '' : 'Community Chat', // ✅ Show title only when logged out
-    headerTitleAlign: 'left',
-    headerTitleStyle: {
-      fontWeight: 'bold',
-      fontSize: 24,
-    },
-    headerTitleContainerStyle: {
-      left: 0,
-      paddingLeft: 0,
-    },
-    headerRight: () => (
-      <CommunityChatHeader
-        selectedTheme={selectedTheme}
-        unreadcount={unreadcount}
-        setunreadcount={setunreadcount}
-        groupUnreadCount={groupUnreadCount}
-        setGroupUnreadCount={setGroupUnreadCount}
-        triggerHapticFeedback={triggerHapticFeedback}
-        onOnlineUsersPress={() => setOnlineUsersVisible(true)}
-        onLeaderboardPress={() => {
-          // Navigate to Leaderboard screen instead of showing modal
-          if (navigation && typeof navigation.navigate === 'function') {
-            navigation.navigate('Leaderboard');
-          }
-        }}
+    header: () => (
+      <ThemeHeader
+        title={user?.id ? '' : 'Community Chat'}
+        rightContent={
+          <CommunityChatHeader
+            selectedTheme={selectedTheme}
+            unreadcount={unreadcount}
+            setunreadcount={setunreadcount}
+            groupUnreadCount={groupUnreadCount}
+            setGroupUnreadCount={setGroupUnreadCount}
+            triggerHapticFeedback={triggerHapticFeedback}
+            onOnlineUsersPress={() => setOnlineUsersVisible(true)}
+            onLeaderboardPress={() => {
+              if (navigation && typeof navigation.navigate === 'function') {
+                navigation.navigate('Leaderboard');
+              }
+            }}
+          />
+        }
       />
     ),
-    headerRightContainerStyle: {
-      paddingRight: 0,
-      marginRight: 0,
-    },
   }), [selectedTheme, unreadcount, setunreadcount, groupUnreadCount, setGroupUnreadCount, triggerHapticFeedback, user?.id]);
 
   return (
@@ -237,12 +269,12 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
         )}
       </Stack.Screen>
 
-      {/* ✅ Optimized: Pass `chats` & `setChats` via `screenProps` instead of inline function */}
+      {/* ✅ Optimized: InboxScreen manages its own state — only needs bannedUsers */}
       <Stack.Screen
         name="Inbox"
         options={{ title: 'Inbox' }}
       >
-        {props => <InboxScreen {...props} chats={chats} setChats={setChats} loading={loading} bannedUsers={bannedUsers} />}
+        {props => <InboxScreen {...props} bannedUsers={bannedUsers} />}
       </Stack.Screen>
 
       <Stack.Screen

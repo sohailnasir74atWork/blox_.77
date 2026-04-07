@@ -6,8 +6,6 @@ import {
   Text,
   Image,
   TouchableOpacity, TextInput,
-  TouchableWithoutFeedback,
-
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getStyles } from '../Style';
@@ -16,12 +14,13 @@ import PrivateMessageList from './PrivateMessageList';
 import { useGlobalState } from '../../GlobelStats';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
-import { clearActiveChat, isUserOnline, setActiveChat } from '../utils';
+import { clearActiveChat, isUserOnline, setActiveChat, updateLastRead, useOtherLastRead } from '../utils';
 import { useLocalState } from '../../LocalGlobelStats';
-import { get, increment, ref, update } from '@react-native-firebase/database';
+import { get, set, increment, ref, update, query as dbQuery, orderByKey, limitToLast, endAt, onChildAdded, serverTimestamp as rtdbServerTimestamp } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
 import BannerAdComponent from '../../Ads/bannerAds';
+import { seedCurrentUser } from '../../Helper/profileCache';
 import InterstitialAdManager from '../../Ads/IntAd';
 import config from '../../Helper/Environment';
 import PetModal from './PetsModel';
@@ -32,7 +31,6 @@ import {
   serverTimestamp,
 } from '@react-native-firebase/firestore';
 import { updateUserRatingSummary } from '../utils/ratingSummaryHelper';
-import { Keyboard } from 'react-native';
 import ProfileBottomDrawer from '../GroupChat/BottomDrawer';
 
 
@@ -70,6 +68,11 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
   const [isOnline, setIsOnline] = useState(false);
   const hasSentMessageRef = useRef(0); // ✅ Track count of messages user sent (for exit ad)
   const chatEnterTimeRef = useRef(null); // ✅ Track when user entered chat
+  // ✅ Cost opt: write receiverName/receiverAvatar into chat_meta_data only once per session
+  const metaIdentityWrittenRef = useRef(new Set());
+  const myUserIdRef = useRef(myUserId);
+  const chatKeyRef = useRef(null);
+  myUserIdRef.current = myUserId;
 
   useEffect(() => {
     if (item) {
@@ -96,7 +99,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
                 isAdmin: data.admin || false,
                 isModerator: data.isModerator || false,
                 avatar: data.avatar || prev?.avatar, // Also update avatar if changed
-                sender: data.robloxUsername || data.displayName || prev?.sender
+                sender: data.displayName || data.robloxUsername || prev?.sender
               }));
             }
           } catch (err) {
@@ -131,7 +134,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
 
     getDoc(reviewRef)
       .then(snapshot => {
-        if (snapshot.exists) {
+        if (snapshot.exists()) {
           setHasRated(true);
         } else {
           setHasRated(false);
@@ -164,6 +167,10 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     },
     [myUserId, selectedUserId]
   );
+  chatKeyRef.current = chatKey;
+
+  // ✅ Read receipts: listen to other user's lastRead timestamp
+  const otherLastRead = useOtherLastRead(chatKey, selectedUserId);
 
   const getUserPoints = useCallback(async (userId) => {
     if (!userId || !appdatabase) return 0;
@@ -195,6 +202,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
   }, [getUserPoints, appdatabase, updateLocalStateAndDatabase]);
   useFocusEffect(
     useCallback(() => {
+      if (user?.id) seedCurrentUser(user, localState, appdatabase);
       return () => {
         if (user?.id) {
           clearActiveChat(user.id);
@@ -204,6 +212,15 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
   );
 
   const handleRating = useCallback(async () => {
+    // ✅ Block globally banned users from submitting reviews
+    if (strikeInfo && !isAdmin) {
+      const { bannedUntil } = strikeInfo;
+      if (bannedUntil === 'permanent' || (typeof bannedUntil === 'number' && Date.now() < bannedUntil)) {
+        showErrorMessage(t("home.alert.error"), "You are banned and cannot submit reviews.");
+        return;
+      }
+    }
+
     if (!rating || rating < 1 || rating > 5) {
       showErrorMessage("Error", "Please select a rating first.");
       return;
@@ -221,12 +238,12 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       const reviewDocId = `${selectedUserId}_${myUserId}`;
       const reviewRef = doc(firestoreDB, "reviews", reviewDocId);
       const existingSnap = await getDoc(reviewRef);
-      const oldRating = existingSnap.exists ? existingSnap.data()?.rating : undefined;
+      const oldRating = existingSnap.exists() ? existingSnap.data()?.rating : undefined;
 
       // ✅ Get current summary from Firestore to calculate new average
       const summaryRef = doc(firestoreDB, 'user_ratings_summary', selectedUserId);
       const summarySnap = await getDoc(summaryRef);
-      const summaryData = summarySnap.exists ? summarySnap.data() : null;
+      const summaryData = summarySnap.exists() ? summarySnap.data() : null;
       const oldAverage = summaryData?.averageRating || 0;
       const oldCount = summaryData?.count || 0;
 
@@ -248,7 +265,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       // ✅ MIGRATED: Save ALL ratings to Firestore only (removed RTDB writes)
       // Note: reviewRef and existingSnap already fetched above, reuse them
       const now = serverTimestamp();
-      const isUpdate = existingSnap.exists;
+      const isUpdate = existingSnap.exists();
 
       await setDoc(
         reviewRef,
@@ -302,7 +319,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       showErrorMessage("Error", "Error submitting rating. Try again!");
       setStartRating(false);
     }
-  }, [rating, selectedUserId, myUserId, appdatabase, firestoreDB, reviewText, user?.id, user?.displayName, updateUserPoints]);
+  }, [rating, selectedUserId, myUserId, appdatabase, firestoreDB, reviewText, user?.id, user?.displayName, updateUserPoints, strikeInfo, isAdmin, t]);
 
 
 
@@ -321,21 +338,18 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
         lastLoadedKeyRef.current = null;
       }
       try {
-        let query = messagesRef.orderByKey();
-
         const lastKey = lastLoadedKeyRef.current;
-        if (!reset && lastKey) {
-          query = query.endAt(lastKey);
-        }
 
-        query = query.limitToLast(PAGE_SIZE);
+        const msgQuery = (!reset && lastKey)
+          ? dbQuery(messagesRef, orderByKey(), endAt(lastKey), limitToLast(PAGE_SIZE))
+          : dbQuery(messagesRef, orderByKey(), limitToLast(PAGE_SIZE));
 
-        const snapshot = await query.once('value');
+        const snapshot = await get(msgQuery);
         const data = snapshot.val() || {};
 
         let parsedMessages = Object.entries(data)
           .map(([key, value]) => ({ id: key, ...value }))
-          .sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
+          .sort((a, b) => (b?.serverTime || b?.timestamp || 0) - (a?.serverTime || a?.timestamp || 0));
 
         if (parsedMessages.length === 0) {
           if (reset) {
@@ -352,7 +366,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
             return parsedMessages;
           } else {
             const combined = [...prev, ...onlyNew];
-            return combined.sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
+            return combined.sort((a, b) => (b?.serverTime || b?.timestamp || 0) - (a?.serverTime || a?.timestamp || 0));
           }
         });
 
@@ -419,11 +433,11 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
 
     if (item && typeof item === 'object') {
       setTrade(item);
-      tradeRef.set(item).catch((error) => {
+      set(tradeRef, item).catch((error) => {
         console.error("Error updating trade in Firebase:", error);
       });
     } else {
-      tradeRef.once('value')
+      get(tradeRef)
         .then((snapshot) => {
           if (snapshot.exists()) {
             const tradeData = snapshot.val();
@@ -451,7 +465,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
 
 
 
-  const sendMessage = useCallback(async (text, image, fruits) => {
+  const sendMessage = useCallback(async (text, image, fruits, replyToMsg) => {
     const trimmedText = (text || '').trim();
     const hasImage = !!image;
     const hasFruits = Array.isArray(fruits) && fruits.length > 0;
@@ -483,30 +497,6 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
         return;
       }
     }
-    // ✅ Admins are exempt from blocking
-    if (strikeInfo && !isAdmin) {
-      const { strikeCount, bannedUntil } = strikeInfo;
-      const now = Date.now();
-
-      if (bannedUntil === 'permanent') {
-        showErrorMessage(t("home.alert.error"), "You are permanently banned from sending messages.");
-        return;
-      }
-
-      if (typeof bannedUntil === 'number' && now < bannedUntil) {
-        const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
-        const hours = Math.floor(totalMinutes / 60);
-        const minutes = totalMinutes % 60;
-        const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-
-        showErrorMessage(
-          t("home.alert.error"),
-          `You are banned from chatting for ${timeLeftText} more minute(s).`
-        );
-        return;
-      }
-    }
-
 
     if (hasFruits && fruits.length > 18) {
       showErrorMessage(t("home.alert.error"), "You can only send up to 18 pets in a message.");
@@ -532,11 +522,14 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     const messageRef = ref(appdatabase, `private_messages/${chatId}/messages/${timestamp}`);
     const senderChatRef = ref(appdatabase, `chat_meta_data/${myUserId}/${selectedUserId}`);
     const receiverChatRef = ref(appdatabase, `chat_meta_data/${selectedUserId}/${myUserId}`);
-    const receiverStatusRef = ref(appdatabase, `users/${selectedUserId}/activeChat`);
+
+    // ✅ Cost opt #1: Cosmetics are sender-level and live in profileCache / users/{uid}/shop/activeItems.
+    // resolveProfile falls back to cache, so we no longer need to duplicate them per message.
     const messageData = {
       text: trimmedText,
       senderId: myUserId,
       timestamp,
+      serverTime: rtdbServerTimestamp(), // ✅ Server-authoritative timestamp for correct ordering
     };
 
     if (hasImage) {
@@ -547,6 +540,17 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       messageData.fruits = fruits;
     }
 
+    if (replyToMsg) {
+      messageData.replyTo = {
+        id: replyToMsg.id,
+        text: replyToMsg.text || '',
+        senderId: replyToMsg.senderId,
+        imageUrl: replyToMsg.imageUrl || null,
+        hasFruits: replyToMsg.fruits && replyToMsg.fruits.length > 0,
+        fruitsCount: replyToMsg.fruits ? replyToMsg.fruits.length : 0,
+      };
+    }
+
     const lastMessagePreview =
       trimmedText ||
       (hasImage ? '📷 Photo' : hasFruits ? `🐾 ${fruits.length} pet(s)` : '');
@@ -555,41 +559,55 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     const optimisticMsg = {
       id: String(timestamp),
       ...messageData,
+      serverTime: timestamp, // ✅ Use local estimate until server data arrives via child_added
+      _optimistic: true, // ✅ Mark so child_added can update with real serverTime
       sender: user?.displayName || 'You',
       avatar: user?.avatar || null,
+      ...(replyToMsg ? { replyTo: messageData.replyTo } : {}),
     };
     setMessages(prev => {
       if (!Array.isArray(prev)) return [optimisticMsg];
-      return [optimisticMsg, ...prev].sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
+      return [optimisticMsg, ...prev].sort((a, b) => (b?.serverTime || b?.timestamp || 0) - (a?.serverTime || a?.timestamp || 0));
     });
 
     try {
-      await messageRef.set(messageData);
+      await set(messageRef, messageData);
 
+      // ✅ Cost opt #2(a): Only write receiverName/receiverAvatar once per session.
+      // They rarely change, and the receiver's useFocusEffect clears unreadCount on open.
+      // ✅ Cost opt #5: Drop the pre-send get(receiverStatusRef); always increment(1).
+      //   Receiver's useFocusEffect already resets unreadCount to 0 when they open the chat.
+      const senderKey = `${myUserId}_${selectedUserId}`;
+      const receiverKey = `${selectedUserId}_${myUserId}`;
 
-      const snapshot = await receiverStatusRef.once('value');
-      const isReceiverInChat = snapshot.val() === chatId;
-
-
-      await senderChatRef.update({
+      const senderUpdate = {
         chatId,
         receiverId: selectedUserId,
-        receiverName: currentSelectedUser?.sender || "Anonymous",
-        receiverAvatar: currentSelectedUser?.avatar || "https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png",
         lastMessage: lastMessagePreview,
         timestamp,
         unreadCount: 0,
-      });
-
-      await receiverChatRef.update({
+      };
+      const receiverUpdate = {
         chatId,
         receiverId: myUserId,
-        receiverName: user?.displayName || "Anonymous",
-        receiverAvatar: user?.avatar || "https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png",
         lastMessage: lastMessagePreview,
         timestamp,
-        unreadCount: isReceiverInChat ? 0 : increment(1),
-      });
+        unreadCount: increment(1),
+      };
+
+      if (!metaIdentityWrittenRef.current.has(senderKey)) {
+        senderUpdate.receiverName = currentSelectedUser?.sender || "Anonymous";
+        senderUpdate.receiverAvatar = currentSelectedUser?.avatar || "https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png";
+        metaIdentityWrittenRef.current.add(senderKey);
+      }
+      if (!metaIdentityWrittenRef.current.has(receiverKey)) {
+        receiverUpdate.receiverName = user?.displayName || "Anonymous";
+        receiverUpdate.receiverAvatar = user?.avatar || "https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png";
+        metaIdentityWrittenRef.current.add(receiverKey);
+      }
+
+      await update(senderChatRef, senderUpdate);
+      await update(receiverChatRef, receiverUpdate);
 
       setReplyTo(null);
       hasSentMessageRef.current += 1; // ✅ Increment message count
@@ -605,9 +623,12 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
 
       const chatMetaRef = ref(appdatabase, `chat_meta_data/${user.id}/${selectedUserId}`);
 
-      chatMetaRef.update({ unreadCount: 0 });
+      update(chatMetaRef, { unreadCount: 0 });
 
       setActiveChat(user.id, chatKey);
+
+      // ✅ Mark messages as read
+      updateLastRead(chatKey, user.id);
 
       // ✅ Reset refs when entering chat
       hasSentMessageRef.current = 0;
@@ -638,7 +659,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     // ✅ OPTIMIZED: Use limitToLast(1) on child_added to only listen for NEW messages
     // This prevents downloading all historical messages when listener is attached
     // Initial load is handled by loadMessages() with pagination
-    const newMessagesQuery = messagesRef.orderByKey().limitToLast(1);
+    const newMessagesQuery = dbQuery(messagesRef, orderByKey(), limitToLast(1));
 
     const handleChildAdded = snapshot => {
       if (!snapshot || !snapshot.key) return;
@@ -650,21 +671,34 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
         newMessage.timestamp = Date.now();
       }
 
+      // ✅ Update lastRead when a message from the other user arrives while we're viewing
+      if (newMessage.senderId && newMessage.senderId !== myUserIdRef.current && chatKeyRef.current) {
+        updateLastRead(chatKeyRef.current, myUserIdRef.current);
+      }
+
       setMessages(prev => {
         if (!Array.isArray(prev)) return [newMessage];
-        const exists = prev.some(m => String(m?.id) === String(newMessage.id));
-        if (exists) return prev;
+        const existingIndex = prev.findIndex(m => String(m?.id) === String(newMessage.id));
+        if (existingIndex !== -1) {
+          // ✅ Update optimistic message with real server data (corrects serverTime)
+          if (prev[existingIndex]._optimistic) {
+            const updated = [...prev];
+            updated[existingIndex] = { ...updated[existingIndex], ...newMessage, _optimistic: false };
+            return updated.sort((a, b) => (b?.serverTime || b?.timestamp || 0) - (a?.serverTime || a?.timestamp || 0));
+          }
+          return prev; // Already have real data, skip
+        }
 
-        return [newMessage, ...prev].sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
+        return [newMessage, ...prev].sort((a, b) => (b?.serverTime || b?.timestamp || 0) - (a?.serverTime || a?.timestamp || 0));
       });
     };
 
     // ✅ Only listen for the latest message (new messages only)
-    newMessagesQuery.on('child_added', handleChildAdded);
+    const unsubscribe = onChildAdded(newMessagesQuery, handleChildAdded);
 
     return () => {
-      if (newMessagesQuery) {
-        newMessagesQuery.off('child_added', handleChildAdded);
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
       }
     };
   }, [messagesRef]);
@@ -679,118 +713,115 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     <>
       <GestureHandlerRootView>
         <View style={styles.container}>
-          <ConditionalKeyboardWrapper style={{ flex: 1 }} chatscreen={true}>
-            <TouchableWithoutFeedback
-              onPress={Keyboard.dismiss}
-              accessible={false}
-            >
-              <View style={{ flex: 1 }}>
-                {trade && (
-                  <View>
-                    <View style={styles.tradeDetails}>
-                      <View style={styles.itemList}>
-                        {groupedHasItems?.map((hasItem, index) => (
-                          <View key={`${hasItem.name}-${hasItem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
-                            <Image
-                              source={{
-                                uri: hasItem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(hasItem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(hasItem.name)}_Icon.webp`,
-                              }}
-                              style={[styles.itemImage, { backgroundColor: hasItem.type === 'p' ? '#FFCC00' : '' }]}
-                            />
-                            <Text style={styles.names}>
-                              {hasItem.name || ''}{hasItem.type === 'p' ? ' (P)' : ''}
-                            </Text>
-                            {hasItem.count > 1 && (
-                              <View style={styles.tagcount}>
-                                <Text style={styles.tagcounttext}>{hasItem.count}</Text>
-                              </View>
-                            )}
+          <ConditionalKeyboardWrapper style={{ flex: 1 }} privatechatscreen={true}>
+            {trade && (
+              <View>
+                <View style={styles.tradeDetails}>
+                  <View style={styles.itemList}>
+                    {groupedHasItems?.map((hasItem, index) => (
+                      <View key={`${hasItem.name}-${hasItem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
+                        <Image
+                          source={{
+                            uri: hasItem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(hasItem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(hasItem.name)}_Icon.webp`,
+                          }}
+                          style={[styles.itemImage, { backgroundColor: hasItem.type === 'p' ? '#FFCC00' : '' }]}
+                        />
+                        <Text style={styles.names}>
+                          {hasItem.name || ''}{hasItem.type === 'p' ? ' (P)' : ''}
+                        </Text>
+                        {hasItem.count > 1 && (
+                          <View style={styles.tagcount}>
+                            <Text style={styles.tagcounttext}>{hasItem.count}</Text>
                           </View>
-                        ))}
+                        )}
                       </View>
-                      <View style={styles.transfer}>
-                        <Image source={require('../../../assets/transfer.png')} style={styles.transferImage} />
-                      </View>
-                      <View style={styles.itemList}>
-                        {groupedWantsItems?.map((wantitem, index) => (
-                          <View key={`${wantitem.name}-${wantitem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
-                            <Image
-                              source={{
-                                uri: wantitem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(wantitem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(wantitem.name)}_Icon.webp`,
-                              }}
-                              style={[styles.itemImage, { backgroundColor: wantitem.type === 'p' ? '#FFCC00' : '' }]}
-                            />
-                            <Text style={styles.names}>
-                              {wantitem.name || ''}{wantitem.type === 'p' ? ' (P)' : ''}
-                            </Text>
-                            {wantitem.count > 1 && (
-                              <View style={styles.tagcount}>
-                                <Text style={styles.tagcounttext}>{wantitem.count}</Text>
-                              </View>
-                            )}
-                          </View>
-                        ))}
-                      </View>
-                    </View>
+                    ))}
                   </View>
-                )}
-                {messages.length === 0 ? (
-                  loading ? (
-                    <ActivityIndicator
-                      size="large"
-                      color="#1E88E5"
-                      style={{ flex: 1, justifyContent: 'center' }}
-                    />
-                  ) : (
-                    <View style={styles.emptyContainer}>
-                      <Text style={styles.emptyText}>{t('chat.no_messages_yet')}</Text>
-                    </View>
-                  )
-                ) : (
-                  <PrivateMessageList
-                    messages={messages}
-                    userId={myUserId}
-                    handleLoadMore={handleLoadMore}
-                    refreshing={refreshing}
-                    onRefresh={handleRefresh}
-                    isBanned={isBanned}
-                    selectedUser={currentSelectedUser}
-                    user={user}
-                    isAdmin={isAdmin} // ✅ Pass global admin status
-                    onReply={(message) => setReplyTo(message)}
-                    canRate={canRate}
-                    hasRated={hasRated}
-                    setShowRatingModal={setShowRatingModal}
-                    chatKey={chatKey}
-                  />
-                )}
-                <PrivateMessageInput
-                  onSend={sendMessage}
-                  isBanned={isBanned}
-                  bannedUsers={bannedUsers}
-                  replyTo={replyTo}
-                  onCancelReply={() => setReplyTo(null)}
-                  input={input}
-                  setInput={setInput}
-                  selectedTheme={selectedTheme}
-                  petModalVisible={petModalVisible}
-                  setPetModalVisible={setPetModalVisible}
-                  selectedFruits={selectedFruits}
-                  setSelectedFruits={setSelectedFruits}
-                />
-                <PetModal
-                  fromChat={true}
-                  visible={petModalVisible}
-                  onClose={() => setPetModalVisible(false)}
-                  selectedFruits={selectedFruits}
-                  setSelectedFruits={setSelectedFruits}
-                />
+                  <View style={styles.transfer}>
+                    <Image source={require('../../../assets/transfer.png')} style={styles.transferImage} />
+                  </View>
+                  <View style={styles.itemList}>
+                    {groupedWantsItems?.map((wantitem, index) => (
+                      <View key={`${wantitem.name}-${wantitem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
+                        <Image
+                          source={{
+                            uri: wantitem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(wantitem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(wantitem.name)}_Icon.webp`,
+                          }}
+                          style={[styles.itemImage, { backgroundColor: wantitem.type === 'p' ? '#FFCC00' : '' }]}
+                        />
+                        <Text style={styles.names}>
+                          {wantitem.name || ''}{wantitem.type === 'p' ? ' (P)' : ''}
+                        </Text>
+                        {wantitem.count > 1 && (
+                          <View style={styles.tagcount}>
+                            <Text style={styles.tagcounttext}>{wantitem.count}</Text>
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                </View>
               </View>
-            </TouchableWithoutFeedback>
+            )}
+
+            {messages.length === 0 ? (
+              loading ? (
+                <ActivityIndicator
+                  size="large"
+                  color="#1E88E5"
+                  style={{ flex: 1, justifyContent: 'center' }}
+                />
+              ) : (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>{t('chat.no_messages_yet')}</Text>
+                </View>
+              )
+            ) : (
+              <PrivateMessageList
+                messages={messages}
+                userId={myUserId}
+                handleLoadMore={handleLoadMore}
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                isBanned={isBanned}
+                selectedUser={currentSelectedUser}
+                user={user}
+                isAdmin={isAdmin}
+                onReply={(message) => setReplyTo(message)}
+                canRate={canRate}
+                hasRated={hasRated}
+                setShowRatingModal={setShowRatingModal}
+                chatKey={chatKey}
+                otherLastRead={otherLastRead}
+              />
+            )}
+
+            {!localState.isPro && <BannerAdComponent />}
+
+            <PrivateMessageInput
+              onSend={sendMessage}
+              isBanned={isBanned}
+              bannedUsers={bannedUsers}
+              replyTo={replyTo}
+              onCancelReply={() => setReplyTo(null)}
+              input={input}
+              setInput={setInput}
+              selectedTheme={selectedTheme}
+              petModalVisible={petModalVisible}
+              setPetModalVisible={setPetModalVisible}
+              selectedFruits={selectedFruits}
+              setSelectedFruits={setSelectedFruits}
+            />
+            <PetModal
+              fromChat={true}
+              visible={petModalVisible}
+              onClose={() => setPetModalVisible(false)}
+              selectedFruits={selectedFruits}
+              setSelectedFruits={setSelectedFruits}
+            />
           </ConditionalKeyboardWrapper>
         </View>
       </GestureHandlerRootView>
-      {!localState.isPro && <BannerAdComponent />}
       {showRatingModal && (
         <View
           style={{

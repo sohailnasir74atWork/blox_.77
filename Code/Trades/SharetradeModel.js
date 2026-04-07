@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { View, Text, Image, Modal, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import Share from 'react-native-share';
@@ -23,6 +24,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const [includeAppTag, setIncludeAppTag] = useState(true);
     const [showLeftGrid, setShowLeftGrid] = useState(true);
     const [showRightGrid, setShowRightGrid] = useState(true);
+    const insets = useSafeAreaInsets();
     const { theme, proGranted, single_offer_wall } = useGlobalState()
     const isDarkMode = theme === 'dark'
     const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
@@ -314,7 +316,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                     </View>
 
                     {/* Buttons */}
-                    <View style={styles.buttonContainer}>
+                    <View style={[styles.buttonContainer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
                         <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
                             <Text style={styles.cancelText}>Cancel</Text>
                         </TouchableOpacity>

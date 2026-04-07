@@ -46,7 +46,7 @@ export const awardGameWin = async (appdatabase, firestoreDB, userId) => {
     // ✅ Track total wins only in Firestore (not RTDB)
     const statsRef = doc(firestoreDB, 'game_stats', userId);
     const statsSnap = await getDoc(statsRef);
-    const statsData = statsSnap.exists ? statsSnap.data() || {} : {};
+    const statsData = statsSnap.exists() ? statsSnap.data() || {} : {};
     const currentWins = statsData.fruitGameWins ? Number(statsData.fruitGameWins) : 0;
     const newWins = currentWins + 1;
 
@@ -811,7 +811,7 @@ export const listenToGameRoom = (firestoreDB, roomId, callback) => {
   const unsubscribe = onSnapshot(
     roomRef,
     (snapshot) => {
-      if (!snapshot.exists) {
+      if (!snapshot.exists()) {
         callback(null);
         return;
       }

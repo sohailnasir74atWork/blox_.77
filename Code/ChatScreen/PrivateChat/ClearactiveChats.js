@@ -1,11 +1,12 @@
 import {  useCallback } from 'react';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { BackHandler } from 'react-native';
-import database from '@react-native-firebase/database';
+import { getDatabase, ref, remove, update } from '@react-native-firebase/database';
 
 const clearActiveChat = async (userId) => {
   try {
-    await database().ref(`/activeChats/${userId}`).remove();
+    const db = getDatabase();
+    await remove(ref(db, `/activeChats/${userId}`));
   } catch (error) {
     console.error(`Failed to clear active chat for user ${userId}:`, error);
   }
@@ -17,7 +18,8 @@ export const useActiveChatHandler = (userId, chatId) => {
   // Memoized function to set active chat
   const setActiveChat = useCallback(async () => {
     try {
-      await database().ref(`/activeChats/${userId}`).update({ chatId });
+      const db = getDatabase();
+      await update(ref(db, `/activeChats/${userId}`), { chatId });
     } catch (error) {
       console.error(`Failed to set active chat for user ${userId}:`, error);
     }

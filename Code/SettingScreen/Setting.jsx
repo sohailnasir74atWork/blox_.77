@@ -20,10 +20,10 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../GlobelStats';
 import { getStyles } from './settingstyle';
-import { handleGetSuggestions, handleOpenFacebook, handleOpenWebsite, handleRateApp, handleadoptme, handleShareApp, imageOptions, handleBloxFruit, handleRefresh, handleReport, handleOpenPrivacy, handleOpenChild } from './settinghelper';
+import { handleGetSuggestions, handleOpenFacebook, handleOpenWebsite, handleRateApp, handleadoptme, handleShareApp, imageOptions, handleBloxFruit, handleMM2, handleRefresh, handleReport, handleOpenPrivacy, handleOpenChild } from './settinghelper';
 import { logoutUser } from '../Firebase/UserLogics';
 import SignInDrawer from '../Firebase/SigninDrawer';
-import auth from '@react-native-firebase/auth';
+import { getAuth } from '@react-native-firebase/auth';
 import { resetUserState } from '../Globelhelper';
 import ConditionalKeyboardWrapper from '../Helper/keyboardAvoidingContainer';
 import { useHaptic } from '../Helper/HepticFeedBack';
@@ -41,7 +41,6 @@ import StyledUsernamePreview from './Store/StyledName';
 import StyledDisplayName from './Store/NameDisplayReUser';
 import { Image as CompressorImage } from 'react-native-compressor';
 import RNFS from 'react-native-fs';
-import { getFlag } from '../Helper/CountryCheck';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 
@@ -705,47 +704,9 @@ export default function SettingsScreen({ selectedTheme }) {
     updateLocalState('isHaptic', value); // Update isHaptic state globally
   };
 
-  // ✅ Handle flag visibility toggle
-  const handleToggleFlag = async (value) => {
-    // ✅ Check if user is pro - if not, show upgrade alert
-    if (!localState.isPro) {
-      Alert.alert(
-        "Pro Feature",
-        "Buy a plan to unlock this feature",
-        [
-          { text: t("home.cancel"), style: 'cancel' },
-          {
-            text: "Upgrade",
-            style: 'default',
-            onPress: () => setShowofferWall(true),
-          },
-        ]
-      );
-      return;
-    }
-
-    // ✅ Pro users can toggle freely
-    updateLocalState('showFlag', value);
-
-    if (user?.id && appdatabase) {
-      try {
-        const userRef = ref(appdatabase, `users/${user.id}`);
-        if (value) {
-          // ✅ Show flag - store it
-          const flagValue = getFlag();
-          await update(userRef, { flage: flagValue });
-          // Update local user state
-          setUser((prev) => ({ ...prev, flage: flagValue }));
-        } else {
-          // ✅ Hide flag - remove it from Firebase to save data
-          await update(userRef, { flage: null });
-          // Update local user state
-          setUser((prev) => ({ ...prev, flage: null }));
-        }
-      } catch (error) {
-        console.error('Error updating flag visibility:', error);
-      }
-    }
+  // ✅ Handle read receipts toggle
+  const handleToggleReadReceipts = (value) => {
+    updateLocalState('showReadReceipts', value);
   };
 
   // ✅ Handle online status visibility toggle
@@ -1059,7 +1020,7 @@ export default function SettingsScreen({ selectedTheme }) {
 
         // ✅ MIGRATED: Load rating from Firestore user_ratings_summary
         if (summarySnap.exists) {
-          const data = summarySnap.data();
+          const data = summarySnap.data() || {};
           setRatingSummary({
             value: Number(data.averageRating || 0),
             count: Number(data.count || 0),
@@ -1181,7 +1142,7 @@ export default function SettingsScreen({ selectedTheme }) {
   const handleSaveChanges = async () => {
     triggerHapticFeedback('impactLight');
     const MAX_NAME_LENGTH = 15;
-    const PROFILE_EDIT_COOLDOWN_DAYS = 30;
+    const PROFILE_EDIT_COOLDOWN_DAYS = 10;
 
     if (!user?.id) return;
 
@@ -1227,13 +1188,23 @@ export default function SettingsScreen({ selectedTheme }) {
 
       // ✅ Update profile with timestamp (displayName, avatar, lastProfileEditAt)
       // Only update lastProfileEditAt if displayName or avatar changed
-      const updateData = {
-        displayName: newDisplayName.trim(),
-        avatar: (selectedImage || '').trim(),
-      };
+      const updateData = {};
+
+      // Only include displayName if it actually changed and isn't a fallback value
+      if (displayNameChanged) {
+        const trimmedName = newDisplayName.trim();
+        if (trimmedName && trimmedName !== 'Anonymous' && trimmedName !== 'Guest User') {
+          updateData.displayName = trimmedName;
+        }
+      }
+
+      // Only include avatar if it actually changed
+      if (avatarChanged) {
+        updateData.avatar = (selectedImage || '').trim();
+      }
 
       if (displayNameChanged || avatarChanged) {
-        updateData.lastProfileEditAt = now; // ✅ Store timestamp only when name/avatar changes
+        updateData.lastProfileEditAt = now;
       }
 
       await updateLocalStateAndDatabase(updateData);
@@ -1655,7 +1626,7 @@ export default function SettingsScreen({ selectedTheme }) {
       try {
         // Load initial batch of 3 trades
         const tradesQuery = await getDocs(query(
-          collection(firestoreDB, 'trades_new'),
+          collection(firestoreDB, 'trades_new_upgrade'),
           where('userId', '==', user.id),
           orderBy('timestamp', 'desc'),
           limit(3)
@@ -1682,32 +1653,21 @@ export default function SettingsScreen({ selectedTheme }) {
     loadMyTrades();
   }, [showMyTradesModal, user?.id, firestoreDB]);
 
-  // Load Followers modal when opens (2 by 2 like adoptme)
+  // Load Followers modal when opens (paginated)
   useEffect(() => {
     if (!showFollowersModal || !user?.id || !firestoreDB || !appdatabase) return;
 
+    const PAGE_SIZE = 3;
     const loadFollowers = async () => {
       setLoadingModalFollowers(true);
       try {
-        let followersSnapshot;
-        let usedOrderBy = true;
-        try {
-          const q = query(
-            collection(firestoreDB, 'following'),
-            where('followingId', '==', user.id),
-            orderBy('createdAt', 'desc'),
-            limit(2)
-          );
-          followersSnapshot = await getDocs(q);
-        } catch (idxErr) {
-          usedOrderBy = false;
-          const fallbackQuery = query(
-            collection(firestoreDB, 'following'),
-            where('followingId', '==', user.id),
-            limit(2)
-          );
-          followersSnapshot = await getDocs(fallbackQuery);
-        }
+        const q = query(
+          collection(firestoreDB, 'following'),
+          where('followingId', '==', user.id),
+          orderBy('createdAt', 'desc'),
+          limit(PAGE_SIZE)
+        );
+        const followersSnapshot = await getDocs(q);
         const docs = followersSnapshot.docs;
         const followerIds = docs.map(d => d.data().followerId).filter(Boolean);
 
@@ -1730,8 +1690,8 @@ export default function SettingsScreen({ selectedTheme }) {
         );
 
         setModalFollowers(followersWithDetails);
-        setModalLastFollowerDoc(usedOrderBy ? (docs[docs.length - 1] || null) : null);
-        setModalHasMoreFollowers(usedOrderBy && docs.length === 2);
+        setModalLastFollowerDoc(docs.length > 0 ? docs[docs.length - 1] : null);
+        setModalHasMoreFollowers(docs.length === PAGE_SIZE);
       } catch (error) {
         console.error('Error loading followers:', error);
         setModalFollowers([]);
@@ -1744,10 +1704,11 @@ export default function SettingsScreen({ selectedTheme }) {
     loadFollowers();
   }, [showFollowersModal, user?.id, firestoreDB, appdatabase]);
 
-  // Load more Followers (2 at a time)
+  // Load more Followers (paginated)
   const loadMoreFollowers = useCallback(async () => {
     if (!user?.id || !firestoreDB || !appdatabase || loadingModalFollowers || !modalLastFollowerDoc) return;
 
+    const PAGE_SIZE = 3;
     setLoadingModalFollowers(true);
     try {
       const followersQuery = query(
@@ -1755,7 +1716,7 @@ export default function SettingsScreen({ selectedTheme }) {
         where('followingId', '==', user.id),
         orderBy('createdAt', 'desc'),
         startAfter(modalLastFollowerDoc),
-        limit(2)
+        limit(PAGE_SIZE)
       );
       const followersSnapshot = await getDocs(followersQuery);
       const docs = followersSnapshot.docs;
@@ -1780,8 +1741,8 @@ export default function SettingsScreen({ selectedTheme }) {
       );
 
       setModalFollowers(prev => [...prev, ...newFollowers]);
-      setModalLastFollowerDoc(docs[docs.length - 1] || null);
-      setModalHasMoreFollowers(docs.length === 2);
+      setModalLastFollowerDoc(docs.length > 0 ? docs[docs.length - 1] : null);
+      setModalHasMoreFollowers(docs.length === PAGE_SIZE);
     } catch (error) {
       console.error('Error loading more followers:', error);
       setModalHasMoreFollowers(false);
@@ -1797,7 +1758,7 @@ export default function SettingsScreen({ selectedTheme }) {
     setLoadingModalMyTrades(true);
     try {
       const tradesQuery = await getDocs(query(
-        collection(firestoreDB, 'trades_new'),
+        collection(firestoreDB, 'trades_new_upgrade'),
         where('userId', '==', user.id),
         orderBy('timestamp', 'desc'),
         startAfter(modalLastTradeDoc),
@@ -1842,7 +1803,7 @@ export default function SettingsScreen({ selectedTheme }) {
             try {
               setDeletingTradeId(tradeId);
               const actualTradeId = tradeId.startsWith("featured-") ? tradeId.replace("featured-", "") : tradeId;
-              await deleteDoc(doc(firestoreDB, "trades_new", actualTradeId));
+              await deleteDoc(doc(firestoreDB, "trades_new_upgrade", actualTradeId));
 
               if (isFeatured) {
                 const currentFeaturedData = localState.featuredCount || { count: 0, time: null };
@@ -1902,7 +1863,7 @@ export default function SettingsScreen({ selectedTheme }) {
                 if (trade.isFeatured) {
                   featuredCount++;
                 }
-                const tradeRef = doc(firestoreDB, "trades_new", tradeId);
+                const tradeRef = doc(firestoreDB, "trades_new_upgrade", tradeId);
                 batch.delete(tradeRef);
               });
 
@@ -2328,7 +2289,7 @@ export default function SettingsScreen({ selectedTheme }) {
         remove(userRef), // ✅ Delete user profile
       ]);
       // Step 4: Delete user from Firebase Authentication
-      const currentUser = auth().currentUser;
+      const currentUser = getAuth().currentUser;
       if (currentUser) {
         await currentUser.delete();
 
@@ -2459,7 +2420,6 @@ export default function SettingsScreen({ selectedTheme }) {
                               marginVertical={1}
                             />
                           }
-                          {user?.flage && <Text>{user.flage}</Text>}
 
                           {/* Pro badges */}
                           {/* {localState?.isPro && (
@@ -2500,61 +2460,8 @@ export default function SettingsScreen({ selectedTheme }) {
                   {user?.id && <Icon name="create" size={24} color={'#566D5D'} />}
                 </TouchableOpacity>
               </View>
-              <View style={styles.petsSection}>
-                {/* Owned Pets */}
-                <View style={[styles.petsColumn]}>
-                  <View style={styles.petsHeaderRow}>
-                    <Text style={styles.petsTitle}>
-                      Owned Items
-                    </Text>
-                    {user?.id && (
-                      <TouchableOpacity onPress={() => handleManagePets('owned')}>
-                        {user?.id && <Icon name="create" size={24} color={'#566D5D'} />}
-                      </TouchableOpacity>
-                    )}
-                  </View>
-
-                  {ownedPets.length === 0 ? (
-                    <Text style={styles.petsEmptyText}>
-                      {user?.id ? 'Select the pets you own' : 'Login to selected owned pets'}
-                    </Text>
-                  ) : (
-                    <View style={styles.petsAvatarRow}>
-                      {ownedPets.map((pet, index) => renderPetBubble(pet, index))}
 
 
-
-                    </View>
-                  )}
-                </View>
-
-                {/* Wishlist */}
-                <View style={styles.petsColumn}>
-                  <View style={styles.petsHeaderRow}>
-                    <Text style={styles.petsTitle}>
-                      Wishlist
-                    </Text>
-                    {user?.id && (
-                      <TouchableOpacity onPress={() => handleManagePets('wish')}>
-                        {user?.id && <Icon name="create" size={24} color={'#566D5D'} />}
-                      </TouchableOpacity>
-                    )}
-                  </View>
-
-                  {wishlistPets.length === 0 ? (
-                    <Text style={styles.petsEmptyText}>
-                      {user?.id ? 'Add pets you want' : 'Login & Add pets you want'}
-                    </Text>
-                  ) : (
-                    <View style={styles.petsAvatarRow}>
-                      {wishlistPets.map((pet, index) => (renderPetBubble(pet, index)))}
-
-
-
-                    </View>
-                  )}
-                </View>
-              </View>
 
               {/* ⭐ Rating summary - Below profile picture section */}
               {user?.id && (
@@ -2651,20 +2558,21 @@ export default function SettingsScreen({ selectedTheme }) {
                 </View>
               )}
 
-              {/* Flag Visibility Toggle */}
+
+              {/* ✅ Read Receipts Toggle */}
               {user?.id && (
                 <View style={styles.option}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
                     <TouchableOpacity
                       style={{ flexDirection: 'row', alignItems: 'center' }}
-                      onPress={() => handleToggleFlag(!localState.showFlag)}
+                      onPress={() => handleToggleReadReceipts(!(localState.showReadReceipts ?? true))}
                     >
-                      <Icon name="flag-outline" size={18} color={'white'} style={{ backgroundColor: '#FF6B6B', padding: 5, borderRadius: 5 }} />
-                      <Text style={styles.optionText}>Country Flag</Text>
+                      <Icon name="checkmark-done-outline" size={18} color={'white'} style={{ backgroundColor: '#3B82F6', padding: 5, borderRadius: 5 }} />
+                      <Text style={styles.optionText}>{t('settings.read_receipts')}</Text>
                     </TouchableOpacity>
                     <Switch
-                      value={localState.showFlag ?? true}
-                      onValueChange={handleToggleFlag}
+                      value={localState.showReadReceipts ?? true}
+                      onValueChange={handleToggleReadReceipts}
                     />
                   </View>
                 </View>
@@ -2889,38 +2797,8 @@ export default function SettingsScreen({ selectedTheme }) {
                 )}
               </View>
 
-              {/* My Trades Section - Below Reviews */}
-              <View style={styles.reviewsSection}>
-                <Text style={{ fontSize: 14, fontWeight: 'bold', color: isDarkMode ? '#e5e7eb' : '#111827', marginBottom: 12 }}>
-                  My Trades
-                </Text>
 
-                {!user?.id ? (
-                  <Text style={styles.reviewsEmptyText}>
-                    Login to see your trades
-                  </Text>
-                ) : (
-                  <TouchableOpacity
-                    onPress={() => setShowMyTradesModal(true)}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
-                      borderRadius: 10,
-                      paddingVertical: 12,
-                      paddingHorizontal: 12,
-                      borderWidth: 1,
-                      borderColor: isDarkMode ? '#1f2937' : '#e5e7eb',
-                    }}
-                  >
-                    <Icon name="swap-horizontal-outline" size={18} color="#FF9500" style={{ marginRight: 6 }} />
-                    <Text style={{ fontSize: 13, fontWeight: '600', color: isDarkMode ? '#e5e7eb' : '#111827' }}>
-                      View My Trades
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+
             </View>
           </ScrollView>
         </ConditionalKeyboardWrapper>

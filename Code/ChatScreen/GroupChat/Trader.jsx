@@ -26,7 +26,7 @@ import leoProfanity from 'leo-profanity';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import { useLocalState } from '../../LocalGlobelStats';
-import database, { onValue, ref, remove } from '@react-native-firebase/database';
+import database, { onValue, ref, remove, get, query as dbQuery, orderByKey, limitToLast, endAt, onChildAdded, push, set, child, serverTimestamp } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
 import { mixpanel } from '../../AppHelper/MixPenel';
 import InterstitialAdManager from '../../Ads/IntAd';
@@ -34,34 +34,36 @@ import BannerAdComponent from '../../Ads/bannerAds';
 import { logoutUser } from '../../Firebase/UserLogics';
 import { showMessage } from 'react-native-flash-message';
 import PetModal from '../PrivateChat/PetsModel';
+import { getCachedProfile, getOrFetchProfile, seedCurrentUser, warmProfileCache } from '../../Helper/profileCache';
+// getMyCosmetics no longer needed — cosmetics resolved from profileCache on render
 
 leoProfanity.add(['hell', 'shit']);
 leoProfanity.loadDictionary('en');
 
 const CHANNELS = [
   // ── Core channels ──────────────────────────────────────────────────────────
-  { id: 'chat', label: 'English', icon: 'handshake', path: 'chat_new' },
-  { id: 'raid', label: 'Raids', icon: 'bolt', path: 'chat_raid' },
-  { id: 'help', label: 'Help', icon: 'circle-question', path: 'chat_help' },
-  { id: 'playing', label: 'Playing', icon: 'gamepad', path: 'chat_playing' },
+  { id: 'chat', label: 'English', icon: 'handshake', path: 'chat_new_upgrade' },
+  { id: 'raid', label: 'Raids', icon: 'bolt', path: 'chat_raid_upgrade' },
+  { id: 'help', label: 'Help', icon: 'circle-question', path: 'chat_help_upgrade' },
+  { id: 'playing', label: 'Playing', icon: 'gamepad', path: 'chat_playing_upgrade' },
   // ── Language channels ──────────────────────────────────────────────────────
-  { id: 'es', label: '🇪🇸 Español', icon: 'globe', path: 'chat_es' },
-  { id: 'ar', label: '🇸🇦 Arabic', icon: 'globe', path: 'chat_ar' },
-  { id: 'pt', label: '🇧🇷 Português', icon: 'globe', path: 'chat_pt' },
-  { id: 'fr', label: '🇫🇷 Français', icon: 'globe', path: 'chat_fr' },
-  { id: 'de', label: '🇩🇪 Deutsch', icon: 'globe', path: 'chat_de' },
-  { id: 'tr', label: '🇹🇷 Türkçe', icon: 'globe', path: 'chat_tr' },
-  { id: 'ru', label: '🇷🇺 Русский', icon: 'globe', path: 'chat_ru' },
-  { id: 'id', label: '🇮🇩 Indonesia', icon: 'globe', path: 'chat_id' },
-  { id: 'ja', label: '🇯🇵 日本語', icon: 'globe', path: 'chat_ja' },
-  { id: 'ko', label: '🇰🇷 한국어', icon: 'globe', path: 'chat_ko' },
-  { id: 'ph', label: '🇵🇭 Filipino', icon: 'globe', path: 'chat_ph' },
+  { id: 'es', label: '🇪🇸 Español', icon: 'globe', path: 'chat_es_upgrade' },
+  { id: 'ar', label: '🇸🇦 Arabic', icon: 'globe', path: 'chat_ar_upgrade' },
+  { id: 'pt', label: '🇧🇷 Português', icon: 'globe', path: 'chat_pt_upgrade' },
+  { id: 'fr', label: '🇫🇷 Français', icon: 'globe', path: 'chat_fr_upgrade' },
+  { id: 'de', label: '🇩🇪 Deutsch', icon: 'globe', path: 'chat_de_upgrade' },
+  { id: 'tr', label: '🇹🇷 Türkçe', icon: 'globe', path: 'chat_tr_upgrade' },
+  { id: 'ru', label: '🇷🇺 Русский', icon: 'globe', path: 'chat_ru_upgrade' },
+  { id: 'id', label: '🇮🇩 Indonesia', icon: 'globe', path: 'chat_id_upgrade' },
+  { id: 'ja', label: '🇯🇵 日本語', icon: 'globe', path: 'chat_ja_upgrade' },
+  { id: 'ko', label: '🇰🇷 한국어', icon: 'globe', path: 'chat_ko_upgrade' },
+  { id: 'ph', label: '🇵🇭 Filipino', icon: 'globe', path: 'chat_ph_upgrade' },
 ];
 
 const bannerAdUnitId = getAdUnitId('banner');
 const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatFocused,
   setModalVisibleChatinfo, unreadMessagesCount, unreadcount, setunreadcount, onlineUsersVisible, setOnlineUsersVisible }) => {
-  const { user, theme, onlineMembersCount, appdatabase, setUser, isAdmin, proTagBought, currentUserEmail, proGranted, strikeInfo } = useGlobalState();
+  const { user, theme, onlineMembersCount, appdatabase, setUser, isAdmin, proTagBought, currentUserEmail, proGranted, strikeInfo, isBabyMod, isTrusted, isCMSR, isGrinder, isRaider } = useGlobalState();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [replyTo, setReplyTo] = useState(null);
@@ -88,6 +90,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   const [selectedFruits, setSelectedFruits] = useState([]);
   const [device, setDevice] = useState(null);
   const [activeChannel, setActiveChannel] = useState(CHANNELS[0]); // ✅ Default to Trade Chat
+  const [pinnedMessages, setPinnedMessages] = useState([]);
 
   // ✅ Track last sent message to prevent duplicates (session-based, no Firebase cost)
   const lastSentMessageRef = useRef(null);
@@ -99,6 +102,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   const gifAllowed = true; // Always allow GIFs/emojis
 
   const chatRef = useMemo(() => ref(appdatabase, activeChannel.path), [activeChannel.path]);
+  const pinnedMessagesRef = useMemo(() => appdatabase ? ref(appdatabase, 'pin_messages') : null, [appdatabase]);
+
   // ✅ Memoize openProfileDrawer
   const openProfileDrawer = useCallback(async (userData) => {
     if (!userData || !userData.senderId) return;
@@ -184,14 +189,14 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
     return {
       ...message,
-      sender: (message?.sender ?? "Anonymous").toString().trim() || "Anonymous",
-      text: trimmed, // keep trimmed text, but don't force empty for fruits-only
-      // ✅ do NOT invent fake timestamps
+      // ✅ Keep original sender if present (old format), leave undefined for slim messages
+      // resolveProfile() in MessagesList handles the fallback: message → cache → default
+      sender: message?.sender ? message.sender.toString().trim() : undefined,
+      text: trimmed,
       timestamp:
         typeof message?.timestamp === "number"
           ? message.timestamp
-          : Date.now(), // fallback only if missing
-      // Optional: if message is truly empty (shouldn't exist), mark it
+          : Date.now(),
       _invalid: !hasContent,
     };
   }, []);
@@ -211,10 +216,10 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         // console.log(`[loadMessages] Fetching messages... reset: ${reset}, lastLoadedKey: ${lastLoadedKey}`);
 
         const messageQuery = reset
-          ? activeRef.orderByKey().limitToLast(PAGE_SIZE)
-          : activeRef.orderByKey().endAt(lastLoadedKey).limitToLast(PAGE_SIZE);
+          ? dbQuery(activeRef, orderByKey(), limitToLast(PAGE_SIZE))
+          : dbQuery(activeRef, orderByKey(), endAt(lastLoadedKey), limitToLast(PAGE_SIZE));
 
-        const snapshot = await messageQuery.once('value');
+        const snapshot = await get(messageQuery);
         const data = snapshot.val() || {};
 
         // ✅ Safety check for bannedUsers array
@@ -235,9 +240,12 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         }
 
         if (parsedMessages.length === 0) {
-          // console.log('[loadMessages] Reached end of messages, not loading more.');
           return;
         }
+
+        // ✅ Warm profile cache before rendering so slim messages show correct names
+        const senderIds = parsedMessages.map(m => m.senderId).filter(Boolean);
+        await warmProfileCache(appdatabase, senderIds);
 
         if (reset) {
           setMessages(parsedMessages);
@@ -272,6 +280,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       setChatFocused(false);
     }
     setDevice(Platform.OS);
+    // ✅ Seed current user's profile into cache so own slim messages render correctly
+    if (user?.id) seedCurrentUser(user, localState, appdatabase);
   }, [setChatFocused]);
 
   // ✅ Channel switch handler — resets state for new channel
@@ -300,7 +310,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         setLoading(true);
         setLastLoadedKey(null);
 
-        const snapshot = await currentRef.orderByKey().limitToLast(PAGE_SIZE).once('value');
+        const snapshot = await get(dbQuery(currentRef, orderByKey(), limitToLast(PAGE_SIZE)));
         if (cancelled) return;
 
         const data = snapshot.val() || {};
@@ -349,8 +359,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     const initializeListener = async () => {
       try {
         // Step 1: Get only the latest message KEY (minimal download)
-        initialLoadQuery = currentRef.orderByKey().limitToLast(1);
-        const initialSnapshot = await initialLoadQuery.once('value');
+        initialLoadQuery = dbQuery(currentRef, orderByKey(), limitToLast(1));
+        const initialSnapshot = await get(initialLoadQuery);
         if (cancelled) return;
 
         if (initialSnapshot.exists()) {
@@ -364,9 +374,9 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         hasInitializedRef.current = true;
 
         // Step 2: Listen for NEW messages only (skips initial data)
-        listenerQueryRef = currentRef.orderByKey().limitToLast(1);
+        listenerQueryRef = dbQuery(currentRef, orderByKey(), limitToLast(1));
 
-        listener = listenerQueryRef.on('child_added', (snapshot) => {
+        listener = onChildAdded(listenerQueryRef, (snapshot) => {
           if (cancelled || !snapshot || !snapshot.key) return;
 
           // ✅ Skip if this is the message we already loaded during initialization
@@ -386,6 +396,13 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
           // ✅ Check if message is from banned user
           const banned = Array.isArray(bannedUsers) ? bannedUsers : [];
           if (banned.includes(newMessage.senderId)) return;
+
+          // ✅ Fetch profile for uncached senders (slim messages have no name/avatar)
+          if (data.senderId && !getCachedProfile(data.senderId)) {
+            getOrFetchProfile(appdatabase, data.senderId).then(() => {
+              setMessages(prev => [...prev]); // Re-render with resolved profile
+            });
+          }
 
           setMessages((prev) => {
             if (!Array.isArray(prev)) return [newMessage];
@@ -409,8 +426,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         if (cancelled) return;
         console.error('Error initializing chat listener:', error);
         // Fallback to original listener if initialization fails
-        listenerQueryRef = currentRef.limitToLast(1);
-        listener = listenerQueryRef.on('child_added', (snapshot) => {
+        listenerQueryRef = dbQuery(currentRef, limitToLast(1));
+        listener = onChildAdded(listenerQueryRef, (snapshot) => {
           if (cancelled || !snapshot || !snapshot.key) return;
           const data = snapshot.val();
           if (!data || typeof data !== 'object') return;
@@ -418,6 +435,11 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
           if (!newMessage || !newMessage.id) return;
           const banned = Array.isArray(bannedUsers) ? bannedUsers : [];
           if (banned.includes(newMessage.senderId)) return;
+          if (data.senderId && !getCachedProfile(data.senderId)) {
+            getOrFetchProfile(appdatabase, data.senderId).then(() => {
+              setMessages(prev => [...prev]);
+            });
+          }
           setMessages((prev) => {
             if (!Array.isArray(prev)) return [newMessage];
             const seenKeys = new Set(prev.map((msg) => msg?.id).filter(Boolean));
@@ -442,14 +464,9 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
     return () => {
       cancelled = true;
-      // ✅ Remove listener from the EXACT query ref it was attached to
-      if (listener && listenerQueryRef) {
-        listenerQueryRef.off('child_added', listener);
-      }
-      // ✅ Safety net: remove ALL listeners on this path
-      currentRef.off();
-      if (initialLoadQuery) {
-        initialLoadQuery.off('value');
+      // ✅ Remove listener — modular API returns unsubscribe function
+      if (typeof listener === 'function') {
+        listener();
       }
       hasInitializedRef.current = false;
     };
@@ -493,11 +510,11 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
     const userRef = ref(appdatabase, `users/${user.id}/isBlock`);
 
-    const unsubscribe = userRef.on('value', (snapshot) => {
+    const unsubscribe = onValue(userRef, (snapshot) => {
       const isBlocked = snapshot.val();
       if (isBlocked === true) {
         Alert.alert(
-          '🚫 Blocked',
+          'Blocked',
           'You have been blocked by the admin. Logging you out.',
           [{
             text: 'OK', onPress: () => {
@@ -509,7 +526,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     });
 
     return () => {
-      userRef.off('value', unsubscribe);
+      unsubscribe();
     };
   }, [user?.id]);
 
@@ -518,7 +535,85 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     setRefreshing(true);
     await loadMessages(true);
     setRefreshing(false);
-    // fetchChats()
+  };
+
+  // ✅ Pinned messages: load + real-time listener
+  useEffect(() => {
+    if (!pinnedMessagesRef) return;
+
+    const fetchPinnedMessages = async () => {
+      try {
+        const snapshot = await get(pinnedMessagesRef);
+        const pinnedMessagesData = snapshot.val() || {};
+
+        const pinnedMessagesArray = Object.entries(pinnedMessagesData)
+          .map(([key, value]) => {
+            if (!key || !value || typeof value !== 'object') return null;
+            return { firebaseKey: key, ...value };
+          })
+          .filter(Boolean)
+          .sort((a, b) => (b.pinnedAt || 0) - (a.pinnedAt || 0));
+
+        setPinnedMessages(pinnedMessagesArray);
+      } catch (error) {
+        console.error('Error loading pinned messages:', error);
+      }
+    };
+
+    fetchPinnedMessages();
+
+    const unsubPinned = onChildAdded(pinnedMessagesRef, (snapshot) => {
+      if (!snapshot || !snapshot.key) return;
+      const data = snapshot.val();
+      if (!data || typeof data !== 'object') return;
+      const newPinnedMessage = { firebaseKey: snapshot.key, ...data };
+      setPinnedMessages((prev) => {
+        const exists = prev.some(msg => msg.firebaseKey === snapshot.key);
+        return exists ? prev : [newPinnedMessage, ...prev];
+      });
+    });
+
+    return () => {
+      unsubPinned();
+    };
+  }, [pinnedMessagesRef]);
+
+  const handlePinMessage = async (message) => {
+    try {
+      const pinnedMessage = { ...message, pinnedAt: Date.now() };
+      const newRef = push(pinnedMessagesRef);
+      await set(newRef, pinnedMessage);
+
+      setPinnedMessages((prev) => [
+        ...prev,
+        { firebaseKey: newRef.key, ...pinnedMessage },
+      ]);
+    } catch (error) {
+      console.error('Error pinning message:', error);
+      Alert.alert(t('home.alert.error'), t('chat.pin_error'));
+    }
+  };
+
+  const unpinSingleMessage = async (firebaseKey) => {
+    try {
+      const messageRef = child(pinnedMessagesRef, firebaseKey);
+      await remove(messageRef);
+
+      setPinnedMessages((prev) => prev.filter((msg) => msg.firebaseKey !== firebaseKey));
+    } catch (error) {
+      console.error('Error unpinning message:', error);
+      Alert.alert(t('home.alert.error'), t('chat.unpin_error'));
+    }
+  };
+
+  const clearAllPinnedMessages = async () => {
+    try {
+      await remove(pinnedMessagesRef);
+      setPinnedMessages([]);
+    } catch (error) {
+      console.error('Error clearing pinned messages:', error);
+      Alert.alert(t('home.alert.error'), t('chat.clear_pins_error'));
+    }
   };
 
   const handleSendMessage = async (replyToArg, trimmedInputArg, fruits, emojiUrl) => {
@@ -638,35 +733,18 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         return;
       }
 
-      // Push to Firebase Realtime Database
-      const now = Date.now();
-      const hasRecentWin =
-        typeof user?.lastGameWinAt === 'number' &&
-        now - user.lastGameWinAt <= 24 * 60 * 60 * 1000; // last win within 24h
-
-      await chatRef.push({
-        text: trimmedInput || null, // allow fruits-only messages
-        timestamp: database.ServerValue.TIMESTAMP,
-        sender: user.displayName || 'Anonymous',
+      // ✅ SLIM MESSAGE: Only send message-specific data
+      // User metadata (name, avatar, badges, cosmetics) resolved from profileCache on render
+      await push(chatRef, {
+        text: trimmedInput || null,
+        timestamp: serverTimestamp(),
         senderId: user.id,
-        avatar:
-          user.avatar ||
-          'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
-        flage: user?.flage || null, // ✅ Include flag/flag emoji
         replyTo: replyToArg
           ? { id: replyToArg.id, text: replyToArg.text }
           : null,
-        reportCount: 0,
-        isPro: !!localState?.isPro,
-        isAdmin: !!isAdmin,
-        strikeCount: strikeInfo?.strikeCount ?? null,
         fruits: hasFruits ? fruits : [],
         gif: hasEmoji ? emojiUrl : null,
-        OS: Platform.OS, // ✅ Store platform (Android/iOS) - only visible to admins
-        robloxUsernameVerified: user?.robloxUsernameVerified || false,
-        hasRecentGameWin: hasRecentWin,
-        lastGameWinAt: user?.lastGameWinAt || null,
-        isModerator: !!user?.isModerator, // ✅ Include Moderator status
+        OS: Platform.OS,
       });
 
       // ✅ Store last sent message to prevent duplicates (session-based, no Firebase cost)
@@ -738,6 +816,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
           </ScrollView>
 
           <ChatHeaderContent
+            pinnedMessages={pinnedMessages}
+            onUnpinMessage={unpinSingleMessage}
             selectedTheme={selectedTheme}
             modalVisibleChatinfo={modalVisibleChatinfo}
             setModalVisibleChatinfo={setModalVisibleChatinfo}
@@ -755,6 +835,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                 user={user}
                 flatListRef={flatListRef}
                 isDarkMode={theme === 'dark'}
+                onPinMessage={handlePinMessage}
                 onDeleteMessage={(messageId) => chatRef.child(messageId.replace(`${activeChannel.path}-`, '')).remove()}
                 // isAdmin={isAdmin}
                 refreshing={refreshing}
@@ -774,7 +855,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                 setMessages={setMessages}
                 isAdmin={isAdmin}
                 toggleDrawer={openProfileDrawer}
-
+                chatPath={activeChannel.path}
               />
             )}
 

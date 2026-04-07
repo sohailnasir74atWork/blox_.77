@@ -253,9 +253,9 @@ export const getStyles = (isDarkMode) =>
     adminContainer: {
       backgroundColor: config.colors.hasBlockGreen,
       paddingHorizontal: 5,
-      paddingVertical: 1,
+      paddingVertical: 2,
       borderRadius: 3,
-      width: 40,
+      minWidth: 40,
       justifyContent: 'center',
       alignItems: 'center',
       // marginHorizontal:5
@@ -263,7 +263,7 @@ export const getStyles = (isDarkMode) =>
     moderatorContainer: {
       backgroundColor: config.colors.hasBlockGreen, // Same as Admin
       paddingHorizontal: 5,
-      paddingVertical: 1,
+      paddingVertical: 2,
       borderRadius: 3,
       minWidth: 55, // Slightly wider for "Mod" or "Moderator"
       justifyContent: 'center',
@@ -278,7 +278,9 @@ export const getStyles = (isDarkMode) =>
       // color: config.colors.primary,
       fontSize: 9,
       lineHeight: 12,
-      textAlign: 'center'
+      textAlign: 'center',
+      paddingHorizontal: 4,
+      paddingVertical: 1,
       // lineHeight:10,
     },
     moderator: {
@@ -286,7 +288,9 @@ export const getStyles = (isDarkMode) =>
       fontWeight: 'bold',
       fontSize: 9,
       lineHeight: 12,
-      textAlign: 'center'
+      textAlign: 'center',
+      paddingHorizontal: 4,
+      paddingVertical: 1,
     },
     adminText: {
       fontSize: 12,
@@ -587,8 +591,10 @@ export const getStyles = (isDarkMode) =>
     },
     deleteButton: {
       paddingVertical: 5
-    }
-    ,
+    },
+    pinButton: {
+      paddingVertical: 5
+    },
     chatImage: {
       width: 200,
       height: 200,

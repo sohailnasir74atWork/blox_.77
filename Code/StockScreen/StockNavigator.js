@@ -6,6 +6,8 @@ import TimerScreen from './TimerScreen';
 import { useGlobalState } from '../GlobelStats';
 import BannerAdComponent from '../Ads/bannerAds';
 import { useLocalState } from '../LocalGlobelStats';
+import ThemeHeader from '../Design/componenets/ThemeHeader';
+import { useTranslation } from 'react-i18next';
 
 
 const TopLevelStockComponent = ({ selectedTheme }) => {
@@ -14,9 +16,11 @@ const TopLevelStockComponent = ({ selectedTheme }) => {
   const isDarkMode = theme === 'dark';
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
   const { localState } = useLocalState();
+  const { t } = useTranslation();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc' }]}>
+      <ThemeHeader title={t('tabs.stock', { defaultValue: 'Stocks' })} />
       {/* Tab Buttons */}
       {/* <View style={styles.tabs}>
         <TouchableOpacity

@@ -11,6 +11,7 @@ import {
   Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGlobalState } from '../../GlobelStats';
 import { useLocalState } from '../../LocalGlobelStats';
 import { getAllGroups, sendJoinRequest } from '../utils/groupUtils';
@@ -22,6 +23,7 @@ const ExploreGroupsModal = ({ visible, onClose }) => {
   const { theme } = useGlobalState();
   const isDarkMode = theme === 'dark';
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
+  const insets = useSafeAreaInsets();
 
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -188,7 +190,7 @@ const ExploreGroupsModal = ({ visible, onClose }) => {
       onRequestClose={onClose}
     >
       <View style={styles.modalContainer}>
-        <View style={styles.modalContent}>
+        <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Explore Groups</Text>
@@ -272,7 +274,6 @@ const getStyles = (isDarkMode) =>
       borderTopLeftRadius: 20,
       borderTopRightRadius: 20,
       maxHeight: '90%',
-      paddingBottom: 20,
     },
     header: {
       flexDirection: 'row',

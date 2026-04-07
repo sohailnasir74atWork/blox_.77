@@ -6,6 +6,7 @@ import config from '../../Helper/Environment';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import { useTranslation } from 'react-i18next';
 import { useLocalState } from '../../LocalGlobelStats';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import InterstitialAdManager from '../../Ads/IntAd';
 import { showMessage } from 'react-native-flash-message';
 import { useGlobalState } from '../../GlobelStats';
@@ -46,6 +47,7 @@ const MessageInput = ({
   activeChannelId, // ✅ Channel ID for cooldown control
 }) => {
   const styles = getStyles(selectedTheme.colors.text === 'white');
+  const insets = useSafeAreaInsets();
   const [isSending, setIsSending] = useState(false);
   const { triggerHapticFeedback } = useHaptic();
   const [messageCount, setMessageCount] = useState(0);
@@ -131,7 +133,7 @@ const MessageInput = ({
       const newCount = messageCount + 1;
       setMessageCount(newCount);
 
-      if (!localState?.isPro && newCount % 12 === 0) {
+      if (!localState?.isPro && newCount % 10 === 0) {
         InterstitialAdManager.showAd(adCallback);
       } else {
         setIsSending(false);
@@ -307,7 +309,7 @@ const MessageInput = ({
       {/* Emoji Popup Modal */}
       <Modal visible={showEmojiPopup} transparent animationType="slide">
         <TouchableOpacity style={modalStyles.backdrop} onPress={() => setShowEmojiPopup(false)}>
-          <View style={modalStyles.sheet} onPress={(e) => e.stopPropagation()}>
+          <View style={[modalStyles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]} onPress={(e) => e.stopPropagation()}>
             <View style={modalStyles.emojiListContainer}>
               {Emojies.map((item) => (
                 <TouchableOpacity

@@ -1,4 +1,4 @@
-import { Platform, Linking } from 'react-native';
+import { Platform, Linking, Alert } from 'react-native';
 import SpInAppUpdates, { IAUUpdateKind } from 'sp-react-native-in-app-updates';
 
 // Initialize updater for both platforms (isDebug: false for production behavior)
@@ -19,11 +19,23 @@ export const checkForUpdate = async () => {
       if (Platform.OS === 'android') {
         await inAppUpdates.startUpdate({ updateType: IAUUpdateKind.IMMEDIATE });
       } else if (Platform.OS === 'ios') {
-        try {
-          await Linking.openURL(result.storeUrl || IOS_STORE_DEEPLINK);
-        } catch {
-          await Linking.openURL(IOS_STORE_HTTP);
-        }
+        Alert.alert(
+          'Update Available',
+          'A new version of the app is available. Please update from the App Store for the best experience.',
+          [
+            { text: 'Later', style: 'cancel' },
+            {
+              text: 'Update Now',
+              onPress: async () => {
+                try {
+                  await Linking.openURL(result.storeUrl || IOS_STORE_DEEPLINK);
+                } catch {
+                  await Linking.openURL(IOS_STORE_HTTP);
+                }
+              },
+            },
+          ],
+        );
       }
     }
   } catch (err) {

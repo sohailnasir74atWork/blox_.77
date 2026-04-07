@@ -4,25 +4,34 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
 import { useLocalState } from '../../LocalGlobelStats';
 import { useTranslation } from 'react-i18next';
-import { isUserOnline } from '../utils';
+import { useOnlineStatus } from '../utils';
 import { showSuccessMessage } from '../../Helper/MessageHelper';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import { mixpanel } from '../../AppHelper/MixPenel';
 import { useGlobalState } from '../../GlobelStats';
-import { ref, get } from '@react-native-firebase/database';
+import { ref, get, set } from '@react-native-firebase/database';
+import { getThemeColors } from '../../Helper/themeColors';
+import FramedAvatar from '../GroupChat/FramedAvatar';
+import { getActiveCosmetics } from '../../Engagement/shopUtils';
+import RoleBadges from '../../Design/componenets/RoleBadges';
+import { getCachedProfile } from '../../Helper/profileCache';
 
 const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers, isDrawerVisible, setIsDrawerVisible }) => {
   const { updateLocalState } = useLocalState();
   const { t } = useTranslation();
-  const [isOnline, setIsOnline] = useState(false); // ✅ Add state to store online status
   const { triggerHapticFeedback } = useHaptic();
-  const { appdatabase } = useGlobalState();
-  
-  // ✅ State for fetched user data (roblox username, etc.)
-  const [userData, setUserData] = useState(null);
+  const { appdatabase, user, theme } = useGlobalState();
+  const isDarkMode = theme === 'dark';
+  const c = getThemeColors(isDarkMode);
 
-  // ✅ Memoize copyToClipboard
+  const selectedUserId = selectedUser?.senderId || selectedUser?.id || null;
+
+  // State for fetched user data
+  const [userData, setUserData] = useState(null);
+  const [activeCosmetics, setActiveCosmetics] = useState(null);
+
+  // Memoize copyToClipboard
   const copyToClipboard = useCallback((code) => {
     if (!code || typeof code !== 'string') return;
     triggerHapticFeedback('impactLight');
@@ -31,14 +40,13 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
     mixpanel.track("Code UserName", { UserName: code });
   }, [triggerHapticFeedback, t]);
 
-  // ✅ Fetch user data from Firebase if roblox data is missing
+  // Fetch user data from Firebase if roblox data is missing
   useEffect(() => {
-    const selectedUserId = selectedUser?.senderId || selectedUser?.id;
     if (!selectedUserId || !appdatabase) return;
-    
+
     // Only fetch if robloxUsername is not already in selectedUser
     if (selectedUser?.robloxUsername || selectedUser?.robloxUserId) {
-      setUserData(null); // Clear fetched data if already in selectedUser
+      setUserData(null);
       return;
     }
 
@@ -46,25 +54,37 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
 
     const fetchUserData = async () => {
       try {
-        // ✅ OPTIMIZED: Fetch only specific fields instead of full user object
-        const [robloxUsernameSnap, robloxUserIdSnap, robloxUsernameVerifiedSnap, 
-               isProSnap, lastGameWinAtSnap] = await Promise.all([
-          get(ref(appdatabase, `users/${selectedUserId}/robloxUsername`)).catch(() => null),
-          get(ref(appdatabase, `users/${selectedUserId}/robloxUserId`)).catch(() => null),
-          get(ref(appdatabase, `users/${selectedUserId}/robloxUsernameVerified`)).catch(() => null),
-          get(ref(appdatabase, `users/${selectedUserId}/isPro`)).catch(() => null),
-          get(ref(appdatabase, `users/${selectedUserId}/lastGameWinAt`)).catch(() => null),
-        ]);
-        
+        const [robloxUsernameSnap, robloxUserIdSnap, robloxUsernameVerifiedSnap,
+          isProSnap, lastGameWinAtSnap, isAdminSnap, isModeratorSnap, isTrustedSnap, isCMSRSnap, isGrinderSnap, isRaiderSnap, profileFrameSnap] = await Promise.all([
+            get(ref(appdatabase, `users/${selectedUserId}/robloxUsername`)).catch(() => null),
+            get(ref(appdatabase, `users/${selectedUserId}/robloxUserId`)).catch(() => null),
+            get(ref(appdatabase, `users/${selectedUserId}/robloxUsernameVerified`)).catch(() => null),
+            get(ref(appdatabase, `users/${selectedUserId}/isPro`)).catch(() => null),
+            get(ref(appdatabase, `users/${selectedUserId}/lastGameWinAt`)).catch(() => null),
+            get(ref(appdatabase, `users/${selectedUserId}/isAdmin`)).catch(() => null),
+            get(ref(appdatabase, `users/${selectedUserId}/isModerator`)).catch(() => null),
+            get(ref(appdatabase, `users/${selectedUserId}/isTrusted`)).catch(() => null),
+            get(ref(appdatabase, `users/${selectedUserId}/isCMSR`)).catch(() => null),
+            get(ref(appdatabase, `users/${selectedUserId}/isGrinder`)).catch(() => null),
+            get(ref(appdatabase, `users/${selectedUserId}/isRaider`)).catch(() => null),
+            get(ref(appdatabase, `users/${selectedUserId}/profileFrame`)).catch(() => null),
+          ]);
+
         if (!isMounted) return;
-        
-        // ✅ Extract values only if they exist
+
         setUserData({
           robloxUsername: robloxUsernameSnap?.exists() ? robloxUsernameSnap.val() : null,
           robloxUserId: robloxUserIdSnap?.exists() ? robloxUserIdSnap.val() : null,
           robloxUsernameVerified: robloxUsernameVerifiedSnap?.exists() ? robloxUsernameVerifiedSnap.val() : false,
           isPro: isProSnap?.exists() ? isProSnap.val() : false,
           lastGameWinAt: lastGameWinAtSnap?.exists() ? lastGameWinAtSnap.val() : null,
+          isAdmin: isAdminSnap?.exists() ? isAdminSnap.val() : false,
+          isModerator: isModeratorSnap?.exists() ? isModeratorSnap.val() : false,
+          isTrusted: isTrustedSnap?.exists() ? isTrustedSnap.val() : false,
+          isCMSR: isCMSRSnap?.exists() ? isCMSRSnap.val() : false,
+          isGrinder: isGrinderSnap?.exists() ? isGrinderSnap.val() : false,
+          isRaider: isRaiderSnap?.exists() ? isRaiderSnap.val() : false,
+          profileFrame: profileFrameSnap?.exists() ? profileFrameSnap.val() : null,
         });
       } catch (error) {
         console.error('Error fetching user data in PrivateChatHeader:', error);
@@ -74,52 +94,77 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
 
     fetchUserData();
 
+    // Fetch active cosmetics (full frame object with borderColors etc.)
+    const fetchCosmetics = async () => {
+      try {
+        const cosmetics = await getActiveCosmetics(appdatabase, selectedUserId);
+        if (isMounted) setActiveCosmetics(cosmetics);
+      } catch { /* graceful fallback */ }
+    };
+    fetchCosmetics();
+
     return () => {
       isMounted = false;
     };
   }, [selectedUser?.senderId, selectedUser?.id, selectedUser?.robloxUsername, selectedUser?.robloxUserId, appdatabase]);
 
-  // ✅ Merge selectedUser with fetched userData
+  // Merge selectedUser with fetched userData
   const mergedUser = useMemo(() => {
     if (!userData) return selectedUser;
     return {
       ...selectedUser,
       robloxUsername: selectedUser?.robloxUsername || userData.robloxUsername,
       robloxUserId: selectedUser?.robloxUserId || userData.robloxUserId,
-      robloxUsernameVerified: selectedUser?.robloxUsernameVerified !== undefined 
-        ? selectedUser.robloxUsernameVerified 
+      robloxUsernameVerified: selectedUser?.robloxUsernameVerified !== undefined
+        ? selectedUser.robloxUsernameVerified
         : userData.robloxUsernameVerified,
       isPro: selectedUser?.isPro !== undefined ? selectedUser.isPro : userData.isPro,
-      lastGameWinAt: selectedUser?.lastGameWinAt !== undefined 
-        ? selectedUser.lastGameWinAt 
-        : userData.lastGameWinAt, // ✅ Game win timestamp
+      lastGameWinAt: selectedUser?.lastGameWinAt !== undefined
+        ? selectedUser.lastGameWinAt
+        : userData.lastGameWinAt,
+      isAdmin: selectedUser?.isAdmin !== undefined ? selectedUser.isAdmin : userData.isAdmin,
+      isModerator: selectedUser?.isModerator !== undefined ? selectedUser.isModerator : userData.isModerator,
+      isTrusted: userData.isTrusted ?? selectedUser?.isTrusted ?? false,
+      isCMSR: userData.isCMSR ?? selectedUser?.isCMSR ?? false,
+      isGrinder: userData.isGrinder ?? selectedUser?.isGrinder ?? false,
+      isRaider: userData.isRaider ?? selectedUser?.isRaider ?? false,
+      profileFrame: selectedUser?.profileFrame || userData.profileFrame || null,
     };
   }, [selectedUser, userData]);
 
-  // ✅ Memoize avatarUri and userName
-  const avatarUri = useMemo(() => 
-    mergedUser?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
-    [mergedUser?.avatar]
-  );
-  
-  const userName = useMemo(() => 
-    mergedUser?.sender || 'User',
-    [mergedUser?.sender]
+  // ✅ Resolve from message → profileCache → default (supports slim messages)
+  const cachedProfile = getCachedProfile(selectedUserId);
+
+  const avatarUri = useMemo(() =>
+    mergedUser?.avatar || cachedProfile?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+    [mergedUser?.avatar, cachedProfile?.avatar]
   );
 
-useEffect(() => {
-  if (selectedUser?.senderId) {
-    isUserOnline(selectedUser.senderId).then(setIsOnline).catch(() => setIsOnline(false));
-  }
-}, [selectedUser?.id]);
-  // ✅ Check if user is banned
+  const userName = useMemo(() =>
+    mergedUser?.sender || cachedProfile?.displayName || 'User',
+    [mergedUser?.sender, cachedProfile?.displayName]
+  );
+
+  const isOnline = useOnlineStatus(selectedUserId);
+
+  const hasRecentWin = useMemo(() =>
+    !!mergedUser?.hasRecentGameWin ||
+    (typeof mergedUser?.lastGameWinAt === 'number' &&
+      Date.now() - mergedUser.lastGameWinAt <= 24 * 60 * 60 * 1000),
+    [mergedUser?.hasRecentGameWin, mergedUser?.lastGameWinAt]
+  );
+
+  // Check if user is banned
   const isBanned = useMemo(() => {
-    if (!selectedUser?.senderId) return false;
+    if (!selectedUserId) return false;
     const banned = Array.isArray(bannedUsers) ? bannedUsers : [];
-    return banned.includes(selectedUser.senderId);
-  }, [bannedUsers, selectedUser?.senderId]);
+    return banned.includes(selectedUserId);
+  }, [bannedUsers, selectedUserId]);
 
-  const handleBanToggle = async () => {
+  // Memoize handleBanToggle
+  const handleBanToggle = useCallback(async () => {
+    if (!selectedUserId) return;
+
     const action = !isBanned ? 'Block' : 'Unblock';
     Alert.alert(
       `${action}`,
@@ -131,90 +176,104 @@ useEffect(() => {
           style: 'destructive',
           onPress: async () => {
             try {
+              const currentBanned = Array.isArray(bannedUsers) ? bannedUsers : [];
               let updatedBannedUsers;
+
               if (isBanned) {
-                // 🔹 Unban: Remove from bannedUsers
-                updatedBannedUsers = bannedUsers.filter(id => id !== selectedUser?.senderId);
+                updatedBannedUsers = currentBanned.filter(id => id !== selectedUserId);
               } else {
-                // 🔹 Ban: Add to bannedUsers
-                updatedBannedUsers = [...bannedUsers, selectedUser?.senderId];
+                updatedBannedUsers = [...currentBanned, selectedUserId];
               }
 
-              // ✅ Update local storage & state
               await updateLocalState('bannedUsers', updatedBannedUsers);
+
+              if (user?.id && appdatabase) {
+                const blockedRef = ref(appdatabase, `users/${user.id}/blocked_users/${selectedUserId}`);
+                if (isBanned) {
+                  await set(blockedRef, null);
+                } else {
+                  await set(blockedRef, true);
+                }
+              }
             } catch (error) {
-              console.error('❌ Error toggling ban status:', error);
+              console.error('Error toggling ban status:', error);
             }
           },
         },
       ]
     );
-  };
+  }, [isBanned, bannedUsers, selectedUserId, userName, t, updateLocalState, user?.id, appdatabase]);
+
+  // Memoize drawer open handler
+  const handleOpenDrawer = useCallback(() => {
+    if (setIsDrawerVisible && typeof setIsDrawerVisible === 'function') {
+      setIsDrawerVisible(true);
+    }
+  }, [setIsDrawerVisible]);
 
   return (
     <View style={styles.container}>
-    <TouchableOpacity onPress={() => setIsDrawerVisible(true)}>
-  <Image source={{ uri: avatarUri }} style={styles.avatar} />
-</TouchableOpacity>
-
-      <TouchableOpacity style={styles.infoContainer} onPress={() => setIsDrawerVisible(true)}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={[styles.userName, { color: selectedTheme.colors.text }]}>
-            {userName} 
-          </Text>
-          {mergedUser?.isPro && (
-            <Image
-              source={require('../../../assets/pro.png')} 
-              style={{ width: 12, height: 12, marginLeft: 4 }} 
-            />
-          )}
-          {mergedUser?.robloxUsernameVerified && (
-            <Image
-              source={require('../../../assets/verification.png')} 
-              style={{ width: 12, height: 12, marginLeft: 4 }} 
-            />
-          )}
-          {(() => {
-            const hasRecentWin =
-              !!mergedUser?.hasRecentGameWin ||
-              (typeof mergedUser?.lastGameWinAt === 'number' &&
-                Date.now() - mergedUser.lastGameWinAt <= 24 * 60 * 60 * 1000);
-            return hasRecentWin ? (
-              <Image
-                source={require('../../../assets/trophy.webp')}
-                style={{ width: 10, height: 10, marginLeft: 4 }}
-              />
-            ) : null;
-          })()}
-          {'  '}
-          <Icon 
-            name="copy-outline" 
-            size={16} 
-            color="#007BFF" 
-            onPress={() => copyToClipboard(userName)}
-          />
-        </View>
-        <Text style={[
-                    styles.drawerSubtitleUser,
-                    {
-                      color: isOnline
-                        ? config.colors.hasBlockGreen
-                        : config.colors.wantBlockRed,
-                      fontSize: 10,
-                      marginTop: 2,
-                    },
-                  ]}
-                >
-          {isOnline ? 'Online' : 'Offline'}
-        </Text>
-        
+      {/* Avatar with online indicator */}
+      <TouchableOpacity onPress={handleOpenDrawer} activeOpacity={0.7}>
+        <FramedAvatar
+          avatarUri={avatarUri}
+          frame={activeCosmetics?.profileFrame || null}
+          isDarkMode={isDarkMode}
+          avatarSize={32}
+          isOnline={isOnline}
+        />
       </TouchableOpacity>
-      <TouchableOpacity onPress={handleBanToggle}>
+
+      {/* Name + badges + status */}
+      <TouchableOpacity style={styles.infoContainer} onPress={handleOpenDrawer} activeOpacity={0.7}>
+        {/* Top row: name + inline icons */}
+        <View style={styles.nameRow}>
+          <Text style={[styles.userName, { color: c.text }]} numberOfLines={1}>
+            {userName}
+          </Text>
+          <RoleBadges userItem={mergedUser} />
+
+          {(mergedUser?.isPro || cachedProfile?.isPro) && (
+            <Image source={require('../../../assets/pro.png')} style={styles.inlineIcon} />
+          )}
+          {(mergedUser?.robloxUsernameVerified || cachedProfile?.robloxUsernameVerified) && (
+            <Image source={require('../../../assets/verification.png')} style={styles.inlineIcon} />
+          )}
+          {hasRecentWin && (
+            <Image source={require('../../../assets/trophy.webp')} style={styles.inlineIcon} />
+          )}
+
+          <TouchableOpacity
+            onPress={() => copyToClipboard(userName)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.copyBtn}
+          >
+            <Icon name="copy-outline" size={13} color={c.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Bottom row: status + role badges */}
+        <View style={styles.metaRow}>
+          <Text style={[styles.statusText, { color: isOnline ? '#22c55e' : c.textMuted }]}>
+            {isOnline ? 'Online' : 'Offline'}
+          </Text>
+        </View>
+      </TouchableOpacity>
+
+      {/* Block/Unblock button */}
+      <TouchableOpacity
+        onPress={handleBanToggle}
+        activeOpacity={0.6}
+        style={[
+          styles.actionBtn,
+          { backgroundColor: isBanned ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.08)' },
+        ]}
+        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+      >
         <Icon
           name={isBanned ? 'shield-checkmark-outline' : 'ban-outline'}
-          size={24}
-          color={isBanned ? config.colors.hasBlockGreen : config.colors.wantBlockRed}
-          style={styles.banIcon}
+          size={18}
+          color={isBanned ? '#22c55e' : '#ef4444'}
         />
       </TouchableOpacity>
     </View>
@@ -225,24 +284,49 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 5,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 10,
-    backgroundColor: 'white',
+    paddingVertical: 2,
+    gap: 8,
   },
   infoContainer: {
     flex: 1,
+    justifyContent: 'center',
+    gap: 1,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
   },
   userName: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 15,
+    fontWeight: '700',
+    flexShrink: 1,
+    letterSpacing: -0.2,
   },
-  banIcon: {
-    marginLeft: 10,
+  inlineIcon: {
+    width: 11,
+    height: 11,
+  },
+  copyBtn: {
+    padding: 2,
+    marginLeft: 1,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexWrap: 'wrap',
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  actionBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

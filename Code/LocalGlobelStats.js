@@ -4,13 +4,14 @@ import React, {
   useState,
   useEffect,
   useMemo,
+  useCallback,
 } from 'react';
 import { Appearance, InteractionManager } from 'react-native';
-import { MMKV } from 'react-native-mmkv';
+import { createMMKV } from 'react-native-mmkv';
 import Purchases from 'react-native-purchases';
 import config from './Helper/Environment';
 
-const storage = new MMKV();
+const storage = createMMKV();
 const LocalStateContext = createContext();
 
 export const useLocalState = () => useContext(LocalStateContext);
@@ -60,6 +61,8 @@ export const LocalStateProvider = ({ children }) => {
       lastFetched: null,
     }),
     pollVotes: safeParseJSON('pollVotes', {}), // ✅ Store user's poll votes (pollId -> optionLabel)
+    showReadReceipts: storage.getBoolean('showReadReceipts') ?? true, // ✅ Default ON
+    gameAdDays: safeParseJSON('gameAdDays', {}), // Per-game free play tracking { gameId: "YYYY-MM-DD" }
   }));
 
   // RevenueCat subscriptions (for info/expiry)
@@ -81,7 +84,7 @@ export const LocalStateProvider = ({ children }) => {
     }
   }, [localState.data]);
 
-  const updateLocalState = (key, value) => {
+  const updateLocalState = useCallback((key, value) => {
     setLocalState(prev => ({
       ...prev,
       [key]: value,
@@ -100,17 +103,17 @@ export const LocalStateProvider = ({ children }) => {
         '🚨 MMKV supports only string, number, boolean, or JSON stringified objects.'
       );
     }
-  };
+  }, []);
 
   // ✅ FIXED: Read directly from storage for real-time accuracy (no stale state)
-  const canTranslate = () => {
+  const canTranslate = useCallback(() => {
     const today = new Date().toDateString();
     // ✅ Read directly from storage to get latest value (not from stale localState)
     const storedUsage = safeParseJSON('translationUsage', {
       count: 0,
       date: today,
     });
-    
+
     const { count, date } = storedUsage;
 
     // ✅ Reset if it's a new day
@@ -122,7 +125,7 @@ export const LocalStateProvider = ({ children }) => {
 
     // ✅ Check if under limit (5 translations per day)
     return count < 5;
-  };
+  }, [updateLocalState]);
 
   const applyCustomerInfo = customerInfo => {
     if (!customerInfo) return;
@@ -161,14 +164,14 @@ export const LocalStateProvider = ({ children }) => {
   }, []);
 
   // ✅ FIXED: Read from storage first, then increment for real-time accuracy
-  const incrementTranslationCount = () => {
+  const incrementTranslationCount = useCallback(() => {
     const today = new Date().toDateString();
     // ✅ Read directly from storage to get latest value (not from stale localState)
     const storedUsage = safeParseJSON('translationUsage', {
       count: 0,
       date: today,
     });
-    
+
     const { count, date } = storedUsage;
 
     // ✅ Increment count (reset to 1 if new day)
@@ -179,13 +182,15 @@ export const LocalStateProvider = ({ children }) => {
 
     // ✅ Update both storage and state for immediate sync
     updateLocalState('translationUsage', updatedUsage);
-  };
+  }, [updateLocalState]);
 
-  const toggleAd = () => {
-    const newAdState = !localState.showAd1;
+  const toggleAd = useCallback(() => {
+    // ✅ Read directly from storage to get latest value
+    const currentVal = storage.getBoolean('showAd1') ?? true;
+    const newAdState = !currentVal;
     updateLocalState('showAd1', newAdState);
     return newAdState;
-  };
+  }, [updateLocalState]);
 
   // Initialize RevenueCat once
   const initRevenueCat = async () => {
@@ -221,43 +226,43 @@ export const LocalStateProvider = ({ children }) => {
     }
   };
 
-  const clearKey = key => {
+  const clearKey = useCallback((key) => {
     setLocalState(prevState => {
       const newState = { ...prevState };
       delete newState[key];
       return newState;
     });
 
-    storage.delete(key);
-  };
+    storage.remove(key);
+  }, []);
 
-  const clearAll = () => {
+  const clearAll = useCallback(() => {
     setLocalState({});
     storage.clearAll();
-  };
+  }, []);
 
   // ✅ FIXED: Read directly from storage for real-time accuracy
-  const getRemainingTranslationTries = () => {
+  const getRemainingTranslationTries = useCallback(() => {
     const today = new Date().toDateString();
     // ✅ Read directly from storage to get latest value (not from stale localState)
     const storedUsage = safeParseJSON('translationUsage', {
       count: 0,
       date: today,
     });
-    
+
     const { count = 0, date = today } = storedUsage;
     // ✅ Return remaining tries (reset to 5 if new day)
     return date === today ? Math.max(0, 5 - count) : 5;
-  };
+  }, []);
 
-  const refreshCustomerInfo = async () => {
+  const refreshCustomerInfo = useCallback(async () => {
     try {
       const customerInfo = await Purchases.getCustomerInfo();
       applyCustomerInfo(customerInfo);
     } catch (e) {
       // ignore
     }
-  };
+  }, []);
 
   const contextValue = useMemo(
     () => ({
@@ -272,7 +277,7 @@ export const LocalStateProvider = ({ children }) => {
       toggleAd,
       refreshCustomerInfo,
     }),
-    [localState, mySubscriptions]
+    [localState, mySubscriptions, updateLocalState, clearKey, clearAll, canTranslate, incrementTranslationCount, getRemainingTranslationTries, toggleAd, refreshCustomerInfo]
   );
 
   return (

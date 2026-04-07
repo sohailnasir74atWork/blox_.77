@@ -26,10 +26,12 @@ import {
 import { useGlobalState } from '../../GlobelStats';
 import { useLocalState } from '../../LocalGlobelStats';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import InterstitialAdManager from '../../Ads/IntAd';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { validateContent } from '../../Helper/ContentModeration';
+import RoleBadges from './RoleBadges';
 
 dayjs.extend(relativeTime);
 
@@ -40,13 +42,14 @@ const CommentModal = ({ visible, onClose, postId }) => {
   const { user, theme, firestoreDB, strikeInfo, isAdmin } = useGlobalState();
   const { localState } = useLocalState();
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const isDarkMode = theme === 'dark';
 
   // Load comments
   useEffect(() => {
     if (!postId || !firestoreDB) return;
 
-    const commentsRef = collection(firestoreDB, 'designPosts', postId, 'comments');
+    const commentsRef = collection(firestoreDB, 'designPosts_upgrade', postId, 'comments');
     const q = query(commentsRef, orderBy('createdAt', 'desc'));
 
     const unsubscribe = onSnapshot(q, snapshot => {
@@ -128,8 +131,8 @@ const CommentModal = ({ visible, onClose, postId }) => {
     };
 
     try {
-      const commentsRef = collection(firestoreDB, 'designPosts', postId, 'comments');
-      const postRef = doc(firestoreDB, 'designPosts', postId);
+      const commentsRef = collection(firestoreDB, 'designPosts_upgrade', postId, 'comments');
+      const postRef = doc(firestoreDB, 'designPosts_upgrade', postId);
 
       await addDoc(commentsRef, comment);
       await updateDoc(postRef, {
@@ -159,6 +162,7 @@ const CommentModal = ({ visible, onClose, postId }) => {
           <Text style={[styles.name, isDarkMode && styles.textDark]} numberOfLines={1}>
             {item.displayName || 'Anonymous'}
           </Text>
+          <RoleBadges userItem={item} />
           {item.createdAt?.seconds && (
             <Text style={[styles.timestamp, isDarkMode && styles.timestampDark]}>
               {dayjs(item.createdAt.seconds * 1000).fromNow()}
@@ -191,7 +195,7 @@ const CommentModal = ({ visible, onClose, postId }) => {
       />
       <ConditionalKeyboardWrapper style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' }}>
 
-        <View style={[styles.drawer, isDarkMode && styles.drawerDark]}>
+        <View style={[styles.drawer, isDarkMode && styles.drawerDark, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           {/* Handle Bar */}
           <View style={styles.handleContainer}>
             <View style={[styles.handleBar, isDarkMode && styles.handleBarDark]} />

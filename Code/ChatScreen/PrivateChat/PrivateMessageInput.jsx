@@ -210,7 +210,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
 
     setMessageCount(prevCount => {
       const newCount = prevCount + 1;
-      if (!localState?.isPro && newCount % 12 === 0) {
+      if (!localState?.isPro && newCount % 10 === 0) {
         // Show ad only if user is NOT pro
         InterstitialAdManager.showAd(() => { });
       } else {
@@ -228,8 +228,8 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
         imageUrl = await uploadToBunny(imageToSend);
       }
 
-      // 🔺 onSend: text, imageUrl, fruits
-      await onSend(textToSend, imageUrl, fruitsToSend);
+      // 🔺 onSend: text, imageUrl, fruits, replyTo
+      await onSend(textToSend, imageUrl, fruitsToSend, replyTo);
       if (onCancelReply) onCancelReply(); // Clear reply context if any
     } catch (error) {
       console.error('Error sending message:', error);
@@ -248,7 +248,17 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
       {/* Reply Context */}
       {replyTo && (
         <View style={styles.replyContainer}>
-          <Text style={styles.replyText}>Replying to: {replyTo.text}</Text>
+          <Text style={styles.replyText} numberOfLines={1}>
+            Replying to: {
+              replyTo.text && replyTo.text.trim().length > 0
+                ? replyTo.text
+                : replyTo.imageUrl
+                  ? '[Image]'
+                  : (Array.isArray(replyTo.fruits) && replyTo.fruits.length > 0)
+                    ? `[${replyTo.fruits.length} pet(s)]`
+                    : '[Message]'
+            }
+          </Text>
           <TouchableOpacity onPress={onCancelReply} style={styles.cancelReplyButton}>
             <Icon name="close-circle" size={24} color="#e74c3c" />
           </TouchableOpacity>

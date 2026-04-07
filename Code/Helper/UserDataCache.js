@@ -1,7 +1,7 @@
 // UserDataCache.js - Cache for user data to reduce Firebase RTDB downloads
-import { MMKV } from 'react-native-mmkv';
+import { createMMKV } from 'react-native-mmkv';
 
-const storage = new MMKV();
+const storage = createMMKV();
 const CACHE_KEY = 'userDataCache';
 const CACHE_EXPIRY = 60 * 60 * 1000; // 1 hour in milliseconds
 
@@ -99,7 +99,7 @@ export const cacheUserData = (userId, userData) => {
 export const clearUserCache = () => {
   memoryCache.clear();
   try {
-    storage.delete(CACHE_KEY);
+    storage.remove(CACHE_KEY);
   } catch (error) {
     console.error('Error clearing user cache:', error);
   }

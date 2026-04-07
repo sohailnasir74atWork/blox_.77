@@ -2,15 +2,14 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   View,
   StatusBar,
-  SafeAreaView,
   Animated,
   ActivityIndicator,
-  AppState,
   TouchableOpacity,
   Appearance,
-  InteractionManager,
+
 } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import SettingsScreen from './Code/SettingScreen/Setting';
 import { useGlobalState } from './Code/GlobelStats';
@@ -31,9 +30,54 @@ import AppOpenAdManager from './Code/Ads/openApp';
 import RNBootSplash from "react-native-bootsplash";
 import SystemNavigationBar from 'react-native-system-navigation-bar';
 import AdminUnbanScreen from './Code/AppHelper/AdminDashboard';
+import SocialDashboard from './Code/AppHelper/SocialDashboard';
+import CustomTopTabs from './Code/ValuesScreen/TopTabs';
+import LeaderboardScreen from './Code/ChatScreen/GroupChat/LeaderboardScreen';
+import PrivateChatScreen from './Code/ChatScreen/PrivateChat/PrivateChat';
+import PrivateChatHeader from './Code/ChatScreen/PrivateChat/PrivateChatHeader';
 import { checkForUpdate } from './Code/AppHelper/InAppUpdateCheck';
 import SubscriptionScreen from './Code/SettingScreen/OfferWall';
 import AnalyticsScreen from './Code/Analytics/AnalyticsScreen';
+import TradeJournal from './Code/Engagement/TradeJournal';
+import MyCosmeticsScreen from './Code/Engagement/MyCosmeticsScreen';
+import MysteryEggScreen from './Code/Engagement/MysteryEgg';
+import FruitCrashScreen from './Code/Engagement/FruitCrash';
+import GameHubScreen from './Code/Engagement/GameHub';
+import GameScreen from './Code/Engagement/GameScreen';
+import BadgesScreen from './Code/SettingScreen/BadgesScreen';
+import GuidesScreen from './Code/SettingScreen/GuidesScreen';
+import NotificationFeed from './Code/Engagement/NotificationFeed';
+import ModsScreen from './Code/Engagement/ModsScreen';
+
+// Wrapper for MyStuffScreen — feeds global state into TradeJournal
+const MyStuffScreenWrapper = () => {
+  const { firestoreDB, appdatabase, user, theme } = useGlobalState();
+  return (
+    <TradeJournal
+      firestoreDB={firestoreDB}
+      db={appdatabase}
+      uid={user?.id}
+      isDarkMode={theme === 'dark'}
+    />
+  );
+};
+
+// Wrapper for PrivateChat used from root stack (SocialDashboard → Chat)
+const PrivateChatRootWrapper = (props) => {
+  const [isDrawerVisible, setIsDrawerVisible] = useState(false);
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={{ flex: 1, paddingBottom: insets.bottom }}>
+      <PrivateChatScreen
+        {...props}
+        bannedUsers={[]}
+        isDrawerVisible={isDrawerVisible}
+        setIsDrawerVisible={setIsDrawerVisible}
+        noTabBar={true}
+      />
+    </View>
+  );
+};
 
 
 
@@ -198,17 +242,30 @@ function App() {
   }, []);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: selectedTheme.colors.background, }}>
+    <View style={{ flex: 1 }}>
       <Animated.View style={{ flex: 1 }}>
         <NavigationContainer theme={selectedTheme}>
           <StatusBar
             barStyle={theme === 'dark' ? 'light-content' : 'dark-content'}
-            backgroundColor={selectedTheme.colors.background}
+            backgroundColor="transparent"
+            translucent={true}
           />
 
-          <Stack.Navigator>
+          <Stack.Navigator screenOptions={{ animation: 'fade', animationDuration: 200 }}>
             <Stack.Screen name="Home" options={{ headerShown: false }}>
               {renderMainTabs}
+            </Stack.Screen>
+
+            <Stack.Screen name="FruitValuesStack" options={{
+              headerShown: false,
+              animation: 'fade',
+              animationDuration: 250,
+            }}>
+              {() => <CustomTopTabs selectedTheme={selectedTheme} />}
+            </Stack.Screen>
+
+            <Stack.Screen name="LeaderboardStack" options={{ headerShown: false }}>
+              {() => <LeaderboardScreen selectedTheme={selectedTheme} />}
             </Stack.Screen>
 
 
@@ -260,6 +317,100 @@ function App() {
             </Stack.Screen>
 
             <Stack.Screen
+              name="SocialDashboardScreen"
+              options={{
+                title: 'Friends',
+                headerStyle: { backgroundColor: selectedTheme.colors.background },
+                headerTintColor: selectedTheme.colors.text,
+                headerTitleStyle: { fontWeight: 'bold' },
+              }}
+              component={SocialDashboard}
+            />
+
+            <Stack.Screen
+              name="PrivateChatRoot"
+              options={({ route }) => ({
+                headerTitle: route.params?.selectedUser ? () => (
+                  <PrivateChatHeader
+                    selectedUser={route.params?.selectedUser}
+                    selectedTheme={selectedTheme}
+                    bannedUsers={[]}
+                    isDrawerVisible={route.params?._drawerVisible || false}
+                    setIsDrawerVisible={(v) => {}}
+                  />
+                ) : '',
+                headerStyle: { backgroundColor: selectedTheme.colors.background },
+                headerTintColor: selectedTheme.colors.text,
+                headerTitleStyle: { fontWeight: 'bold' },
+              })}
+            >
+              {(props) => <PrivateChatRootWrapper {...props} />}
+            </Stack.Screen>
+
+            <Stack.Screen
+              name="MyStuffScreen"
+              options={{
+                headerShown: false,
+                animation: 'fade',
+              }}
+              component={MyStuffScreenWrapper}
+            />
+
+            <Stack.Screen
+              name="CosmeticsScreen"
+              options={{ headerShown: false, animation: 'fade' }}
+              component={MyCosmeticsScreen}
+            />
+
+            <Stack.Screen
+              name="MysteryEggScreen"
+              options={{ headerShown: false, animation: 'fade' }}
+              component={MysteryEggScreen}
+            />
+
+            <Stack.Screen
+              name="FruitCrashScreen"
+              options={{ headerShown: false, animation: 'fade' }}
+              component={FruitCrashScreen}
+            />
+
+            <Stack.Screen
+              name="GameHubScreen"
+              options={{ headerShown: false, animation: 'fade' }}
+              component={GameHubScreen}
+            />
+
+            <Stack.Screen
+              name="GameScreen"
+              options={{ headerShown: false, animation: 'fade' }}
+              component={GameScreen}
+            />
+
+            <Stack.Screen
+              name="BadgesScreen"
+              options={{ headerShown: false, animation: 'fade' }}
+              component={BadgesScreen}
+            />
+
+            <Stack.Screen
+              name="GuidesScreen"
+              options={{ headerShown: false, animation: 'fade' }}
+              component={GuidesScreen}
+            />
+
+            <Stack.Screen
+              name="NotificationFeedScreen"
+              options={{ headerShown: false, animation: 'fade' }}
+              component={NotificationFeed}
+            />
+
+            <Stack.Screen
+              name="ModsScreen"
+              options={{ headerShown: false, animation: 'fade' }}
+              component={ModsScreen}
+            />
+
+            <Stack.Screen
               name="Setting"
               options={{
                 title: t('tabs.settings'),
@@ -278,7 +429,7 @@ function App() {
         )}
         <SubscriptionScreen visible={showofferwall} onClose={handleCloseOfferWall} track='Home' showoffer={!single_offer_wall} oneWallOnly={single_offer_wall} />
       </Animated.View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -288,7 +439,7 @@ export default function AppWrapper() {
 
   useEffect(() => {
     if (localState.isAppReady) {
-      InteractionManager.runAfterInteractions(() => {
+      requestIdleCallback(() => {
         RNBootSplash.hide({ fade: true });
       });
     }

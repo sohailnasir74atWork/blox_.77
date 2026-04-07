@@ -7,7 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import config from '../Helper/Environment';
 import ConditionalKeyboardWrapper from '../Helper/keyboardAvoidingContainer';
 import { useHaptic } from '../Helper/HepticFeedBack';
-import { getDatabase, ref, get } from '@react-native-firebase/database';
+import { getDatabase, ref, get, update } from '@react-native-firebase/database';
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalState } from '../LocalGlobelStats';
 import SignInDrawer from '../Firebase/SigninDrawer';
@@ -23,8 +23,8 @@ import SubscriptionScreen from '../SettingScreen/OfferWall';
 
 const HomeScreen = ({ selectedTheme }) => {
   const { theme, user, proGranted, proTagBought, firestoreDB, single_offer_wall, currentUserEmail, appdatabase, strikeInfo, isAdmin, reload } = useGlobalState();
-  const tradesCollection = collection(firestoreDB, 'trades_new');
-  const MAX_ITEMS_PER_SIDE = 8;
+  const tradesCollection = collection(firestoreDB, 'trades_new_upgrade');
+  const MAX_ITEMS_PER_SIDE = 4;
   const initialItems = [null, null, null, null];
   const [hasItems, setHasItems] = useState(initialItems);
   const [fruitRecords, setFruitRecords] = useState([]);
@@ -38,6 +38,7 @@ const HomeScreen = ({ selectedTheme }) => {
   const { localState } = useLocalState();
   const [modalVisible, setModalVisible] = useState(false);
   const [description, setDescription] = useState('');
+  const [robloxUsername, setRobloxUsername] = useState('');
   const [isSigninDrawerVisible, setIsSigninDrawerVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { language } = useLanguage();
@@ -153,11 +154,20 @@ const HomeScreen = ({ selectedTheme }) => {
     } else {
       setType('share');
     }
+    setRobloxUsername(user?.robloxUsername || '');
     setModalVisible(true);
   };
 
   const handleCreateTrade = async () => {
     if (isSubmitting) {
+      return;
+    }
+
+    if (!robloxUsername.trim()) {
+      showErrorMessage(
+        t("home.alert.error"),
+        t('trade.roblox_required', { defaultValue: 'Please enter your Roblox username to post a trade.' })
+      );
       return;
     }
 
@@ -239,10 +249,10 @@ const HomeScreen = ({ selectedTheme }) => {
           const summaryRef = doc(firestoreDB, 'user_ratings_summary', user.id);
           const summarySnap = await getDoc(summaryRef);
 
-          if (summarySnap.exists) {
+          if (summarySnap?.exists()) {
             const summaryData = summarySnap.data();
-            userRating = summaryData.averageRating || null;
-            ratingCount = summaryData.count || 0;
+            userRating = summaryData?.averageRating || null;
+            ratingCount = summaryData?.count || 0;
           }
         } catch (error) {
           console.error('Error fetching rating from Firestore:', error);
@@ -320,7 +330,7 @@ const HomeScreen = ({ selectedTheme }) => {
         icons: iconArr || [],
         proTagBought: proTagBought || false,
         flage: user?.flage || null,
-        robloxUsername: user?.robloxUsername || null,
+        robloxUsername: robloxUsername.trim(),
         robloxUsernameVerified: user?.robloxUsernameVerified || false,
         hasRecentGameWin: hasRecentWin || false,
         lastGameWinAt: user?.lastGameWinAt || null,
@@ -361,6 +371,15 @@ const HomeScreen = ({ selectedTheme }) => {
         await addDoc(tradesCollection, newTrade);
         setModalVisible(false);
         resetTradeState();
+
+        // Save Roblox username to user profile if new/changed
+        if (robloxUsername.trim() && robloxUsername.trim() !== user?.robloxUsername) {
+          try {
+            update(ref(appdatabase, `users/${user.id}`), { robloxUsername: robloxUsername.trim() });
+          } catch (e) {
+            console.error('Error saving roblox username:', e);
+          }
+        }
 
         const callbackfunction = () => {
           if (!isMountedRef.current) return;
@@ -1072,9 +1091,20 @@ const HomeScreen = ({ selectedTheme }) => {
                     <TextInput
                       style={styles.input}
                       placeholder={t("home.write_description")}
+                      placeholderTextColor={isDarkMode ? '#999' : '#888'}
                       maxLength={40}
                       value={description}
                       onChangeText={setDescription}
+                    />
+                    <TextInput
+                      style={[styles.input, { marginTop: 8 }]}
+                      placeholder={t('trade.roblox_username_placeholder', { defaultValue: 'Roblox Username (required)' })}
+                      placeholderTextColor={isDarkMode ? '#999' : '#888'}
+                      maxLength={30}
+                      value={robloxUsername}
+                      onChangeText={setRobloxUsername}
+                      autoCapitalize="none"
+                      autoCorrect={false}
                     />
                     <View style={styles.buttonContainer}>
                       <TouchableOpacity
@@ -1348,26 +1378,6 @@ const HomeScreen = ({ selectedTheme }) => {
                 <Icon name="share-outline" size={18} color="white" style={{ padding: 4 }} />
               </TouchableOpacity>
             </View>
-            {!localState.isPro && <View style={styles.createtradeAds}>
-              <TouchableOpacity
-                style={styles.removeAdsButton}
-                activeOpacity={0.9}
-                onPress={() => { setShowofferwall(true); }}
-              >
-                <View style={styles.removeAdsContent}>
-                  <View style={styles.crownWrapper}>
-                    <Image
-                      source={require('../../assets/pro.png')}
-                      style={{ width: 20, height: 20 }}
-                      resizeMode="contain"
-                    />
-                  </View>
-                  <View style={styles.removeAdsTextWrapper}>
-                    <Text style={styles.removeAdsTitle}>Remove Ads</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            </View>}
           </ScrollView>
           <Modal
             visible={isDrawerVisible}
@@ -1474,9 +1484,20 @@ const HomeScreen = ({ selectedTheme }) => {
                   <TextInput
                     style={styles.input}
                     placeholder={t("home.write_description")}
+                    placeholderTextColor={isDarkMode ? '#999' : '#888'}
                     maxLength={40}
                     value={description}
                     onChangeText={setDescription}
+                  />
+                  <TextInput
+                    style={[styles.input, { marginTop: 8 }]}
+                    placeholder={t('trade.roblox_username_placeholder', { defaultValue: 'Roblox Username (required)' })}
+                    placeholderTextColor={isDarkMode ? '#999' : '#888'}
+                    maxLength={30}
+                    value={robloxUsername}
+                    onChangeText={setRobloxUsername}
+                    autoCapitalize="none"
+                    autoCorrect={false}
                   />
                   <View style={styles.buttonContainer}>
                     <TouchableOpacity

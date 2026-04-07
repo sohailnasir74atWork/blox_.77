@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { View, FlatList, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, TextInput, Alert, Platform, Animated, ScrollView } from 'react-native';
+import { View, FlatList, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, TextInput, Alert, Platform, Animated } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -10,6 +10,7 @@ import ReportTradePopup from './ReportTradePopUp';
 import SignInDrawer from '../Firebase/SigninDrawer';
 import { useLocalState } from '../LocalGlobelStats';
 import Clipboard from '@react-native-clipboard/clipboard';
+import RoleBadges from '../Design/componenets/RoleBadges';
 import { useTranslation } from 'react-i18next';
 import { showSuccessMessage, showErrorMessage } from '../Helper/MessageHelper';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
@@ -21,6 +22,10 @@ import StyledUsernamePreview from '../SettingScreen/Store/StyledName';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
 import { isUserOnline } from '../ChatScreen/utils';
 import { useHaptic } from '../Helper/HepticFeedBack';
+import { acceptTrade, saveTrade, unsaveTrade } from './tradeHelpers';
+import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
+import { getCachedProfile, warmProfileCache } from '../Helper/profileCache';
+import { ref as dbRef, onValue } from '@react-native-firebase/database';
 import {
   collection,
   deleteDoc,
@@ -63,7 +68,7 @@ const TradeList = ({ route }) => {
   const [searchHasMore, setSearchHasMore] = useState(true); // ✅ More results available for search
   const SEARCH_PAGE_SIZE = 5; // ✅ Fetch 5 items at a time for search
   const { selectedTheme } = route.params
-  const { user, analytics, single_offer_wall, proGranted, strikeInfo, isAdmin } = useGlobalState()
+  const { user, analytics, single_offer_wall, proGranted, strikeInfo, isAdmin, appdatabase } = useGlobalState()
   const [trades, setTrades] = useState([]);
   const [filteredTrades, setFilteredTrades] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -78,6 +83,7 @@ const TradeList = ({ route }) => {
   const [bannedUsers, setBannedUsers] = useState([]);
   const [isOnline, setIsOnline] = useState(false);
   const [isAtTop, setIsAtTop] = useState(true);
+  const [savedTradeRefs, setSavedTradeRefs] = useState({});
   const flatListRef = useRef(null);
   const scrollButtonOpacity = useMemo(() => new Animated.Value(0), []);
   const { triggerHapticFeedback } = useHaptic();
@@ -118,6 +124,46 @@ const TradeList = ({ route }) => {
 
 
   const [selectedFilters, setSelectedFilters] = useState([]); // ✅ Default: no filters (show all)
+  const [followingIds, setFollowingIds] = useState([]);
+  const isMyTradesActive = selectedFilters.includes('myTrades');
+  const isFollowingActive = selectedFilters.includes('following');
+
+  // Filter button press handlers
+  const handleMyTradesPress = useCallback(() => {
+    triggerHapticFeedback('impactLight');
+    if (!user?.id) { setIsSigninDrawerVisible(true); return; }
+    setSelectedFilters(prev =>
+      prev.includes('myTrades')
+        ? prev.filter(f => f !== 'myTrades')
+        : [...prev.filter(f => f !== 'following'), 'myTrades']
+    );
+  }, [user?.id]);
+
+  const handleFollowingPress = useCallback(() => {
+    triggerHapticFeedback('impactLight');
+    if (!user?.id) { setIsSigninDrawerVisible(true); return; }
+    setSelectedFilters(prev =>
+      prev.includes('following')
+        ? prev.filter(f => f !== 'following')
+        : [...prev.filter(f => f !== 'myTrades'), 'following']
+    );
+  }, [user?.id]);
+
+  // Push filter state to route params (booleans only — no functions to avoid serialization warning)
+  useEffect(() => {
+    navigation.setParams({
+      isMyTradesActive,
+      isFollowingActive,
+    });
+  }, [isMyTradesActive, isFollowingActive]);
+
+  // Listen for button presses from the header via navigation events
+  useEffect(() => {
+    const unsub = navigation.addListener('myTradesPress', handleMyTradesPress);
+    const unsub2 = navigation.addListener('followingPress', handleFollowingPress);
+    return () => { unsub(); unsub2(); };
+  }, [navigation, handleMyTradesPress, handleFollowingPress]);
+
   useEffect(() => {
     setIsProStatus(localState.isPro || proGranted); // ✅ Force update state and trigger re-render
   }, [localState.isPro, proGranted]);
@@ -141,6 +187,7 @@ const TradeList = ({ route }) => {
         // ✅ Separate filter types
         const statusFilters = selectedFilters.filter(f => ['win', 'lose', 'fair'].includes(f));
         const hasMyTradesFilter = selectedFilters.includes("myTrades");
+        const hasFollowingFilter = selectedFilters.includes("following");
 
         // ✅ Check status filter match
         let matchesStatus = true;
@@ -156,11 +203,17 @@ const TradeList = ({ route }) => {
           matchesMyTrades = trade.userId === user?.id;
         }
 
+        // ✅ Check following filter match
+        let matchesFollowing = true;
+        if (hasFollowingFilter) {
+          matchesFollowing = followingIds.includes(trade.userId);
+        }
+
         // ✅ All selected filters must match (AND logic)
-        return matchesStatus && matchesMyTrades;
+        return matchesStatus && matchesMyTrades && matchesFollowing;
       })
     );
-  }, [trades, selectedFilters, user?.id, bannedUsers]);
+  }, [trades, selectedFilters, user?.id, bannedUsers, followingIds]);
 
 
   useEffect(() => {
@@ -168,6 +221,36 @@ const TradeList = ({ route }) => {
     setBannedUsers(localState.bannedUsers)
 
   }, [user?.id, localState.bannedUsers]);
+
+  // ✅ Fetch following IDs for "Following" filter
+  useEffect(() => {
+    if (!user?.id || !firestoreDB) return;
+    (async () => {
+      try {
+        const q = query(
+          collection(firestoreDB, 'following'),
+          where('followerId', '==', user.id),
+          limit(200),
+        );
+        const snap = await getDocs(q);
+        const ids = snap.docs.map(d => d.data().followingId).filter(Boolean);
+        setFollowingIds(ids);
+      } catch (err) {
+        console.warn('[Trades] Error fetching following list:', err?.message);
+      }
+    })();
+  }, [user?.id, firestoreDB]);
+
+  // Real-time listener for saved/accepted trade refs — stays in sync across screens
+  useEffect(() => {
+    if (!user?.id || !appdatabase) return;
+    const savedRef = dbRef(appdatabase, `savedTrades/${user.id}`);
+    const unsubscribe = onValue(savedRef, (snapshot) => {
+      setSavedTradeRefs(snapshot.exists() ? snapshot.val() : {});
+    });
+    return () => unsubscribe();
+  }, [user?.id, appdatabase]);
+
   const getTradeDeal = (hasTotal, wantsTotal) => {
     if (hasTotal.value <= 0) {
       return { label: "trade.unknown_deal", color: "#8E8E93" }; // ⚠️ Unknown deal (invalid input)
@@ -205,7 +288,7 @@ const TradeList = ({ route }) => {
             try {
               const tradeId = item.id.startsWith("featured-") ? item.id.replace("featured-", "") : item.id;
 
-              await deleteDoc(doc(firestoreDB, "trades_new", tradeId));
+              await deleteDoc(doc(firestoreDB, "trades_new_upgrade", tradeId));
 
 
               if (item.isFeatured) {
@@ -262,7 +345,7 @@ const TradeList = ({ route }) => {
       const oneDayAgo = Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
       const featuredSnapshot = await getDocs(
         query(
-          collection(firestoreDB, "trades_new"),
+          collection(firestoreDB, "trades_new_upgrade"),
           where("userId", "==", user.id),
           where("isFeatured", "==", true),
           where("featuredUntil", ">", oneDayAgo)
@@ -288,7 +371,7 @@ const TradeList = ({ route }) => {
             onPress: async () => {
               try {
                 await updateDoc(
-                  doc(firestoreDB, "trades_new", item.id),
+                  doc(firestoreDB, "trades_new_upgrade", item.id),
                   {
                     isFeatured: true,
                     featuredUntil: Timestamp.fromDate(
@@ -364,7 +447,7 @@ const TradeList = ({ route }) => {
 
       // ✅ Build query for more normal trades
       let normalQuery = query(
-        collection(firestoreDB, 'trades_new'),
+        collection(firestoreDB, 'trades_new_upgrade'),
         where('isFeatured', '!=', true), // ✅ Match initial query structure
         orderBy('isFeatured'), // ✅ Required: first orderBy must match inequality field
         orderBy('timestamp', 'desc'), // ✅ Then order by timestamp
@@ -375,7 +458,7 @@ const TradeList = ({ route }) => {
       // ✅ Add status filter if status filters are selected
       if (statusValues && statusValues.length > 0) {
         normalQuery = query(
-          collection(firestoreDB, 'trades_new'),
+          collection(firestoreDB, 'trades_new_upgrade'),
           where('isFeatured', '!=', true),
           where('status', 'in', statusValues),
           orderBy('isFeatured'),
@@ -574,14 +657,14 @@ const TradeList = ({ route }) => {
         try {
           const hasQuery = lastDocSnapshot
             ? query(
-              collection(firestoreDB, 'trades_new'),
+              collection(firestoreDB, 'trades_new_upgrade'),
               where('hasItemNames', 'array-contains', searchTermLower),
               orderBy('timestamp', 'desc'),
               startAfter(lastDocSnapshot),
               limit(SEARCH_PAGE_SIZE)
             )
             : query(
-              collection(firestoreDB, 'trades_new'),
+              collection(firestoreDB, 'trades_new_upgrade'),
               where('hasItemNames', 'array-contains', searchTermLower),
               orderBy('timestamp', 'desc'),
               limit(SEARCH_PAGE_SIZE)
@@ -608,14 +691,14 @@ const TradeList = ({ route }) => {
         try {
           const wantsQuery = lastDocSnapshot
             ? query(
-              collection(firestoreDB, 'trades_new'),
+              collection(firestoreDB, 'trades_new_upgrade'),
               where('wantsItemNames', 'array-contains', searchTermLower),
               orderBy('timestamp', 'desc'),
               startAfter(lastDocSnapshot),
               limit(SEARCH_PAGE_SIZE)
             )
             : query(
-              collection(firestoreDB, 'trades_new'),
+              collection(firestoreDB, 'trades_new_upgrade'),
               where('wantsItemNames', 'array-contains', searchTermLower),
               orderBy('timestamp', 'desc'),
               limit(SEARCH_PAGE_SIZE)
@@ -699,7 +782,7 @@ const TradeList = ({ route }) => {
 
       // ✅ Build query for normal trades
       let normalQuery = query(
-        collection(firestoreDB, 'trades_new'),
+        collection(firestoreDB, 'trades_new_upgrade'),
         where('isFeatured', '!=', true),
         orderBy('isFeatured'), // ✅ Required: first orderBy must match inequality field
         orderBy('timestamp', 'desc'), // ✅ Then order by timestamp
@@ -709,7 +792,7 @@ const TradeList = ({ route }) => {
       // ✅ Add status filter if status filters are selected
       if (statusValues && statusValues.length > 0) {
         normalQuery = query(
-          collection(firestoreDB, 'trades_new'),
+          collection(firestoreDB, 'trades_new_upgrade'),
           where('isFeatured', '!=', true),
           where('status', 'in', statusValues),
           orderBy('isFeatured'),
@@ -720,7 +803,7 @@ const TradeList = ({ route }) => {
 
       // ✅ Build query for featured trades
       let featuredQuery = query(
-        collection(firestoreDB, 'trades_new'),
+        collection(firestoreDB, 'trades_new_upgrade'),
         where('isFeatured', '==', true),
         where('featuredUntil', '>', now),
         orderBy('featuredUntil', 'desc'),
@@ -730,7 +813,7 @@ const TradeList = ({ route }) => {
       // ✅ Add status filter to featured trades if status filters are selected
       if (statusValues && statusValues.length > 0) {
         featuredQuery = query(
-          collection(firestoreDB, 'trades_new'),
+          collection(firestoreDB, 'trades_new_upgrade'),
           where('isFeatured', '==', true),
           where('featuredUntil', '>', now),
           where('status', 'in', statusValues),
@@ -770,6 +853,12 @@ const TradeList = ({ route }) => {
         index === self.findIndex(t => t.id === trade.id)
       );
 
+      // ✅ Warm profile cache for trade poster cosmetics (tradeCardBg)
+      const allUserIds = [...new Set([...normalTrades, ...featuredTrades].map(t => t.userId).filter(Boolean))];
+      if (appdatabase && allUserIds.length > 0) {
+        warmProfileCache(appdatabase, allUserIds);
+      }
+
       // ✅ Update state
       setTrades(uniqueMergedTrades);
 
@@ -793,6 +882,57 @@ const TradeList = ({ route }) => {
     }
   }, [firestoreDB, selectedFilters]);
 
+  // ✅ Fetch only current user's trades (for "My Trades" filter)
+  const fetchMyTrades = useCallback(async () => {
+    if (!user?.id || !firestoreDB) return;
+    setLoading(true);
+    try {
+      const myQuery = query(
+        collection(firestoreDB, 'trades_new_upgrade'),
+        where('userId', '==', user.id),
+        orderBy('timestamp', 'desc'),
+        limit(50)
+      );
+      const snap = await getDocs(myQuery);
+      const myTrades = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setTrades(myTrades);
+      setHasMore(false);
+    } catch (e) {
+      console.warn('[Trades] fetchMyTrades error:', e?.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id, firestoreDB]);
+
+  // ✅ Fetch trades from followed users (for "Following" filter)
+  const fetchFollowingTrades = useCallback(async () => {
+    if (!user?.id || followingIds.length === 0) {
+      setTrades([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const TRADE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+      const sevenDaysAgo = Timestamp.fromMillis(Date.now() - TRADE_MAX_AGE_MS);
+      const chunk = followingIds.slice(0, 30); // Firestore 'in' limit
+      const followQuery = query(
+        collection(firestoreDB, 'trades_new_upgrade'),
+        where('userId', 'in', chunk),
+        where('timestamp', '>', sevenDaysAgo),
+        orderBy('timestamp', 'desc'),
+        limit(50)
+      );
+      const snap = await getDocs(followQuery);
+      const followTrades = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setTrades(followTrades);
+      setHasMore(false);
+    } catch (e) {
+      console.warn('[Trades] fetchFollowingTrades error:', e?.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id, followingIds, firestoreDB]);
 
   // const captureAndSave = async () => {
   //   if (!viewRef.current) {
@@ -896,7 +1036,7 @@ const TradeList = ({ route }) => {
 
   // useEffect(() => {
   //   const unsubscribe = firestore()
-  //     .collection('trades_new')
+  //     .collection('trades_new_upgrade')
   //     .orderBy('timestamp', 'desc')
   //     .limit(PAGE_SIZE)
   //     .onSnapshot(snapshot => {
@@ -919,6 +1059,21 @@ const TradeList = ({ route }) => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]); // ✅ Only depend on user.id
+
+  // ✅ Refetch trades when My Trades / Following filter changes
+  useEffect(() => {
+    if (selectedFilters.includes('myTrades')) {
+      fetchMyTrades();
+    } else if (selectedFilters.includes('following')) {
+      fetchFollowingTrades();
+    } else {
+      fetchInitialTrades();
+    }
+    // Auto-scroll to top on filter change
+    if (flatListRef.current) {
+      flatListRef.current.scrollToOffset({ offset: 0, animated: true });
+    }
+  }, [isMyTradesActive, isFollowingActive]);
 
   const closeProfileDrawer = async () => {
     setIsDrawerVisible(false);
@@ -982,7 +1137,14 @@ const TradeList = ({ route }) => {
     setHasMore(true); // ✅ Reset hasMore
     setLastDoc(null); // ✅ Reset lastDoc
     setRemainingFeaturedTrades([]); // ✅ Reset featured trades
-    await fetchInitialTrades();
+    // ✅ Respect active filter on refresh
+    if (isMyTradesActive) {
+      await fetchMyTrades();
+    } else if (isFollowingActive) {
+      await fetchFollowingTrades();
+    } else {
+      await fetchInitialTrades();
+    }
     setRefreshing(false);
     setIsAtTop(true); // ✅ Reset scroll position
   };
@@ -1062,7 +1224,14 @@ const TradeList = ({ route }) => {
     };
 
     return (
-      <View style={[styles.altTradeCard, item.isFeatured && styles.altTradeCardFeatured]}>
+      <View style={[styles.altTradeCard, item.isFeatured && styles.altTradeCardFeatured, (() => {
+        const posterProfile = getCachedProfile(item.userId);
+        const bg = posterProfile?.tradeCardBg;
+        if (bg) {
+          return { backgroundColor: isDarkMode ? (bg.darkColor || bg.color) : bg.color, borderWidth: 1, borderColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' };
+        }
+        return null;
+      })()]}>
         {item.isFeatured && (
           <View style={styles.altFeaturedRow}>
             <View style={styles.altFeaturedBadge}>
@@ -1074,9 +1243,11 @@ const TradeList = ({ route }) => {
         {/* Header row */}
         <View style={styles.altTradeHeader}>
           <TouchableOpacity style={styles.altTradeUserRow} onPress={() => handleOpenProfile(item)}>
-            <Image
-              source={{ uri: item.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }}
-              style={styles.altTradeAvatar}
+            <FramedAvatar
+              avatarUri={item.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png'}
+              frame={getCachedProfile(item.userId)?.profileFrame || null}
+              isDarkMode={isDarkMode}
+              avatarSize={32}
             />
             <View style={{ flex: 1, marginLeft: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1085,6 +1256,7 @@ const TradeList = ({ route }) => {
                 ) : (
                   <Text style={styles.altTradeName}>{item.traderName}</Text>
                 )}
+                <RoleBadges userItem={item} />
                 {item?.isPro && <Image source={require('../../assets/pro.png')} style={{ width: 10, height: 10, marginLeft: 4 }} />}
                 {item?.robloxUsernameVerified && <Image source={require('../../assets/verification.png')} style={{ width: 10, height: 10, marginLeft: 4 }} />}
                 {(() => {
@@ -1179,6 +1351,82 @@ const TradeList = ({ route }) => {
             </TouchableOpacity>
           </View>
         )}
+        {/* Accept/Save buttons for alt layout */}
+        {item.userId !== user?.id && (
+          <View style={styles.tradeActionRow}>
+            <TouchableOpacity
+              onPress={async () => {
+                if (!user?.id) { setIsSigninDrawerVisible(true); return; }
+                triggerHapticFeedback('impactLight');
+                const tradeId = item.id;
+                if (savedTradeRefs[tradeId]) {
+                  try {
+                    await unsaveTrade(appdatabase, user.id, tradeId);
+                    setSavedTradeRefs(prev => { const n = { ...prev }; delete n[tradeId]; return n; });
+                    showSuccessMessage(t('trade.removed', { defaultValue: 'Removed' }), t('trade.trade_unsaved', { defaultValue: 'Trade removed from saved' }));
+                  } catch (e) {
+                    showErrorMessage(t('home.alert.error'), e?.message || 'Error');
+                  }
+                } else {
+                  try {
+                    await saveTrade(appdatabase, user.id, item);
+                    setSavedTradeRefs(prev => ({ ...prev, [tradeId]: { type: 'saved' } }));
+                    showSuccessMessage(t('trade.saved', { defaultValue: 'Trade Saved!' }), '');
+                  } catch (e) {
+                    showErrorMessage(t('home.alert.error'), e?.message || 'Error');
+                  }
+                }
+              }}
+              style={[styles.tradeSaveBtn, savedTradeRefs[item.id]?.type === 'saved' && { backgroundColor: '#3B82F620' }]}
+              activeOpacity={0.75}
+            >
+              <Icon name={savedTradeRefs[item.id] ? 'bookmark' : 'bookmark-outline'} size={14} color="#3B82F6" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={async () => {
+                if (!user?.id) { setIsSigninDrawerVisible(true); return; }
+                const tradeId = item.id;
+                if (savedTradeRefs[tradeId]?.type === 'accepted') {
+                  triggerHapticFeedback('impactLight');
+                  return;
+                }
+                Alert.alert(
+                  t('trade.accept_trade', { defaultValue: 'Accept This Trade?' }),
+                  t('trade.accept_confirm_guide', { defaultValue: 'Accept this trade? The trader will be notified.' }),
+                  [
+                    { text: t('chat.cancel', { defaultValue: 'Cancel' }), style: 'cancel' },
+                    {
+                      text: t('trade.yes_accept', { defaultValue: 'Yes, Accept' }),
+                      onPress: async () => {
+                        triggerHapticFeedback('impactMedium');
+                        setSavedTradeRefs(prev => ({ ...prev, [tradeId]: { type: 'accepted' } }));
+                        try {
+                          await acceptTrade(appdatabase, firestoreDB, user.id, user.displayName || 'Someone', item, { avatar: user.avatar || '', robloxUsername: user.robloxUsername || '' });
+                          triggerHapticFeedback('notificationSuccess');
+                          showSuccessMessage(t('trade.accepted', { defaultValue: 'Trade Accepted!' }), t('trade.accepted_guide', { defaultValue: 'The trader has been notified!' }));
+                        } catch (e) {
+                          setSavedTradeRefs(prev => { const next = { ...prev }; delete next[tradeId]; return next; });
+                          showErrorMessage(t('home.alert.error'), e?.message || 'Error');
+                        }
+                      }
+                    }
+                  ]
+                );
+              }}
+              style={[styles.tradeAcceptBtn, savedTradeRefs[item.id]?.type === 'accepted' && { backgroundColor: '#10B981' }]}
+              activeOpacity={0.75}
+            >
+              <Icon name={savedTradeRefs[item.id]?.type === 'accepted' ? 'checkmark-circle' : 'checkmark'} size={12} color={savedTradeRefs[item.id]?.type === 'accepted' ? '#fff' : '#10B981'} />
+              <Text style={[styles.tradeAcceptBtnText, savedTradeRefs[item.id]?.type === 'accepted' && { color: '#fff' }]}>
+                {savedTradeRefs[item.id]?.type === 'accepted' ? t('trade.accepted_short', { defaultValue: 'Accepted' }) : t('trade.accept', { defaultValue: 'Accept' })}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.tradeChatBtn2} onPress={handleChatNavigation} activeOpacity={0.8}>
+              <Icon name="paper-plane-outline" size={10} color="#fff" />
+              <Text style={styles.tradeChatBtnLabel}>Chat</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     );
   };
@@ -1228,7 +1476,14 @@ const TradeList = ({ route }) => {
     };
 
     return (
-      <View style={[styles.tradeItem, item.isFeatured && styles.tradeItemFeatured]}>
+      <View style={[styles.tradeItem, item.isFeatured && styles.tradeItemFeatured, (() => {
+        const posterProfile = getCachedProfile(item.userId);
+        const bg = posterProfile?.tradeCardBg;
+        if (bg) {
+          return { backgroundColor: isDarkMode ? (bg.darkColor || bg.color) : bg.color, borderWidth: 1, borderColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' };
+        }
+        return null;
+      })()]}>
         {item.isFeatured && (
           <View style={styles.featuredTopRow}>
             <View style={styles.featuredTopLabel}>
@@ -1239,9 +1494,11 @@ const TradeList = ({ route }) => {
 
         <View style={styles.tradeHeader}>
           <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }} onPress={() => handleOpenProfile(item)}>
-            <Image
-              source={{ uri: item.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }}
-              style={styles.itemImageUser}
+            <FramedAvatar
+              avatarUri={item.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png'}
+              frame={getCachedProfile(item.userId)?.profileFrame || null}
+              isDarkMode={isDarkMode}
+              avatarSize={30}
             />
 
             <View style={{ marginLeft: 5 }}>
@@ -1258,6 +1515,7 @@ const TradeList = ({ route }) => {
                 ) : (
                   <Text style={styles.traderName}>{item.traderName}</Text>
                 )}
+                <RoleBadges userItem={item} />
                 {item?.isPro && (
                   <Image
                     source={require('../../assets/pro.png')}
@@ -1410,31 +1668,117 @@ const TradeList = ({ route }) => {
         {/* Description */}
         {item.description && <Text style={styles.description}>{renderTextWithUsername(item.description)}
         </Text>}
-        {item.userId === user?.id && (
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
-            {!item.isFeatured && (
-              <TouchableOpacity onPress={() => handleMakeFeatureTrade(item)} style={styles.tradeBoostBtn}>
-                <Icon name="rocket-outline" size={11} color="white" />
-                <Text style={styles.tradeBtnText}>BOOST</Text>
-              </TouchableOpacity>
+        {/* ── Social Actions Row ── */}
+        <View style={styles.socialActionsRow}>
+          {/* Left side: Owner Actions */}
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            {item.userId === user?.id && (
+              <>
+                {!item.isFeatured && (
+                  <TouchableOpacity onPress={() => handleMakeFeatureTrade(item)} style={styles.tradeBoostBtn}>
+                    <Icon name="rocket-outline" size={11} color="white" />
+                    <Text style={styles.tradeBtnText}>BOOST</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={() => handleDelete(item)} style={styles.tradeDeleteBtn}>
+                  <Icon name="trash-outline" size={11} color="white" />
+                  <Text style={styles.tradeBtnText}>DELETE</Text>
+                </TouchableOpacity>
+              </>
             )}
-            <TouchableOpacity onPress={() => handleDelete(item)} style={styles.tradeDeleteBtn}>
-              <Icon name="trash-outline" size={11} color="white" />
-              <Text style={styles.tradeBtnText}>DELETE</Text>
+          </View>
+
+          {/* Right side: Engagement Actions */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {/* Save / Accept — only for other users' trades */}
+            {item.userId !== user?.id && (
+              <>
+                <TouchableOpacity
+                  onPress={async () => {
+                    if (!user?.id) { setIsSigninDrawerVisible(true); return; }
+                    triggerHapticFeedback('impactLight');
+                    const tradeId = item.id;
+                    if (savedTradeRefs[tradeId]) {
+                      try {
+                        await unsaveTrade(appdatabase, user.id, tradeId);
+                        setSavedTradeRefs(prev => { const n = { ...prev }; delete n[tradeId]; return n; });
+                        showSuccessMessage(t('trade.removed', { defaultValue: 'Removed' }), t('trade.trade_unsaved', { defaultValue: 'Trade removed from saved' }));
+                      } catch (e) {
+                        showErrorMessage(t('home.alert.error'), e?.message || 'Error');
+                      }
+                    } else {
+                      try {
+                        await saveTrade(appdatabase, user.id, item);
+                        setSavedTradeRefs(prev => ({ ...prev, [tradeId]: { type: 'saved' } }));
+                        Alert.alert(
+                          '🔖 ' + t('trade.saved', { defaultValue: 'Trade Saved!' }),
+                          t('trade.saved_guide', { defaultValue: 'This trade has been saved to My Stuff → Active Trades → Saved tab.\n\nFrom there you can:\n• View the trader\'s Roblox username & copy it\n• Chat with the trader\n• Ping the trader when you\'re ready' }),
+                          [{ text: t('trade.got_it', { defaultValue: 'Got it!' }) }]
+                        );
+                      } catch (e) {
+                        showErrorMessage(t('home.alert.error'), e?.message || 'Error');
+                      }
+                    }
+                  }}
+                  style={[styles.socialBtn, savedTradeRefs[item.id]?.type === 'saved' && { backgroundColor: '#3B82F620' }]}
+                  activeOpacity={0.75}
+                >
+                  <Icon name={savedTradeRefs[item.id] ? 'bookmark' : 'bookmark-outline'} size={14} color="#3B82F6" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={async () => {
+                    if (!user?.id) { setIsSigninDrawerVisible(true); return; }
+                    const tradeId = item.id;
+                    if (savedTradeRefs[tradeId]?.type === 'accepted') {
+                      triggerHapticFeedback('impactLight');
+                      showSuccessMessage('✅', t('trade.already_accepted', { defaultValue: 'Already accepted!' }));
+                      return;
+                    }
+                    Alert.alert(
+                      '🤝 ' + t('trade.accept_trade', { defaultValue: 'Accept This Trade?' }),
+                      t('trade.accept_confirm_guide', { defaultValue: 'Are you sure you want to accept this trade?\n\nOnce accepted, the trader will be notified. You can find this trade in My Stuff → Active Trades → Accepted tab.' }),
+                      [
+                        { text: t('chat.cancel', { defaultValue: 'Cancel' }), style: 'cancel' },
+                        {
+                          text: t('trade.yes_accept', { defaultValue: 'Yes, Accept' }),
+                          onPress: async () => {
+                            triggerHapticFeedback('impactMedium');
+                            setSavedTradeRefs(prev => ({ ...prev, [tradeId]: { type: 'accepted' } }));
+                            try {
+                              await acceptTrade(appdatabase, firestoreDB, user.id, user.displayName || 'Someone', item, { avatar: user.avatar || '', robloxUsername: user.robloxUsername || '' });
+                              triggerHapticFeedback('notificationSuccess');
+                              Alert.alert(
+                                '✅ ' + t('trade.accepted', { defaultValue: 'Trade Accepted!' }),
+                                t('trade.accepted_guide', { defaultValue: 'The trader has been notified!\n\nHead to My Stuff → Active Trades → Accepted tab to:\n• Copy the trader\'s Roblox username\n• Chat with them to set up the trade\n• Ping them when you\'re online and ready' }),
+                                [{ text: t('trade.got_it', { defaultValue: 'Got it!' }) }]
+                              );
+                            } catch (e) {
+                              setSavedTradeRefs(prev => { const next = { ...prev }; delete next[tradeId]; return next; });
+                              showErrorMessage(t('home.alert.error'), e?.message || 'Error');
+                            }
+                          }
+                        }
+                      ]
+                    );
+                  }}
+                  style={[styles.tradeAcceptBtn, savedTradeRefs[item.id]?.type === 'accepted' && { backgroundColor: '#10B981' }]}
+                  activeOpacity={0.75}
+                >
+                  <Icon name={savedTradeRefs[item.id]?.type === 'accepted' ? 'checkmark-circle' : 'checkmark'} size={12} color={savedTradeRefs[item.id]?.type === 'accepted' ? '#fff' : '#10B981'} />
+                  <Text style={[styles.tradeAcceptBtnText, savedTradeRefs[item.id]?.type === 'accepted' && { color: '#fff' }]}>
+                    {savedTradeRefs[item.id]?.type === 'accepted' ? t('trade.accepted_short', { defaultValue: 'Accepted' }) : t('trade.accept', { defaultValue: 'Accept' })}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            <TouchableOpacity style={styles.tradeChatBtn2} onPress={() => handleOpenProfile(item)} activeOpacity={0.8}>
+              <Icon name="chatbubble" size={10} color="#fff" />
+              <Text style={styles.tradeChatBtnLabel}>{t('feed.chat', { defaultValue: 'Chat' })}</Text>
             </TouchableOpacity>
           </View>
-        )}
-
-        {/* ── Absolute Chat button ── */}
-        <TouchableOpacity style={styles.tradeChatBtn} onPress={() => handleOpenProfile(item)} activeOpacity={0.8}>
-          <Icon name="paper-plane-outline" size={11} color="#fff" />
-          <Text style={styles.tradeChatBtnLabel}>Chat</Text>
-        </TouchableOpacity>
-        {/* <ShareTradeModal
-          visible={openShareModel}
-          onClose={() => setOpenShareModel(false)}
-          tradeData={selectedTrade}
-        /> */}
+        </View>
 
       </View>
     );
@@ -1542,58 +1886,6 @@ const TradeList = ({ route }) => {
           </View>
         )}
       </View>
-      {/* ✅ Filter Pill Bar — matching adoptme */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ flexGrow: 0, flexShrink: 0 }}
-        contentContainerStyle={{ flexDirection: 'row', paddingHorizontal: 4, paddingVertical: 6, gap: 8 }}
-      >
-        {[
-          { id: 'win', label: '🏆 Win', color: '#10B981' },
-          { id: 'lose', label: '❌ Lose', color: '#EF4444' },
-          { id: 'fair', label: '⚖️ Fair', color: '#F59E0B' },
-          { id: 'myTrades', label: '👤 My Trades', color: config.colors.primary },
-        ].map(({ id, label, color }) => {
-          const active = selectedFilters.includes(id);
-          return (
-            <TouchableOpacity
-              key={id}
-              onPress={() => {
-                triggerHapticFeedback('impactLight');
-                setSelectedFilters(prev =>
-                  prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]
-                );
-              }}
-              style={{
-                paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-                backgroundColor: active ? color : (isDarkMode ? '#1e1e2e' : '#f0f0f5'),
-                borderWidth: 1,
-                borderColor: active ? color : (isDarkMode ? '#333' : '#ddd'),
-              }}
-              activeOpacity={0.8}
-            >
-              <Text style={{
-                fontSize: 12, fontWeight: '700',
-                color: active ? '#fff' : (isDarkMode ? '#aaa' : '#555'),
-              }}>{label}</Text>
-            </TouchableOpacity>
-          );
-        })}
-        {selectedFilters.length > 0 && (
-          <TouchableOpacity
-            onPress={() => { triggerHapticFeedback('impactLight'); setSelectedFilters([]); }}
-            style={{
-              paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-              backgroundColor: isDarkMode ? '#2a1a1a' : '#fee2e2',
-              borderWidth: 1, borderColor: '#EF4444',
-            }}
-            activeOpacity={0.8}
-          >
-            <Text style={{ fontSize: 12, fontWeight: '700', color: '#EF4444' }}>✕ Clear</Text>
-          </TouchableOpacity>
-        )}
-      </ScrollView>
 
       <FlatList
         ref={flatListRef}
@@ -1714,12 +2006,11 @@ const getStyles = (isDarkMode) =>
     },
     tradeItem: {
       padding: 10,
-      paddingBottom: 44,
+      paddingBottom: 10,
       marginBottom: 10,
       backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
       borderRadius: 10,
       borderWidth: 0,
-      position: 'relative',
     },
     tradeItemFeatured: {
       borderWidth: 1.5,
@@ -2025,6 +2316,65 @@ const getStyles = (isDarkMode) =>
       fontWeight: '700',
       fontSize: 10,
     },
+    // ── Trade action row ──
+    socialActionsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 8,
+    },
+    tradeActionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      gap: 8,
+      marginTop: 8,
+    },
+    tradeSaveBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    socialBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    tradeAcceptBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+      borderRadius: 999,
+      backgroundColor: isDarkMode ? 'rgba(16,185,129,0.1)' : '#ECFDF5',
+    },
+    tradeAcceptBtnText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: '#10B981',
+    },
+    tradeChatBtn2: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 4,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+      borderRadius: 999,
+      backgroundColor: config.colors.primary,
+    },
+    tradeChatBtnLabel: {
+      color: '#ffffff',
+      fontWeight: '700',
+      fontSize: 10,
+    },
     // ── (end) ─────────────────────────────────────────────────────────────────
     searchContainer: {
       paddingHorizontal: 4,
@@ -2131,7 +2481,9 @@ const getStyles = (isDarkMode) =>
     },
     // ── Alternate (non-Noman) styles ──
     altTradeCard: {
-      padding: 12,
+      paddingHorizontal: 12,
+      paddingTop: 12,
+      paddingBottom: 8,
       marginVertical: 5,
       backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
       borderRadius: 14,

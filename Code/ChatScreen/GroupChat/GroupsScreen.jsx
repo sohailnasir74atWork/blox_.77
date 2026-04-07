@@ -82,7 +82,7 @@ const truncateGroupName = (name, maxLength = 25) => {
 
 const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
   const navigation = useNavigation();
-  const { user, theme, appdatabase, firestoreDB, isAdmin } = useGlobalState();
+  const { user, theme, appdatabase, firestoreDB, isAdmin, isModerator } = useGlobalState();
   const { localState } = useLocalState();
   const { t } = useTranslation();
   const [pendingInvitations, setPendingInvitations] = useState([]);
@@ -285,6 +285,13 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
         );
         if (result.success) {
           showSuccessMessage('Success', `You joined "${result.groupName || 'the group'}"!`);
+
+          // 🐝 Track group joins for socialBee badge
+          try {
+            const { incrementAndCheckBadge, GROUP_CHAT_BADGE_THRESHOLDS } = require('./badgeUtils');
+            incrementAndCheckBadge(appdatabase, user.id, 'groupJoinCount', GROUP_CHAT_BADGE_THRESHOLDS);
+          } catch (e) {}
+
           // Remove from pending list locally
           setPendingInvitations(prev => prev.filter(invite => invite.id !== inviteId));
           // Navigate to the group chat
@@ -343,7 +350,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
     // Check if user is admin in this specific group
     const group = groups.find(g => g.groupId === groupId);
     const isCreator = group?.createdBy === user.id;
-    const isGroupAdmin = isCreator || (group?.members?.[user.id]?.role === 'admin') || (isAdmin && group?.members?.[user.id]);
+    const isGroupAdmin = isCreator || (group?.members?.[user.id]?.role === 'admin') || ((isAdmin || isModerator) && group?.members?.[user.id]);
 
     if (!isGroupAdmin) {
       showErrorMessage('Error', 'Only group admins can delete groups');
@@ -381,7 +388,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
         },
       ]
     );
-  }, [user?.id, isAdmin, firestoreDB, appdatabase, setGroups, groups]);
+  }, [user?.id, isAdmin, isModerator, firestoreDB, appdatabase, setGroups, groups]);
 
   // Handle leave group
   const handleLeaveGroup = useCallback((groupId, groupName) => {
@@ -464,7 +471,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
     // Check if user has permission to edit (group creator, group admin, or global admin)
     const isCreator = group.createdBy === user.id;
     const isGroupAdmin = group.members?.[user.id]?.role === 'admin';
-    const canEdit = isCreator || isGroupAdmin || (isAdmin && group.members?.[user.id]);
+    const canEdit = isCreator || isGroupAdmin || ((isAdmin || isModerator) && group.members?.[user.id]);
 
     if (!canEdit) {
       showErrorMessage('Error', 'Only group creator or admin can edit this group');
@@ -478,7 +485,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
       avatar: group.groupAvatar || group.avatar || null,
     });
     setEditGroupModalVisible(true);
-  }, [isAdmin, groups, user?.id, showErrorMessage]);
+  }, [isAdmin, isModerator, groups, user?.id, showErrorMessage]);
 
   // Handle group updated callback
   const handleGroupUpdated = useCallback(() => {
@@ -635,7 +642,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
     // Check if user is admin or creator
     const group = groups.find(g => g.groupId === groupId);
     const isCreator = group?.createdBy === user.id;
-    if (!isAdmin && !isCreator) {
+    if (!isAdmin && !isModerator && !isCreator) {
       showErrorMessage('Error', 'Only admin or creator can update group icon');
       return;
     }
@@ -703,7 +710,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
     const memberCount = item.memberCount || 0;
     const isMyGroup = item.createdBy === user?.id;
     // Check if user is admin in this specific group (creator or has admin role)
-    const isGroupAdmin = isMyGroup || (item.members?.[user?.id]?.role === 'admin') || (isAdmin && item.members?.[user?.id]); // Global admin can also delete if they're a member
+    const isGroupAdmin = isMyGroup || (item.members?.[user?.id]?.role === 'admin') || ((isAdmin || isModerator) && item.members?.[user?.id]); // Global admin/moderator can also delete if they're a member
 
     return (
       <View style={styles.itemContainer}>
@@ -805,7 +812,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
         </Menu>
       </View>
     );
-  }, [styles, handleOpenGroup, handleLeaveGroup, handleUpdateGroupIcon, handleEditGroup, handleDeleteGroup, handleToggleMute, user?.id, isDarkMode, isAdmin, groups, mutedGroups]);
+  }, [styles, handleOpenGroup, handleLeaveGroup, handleUpdateGroupIcon, handleEditGroup, handleDeleteGroup, handleToggleMute, user?.id, isDarkMode, isAdmin, isModerator, groups, mutedGroups]);
 
   const filteredGroups = useMemo(() => {
     if (!Array.isArray(groups)) return [];
@@ -814,6 +821,11 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
       .filter(group => group && typeof group === 'object' && group.groupId)
       .sort((a, b) => (b?.lastMessageTimestamp || 0) - (a?.lastMessageTimestamp || 0));
   }, [groups]);
+
+  // Find user's own group (for dynamic button text)
+  const myGroup = useMemo(() => {
+    return filteredGroups.find(g => g.createdBy === user?.id) || null;
+  }, [filteredGroups, user?.id]);
 
   // ✅ Load initial 10 groups when "All Groups" tab is active
   useEffect(() => {
@@ -1174,7 +1186,6 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
         >
           <Text style={{
             fontSize: 12,
-            fontWeight: 'bold',
             fontWeight: '700',
             color: activeTab === 'joined'
               ? '#FFFFFF'
@@ -1201,7 +1212,6 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
         >
           <Text style={{
             fontSize: 12,
-            fontWeight: 'bold',
             fontWeight: '700',
             color: activeTab === 'all'
               ? '#FFFFFF'
@@ -1403,11 +1413,9 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
             data={filteredGroups}
             keyExtractor={(item, index) => item?.groupId || `group-${index}`}
             renderItem={renderGroupItem}
-            removeClippedSubviews={false}
-            initialNumToRender={8}
-            maxToRenderPerBatch={8}
-            windowSize={5}
-            updateCellsBatchingPeriod={100}
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={10}
+            windowSize={10}
           />
         )
       ) : (
@@ -1432,11 +1440,9 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
               }
             }}
             onEndReachedThreshold={0.5}
-            removeClippedSubviews={false}
-            initialNumToRender={8}
-            maxToRenderPerBatch={8}
-            windowSize={5}
-            updateCellsBatchingPeriod={100}
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={10}
+            windowSize={10}
             ListFooterComponent={
               allGroupsLoadingMore ? (
                 <View style={{ padding: 16, alignItems: 'center' }}>
@@ -1537,6 +1543,33 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                             Joined
                           </Text>
                         </View>
+                      ) : (isAdmin || !!user?.isModerator) ? (
+                        <TouchableOpacity
+                          onPress={() => handleOpenGroup(groupId, groupName)}
+                          style={{
+                            backgroundColor: '#3B82F6',
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                            borderRadius: 6,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            shadowColor: '#000',
+                            shadowOffset: { width: 0, height: 1 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 2,
+                            elevation: 2,
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={{
+                            color: '#FFFFFF',
+                            fontSize: 11,
+                            fontWeight: 'bold',
+                            letterSpacing: 0.2,
+                          }}>
+                            Enter
+                          </Text>
+                        </TouchableOpacity>
                       ) : hasPendingRequest ? (
                         <View style={{
                           backgroundColor: isDarkMode ? '#F59E0B' : '#FEF3C7',
@@ -1610,7 +1643,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                           </Text>
                         </TouchableOpacity>
                       )}
-                      {isAdmin && (
+                      {(isAdmin || isModerator) && (
                         <TouchableOpacity
                           onPress={() => {
                             Alert.alert(
@@ -1667,7 +1700,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
         )
       )}
 
-      {/* FAB Button - Create Group or Add Members (Only show in Joined Groups tab) */}
+      {/* Create Group / Add Members Button (Only show in Joined Groups tab) */}
       {activeTab === 'joined' && (
         <TouchableOpacity
           onPress={() => setOnlineUsersListVisible(true)}
@@ -1675,12 +1708,12 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
             position: 'absolute',
             bottom: 20,
             right: 20,
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            backgroundColor: config.colors.primary || '#8B5CF6',
-            justifyContent: 'center',
+            flexDirection: 'row',
             alignItems: 'center',
+            backgroundColor: config.colors.primary || '#8B5CF6',
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+            borderRadius: 24,
             elevation: 4,
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 3 },
@@ -1690,10 +1723,13 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
           }}
         >
           <Icon
-            name="add"
-            size={24}
+            name={myGroup ? 'person-add' : 'add'}
+            size={20}
             color="#fff"
           />
+          <Text style={{ color: '#fff', marginLeft: 6, fontWeight: '600', fontSize: 13 }} numberOfLines={1}>
+            {myGroup ? `Add members to ${truncateGroupName(myGroup.groupName, 15)}` : 'Create Group'}
+          </Text>
         </TouchableOpacity>
       )}
 

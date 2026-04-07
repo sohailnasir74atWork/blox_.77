@@ -4,7 +4,7 @@ import {
   Keyboard, TouchableWithoutFeedback,
 } from 'react-native';
 import { showMessage } from 'react-native-flash-message';
-import firestore from '@react-native-firebase/firestore';
+import { doc, collection, runTransaction } from '@react-native-firebase/firestore';
 import { useLocalState } from '../../LocalGlobelStats';
 import { useGlobalState } from '../../GlobelStats';
 import { banUserwithEmail } from '../../ChatScreen/utils';
@@ -13,7 +13,7 @@ const ReportModal = ({ visible, onClose, item }) => {
   const [reportText, setReportText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { updateLocalState, localState } = useLocalState()
-  const { strikeInfo, isAdmin, user } = useGlobalState();
+  const { strikeInfo, isAdmin, user, firestoreDB } = useGlobalState();
 
   // const handleBanToggle = async () => {
   //   const action = isBlock ? t("chat.unblock") : t("chat.block");
@@ -72,11 +72,11 @@ const ReportModal = ({ visible, onClose, item }) => {
     }
 
     setSubmitting(true);
-    const postRef = firestore().collection('designPosts').doc(item.id);
+    const postRef = doc(firestoreDB, 'designPosts_upgrade', item.id);
 
     try {
       // PURE transaction: only Firestore reads/writes, no awaits to external code
-      const txResult = await firestore().runTransaction(async (tx) => {
+      const txResult = await runTransaction(firestoreDB, async (tx) => {
         const snap = await tx.get(postRef);
         if (!snap.exists) {
           return { status: 'missing' };

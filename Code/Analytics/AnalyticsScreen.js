@@ -8,12 +8,12 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import { useGlobalState } from '../GlobelStats';
 import { useLocalState } from '../LocalGlobelStats';
 import config from '../Helper/Environment';
-import { MMKV } from 'react-native-mmkv';
+import { createMMKV } from 'react-native-mmkv';
 import BannerAdComponent from '../Ads/bannerAds';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
 // translations removed — plain English used throughout
 
-const analyticsCache = new MMKV({ id: 'analytics-cache' });
+const analyticsCache = createMMKV({ id: 'analytics-cache' });
 
 // Cache duration
 const ANALYTICS_CACHE_MS = 3 * 60 * 60 * 1000; // 3 hours

@@ -1,7 +1,7 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import * as RNLocalize from "react-native-localize";
-import { MMKV } from "react-native-mmkv";
+import { createMMKV } from "react-native-mmkv";
 
 // Import translation files
 import en from "./Code/Translation/en.json";
@@ -16,7 +16,7 @@ import ru from "./Code/Translation/ru.json";
 import ar from "./Code/Translation/ar.json";
 
 // Initialize MMKV storage
-const storage = new MMKV();
+const storage = createMMKV();
 
 // Map country codes to languages
 const countryToLanguage = {

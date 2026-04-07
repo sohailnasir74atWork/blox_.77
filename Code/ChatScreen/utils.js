@@ -1,9 +1,12 @@
-import { getDatabase, ref, update, get, set, onDisconnect, query, orderByChild, equalTo, limitToLast } from '@react-native-firebase/database';
+import { getDatabase, ref, update, get, set, onDisconnect, onValue, query, orderByChild, equalTo, limitToLast } from '@react-native-firebase/database';
+import { useState, useEffect, useCallback } from 'react';
 import { Alert } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
 // Initialize the database reference
 const database = getDatabase();
 const usersRef = ref(database, 'users'); // Base reference to the "users" node
+
 
 // Format Date Utility
 export const formatDate = (dateString) => {
@@ -305,6 +308,38 @@ export const isUserOnline = async (userId) => {
   }
 };
 
+/**
+ * Real-time online status hook — uses onValue listener on presence/{userId}.
+ * Unlike isUserOnline() which is a one-shot get(), this updates live
+ * when the user goes online/offline.
+ */
+export const useOnlineStatus = (userId) => {
+  const [isOnline, setIsOnline] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!userId) {
+        setIsOnline(false);
+        return;
+      }
+
+      const presenceRef = ref(getDatabase(), `presence/${userId}`);
+      const unsubscribe = onValue(presenceRef, (snapshot) => {
+        setIsOnline(snapshot.val() === true);
+      }, (error) => {
+        console.error('useOnlineStatus listener error:', error);
+        setIsOnline(false);
+      });
+
+      return () => {
+        if (typeof unsubscribe === 'function') unsubscribe();
+      };
+    }, [userId])
+  );
+
+  return isOnline;
+};
+
 export const setActiveChat = async (userId, chatId) => {
   const database = getDatabase();
   const activeChatRef = ref(database, `/activeChats/${userId}`);
@@ -366,7 +401,7 @@ export const clearActiveGroupChat = async (userId, groupId) => {
 };
 
 
-export const handleDeleteLast300Messages = async (senderId, showAlert = false, chatPath = 'chat_new') => {
+export const handleDeleteLast300Messages = async (senderId, showAlert = false, chatPath = 'chat_new_upgrade') => {
   // ✅ Safety check
   if (!senderId) {
     console.error('❌ Invalid senderId for handleDeleteLast300Messages');
@@ -485,6 +520,7 @@ export const banUserwithEmail = async (email, isAdmin = false, senderId = null, 
         }
       });
 
+      // Log mod action for scoring
       // Delete messages if senderId provided
       let deletedCount = 0;
       if (senderId) {
@@ -532,7 +568,7 @@ export const banUserwithEmail = async (email, isAdmin = false, senderId = null, 
  * @param {object} bannerInfo - Optional { id, displayName, avatar } of admin applying strike
  * @param {object} userInfo - Optional { displayName, avatar } of user being banned - prevents name becoming "Unknown"
  */
-export const setUserStrike = async (email, strikeCount, userId = null, showAlert = true, bannerInfo = {}, userInfo = {}, showConfirm = true) => {
+export const setUserStrike = async (email, strikeCount, userId = null, showAlert = true, bannerInfo = {}, userInfo = {}, showConfirm = true, customReason = null) => {
   if (!email || typeof email !== 'string' || email.trim().length === 0) {
     if (showAlert) Alert.alert('Error', 'User has no email associated.');
     return false;
@@ -589,7 +625,7 @@ export const setUserStrike = async (email, strikeCount, userId = null, showAlert
       await set(banRef, {
         strikeCount,
         bannedUntil,
-        reason: `Strike ${strikeCount}`,
+        reason: customReason || `Strike ${strikeCount}`,
         email,
         displayName,
         avatar,
@@ -664,6 +700,53 @@ export const unbanUserWithEmail = async (email, showAlert = true) => {
   }
 };
 
+/**
+ * Hook to check if a user is banned based on their email.
+ * Listens to `banned_users_by_email` in real-time.
+ */
+export const useBanStatus = (email) => {
+  const [isBanned, setIsBanned] = useState(false);
+  const [banDetails, setBanDetails] = useState(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!email) {
+        setIsBanned(false);
+        setBanDetails(null);
+        return;
+      }
+
+      const db = getDatabase();
+      const encodeEmail = (em) => (em || '').toLowerCase().trim().replace(/\./g, '(dot)');
+      const banRef = ref(db, `banned_users_by_email/${encodeEmail(email)}`);
+
+      const unsubscribe = onValue(banRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.val();
+          const now = Date.now();
+
+          let active = false;
+          if (data.bannedUntil === 'permanent') {
+            active = true;
+          } else if (typeof data.bannedUntil === 'number' && data.bannedUntil > now) {
+            active = true;
+          }
+
+          setIsBanned(active);
+          setBanDetails(active ? data : null);
+        } else {
+          setIsBanned(false);
+          setBanDetails(null);
+        }
+      });
+
+      return () => unsubscribe();
+    }, [email])
+  );
+
+  return { isBanned, banDetails };
+};
+
 export const checkBanStatus = async (email) => {
   if (!email) return { isBanned: false };
 
@@ -730,6 +813,104 @@ export const removeModerator = async (userId) => {
   } catch (error) {
     console.error('Error removing moderator:', error);
     Alert.alert('Error', 'Failed to demote user.');
+    return false;
+  }
+};
+
+// ========== Read Receipts (lastRead) ==========
+
+/**
+ * Update lastRead timestamp for the current user in a private chat.
+ * Called when user enters or is actively viewing the chat.
+ */
+export const updateLastRead = async (chatKey, userId) => {
+  if (!chatKey || !userId) return;
+
+  try {
+    const db = getDatabase();
+    const lastReadRef = ref(db, `private_messages/${chatKey}/lastRead/${userId}`);
+    await set(lastReadRef, Date.now());
+  } catch (error) {
+    console.warn('updateLastRead error:', error?.message);
+  }
+};
+
+/**
+ * Hook: listen to the OTHER user's lastRead timestamp.
+ * Returns a timestamp (number) or 0 if not yet read.
+ */
+export const useOtherLastRead = (chatKey, otherUserId) => {
+  const [lastRead, setLastRead] = useState(0);
+
+  useEffect(() => {
+    if (!chatKey || !otherUserId) {
+      setLastRead(0);
+      return;
+    }
+
+    const db = getDatabase();
+    const lastReadRef = ref(db, `private_messages/${chatKey}/lastRead/${otherUserId}`);
+
+    const unsubscribe = onValue(lastReadRef, (snapshot) => {
+      setLastRead(snapshot.exists() ? (Number(snapshot.val()) || 0) : 0);
+    }, (error) => {
+      console.warn('useOtherLastRead listener error:', error?.message);
+      setLastRead(0);
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [chatKey, otherUserId]);
+
+  return lastRead;
+};
+
+// ✅ Mute user for X minutes
+export const muteUser = async (email, minutes, userInfo = null, bannerInfo = null, showAlert = true, customReason = null) => {
+  if (!email || typeof email !== 'string' || email.trim().length === 0) {
+    console.error('❌ Invalid email for muteUser');
+    if (showAlert) Alert.alert('Error', 'Invalid email address.');
+    return false;
+  }
+
+  if (!minutes || minutes < 1) {
+    if (showAlert) Alert.alert('Error', 'Mute duration must be at least 1 minute.');
+    return false;
+  }
+
+  try {
+    const db = getDatabase();
+    const encodeEmail = (em) => (em || '').toLowerCase().trim().replace(/\./g, '(dot)');
+    const banRef = ref(db, `banned_users_by_email/${encodeEmail(email)}`);
+    const snap = await get(banRef);
+
+    // Preserve existing strikeCount if user was previously banned
+    const existingStrikeCount = snap.exists() ? (snap.val()?.strikeCount || 0) : 0;
+
+    const muteData = {
+      strikeCount: existingStrikeCount,
+      bannedUntil: Date.now() + minutes * 60 * 1000,
+      reason: customReason || `Muted for ${minutes} min`,
+      bannedAt: Date.now(),
+      userId: userInfo?.id || null,
+      displayName: userInfo?.displayName || 'Unknown User',
+      avatar: userInfo?.avatar || null,
+      email: email,
+      bannedBy: bannerInfo?.id || bannerInfo?.displayName || 'Admin',
+      bannerAvatar: bannerInfo?.avatar || null,
+    };
+
+    await set(banRef, muteData);
+
+    if (showAlert) {
+      Alert.alert('User Muted', `Muted for ${minutes} minute${minutes !== 1 ? 's' : ''}.`);
+    }
+
+    return true;
+  } catch (err) {
+    console.error('Mute error:', err);
+    if (showAlert) Alert.alert('Error', 'Could not mute user.');
     return false;
   }
 };

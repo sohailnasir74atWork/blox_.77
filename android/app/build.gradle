@@ -6,18 +6,6 @@ apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")
 react { autolinkLibrariesWithApp() }
 
 def enableProguardInReleaseBuilds = true
-
-/**
- * The preferred build flavor of JavaScriptCore (JSC)
- *
- * For example, to use the international variant, you can use:
- * `def jscFlavor = 'org.webkit:android-jsc-intl:+'`
- *
- * The international variant includes ICU i18n library and necessary data
- * allowing to use e.g. `Date.toLocaleString` and `String.localeCompare` that
- * give correct results when using with locales other than en-US. Note that
- * this variant is about 6MiB larger per architecture than default.
- */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
 android {
@@ -30,8 +18,8 @@ android {
     applicationId "com.bloxfruitevalues"
     minSdkVersion rootProject.ext.minSdkVersion
     targetSdkVersion rootProject.ext.targetSdkVersion
-    versionCode 113
-    versionName "3.6.8"
+    versionCode 125
+    versionName "3.8.0"
     ndk {
       abiFilters "arm64-v8a", "armeabi-v7a" // single declaration
     }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, TouchableOpacity, ScrollView, Image, Dimensions, StyleSheet, Pressable, ActivityIndicator, TextInput } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGlobalState } from '../../GlobelStats';
 import StyledUsernamePreview from './StyledName';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
@@ -62,6 +63,7 @@ const PurchaseModal = ({
   const [imageLoaded, setImageLoaded] = useState({});
   const [robuxCoinInput, setRobuxCoinInput] = useState('');
   const { user, theme } = useGlobalState();
+  const insets = useSafeAreaInsets();
   const isDark = theme === 'dark'
   // selectedVariant is now passed as prop from parent
   const [options, setOptions] = useState({
@@ -164,7 +166,7 @@ const PurchaseModal = ({
     <Modal visible={visible} transparent animationType="slide">
       <Pressable style={modalStyles.backdrop} onPress={onClose}>
         <ConditionalKeyboardWrapper>
-          <Pressable style={[modalStyles.sheet, { backgroundColor: isDark ? '#34495E' : 'white', }]} onPress={e => e.stopPropagation()}>
+          <Pressable style={[modalStyles.sheet, { backgroundColor: isDark ? '#34495E' : 'white', paddingBottom: Math.max(insets.bottom, 16) }]} onPress={e => e.stopPropagation()}>
             <View style={modalStyles.handle} />
             <Text style={[modalStyles.title, { color: isDark ? 'white' : 'balck' }]}>{selectedItem?.title}</Text>
             <Text style={[modalStyles.cost, { color: isDark ? 'lightgrey' : 'balck' }]}>Cost: {selectedItem?.cost} coins</Text>
@@ -508,7 +510,6 @@ const modalStyles = StyleSheet.create({
     // minHeight: 260,
     maxHeight: windowHeight * 0.85,
     width: '100%',
-    paddingBottom: 20
   },
   handle: {
     width: 40,

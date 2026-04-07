@@ -85,7 +85,7 @@ const ReportTradePopup = ({ visible, trade, onClose }) => {
       }
 
       // 2. Check and limit reports in Firestore (Trades are in Firestore)
-      const tradeRef = doc(firestoreDB, "trades_new", trade.id);
+      const tradeRef = doc(firestoreDB, "trades_new_upgrade", trade.id);
       const tradeSnap = await getDoc(tradeRef);
 
       if (tradeSnap.exists()) {

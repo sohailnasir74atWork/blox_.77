@@ -25,6 +25,7 @@ import RNFS from 'react-native-fs';
 import { validateContent } from '../../Helper/ContentModeration';
 import { checkBanStatus } from '../../ChatScreen/utils';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 
 const CLOUD_NAME = 'djtqw0jb5';
@@ -319,7 +320,8 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
   }, [loading, user?.id, desc, imageUris, selectedTags, uploadToBunny, onUpload, onClose, localState.isPro, currentUserEmail, lastPostTime]);
 
 
-  const themedStyles = getStyles(isDark);
+  const insets = useSafeAreaInsets();
+  const themedStyles = getStyles(isDark, insets);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
@@ -433,13 +435,13 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
   );
 };
 
-const getStyles = (isDark) =>
+const getStyles = (isDark, insets = { top: 0 }) =>
   StyleSheet.create({
     fullScreenContainer: {
       flex: 1,
       backgroundColor: isDark ? '#1a1a1a' : '#ffffff',
       padding: 24,
-      paddingTop: Platform.OS === 'ios' ? 60 : 24, // Safe area space
+      paddingTop: insets.top + 12,
     },
     header: {
       flexDirection: 'row',

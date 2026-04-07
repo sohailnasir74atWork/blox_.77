@@ -21,6 +21,7 @@ import { useHaptic } from '../../Helper/HepticFeedBack';
 import { useNavigation } from '@react-navigation/native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const BUNNY_STORAGE_HOST = 'storage.bunnycdn.com';
 const BUNNY_STORAGE_ZONE = 'post-gag';
@@ -73,6 +74,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
   const navigation = useNavigation();
   const isDarkMode = theme === 'dark';
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
+  const insets = useSafeAreaInsets();
 
   const [groupName, setGroupName] = useState('');
   const [groupDescription, setGroupDescription] = useState('');
@@ -436,7 +438,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
         style={styles.keyboardAvoidingView}
       >
         <View style={styles.overlay}>
-          <View style={[styles.container, { backgroundColor: isDarkMode ? '#1a1a1a' : '#fff' }]}>
+          <View style={[styles.container, { backgroundColor: isDarkMode ? '#1a1a1a' : '#fff', paddingBottom: Math.max(insets.bottom, 16) }]}>
             {/* Header */}
             <View style={styles.header}>
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -611,7 +613,8 @@ const getStyles = (isDark) =>
     container: {
       borderTopLeftRadius: 20,
       borderTopRightRadius: 20,
-      padding: 20,
+      paddingTop: 20,
+      paddingHorizontal: 20,
       maxHeight: '90%',
     },
     header: {

@@ -24,7 +24,6 @@ target 'bloxfruitevalues' do
     # An absolute path to your application root.
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
-  pod 'GoogleMobileAdsMediationUnity' 
   post_install do |installer|
     # https://github.com/facebook/react-native/blob/main/packages/react-native/scripts/react_native_pods.rb#L197-L202
     react_native_post_install(
@@ -33,5 +32,16 @@ target 'bloxfruitevalues' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # Fix: Ensure all pods use at least iOS 15.1 deployment target
+    # to match the main project and avoid module compatibility errors
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+        if config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'].to_f < 15.1
+          config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'
+        end
+      end
+    end
   end
 end

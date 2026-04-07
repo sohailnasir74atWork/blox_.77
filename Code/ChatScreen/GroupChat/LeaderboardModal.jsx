@@ -21,6 +21,7 @@ import { useLocalState } from '../../LocalGlobelStats';
 import { mixpanel } from '../../AppHelper/MixPenel';
 import config from '../../Helper/Environment';
 import { useHaptic } from '../../Helper/HepticFeedBack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ProfileBottomDrawer from './BottomDrawer';
 import { isUserOnline } from '../utils';
 
@@ -35,6 +36,7 @@ const LeaderboardModal = ({
   const navigation = useNavigation();
   const { t } = useTranslation();
   const { triggerHapticFeedback } = useHaptic();
+  const insets = useSafeAreaInsets();
   const isDarkMode = theme === 'dark';
 
   const [leaderboardData, setLeaderboardData] = useState([]);
@@ -260,7 +262,7 @@ const LeaderboardModal = ({
             keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
           >
             <View
-              style={styles.modalContent}
+              style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, 16) }]}
               onStartShouldSetResponder={() => true}
             >
               {/* Header */}
@@ -326,7 +328,6 @@ const getStyles = (isDarkMode) => StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '90%',
-    paddingBottom: Platform.OS === 'ios' ? 20 : 10,
   },
   header: {
     flexDirection: 'row',
