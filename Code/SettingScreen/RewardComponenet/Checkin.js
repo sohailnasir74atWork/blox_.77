@@ -5,6 +5,7 @@ import RewardedAdComponent from '../RewardScreens/RewardedAd';
 import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
 import { showMessage } from 'react-native-flash-message';
+import { getServerTime, getServerTimeQuick } from '../../Helper/serverTime';
 
 const dailyRewards = [5, 10, 20, 30, 40, 50, 60];
 
@@ -20,12 +21,8 @@ export default function DailyCheckIn({
   const [pendingCoinReward, setPendingCoinReward] = useState(null);
   const pendingCoinRewardRef = useRef(null);
 
-  const today = new Date(); // Current date (local time)
-  const todayFormatted = today.toISOString().split('T')[0]; // Format to YYYY-MM-DD
-  const currentHour = today.getHours(); // Get current hour in local time
-  const currentMinutes = today.getMinutes(); // Get current minutes in local time
-
-  // Debug: Log current time
+  const [serverNow, setServerNow] = useState(new Date());
+  const todayFormatted = `${serverNow.getUTCFullYear()}-${String(serverNow.getUTCMonth() + 1).padStart(2, '0')}-${String(serverNow.getUTCDate()).padStart(2, '0')}`;
 
   const [todayClaimed, setTodayClaimed] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
@@ -35,16 +32,22 @@ export default function DailyCheckIn({
   const isDarkMode = theme === 'dark';
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
 
+  // Fetch server time on mount (probe-verified, immune to device clock changes)
+  useEffect(() => {
+    if (appdatabase && user?.id) {
+      getServerTime(appdatabase, user.id).then(setServerNow);
+    }
+  }, [appdatabase, user?.id]);
+
   useEffect(() => {
     const saved = user?.checkin?.claimedDates || [];
     const last = saved[saved.length - 1];  // Corrected index
 
     // Reset if the user missed a claim (skipped day)
     const updated = last && last !== todayFormatted ? [] : saved;
-    // console.log(updated, last, todayFormatted, saved);
 
     setClaimedDates(updated);
-  }, [user?.id]);
+  }, [user?.id, todayFormatted]);
 
   // console.log(todayFormatted)
 
@@ -53,13 +56,13 @@ export default function DailyCheckIn({
   const currentDayIndex = claimedDates.length >= 7 ? 0 : claimedDates.length;
 
   const nextClaimableDay = claimedDates.length === 0
-    ? today
-    : new Date(claimedDates[claimedDates.length - 1]);
+    ? new Date(serverNow)
+    : new Date(claimedDates[claimedDates.length - 1] + 'T00:00:00Z');
 
-  nextClaimableDay.setDate(nextClaimableDay.getDate() + 1);
-  nextClaimableDay.setHours(0, 0, 0, 0);
+  nextClaimableDay.setUTCDate(nextClaimableDay.getUTCDate() + 1);
+  nextClaimableDay.setUTCHours(0, 0, 0, 0);
 
-  const isNextClaimable = today.getTime() >= nextClaimableDay.getTime();
+  const isNextClaimable = serverNow.getTime() >= nextClaimableDay.getTime();
 
   // Debug: Log the next claimable day and its time
   // console.log(`Next claimable day (midnight): ${nextClaimableDay.toLocaleString()}`);
@@ -77,7 +80,7 @@ export default function DailyCheckIn({
     if (isNextClaimable) return; // No countdown if next is claimable
 
     const interval = setInterval(() => {
-      const timeRemaining = Math.max(0, nextClaimableDay.getTime() - today.getTime());
+      const timeRemaining = Math.max(0, nextClaimableDay.getTime() - getServerTimeQuick().getTime());
       setTimeLeft(timeRemaining);
 
       // Debug: Log remaining time
@@ -155,31 +158,43 @@ export default function DailyCheckIn({
     const reward = pendingCoinRewardRef.current;
     if (!reward) return;
 
-    const updatedDates = claimedDates.length >= 7
-      ? [todayFormatted]
-      : [...claimedDates, todayFormatted];
+    // Re-validate with fresh server time before granting reward
+    const freshNow = await getServerTime(appdatabase, user?.id, true);
+    const freshToday = `${freshNow.getUTCFullYear()}-${String(freshNow.getUTCMonth() + 1).padStart(2, '0')}-${String(freshNow.getUTCDate()).padStart(2, '0')}`;
 
-    setClaimedDates(updatedDates); // 🧠 IMMEDIATE update
-    setTodayClaimed(true); // ✅ Avoid false clicks
+    const saved = user?.checkin?.claimedDates || [];
+    if (saved.includes(freshToday)) {
+      Alert.alert('Already Claimed', "You've already claimed today's reward.");
+      setIsAdsDrawerVisible(false);
+      setIsClaiming(false);
+      return;
+    }
+
+    const updatedDates = claimedDates.length >= 7
+      ? [freshToday]
+      : [...claimedDates, freshToday];
+
+    setClaimedDates(updatedDates);
+    setTodayClaimed(true);
     setPendingCoinReward(null);
     pendingCoinRewardRef.current = null;
 
     try {
       await updateLocalStateAndDatabase({
         coins: (user?.coins || 0) + reward.coins,
-        lastRewardtime: Date.now(),
+        lastRewardtime: freshNow.getTime(),
         checkin: {
           ...(user?.checkin || {}),
           claimedDates: updatedDates,
         },
       });
 
-      Alert.alert('✅ Success', `You earned ${reward.coins} coins!`);
+      Alert.alert('Success', `You earned ${reward.coins} coins!`);
     } catch (e) {
-      Alert.alert('⚠️ Error', 'Failed to update your reward. Please try again.');
+      Alert.alert('Error', 'Failed to update your reward. Please try again.');
     } finally {
       setIsAdsDrawerVisible(false);
-      setIsClaiming(false); // 🔓 Unlock UI
+      setIsClaiming(false);
     }
   };
 

@@ -65,7 +65,7 @@ const base64ToBytes = (base64) => {
   return Uint8Array.from(output);
 };
 
-const MAX_GROUP_MEMBERS = 50;
+const MAX_GROUP_MEMBERS = 100;
 
 const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = null, editGroupName = null, editGroupDescription = null, editGroupAvatar = null, isAdmin = false, onGroupUpdated = null }) => {
   const { theme, user, firestoreDB, appdatabase, strikeInfo, isAdmin: isAppAdmin } = useGlobalState();
@@ -194,6 +194,11 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
   const displayUsers = useMemo(() => {
     return selectedUsers.filter((u) => u.id !== user?.id);
   }, [selectedUsers, user?.id]);
+
+  // Memoize filtered member list so FlatList doesn't re-render on every parent render
+  const selectedMembersList = useMemo(() => {
+    return displayUsers.filter((u) => selectedMemberIds.includes(u.id));
+  }, [displayUsers, selectedMemberIds]);
 
   const handleRemoveUser = (userId) => {
     triggerHapticFeedback('impactLight');
@@ -434,7 +439,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardAvoidingView}
       >
         <View style={styles.overlay}>
@@ -537,7 +542,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
 
                 {/* Selected Members List */}
                 <FlatList
-                  data={displayUsers.filter((u) => selectedMemberIds.includes(u.id))}
+                  data={selectedMembersList}
                   keyExtractor={(item) => item.id}
                   renderItem={({ item }) => (
                     <View style={styles.memberItem}>

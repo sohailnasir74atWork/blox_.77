@@ -5,6 +5,8 @@
  * Extended with: Fruit Parent, Quiz Master, Memory King, Night Owl, Streak Master, etc.
  */
 
+import { getServerTime, getServerTimeQuick } from '../../Helper/serverTime';
+
 export const BADGE_DEFINITIONS = {
   // -- Phase 1 --
   newbie: {
@@ -271,7 +273,7 @@ export const PILL_BADGES = [
  * Check which badges a user has earned
  */
 export const computeBadges = (userData = {}, savedBadges = {}) => {
-  const now = Date.now();
+  const now = getServerTimeQuick().getTime();
   const createdAt = userData.createdAt || userData.createdAtMs || 0;
   const accountAgeMs = createdAt > 0 ? now - createdAt : 0;
 
@@ -400,16 +402,17 @@ export const checkDailyStreak = async (database, userId) => {
     const snap = await get(streakRef);
     const data = snap.exists() ? snap.val() : null;
 
-    const now = new Date();
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    // Use probe-verified server time (immune to device clock changes)
+    const now = await getServerTime(database, userId, true);
+    const todayStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
 
     if (data?.lastDate === todayStr) return;
 
     let newStreak = 1;
     if (data?.lastDate) {
       const yesterday = new Date(now);
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+      yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+      const yesterdayStr = `${yesterday.getUTCFullYear()}-${String(yesterday.getUTCMonth() + 1).padStart(2, '0')}-${String(yesterday.getUTCDate()).padStart(2, '0')}`;
       if (data.lastDate === yesterdayStr) {
         newStreak = (data.count || 0) + 1;
       }
@@ -467,7 +470,8 @@ export const checkInfluencerBadge = async (database, firestoreDB, followedUserId
  */
 export const checkNightOwlTrade = async (database, userId) => {
   if (!database || !userId) return;
-  const hour = new Date().getHours();
+  const now = await getServerTime(database, userId, true);
+  const hour = now.getUTCHours();
   if (hour >= 0 && hour < 5) {
     await incrementAndCheckBadge(database, userId, 'nightTradeCount', NIGHT_TRADE_BADGE_THRESHOLDS);
   }

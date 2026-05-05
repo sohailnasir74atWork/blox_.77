@@ -26,6 +26,7 @@ import { getMyCosmetics, syncMyCosmetics, getCachedEggData, setCachedEggXP, setC
 import { FRUIT_LIST, EGG_LIST, RARITY_CONFIG, COSMETIC_TYPE, ALL_ITEMS } from './shopItems';
 import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
 import RewardedAdManager from '../Ads/RewardedAdManager';
+import { getServerTime } from '../Helper/serverTime';
 
 const { width } = Dimensions.get('window');
 
@@ -460,15 +461,15 @@ const MysteryEggScreen = ({ navigation }) => {
       setStats(shopStats);
       setCachedEggStats(shopStats); // save to MMKV
 
-      // Check if ad hatch already used today
+      // Check if ad hatch already used today (probe-verified server time)
       try {
         const { ref: dbRef, get: dbGet } = require('@react-native-firebase/database');
         const adSnap = await dbGet(dbRef(appdatabase, `users/${user.id}/shop/stats/lastEggAdAt`));
         if (adSnap.exists()) {
           const lastAd = adSnap.val();
+          const now = await getServerTime(appdatabase, user.id, true);
           const d = new Date(lastAd);
-          const now = new Date();
-          if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()) {
+          if (d.getUTCFullYear() === now.getUTCFullYear() && d.getUTCMonth() === now.getUTCMonth() && d.getUTCDate() === now.getUTCDate()) {
             setUsedFreeSpin(true);
           }
         }
@@ -660,10 +661,23 @@ const MysteryEggScreen = ({ navigation }) => {
                   const earned = await RewardedAdManager.show();
                   setAdLoading(false);
                   if (earned) {
+                    // Re-validate with fresh server time before granting
+                    try {
+                      const { ref: dbRef2, get: dbGet2 } = require('@react-native-firebase/database');
+                      const adSnap2 = await dbGet2(dbRef2(appdatabase, `users/${user.id}/shop/stats/lastEggAdAt`));
+                      if (adSnap2.exists()) {
+                        const sNow = await getServerTime(appdatabase, user.id, true);
+                        const dLast = new Date(adSnap2.val());
+                        if (dLast.getUTCFullYear() === sNow.getUTCFullYear() && dLast.getUTCMonth() === sNow.getUTCMonth() && dLast.getUTCDate() === sNow.getUTCDate()) {
+                          setUsedFreeSpin(true);
+                          return;
+                        }
+                      }
+                    } catch {}
                     setUsedFreeSpin(true);
                     // Persist to RTDB
-                    const { ref: adRef, set: adSet } = require('@react-native-firebase/database');
-                    adSet(adRef(appdatabase, `users/${user.id}/shop/stats/lastEggAdAt`), Date.now()).catch(() => {});
+                    const { ref: adRef, set: adSet, serverTimestamp: adServerTs } = require('@react-native-firebase/database');
+                    adSet(adRef(appdatabase, `users/${user.id}/shop/stats/lastEggAdAt`), adServerTs()).catch(() => {});
                     const cheapestFruit = FRUIT_LIST[0];
                     setSelectedFruit(cheapestFruit);
                     setPhase('spinning');
@@ -792,10 +806,23 @@ const MysteryEggScreen = ({ navigation }) => {
                     const earned = await RewardedAdManager.show();
                     setAdLoading(false);
                     if (earned) {
+                      // Re-validate with fresh server time before granting
+                      try {
+                        const { ref: dbRef3, get: dbGet3 } = require('@react-native-firebase/database');
+                        const adSnap3 = await dbGet3(dbRef3(appdatabase, `users/${user.id}/shop/stats/lastEggAdAt`));
+                        if (adSnap3.exists()) {
+                          const sNow2 = await getServerTime(appdatabase, user.id, true);
+                          const dLast2 = new Date(adSnap3.val());
+                          if (dLast2.getUTCFullYear() === sNow2.getUTCFullYear() && dLast2.getUTCMonth() === sNow2.getUTCMonth() && dLast2.getUTCDate() === sNow2.getUTCDate()) {
+                            setUsedFreeSpin(true);
+                            return;
+                          }
+                        }
+                      } catch {}
                       setUsedFreeSpin(true);
                       // Persist to RTDB
-                      const { ref: adRef, set: adSet } = require('@react-native-firebase/database');
-                      adSet(adRef(appdatabase, `users/${user.id}/shop/stats/lastEggAdAt`), Date.now()).catch(() => {});
+                      const { ref: adRef, set: adSet, serverTimestamp: adServerTs2 } = require('@react-native-firebase/database');
+                      adSet(adRef(appdatabase, `users/${user.id}/shop/stats/lastEggAdAt`), adServerTs2()).catch(() => {});
                       // Free hatch — use cheapest egg
                       const cheapestFruit = FRUIT_LIST[0];
                       setSelectedFruit(cheapestFruit);

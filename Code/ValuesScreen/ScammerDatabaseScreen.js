@@ -400,8 +400,11 @@ const ScammerDatabaseScreen = () => {
                 if (reportImages.length > 0) {
                     setUploadingImages(true);
                     try {
-                        const uploads = reportImages.map((uri) => uploadToBunny(uri));
-                        proofUrls = (await Promise.all(uploads)).filter(Boolean);
+                        // Sequential upload — parallel base64 reads on 3 images can OOM/crash
+                        for (const uri of reportImages) {
+                            const url = await uploadToBunny(uri);
+                            if (url) proofUrls.push(url);
+                        }
                     } catch (err) {
                         console.error('Image upload error:', err);
                         Alert.alert('Error', 'Failed to upload images. Try again.');

@@ -60,6 +60,8 @@ const PrivateMessageList = ({
   chatKey,
   isAdmin,
   otherLastRead,
+  onDeleteMessage,
+  onDeleteAllChat,
 }) => {
   const { theme, isAdmin: globalIsAdmin, api, freeTranslation, proGranted } = useGlobalState();
   const isDarkMode = theme === 'dark';
@@ -445,6 +447,21 @@ const PrivateMessageList = ({
                   <Text style={styles.menuOptionText}>{t("chat.report")}</Text>
                 </MenuOption>
               )}
+              {(isAdmin || globalIsAdmin) && onDeleteMessage && (
+                <MenuOption onSelect={() => {
+                  Alert.alert('Delete Message', 'Delete this message?', [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Delete', style: 'destructive', onPress: () => onDeleteMessage(item.id) },
+                  ]);
+                }}>
+                  <Text style={[styles.menuOptionText, { color: '#EF4444' }]}>Delete</Text>
+                </MenuOption>
+              )}
+              {(isAdmin || globalIsAdmin) && onDeleteAllChat && (
+                <MenuOption onSelect={() => onDeleteAllChat()}>
+                  <Text style={[styles.menuOptionText, { color: '#EF4444' }]}>Delete All Chat</Text>
+                </MenuOption>
+              )}
             </MenuOptions>
           </Menu>
 
@@ -462,7 +479,7 @@ const PrivateMessageList = ({
                 name="checkmark-done"
                 size={16}
                 color={otherLastRead && item.timestamp && Number(item.timestamp) <= Number(otherLastRead)
-                  ? '#53BDEB'                                    // blue = read
+                  ? (isDarkMode ? '#7FDBFF' : '#1E88E5')         // blue = read (brighter in dark)
                   : (isDarkMode ? '#ffffff77' : '#00000044')}    // grey = unread
                 style={{ marginLeft: 2 }}
               />

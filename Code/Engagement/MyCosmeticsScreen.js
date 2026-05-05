@@ -112,7 +112,7 @@ const MyCosmeticsScreen = ({ navigation }) => {
         </View>
 
         {/* DEV: Test mode toggle — only in dev builds */}
-        {/* {__DEV__ && (  */}
+        {__DEV__ && (
           <TouchableOpacity
             onPress={() => setTestMode(prev => !prev)}
             style={[s.backBtn, testMode && { backgroundColor: '#22c55e' }]}
@@ -120,7 +120,7 @@ const MyCosmeticsScreen = ({ navigation }) => {
           >
             <Icon name={testMode ? 'flask' : 'flask-outline'} size={18} color="#fff" />
           </TouchableOpacity>
-       {/* )}  */}
+        )}
       </View>
 
       <ScrollView contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>

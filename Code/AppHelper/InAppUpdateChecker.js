@@ -1,6 +1,22 @@
 import React, { useEffect } from 'react';
 import { Platform, Alert, Linking } from 'react-native';
 import InAppUpdates from 'sp-react-native-in-app-updates';
+import DeviceInfo from 'react-native-device-info';
+
+// Compare semver-ish strings: returns true if `remote` > `local`
+const isRemoteNewer = (remote, local) => {
+  if (!remote || !local) return false;
+  const r = String(remote).split('.').map(n => parseInt(n, 10) || 0);
+  const l = String(local).split('.').map(n => parseInt(n, 10) || 0);
+  const len = Math.max(r.length, l.length);
+  for (let i = 0; i < len; i++) {
+    const rv = r[i] || 0;
+    const lv = l[i] || 0;
+    if (rv > lv) return true;
+    if (rv < lv) return false;
+  }
+  return false;
+};
 
 let inAppUpdates;
 
@@ -41,10 +57,29 @@ const AppUpdateChecker = () => {
         }
       } else if (Platform.OS === 'ios') {
         try {
-          // Optionally, add remote version check here using Firebase or API
+          const currentVersion = DeviceInfo.getVersion();
+          const bundleId = DeviceInfo.getBundleId();
+
+          // Query App Store lookup API for the latest published version.
+          // Cache-bust so we don't get a stale CDN response.
+          const lookupUrl = `https://itunes.apple.com/lookup?bundleId=${encodeURIComponent(bundleId)}&t=${Date.now()}`;
+          const res = await fetch(lookupUrl);
+          const data = await res.json();
+          const storeVersion = data?.results?.[0]?.version;
+
+          if (!storeVersion) {
+            // Couldn't determine — silently skip rather than nagging users.
+            return;
+          }
+
+          if (!isRemoteNewer(storeVersion, currentVersion)) {
+            // User is on the latest version (or newer) — do nothing.
+            return;
+          }
+
           Alert.alert(
             'Update Available',
-            'A new version of the app is available. Please update it from the App Store.',
+            `A new version (${storeVersion}) is available on the App Store. You're on ${currentVersion}.`,
             [
               {
                 text: 'Update Now',

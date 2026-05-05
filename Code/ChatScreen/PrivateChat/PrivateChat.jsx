@@ -16,7 +16,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import { clearActiveChat, isUserOnline, setActiveChat, updateLastRead, useOtherLastRead } from '../utils';
 import { useLocalState } from '../../LocalGlobelStats';
-import { get, set, increment, ref, update, query as dbQuery, orderByKey, limitToLast, endAt, onChildAdded, serverTimestamp as rtdbServerTimestamp } from '@react-native-firebase/database';
+import { get, set, increment, ref, update, remove, query as dbQuery, orderByKey, limitToLast, endAt, onChildAdded, serverTimestamp as rtdbServerTimestamp } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
 import BannerAdComponent from '../../Ads/bannerAds';
@@ -646,6 +646,42 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     setRefreshing(false);
   }, [loadMessages]);
 
+  // ── Admin: delete a single message ──
+  const handleDeleteMessage = useCallback(async (messageId) => {
+    if (!messageId || !chatKey || !appdatabase) return;
+    try {
+      await remove(ref(appdatabase, `private_messages/${chatKey}/messages/${messageId}`));
+      setMessages(prev => prev.filter(m => m.id !== messageId));
+    } catch (e) {
+      Alert.alert('Error', 'Failed to delete message.');
+    }
+  }, [chatKey, appdatabase]);
+
+  // ── Admin: delete ALL messages in this chat ──
+  const handleDeleteAllChat = useCallback(() => {
+    if (!chatKey || !appdatabase || !isAdmin) return;
+    Alert.alert(
+      'Delete All Messages',
+      'Are you sure you want to delete ALL messages in this chat? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete All',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await remove(ref(appdatabase, `private_messages/${chatKey}/messages`));
+              setMessages([]);
+              showSuccessMessage('Success', 'All messages deleted.');
+            } catch (e) {
+              Alert.alert('Error', 'Failed to delete messages.');
+            }
+          },
+        },
+      ]
+    );
+  }, [chatKey, appdatabase, isAdmin]);
+
   useEffect(() => {
     if (user?.id && chatKey) {
       setActiveChat(user.id, chatKey);
@@ -788,6 +824,8 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
                 user={user}
                 isAdmin={isAdmin}
                 onReply={(message) => setReplyTo(message)}
+                onDeleteMessage={handleDeleteMessage}
+                onDeleteAllChat={handleDeleteAllChat}
                 canRate={canRate}
                 hasRated={hasRated}
                 setShowRatingModal={setShowRatingModal}

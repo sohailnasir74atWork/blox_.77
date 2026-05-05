@@ -12,6 +12,7 @@
 
 import { ref, get, update, increment } from '@react-native-firebase/database';
 import { addXP } from './xpUtils';
+import { getServerTime, formatServerDate } from '../Helper/serverTime';
 
 // ────────────────────────────────────────────────────────
 //  DAILY REWARDS TABLE
@@ -27,17 +28,14 @@ export const DAILY_REWARDS = [
 ];
 
 // ────────────────────────────────────────────────────────
-//  GET TODAY'S DATE STRING (YYYY-MM-DD)
+//  SERVER-TIME BASED DATE (anti-cheat: probe-verified)
 // ────────────────────────────────────────────────────────
-const getToday = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
+const getToday = async (db, uid) => formatServerDate(await getServerTime(db, uid, true));
 
-const getYesterday = () => {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const getYesterday = async (db, uid) => {
+  const d = await getServerTime(db, uid, true);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return formatServerDate(d);
 };
 
 // ────────────────────────────────────────────────────────
@@ -54,8 +52,8 @@ export const getStarStatus = async (db, uid) => {
       return { canClaim: true, currentDay: 1, cycleNumber: 1, totalStarsEarned: 0, isNew: true };
     }
 
-    const today = getToday();
-    const yesterday = getYesterday();
+    const today = await getToday(db, uid);
+    const yesterday = await getYesterday(db, uid);
 
     if (data.lastClaimDate === today) {
       return {
@@ -107,7 +105,7 @@ export const claimDailyStar = async (db, uid) => {
     await update(ref(db, `users/${uid}/dailyStars`), {
       currentDay: status.currentDay,
       cycleNumber: status.cycleNumber,
-      lastClaimDate: getToday(),
+      lastClaimDate: await getToday(db, uid),
       totalStarsEarned: increment(reward.stars || 1),
       starBalance: increment(reward.stars || 1),
     });

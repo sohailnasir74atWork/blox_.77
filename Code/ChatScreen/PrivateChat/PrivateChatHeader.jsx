@@ -10,7 +10,7 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import { mixpanel } from '../../AppHelper/MixPenel';
 import { useGlobalState } from '../../GlobelStats';
-import { ref, get, set } from '@react-native-firebase/database';
+import { ref, get, set, remove } from '@react-native-firebase/database';
 import { getThemeColors } from '../../Helper/themeColors';
 import FramedAvatar from '../GroupChat/FramedAvatar';
 import { getActiveCosmetics } from '../../Engagement/shopUtils';
@@ -21,7 +21,7 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
   const { updateLocalState } = useLocalState();
   const { t } = useTranslation();
   const { triggerHapticFeedback } = useHaptic();
-  const { appdatabase, user, theme } = useGlobalState();
+  const { appdatabase, user, theme, isAdmin: globalIsAdmin } = useGlobalState();
   const isDarkMode = theme === 'dark';
   const c = getThemeColors(isDarkMode);
 
@@ -211,6 +211,35 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
     }
   }, [setIsDrawerVisible]);
 
+  // Admin: delete all messages in this chat
+  const chatKey = useMemo(() => {
+    if (!user?.id || !selectedUserId) return null;
+    return [user.id, selectedUserId].sort().join('_');
+  }, [user?.id, selectedUserId]);
+
+  const handleDeleteAllChat = useCallback(() => {
+    if (!chatKey || !appdatabase || !globalIsAdmin) return;
+    Alert.alert(
+      'Delete All Messages',
+      'Are you sure you want to delete ALL messages in this chat? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete All',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await remove(ref(appdatabase, `private_messages/${chatKey}/messages`));
+              Alert.alert('Done', 'All messages deleted.');
+            } catch (e) {
+              Alert.alert('Error', 'Failed to delete messages.');
+            }
+          },
+        },
+      ]
+    );
+  }, [chatKey, appdatabase, globalIsAdmin]);
+
   return (
     <View style={styles.container}>
       {/* Avatar with online indicator */}
@@ -259,6 +288,18 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
           </Text>
         </View>
       </TouchableOpacity>
+
+      {/* Admin: Delete All Chat button */}
+      {globalIsAdmin && (
+        <TouchableOpacity
+          onPress={handleDeleteAllChat}
+          activeOpacity={0.6}
+          style={[styles.actionBtn, { backgroundColor: 'rgba(239,68,68,0.08)' }]}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+        >
+          <Icon name="trash-outline" size={18} color="#ef4444" />
+        </TouchableOpacity>
+      )}
 
       {/* Block/Unblock button */}
       <TouchableOpacity

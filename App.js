@@ -123,6 +123,14 @@ function App() {
 
 
   useEffect(() => {
+    if (theme === 'dark') {
+      setNavigationBarAppearance('dark');
+    } else if (theme === 'light') {
+      setNavigationBarAppearance('light');
+    } else if (theme === 'system') {
+      setNavigationBarAppearance(Appearance.getColorScheme());
+    }
+
     const listener = Appearance.addChangeListener(({ colorScheme }) => {
       if (theme === 'system') {
         setNavigationBarAppearance(colorScheme);

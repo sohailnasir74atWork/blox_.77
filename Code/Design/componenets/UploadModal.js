@@ -37,6 +37,26 @@ const BUNNY_STORAGE_ZONE = 'post-gag';
 const BUNNY_ACCESS_KEY = '1b7e1a85-dff7-4a98-ba701fc7f9b9-6542-46e2'; // ← rotate this later
 const BUNNY_CDN_BASE = 'https://pull-gag.b-cdn.net';
 
+// 🔹 Safe base64 → Uint8Array decoder (atob crashes on large strings in RN)
+const base64ToBytes = (base64) => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+  const str = base64.replace(/[\r\n]+/g, '');
+  const output = [];
+  let i = 0;
+  while (i < str.length) {
+    const enc1 = chars.indexOf(str.charAt(i++));
+    const enc2 = chars.indexOf(str.charAt(i++));
+    const enc3 = chars.indexOf(str.charAt(i++));
+    const enc4 = chars.indexOf(str.charAt(i++));
+    const chr1 = (enc1 << 2) | (enc2 >> 4);
+    const chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
+    const chr3 = ((enc3 & 3) << 6) | enc4;
+    if (enc3 !== 64) output.push(chr1, chr2);
+    else output.push(chr1);
+    if (enc4 !== 64 && enc3 !== 64) output.push(chr3);
+  }
+  return Uint8Array.from(output);
+};
 
 const UploadModal = ({ visible, onClose, onUpload, user }) => {
   const [desc, setDesc] = useState('');
@@ -180,11 +200,10 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
         const remotePath = `uploads/${encodeURIComponent(userId)}/${encodeURIComponent(filename)}`;
         const uploadUrl = `https://${BUNNY_STORAGE_HOST}/${BUNNY_STORAGE_ZONE}/${remotePath}`;
 
-        // Read file as base64 then convert to raw bytes
+        // Read file as base64 then convert to raw bytes via safe manual decoder
+        // (atob crashes / OOMs on large base64 strings in RN, especially with 2+ images)
         const base64 = await RNFS.readFile(uri.replace('file://', ''), 'base64');
-
-        // base64 -> Uint8Array (works reliably on RN 0.77)
-        const binary = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+        const binary = base64ToBytes(base64);
 
         // PUT raw bytes
         const res = await fetch(uploadUrl, {

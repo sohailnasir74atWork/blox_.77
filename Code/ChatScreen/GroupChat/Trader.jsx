@@ -345,132 +345,65 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
   // const bannedUserIds = bannedUsers.map((user) => user.id); // Extract IDs from bannedUsers
 
-  // ✅ OPTIMIZED: Real-time listener — creates its own ref from activeChannel.path
-  //    to guarantee it always points to the correct channel
+  // ✅ Real-time listener using onValue (more reliable than onChildAdded with limitToLast)
+  //    onChildAdded + limitToLast(1) has known bugs in Firebase SDKs where remote writes don't fire
+  //    Also: no isFocused gate so messages keep arriving when screen loses focus
   useEffect(() => {
-    if (!isFocused || !appdatabase || !activeChannel?.path) return;
+    if (!appdatabase || !activeChannel?.path) return;
 
     let cancelled = false;
     const currentRef = ref(appdatabase, activeChannel.path);
-    let listenerQueryRef = null;   // ← store the EXACT query the listener is on
-    let listener = null;
-    let initialLoadQuery = null;
+    const latestQuery = dbQuery(currentRef, orderByKey(), limitToLast(1));
 
-    const initializeListener = async () => {
-      try {
-        // Step 1: Get only the latest message KEY (minimal download)
-        initialLoadQuery = dbQuery(currentRef, orderByKey(), limitToLast(1));
-        const initialSnapshot = await get(initialLoadQuery);
-        if (cancelled) return;
+    const unsubscribe = onValue(latestQuery, (snapshot) => {
+      if (cancelled || !snapshot.exists()) return;
 
-        if (initialSnapshot.exists()) {
-          const data = initialSnapshot.val();
-          const keys = Object.keys(data);
-          if (keys.length > 0) {
-            newestMessageIdRef.current = keys[0];
-          }
+      snapshot.forEach((childSnap) => {
+        const key = childSnap.key;
+        const data = childSnap.val();
+        if (!key || !data || typeof data !== 'object') return;
+
+        const newMessage = validateMessage({ id: key, ...data });
+        if (!newMessage || !newMessage.id) return;
+
+        // ✅ Check if message is from banned user
+        const banned = Array.isArray(bannedUsers) ? bannedUsers : [];
+        if (banned.includes(newMessage.senderId)) return;
+
+        // ✅ Fetch profile for uncached senders (slim messages have no name/avatar)
+        if (data.senderId && !getCachedProfile(data.senderId)) {
+          getOrFetchProfile(appdatabase, data.senderId).then(() => {
+            if (!cancelled) setMessages(prev => [...prev]); // Re-render with resolved profile
+          });
         }
 
-        hasInitializedRef.current = true;
+        setMessages((prev) => {
+          if (!Array.isArray(prev) || prev.length === 0) return [newMessage];
+          const exists = prev.some((m) => String(m?.id) === String(key));
+          if (exists) return prev;
 
-        // Step 2: Listen for NEW messages only (skips initial data)
-        listenerQueryRef = dbQuery(currentRef, orderByKey(), limitToLast(1));
-
-        listener = onChildAdded(listenerQueryRef, (snapshot) => {
-          if (cancelled || !snapshot || !snapshot.key) return;
-
-          // ✅ Skip if this is the message we already loaded during initialization
-          if (hasInitializedRef.current && snapshot.key === newestMessageIdRef.current) {
-            return; // Skip initial message
-          }
-
-          // Update newest message ID for future skips
-          newestMessageIdRef.current = snapshot.key;
-
-          const data = snapshot.val();
-          if (!data || typeof data !== 'object') return;
-
-          const newMessage = validateMessage({ id: snapshot.key, ...data });
-          if (!newMessage || !newMessage.id) return;
-
-          // ✅ Check if message is from banned user
-          const banned = Array.isArray(bannedUsers) ? bannedUsers : [];
-          if (banned.includes(newMessage.senderId)) return;
-
-          // ✅ Fetch profile for uncached senders (slim messages have no name/avatar)
-          if (data.senderId && !getCachedProfile(data.senderId)) {
-            getOrFetchProfile(appdatabase, data.senderId).then(() => {
-              setMessages(prev => [...prev]); // Re-render with resolved profile
+          // ✅ Use ref for isAtBottom to prevent listener recreation
+          if (isAtBottomRef.current) {
+            newestMessageIdRef.current = key;
+            return [newMessage, ...prev];
+          } else {
+            setPendingMessages((prevPending) => {
+              const pendingIds = new Set(prevPending.map((msg) => msg?.id).filter(Boolean));
+              if (pendingIds.has(newMessage.id)) return prevPending;
+              return [newMessage, ...prevPending];
             });
+            return prev;
           }
-
-          setMessages((prev) => {
-            if (!Array.isArray(prev)) return [newMessage];
-            const seenKeys = new Set(prev.map((msg) => msg?.id).filter(Boolean));
-            if (seenKeys.has(newMessage.id)) return prev;
-
-            // ✅ Use ref for isAtBottom to prevent listener recreation
-            if (isAtBottomRef.current) {
-              return [newMessage, ...prev];
-            } else {
-              setPendingMessages((prevPending) => {
-                const pendingIds = new Set(prevPending.map((msg) => msg?.id).filter(Boolean));
-                if (pendingIds.has(newMessage.id)) return prevPending;
-                return [newMessage, ...prevPending];
-              });
-              return prev;
-            }
-          });
         });
-      } catch (error) {
-        if (cancelled) return;
-        console.error('Error initializing chat listener:', error);
-        // Fallback to original listener if initialization fails
-        listenerQueryRef = dbQuery(currentRef, limitToLast(1));
-        listener = onChildAdded(listenerQueryRef, (snapshot) => {
-          if (cancelled || !snapshot || !snapshot.key) return;
-          const data = snapshot.val();
-          if (!data || typeof data !== 'object') return;
-          const newMessage = validateMessage({ id: snapshot.key, ...data });
-          if (!newMessage || !newMessage.id) return;
-          const banned = Array.isArray(bannedUsers) ? bannedUsers : [];
-          if (banned.includes(newMessage.senderId)) return;
-          if (data.senderId && !getCachedProfile(data.senderId)) {
-            getOrFetchProfile(appdatabase, data.senderId).then(() => {
-              setMessages(prev => [...prev]);
-            });
-          }
-          setMessages((prev) => {
-            if (!Array.isArray(prev)) return [newMessage];
-            const seenKeys = new Set(prev.map((msg) => msg?.id).filter(Boolean));
-            if (seenKeys.has(newMessage.id)) return prev;
-
-            if (isAtBottomRef.current) {
-              return [newMessage, ...prev];
-            } else {
-              setPendingMessages((prevPending) => {
-                const pendingIds = new Set(prevPending.map((msg) => msg?.id).filter(Boolean));
-                if (pendingIds.has(newMessage.id)) return prevPending;
-                return [newMessage, ...prevPending];
-              });
-              return prev;
-            }
-          });
-        });
-      }
-    };
-
-    initializeListener();
+      });
+    });
 
     return () => {
       cancelled = true;
-      // ✅ Remove listener — modular API returns unsubscribe function
-      if (typeof listener === 'function') {
-        listener();
-      }
+      unsubscribe();
       hasInitializedRef.current = false;
     };
-  }, [activeChannel.path, appdatabase, validateMessage, isFocused, bannedUsers]);
+  }, [activeChannel.path, appdatabase, validateMessage, bannedUsers]);
 
 
 

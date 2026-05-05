@@ -17,7 +17,7 @@ import {
   startAfter,
 } from '@react-native-firebase/firestore';
 
-const MAX_GROUP_MEMBERS = 50; // Maximum members per group
+const MAX_GROUP_MEMBERS = 100; // Maximum members per group
 
 /**
  * Get user's group where they are admin/creator
@@ -1374,7 +1374,7 @@ export const sendJoinRequest = async (firestoreDB, groupId, requesterData) => {
     // Check if group is full
     const memberCount = groupData.memberIds?.length || 0;
     if (memberCount >= MAX_GROUP_MEMBERS) {
-      return { success: false, error: 'Group is full (50 members maximum)' };
+      return { success: false, error: 'Group is full (100 members maximum)' };
     }
 
     // Check if user is already a member
