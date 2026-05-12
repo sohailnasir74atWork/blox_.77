@@ -6,12 +6,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   TextInput,
-  FlatList,
   Image,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ScrollView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../../GlobelStats';
@@ -68,7 +68,7 @@ const base64ToBytes = (base64) => {
 const MAX_GROUP_MEMBERS = 100;
 
 const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = null, editGroupName = null, editGroupDescription = null, editGroupAvatar = null, isAdmin = false, onGroupUpdated = null }) => {
-  const { theme, user, firestoreDB, appdatabase, strikeInfo, isAdmin: isAppAdmin } = useGlobalState();
+  const { theme, user, firestoreDB, appdatabase, strikeInfo, isAdmin: isAppAdmin, isUserBlocked } = useGlobalState();
   const isEditMode = !!editGroupId;
   const { triggerHapticFeedback } = useHaptic();
   const navigation = useNavigation();
@@ -229,18 +229,20 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
 
   // Handle create group
   const handleCreateGroup = async () => {
-    // ✅ Check for ban/strikes
-    if (strikeInfo && !isAppAdmin) {
-      const { strikeCount, bannedUntil } = strikeInfo;
-      const now = Date.now();
+    // Block banned users from creating groups (admins exempt). Defer expiry
+    // to server-time-validated `isUserBlocked` so a clock-rolled device
+    // can't slip past — strikeInfo is used only for the message text.
+    if (isUserBlocked && !isAppAdmin) {
+      const { bannedUntil } = strikeInfo || {};
 
       if (bannedUntil === 'permanent') {
         showErrorMessage('Error', 'You are permanently banned from creating groups.');
         return;
       }
 
-      if (typeof bannedUntil === 'number' && now < bannedUntil) {
-        const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
+      if (typeof bannedUntil === 'number') {
+        const remaining = Math.max(0, bannedUntil - Date.now());
+        const totalMinutes = Math.ceil(remaining / 60000);
         const hours = Math.floor(totalMinutes / 60);
         const minutes = totalMinutes % 60;
         const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
@@ -251,6 +253,9 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
         );
         return;
       }
+
+      showErrorMessage('Error', 'You are currently banned from creating groups.');
+      return;
     }
     // Validate description (required for create)
     if (!groupDescription.trim()) {
@@ -438,13 +443,14 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
       animationType="slide"
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.keyboardAvoidingView}
-      >
-        <View style={styles.overlay}>
+      <View style={styles.overlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.keyboardAvoidingView}
+          keyboardVerticalOffset={0}
+        >
           <View style={[styles.container, { backgroundColor: isDarkMode ? '#1a1a1a' : '#fff', paddingBottom: Math.max(insets.bottom, 16) }]}>
-            {/* Header */}
+            {/* Header (sticky — sits above the scroll body) */}
             <View style={styles.header}>
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                 <Icon name="close" size={24} color={isDarkMode ? '#fff' : '#000'} />
@@ -453,6 +459,11 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
               <View style={styles.placeholder} />
             </View>
 
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 12 }}
+            >
             {/* Group Icon Selection */}
             <View style={styles.avatarContainer}>
               <Text style={styles.label}>Group Icon (Optional)</Text>
@@ -515,7 +526,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
                   {
                     backgroundColor: isDarkMode ? '#2a2a2a' : '#f5f5f5',
                     color: isDarkMode ? '#fff' : '#000',
-                    minHeight: 80,
+                    height: 80,
                     textAlignVertical: 'top',
                   },
                 ]}
@@ -540,43 +551,43 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
                   </Text>
                 </View>
 
-                {/* Selected Members List */}
-                <FlatList
-                  data={selectedMembersList}
-                  keyExtractor={(item) => item.id}
-                  renderItem={({ item }) => (
-                    <View style={styles.memberItem}>
-                      <Image
-                        source={{
-                          uri:
-                            item.avatar ||
-                            'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
-                        }}
-                        style={styles.memberAvatar}
-                      />
-                      <Text style={styles.memberName} numberOfLines={1}>
-                        {item.displayName || 'Anonymous'}
-                      </Text>
-                      <TouchableOpacity
-                        onPress={() => handleRemoveUser(item.id)}
-                        style={styles.removeButton}
-                      >
-                        <Icon name="close-circle" size={24} color="#EF4444" />
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                  ListEmptyComponent={
+                {/* Selected Members List — rendered inline (not FlatList) because
+                    we're inside a ScrollView. Bounded to MAX_GROUP_MEMBERS (100). */}
+                <View style={styles.membersList}>
+                  {selectedMembersList.length === 0 ? (
                     <View style={styles.emptyContainer}>
                       <Text style={styles.emptyText}>No members selected</Text>
                     </View>
-                  }
-                  style={styles.membersList}
-                  removeClippedSubviews={false}
-                />
+                  ) : (
+                    selectedMembersList.map((item) => (
+                      <View key={item.id} style={styles.memberItem}>
+                        <Image
+                          source={{
+                            uri:
+                              item.avatar ||
+                              'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+                          }}
+                          style={styles.memberAvatar}
+                        />
+                        <Text style={styles.memberName} numberOfLines={1}>
+                          {item.displayName || 'Anonymous'}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => handleRemoveUser(item.id)}
+                          style={styles.removeButton}
+                        >
+                          <Icon name="close-circle" size={24} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
+                    ))
+                  )}
+                </View>
               </>
             )}
 
-            {/* Create Button */}
+            </ScrollView>
+
+            {/* Create Button — pinned outside the scroll body so it never gets pushed off-screen */}
             <View style={styles.footer}>
               <TouchableOpacity
                 style={[
@@ -598,8 +609,8 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
               </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };
@@ -620,7 +631,7 @@ const getStyles = (isDark) =>
       borderTopRightRadius: 20,
       paddingTop: 20,
       paddingHorizontal: 20,
-      maxHeight: '90%',
+      height: '90%',
     },
     header: {
       flexDirection: 'row',
@@ -711,7 +722,8 @@ const getStyles = (isDark) =>
       color: '#EF4444',
     },
     membersList: {
-      maxHeight: 300,
+      // No maxHeight — parent ScrollView handles overflow now that
+      // this list lives inline (was a FlatList previously).
       marginBottom: 16,
     },
     memberItem: {

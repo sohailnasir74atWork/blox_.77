@@ -12,6 +12,12 @@ import { useHaptic } from '../Helper/HepticFeedBack';
 import { useLocalState } from '../LocalGlobelStats';
 import ImageViewerScreenChat from './PrivateChat/ImageViewer';
 import { ref, update, get, onChildAdded, onChildChanged, onChildRemoved } from '@react-native-firebase/database';
+import {
+  subscribeToChatMeta,
+  resetUnreadCount as sbResetUnreadCount,
+} from '../Supabase/chatMetaBackend';
+import { subscribeToGroupMeta } from '../Supabase/groupMetaBackend';
+import { SUPABASE_CHAT_META_ENABLED, SUPABASE_GROUP_META_ENABLED } from '../Supabase/featureFlags';
 import CommunityChatHeader from './GroupChat/CommunityChatHeader';
 import LeaderboardScreen from './GroupChat/LeaderboardScreen';
 import AdminDashboard from '../AppHelper/AdminDashboard';
@@ -56,20 +62,67 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
   }), [selectedTheme]);
 
 
-  // ✅ OPTIMIZED: Use child listeners instead of full value listener to reduce data download
-  // Listen to individual chat unreadCount changes instead of downloading entire chat_meta_data
+  // Chat-list unread badge.
+  //
+  // Supabase path: subscribeToChatMeta opens a single Postgres realtime
+  // channel filtered by owner_uid; emits one event per row insert/update/
+  // delete instead of N RTDB listeners. Big bandwidth cut on this hot
+  // path.
+  //
+  // RTDB path: original child listener flow, intact when the kill
+  // switch is off (or while we're still rolling Supabase out).
+  //
+  // Writes (resetting unread on blocked partners) STILL go to RTDB —
+  // mirror CF tails them and updates Supabase. We don't dual-write.
   useEffect(() => {
     if (!user?.id || !appdatabase) {
       setunreadcount(0);
       return;
     }
 
-    const userChatsRef = ref(appdatabase, `chat_meta_data/${user.id}`);
     let totalUnread = 0;
     const unreadCounts = new Map(); // Track unread counts per chat
 
-    // ✅ OPTIMIZED: Use child_added and child_changed to listen to individual chats
-    // This only downloads data when a specific chat changes, not the entire metadata
+    const recomputeTotal = () => {
+      totalUnread = Array.from(unreadCounts.values()).reduce((sum, count) => sum + count, 0);
+      setunreadcount(totalUnread);
+    };
+
+    // ── Supabase path ────────────────────────────────────────────────
+    if (SUPABASE_CHAT_META_ENABLED) {
+      setunreadcount(0);
+
+      const handleSupaUpsert = (row) => {
+        if (!row || !row.partnerId) return;
+        const chatPartnerId = row.partnerId;
+        const isBlocked = Array.isArray(bannedUsers) && bannedUsers.includes(chatPartnerId);
+        const rawUnread = row.unreadCount || 0;
+        if (isBlocked && rawUnread > 0) {
+          // Reset directly on Supabase (now the source of truth).
+          sbResetUnreadCount(user.id, chatPartnerId);
+          unreadCounts.set(chatPartnerId, 0);
+        } else {
+          unreadCounts.set(chatPartnerId, isBlocked ? 0 : rawUnread);
+        }
+        recomputeTotal();
+      };
+
+      const handleSupaRemove = (partnerId) => {
+        if (!partnerId) return;
+        unreadCounts.delete(partnerId);
+        recomputeTotal();
+      };
+
+      const unsub = subscribeToChatMeta(user.id, {
+        onUpsert: handleSupaUpsert,
+        onRemove: handleSupaRemove,
+      });
+      return () => { unsub(); };
+    }
+
+    // ── RTDB fallback (original code) ────────────────────────────────
+    const userChatsRef = ref(appdatabase, `chat_meta_data/${user.id}`);
+
     const handleChildChange = (snapshot) => {
       if (!snapshot || !snapshot.key) return;
       const chatData = snapshot.val();
@@ -90,33 +143,21 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
       } else {
         unreadCounts.set(chatPartnerId, isBlocked ? 0 : rawUnread);
       }
-
-      // Recalculate total
-      totalUnread = Array.from(unreadCounts.values()).reduce((sum, count) => sum + count, 0);
-      setunreadcount(totalUnread);
+      recomputeTotal();
     };
 
     const handleChildRemoved = (snapshot) => {
       if (!snapshot || !snapshot.key) return;
       unreadCounts.delete(snapshot.key);
-      totalUnread = Array.from(unreadCounts.values()).reduce((sum, count) => sum + count, 0);
-      setunreadcount(totalUnread);
+      recomputeTotal();
     };
 
-    // ✅ OPTIMIZED: Use incremental loading with child listeners only
-    // Instead of downloading all metadata at once, let child_added fire for each chat
-    // This way we only download data as it's needed, reducing wildcard downloads
-
-    // Set initial count to 0 (will be updated as child_added fires for existing chats)
     setunreadcount(0);
 
-    // ✅ Listen to individual chat changes - child_added will fire for existing chats
-    // This is more efficient than downloading all data at once
     const unsubAdded = onChildAdded(userChatsRef, handleChildChange);
     const unsubChanged = onChildChanged(userChatsRef, handleChildChange);
     const unsubRemoved = onChildRemoved(userChatsRef, handleChildRemoved);
 
-    // ✅ Proper cleanup
     return () => {
       unsubAdded();
       unsubChanged();
@@ -124,8 +165,10 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
     };
   }, [user?.id, appdatabase, bannedUsers]);
 
-  // ✅ OPTIMIZED: Load groups from group_meta_data using get() + child listeners
-  // This prevents re-downloading ALL group metadata on every single change
+  // Group list + unread badge.
+  //
+  // Same pattern as chat_meta above: subscribeToGroupMeta on the
+  // Supabase path, original RTDB child-listener flow as fallback.
   useEffect(() => {
     if (!user?.id || !appdatabase) {
       setGroups([]);
@@ -133,8 +176,50 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
     }
 
     setGroupsLoading(true);
-    const userGroupsRef = ref(appdatabase, `group_meta_data/${user.id}`);
     const groupsMap = new Map(); // Track groups locally
+
+    const updateGroupsList = () => {
+      const updatedGroups = Array.from(groupsMap.values())
+        .sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp);
+      setGroups(updatedGroups);
+
+      const totalGroupUnread = updatedGroups.reduce((sum, group) => sum + (group.unreadCount || 0), 0);
+      setGroupUnreadCount(totalGroupUnread);
+    };
+
+    // ── Supabase path ────────────────────────────────────────────────
+    if (SUPABASE_GROUP_META_ENABLED) {
+      const handleSupaUpsert = (row) => {
+        if (!row || !row.groupId) return;
+        groupsMap.set(row.groupId, {
+          groupId: row.groupId,
+          groupName: row.groupName || 'Group',
+          groupAvatar: row.groupAvatar || null,
+          lastMessage: row.lastMessage || 'No messages yet',
+          lastMessageTimestamp: row.lastMessageTimestamp || 0,
+          unreadCount: row.unreadCount || 0,
+          memberCount: row.memberCount || 0,
+          createdBy: row.createdBy || null,
+        });
+        updateGroupsList();
+      };
+
+      const handleSupaRemove = (groupId) => {
+        if (!groupId) return;
+        groupsMap.delete(groupId);
+        updateGroupsList();
+      };
+
+      const unsub = subscribeToGroupMeta(user.id, {
+        onUpsert: handleSupaUpsert,
+        onRemove: handleSupaRemove,
+        onReady: () => setGroupsLoading(false),
+      });
+      return () => { unsub(); };
+    }
+
+    // ── RTDB fallback (original code) ────────────────────────────────
+    const userGroupsRef = ref(appdatabase, `group_meta_data/${user.id}`);
 
     const parseGroupData = (groupId, groupData) => {
       if (!groupData || typeof groupData !== 'object') return null;
@@ -150,16 +235,6 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
       };
     };
 
-    const updateGroupsList = () => {
-      const updatedGroups = Array.from(groupsMap.values())
-        .sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp);
-      setGroups(updatedGroups);
-
-      const totalGroupUnread = updatedGroups.reduce((sum, group) => sum + (group.unreadCount || 0), 0);
-      setGroupUnreadCount(totalGroupUnread);
-    };
-
-    // ✅ Initial load with get() (one-time read)
     const loadInitialGroups = async () => {
       try {
         const snapshot = await get(userGroupsRef);
@@ -191,10 +266,9 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
       }
     };
 
-    // ✅ Child listeners for real-time updates (only downloads changed data)
     const handleChildAdded = (snapshot) => {
       if (!snapshot || !snapshot.key) return;
-      if (groupsMap.has(snapshot.key)) return; // Skip already-loaded groups
+      if (groupsMap.has(snapshot.key)) return;
       const parsed = parseGroupData(snapshot.key, snapshot.val());
       if (parsed) {
         groupsMap.set(snapshot.key, parsed);

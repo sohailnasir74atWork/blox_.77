@@ -19,6 +19,13 @@ import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-m
 import { useTranslation } from 'react-i18next';
 import { ref, update, remove, onChildAdded, onChildChanged, onChildRemoved } from '@react-native-firebase/database';
 import { showSuccessMessage } from '../../Helper/MessageHelper';
+import {
+  subscribeToChatMeta,
+  setChatMuted as sbSetChatMuted,
+  deleteChatForOwner as sbDeleteChatForOwner,
+  resetUnreadCount as sbResetUnreadCount,
+} from '../../Supabase/chatMetaBackend';
+import { SUPABASE_CHAT_META_ENABLED } from '../../Supabase/featureFlags';
 
 // ✅ Constants for pagination (moved outside component to avoid recreation)
 const INITIAL_LOAD = 15; // ✅ Initial chats to display
@@ -57,12 +64,12 @@ const InboxScreen = ({ bannedUsers }) => {
       }, 2000);
     }
 
-    const userChatsRef = ref(appdatabase, `chat_meta_data/${user.id}`);
     const chatsMap = chatsMapRef.current;
     chatsMap.clear();
     const banned = Array.isArray(bannedUsers) ? bannedUsers : [];
 
-    // ✅ Debounced helper to batch rapid child events
+    // Debounced flush — both code paths feed into this so the rapid
+    // burst of inserts on first subscribe doesn't trigger N renders.
     const updateChatsList = () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = setTimeout(() => {
@@ -70,7 +77,6 @@ const InboxScreen = ({ bannedUsers }) => {
           const updatedChats = Array.from(chatsMap.values())
             .sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp);
           setLocalChats(updatedChats);
-          setDisplayedChatsCount(INITIAL_LOAD);
           if (!hasLoadedOnce.current) {
             setLocalLoading(false);
             hasLoadedOnce.current = true;
@@ -80,7 +86,61 @@ const InboxScreen = ({ bannedUsers }) => {
       }, 500);
     };
 
-    // ✅ Unified handler for child_added and child_changed
+    // ── Supabase path ────────────────────────────────────────────────
+    if (SUPABASE_CHAT_META_ENABLED) {
+      const handleSupaUpsert = (row) => {
+        if (!row || !row.partnerId) return;
+        const chatPartnerId = row.partnerId;
+        const isBlocked = banned.includes(chatPartnerId);
+        const rawUnread = row.unreadCount || 0;
+
+        if (isBlocked && rawUnread > 0) {
+          // Reset directly on Supabase (now the source of truth).
+          sbResetUnreadCount(user.id, chatPartnerId);
+        }
+
+        chatsMap.set(chatPartnerId, {
+          chatId: row.chatId,
+          otherUserId: chatPartnerId,
+          lastMessage: row.lastMessage || 'No messages yet',
+          lastMessageTimestamp: row.timestamp || 0,
+          unreadCount: isBlocked ? 0 : rawUnread,
+          otherUserAvatar: row.receiverAvatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+          otherUserName: row.receiverName || 'Anonymous',
+          muted: !!row.muted,
+        });
+        updateChatsList();
+      };
+
+      const handleSupaRemove = (partnerId) => {
+        if (!partnerId) return;
+        chatsMap.delete(partnerId);
+        updateChatsList();
+      };
+
+      const unsub = subscribeToChatMeta(user.id, {
+        onUpsert: handleSupaUpsert,
+        onRemove: handleSupaRemove,
+        onReady: () => {
+          // initial load complete; ensure the spinner clears even if zero chats
+          if (!hasLoadedOnce.current) {
+            setLocalLoading(false);
+            hasLoadedOnce.current = true;
+            if (initialLoadTimerRef.current) clearTimeout(initialLoadTimerRef.current);
+          }
+        },
+      });
+
+      return () => {
+        unsub();
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        if (initialLoadTimerRef.current) clearTimeout(initialLoadTimerRef.current);
+      };
+    }
+
+    // ── RTDB fallback (original code) ────────────────────────────────
+    const userChatsRef = ref(appdatabase, `chat_meta_data/${user.id}`);
+
     const handleChildChange = (snapshot) => {
       if (!snapshot || !snapshot.key) return;
       const chatData = snapshot.val();
@@ -105,6 +165,7 @@ const InboxScreen = ({ bannedUsers }) => {
         unreadCount: isBlocked ? 0 : rawUnread,
         otherUserAvatar: chatData.receiverAvatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
         otherUserName: chatData.receiverName || 'Anonymous',
+        muted: !!chatData.muted,
       });
 
       updateChatsList();
@@ -116,8 +177,6 @@ const InboxScreen = ({ bannedUsers }) => {
       updateChatsList();
     };
 
-    // ✅ NO get() call — onChildAdded fires for all existing children on first attach
-    // This eliminates the double-download (get + onChildAdded was downloading 2x)
     const unsubAdded = onChildAdded(userChatsRef, handleChildChange);
     const unsubChanged = onChildChanged(userChatsRef, handleChildChange);
     const unsubRemoved = onChildRemoved(userChatsRef, handleChildRemoved);
@@ -199,9 +258,9 @@ const InboxScreen = ({ bannedUsers }) => {
                 return;
               }
 
-              // Delete chat metadata for the current user only
-              const senderChatRef = ref(appdatabase, `chat_meta_data/${user.id}/${otherUserId}`);
-              await remove(senderChatRef);
+              // Delete chat metadata for the current user only — Supabase.
+              // Partner's row is untouched (their inbox keeps the chat).
+              await sbDeleteChatForOwner(user.id, otherUserId);
 
               // Update local state
               setLocalChats((prevChats) => {
@@ -220,6 +279,35 @@ const InboxScreen = ({ bannedUsers }) => {
       { cancelable: true }
     );
   }, [allChats, user?.id, t]);
+
+  // 🔔 Toggle mute for a private chat.
+  //
+  // Writes muted boolean to RTDB (source of truth). Mirror CF syncs to
+  // Supabase. The realtime listener above receives the update and
+  // re-renders the bell automatically — no local state to keep in sync.
+  //
+  // The notifyNewMessage Cloud Function reads this same flag and skips
+  // pushes when muted = true.
+  const handleToggleMute = useCallback(async (otherUserId, otherUserName, currentMuted) => {
+    if (!user?.id || !otherUserId) return;
+    const newMuted = !currentMuted;
+    try {
+      // Mute flag is now Supabase-native. The notifyNewMessage CF reads
+      // it from Supabase (chat_meta_data table) when deciding whether to
+      // suppress a push. The realtime listener picks up the UPDATE and
+      // re-renders the bell automatically.
+      await sbSetChatMuted(user.id, otherUserId, newMuted);
+      showSuccessMessage(
+        t('home.alert.success'),
+        newMuted
+          ? `Notifications muted for "${otherUserName}"`
+          : `Notifications enabled for "${otherUserName}"`,
+      );
+    } catch (error) {
+      console.warn('[Inbox] toggle mute error:', error?.message);
+      Alert.alert('Error', 'Failed to update notification settings.');
+    }
+  }, [user?.id, t]);
 
   // ✅ Memoize handleOpenChat with useCallback
   const handleOpenChat = useCallback(async (chatId, otherUserId, otherUserName, otherUserAvatar) => {
@@ -272,6 +360,7 @@ const InboxScreen = ({ bannedUsers }) => {
     const unreadCount = item.unreadCount || 0;
     const isOnline = item.isOnline || false;
     const isBanned = item.isBanned || false;
+    const isMuted = !!item.muted;
 
     return (
       <View style={styles.itemContainer}>
@@ -304,6 +393,17 @@ const InboxScreen = ({ bannedUsers }) => {
             </View>
           )}
         </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => handleToggleMute(otherUserId, otherUserName, isMuted)}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={{ paddingHorizontal: 6 }}
+        >
+          <Icon
+            name={isMuted ? 'notifications-off' : 'notifications-outline'}
+            size={20}
+            color={isMuted ? '#EF4444' : (isDarkMode ? '#94A3B8' : '#64748B')}
+          />
+        </TouchableOpacity>
         <Menu>
           <MenuTrigger>
             <Icon
@@ -333,7 +433,7 @@ const InboxScreen = ({ bannedUsers }) => {
         </Menu>
       </View>
     );
-  }, [styles, user, handleOpenChat, handleDelete, t]);
+  }, [styles, user, handleOpenChat, handleDelete, handleToggleMute, isDarkMode, t]);
 
   return (
     <View style={styles.container}>
@@ -348,7 +448,7 @@ const InboxScreen = ({ bannedUsers }) => {
           data={displayedChats}
           keyExtractor={(item, index) => item?.chatId || `chat-${index}`}
           renderItem={renderChatItem}
-          removeClippedSubviews={true}
+          removeClippedSubviews={false}
           maxToRenderPerBatch={10}
           windowSize={10}
           onEndReached={handleLoadMore}

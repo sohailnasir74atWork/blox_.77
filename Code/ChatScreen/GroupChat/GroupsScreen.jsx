@@ -23,6 +23,7 @@ import { leaveGroup, acceptGroupInvite, declineGroupInvite, updateGroupAvatar, a
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
 import { collection, query, where, onSnapshot, doc, getDoc, getCountFromServer } from '@react-native-firebase/firestore';
 import { ref, get, set } from '@react-native-firebase/database';
+import { setGroupMuted as sbSetGroupMuted, loadGroupMeta } from '../../Supabase/groupMetaBackend';
 import InterstitialAdManager from '../../Ads/IntAd';
 import { useLocalState } from '../../LocalGlobelStats';
 import GroupsGuideModal from './GroupsGuideModal';
@@ -501,20 +502,21 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
     if (!appdatabase || !user?.id || groups.length === 0) return;
 
     const loadMuteStatus = async () => {
+      // One Supabase round-trip for ALL of this user's group rows.
+      const rows = await loadGroupMeta(user.id);
+      const inGroups = new Set(groups.map((g) => g.groupId).filter(Boolean));
       const muteStatusMap = {};
-      const promises = groups.map(async (group) => {
-        if (!group.groupId) return;
-        try {
-          const muteRef = ref(appdatabase, `group_meta_data/${user.id}/${group.groupId}/muted`);
-          const snapshot = await get(muteRef);
-          muteStatusMap[group.groupId] = snapshot.exists() ? snapshot.val() === true : false;
-        } catch (error) {
-          console.error(`Error loading mute status for group ${group.groupId}:`, error);
-          muteStatusMap[group.groupId] = false;
+      for (const row of rows || []) {
+        if (inGroups.has(row.groupId)) {
+          muteStatusMap[row.groupId] = !!row.muted;
         }
-      });
-
-      await Promise.all(promises);
+      }
+      // Default any groups without a row to false (= not muted).
+      for (const g of groups) {
+        if (g.groupId && muteStatusMap[g.groupId] === undefined) {
+          muteStatusMap[g.groupId] = false;
+        }
+      }
       setMutedGroups(muteStatusMap);
     };
 
@@ -608,14 +610,13 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
 
   // ✅ Toggle mute notifications for a group
   const handleToggleMute = useCallback(async (groupId, groupName) => {
-    if (!appdatabase || !user?.id || !groupId) return;
+    if (!user?.id || !groupId) return;
 
     const currentMuted = mutedGroups[groupId] || false;
     const newMutedStatus = !currentMuted;
 
     try {
-      const muteRef = ref(appdatabase, `group_meta_data/${user.id}/${groupId}/muted`);
-      await set(muteRef, newMutedStatus);
+      await sbSetGroupMuted(user.id, groupId, newMutedStatus);
 
       // Update local state
       setMutedGroups(prev => ({
@@ -1413,7 +1414,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
             data={filteredGroups}
             keyExtractor={(item, index) => item?.groupId || `group-${index}`}
             renderItem={renderGroupItem}
-            removeClippedSubviews={true}
+            removeClippedSubviews={false}
             maxToRenderPerBatch={10}
             windowSize={10}
           />
@@ -1440,7 +1441,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
               }
             }}
             onEndReachedThreshold={0.5}
-            removeClippedSubviews={true}
+            removeClippedSubviews={false}
             maxToRenderPerBatch={10}
             windowSize={10}
             ListFooterComponent={

@@ -11,16 +11,15 @@ import {
 } from "react-native";
 import { useGlobalState } from "../GlobelStats";
 import config from "../Helper/Environment";
-import { ref, push, get } from "@react-native-firebase/database";
+import { ref, push } from "@react-native-firebase/database";
 import { doc, getDoc, updateDoc } from "@react-native-firebase/firestore";
-import { banUserwithEmail } from "../ChatScreen/utils";
 
 const ReportTradePopup = ({ visible, trade, onClose }) => {
   const [selectedReason, setSelectedReason] = useState("Inappropriate");
   const [customReason, setCustomReason] = useState("");
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { theme, user, appdatabase, strikeInfo, isAdmin, firestoreDB } = useGlobalState();
+  const { theme, user, appdatabase, strikeInfo, isAdmin, firestoreDB, isUserBlocked } = useGlobalState();
   const isDarkMode = theme === "dark";
 
   const handleSubmit = async () => {
@@ -29,28 +28,33 @@ const ReportTradePopup = ({ visible, trade, onClose }) => {
       return;
     }
 
-    // ✅ Block users with strikes from reporting (admins are exempt)
-    if (strikeInfo && !isAdmin) {
-      const { strikeCount, bannedUntil } = strikeInfo;
-      const now = Date.now();
+    // Block banned users from reporting (admins are exempt). Defer expiry
+    // to the server-time-validated `isUserBlocked` flag so a clock-rolled
+    // device can't slip past — strikeInfo is used only for the message.
+    if (isUserBlocked && !isAdmin) {
+      const { strikeCount, bannedUntil } = strikeInfo || {};
 
       if (bannedUntil === 'permanent') {
         Alert.alert("⛔ Permanently Banned", "You are permanently banned from making reports.");
         return;
       }
 
-      if (typeof bannedUntil === 'number' && now < bannedUntil) {
-        const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
+      if (typeof bannedUntil === 'number') {
+        const remaining = Math.max(0, bannedUntil - Date.now());
+        const totalMinutes = Math.ceil(remaining / 60000);
         const hours = Math.floor(totalMinutes / 60);
         const minutes = totalMinutes % 60;
         const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 
         Alert.alert(
-          `⚠️ Strike ${strikeCount}`,
+          `⚠️ Strike ${strikeCount ?? ''}`.trim(),
           `You are banned from making reports for ${timeLeftText} more minute(s).`
         );
         return;
       }
+
+      Alert.alert("⛔ Banned", "You are currently banned from making reports.");
+      return;
     }
 
     if (!trade?.id) {
@@ -61,56 +65,17 @@ const ReportTradePopup = ({ visible, trade, onClose }) => {
     setLoading(true);
 
     try {
-      // 1. Fetch reported user's data from RTDB
-      let offenderEmail = null;
-      let userData = {
-        id: trade.userId,
-        displayName: trade.traderName || 'Unknown',
-        avatar: null
-      };
-
-      if (trade.userId) {
-        const userRef = ref(appdatabase, `users/${trade.userId}`);
-        const userSnap = await get(userRef);
-        if (userSnap.exists()) {
-          const fetchedData = userSnap.val();
-          offenderEmail = fetchedData.email;
-          userData = {
-            id: trade.userId,
-            displayName: fetchedData.displayName || trade.traderName || 'Unknown',
-            avatar: fetchedData.avatar || null,
-            email: offenderEmail
-          }
-        }
-      }
-
-      // 2. Check and limit reports in Firestore (Trades are in Firestore)
+      // Bump the trade's report counter for admin review. Auto-ban on
+      // threshold was removed — bans are now manual (admin/mod only).
       const tradeRef = doc(firestoreDB, "trades_new_upgrade", trade.id);
       const tradeSnap = await getDoc(tradeRef);
 
       if (tradeSnap.exists()) {
-        const tradeData = tradeSnap.data();
-        const currentReports = Number(tradeData.reportCount || 0);
-
-        if (currentReports >= 1) {
-          // This is the 2nd report -> Ban User
-          if (offenderEmail) {
-            const bannerInfo = {
-              id: user?.id,
-              displayName: user?.userName || 'System',
-              avatar: user?.avatar || null
-            };
-            await banUserwithEmail(offenderEmail, false, trade.userId, userData, bannerInfo);
-          }
-          // Update count (optional, but good for record)
-          await updateDoc(tradeRef, { reportCount: currentReports + 1 });
-        } else {
-          // First report -> just increment status
-          await updateDoc(tradeRef, { reportCount: 1 });
-        }
+        const currentReports = Number(tradeSnap.data().reportCount || 0);
+        await updateDoc(tradeRef, { reportCount: currentReports + 1 });
       }
 
-      // 3. Log the report details to RTDB (Legacy/Admin Logs)
+      // Log the report details to RTDB (Legacy/Admin Logs)
       const reportsRef = ref(appdatabase, "tradeReports");
       const reportData = {
         tradeId: trade.id,

@@ -16,8 +16,8 @@ import GroupMessageInput from './GroupMessageInput';
 import GroupMessageList from './GroupMessageList';
 import { useGlobalState } from '../../GlobelStats';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { setActiveChat, clearActiveChat, setActiveGroupChat, clearActiveGroupChat } from '../utils';
-import { get, ref, update, query as dbQuery, orderByKey, limitToLast, orderByValue, equalTo, endAt, onChildAdded } from '@react-native-firebase/database';
+import { useActiveChatLifecycle } from '../utils';
+import { get, ref, update } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import { sendGroupMessage, removeMemberFromGroup, hasGroupPermission, getPendingInviteForGroup, acceptGroupInvite, declineGroupInvite, leaveGroup, makeMemberCreator } from '../utils/groupUtils';
@@ -28,6 +28,13 @@ import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper
 import ProfileBottomDrawer from './BottomDrawer';
 import { isUserOnline, handleDeleteLast300Messages } from '../utils';
 import { useLocalState } from '../../LocalGlobelStats';
+import { resetGroupUnreadCount as sbResetGroupUnreadCount } from '../../Supabase/groupMetaBackend';
+import {
+  loadGroupMessages as sbLoadGroupMessages,
+  subscribeToGroupMessages as sbSubscribeToGroupMessages,
+  softDeleteGroupMessage as sbSoftDeleteGroupMessage,
+  softDeleteGroupMessagesBySender as sbSoftDeleteGroupMessagesBySender,
+} from '../../Supabase/groupMessagesBackend';
 import PetModal from '../PrivateChat/PetsModel';
 import config from '../../Helper/Environment';
 import BannerAdComponent from '../../Ads/bannerAds';
@@ -43,7 +50,7 @@ const GroupChatScreen = () => {
   const navigation = useNavigation();
   const { groupId } = route.params || {};
 
-  const { user, theme, appdatabase, firestoreDB, currentUserEmail, strikeInfo, isAdmin } = useGlobalState();
+  const { user, theme, appdatabase, firestoreDB, currentUserEmail, strikeInfo, isAdmin, isUserBlocked } = useGlobalState();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -71,15 +78,17 @@ const GroupChatScreen = () => {
   const previousGroupIdRef = useRef(null);
   const hasSentMessageRef = useRef(0); // Track count of messages user sent (for exit ad)
   const chatEnterTimeRef = useRef(null); // Track when user entered chat (for exit ad)
+  // Mirrored ref so the realtime listener (deps: [groupId, isMember]) can
+  // read the current user id without forcing a resubscribe on user object
+  // identity changes from useGlobalState.
+  const userIdRef = useRef(user?.id);
+  userIdRef.current = user?.id;
   const { t } = useTranslation();
 
   const isDarkMode = theme === 'dark';
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
 
-  const messagesRef = useMemo(
-    () => (groupId ? ref(appdatabase, `group_messages/${groupId}/messages`) : null),
-    [groupId, appdatabase],
-  );
+  // Group message bodies are Supabase-native — no RTDB ref needed.
 
   // Load group data from Firestore and check access
   // ✅ OPTIMIZED: Fetch invite data once on mount, not inside listener (reduces nested reads)
@@ -336,87 +345,57 @@ const GroupChatScreen = () => {
     }
   }, [showMembersModal, fetchPendingInvitations, groupData, user?.id]);
 
-  // ✅ OPTIMIZED: Load messages with pagination (only if user is a member) - matching private chat strategy
+  // Paginated load — Supabase. Cursor is { createdAt: ISO, id: uuid }
+  // returned by the previous page's oldest row. Same descending-order
+  // contract as before so the inverted FlatList renders unchanged.
   const loadMessages = useCallback(
     async (reset = false) => {
-      if (!messagesRef || !isMember) return; // Don't load messages if not a member
+      if (!groupId || !isMember) return;
 
       if (reset) {
         setLoading(true);
         setMessages([]);
         lastLoadedKeyRef.current = null;
-        newestMessageIdRef.current = null; // Reset newest message ID
+        newestMessageIdRef.current = null;
       } else {
         setIsPaginating(true);
       }
 
       try {
-        // ✅ Use modular query pattern for consistency
-        const lastKey = lastLoadedKeyRef.current;
         const limitSize = reset ? INITIAL_PAGE_SIZE : PAGE_SIZE;
+        const before = !reset && lastLoadedKeyRef.current
+          ? lastLoadedKeyRef.current
+          : null;
 
-        const msgQuery = (!reset && lastKey)
-          ? dbQuery(messagesRef, orderByKey(), endAt(lastKey), limitToLast(limitSize))
-          : dbQuery(messagesRef, orderByKey(), limitToLast(limitSize));
-
-        const snapshot = await get(msgQuery);
-        const data = snapshot.val() || {};
-
-        let parsedMessages = Object.entries(data)
-          .map(([key, value]) => ({ id: key, ...value }))
-          .sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0)); // ✅ DESCENDING: newest -> oldest (for inverted FlatList)
-
-        // ✅ Filter out the lastKey itself when loading more (to avoid duplicate)
-        if (!reset && lastKey && parsedMessages.length > 0) {
-          parsedMessages = parsedMessages.filter(msg => String(msg.id) !== String(lastKey));
-        }
-
-        // ✅ If reset and no messages found, return early
-        if (parsedMessages.length === 0) {
-          if (reset) {
-            // Only clear if we explicitly reset
-          } else {
-            // ✅ No more messages to load - set ref to null to prevent further pagination
-            lastLoadedKeyRef.current = null;
-          }
+        const rows = await sbLoadGroupMessages(groupId, { limit: limitSize, before });
+        if (!Array.isArray(rows) || rows.length === 0) {
+          if (!reset) lastLoadedKeyRef.current = null;
           return;
         }
 
-        // ✅ Track new messages for pagination key update
-        const newMessagesRef = { value: parsedMessages };
+        // Newest-first already (the backend returns descending).
+        let parsedMessages = rows;
 
+        const newMessagesRef = { value: parsedMessages };
         setMessages((prev) => {
           if (!Array.isArray(prev)) return parsedMessages;
           const existingIds = new Set(prev.map((m) => String(m?.id)));
           newMessagesRef.value = parsedMessages.filter((m) => !existingIds.has(String(m?.id)));
-
-          if (reset) {
-            // Initial load: use parsed messages as-is (already sorted descending)
-            return parsedMessages;
-          } else {
-            // Load more (older messages): append and maintain descending order
-            const combined = [...prev, ...newMessagesRef.value];
-            return combined.sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
-          }
+          if (reset) return parsedMessages;
+          const combined = [...prev, ...newMessagesRef.value];
+          return combined.sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
         });
 
-        // ✅ Store oldest message ID in this batch (last item in descending array)
-        // ✅ Use newMessagesRef.value (actual new messages after duplicate filtering)
-        if (newMessagesRef.value.length > 0) {
-          // ✅ Use the oldest message from the new batch (last item in descending array)
-          lastLoadedKeyRef.current = newMessagesRef.value[newMessagesRef.value.length - 1]?.id;
-          // ✅ Store newest message ID (first item in descending array) for real-time listener
-          newestMessageIdRef.current = newMessagesRef.value[0]?.id;
-        } else if (parsedMessages.length > 0) {
-          // ✅ If all were duplicates, still update to oldest from parsed to prevent infinite loop
-          // ✅ This handles edge case where all messages in batch are duplicates
-          lastLoadedKeyRef.current = parsedMessages[parsedMessages.length - 1]?.id;
-          newestMessageIdRef.current = parsedMessages[0]?.id;
-        } else {
-          // ✅ No messages at all - set to null to stop pagination
-          lastLoadedKeyRef.current = null;
-          newestMessageIdRef.current = null;
+        // Cursor → oldest row of this page (last in descending array).
+        const oldest = parsedMessages[parsedMessages.length - 1];
+        const newest = parsedMessages[0];
+        if (oldest) {
+          lastLoadedKeyRef.current = {
+            createdAt: new Date(oldest.timestamp).toISOString(),
+            id: oldest.id,
+          };
         }
+        if (newest) newestMessageIdRef.current = newest.id;
       } catch (err) {
         console.warn('Error loading messages:', err);
       } finally {
@@ -424,12 +403,12 @@ const GroupChatScreen = () => {
         setIsPaginating(false);
       }
     },
-    [messagesRef, isMember],
+    [groupId, isMember],
   );
 
   // Load messages when groupId changes (only if user is a member)
   useEffect(() => {
-    if (!messagesRef || !isMember) return;
+    if (!groupId || !isMember) return;
 
     const currentGroupId = groupId;
     const previousGroupId = previousGroupIdRef.current;
@@ -441,94 +420,98 @@ const GroupChatScreen = () => {
       previousGroupIdRef.current = currentGroupId;
       loadMessages(true);
     }
-  }, [groupId, messagesRef, loadMessages, isMember]);
+  }, [groupId, loadMessages, isMember]);
 
-  // ✅ OPTIMIZED: Listen to ONLY new messages using limitToLast(1) to avoid loading all existing messages
-  // This prevents child_added from firing for all existing messages when listener attaches
+  // Realtime — Supabase. INSERT delivers new messages, UPDATE handles
+  // soft-delete (removes from view), DELETE handles hard delete.
   useEffect(() => {
-    if (!messagesRef || !isMember) {
-      // Clear messages if user is not a member
+    if (!groupId || !isMember) {
       setMessages([]);
       return;
     }
 
     let isMounted = true;
 
-    const handleChildAdded = (snapshot) => {
-      if (!isMounted || !snapshot || !snapshot.key) return;
-      const data = snapshot.val();
-      if (!data || typeof data !== 'object') return;
+    const handleInsert = (msg) => {
+      if (!isMounted || !msg) return;
 
-      const newMessage = { id: snapshot.key, ...data };
-      if (!newMessage.timestamp) {
-        newMessage.timestamp = Date.now();
-      }
+      // Skip if we already have this message (e.g. from initial load
+      // or our own send echo).
+      if (newestMessageIdRef.current && String(msg.id) === String(newestMessageIdRef.current)) return;
 
-      // ✅ Skip if this is the newest message we already have (from initial load)
-      if (newestMessageIdRef.current && String(newMessage.id) === String(newestMessageIdRef.current)) {
-        return;
+      // When another member posts while we're in the group, the fanout
+      // RPC has already bumped our unread_count on the server. Clear it
+      // immediately so the bell + groups list don't show +1 for a
+      // message the user is reading inline.
+      if (msg.senderId && msg.senderId !== userIdRef.current && userIdRef.current) {
+        sbResetGroupUnreadCount(userIdRef.current, groupId);
       }
 
       setMessages((prev) => {
-        if (!Array.isArray(prev)) return [newMessage];
-        const exists = prev.some((m) => String(m?.id) === String(newMessage.id));
-        if (exists) return prev;
-
-        // ✅ Keep DESCENDING order
-        const updated = [newMessage, ...prev].sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
-
-        if (updated.length > 0) {
-          newestMessageIdRef.current = updated[0]?.id;
+        if (!Array.isArray(prev)) return [msg];
+        // Dedup by Supabase id.
+        if (prev.some((m) => String(m?.id) === String(msg.id))) return prev;
+        // Also dedup by clientMsgId in case an optimistic placeholder
+        // is sitting there (future-proof — current send is non-optimistic).
+        if (msg.clientMsgId) {
+          const optIdx = prev.findIndex(
+            (m) => m?._optimistic && m?.clientMsgId === msg.clientMsgId,
+          );
+          if (optIdx !== -1) {
+            const updated = [...prev];
+            updated[optIdx] = { ...updated[optIdx], ...msg, _optimistic: false };
+            return updated.sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
+          }
         }
+        const updated = [msg, ...prev].sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
+        if (updated.length > 0) newestMessageIdRef.current = updated[0]?.id;
         return updated;
       });
     };
 
-    // ✅ OPTIMIZED: Use limitToLast(1) to only listen to the latest message
-    const listenerQuery = dbQuery(messagesRef, orderByKey(), limitToLast(1));
-    let unsubscribe;
+    const handleUpdate = (msg) => {
+      if (!isMounted || !msg) return;
+      if (msg.deleted) {
+        setMessages((prev) => prev.filter((m) => m?.id !== msg.id));
+      }
+    };
 
-    try {
-      unsubscribe = onChildAdded(listenerQuery, handleChildAdded);
-    } catch (e) {
-      console.error('Error attaching listener:', e);
-    }
+    const handleDelete = (id) => {
+      if (!isMounted || !id) return;
+      setMessages((prev) => prev.filter((m) => m?.id !== id));
+    };
+
+    const unsubscribe = sbSubscribeToGroupMessages(groupId, {
+      onInsert: handleInsert,
+      onUpdate: handleUpdate,
+      onDelete: handleDelete,
+    });
 
     return () => {
       isMounted = false;
-      if (typeof unsubscribe === 'function') {
-        unsubscribe();
-      }
+      if (typeof unsubscribe === 'function') unsubscribe();
     };
-  }, [messagesRef, isMember]);
+  }, [groupId, isMember]);
 
-  // Set active chat and reset unread count
+  // Active-chat lifecycle: focus + AppState aware. Writes both
+  // /activeChats/{userId} = groupId AND /activeGroupChats/{groupId}/{userId}
+  // so the notification CF skips push for users currently viewing this
+  // group, and immediately revokes that skip when the app is backgrounded.
+  useActiveChatLifecycle({ userId: user?.id, chatId: groupId, groupId });
+
+  // Reset unread + per-screen refs on focus.
   useFocusEffect(
     useCallback(() => {
       if (!user?.id || !groupId) return;
 
-      // Set active chat (both for private chat pattern and group batch checking)
-      setActiveChat(user.id, groupId);
-      setActiveGroupChat(user.id, groupId);
-
-      // Reset refs when entering chat (for exit ad logic)
       hasSentMessageRef.current = 0;
       chatEnterTimeRef.current = Date.now();
 
-      // Reset unreadCount when entering chat (only for actual members, not admin/mod monitoring)
       const isActualMember = groupData?.memberIds?.includes(user.id);
       if (isActualMember) {
-        const groupMetaRef = ref(appdatabase, `group_meta_data/${user.id}/${groupId}`);
-        update(groupMetaRef, { unreadCount: 0 }).catch((error) => {
-          console.error('Error resetting unread count:', error);
-        });
+        sbResetGroupUnreadCount(user.id, groupId);
       }
-
-      return () => {
-        clearActiveChat(user.id);
-        clearActiveGroupChat(user.id, groupId);
-      };
-    }, [user?.id, groupId, appdatabase, localState?.isPro, groupData?.memberIds])
+    }, [user?.id, groupId, groupData?.memberIds])
   );
 
   // Handle refresh
@@ -628,18 +611,20 @@ const GroupChatScreen = () => {
         return;
       }
 
-      // ✅ Admins are exempt from blocking
-      if (strikeInfo && !isAdmin) {
-        const { strikeCount, bannedUntil } = strikeInfo;
-        const now = Date.now();
+      // Block banned users from sending (admins exempt). Defer expiry to
+      // server-time-validated `isUserBlocked` so a clock-rolled device
+      // can't slip past — strikeInfo is used only for the message text.
+      if (isUserBlocked && !isAdmin) {
+        const { bannedUntil } = strikeInfo || {};
 
         if (bannedUntil === 'permanent') {
           showErrorMessage(t('home.alert.error'), 'You are permanently banned from sending messages.');
           return;
         }
 
-        if (typeof bannedUntil === 'number' && now < bannedUntil) {
-          const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
+        if (typeof bannedUntil === 'number') {
+          const remaining = Math.max(0, bannedUntil - Date.now());
+          const totalMinutes = Math.ceil(remaining / 60000);
           const hours = Math.floor(totalMinutes / 60);
           const minutes = totalMinutes % 60;
           const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
@@ -650,6 +635,9 @@ const GroupChatScreen = () => {
           );
           return;
         }
+
+        showErrorMessage(t('home.alert.error'), 'You are currently banned from sending messages.');
+        return;
       }
 
       // Check if user is member and not muted (admin/moderator bypass for monitoring)
@@ -678,7 +666,7 @@ const GroupChatScreen = () => {
       const isCreator = groupData?.createdBy === user.id;
 
       // ✅ Cost opt: Drop fields that are either unused by GroupMessageList
-      // (isBabyMod/isTrusted/isCMSR/isGrinder/isRaider/flage) or already resolved
+      // (isBabyMod/isTrusted/isGrinder/isRaider/flage) or already resolved
       // from profileCache on render (chatTextColor/chatBubbleBg/profileFrame).
       // Backwards compatible: old messages still have these fields and resolveProfile
       // falls back to cache for cosmetics.
@@ -1118,13 +1106,30 @@ const GroupChatScreen = () => {
                 isPaginating={isPaginating}
                 onUserPress={handleUserPress}
                 onReply={handleReply}
-                onDeleteMessage={(messageId) => {
-                  if (!messagesRef) return;
-                  messagesRef.child(messageId).remove()
-                    .then(() => setMessages(prev => prev.filter(m => m.id !== messageId)))
-                    .catch(err => console.error('Delete message error:', err));
+                onDeleteMessage={async (messageId) => {
+                  if (!messageId) return;
+                  try {
+                    await sbSoftDeleteGroupMessage(messageId, user?.id ?? null);
+                    setMessages(prev => prev.filter(m => m.id !== messageId));
+                  } catch (err) {
+                    console.error('Delete message error:', err);
+                  }
                 }}
-                onDeleteAllMessage={(senderId) => handleDeleteLast300Messages(senderId)}
+                onDeleteAllMessage={async (senderId) => {
+                  if (!senderId || !groupId) return;
+                  try {
+                    // Soft-delete the last ~60 messages from this
+                    // sender in THIS group. Previously this fell back
+                    // to the public-chat default — the new helper
+                    // takes the groupId explicitly.
+                    await sbSoftDeleteGroupMessagesBySender(groupId, senderId, {
+                      limit: 60,
+                      deletedBy: user?.id ?? null,
+                    });
+                  } catch (err) {
+                    console.error('Bulk delete error:', err);
+                  }
+                }}
                 scrollToMessage={scrollToMessage}
                 highlightedMessageId={highlightedMessageId}
                 flatListRef={flatListRef}

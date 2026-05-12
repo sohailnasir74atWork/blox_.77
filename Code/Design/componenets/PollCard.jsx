@@ -18,24 +18,17 @@ import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import {
-    collection,
-    doc,
-    getDocs,
-    addDoc,
-    updateDoc,
-    query,
-    orderBy,
-    limit,
-    startAfter,
-    Timestamp,
-} from '@react-native-firebase/firestore';
+    castPollVote,
+    fetchPollComments,
+    postPollComment,
+} from '../../Supabase/pollsBackend';
 
 dayjs.extend(relativeTime);
 
 const DEFAULT_AVATAR = 'https://ui-avatars.com/api/?background=007AFF&color=fff&name=U';
 const COMMENTS_PAGE_SIZE = 2;
 
-const PollCard = ({ poll, user, firestoreDB, isDarkMode, onRequireSignIn }) => {
+const PollCard = ({ poll, user, isDarkMode, onRequireSignIn }) => {
     const navigation = useNavigation();
     const { t } = useTranslation();
     const [expanded, setExpanded] = useState(false);
@@ -59,17 +52,16 @@ const PollCard = ({ poll, user, firestoreDB, isDarkMode, onRequireSignIn }) => {
     // Animated bars
     const barAnims = useRef(options.map(() => new Animated.Value(0))).current;
 
-    // Check if user already voted (but keep collapsed)
+    // Check if user already voted (but keep collapsed). myVote is
+    // attached by pollsBackend.fetchActivePolls() when the user is
+    // signed in.
     useEffect(() => {
-        if (poll?.voters && user?.id) {
-            const prev = poll.voters[user.id];
-            if (prev !== undefined && prev !== null) {
-                setVoted(true);
-                setSelectedOption(prev);
-                // Don't auto-expand — polls always start collapsed
-            }
+        if (poll?.myVote !== undefined && poll?.myVote !== null) {
+            setVoted(true);
+            setSelectedOption(poll.myVote);
+            // Don't auto-expand — polls always start collapsed
         }
-    }, [poll, user]);
+    }, [poll]);
 
     const animateBars = useCallback((opts, total) => {
         if (!total) return;
@@ -95,48 +87,32 @@ const PollCard = ({ poll, user, firestoreDB, isDarkMode, onRequireSignIn }) => {
     }, [expanded, voted, options, totalVotes, animateBars]);
 
     // ─────────── Vote (supports changing vote) ───────────
+    // Server-side atomic via cast_poll_vote RPC. The RPC returns the
+    // post-update counters, so we trust those instead of locally
+    // incrementing — that's what caused the lost-update bug on
+    // Firestore (two concurrent voters would both write back stale
+    // arrays and one increment was silently dropped).
     const handleVote = useCallback(async (index) => {
         if (voting) return;
-        // If user is not signed in, trigger sign-in flow
         if (!user?.id) {
             if (onRequireSignIn) onRequireSignIn();
             return;
         }
         if (!poll?.id) return;
-        // If already voted for the same option, do nothing
         if (voted && selectedOption === index) return;
 
         setVoting(true);
         try {
-            const pollRef = doc(firestoreDB, 'polls', poll.id);
-            const newOptions = [...options];
-            let newTotal = totalVotes;
+            const result = await castPollVote(poll.id, index);
+            if (!result) throw new Error('vote failed');
 
-            if (voted && selectedOption !== null && selectedOption !== undefined) {
-                // Changing vote: decrement old, increment new
-                newOptions[selectedOption] = {
-                    ...newOptions[selectedOption],
-                    votes: Math.max((newOptions[selectedOption].votes || 0) - 1, 0),
-                };
-                newOptions[index] = {
-                    ...newOptions[index],
-                    votes: (newOptions[index].votes || 0) + 1,
-                };
-                // totalVotes stays the same
-            } else {
-                // First vote
-                newOptions[index] = {
-                    ...newOptions[index],
-                    votes: (newOptions[index].votes || 0) + 1,
-                };
-                newTotal = totalVotes + 1;
-            }
-
-            await updateDoc(pollRef, {
-                options: newOptions,
-                totalVotes: newTotal,
-                [`voters.${user.id}`]: index,
-            });
+            // Rebuild options array from authoritative server counts,
+            // preserving the existing labels (RPC doesn't echo them).
+            const newOptions = options.map((opt, i) => ({
+                ...opt,
+                votes: Number(result.optionCounts[i] || 0),
+            }));
+            const newTotal = result.totalVotes;
 
             setOptions(newOptions);
             setTotalVotes(newTotal);
@@ -151,44 +127,43 @@ const PollCard = ({ poll, user, firestoreDB, isDarkMode, onRequireSignIn }) => {
         } finally {
             setVoting(false);
         }
-    }, [voted, voting, user, poll, options, totalVotes, selectedOption, firestoreDB, animateBars, onRequireSignIn]);
+    }, [voted, voting, user, poll, options, selectedOption, animateBars, onRequireSignIn, t]);
 
     // ─────────── Comments (paginated: 2 at a time) ───────────
-    const fetchComments = useCallback(async (afterDoc = null) => {
+    // Cursor is the last-seen comment (created_at + id) so pagination
+    // is stable even when comments share a timestamp.
+    const fetchComments = useCallback(async (cursor = null) => {
         if (!poll?.id) return;
-        if (afterDoc) {
+        if (cursor) {
             setLoadingMore(true);
         } else {
             setLoadingComments(true);
         }
         try {
-            const commentsRef = collection(firestoreDB, 'polls', poll.id, 'comments');
-            let q;
-            if (afterDoc) {
-                q = query(commentsRef, orderBy('createdAt', 'asc'), startAfter(afterDoc), limit(COMMENTS_PAGE_SIZE));
-            } else {
-                q = query(commentsRef, orderBy('createdAt', 'asc'), limit(COMMENTS_PAGE_SIZE));
-            }
-            const snapshot = await getDocs(q);
-            const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+            const { items, hasMore } = await fetchPollComments(poll.id, {
+                pageSize: COMMENTS_PAGE_SIZE,
+                afterCreatedAt: cursor?.createdAt || null,
+                afterId: cursor?.id || null,
+            });
 
-            if (afterDoc) {
-                setComments((prev) => [...prev, ...list]);
+            if (cursor) {
+                setComments((prev) => [...prev, ...items]);
             } else {
-                setComments(list);
+                setComments(items);
             }
 
-            if (snapshot.docs.length > 0) {
-                setLastCommentDoc(snapshot.docs[snapshot.docs.length - 1]);
+            if (items.length > 0) {
+                const last = items[items.length - 1];
+                setLastCommentDoc({ createdAt: last.createdAt, id: last.id });
             }
-            setHasMoreComments(snapshot.docs.length === COMMENTS_PAGE_SIZE);
+            setHasMoreComments(hasMore);
         } catch (err) {
             console.error('Fetch comments error:', err);
         } finally {
             setLoadingComments(false);
             setLoadingMore(false);
         }
-    }, [poll, firestoreDB]);
+    }, [poll]);
 
     const toggleComments = useCallback(() => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -211,17 +186,17 @@ const PollCard = ({ poll, user, firestoreDB, isDarkMode, onRequireSignIn }) => {
         setPosting(true);
         Keyboard.dismiss();
         try {
-            const commentsRef = collection(firestoreDB, 'polls', poll.id, 'comments');
-            const newComment = {
+            const inserted = await postPollComment({
+                pollId: poll.id,
                 userId: user.id,
                 userName: user.displayName || user.userName || 'User',
                 userAvatar: user.avatar || DEFAULT_AVATAR,
                 text,
-                createdAt: Timestamp.now(),
                 replyTo: replyingTo?.id || null,
-            };
-            const docRef = await addDoc(commentsRef, newComment);
-            setComments((prev) => [...prev, { id: docRef.id, ...newComment }]);
+            });
+            if (inserted) {
+                setComments((prev) => [...prev, inserted]);
+            }
             setCommentText('');
             setReplyingTo(null);
         } catch (err) {
@@ -230,7 +205,7 @@ const PollCard = ({ poll, user, firestoreDB, isDarkMode, onRequireSignIn }) => {
         } finally {
             setPosting(false);
         }
-    }, [commentText, user, poll, firestoreDB, replyingTo, posting, onRequireSignIn]);
+    }, [commentText, user, poll, replyingTo, posting, onRequireSignIn, t]);
 
     // ─────────── Chat with commenter ───────────
     const handleChatWithUser = useCallback((comment) => {

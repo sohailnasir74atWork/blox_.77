@@ -68,7 +68,7 @@ const TradeList = ({ route }) => {
   const [searchHasMore, setSearchHasMore] = useState(true); // ✅ More results available for search
   const SEARCH_PAGE_SIZE = 5; // ✅ Fetch 5 items at a time for search
   const { selectedTheme } = route.params
-  const { user, analytics, single_offer_wall, proGranted, strikeInfo, isAdmin, appdatabase } = useGlobalState()
+  const { user, analytics, single_offer_wall, proGranted, strikeInfo, isAdmin, appdatabase, isUserBlocked } = useGlobalState()
   const [trades, setTrades] = useState([]);
   const [filteredTrades, setFilteredTrades] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -149,20 +149,62 @@ const TradeList = ({ route }) => {
     );
   }, [user?.id]);
 
-  // Push filter state to route params (booleans only — no functions to avoid serialization warning)
   useEffect(() => {
-    navigation.setParams({
-      isMyTradesActive,
-      isFollowingActive,
-    });
-  }, [isMyTradesActive, isFollowingActive]);
+    const headerTint = selectedTheme.colors.text;
+    const primary = config.colors.primary;
+    navigation.setOptions({
+      title: t('tabs.trade', { defaultValue: 'Trades' }),
+      headerRight: () => (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TouchableOpacity
+            onPress={handleMyTradesPress}
+            activeOpacity={0.75}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              borderRadius: 12,
+              backgroundColor: isMyTradesActive ? primary : 'transparent',
+              borderWidth: 1,
+              borderColor: isMyTradesActive ? primary : headerTint + '55',
+              gap: 4,
+            }}
+          >
+            <Icon name={isMyTradesActive ? 'person' : 'person-outline'} size={12} color={isMyTradesActive ? '#fff' : headerTint} />
+            <Text style={{ fontSize: 11, fontWeight: '700', color: isMyTradesActive ? '#fff' : headerTint }}>
+              {t('trade.my_trades', { defaultValue: 'My Trades' })}
+            </Text>
+          </TouchableOpacity>
 
-  // Listen for button presses from the header via navigation events
-  useEffect(() => {
-    const unsub = navigation.addListener('myTradesPress', handleMyTradesPress);
-    const unsub2 = navigation.addListener('followingPress', handleFollowingPress);
-    return () => { unsub(); unsub2(); };
-  }, [navigation, handleMyTradesPress, handleFollowingPress]);
+          <TouchableOpacity
+            onPress={handleFollowingPress}
+            activeOpacity={0.75}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              borderRadius: 12,
+              backgroundColor: isFollowingActive ? '#8b5cf6' : 'transparent',
+              borderWidth: 1,
+              borderColor: isFollowingActive ? '#8b5cf6' : headerTint + '55',
+              gap: 4,
+            }}
+          >
+            <Icon name={isFollowingActive ? 'people' : 'people-outline'} size={12} color={isFollowingActive ? '#fff' : headerTint} />
+            <Text style={{ fontSize: 11, fontWeight: '700', color: isFollowingActive ? '#fff' : headerTint }}>
+              {t('trade.following', { defaultValue: 'Following' })}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => navigation.navigate('Trade Notifier')} activeOpacity={0.8} style={{ padding: 4 }}>
+            <Icon name="notifications-outline" size={22} color={headerTint} />
+          </TouchableOpacity>
+        </View>
+      ),
+    });
+  }, [navigation, t, handleMyTradesPress, handleFollowingPress, isMyTradesActive, isFollowingActive, selectedTheme]);
 
   useEffect(() => {
     setIsProStatus(localState.isPro || proGranted); // ✅ Force update state and trigger re-render
@@ -559,10 +601,11 @@ const TradeList = ({ route }) => {
 
 
     const callbackfunction = () => {
-      // ✅ Block users with strikes from messaging (admins are exempt)
-      if (strikeInfo && !isAdmin) {
-        const { strikeCount, bannedUntil } = strikeInfo;
-        const now = Date.now();
+      // Block banned users from messaging (admins exempt). Defer expiry to
+      // server-time-validated `isUserBlocked` so a clock-rolled device can't
+      // slip past — strikeInfo is used only for the message text.
+      if (isUserBlocked && !isAdmin) {
+        const { bannedUntil } = strikeInfo || {};
 
         if (bannedUntil === 'permanent') {
           showErrorMessage(
@@ -572,8 +615,9 @@ const TradeList = ({ route }) => {
           return;
         }
 
-        if (typeof bannedUntil === 'number' && now < bannedUntil) {
-          const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
+        if (typeof bannedUntil === 'number') {
+          const remaining = Math.max(0, bannedUntil - Date.now());
+          const totalMinutes = Math.ceil(remaining / 60000);
           const hours = Math.floor(totalMinutes / 60);
           const minutes = totalMinutes % 60;
           const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
@@ -584,6 +628,9 @@ const TradeList = ({ route }) => {
           );
           return;
         }
+
+        showErrorMessage(t("home.alert.error"), "You are currently banned from using this feature.");
+        return;
       }
 
       mixpanel.track("Inbox Trade");

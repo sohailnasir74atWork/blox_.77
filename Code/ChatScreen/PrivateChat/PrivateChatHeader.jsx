@@ -11,11 +11,14 @@ import { useHaptic } from '../../Helper/HepticFeedBack';
 import { mixpanel } from '../../AppHelper/MixPenel';
 import { useGlobalState } from '../../GlobelStats';
 import { ref, get, set, remove } from '@react-native-firebase/database';
+import { softDeleteAllInChat as sbSoftDeleteAllInChat } from '../../Supabase/privateMessagesBackend';
 import { getThemeColors } from '../../Helper/themeColors';
 import FramedAvatar from '../GroupChat/FramedAvatar';
 import { getActiveCosmetics } from '../../Engagement/shopUtils';
 import RoleBadges from '../../Design/componenets/RoleBadges';
 import { getCachedProfile } from '../../Helper/profileCache';
+import { getRoblox, getRoles, getCosmetics } from '../../Supabase/userBackend';
+import { SUPABASE_USERS_ENABLED } from '../../Supabase/featureFlags';
 
 const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers, isDrawerVisible, setIsDrawerVisible }) => {
   const { updateLocalState } = useLocalState();
@@ -54,8 +57,41 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
 
     const fetchUserData = async () => {
       try {
+        // Try Supabase first for the migrated fields (roblox, roles, isPro).
+        // lastGameWinAt + profileFrame still live on RTDB this phase.
+        if (SUPABASE_USERS_ENABLED) {
+          const [roblox, roles, cosmetics, lastGameWinAtSnap, profileFrameSnap] = await Promise.all([
+            getRoblox(selectedUserId),
+            getRoles(selectedUserId),
+            getCosmetics(selectedUserId),
+            get(ref(appdatabase, `users/${selectedUserId}/lastGameWinAt`)).catch(() => null),
+            get(ref(appdatabase, `users/${selectedUserId}/profileFrame`)).catch(() => null),
+          ]);
+
+          // Need at least one of the migrated lookups to consider this a hit.
+          // If all three are null (user not yet mirrored), fall through to RTDB.
+          if (roblox || roles || cosmetics) {
+            if (!isMounted) return;
+            setUserData({
+              robloxUsername: roblox?.robloxUsername ?? null,
+              robloxUserId: roblox?.robloxUserId ?? null,
+              robloxUsernameVerified: !!roblox?.robloxUsernameVerified,
+              isPro: !!cosmetics?.isPro,
+              lastGameWinAt: lastGameWinAtSnap?.exists() ? lastGameWinAtSnap.val() : null,
+              isAdmin: !!roles?.isAdmin,
+              isModerator: !!roles?.isModerator,
+              isTrusted: !!roles?.isTrusted,
+              isGrinder: !!roles?.isGrinder,
+              isRaider: !!roles?.isRaider,
+              profileFrame: profileFrameSnap?.exists() ? profileFrameSnap.val() : null,
+            });
+            return;
+          }
+        }
+
+        // Fallback: original 12-field RTDB fan-out.
         const [robloxUsernameSnap, robloxUserIdSnap, robloxUsernameVerifiedSnap,
-          isProSnap, lastGameWinAtSnap, isAdminSnap, isModeratorSnap, isTrustedSnap, isCMSRSnap, isGrinderSnap, isRaiderSnap, profileFrameSnap] = await Promise.all([
+          isProSnap, lastGameWinAtSnap, isAdminSnap, isModeratorSnap, isTrustedSnap, isGrinderSnap, isRaiderSnap, profileFrameSnap] = await Promise.all([
             get(ref(appdatabase, `users/${selectedUserId}/robloxUsername`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/robloxUserId`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/robloxUsernameVerified`)).catch(() => null),
@@ -64,7 +100,6 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
             get(ref(appdatabase, `users/${selectedUserId}/isAdmin`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/isModerator`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/isTrusted`)).catch(() => null),
-            get(ref(appdatabase, `users/${selectedUserId}/isCMSR`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/isGrinder`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/isRaider`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/profileFrame`)).catch(() => null),
@@ -81,7 +116,6 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
           isAdmin: isAdminSnap?.exists() ? isAdminSnap.val() : false,
           isModerator: isModeratorSnap?.exists() ? isModeratorSnap.val() : false,
           isTrusted: isTrustedSnap?.exists() ? isTrustedSnap.val() : false,
-          isCMSR: isCMSRSnap?.exists() ? isCMSRSnap.val() : false,
           isGrinder: isGrinderSnap?.exists() ? isGrinderSnap.val() : false,
           isRaider: isRaiderSnap?.exists() ? isRaiderSnap.val() : false,
           profileFrame: profileFrameSnap?.exists() ? profileFrameSnap.val() : null,
@@ -125,7 +159,6 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
       isAdmin: selectedUser?.isAdmin !== undefined ? selectedUser.isAdmin : userData.isAdmin,
       isModerator: selectedUser?.isModerator !== undefined ? selectedUser.isModerator : userData.isModerator,
       isTrusted: userData.isTrusted ?? selectedUser?.isTrusted ?? false,
-      isCMSR: userData.isCMSR ?? selectedUser?.isCMSR ?? false,
       isGrinder: userData.isGrinder ?? selectedUser?.isGrinder ?? false,
       isRaider: userData.isRaider ?? selectedUser?.isRaider ?? false,
       profileFrame: selectedUser?.profileFrame || userData.profileFrame || null,
@@ -229,7 +262,7 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
           style: 'destructive',
           onPress: async () => {
             try {
-              await remove(ref(appdatabase, `private_messages/${chatKey}/messages`));
+              await sbSoftDeleteAllInChat(chatKey, user?.id ?? null);
               Alert.alert('Done', 'All messages deleted.');
             } catch (e) {
               Alert.alert('Error', 'Failed to delete messages.');

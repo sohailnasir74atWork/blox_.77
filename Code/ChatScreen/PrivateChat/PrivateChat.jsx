@@ -14,9 +14,13 @@ import PrivateMessageList from './PrivateMessageList';
 import { useGlobalState } from '../../GlobelStats';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
-import { clearActiveChat, isUserOnline, setActiveChat, updateLastRead, useOtherLastRead } from '../utils';
+import { isUserOnline, updateLastRead, useOtherLastRead, useActiveChatLifecycle } from '../utils';
 import { useLocalState } from '../../LocalGlobelStats';
-import { get, set, increment, ref, update, remove, query as dbQuery, orderByKey, limitToLast, endAt, onChildAdded, serverTimestamp as rtdbServerTimestamp } from '@react-native-firebase/database';
+// RTDB usage in this file is now limited to: rewardPoints reads/writes
+// (`/users/{uid}/rewardPoints`) and the trade subtree
+// (`private_messages/{chatId}/trade`). Message bodies, chat metadata,
+// pagination + realtime are all Supabase-native.
+import { get, set, ref, update } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
 import BannerAdComponent from '../../Ads/bannerAds';
@@ -32,6 +36,18 @@ import {
 } from '@react-native-firebase/firestore';
 import { updateUserRatingSummary } from '../utils/ratingSummaryHelper';
 import ProfileBottomDrawer from '../GroupChat/BottomDrawer';
+import {
+  sendPrivateChatMeta,
+  resetUnreadCount as sbResetUnreadCount,
+} from '../../Supabase/chatMetaBackend';
+import {
+  loadPrivateMessages as sbLoadPrivateMessages,
+  subscribeToPrivateMessages as sbSubscribeToPrivateMessages,
+  sendPrivateMessage as sbSendPrivateMessage,
+  softDeletePrivateMessage as sbSoftDeletePrivateMessage,
+  softDeleteAllInChat as sbSoftDeleteAllInChat,
+  newClientMsgId as newPvtClientMsgId,
+} from '../../Supabase/privateMessagesBackend';
 
 
 const PAGE_SIZE = 15;
@@ -40,7 +56,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
   const { selectedUser: initialSelectedUser, selectedTheme, item } = route.params || {};
   const [currentSelectedUser, setCurrentSelectedUser] = useState(initialSelectedUser);
 
-  const { user, theme, appdatabase, updateLocalStateAndDatabase, firestoreDB, currentUserEmail, strikeInfo, isAdmin } = useGlobalState();
+  const { user, theme, appdatabase, updateLocalStateAndDatabase, firestoreDB, currentUserEmail, strikeInfo, isAdmin, isUserBlocked } = useGlobalState();
 
 
   const [trade, setTrade] = useState(null)
@@ -169,6 +185,12 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
   );
   chatKeyRef.current = chatKey;
 
+  // Mirror showReadReceipts into a ref so the realtime subscription
+  // (which depends only on chatKey) can read the latest value without
+  // tearing down + resubscribing every time the toggle flips.
+  const showReadReceiptsRef = useRef(localState?.showReadReceipts);
+  showReadReceiptsRef.current = localState?.showReadReceipts;
+
   // ✅ Read receipts: listen to other user's lastRead timestamp
   const otherLastRead = useOtherLastRead(chatKey, selectedUserId);
 
@@ -203,22 +225,22 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
   useFocusEffect(
     useCallback(() => {
       if (user?.id) seedCurrentUser(user, localState, appdatabase);
-      return () => {
-        if (user?.id) {
-          clearActiveChat(user.id);
-        }
-      };
     }, [user?.id])
   );
 
+  // Active-chat lifecycle: focus + AppState aware. Replaces the prior
+  // useFocusEffect+useEffect pair that left activeChats set for the
+  // 10–60s window after backgrounding (notification CF then suppressed
+  // pushes for the recipient during that window).
+  useActiveChatLifecycle({ userId: user?.id, chatId: chatKey });
+
   const handleRating = useCallback(async () => {
-    // ✅ Block globally banned users from submitting reviews
-    if (strikeInfo && !isAdmin) {
-      const { bannedUntil } = strikeInfo;
-      if (bannedUntil === 'permanent' || (typeof bannedUntil === 'number' && Date.now() < bannedUntil)) {
-        showErrorMessage(t("home.alert.error"), "You are banned and cannot submit reviews.");
-        return;
-      }
+    // Block banned users from submitting reviews. Defer expiry to the
+    // server-time-validated `isUserBlocked` flag so a clock-rolled device
+    // can't slip past.
+    if (isUserBlocked && !isAdmin) {
+      showErrorMessage(t("home.alert.error"), "You are banned and cannot submit reviews.");
+      return;
     }
 
     if (!rating || rating < 1 || rating > 5) {
@@ -323,66 +345,56 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
 
 
 
-  const messagesRef = useMemo(
-    () => (chatKey ? ref(appdatabase, `private_messages/${chatKey}/messages`) : null),
-    [chatKey, appdatabase],
-  );
-
+  // chatKey is the canonical pair id ([a,b].sort().join('_')) — same
+  // shape as the Supabase chat_id column.
   const loadMessages = useCallback(
     async (reset = false) => {
-      if (!messagesRef) return;
+      if (!chatKey) return;
 
       if (reset) {
         setLoading(true);
         setMessages([]);
+        // Cursor is { createdAt: ISO, id: uuid } — see privateMessagesBackend.
         lastLoadedKeyRef.current = null;
       }
       try {
-        const lastKey = lastLoadedKeyRef.current;
+        const before = !reset && lastLoadedKeyRef.current
+          ? lastLoadedKeyRef.current
+          : null;
 
-        const msgQuery = (!reset && lastKey)
-          ? dbQuery(messagesRef, orderByKey(), endAt(lastKey), limitToLast(PAGE_SIZE))
-          : dbQuery(messagesRef, orderByKey(), limitToLast(PAGE_SIZE));
-
-        const snapshot = await get(msgQuery);
-        const data = snapshot.val() || {};
-
-        let parsedMessages = Object.entries(data)
-          .map(([key, value]) => ({ id: key, ...value }))
-          .sort((a, b) => (b?.serverTime || b?.timestamp || 0) - (a?.serverTime || a?.timestamp || 0));
-
-        if (parsedMessages.length === 0) {
-          if (reset) {
-          }
-          return;
-        }
+        const rows = await sbLoadPrivateMessages(chatKey, { limit: PAGE_SIZE, before });
+        if (!Array.isArray(rows) || rows.length === 0) return;
 
         setMessages(prev => {
-          if (!Array.isArray(prev)) return parsedMessages;
+          if (!Array.isArray(prev)) return rows;
+          if (reset) return rows;
           const existingIds = new Set(prev.map(m => String(m?.id)));
-          const onlyNew = parsedMessages.filter(m => !existingIds.has(String(m?.id)));
-
-          if (reset) {
-            return parsedMessages;
-          } else {
-            const combined = [...prev, ...onlyNew];
-            return combined.sort((a, b) => (b?.serverTime || b?.timestamp || 0) - (a?.serverTime || a?.timestamp || 0));
-          }
+          const onlyNew = rows.filter(m => !existingIds.has(String(m?.id)));
+          const combined = [...prev, ...onlyNew];
+          return combined.sort((a, b) => (b?.serverTime || b?.timestamp || 0) - (a?.serverTime || a?.timestamp || 0));
         });
 
-        lastLoadedKeyRef.current = parsedMessages[parsedMessages.length - 1]?.id;
-
+        // Advance the cursor — oldest row of this page (rows are
+        // newest-first, so the last element is the oldest).
+        const oldest = rows[rows.length - 1];
+        if (oldest) {
+          lastLoadedKeyRef.current = {
+            createdAt: new Date(oldest.timestamp).toISOString(),
+            id: oldest.id,
+          };
+        }
       } catch (error) {
         console.error('Error loading messages:', error);
       } finally {
         if (reset) setLoading(false);
       }
     },
-    [messagesRef]
+    [chatKey]
   );
-  // ✅ OPTIMIZED: Initial load with pagination, then use child_added for new messages only
+  // Initial load (also re-runs on chat switch). Pagination + realtime
+  // are wired separately below.
   useEffect(() => {
-    if (!messagesRef) return;
+    if (!chatKey) return;
 
     const currentChatKey = chatKey;
     const previousChatKey = previousChatKeyRef.current;
@@ -394,7 +406,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       previousChatKeyRef.current = currentChatKey;
       loadMessages(true);
     }
-  }, [chatKey, messagesRef, loadMessages]);
+  }, [chatKey, loadMessages]);
 
   const handleLoadMore = useCallback(() => {
     loadMessages(false);
@@ -474,18 +486,20 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       showErrorMessage(t("home.alert.error"), "You must be logged in to send messages.");
       return;
     }
-    // ✅ Admins are exempt from blocking
-    if (strikeInfo && !isAdmin) {
-      const { strikeCount, bannedUntil } = strikeInfo;
-      const now = Date.now();
+    // Block banned users from sending (admins exempt). Defer expiry to
+    // server-time-validated `isUserBlocked` so a clock-rolled device
+    // can't slip past — strikeInfo is used only for the message text.
+    if (isUserBlocked && !isAdmin) {
+      const { bannedUntil } = strikeInfo || {};
 
       if (bannedUntil === 'permanent') {
         showErrorMessage(t("home.alert.error"), "You are permanently banned from sending messages.");
         return;
       }
 
-      if (typeof bannedUntil === 'number' && now < bannedUntil) {
-        const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
+      if (typeof bannedUntil === 'number') {
+        const remaining = Math.max(0, bannedUntil - Date.now());
+        const totalMinutes = Math.ceil(remaining / 60000);
         const hours = Math.floor(totalMinutes / 60);
         const minutes = totalMinutes % 60;
         const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
@@ -496,6 +510,9 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
         );
         return;
       }
+
+      showErrorMessage(t("home.alert.error"), "You are currently banned from sending messages.");
+      return;
     }
 
     if (hasFruits && fruits.length > 18) {
@@ -518,52 +535,43 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     const timestamp = Date.now();
     const chatId = [myUserId, selectedUserId].sort().join('_');
 
-
-    const messageRef = ref(appdatabase, `private_messages/${chatId}/messages/${timestamp}`);
-    const senderChatRef = ref(appdatabase, `chat_meta_data/${myUserId}/${selectedUserId}`);
-    const receiverChatRef = ref(appdatabase, `chat_meta_data/${selectedUserId}/${myUserId}`);
-
-    // ✅ Cost opt #1: Cosmetics are sender-level and live in profileCache / users/{uid}/shop/activeItems.
-    // resolveProfile falls back to cache, so we no longer need to duplicate them per message.
-    const messageData = {
-      text: trimmedText,
-      senderId: myUserId,
-      timestamp,
-      serverTime: rtdbServerTimestamp(), // ✅ Server-authoritative timestamp for correct ordering
-    };
-
-    if (hasImage) {
-      messageData.imageUrl = image;
-    }
-
-    if (hasFruits) {
-      messageData.fruits = fruits;
-    }
-
-    if (replyToMsg) {
-      messageData.replyTo = {
-        id: replyToMsg.id,
-        text: replyToMsg.text || '',
-        senderId: replyToMsg.senderId,
-        imageUrl: replyToMsg.imageUrl || null,
-        hasFruits: replyToMsg.fruits && replyToMsg.fruits.length > 0,
-        fruitsCount: replyToMsg.fruits ? replyToMsg.fruits.length : 0,
-      };
-    }
+    // Build the reply_to JSON payload once — same shape as before.
+    const replyToPayload = replyToMsg
+      ? {
+          id: replyToMsg.id,
+          text: replyToMsg.text || '',
+          senderId: replyToMsg.senderId,
+          imageUrl: replyToMsg.imageUrl || null,
+          hasFruits: replyToMsg.fruits && replyToMsg.fruits.length > 0,
+          fruitsCount: replyToMsg.fruits ? replyToMsg.fruits.length : 0,
+        }
+      : null;
 
     const lastMessagePreview =
       trimmedText ||
       (hasImage ? '📷 Photo' : hasFruits ? `🐾 ${fruits.length} pet(s)` : '');
 
-    // ✅ Optimistic: add message to local state immediately (no waiting for Firebase)
+    // Pre-generate the idempotency key so the optimistic placeholder can
+    // be matched against the realtime INSERT (and against the row
+    // returned from sendPrivateMessage on retry collision).
+    const clientMsgId = newPvtClientMsgId();
+
+    // ✅ Optimistic: add message to local state immediately. The
+    // realtime INSERT will replace this with the real row matched by
+    // clientMsgId.
     const optimisticMsg = {
-      id: String(timestamp),
-      ...messageData,
-      serverTime: timestamp, // ✅ Use local estimate until server data arrives via child_added
-      _optimistic: true, // ✅ Mark so child_added can update with real serverTime
+      id: clientMsgId,
+      clientMsgId,
+      senderId: myUserId,
+      text: trimmedText,
+      timestamp,
+      serverTime: timestamp,
+      _optimistic: true,
       sender: user?.displayName || 'You',
       avatar: user?.avatar || null,
-      ...(replyToMsg ? { replyTo: messageData.replyTo } : {}),
+      ...(hasImage ? { imageUrl: image } : {}),
+      ...(hasFruits ? { fruits } : {}),
+      ...(replyToPayload ? { replyTo: replyToPayload } : {}),
     };
     setMessages(prev => {
       if (!Array.isArray(prev)) return [optimisticMsg];
@@ -571,43 +579,52 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     });
 
     try {
-      await set(messageRef, messageData);
+      // Send the message body to Supabase. Idempotent via clientMsgId.
+      await sbSendPrivateMessage({
+        chatId,
+        senderId: myUserId,
+        recipientId: selectedUserId,
+        text: trimmedText || null,
+        imageUrl: hasImage ? image : null,
+        fruits: hasFruits ? fruits : [],
+        replyTo: replyToPayload,
+        OS: undefined, // PrivateChat doesn't track OS today; leave null
+        clientMsgId,
+      });
 
-      // ✅ Cost opt #2(a): Only write receiverName/receiverAvatar once per session.
-      // They rarely change, and the receiver's useFocusEffect clears unreadCount on open.
-      // ✅ Cost opt #5: Drop the pre-send get(receiverStatusRef); always increment(1).
-      //   Receiver's useFocusEffect already resets unreadCount to 0 when they open the chat.
+      // chat_meta_data is now Supabase-native. sendPrivateChatMeta does
+      // both pair sides (sender + receiver) in parallel and atomically
+      // increments the receiver's unread_count via an SQL RPC. Identity
+      // fields (receiverName / receiverAvatar) are still written
+      // once-per-session — chatMetaBackend leaves them unchanged on
+      // upsert when the caller passes null.
       const senderKey = `${myUserId}_${selectedUserId}`;
       const receiverKey = `${selectedUserId}_${myUserId}`;
 
-      const senderUpdate = {
-        chatId,
-        receiverId: selectedUserId,
-        lastMessage: lastMessagePreview,
-        timestamp,
-        unreadCount: 0,
-      };
-      const receiverUpdate = {
-        chatId,
-        receiverId: myUserId,
-        lastMessage: lastMessagePreview,
-        timestamp,
-        unreadCount: increment(1),
-      };
+      const writeReceiverIdentity = !metaIdentityWrittenRef.current.has(senderKey);
+      const writeSenderIdentity = !metaIdentityWrittenRef.current.has(receiverKey);
 
-      if (!metaIdentityWrittenRef.current.has(senderKey)) {
-        senderUpdate.receiverName = currentSelectedUser?.sender || "Anonymous";
-        senderUpdate.receiverAvatar = currentSelectedUser?.avatar || "https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png";
-        metaIdentityWrittenRef.current.add(senderKey);
-      }
-      if (!metaIdentityWrittenRef.current.has(receiverKey)) {
-        receiverUpdate.receiverName = user?.displayName || "Anonymous";
-        receiverUpdate.receiverAvatar = user?.avatar || "https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png";
-        metaIdentityWrittenRef.current.add(receiverKey);
-      }
+      await sendPrivateChatMeta({
+        senderUid: myUserId,
+        receiverUid: selectedUserId,
+        lastMessage: lastMessagePreview,
+        timestampMs: timestamp,
+        receiverName: writeReceiverIdentity
+          ? (currentSelectedUser?.sender || 'Anonymous')
+          : null,
+        receiverAvatar: writeReceiverIdentity
+          ? (currentSelectedUser?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png')
+          : null,
+        senderName: writeSenderIdentity
+          ? (user?.displayName || 'Anonymous')
+          : null,
+        senderAvatar: writeSenderIdentity
+          ? (user?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png')
+          : null,
+      });
 
-      await update(senderChatRef, senderUpdate);
-      await update(receiverChatRef, receiverUpdate);
+      if (writeReceiverIdentity) metaIdentityWrittenRef.current.add(senderKey);
+      if (writeSenderIdentity) metaIdentityWrittenRef.current.add(receiverKey);
 
       setReplyTo(null);
       hasSentMessageRef.current += 1; // ✅ Increment message count
@@ -621,23 +638,22 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     useCallback(() => {
       if (!user?.id || !selectedUserId) return;
 
-      const chatMetaRef = ref(appdatabase, `chat_meta_data/${user.id}/${selectedUserId}`);
+      // Unread reset moved to Supabase. Errors are swallowed by the
+      // helper — at-most-once is fine; next snapshot reflects truth.
+      sbResetUnreadCount(user.id, selectedUserId);
 
-      update(chatMetaRef, { unreadCount: 0 });
+      // Mark messages as read — gated on the read-receipts toggle so the
+      // sender doesn't see a blue tick if this user has read receipts
+      // disabled. Otherwise the user-visible bug is "I turned off read
+      // receipts but they still see I read it."
+      if (localState?.showReadReceipts !== false) {
+        updateLastRead(chatKey, user.id);
+      }
 
-      setActiveChat(user.id, chatKey);
-
-      // ✅ Mark messages as read
-      updateLastRead(chatKey, user.id);
-
-      // ✅ Reset refs when entering chat
+      // ✅ Reset refs when entering chat (used by exit-ad logic)
       hasSentMessageRef.current = 0;
       chatEnterTimeRef.current = Date.now();
-
-      return () => {
-        clearActiveChat(user.id);
-      };
-    }, [user?.id, selectedUserId, chatKey, localState?.isPro])
+    }, [user?.id, selectedUserId, chatKey, localState?.isPro, localState?.showReadReceipts])
   );
 
   const handleRefresh = useCallback(async () => {
@@ -646,20 +662,22 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     setRefreshing(false);
   }, [loadMessages]);
 
-  // ── Admin: delete a single message ──
+  // ── Admin / participant: soft-delete a single message ──
+  // Soft delete leaves the row in Supabase with deleted=true so we keep
+  // an audit trail. Realtime UPDATE fires for the other participant.
   const handleDeleteMessage = useCallback(async (messageId) => {
-    if (!messageId || !chatKey || !appdatabase) return;
+    if (!messageId || !chatKey) return;
     try {
-      await remove(ref(appdatabase, `private_messages/${chatKey}/messages/${messageId}`));
+      await sbSoftDeletePrivateMessage(messageId, user?.id ?? null);
       setMessages(prev => prev.filter(m => m.id !== messageId));
     } catch (e) {
       Alert.alert('Error', 'Failed to delete message.');
     }
-  }, [chatKey, appdatabase]);
+  }, [chatKey, user?.id]);
 
-  // ── Admin: delete ALL messages in this chat ──
+  // ── Admin: soft-delete ALL messages in this chat ──
   const handleDeleteAllChat = useCallback(() => {
-    if (!chatKey || !appdatabase || !isAdmin) return;
+    if (!chatKey || !isAdmin) return;
     Alert.alert(
       'Delete All Messages',
       'Are you sure you want to delete ALL messages in this chat? This cannot be undone.',
@@ -670,7 +688,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
           style: 'destructive',
           onPress: async () => {
             try {
-              await remove(ref(appdatabase, `private_messages/${chatKey}/messages`));
+              await sbSoftDeleteAllInChat(chatKey, user?.id ?? null);
               setMessages([]);
               showSuccessMessage('Success', 'All messages deleted.');
             } catch (e) {
@@ -680,64 +698,85 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
         },
       ]
     );
-  }, [chatKey, appdatabase, isAdmin]);
+  }, [chatKey, isAdmin, user?.id]);
 
+  // Realtime listener — Supabase. INSERT brings new messages (from
+  // either side); UPDATE fires for soft-deletes; DELETE for hard.
+  // Optimistic placeholders are matched by clientMsgId on INSERT and
+  // promoted to the real row.
   useEffect(() => {
-    if (user?.id && chatKey) {
-      setActiveChat(user.id, chatKey);
-    }
-  }, [user?.id, chatKey]);
+    if (!chatKey) return;
 
+    const handleInsert = (msg) => {
+      if (!msg) return;
 
-  useEffect(() => {
-    if (!messagesRef) return;
+      // When the partner sends while we're sitting in this chat, the
+      // send_private_chat_meta RPC has already bumped our unread_count
+      // on the server. Clear it immediately so the bell + inbox badge
+      // don't show +1 for a message the user is reading inline.
+      const isFromPartner =
+        msg.senderId &&
+        msg.senderId !== myUserIdRef.current &&
+        chatKeyRef.current;
 
-    // ✅ OPTIMIZED: Use limitToLast(1) on child_added to only listen for NEW messages
-    // This prevents downloading all historical messages when listener is attached
-    // Initial load is handled by loadMessages() with pagination
-    const newMessagesQuery = dbQuery(messagesRef, orderByKey(), limitToLast(1));
+      if (isFromPartner) {
+        sbResetUnreadCount(myUserIdRef.current, msg.senderId);
 
-    const handleChildAdded = snapshot => {
-      if (!snapshot || !snapshot.key) return;
-      const data = snapshot.val();
-      if (!data || typeof data !== 'object') return;
-
-      const newMessage = { id: snapshot.key, ...data };
-      if (!newMessage.timestamp) {
-        newMessage.timestamp = Date.now();
-      }
-
-      // ✅ Update lastRead when a message from the other user arrives while we're viewing
-      if (newMessage.senderId && newMessage.senderId !== myUserIdRef.current && chatKeyRef.current) {
-        updateLastRead(chatKeyRef.current, myUserIdRef.current);
+        // lastRead write is gated on the read-receipts toggle so the
+        // sender doesn't see a blue tick if this user has read receipts off.
+        if (showReadReceiptsRef.current !== false) {
+          updateLastRead(chatKeyRef.current, myUserIdRef.current);
+        }
       }
 
       setMessages(prev => {
-        if (!Array.isArray(prev)) return [newMessage];
-        const existingIndex = prev.findIndex(m => String(m?.id) === String(newMessage.id));
-        if (existingIndex !== -1) {
-          // ✅ Update optimistic message with real server data (corrects serverTime)
-          if (prev[existingIndex]._optimistic) {
+        if (!Array.isArray(prev)) return [msg];
+
+        // Optimistic-placeholder swap: same clientMsgId → replace with
+        // the real row (real id, real timestamp).
+        if (msg.clientMsgId) {
+          const optIdx = prev.findIndex(
+            (m) => m?._optimistic && m?.clientMsgId === msg.clientMsgId,
+          );
+          if (optIdx !== -1) {
             const updated = [...prev];
-            updated[existingIndex] = { ...updated[existingIndex], ...newMessage, _optimistic: false };
+            updated[optIdx] = { ...updated[optIdx], ...msg, _optimistic: false };
             return updated.sort((a, b) => (b?.serverTime || b?.timestamp || 0) - (a?.serverTime || a?.timestamp || 0));
           }
-          return prev; // Already have real data, skip
         }
 
-        return [newMessage, ...prev].sort((a, b) => (b?.serverTime || b?.timestamp || 0) - (a?.serverTime || a?.timestamp || 0));
+        // Plain dedup by id (handles both our own non-optimistic
+        // self-INSERT echo and double-fire scenarios).
+        if (prev.some((m) => String(m?.id) === String(msg.id))) return prev;
+        return [msg, ...prev].sort((a, b) => (b?.serverTime || b?.timestamp || 0) - (a?.serverTime || a?.timestamp || 0));
       });
     };
 
-    // ✅ Only listen for the latest message (new messages only)
-    const unsubscribe = onChildAdded(newMessagesQuery, handleChildAdded);
+    const handleUpdate = (msg) => {
+      if (!msg) return;
+      if (msg.deleted) {
+        // Soft-delete from the other participant: drop the row.
+        setMessages(prev => prev.filter(m => m?.id !== msg.id));
+        return;
+      }
+      // Other UPDATE shapes (edit, etc.) — not used today; merge if/when added.
+    };
+
+    const handleDelete = (id) => {
+      if (!id) return;
+      setMessages(prev => prev.filter(m => m?.id !== id));
+    };
+
+    const unsubscribe = sbSubscribeToPrivateMessages(chatKey, {
+      onInsert: handleInsert,
+      onUpdate: handleUpdate,
+      onDelete: handleDelete,
+    });
 
     return () => {
-      if (typeof unsubscribe === 'function') {
-        unsubscribe();
-      }
+      if (typeof unsubscribe === 'function') unsubscribe();
     };
-  }, [messagesRef]);
+  }, [chatKey]);
 
 
 

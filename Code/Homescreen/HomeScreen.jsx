@@ -22,7 +22,7 @@ import { addDoc, collection, serverTimestamp, doc, getDoc } from '@react-native-
 import SubscriptionScreen from '../SettingScreen/OfferWall';
 
 const HomeScreen = ({ selectedTheme }) => {
-  const { theme, user, proGranted, proTagBought, firestoreDB, single_offer_wall, currentUserEmail, appdatabase, strikeInfo, isAdmin, reload } = useGlobalState();
+  const { theme, user, proGranted, proTagBought, firestoreDB, single_offer_wall, currentUserEmail, appdatabase, strikeInfo, isAdmin, reload, isUserBlocked } = useGlobalState();
   const tradesCollection = collection(firestoreDB, 'trades_new_upgrade');
   const MAX_ITEMS_PER_SIDE = 4;
   const initialItems = [null, null, null, null];
@@ -182,10 +182,11 @@ const HomeScreen = ({ selectedTheme }) => {
         return;
       }
 
-      // ✅ Admins are exempt from blocking
-      if (strikeInfo && !isAdmin) {
-        const { strikeCount, bannedUntil } = strikeInfo;
-        const now = Date.now();
+      // Block banned users from creating trades (admins exempt). Defer expiry
+      // to the server-time-validated `isUserBlocked` flag so a clock-rolled
+      // device can't slip past — strikeInfo is used only for the message.
+      if (isUserBlocked && !isAdmin) {
+        const { bannedUntil } = strikeInfo || {};
 
         if (bannedUntil === 'permanent') {
           showErrorMessage(
@@ -196,8 +197,9 @@ const HomeScreen = ({ selectedTheme }) => {
           return;
         }
 
-        if (typeof bannedUntil === 'number' && now < bannedUntil) {
-          const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
+        if (typeof bannedUntil === 'number') {
+          const remaining = Math.max(0, bannedUntil - Date.now());
+          const totalMinutes = Math.ceil(remaining / 60000);
           const hours = Math.floor(totalMinutes / 60);
           const minutes = totalMinutes % 60;
           const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
@@ -209,35 +211,10 @@ const HomeScreen = ({ selectedTheme }) => {
           setIsSubmitting(false);
           return;
         }
-      }
 
-      // ✅ Admins are exempt from blocking
-      if (strikeInfo && !isAdmin) {
-        const { strikeCount, bannedUntil } = strikeInfo;
-        const now = Date.now();
-
-        if (bannedUntil === 'permanent') {
-          showErrorMessage(
-            t("home.alert.error"),
-            "You are permanently banned from creating trades."
-          );
-          setIsSubmitting(false);
-          return;
-        }
-
-        if (typeof bannedUntil === 'number' && now < bannedUntil) {
-          const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
-          const hours = Math.floor(totalMinutes / 60);
-          const minutes = totalMinutes % 60;
-          const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-
-          showErrorMessage(
-            t("home.alert.error"),
-            `You are banned from creating trades for ${timeLeftText} more minute(s).`
-          );
-          setIsSubmitting(false);
-          return;
-        }
+        showErrorMessage(t("home.alert.error"), "You are currently banned from creating trades.");
+        setIsSubmitting(false);
+        return;
       }
 
       // ✅ MIGRATED: Fetch rating from Firestore user_ratings_summary instead of RTDB

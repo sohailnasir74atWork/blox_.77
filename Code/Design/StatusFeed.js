@@ -232,6 +232,13 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
     return cached ? cached.map(g => ({ ...g, statuses: g.statuses.map(deserializeStatus) })) : [];
   });
   const [followingIds, setFollowingIds] = useState(() => getCachedJSON('following_ids') || []);
+  // Gate the initial statuses fetch on the following-list being resolved so
+  // we don't fire a "global only" fetch before the user's followings load
+  // and then sit on a cached empty result until the 5-min TTL expires.
+  const [followingResolved, setFollowingResolved] = useState(() => {
+    const cached = getCachedJSON('following_ids');
+    return isCacheValid('following_ids', FOLLOWING_CACHE_TTL) && Array.isArray(cached) && cached.length > 0;
+  });
   const [viewingStatus, setViewingStatus] = useState(null);
   const [drawerUser, setDrawerUser] = useState(null);
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
@@ -272,6 +279,10 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
         setCacheTimestamp('following_ids');
       } catch (err) {
         console.warn('[StatusFeed] Error fetching following list:', err?.message);
+      } finally {
+        // Unblock the statuses fetch regardless of outcome — a failed
+        // following-list lookup should still let global statuses load.
+        setFollowingResolved(true);
       }
     })();
   }, [user?.id, firestoreDB]);
@@ -359,9 +370,8 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
 
   // ── Fetch following statuses (paginated) ──
   const fetchFollowingChunk = useCallback(async (chunkIndex) => {
-    if (!firestoreDB || !user?.id || followingIds.length === 0) return [];
+    if (!firestoreDB || !user?.id) return [];
 
-    const idsToQuery = [user.id];
     const start = chunkIndex * FOLLOWING_CHUNK_SIZE;
     const chunk = followingIds.slice(start, start + FOLLOWING_CHUNK_SIZE);
 
@@ -370,7 +380,12 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
       return [];
     }
 
-    const combined = [...new Set([...idsToQuery, ...chunk])].slice(0, 30);
+    // Include user.id only on the first chunk so the user's own statuses
+    // load even when they follow zero people. Skipping it on subsequent
+    // chunks avoids re-fetching the same self rows on every load-more.
+    const idsToQuery = chunkIndex === 0 ? [user.id, ...chunk] : chunk;
+    const combined = [...new Set(idsToQuery)].slice(0, 30);
+    if (combined.length === 0) return [];
 
     try {
       const now = Timestamp.now();
@@ -439,7 +454,10 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
     }
   }, [firestoreDB, user?.id, followingIds, fetchFollowingChunk, fetchGlobalRandom, statuses.length]);
 
-  useEffect(() => { fetchStatuses(); }, [fetchStatuses]);
+  useEffect(() => {
+    if (!followingResolved) return;
+    fetchStatuses();
+  }, [fetchStatuses, followingResolved]);
 
   // ── Load more following statuses ──
   const handleLoadMore = useCallback(async () => {

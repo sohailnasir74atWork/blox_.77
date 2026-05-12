@@ -7,7 +7,6 @@ import { showMessage } from 'react-native-flash-message';
 import { doc, collection, runTransaction } from '@react-native-firebase/firestore';
 import { useLocalState } from '../../LocalGlobelStats';
 import { useGlobalState } from '../../GlobelStats';
-import { banUserwithEmail } from '../../ChatScreen/utils';
 
 const ReportModal = ({ visible, onClose, item }) => {
   const [reportText, setReportText] = useState('');
@@ -57,7 +56,7 @@ const ReportModal = ({ visible, onClose, item }) => {
   //   );
   // };
 
-  const REPORT_THRESHOLD = 2; // run ban when count >= 2
+  const REPORT_THRESHOLD = 10; // run ban when count >= 10
 
   const handleSubmit = async () => {
     if (submitting) return;
@@ -114,30 +113,9 @@ const ReportModal = ({ visible, onClose, item }) => {
         return;
       }
 
-      // Side-effects OUTSIDE the transaction to avoid retries breaking things
-      if (txResult.shouldBan && txResult.email && txResult.userId) {
-        try {
-          // ✅ Construct rich user data for the ban record
-          const userInfo = {
-            id: txResult.userId,
-            displayName: item.displayName || 'Unknown',
-            avatar: item.avatar || null,
-            email: txResult.email
-          };
-
-          const bannerInfo = {
-            id: user?.id,
-            displayName: user?.userName || 'System',
-            avatar: user?.avatar || null
-          };
-
-          // ✅ Pass false for admin parameter - user reports don't show ban alerts, but still increment strikes
-          await banUserwithEmail(txResult.email, false, txResult.userId, userInfo, bannerInfo);
-        } catch (err) {
-          console.error('Ban error:', err);
-          // optional: decide if you want to unset 'banned' on the post here
-        }
-      }
+      // Auto-ban on report threshold was removed — bans are now manual
+      // (admin/mod only). The transaction still flips `banned: true` on the
+      // post so the feed hides it; only the user-account ban is gone.
 
       // local state/UI updates
       await updateLocalState('bannedUsers', [...localState.bannedUsers, item.userId]);

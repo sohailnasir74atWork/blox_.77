@@ -1,0 +1,16 @@
+diff --git a/node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/views/view/ReactViewGroup.kt b/node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/views/view/ReactViewGroup.kt
+index 6147dd2..e27ecb0 100644
+--- a/node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/views/view/ReactViewGroup.kt
++++ b/node_modules/react-native/ReactAndroid/src/main/java/com/facebook/react/views/view/ReactViewGroup.kt
+@@ -648,7 +648,10 @@ public open class ReactViewGroup public constructor(context: Context?) :
+     assertOnUiThread()
+
+     return if (!customDrawOrderDisabled()) {
+-      drawingOrderHelper.getChildDrawingOrder(childCount, index)
++      val drawIndex = drawingOrderHelper.getChildDrawingOrder(childCount, index)
++      // Clamp to valid range to prevent IndexOutOfBoundsException
++      // when children are added/removed during the draw pass
++      drawIndex.coerceIn(0, childCount - 1)
+     } else {
+       index
+     }

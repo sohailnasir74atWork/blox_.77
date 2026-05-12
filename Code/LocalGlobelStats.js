@@ -60,6 +60,9 @@ export const LocalStateProvider = ({ children }) => {
       timestamp: null,
       lastFetched: null,
     }),
+    trustedRoster: safeParseJSON('trustedRoster', { data: [], timestamp: null }),
+    grinderRoster: safeParseJSON('grinderRoster', { data: [], timestamp: null }),
+    raiderRoster: safeParseJSON('raiderRoster', { data: [], timestamp: null }),
     pollVotes: safeParseJSON('pollVotes', {}), // ✅ Store user's poll votes (pollId -> optionLabel)
     showReadReceipts: storage.getBoolean('showReadReceipts') ?? true, // ✅ Default ON
     gameAdDays: safeParseJSON('gameAdDays', {}), // Per-game free play tracking { gameId: "YYYY-MM-DD" }

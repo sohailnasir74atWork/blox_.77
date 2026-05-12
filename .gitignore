@@ -2,6 +2,14 @@
 #
 .DS_Store
 
+# Firebase service account (for Supabase backfill scripts) — never commit
+serviceAccount.json
+*-firebase-adminsdk-*.json
+
+# Play Console SA key + fetched analytics CSVs — never commit
+.secrets/
+analytics/
+
 # Xcode
 #
 build/

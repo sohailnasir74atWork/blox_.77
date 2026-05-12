@@ -11,16 +11,16 @@ import {
 } from "react-native";
 import { useGlobalState } from "../GlobelStats";
 import config from "../Helper/Environment";
-import { ref, get, update, remove } from "@react-native-firebase/database";
 import { useTranslation } from "react-i18next";
-import { banUserwithEmail } from "./utils";
+import { reportPrivateMessage } from "../Supabase/privateMessagesBackend";
+import { reportPublicMessage } from "../Supabase/chatBackend";
 
 const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false, chatPath = 'chat_new_upgrade' }) => {
   const [selectedReason, setSelectedReason] = useState("Spam");
   const [customReason, setCustomReason] = useState("");
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { theme, appdatabase, user, strikeInfo, isAdmin } = useGlobalState();
+  const { theme, user, strikeInfo, isAdmin, isUserBlocked } = useGlobalState();
   const isDarkMode = theme === "dark";
   const { t } = useTranslation();
 
@@ -30,153 +30,52 @@ const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false,
       return;
     }
 
-    // ✅ Block users with strikes from reporting (admins are exempt)
-    if (strikeInfo && !isAdmin) {
-      const { strikeCount, bannedUntil } = strikeInfo;
-      const now = Date.now();
+    // Block banned users (admins exempt). Defer expiry to server-time-
+    // validated `isUserBlocked` so a clock-rolled device can't slip past.
+    if (isUserBlocked && !isAdmin) {
+      const { strikeCount, bannedUntil } = strikeInfo || {};
 
       if (bannedUntil === 'permanent') {
         Alert.alert("⛔ Permanently Banned", "You are permanently banned from making reports.");
         return;
       }
 
-      if (typeof bannedUntil === 'number' && now < bannedUntil) {
-        const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
+      if (typeof bannedUntil === 'number') {
+        const remaining = Math.max(0, bannedUntil - Date.now());
+        const totalMinutes = Math.ceil(remaining / 60000);
         const hours = Math.floor(totalMinutes / 60);
         const minutes = totalMinutes % 60;
         const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 
         Alert.alert(
-          `⚠️ Strike ${strikeCount}`,
+          `⚠️ Strike ${strikeCount ?? ''}`.trim(),
           `You are banned from making reports for ${timeLeftText} more minute(s).`
         );
         return;
       }
+
+      Alert.alert("⛔ Banned", "You are currently banned from making reports.");
+      return;
     }
 
     setLoading(true);
 
     try {
-      let messageRef;
-      let senderEmail = null;
+      // Run the report through Supabase. The helper still soft-deletes the
+      // message once the report threshold is crossed; we just no longer
+      // auto-ban the sender — bans are now manual (admin/mod only).
+      const messageId = message?.id;
+      if (!messageId) throw new Error('Invalid message ID');
 
-      if (isPrivateChat && chatId) {
-        // ✅ Private chat: messages are in private_messages/{chatId}/messages/{messageId}
-        // Message ID is the timestamp (Firebase key)
-        let messageId = null;
+      await (isPrivateChat
+        ? reportPrivateMessage(messageId, user?.id ?? null)
+        : reportPublicMessage(messageId, user?.id ?? null));
 
-        // Try to get message ID from various possible fields
-        if (message.id && message.id !== 'undefined' && message.id !== 'null') {
-          messageId = String(message.id);
-        } else if (message.timestamp) {
-          messageId = String(message.timestamp);
-        } else {
-          console.error("❌ Private chat message missing ID:", JSON.stringify(message, null, 2));
-          throw new Error("Invalid message ID for private chat - missing both id and timestamp");
-        }
-
-        if (!chatId || chatId === 'undefined' || chatId === 'null') {
-          console.error("❌ Invalid chatId:", chatId);
-          throw new Error("Invalid chatId for private chat");
-        }
-
-        const messagePath = `private_messages/${chatId}/messages/${messageId}`;
-        // console.log("🔍 Reporting private chat message - Path:", messagePath, "Message ID:", messageId, "ChatId:", chatId);
-        messageRef = ref(appdatabase, messagePath);
-
-        // ✅ Fetch sender's email from user data
-        if (message.senderId) {
-          try {
-            const userRef = ref(appdatabase, `users/${message.senderId}`);
-            const userSnap = await get(userRef);
-            if (userSnap.exists()) {
-              const userData = userSnap.val();
-              senderEmail = userData.email || null;
-
-              // ✅ Log for debugging
-              if (!senderEmail) {
-                console.warn("⚠️ Sender email not found in user data for userId:", message.senderId);
-                console.warn("User data:", JSON.stringify(userData, null, 2));
-              } else {
-                // console.log("✅ Found sender email:", senderEmail);
-              }
-            } else {
-              console.error("❌ User not found in Firebase for senderId:", message.senderId);
-            }
-          } catch (err) {
-            console.error("Error fetching sender email:", err);
-          }
-        } else {
-          console.error("❌ Message missing senderId:", JSON.stringify(message, null, 2));
-        }
-      } else {
-        // ✅ Group chat: messages are in chat_new/{messageId}
-        const sanitizedId = message.id.startsWith("chat-")
-          ? message.id.replace("chat-", "")
-          : message.id;
-
-        if (!sanitizedId) {
-          throw new Error("Invalid message ID");
-        }
-
-        messageRef = ref(appdatabase, `${chatPath}/${sanitizedId}`);
-        senderEmail = message.currentUserEmail || null;
-      }
-
-      const snapshot = await get(messageRef);
-      if (!snapshot.exists()) {
-        // ✅ Better error message with debugging info
-        const errorMsg = isPrivateChat
-          ? `Message not found in private chat. Path: private_messages/${chatId}/messages/${message.id}`
-          : `Message not found in group chat. ID: ${message.id}`;
-        console.error("❌", errorMsg);
-        console.error("Message object:", JSON.stringify(message, null, 2));
-        throw new Error(errorMsg);
-      }
-
-      const data = snapshot.val();
-      const reportCount = Number(data?.reportCount || 0);
-
-      if (reportCount >= 1) {
-        // ✅ Second report: delete the message and ban user (increment strike)
-        if (senderEmail) {
-          // console.log("🔨 Applying ban to email:", senderEmail, "from private chat report");
-          try {
-            // ✅ Construct rich user data for the ban record
-            const userInfo = {
-              id: message.senderId,
-              displayName: message.sender || 'Unknown',
-              avatar: message.avatar || null,
-              email: senderEmail
-            };
-
-            const bannerInfo = {
-              id: user?.id,
-              displayName: user?.userName || 'System',
-              avatar: user?.avatar || null
-            };
-
-            await banUserwithEmail(senderEmail, false, message.senderId, userInfo, bannerInfo); // false = not admin, so no alert shown
-            // console.log("✅ Ban applied successfully");
-          } catch (banError) {
-            console.error("❌ Error applying ban:", banError);
-            // Continue with message deletion even if ban fails
-          }
-        } else {
-          console.error("❌ Cannot ban user - sender email not found for senderId:", message.senderId);
-        }
-        await remove(messageRef);
-        Alert.alert(t("chat.report_submitted"), t("chat.report_submitted_message"));
-        onClose(true);
-      } else {
-        // ✅ First report: set to 1 (don't increment beyond this)
-        await update(messageRef, { reportCount: 1 });
-        Alert.alert(t("chat.report_submitted"), t("chat.report_submitted_message"));
-        onClose(true);
-      }
+      Alert.alert(t('chat.report_submitted'), t('chat.report_submitted_message'));
+      onClose(true);
     } catch (error) {
-      console.error("Error reporting message:", error);
-      Alert.alert("Error", "Failed to submit the report. Please try again.");
+      console.error('Error reporting message:', error);
+      Alert.alert('Error', 'Failed to submit the report. Please try again.');
     } finally {
       setLoading(false);
     }

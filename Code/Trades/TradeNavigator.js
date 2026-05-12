@@ -11,7 +11,6 @@ import config from '../Helper/Environment';
 import { useGlobalState } from '../GlobelStats';
 import { useNavigation } from '@react-navigation/native';
 import NotifierDrawer from './Notifier';
-import ThemeHeader from '../Design/componenets/ThemeHeader';
 
 const Stack = createNativeStackNavigator();
 
@@ -91,74 +90,6 @@ export const TradeStack = ({ selectedTheme }) => {
           name="TradeScreen"
           component={TradeList}
           initialParams={{ bannedUsers, selectedTheme }}
-          options={({ navigation, route }) => ({
-            header: () => {
-              const isMyTradesActive = route.params?.isMyTradesActive;
-              const isFollowingActive = route.params?.isFollowingActive;
-
-              return (
-                <ThemeHeader
-                  title={t("tabs.trade", { defaultValue: 'Trades' })}
-                  rightContent={
-                    <>
-                      {/* My Trades filter */}
-                      <TouchableOpacity
-                        onPress={() => navigation?.emit?.({ type: 'myTradesPress' })}
-                        activeOpacity={0.75}
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          paddingHorizontal: 10,
-                          paddingVertical: 5,
-                          borderRadius: 14,
-                          backgroundColor: isMyTradesActive ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.12)',
-                          borderWidth: 1.5,
-                          borderColor: isMyTradesActive ? '#fff' : 'rgba(255,255,255,0.2)',
-                          gap: 4,
-                        }}
-                      >
-                        <Icon name={isMyTradesActive ? 'person' : 'person-outline'} size={13} color="#fff" />
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#fff' }}>
-                          {t('trade.my_trades', { defaultValue: 'My Trades' })}
-                        </Text>
-                      </TouchableOpacity>
-
-                      {/* Following filter */}
-                      <TouchableOpacity
-                        onPress={() => navigation?.emit?.({ type: 'followingPress' })}
-                        activeOpacity={0.75}
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          paddingHorizontal: 10,
-                          paddingVertical: 5,
-                          borderRadius: 14,
-                          backgroundColor: isFollowingActive ? 'rgba(139,92,246,0.5)' : 'rgba(255,255,255,0.12)',
-                          borderWidth: 1.5,
-                          borderColor: isFollowingActive ? '#a78bfa' : 'rgba(255,255,255,0.2)',
-                          gap: 4,
-                        }}
-                      >
-                        <Icon name={isFollowingActive ? 'people' : 'people-outline'} size={13} color="#fff" />
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#fff' }}>
-                          {t('trade.following', { defaultValue: 'Following' })}
-                        </Text>
-                      </TouchableOpacity>
-
-                      {/* Notifier */}
-                      <TouchableOpacity onPress={() => navigation.navigate('Trade Notifier')} activeOpacity={0.8}>
-                        <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
-                          <Icon name="notifications" size={18} color="#fff" />
-                        </View>
-                      </TouchableOpacity>
-
-                    </>
-                  }
-                />
-              );
-            },
-          })}
-
         />
 
         {/* Private Chat Screen */}

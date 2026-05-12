@@ -17,7 +17,7 @@ const CommunityChatHeader = ({
   onOnlineUsersPress,
   onLeaderboardPress,
 }) => {
-  const { user, firestoreDB, theme, isAdmin, isModerator } = useGlobalState();
+  const { user, firestoreDB, theme, isAdmin, isModerator, isUserBlocked } = useGlobalState();
   const navigation = useNavigation();
   const { t } = useTranslation();
   const [pendingGroupInvitationsCount, setPendingGroupInvitationsCount] = useState(0);
@@ -143,8 +143,8 @@ const CommunityChatHeader = ({
             )}
           </TouchableOpacity>
 
-          {/* Admin Dashboard Button (Only for Admins/Moderators) */}
-          {(isAdmin || isModerator) && (
+          {/* Admin Dashboard Button (Only for Admins/Moderators, never while banned) */}
+          {(isAdmin || isModerator) && !isUserBlocked && (
             <TouchableOpacity
               onPress={() => {
                 navigation.navigate('AdminDashboard');

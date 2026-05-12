@@ -80,7 +80,8 @@ const MessagesList = ({
   toggleDrawer,
   onDeleteAllMessage,
   chatPath,
-  setMessages
+  setMessages,
+  pendingCount = 0,
 }) => {
   const styles = getStyles(isDarkMode);
   const [selectedMessage, setSelectedMessage] = useState(null);
@@ -328,15 +329,41 @@ const MessagesList = ({
       useNativeDriver: true,
     }).start();
   }, [isAtBottom, scrollButtonOpacity]);
-  // console.log(user)
-  const renderMessage = useCallback(({ item, index }) => {
-    // console.log(item)
-    const previousMessage = messages[index + 1];
-    const currentDate = new Date(item.timestamp).toDateString();
-    const previousDate = previousMessage
-      ? new Date(previousMessage.timestamp).toDateString()
-      : null;
-    const shouldShowDateHeader = currentDate !== previousDate;
+  // ── Render data prep ─────────────────────────────────────────────
+  // Pre-compute the deduped item list and a header-flag map keyed by id.
+  // Doing this in one pass means: (a) FlatList sees a stable `data`
+  // reference when `messages` is unchanged, (b) renderItem can decide
+  // whether to draw a date separator without a per-row index lookup
+  // into `messages`. The latter is what previously forced renderItem to
+  // depend on `messages`, which on every new message tore down and
+  // rebuilt every visible row — the dominant ANR source per Play
+  // Console (`ReactTextView.<init>` / `ReactClippingViewManager.removeViewAt`).
+  const { dataItems, dateHeaderById } = useMemo(() => {
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return { dataItems: [], dateHeaderById: {} };
+    }
+    const items = [];
+    const seen = new Set();
+    for (const m of messages) {
+      if (!m?.id || seen.has(m.id)) continue;
+      seen.add(m.id);
+      items.push(m);
+    }
+    const headers = {};
+    for (let i = 0; i < items.length; i++) {
+      const cur = items[i];
+      const prev = items[i + 1]; // inverted list — older messages at higher index
+      const curDate = new Date(cur.timestamp).toDateString();
+      const prevDate = prev ? new Date(prev.timestamp).toDateString() : null;
+      if (curDate !== prevDate) headers[cur.id] = curDate;
+    }
+    return { dataItems: items, dateHeaderById: headers };
+  }, [messages]);
+
+  const renderMessage = useCallback(({ item }) => {
+    const dateHeader = dateHeaderById[item.id];
+    const shouldShowDateHeader = !!dateHeader;
+    const currentDate = dateHeader || '';
 
     const fruits = Array.isArray(item.fruits) ? item.fruits : [];
     // console.log( item.fruits)
@@ -697,14 +724,14 @@ const MessagesList = ({
 
       </View>
     );
-  }, [messages, highlightedMessageId, user?.id, profileCacheVersion]);
+  }, [dateHeaderById, highlightedMessageId, user?.id, profileCacheVersion]);
 
   return (
     <>
       <FlatList
-        data={[...new Map(messages?.map(msg => [msg.id, msg])).values()]}
-        keyExtractor={(item, index) => `${item.id}-${index}`}
-        renderItem={({ item, index }) => renderMessage({ item, index })}
+        data={dataItems}
+        keyExtractor={(item) => item.id}
+        renderItem={renderMessage}
         contentContainerStyle={styles.chatList}
         inverted
         removeClippedSubviews={false}
@@ -762,6 +789,13 @@ const MessagesList = ({
               size={48}
               color={config.colors.primary}
             />
+            {pendingCount > 0 && (
+              <View style={pendingBadgeStyles.badge} pointerEvents="none">
+                <Text style={pendingBadgeStyles.text} numberOfLines={1}>
+                  {pendingCount > 99 ? '99+' : pendingCount}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
         </Animated.View>
       )}
@@ -780,6 +814,28 @@ const MessagesList = ({
     </>
   );
 };
+const pendingBadgeStyles = StyleSheet.create({
+  badge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  text: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+});
+
 export const fruitStyles = StyleSheet.create({
   fruitsWrapper: {
     marginTop: 1,

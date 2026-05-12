@@ -45,12 +45,13 @@ import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
 import PostsHeader from './componenets/PostsHeader';
 import PollCard from './componenets/PollCard';
+import { fetchActivePolls as sbFetchActivePolls } from '../Supabase/pollsBackend';
 import { awardBadge, incrementAndCheckBadge, REACTION_BADGE_THRESHOLDS } from '../ChatScreen/GroupChat/badgeUtils';
 
 
 const DesignFeedScreen = ({ route }) => {
   const { selectedTheme } = route.params;
-  const { appdatabase, user, theme, firestoreDB, isBabyMod, isTrusted, isCMSR, isGrinder, isRaider } = useGlobalState();
+  const { appdatabase, user, theme, firestoreDB, isBabyMod, isTrusted, isGrinder, isRaider } = useGlobalState();
   const { localState } = useLocalState();
   const isDarkMode = theme === 'dark';
   const navigation = useNavigation();
@@ -82,14 +83,12 @@ const DesignFeedScreen = ({ route }) => {
 
   const fetchActivePolls = useCallback(async () => {
     try {
-      const pollsRef = collection(firestoreDB, 'polls');
-      const q = query(pollsRef, where('active', '==', true), limit(3));
-      const snapshot = await getDocs(q);
-      setActivePolls(snapshot.empty ? [] : snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const polls = await sbFetchActivePolls(user?.id || null, 3);
+      setActivePolls(polls || []);
     } catch (err) {
       console.error('[Poll] Fetch polls error:', err);
     }
-  }, [firestoreDB]);
+  }, [user?.id]);
 
   useEffect(() => {
     fetchActivePolls();
@@ -556,7 +555,6 @@ const DesignFeedScreen = ({ route }) => {
         flage: user?.flage || null,
         isBabyMod: !!isBabyMod,
         isTrusted: !!isTrusted,
-        isCMSR: !!isCMSR,
         isGrinder: !!isGrinder,
         isRaider: !!isRaider,
         profileFrame: getMyCosmetics()?.profileFrame || null,
@@ -703,7 +701,6 @@ const DesignFeedScreen = ({ route }) => {
                     key={p.id}
                     poll={p}
                     user={user}
-                    firestoreDB={firestoreDB}
                     isDarkMode={isDarkMode}
                     onRequireSignIn={() => setSigninDrawerVisible(true)}
                   />

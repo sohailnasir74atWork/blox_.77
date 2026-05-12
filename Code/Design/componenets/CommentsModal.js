@@ -39,7 +39,7 @@ const CommentModal = ({ visible, onClose, postId }) => {
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState([]);
   const inputRef = useRef(null);
-  const { user, theme, firestoreDB, strikeInfo, isAdmin } = useGlobalState();
+  const { user, theme, firestoreDB, strikeInfo, isAdmin, isUserBlocked } = useGlobalState();
   const { localState } = useLocalState();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -91,28 +91,36 @@ const CommentModal = ({ visible, onClose, postId }) => {
     const text = commentText.trim();
     if (!text || !firestoreDB || !user?.id) return;
 
-    // ✅ Block users with strikes from commenting (admins are exempt)
-    if (strikeInfo && !isAdmin) {
-      const { strikeCount, bannedUntil } = strikeInfo;
-      const now = Date.now();
+    // Block banned users from commenting (admins are exempt). Defer the
+    // expiry decision to the server-time-validated `isUserBlocked` flag from
+    // GlobelStats so a clock-rolled device can't slip past — strikeInfo is
+    // used only to compose the message text for an already-blocked user.
+    if (isUserBlocked && !isAdmin) {
+      const { strikeCount, bannedUntil } = strikeInfo || {};
 
       if (bannedUntil === 'permanent') {
         Alert.alert('⛔ Permanently Banned', 'You are permanently banned from commenting.');
         return;
       }
 
-      if (typeof bannedUntil === 'number' && now < bannedUntil) {
-        const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
+      if (typeof bannedUntil === 'number') {
+        // Display countdown using device clock (cosmetic only). The block
+        // decision above already used authoritative server time.
+        const remaining = Math.max(0, bannedUntil - Date.now());
+        const totalMinutes = Math.ceil(remaining / 60000);
         const hours = Math.floor(totalMinutes / 60);
         const minutes = totalMinutes % 60;
         const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 
         Alert.alert(
-          `⚠️ Strike ${strikeCount}`,
+          `⚠️ Strike ${strikeCount ?? ''}`.trim(),
           `You are banned from commenting for ${timeLeftText} more minute(s).`
         );
         return;
       }
+
+      Alert.alert('⛔ Banned', 'You are currently banned from commenting.');
+      return;
     }
 
     // ✅ Content moderation: Check comment for inappropriate content

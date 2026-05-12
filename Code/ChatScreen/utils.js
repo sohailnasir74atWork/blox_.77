@@ -1,11 +1,180 @@
 import { getDatabase, ref, update, get, set, onDisconnect, onValue, query, orderByChild, equalTo, limitToLast } from '@react-native-firebase/database';
+import { getAuth } from '@react-native-firebase/auth';
 import { useState, useEffect, useCallback } from 'react';
-import { Alert } from 'react-native';
+import { Alert, AppState } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { softDeleteMessagesBySender } from '../Supabase/chatBackend';
+import { getServerTime } from '../Helper/serverTime';
+import { getDeviceFingerprint } from '../Helper/deviceFingerprint';
+
+// Returns true if the caller is trying to ban/mute/unban their own account.
+// All moderation actions go through utils.js, so guarding here closes every
+// entry point (AdminDashboard, BottomDrawer, ReportPopUp, etc.) at once.
+const isSelfTargeting = (targetEmail) => {
+  if (!targetEmail) return false;
+  const callerEmail = getAuth()?.currentUser?.email;
+  if (!callerEmail) return false;
+  return callerEmail.toLowerCase().trim() === targetEmail.toLowerCase().trim();
+};
+
+// ─── Staff hierarchy ────────────────────────────────────────────────
+// Strict ladder: a staffer can only act on someone STRICTLY below them.
+// Mods can't ban Mods. Admins can't ban Admins. JMDs can only act on
+// regular users. Promote/demote rules: only Admins can manage Mods;
+// Admins and Mods can manage JMDs.
+export const STAFF_RANK = { admin: 3, moderator: 2, babyMod: 1, user: 0 };
+
+export const getStaffRank = (roles) => {
+  if (!roles) return STAFF_RANK.user;
+  if (roles.isAdmin) return STAFF_RANK.admin;
+  if (roles.isModerator) return STAFF_RANK.moderator;
+  if (roles.isBabyMod) return STAFF_RANK.babyMod;
+  return STAFF_RANK.user;
+};
+
+export const canModerate = (caller, target) =>
+  getStaffRank(caller) > getStaffRank(target);
+
+export const canManageMod = (caller) => !!caller?.isAdmin;
+export const canManageBabyMod = (caller) =>
+  !!(caller?.isAdmin || caller?.isModerator);
+
+// Look up target's role flags from RTDB so utility-level checks don't
+// rely on every caller populating userInfo. Tolerant of the legacy
+// `users/{uid}/admin` path AND the newer `isAdmin` path — both exist
+// in the wild (see profileCache.js vs OnlineUsersList.jsx).
+const fetchTargetRoles = async (userId) => {
+  if (!userId) return null;
+  try {
+    const db = getDatabase();
+    const [adminLegacySnap, adminSnap, modSnap, jmdSnap] = await Promise.all([
+      get(ref(db, `users/${userId}/admin`)),
+      get(ref(db, `users/${userId}/isAdmin`)),
+      get(ref(db, `users/${userId}/isModerator`)),
+      get(ref(db, `users/${userId}/isBabyMod`)),
+    ]);
+    return {
+      isAdmin: !!(
+        (adminLegacySnap?.exists() && adminLegacySnap.val()) ||
+        (adminSnap?.exists() && adminSnap.val())
+      ),
+      isModerator: !!(modSnap?.exists() && modSnap.val()),
+      isBabyMod: !!(jmdSnap?.exists() && jmdSnap.val()),
+    };
+  } catch (_) {
+    return null;
+  }
+};
+
+// Resolve the most authoritative target-role view: prefer a fresh RTDB
+// read (so a stale userInfo can't mask a recent promotion), fall back to
+// whatever the caller passed.
+const resolveTargetRoles = async (userId, fallback = {}) => {
+  const fetched = await fetchTargetRoles(userId);
+  if (fetched) return fetched;
+  return {
+    isAdmin: !!fallback?.isAdmin,
+    isModerator: !!fallback?.isModerator,
+    isBabyMod: !!fallback?.isBabyMod,
+  };
+};
+
+// Pull caller role flags off a bannerInfo blob. Callers are expected to
+// stamp these on bannerInfo from useGlobalState.
+const callerRolesFromBanner = (bannerInfo) => ({
+  isAdmin: !!bannerInfo?.isAdmin,
+  isModerator: !!bannerInfo?.isModerator,
+  isBabyMod: !!bannerInfo?.isBabyMod,
+});
 
 // Initialize the database reference
 const database = getDatabase();
 const usersRef = ref(database, 'users'); // Base reference to the "users" node
+
+// Looks up the deviceId stamped on a user record by GlobelStats on auth.
+// Returns null if the user has no deviceId yet (older client / never signed in
+// since the device-ban feature shipped).
+const getUserDeviceId = async (userId) => {
+  if (!userId) return null;
+  try {
+    const db = getDatabase();
+    const snap = await get(ref(db, `users/${userId}/deviceId`));
+    const v = snap.val();
+    return typeof v === 'string' && v.length > 0 ? v : null;
+  } catch (_) {
+    return null;
+  }
+};
+
+// Mirrors a ban onto banned_devices/{deviceId} so the same device can't sign
+// up with a fresh email and bypass the email-keyed ban. Writes BOTH the
+// stamped device id (from users/{uid}/deviceId) AND the currently-active
+// device's fingerprint when the ban is happening on the same device as the
+// banned user. Without that second write, a self-ban whose stamp lost the
+// race against the ban write left banned_devices empty — the user could
+// then sign in to a different account on the same device with no gate.
+//
+// Caller already wrote the email-ban entry; we additionally tag that entry
+// with `deviceId` so unbanUserWithEmail knows which device entry to clear.
+const mirrorBanToDevice = async (email, userId, banPayload) => {
+  const stampedDeviceId = await getUserDeviceId(userId);
+
+  // Self-ban / same-device fallback: if the caller's session matches the
+  // banned account, we know THIS device should be locked regardless of
+  // what users/{uid}/deviceId says (it may be stale, missing, or the user
+  // may have signed in pre-stamp).
+  let currentDeviceId = null;
+  const callerUid = getAuth()?.currentUser?.uid;
+  if (userId && callerUid && userId === callerUid) {
+    try {
+      currentDeviceId = await getDeviceFingerprint();
+    } catch (_) { /* fall through */ }
+  }
+
+  // Dedup so we don't write the same row twice.
+  const targets = Array.from(
+    new Set([stampedDeviceId, currentDeviceId].filter(Boolean))
+  );
+
+  if (targets.length === 0) {
+    console.warn(
+      'mirrorBanToDevice: no deviceId available for user',
+      userId,
+      '— device-side ban not written'
+    );
+    return null;
+  }
+
+  const payload = {
+    bannedUntil: banPayload.bannedUntil,
+    bannedAt: banPayload.bannedAt,
+    bannedBy: banPayload.bannedBy,
+    reason: banPayload.reason,
+    strikeCount: banPayload.strikeCount,
+    email,
+    userId: userId || null,
+  };
+
+  try {
+    const db = getDatabase();
+    await Promise.all(
+      targets.map((id) => set(ref(db, `banned_devices/${id}`), payload))
+    );
+    // Tag the email-ban entry with every device fp we wrote, so unban can
+    // clear all of them. Keep the legacy `deviceId` field set to the primary
+    // (stamped if available — more stable than current FP) for older clients.
+    const primary = stampedDeviceId || currentDeviceId;
+    const encodeEmail = (em) => em.replace(/\./g, '(dot)');
+    await update(ref(db, `banned_users_by_email/${encodeEmail(email)}`), {
+      deviceId: primary,
+      deviceIds: targets,
+    });
+    return primary;
+  } catch (e) {
+    console.error('mirrorBanToDevice error:', e);
+    return null;
+  }
+};
 
 
 // Format Date Utility
@@ -401,55 +570,74 @@ export const clearActiveGroupChat = async (userId, groupId) => {
 };
 
 
+// Wires `setActiveChat` (+ optionally `setActiveGroupChat`) to both
+// navigation focus AND AppState. Without the AppState half, backgrounding
+// the app while on a chat screen leaves /activeChats set for the 10–60s
+// window before RTDB tears down the socket — and during that window the
+// notification CF reads "user is on this chat" and silently drops their
+// pushes. With this hook, background → cleared immediately; foreground
+// (while still focused) → re-set.
+//
+// Use:
+//   • Private chat:  useActiveChatLifecycle({ userId, chatId: chatKey })
+//   • Group chat:    useActiveChatLifecycle({ userId, chatId: groupId, groupId })
+//
+// onDisconnect is still armed by setActiveChat under the hood as a backstop
+// for hard kills / network drops.
+export function useActiveChatLifecycle({ userId, chatId, groupId = null }) {
+  useFocusEffect(
+    useCallback(() => {
+      if (!userId || !chatId) return;
+
+      const setAll = () => {
+        setActiveChat(userId, chatId);
+        if (groupId) setActiveGroupChat(userId, groupId);
+      };
+      const clearAll = () => {
+        clearActiveChat(userId);
+        if (groupId) clearActiveGroupChat(userId, groupId);
+      };
+
+      setAll();
+
+      const sub = AppState.addEventListener('change', (next) => {
+        if (next === 'active') setAll();
+        else clearAll(); // background / inactive
+      });
+
+      return () => {
+        sub.remove();
+        clearAll();
+      };
+    }, [userId, chatId, groupId])
+  );
+}
+
+
+// Soft-delete the last ~60 messages from a sender in a public-chat room.
+// Backed by Supabase via softDeleteMessagesBySender — RTDB writes are no
+// longer the source of truth for public chat. Realtime UPDATE events
+// drop the rows from any open chat UI within ~1s.
+//
+// Called from two places:
+//   1) Trader.jsx onDeleteAllMessage (per-channel bulk delete)
+//   2) banUser flow in this file (ban-and-delete-history)
+//
+// Signature kept identical to minimize touch — `senderId`, `showAlert`,
+// `chatPath` (which was the RTDB path and now also serves as the
+// Supabase room_id; they're the same string, e.g. 'chat_new_upgrade').
 export const handleDeleteLast300Messages = async (senderId, showAlert = false, chatPath = 'chat_new_upgrade') => {
-  // ✅ Safety check
   if (!senderId) {
     console.error('❌ Invalid senderId for handleDeleteLast300Messages');
     return { success: false, count: 0 };
   }
 
   try {
-    const db = getDatabase();
-    const chatQuery = query(
-      ref(db, chatPath),
-      orderByChild('senderId'),
-      equalTo(senderId),
-      limitToLast(80)
-    );
-    const snapshot = await get(chatQuery);
-
-    if (!snapshot.exists()) {
-      // Alert.alert('⚠️ No messages found for this user.');
-      return;
+    const { count } = await softDeleteMessagesBySender(chatPath, senderId, { limit: 60 });
+    if (showAlert && count > 0) {
+      Alert.alert('Success', `${count} messages deleted.`);
     }
-
-    const allMessages = snapshot.val();
-    // console.log('📦 Total messages fetched:', Object.keys(allMessages).length);
-
-    const sorted = Object.entries(allMessages)
-      .sort((a, b) => {
-        const timestampA = a[1]?.timestamp || 0;
-        const timestampB = b[1]?.timestamp || 0;
-        return timestampB - timestampA;
-      })
-      .slice(0, 60);
-
-    const updates = {};
-    sorted.forEach(([key]) => {
-      if (key) {
-        updates[`${chatPath}/${key}`] = null;
-      }
-    });
-
-    const deletedCount = Object.keys(updates).length;
-    if (deletedCount > 0) {
-      await update(ref(db), updates);
-      if (showAlert) {
-        Alert.alert('Success', `${deletedCount} messages deleted.`);
-      }
-    }
-
-    return { success: true, count: deletedCount };
+    return { success: true, count };
   } catch (error) {
     console.error('🔥 Failed to delete messages:', error);
     if (showAlert) {
@@ -471,9 +659,27 @@ export const banUserwithEmail = async (email, isAdmin = false, senderId = null, 
   const database = getDatabase();
   const banRef = ref(database, `banned_users_by_email/${encodeEmail(email)}`);
 
-  // ✅ Hierarchy Check (Redundant but safe)
-  if (!isAdmin && (userInfo?.isAdmin || userInfo?.isModerator)) {
-    console.warn("Moderators cannot ban Admins or other Moderators.");
+  // ✅ Self-target guard: prevents the "self-ban → reset" trick.
+  if (isSelfTargeting(email)) {
+    if (showConfirm || showAlert) Alert.alert('Permission Denied', 'You cannot ban yourself.');
+    return false;
+  }
+
+  // ✅ Hierarchy check — strict rank: caller rank must STRICTLY exceed
+  // target rank (Admin > Mod > JMD > User). Source of truth lives here
+  // so every entry point (AdminDashboard, BottomDrawer, PostCard) is
+  // gated even if a UI-level guard is missed or bypassed. Legacy callers
+  // pass only the `isAdmin` boolean; newer callers also stamp full role
+  // flags onto bannerInfo — we union both so neither path silently
+  // regresses below the actual caller's rank.
+  const callerRoles = {
+    isAdmin: !!(isAdmin || bannerInfo?.isAdmin),
+    isModerator: !!bannerInfo?.isModerator,
+    isBabyMod: !!bannerInfo?.isBabyMod,
+  };
+  const targetRoles = await resolveTargetRoles(senderId || userInfo?.id, userInfo);
+  if (!canModerate(callerRoles, targetRoles)) {
+    console.warn("Staff hierarchy: caller rank does not exceed target rank.");
     if (showConfirm || showAlert) Alert.alert("Permission Denied", "You cannot ban this user.");
     return false;
   }
@@ -503,7 +709,7 @@ export const banUserwithEmail = async (email, isAdmin = false, senderId = null, 
       }
 
       // Save complete ban info
-      await set(banRef, {
+      const banPayload = {
         strikeCount,
         bannedUntil,
         reason: `Strike ${strikeCount}`,
@@ -518,7 +724,13 @@ export const banUserwithEmail = async (email, isAdmin = false, senderId = null, 
           avatar: bannerInfo?.avatar || null,
           role: isAdmin ? 'Admin' : 'Moderator'
         }
-      });
+      };
+      await set(banRef, banPayload);
+
+      // Mirror onto banned_devices so the same device can't bypass with a
+      // new email. Best-effort — if the user has no deviceId on file the
+      // email ban still applies as before.
+      mirrorBanToDevice(email, banPayload.userId, banPayload).catch(() => {});
 
       // Log mod action for scoring
       // Delete messages if senderId provided
@@ -578,6 +790,26 @@ export const setUserStrike = async (email, strikeCount, userId = null, showAlert
     return false;
   }
 
+  // ✅ Self-target guard: prevents the "self-strike → reset" trick.
+  if (isSelfTargeting(email)) {
+    if (showAlert) Alert.alert('Permission Denied', 'You cannot strike yourself.');
+    return false;
+  }
+
+  // ✅ Hierarchy check — caller rank must strictly exceed target rank.
+  // bannerInfo carries caller's role flags (isAdmin/isModerator/isBabyMod);
+  // target roles are pulled fresh from RTDB so a stale userInfo can't
+  // mask a promotion that happened mid-session.
+  const callerRoles = callerRolesFromBanner(bannerInfo);
+  const targetRoles = await resolveTargetRoles(userId, userInfo);
+  if (!canModerate(callerRoles, targetRoles)) {
+    console.warn("Staff hierarchy: caller rank does not exceed target rank.");
+    if (showAlert || showConfirm) {
+      Alert.alert('Permission Denied', 'You cannot strike this user.');
+    }
+    return false;
+  }
+
   const encodeEmail = (em) => em.replace(/\./g, '(dot)');
   const database = getDatabase();
   const banRef = ref(database, `banned_users_by_email/${encodeEmail(email)}`);
@@ -596,6 +828,29 @@ export const setUserStrike = async (email, strikeCount, userId = null, showAlert
         bannedUntil = 'permanent';
         banDuration = 'permanent';
       }
+
+      // ✅ No-downgrade guard: refuse to overwrite a stricter existing ban
+      // with a softer one (the core of the JMD self-ban trick).
+      try {
+        const existingSnap = await get(banRef);
+        if (existingSnap.exists()) {
+          const existing = existingSnap.val() || {};
+          const existingStrike = existing.strikeCount || 0;
+          const existingUntil = existing.bannedUntil;
+          const isExistingActive =
+            existingUntil === 'permanent' ||
+            (typeof existingUntil === 'number' && existingUntil > Date.now());
+          if (
+            isExistingActive &&
+            (existingUntil === 'permanent' ||
+              (typeof existingUntil === 'number' && existingUntil > bannedUntil) ||
+              existingStrike > strikeCount)
+          ) {
+            if (showAlert) Alert.alert('Action Blocked', 'A stricter ban is already active on this user.');
+            return false;
+          }
+        }
+      } catch (_) { /* fall through — write attempt below */ }
 
       // Get user displayName & avatar
       let displayName = userInfo?.displayName || userInfo?.userName || null;
@@ -622,7 +877,7 @@ export const setUserStrike = async (email, strikeCount, userId = null, showAlert
       }
       displayName = displayName || 'Unknown';
 
-      await set(banRef, {
+      const banPayload = {
         strikeCount,
         bannedUntil,
         reason: customReason || `Strike ${strikeCount}`,
@@ -637,7 +892,11 @@ export const setUserStrike = async (email, strikeCount, userId = null, showAlert
           avatar: bannerInfo?.avatar || null,
           role: 'Admin'
         }
-      });
+      };
+      await set(banRef, banPayload);
+
+      // Mirror onto banned_devices for cross-email enforcement.
+      mirrorBanToDevice(email, userId, banPayload).catch(() => {});
 
       // Delete messages if userId provided
       if (userId) {
@@ -685,11 +944,46 @@ export const unbanUserWithEmail = async (email, showAlert = true) => {
     return false;
   }
 
+  // ✅ Self-target guard: a banned admin/mod must not be able to unban
+  // themselves through the dashboard or any other entry point.
+  if (isSelfTargeting(email)) {
+    if (showAlert) Alert.alert('Permission Denied', 'You cannot unban yourself.');
+    return false;
+  }
+
   const encodeEmail = (em) => em.replace(/\./g, '(dot)');
   try {
     const db = getDatabase();
     const banRef = ref(db, `banned_users_by_email/${encodeEmail(email)}`);
+
+    // Read first so we can clear every mirrored banned_devices entry.
+    // mirrorBanToDevice may write multiple device ids when the stamped
+    // one and the current device fp differ (self-ban edge case), so we
+    // honour the `deviceIds` array if present and fall back to the
+    // legacy `deviceId` scalar for older entries.
+    const mirroredIds = new Set();
+    try {
+      const snap = await get(banRef);
+      const v = snap.val();
+      if (Array.isArray(v?.deviceIds)) {
+        for (const id of v.deviceIds) {
+          if (typeof id === 'string' && id.length > 0) mirroredIds.add(id);
+        }
+      }
+      if (typeof v?.deviceId === 'string' && v.deviceId.length > 0) {
+        mirroredIds.add(v.deviceId);
+      }
+    } catch (_) { /* ignore */ }
+
     await set(banRef, null);
+
+    if (mirroredIds.size > 0) {
+      Promise.all(
+        Array.from(mirroredIds).map((id) =>
+          set(ref(db, `banned_devices/${id}`), null).catch(() => {})
+        )
+      ).catch(() => {});
+    }
 
     if (showAlert) Alert.alert('User Unbanned', 'Ban has been lifted.');
     return true;
@@ -703,6 +997,10 @@ export const unbanUserWithEmail = async (email, showAlert = true) => {
 /**
  * Hook to check if a user is banned based on their email.
  * Listens to `banned_users_by_email` in real-time.
+ *
+ * Server-time-validated so a user with a tampered device clock can't be
+ * shown as un-banned. See GlobelStats.js for the same pattern on the
+ * current-user listener.
  */
 export const useBanStatus = (email) => {
   const [isBanned, setIsBanned] = useState(false);
@@ -720,27 +1018,54 @@ export const useBanStatus = (email) => {
       const encodeEmail = (em) => (em || '').toLowerCase().trim().replace(/\./g, '(dot)');
       const banRef = ref(db, `banned_users_by_email/${encodeEmail(email)}`);
 
-      const unsubscribe = onValue(banRef, (snapshot) => {
-        if (snapshot.exists()) {
-          const data = snapshot.val();
-          const now = Date.now();
+      let currentBan = null;
+      let expiryTimer = null;
+      let cancelled = false;
 
-          let active = false;
-          if (data.bannedUntil === 'permanent') {
-            active = true;
-          } else if (typeof data.bannedUntil === 'number' && data.bannedUntil > now) {
-            active = true;
-          }
+      const evaluate = async () => {
+        if (cancelled) return;
+        if (expiryTimer) { clearTimeout(expiryTimer); expiryTimer = null; }
 
-          setIsBanned(active);
-          setBanDetails(active ? data : null);
-        } else {
+        const data = currentBan;
+        if (!data) {
           setIsBanned(false);
           setBanDetails(null);
+          return;
         }
+        if (data.bannedUntil === 'permanent') {
+          setIsBanned(true);
+          setBanDetails(data);
+          return;
+        }
+        if (typeof data.bannedUntil !== 'number') {
+          setIsBanned(false);
+          setBanDetails(null);
+          return;
+        }
+        const probeUid = getAuth()?.currentUser?.uid || encodeEmail(email);
+        const serverNow = (await getServerTime(db, probeUid)).getTime();
+        if (cancelled) return;
+        const remaining = data.bannedUntil - serverNow;
+        if (remaining <= 0) {
+          setIsBanned(false);
+          setBanDetails(null);
+          return;
+        }
+        setIsBanned(true);
+        setBanDetails(data);
+        expiryTimer = setTimeout(evaluate, Math.min(remaining, 24 * 60 * 60 * 1000));
+      };
+
+      const unsubscribe = onValue(banRef, (snapshot) => {
+        currentBan = snapshot.exists() ? snapshot.val() : null;
+        evaluate();
       });
 
-      return () => unsubscribe();
+      return () => {
+        cancelled = true;
+        if (expiryTimer) clearTimeout(expiryTimer);
+        unsubscribe();
+      };
     }, [email])
   );
 
@@ -764,12 +1089,20 @@ export const checkBanStatus = async (email) => {
         return { isBanned: true, message: 'You are permanently banned from performing this action.' };
       }
 
-      if (typeof bannedUntil === 'number' && Date.now() < bannedUntil) {
-        const totalMinutes = Math.ceil((bannedUntil - Date.now()) / 60000);
-        const hours = Math.floor(totalMinutes / 60);
-        const minutes = totalMinutes % 60;
-        const timeText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-        return { isBanned: true, message: `You are temporarily banned (Strike ${strikeCount}). Time remaining: ${timeText}.` };
+      if (typeof bannedUntil === 'number') {
+        // Compare against authoritative server time, not Date.now() — a
+        // tampered device clock would otherwise let a banned user slip past.
+        const probeUid = getAuth()?.currentUser?.uid || encodeEmail(email);
+        const serverNow = (await getServerTime(db, probeUid)).getTime();
+        if (serverNow < bannedUntil) {
+          // Display countdown in device-clock terms (cosmetic). The gate
+          // decision above is what enforces the ban.
+          const totalMinutes = Math.ceil((bannedUntil - Date.now()) / 60000);
+          const hours = Math.floor(totalMinutes / 60);
+          const minutes = totalMinutes % 60;
+          const timeText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+          return { isBanned: true, message: `You are temporarily banned (Strike ${strikeCount}). Time remaining: ${timeText}.` };
+        }
       }
     }
     return { isBanned: false };
@@ -779,10 +1112,14 @@ export const checkBanStatus = async (email) => {
   }
 };
 
-// Make Moderator
-export const makeModerator = async (userId) => {
+// Make Moderator — Admin-only.
+export const makeModerator = async (userId, callerRoles = {}) => {
   if (!userId) {
     Alert.alert('Error', 'Invalid user ID.');
+    return false;
+  }
+  if (!canManageMod(callerRoles)) {
+    Alert.alert('Permission Denied', 'Only Admins can promote Moderators.');
     return false;
   }
   try {
@@ -798,10 +1135,14 @@ export const makeModerator = async (userId) => {
   }
 };
 
-// Remove Moderator
-export const removeModerator = async (userId) => {
+// Remove Moderator — Admin-only.
+export const removeModerator = async (userId, callerRoles = {}) => {
   if (!userId) {
     Alert.alert('Error', 'Invalid user ID.');
+    return false;
+  }
+  if (!canManageMod(callerRoles)) {
+    Alert.alert('Permission Denied', 'Only Admins can demote Moderators.');
     return false;
   }
   try {
@@ -813,6 +1154,51 @@ export const removeModerator = async (userId) => {
   } catch (error) {
     console.error('Error removing moderator:', error);
     Alert.alert('Error', 'Failed to demote user.');
+    return false;
+  }
+};
+
+// Promote to JMD (BabyMod) — Admin or Moderator can manage JMDs.
+export const makeBabyMod = async (userId, callerRoles = {}) => {
+  if (!userId) {
+    Alert.alert('Error', 'Invalid user ID.');
+    return false;
+  }
+  if (!canManageBabyMod(callerRoles)) {
+    Alert.alert('Permission Denied', 'Only Admins or Moderators can promote JMDs.');
+    return false;
+  }
+  try {
+    const db = getDatabase();
+    await set(ref(db, `users/${userId}/isBabyMod`), true);
+    return true;
+  } catch (error) {
+    console.error('Error promoting JMD:', error);
+    Alert.alert('Error', 'Failed to promote user to JMD.');
+    return false;
+  }
+};
+
+// Demote JMD — Admin or Moderator. We block demoting a JMD who has
+// already been upgraded to a real Mod (canManageBabyMod doesn't cover
+// Mods, but the rank check below catches the corner case where this is
+// called against a Mod by a Mod).
+export const removeBabyMod = async (userId, callerRoles = {}) => {
+  if (!userId) {
+    Alert.alert('Error', 'Invalid user ID.');
+    return false;
+  }
+  if (!canManageBabyMod(callerRoles)) {
+    Alert.alert('Permission Denied', 'Only Admins or Moderators can remove JMDs.');
+    return false;
+  }
+  try {
+    const db = getDatabase();
+    await set(ref(db, `users/${userId}/isBabyMod`), null);
+    return true;
+  } catch (error) {
+    console.error('Error removing JMD:', error);
+    Alert.alert('Error', 'Failed to remove JMD status.');
     return false;
   }
 };
@@ -879,6 +1265,23 @@ export const muteUser = async (email, minutes, userInfo = null, bannerInfo = nul
     return false;
   }
 
+  // ✅ Self-target guard: blocks the JMD "self-mute → reset" trick.
+  if (isSelfTargeting(email)) {
+    if (showAlert) Alert.alert('Permission Denied', 'You cannot mute yourself.');
+    return false;
+  }
+
+  // ✅ Hierarchy check — caller rank must strictly exceed target rank.
+  // Mute used to be the unguarded backdoor (banUserwithEmail had a check,
+  // muteUser did not), so it was the cleanest path for Mod-on-Mod hits.
+  const callerRoles = callerRolesFromBanner(bannerInfo);
+  const targetRoles = await resolveTargetRoles(userInfo?.id, userInfo);
+  if (!canModerate(callerRoles, targetRoles)) {
+    console.warn("Staff hierarchy: caller rank does not exceed target rank.");
+    if (showAlert) Alert.alert('Permission Denied', 'You cannot mute this user.');
+    return false;
+  }
+
   try {
     const db = getDatabase();
     const encodeEmail = (em) => (em || '').toLowerCase().trim().replace(/\./g, '(dot)');
@@ -887,6 +1290,26 @@ export const muteUser = async (email, minutes, userInfo = null, bannerInfo = nul
 
     // Preserve existing strikeCount if user was previously banned
     const existingStrikeCount = snap.exists() ? (snap.val()?.strikeCount || 0) : 0;
+
+    // ✅ No-downgrade guard: a short mute must not overwrite a longer/stricter
+    // existing ban. This is the actual mechanism behind the self-ban trick:
+    // muteUser used to clobber a Strike-2 (3-day) ban with a 5-min entry.
+    if (snap.exists()) {
+      const existing = snap.val() || {};
+      const existingUntil = existing.bannedUntil;
+      const newBannedUntil = Date.now() + minutes * 60 * 1000;
+      const isExistingActive =
+        existingUntil === 'permanent' ||
+        (typeof existingUntil === 'number' && existingUntil > Date.now());
+      if (
+        isExistingActive &&
+        (existingUntil === 'permanent' ||
+          (typeof existingUntil === 'number' && existingUntil > newBannedUntil))
+      ) {
+        if (showAlert) Alert.alert('Action Blocked', 'A longer ban is already active on this user.');
+        return false;
+      }
+    }
 
     const muteData = {
       strikeCount: existingStrikeCount,

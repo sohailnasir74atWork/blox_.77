@@ -40,6 +40,13 @@ import {
   limitToLast,
   onValue,
 } from '@react-native-firebase/database';
+import { loadPrivateMessages as sbLoadPrivateMessages } from '../Supabase/privateMessagesBackend';
+import {
+  fetchAllPolls as sbFetchAllPolls,
+  createPoll as sbCreatePoll,
+  deletePoll as sbDeletePoll,
+  setPollActive as sbSetPollActive,
+} from '../Supabase/pollsBackend';
 
 import {
   getFirestore,
@@ -161,11 +168,37 @@ const timeAgo = (v) => {
 };
 
 const AdminDashboard = () => {
-  const { theme, user: currentUser, isAdmin, isModerator } = useGlobalState();
+  const { theme, user: currentUser, isAdmin, isModerator, isBabyMod, isUserBlocked, currentUserEmail } = useGlobalState();
   const isDark = theme === 'dark';
   const db = useMemo(() => getDatabase(), []);
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+
+  // ✅ Banned admins/mods must not be able to operate the dashboard at all.
+  // The button is also hidden upstream — this is the inside-the-room defense
+  // in case anything (deep link, stale stack) lands them here.
+  if (isUserBlocked) {
+    return (
+      <View style={{ flex: 1, backgroundColor: isDark ? '#0f172a' : '#f8fafc', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <Text style={{ fontSize: 16, fontWeight: '700', color: isDark ? '#f1f5f9' : '#0f172a', marginBottom: 8, textAlign: 'center' }}>
+          Dashboard Locked
+        </Text>
+        <Text style={{ fontSize: 13, color: isDark ? '#94a3b8' : '#64748b', textAlign: 'center', marginBottom: 16 }}>
+          Your account is currently restricted. Contact a senior admin to lift the restriction — you cannot moderate while banned.
+        </Text>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 8, backgroundColor: '#3b82f6' }}
+        >
+          <Text style={{ color: '#fff', fontWeight: '600' }}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Normalized caller email used by every handler to refuse self-targeting.
+  const callerEmailLc = (currentUserEmail || currentUser?.email || '').toLowerCase().trim();
+  const isSelf = (e) => !!e && callerEmailLc && e.toLowerCase().trim() === callerEmailLc;
 
   // Tabs
   const [activeTab, setActiveTab] = useState('banned');
@@ -662,6 +695,10 @@ const AdminDashboard = () => {
   const handleUnban = async (userItem) => {
     const email = userItem.email || decodeEmail(userItem.encodedEmail);
     if (!email) return;
+    if (isSelf(email)) {
+      Alert.alert('Permission Denied', 'You cannot unban yourself.');
+      return;
+    }
 
     try {
       const success = await unbanUserWithEmail(email);
@@ -688,18 +725,30 @@ const AdminDashboard = () => {
       Alert.alert('Error', 'User has no email associated.');
       return;
     }
+    if (isSelf(userItem.email)) {
+      Alert.alert('Permission Denied', 'You cannot ban yourself.');
+      return;
+    }
 
     const userInfo = {
       id: userItem.id,
       displayName: userItem.displayName,
       avatar: userItem.avatar,
-      email: userItem.email
+      email: userItem.email,
+      // Target role flags from search results so the hierarchy gate inside
+      // banUserwithEmail can reject Mod→Mod and peer-Admin→Admin attempts.
+      isAdmin: !!userItem.isAdmin,
+      isModerator: !!userItem.isModerator,
+      isBabyMod: !!userItem.isBabyMod,
     };
 
     const bannerInfo = {
       id: currentUser?.id,
       displayName: currentUser?.userName || 'Admin',
-      avatar: currentUser?.avatar
+      avatar: currentUser?.avatar,
+      isAdmin: !!isAdmin,
+      isModerator: !!isModerator,
+      isBabyMod: !!isBabyMod,
     };
 
     const isStaff = isAdmin || isModerator;
@@ -725,15 +774,26 @@ const AdminDashboard = () => {
       Alert.alert('Error', 'User has no email associated.');
       return;
     }
+    if (isSelf(userItem.email)) {
+      Alert.alert('Permission Denied', 'You cannot strike yourself.');
+      return;
+    }
 
     const bannerInfo = {
       id: currentUser?.id,
       displayName: currentUser?.userName || currentUser?.displayName || 'Admin',
-      avatar: currentUser?.avatar
+      avatar: currentUser?.avatar,
+      isAdmin: !!isAdmin,
+      isModerator: !!isModerator,
+      isBabyMod: !!isBabyMod,
     };
     const userInfo = {
+      id: userItem.id,
       displayName: userItem.displayName || userItem.sender,
-      avatar: userItem.avatar
+      avatar: userItem.avatar,
+      isAdmin: !!userItem.isAdmin,
+      isModerator: !!userItem.isModerator,
+      isBabyMod: !!userItem.isBabyMod,
     };
 
     // Both Admins and Moderators should see confirmation and success alerts
@@ -762,16 +822,26 @@ const AdminDashboard = () => {
       Alert.alert('Error', 'User has no email associated.');
       return;
     }
+    if (isSelf(userItem.email)) {
+      Alert.alert('Permission Denied', 'You cannot mute yourself.');
+      return;
+    }
 
     const bannerInfo = {
       id: currentUser?.id,
       displayName: currentUser?.userName || currentUser?.displayName || 'Admin',
-      avatar: currentUser?.avatar
+      avatar: currentUser?.avatar,
+      isAdmin: !!isAdmin,
+      isModerator: !!isModerator,
+      isBabyMod: !!isBabyMod,
     };
     const userInfo = {
       id: userItem.id,
       displayName: userItem.displayName,
       avatar: userItem.avatar,
+      isAdmin: !!userItem.isAdmin,
+      isModerator: !!userItem.isModerator,
+      isBabyMod: !!userItem.isBabyMod,
     };
 
     const success = await muteUser(userItem.email, minutes, userInfo, bannerInfo, true);
@@ -1171,21 +1241,10 @@ const AdminDashboard = () => {
       const id1 = chatPerson1.id;
       const id2 = chatPerson2.id;
       const chatKey = id1 < id2 ? `${id1}_${id2}` : `${id2}_${id1}`;
-      const messagesRef = ref(db, `private_messages/${chatKey}/messages`);
-      const q = query(messagesRef, orderByChild('timestamp'), limitToLast(50));
-      const snapshot = await get(q);
-
-      if (!snapshot.exists()) {
-        setChatMessages([]);
-        setLoadingChat(false);
-        return;
-      }
-
-      const data = snapshot.val();
-      const msgs = Object.entries(data)
-        .map(([key, value]) => ({ id: key, ...value }))
-        .sort((a, b) => (a?.timestamp || 0) - (b?.timestamp || 0));
-
+      // Supabase returns newest-first; the rest of this dashboard
+      // expects ascending order, so reverse before storing.
+      const rows = await sbLoadPrivateMessages(chatKey, { limit: 50 });
+      const msgs = (rows || []).slice().reverse();
       setChatMessages(msgs);
     } catch (err) {
       console.error('Chat load error:', err);
@@ -1193,7 +1252,7 @@ const AdminDashboard = () => {
     } finally {
       setLoadingChat(false);
     }
-  }, [db, chatPerson1, chatPerson2]);
+  }, [chatPerson1, chatPerson2]);
 
   // ─────────────────────────────────────────────
   // Reported Chats — fetch from Firestore (for mods)
@@ -1227,21 +1286,8 @@ const AdminDashboard = () => {
     setChatPerson2({ id: report.reportedUser, displayName: report.reportedUserName || report.reportedUser });
 
     try {
-      const messagesRef = ref(db, `private_messages/${report.chatKey}/messages`);
-      const q = query(messagesRef, orderByChild('timestamp'), limitToLast(50));
-      const snapshot = await get(q);
-
-      if (!snapshot.exists()) {
-        setChatMessages([]);
-        setLoadingChat(false);
-        return;
-      }
-
-      const data = snapshot.val();
-      const msgs = Object.entries(data)
-        .map(([key, value]) => ({ id: key, ...value }))
-        .sort((a, b) => (a?.timestamp || 0) - (b?.timestamp || 0));
-
+      const rows = await sbLoadPrivateMessages(report.chatKey, { limit: 50 });
+      const msgs = (rows || []).slice().reverse();
       setChatMessages(msgs);
     } catch (err) {
       console.error('Chat load from report error:', err);
@@ -1249,7 +1295,7 @@ const AdminDashboard = () => {
     } finally {
       setLoadingChat(false);
     }
-  }, [db]);
+  }, []);
 
   // Mark report as reviewed
   const markReportReviewed = useCallback(async (reportId) => {
@@ -1287,15 +1333,11 @@ const AdminDashboard = () => {
   }, []);
 
   // ─────────────────────────────────────────────
-  // Polls Management
+  // Polls Management (Supabase-native — see supabase/015_polls.sql)
   const fetchPolls = useCallback(async () => {
     setLoadingPolls(true);
     try {
-      const firestoreDB = getFirestore();
-      const pollsRef = collection(firestoreDB, 'polls');
-      const q = firestoreQuery(pollsRef, orderBy('createdAt', 'desc'), limit(10));
-      const snapshot = await getDocs(q);
-      const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const list = await sbFetchAllPolls(10);
       setPolls(list);
     } catch (err) {
       console.error('Fetch polls error:', err);
@@ -1323,19 +1365,12 @@ const AdminDashboard = () => {
 
     setCreatingPoll(true);
     try {
-      const firestoreDB = getFirestore();
-      const pollsRef = collection(firestoreDB, 'polls');
-      const newPoll = {
+      await sbCreatePoll({
         question: q,
-        options: opts.map((text) => ({ text, votes: 0 })),
-        totalVotes: 0,
-        voters: {},
-        active: true,
-        createdAt: Timestamp.now(),
-        createdBy: currentUser?.id || 'admin',
+        optionTexts: opts,
         imageUrl: pollImageUrl.trim() || null,
-      };
-      await addDoc(pollsRef, newPoll);
+        createdBy: currentUser?.id || null,
+      });
       setPollQuestion('');
       setPollOptions(['', '']);
       setPollImageUrl('');
@@ -1410,8 +1445,7 @@ const AdminDashboard = () => {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
           try {
-            const firestoreDB = getFirestore();
-            await deleteDoc(doc(firestoreDB, 'polls', pollId));
+            await sbDeletePoll(pollId);
             setPolls((prev) => prev.filter((p) => p.id !== pollId));
           } catch (err) {
             Alert.alert('Error', 'Could not delete poll.');
@@ -1431,8 +1465,7 @@ const AdminDashboard = () => {
       }
     }
     try {
-      const firestoreDB = getFirestore();
-      await updateDoc(doc(firestoreDB, 'polls', pollItem.id), { active: !pollItem.active });
+      await sbSetPollActive(pollItem.id, !pollItem.active);
       setPolls((prev) => prev.map((p) => p.id === pollItem.id ? { ...p, active: !p.active } : p));
     } catch (err) {
       Alert.alert('Error', 'Could not update poll.');

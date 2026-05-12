@@ -1,0 +1,47 @@
+diff --git a/node_modules/react-native-image-picker/android/src/main/java/com/imagepicker/ImagePickerModuleImpl.java b/node_modules/react-native-image-picker/android/src/main/java/com/imagepicker/ImagePickerModuleImpl.java
+index 56149f1..08b1dab 100644
+--- a/node_modules/react-native-image-picker/android/src/main/java/com/imagepicker/ImagePickerModuleImpl.java
++++ b/node_modules/react-native-image-picker/android/src/main/java/com/imagepicker/ImagePickerModuleImpl.java
+@@ -173,12 +173,14 @@ public class ImagePickerModuleImpl implements ActivityEventListener {
+         ExecutorService executor = Executors.newSingleThreadExecutor();
+ 
+         executor.submit(() -> {
++            final Callback localCallback = callback;
++            callback = null;
++            if (localCallback == null) return;
+             try {
+-                callback.invoke(getResponseMap(fileUris, options, reactContext));
++                localCallback.invoke(getResponseMap(fileUris, options, reactContext));
+             } catch (RuntimeException exception) {
+-                callback.invoke(getErrorMap(errOthers, exception.getMessage()));
+-            } finally {
+-                callback = null;
++                // Do NOT retry invoke — RN's native bridge aborts (SIGABRT)
++                // if a Callback is invoked more than once.
+             }
+         });
+     }
+@@ -195,14 +197,16 @@ public class ImagePickerModuleImpl implements ActivityEventListener {
+             if (requestCode == REQUEST_LAUNCH_IMAGE_CAPTURE) {
+                 deleteFile(fileUri);
+             }
+-            try {
+-                callback.invoke(getCancelMap());
+-                return;
+-            } catch (RuntimeException exception) {
+-                callback.invoke(getErrorMap(errOthers, exception.getMessage()));
+-            } finally {
+-                callback = null;
++            final Callback localCallback = callback;
++            callback = null;
++            if (localCallback != null) {
++                try {
++                    localCallback.invoke(getCancelMap());
++                } catch (RuntimeException exception) {
++                    // Swallow — retry would abort (bridge asserts once-only).
++                }
+             }
++            return;
+         }
+ 
+         switch (requestCode) {

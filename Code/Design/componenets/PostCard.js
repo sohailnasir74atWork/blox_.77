@@ -81,7 +81,16 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
 
   const banUserwithEmail = async (email, admin) => {
     try {
-      await banUserwithEmailUtils(email, admin || isAdmin);
+      // utils.js applies the strict staff hierarchy gate using bannerInfo
+      // (caller roles) and the target's RTDB-fetched roles, so we just
+      // hand it the role flags we know about.
+      const bannerInfo = {
+        isAdmin: !!isAdmin,
+        isModerator: !!isModerator,
+        isBabyMod: false,
+      };
+      const userInfo = { id: item?.userId };
+      await banUserwithEmailUtils(email, admin || isAdmin, item?.userId, userInfo, bannerInfo);
       if (item?.userId) await onDeleteAll(item.userId);
     } catch (err) {
       console.error('Ban error:', err);

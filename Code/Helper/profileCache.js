@@ -16,6 +16,8 @@
  */
 
 import { ref, get } from '@react-native-firebase/database';
+import { getIdentity, getRoles, getCosmetics as getCosmeticsBadge, getRoblox } from '../Supabase/userBackend';
+import { SUPABASE_USERS_ENABLED } from '../Supabase/featureFlags';
 
 let cache;
 try {
@@ -91,8 +93,17 @@ const extractCosmetics = (shopItems) => {
 };
 
 // ────────────────────────────────────────────────────────
-//  FETCH from RTDB only if not cached (async)
-//  Call this in useEffect or outside render loop
+//  FETCH — Supabase first (since Phase 4), RTDB fallback.
+//
+//  Path 1 (Supabase): single round trip pulls identity + roles +
+//    roblox + cosmetic badge fields. shop/activeItems (active cosmetic
+//    items) stays on RTDB this phase, so we always fetch that one.
+//    If Supabase has NO row for the user yet (mirror CF hasn't fired),
+//    any of the three calls returns null → we fall back to RTDB.
+//
+//  Path 2 (RTDB fallback): same per-field reads as before. Used when
+//    Supabase reads disabled (kill switch), Supabase has no data yet,
+//    or any Supabase call errors out.
 // ────────────────────────────────────────────────────────
 export const getOrFetchProfile = async (db, uid) => {
   if (!uid || !db) return null;
@@ -101,10 +112,67 @@ export const getOrFetchProfile = async (db, uid) => {
   const cached = getCachedProfile(uid);
   if (cached) return cached;
 
-  // 2. Fetch only needed fields from RTDB (not the full user node)
+  // 2. Try Supabase first (parallel) + RTDB shop/activeItems (deferred to a later phase).
+  if (SUPABASE_USERS_ENABLED) {
+    try {
+      const [identity, roles, roblox, cosBadge, shopSnap] = await Promise.all([
+        getIdentity(uid),
+        getRoles(uid),
+        getRoblox(uid),
+        getCosmeticsBadge(uid),
+        get(ref(db, `users/${uid}/shop/activeItems`)),
+      ]);
+
+      // Need at least identity to consider this a hit. Roles/cosmetics
+      // can be null (user has no role / no badge) and that's fine —
+      // they'll fall through as default false / null in the merged shape.
+      if (identity) {
+        const cosmetics = extractCosmetics(shopSnap?.exists() ? shopSnap.val() : null);
+        const profile = {
+          displayName: identity.displayName ?? 'Anonymous',
+          avatar: identity.avatar ?? null,
+          isPro: !!cosBadge?.isPro,
+          robloxUsernameVerified: !!roblox?.robloxUsernameVerified,
+          hasRecentGameWin: false,                 // still on RTDB; not migrated this phase
+          lastGameWinAt: null,                     // ditto
+          isAdmin: !!roles?.isAdmin,
+          isModerator: !!roles?.isModerator,
+          isBabyMod: !!roles?.isBabyMod,
+          isTrusted: !!roles?.isTrusted,
+          isGrinder: !!roles?.isGrinder,
+          isRaider: !!roles?.isRaider,
+          topBadge: cosBadge?.topBadge ?? null,
+          ...cosmetics,
+        };
+
+        // Best-effort: pull recent-game-win flags from RTDB without
+        // blocking the path above (they're tiny). Fire-and-forget;
+        // resolveProfile is tolerant of missing values.
+        Promise.all([
+          get(ref(db, `users/${uid}/hasRecentGameWin`)),
+          get(ref(db, `users/${uid}/lastGameWinAt`)),
+        ]).then(([recentWinSnap, lastWinSnap]) => {
+          const updated = {
+            ...profile,
+            hasRecentGameWin: !!(recentWinSnap?.exists() && recentWinSnap.val()),
+            lastGameWinAt: lastWinSnap?.exists() ? lastWinSnap.val() : null,
+          };
+          setCachedProfile(uid, updated);
+        }).catch(() => { /* keep base profile cached */ });
+
+        setCachedProfile(uid, profile);
+        return profile;
+      }
+    } catch (e) {
+      // Supabase path failed; fall through to RTDB. Don't spam — this
+      // can be transient (cold-start JWT race, network blip).
+    }
+  }
+
+  // 3. RTDB fallback — original per-field reads.
   try {
     const [displayNameSnap, avatarSnap, isProSnap, verifiedSnap, recentWinSnap,
-      lastWinSnap, adminSnap, modSnap, babyModSnap, trustedSnap, cmsrSnap, grinderSnap,
+      lastWinSnap, adminSnap, modSnap, babyModSnap, trustedSnap, grinderSnap,
       raiderSnap, topBadgeSnap, cosmeticsSnap] = await Promise.all([
       get(ref(db, `users/${uid}/displayName`)),
       get(ref(db, `users/${uid}/avatar`)),
@@ -116,7 +184,6 @@ export const getOrFetchProfile = async (db, uid) => {
       get(ref(db, `users/${uid}/isModerator`)),
       get(ref(db, `users/${uid}/isBabyMod`)),
       get(ref(db, `users/${uid}/isTrusted`)),
-      get(ref(db, `users/${uid}/isCMSR`)),
       get(ref(db, `users/${uid}/isGrinder`)),
       get(ref(db, `users/${uid}/isRaider`)),
       get(ref(db, `users/${uid}/topBadge`)),
@@ -136,7 +203,6 @@ export const getOrFetchProfile = async (db, uid) => {
       isModerator: !!(modSnap?.exists() && modSnap.val()),
       isBabyMod: !!(babyModSnap?.exists() && babyModSnap.val()),
       isTrusted: !!(trustedSnap?.exists() && trustedSnap.val()),
-      isCMSR: !!(cmsrSnap?.exists() && cmsrSnap.val()),
       isGrinder: !!(grinderSnap?.exists() && grinderSnap.val()),
       isRaider: !!(raiderSnap?.exists() && raiderSnap.val()),
       topBadge: topBadgeSnap?.exists() ? topBadgeSnap.val() : null,
@@ -187,7 +253,6 @@ export const seedFromMessage = (msg) => {
     isModerator: !!msg.isModerator,
     isBabyMod: !!msg.isBabyMod,
     isTrusted: !!msg.isTrusted,
-    isCMSR: !!msg.isCMSR,
     isGrinder: !!msg.isGrinder,
     isRaider: !!msg.isRaider,
     topBadge: msg.topBadge || null,
@@ -209,7 +274,7 @@ const DEFAULT_PROFILE = {
   robloxUsernameVerified: false, hasRecentGameWin: false,
   chatTextColor: null, profileFrame: null, tradeCardBg: null,
   chatBubbleBg: null, profileBanner: null, topBadge: null,
-  isAdmin: false, isModerator: false, isBabyMod: false, isTrusted: false, isCMSR: false, isGrinder: false, isRaider: false,
+  isAdmin: false, isModerator: false, isBabyMod: false, isTrusted: false, isGrinder: false, isRaider: false,
 };
 
 export const resolveProfile = (msg) => {
@@ -230,7 +295,6 @@ export const resolveProfile = (msg) => {
     isModerator: msg.isModerator ?? cached?.isModerator ?? false,
     isBabyMod: msg.isBabyMod ?? cached?.isBabyMod ?? false,
     isTrusted: msg.isTrusted ?? cached?.isTrusted ?? false,
-    isCMSR: msg.isCMSR ?? cached?.isCMSR ?? false,
     isGrinder: msg.isGrinder ?? cached?.isGrinder ?? false,
     isRaider: msg.isRaider ?? cached?.isRaider ?? false,
     chatTextColor: msg.chatTextColor ?? cached?.chatTextColor ?? null,
@@ -260,7 +324,6 @@ export const seedCurrentUser = async (user, localState, db) => {
     isModerator: !!user.isModerator,
     isBabyMod: !!user.isBabyMod,
     isTrusted: !!user.isTrusted,
-    isCMSR: !!user.isCMSR,
     isGrinder: !!user.isGrinder,
     isRaider: !!user.isRaider,
     topBadge: user.topBadge || null,

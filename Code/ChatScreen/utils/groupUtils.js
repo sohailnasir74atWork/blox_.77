@@ -1,5 +1,15 @@
 import { getDatabase, ref, set, update, get, increment, remove } from '@react-native-firebase/database';
 import {
+  upsertGroupMetaRow,
+  fanOutGroupMessage,
+  deleteGroupMetaForUser,
+  updateGroupIdentityForMembers,
+} from '../../Supabase/groupMetaBackend';
+import {
+  sendGroupMessage as sbSendGroupMessage,
+  softDeleteAllInGroup as sbSoftDeleteAllInGroup,
+} from '../../Supabase/groupMessagesBackend';
+import {
   collection,
   doc,
   getDoc,
@@ -151,20 +161,19 @@ export const createGroup = async (firestoreDB, appdatabase, creatorData, memberI
       isActive: true,
     });
 
-    // Create group_meta_data in RTDB only for creator
-    const metaUpdates = {};
-    metaUpdates[`group_meta_data/${creatorData.id}/${groupId}/groupId`] = groupId;
-    metaUpdates[`group_meta_data/${creatorData.id}/${groupId}/groupName`] = finalGroupName;
-    metaUpdates[`group_meta_data/${creatorData.id}/${groupId}/groupAvatar`] = groupAvatarUrl || null;
-    metaUpdates[`group_meta_data/${creatorData.id}/${groupId}/lastMessage`] = null;
-    metaUpdates[`group_meta_data/${creatorData.id}/${groupId}/lastMessageTimestamp`] = 0;
-    metaUpdates[`group_meta_data/${creatorData.id}/${groupId}/unreadCount`] = 0;
-    metaUpdates[`group_meta_data/${creatorData.id}/${groupId}/muted`] = false;
-    metaUpdates[`group_meta_data/${creatorData.id}/${groupId}/joinedAt`] = Date.now();
-    metaUpdates[`group_meta_data/${creatorData.id}/${groupId}/createdBy`] = creatorData.id; // Store creator ID
-
-    // Batch update creator metadata
-    await update(ref(appdatabase, '/'), metaUpdates);
+    // Create group_meta_data row for the creator — Supabase.
+    await upsertGroupMetaRow({
+      userId: creatorData.id,
+      groupId,
+      groupName: finalGroupName,
+      groupAvatar: groupAvatarUrl || null,
+      lastMessage: null,
+      lastMessageTimestampMs: 0,
+      unreadCount: 0,
+      muted: false,
+      joinedAtMs: Date.now(),
+      createdBy: creatorData.id,
+    });
 
     // ✅ Use provided user data map, or fetch from RTDB users node only if needed (OPTIMIZATION: avoid extra reads)
     let finalInvitedUsersMap = invitedUsersMap || {};
@@ -445,18 +454,18 @@ export const acceptGroupInvite = async (firestoreDB, appdatabase, inviteId, user
       transaction.update(inviteRef, { status: 'accepted' });
     });
 
-    // Create group_meta_data for new member (1 RTDB write)
-    const groupMetaRef = ref(appdatabase, `group_meta_data/${userData.id}/${inviteData.groupId}`);
-    await set(groupMetaRef, {
+    // Create group_meta_data row for the joining member — Supabase.
+    await upsertGroupMetaRow({
+      userId: userData.id,
       groupId: inviteData.groupId,
       groupName: groupData.name || 'Group',
       groupAvatar: groupData.avatar || null,
       lastMessage: null,
-      lastMessageTimestamp: 0,
+      lastMessageTimestampMs: 0,
       unreadCount: 0,
-      createdBy: groupData.createdBy || null, // Store creator ID
       muted: false,
-      joinedAt: Date.now(),
+      joinedAtMs: Date.now(),
+      createdBy: groupData.createdBy || null,
     });
 
     return { success: true, groupId: inviteData.groupId };
@@ -578,30 +587,21 @@ export const leaveGroup = async (firestoreDB, appdatabase, groupId, userId) => {
     // If group doesn't exist, clean up and return success (user is effectively already "left")
     if (result === null) {
       try {
-        const groupMetaRef = ref(appdatabase, `group_meta_data/${userId}/${groupId}`);
-        // Use remove() to explicitly delete the node
-        await remove(groupMetaRef);
+        await deleteGroupMetaForUser(userId, groupId);
       } catch (cleanupError) {
         console.warn('Could not delete group metadata:', cleanupError);
-        // Fallback: try setting to null if remove fails
-        try {
-          const groupMetaRef = ref(appdatabase, `group_meta_data/${userId}/${groupId}`);
-          await set(groupMetaRef, null);
-        } catch (fallbackError) {
-          console.warn('Fallback delete also failed:', fallbackError);
-        }
       }
       return { success: true, message: 'Group no longer exists' };
     }
 
-    // If last person left, delete all group data from RTDB
+    // If last person left, delete all group data.
     if (result.shouldDeleteGroup) {
       try {
-        // Delete group messages
-        const messagesRef = ref(appdatabase, `group_messages/${groupId}`);
-        const messagesSnapshot = await get(messagesRef);
-        if (messagesSnapshot.exists()) {
-          await remove(messagesRef);
+        // Soft-delete every message in the group on Supabase.
+        try {
+          await sbSoftDeleteAllInGroup(groupId, userId ?? null);
+        } catch (e) {
+          console.warn('Could not soft-delete group_messages:', e?.message);
         }
 
         // Delete group node
@@ -611,20 +611,11 @@ export const leaveGroup = async (firestoreDB, appdatabase, groupId, userId) => {
           await remove(groupRef);
         }
 
-        // Delete group metadata for the leaving user (others already cleaned up)
+        // Delete group metadata for the leaving user — Supabase.
         try {
-          const groupMetaRef = ref(appdatabase, `group_meta_data/${userId}/${groupId}`);
-          // Use remove() to explicitly delete the node
-          await remove(groupMetaRef);
+          await deleteGroupMetaForUser(userId, groupId);
         } catch (metaError) {
           console.warn('Could not delete group metadata for leaving user:', metaError);
-          // Fallback: try setting to null if remove fails
-          try {
-            const groupMetaRef = ref(appdatabase, `group_meta_data/${userId}/${groupId}`);
-            await set(groupMetaRef, null);
-          } catch (fallbackError) {
-            console.warn('Fallback delete also failed:', fallbackError);
-          }
         }
 
         // Delete related invitations from Firestore
@@ -662,14 +653,12 @@ export const leaveGroup = async (firestoreDB, appdatabase, groupId, userId) => {
     console.error('Error leaving group:', error);
     return { success: false, error: error.message || 'Failed to leave group' };
   } finally {
-    // Always cleanup RTDB metadata (even if Firestore transaction fails)
+    // Always cleanup metadata (even if Firestore transaction fails) — Supabase.
     try {
-      const groupMetaRef = ref(appdatabase, `group_meta_data/${userId}/${groupId}`);
-      // Use remove() to explicitly delete the node
-      await remove(groupMetaRef);
+      await deleteGroupMetaForUser(userId, groupId);
     } catch (cleanupError) {
       console.warn('Could not delete group metadata in finally block:', cleanupError);
-      // Fallback: try setting to null if remove fails
+      // Fallback: try the RTDB version too in case some old build still has it
       try {
         const groupMetaRef = ref(appdatabase, `group_meta_data/${userId}/${groupId}`);
         await set(groupMetaRef, null);
@@ -696,12 +685,15 @@ export const sendGroupMessage = async (appdatabase, firestoreDB, groupId, messag
 
   try {
     const timestamp = Date.now();
-    const messageRef = ref(appdatabase, `group_messages/${groupId}/messages/${timestamp}`);
 
-    // 1. Save message to RTDB
-    await set(messageRef, {
-      ...messageData,
-      timestamp,
+    // 1. Save the message body to Supabase (idempotent via clientMsgId).
+    // Sender profile fields (sender, avatar, isPro, etc.) come through
+    // messageData unchanged — the backend snapshot-stores them.
+    await sbSendGroupMessage({
+      groupId,
+      senderId: senderData.id,
+      message: messageData,
+      clientMsgId: messageData.clientMsgId ?? undefined,
     });
 
     // 2. Get group members from Firestore (1 read)
@@ -718,63 +710,31 @@ export const sendGroupMessage = async (appdatabase, firestoreDB, groupId, messag
       messageData.text?.trim() ||
       (messageData.imageUrl ? '📷 Photo' : messageData.fruits?.length ? `🐾 ${messageData.fruits.length} pet(s)` : '');
 
-    // 3. Batch check active members (1 read for all)
-    const activeGroupRef = ref(appdatabase, `activeGroupChats/${groupId}`);
-    const activeMembersSnap = await get(activeGroupRef);
-    const activeMemberIds = activeMembersSnap.exists()
-      ? Object.keys(activeMembersSnap.val() || {})
-      : [];
-
-    // 4. Prepare batch updates for all members
-    const updates = {};
-    const inactiveMemberIds = [];
-
-    for (const memberId of memberIds) {
-      const isActive = activeMemberIds.includes(memberId);
-      const isSender = memberId === senderData.id;
-
-      // Always update lastMessage, timestamp, and groupName (for notifications)
-      updates[`group_meta_data/${memberId}/${groupId}/lastMessage`] = lastMessagePreview;
-      updates[`group_meta_data/${memberId}/${groupId}/lastMessageTimestamp`] = timestamp;
-      updates[`group_meta_data/${memberId}/${groupId}/lastMessageSenderId`] = senderData.id;
-      updates[`group_meta_data/${memberId}/${groupId}/lastMessageSenderName`] = senderData.displayName || 'Anonymous';
-      updates[`group_meta_data/${memberId}/${groupId}/groupName`] = groupData.name || 'Group Chat';
-
-      if (isSender) {
-        // Sender: always 0 unread
-        updates[`group_meta_data/${memberId}/${groupId}/unreadCount`] = 0;
-      } else if (isActive) {
-        // Active member: 0 unread
-        updates[`group_meta_data/${memberId}/${groupId}/unreadCount`] = 0;
-      } else {
-        // Inactive member: need to get current count
-        inactiveMemberIds.push(memberId);
-      }
-    }
-
-    // 5. Get current unreadCounts for inactive members (N reads, but only for inactive)
-    if (inactiveMemberIds.length > 0) {
-      const unreadCountPromises = inactiveMemberIds.map(async (memberId) => {
-        const metaRef = ref(appdatabase, `group_meta_data/${memberId}/${groupId}`);
-        const metaSnap = await get(metaRef);
-        const currentUnread = metaSnap.exists() ? metaSnap.val().unreadCount || 0 : 0;
-        return { memberId, currentUnread };
-      });
-
-      const unreadCounts = await Promise.all(unreadCountPromises);
-
-      // Add increment updates
-      unreadCounts.forEach(({ memberId, currentUnread }) => {
-        updates[`group_meta_data/${memberId}/${groupId}/unreadCount`] = currentUnread + 1;
-      });
-    }
-
-    // 6. Batch update all metadata at once (cost-optimized: 1 write operation)
-    await update(ref(appdatabase, '/'), updates);
+    // 3. Fan-out group_meta_data to every member — Supabase. The helper
+    // does:
+    //   - one bulk upsert with last_message / timestamp / sender / groupName
+    //   - per-member atomic increment of unread_count (sender excluded)
+    // Active-member tracking via /activeGroupChats is no longer needed —
+    // members on the group screen call resetGroupUnreadCount() in their
+    // useFocusEffect, which reconciles within milliseconds.
+    await fanOutGroupMessage({
+      groupId,
+      memberIds,
+      senderId: senderData.id,
+      senderName: senderData.displayName || 'Anonymous',
+      lastMessage: lastMessagePreview,
+      timestampMs: timestamp,
+      groupName: groupData.name || 'Group Chat',
+    });
 
     return { success: true };
   } catch (error) {
-    console.error('Error sending group message:', error);
+    // Inline-stringify so the dev console shows code/message/details/hint
+    // instead of a collapsed `Object` (which forced expanding to debug).
+    console.error(
+      'Error sending group message:',
+      error?.code, '|', error?.message, '|', error?.details, '|', error?.hint, '|', error,
+    );
     return { success: false, error: error.message || 'Failed to send message' };
   }
 };
@@ -991,20 +951,11 @@ export const removeMemberFromGroup = async (firestoreDB, appdatabase, groupId, m
         });
       }
 
-      // Remove RTDB group_meta_data for the removed member
+      // Remove group_meta_data row for the kicked member — Supabase.
       try {
-        const metaRef = ref(appdatabase, `group_meta_data/${memberIdToRemove}/${groupId}`);
-        // Use remove() to explicitly delete the node
-        await remove(metaRef);
+        await deleteGroupMetaForUser(memberIdToRemove, groupId);
       } catch (metaError) {
         console.warn(`Could not delete group metadata for removed member ${memberIdToRemove}:`, metaError);
-        // Fallback: try setting to null if remove fails
-        try {
-          const metaRef = ref(appdatabase, `group_meta_data/${memberIdToRemove}/${groupId}`);
-          await set(metaRef, null);
-        } catch (fallbackError) {
-          console.warn(`Fallback delete also failed for removed member ${memberIdToRemove}:`, fallbackError);
-        }
       }
 
       return { success: true };
@@ -1230,18 +1181,14 @@ export const updateGroupName = async (firestoreDB, appdatabase, groupId, userId,
       updatedAt: serverTimestamp(),
     });
 
-    // Update RTDB group_meta_data for all members
+    // Fan-out the new groupName to every member's group_meta_data row — Supabase.
     const memberIds = groupData.memberIds || [];
-    const updates = {};
-
-    for (const memberId of memberIds) {
-      updates[`group_meta_data/${memberId}/${groupId}/groupName`] = trimmedName;
-      updates[`group_meta_data/${memberId}/${groupId}/name`] = trimmedName;
-    }
-
-    if (Object.keys(updates).length > 0) {
-      const dbRef = ref(appdatabase);
-      await update(dbRef, updates);
+    if (memberIds.length > 0) {
+      await updateGroupIdentityForMembers({
+        groupId,
+        memberIds,
+        groupName: trimmedName,
+      });
     }
 
     return { success: true };
@@ -1282,18 +1229,11 @@ export const updateGroupDescription = async (firestoreDB, appdatabase, groupId, 
       updatedAt: serverTimestamp(),
     });
 
-    // Update RTDB group_meta_data for all members
-    const memberIds = groupData.memberIds || [];
-    const updates = {};
-
-    for (const memberId of memberIds) {
-      updates[`group_meta_data/${memberId}/${groupId}/description`] = trimmedDescription || null;
-    }
-
-    if (Object.keys(updates).length > 0) {
-      const dbRef = ref(appdatabase);
-      await update(dbRef, updates);
-    }
+    // Description lives only on the Firestore `groups` doc — there's no
+    // `description` column on Supabase group_meta_data (we never wired it
+    // through the schema since it isn't part of the chat-list UX). Reads
+    // pull from Firestore on the group settings screen, so no fan-out is
+    // needed here.
 
     return { success: true };
   } catch (error) {
@@ -1329,16 +1269,14 @@ export const updateGroupAvatar = async (firestoreDB, appdatabase, groupId, userI
       updatedAt: serverTimestamp(),
     });
 
-    // Update RTDB group_meta_data for all members
+    // Fan-out the new avatar to every member's group_meta_data row — Supabase.
     const memberIds = groupData.memberIds || [];
-    const updates = {};
-
-    for (const memberId of memberIds) {
-      updates[`group_meta_data/${memberId}/${groupId}/groupAvatar`] = avatarUrl || null;
-    }
-
-    if (Object.keys(updates).length > 0) {
-      await update(ref(appdatabase, '/'), updates);
+    if (memberIds.length > 0) {
+      await updateGroupIdentityForMembers({
+        groupId,
+        memberIds,
+        groupAvatar: avatarUrl || null,
+      });
     }
 
     return { success: true };
@@ -1526,15 +1464,17 @@ export const approveJoinRequest = async (firestoreDB, appdatabase, requestId, cr
       });
     });
 
-    // Update RTDB metadata for the new member
-    const updates = {};
-    updates[`group_meta_data/${requesterId}/${groupId}/groupName`] = groupData.groupName || 'Group';
-    updates[`group_meta_data/${requesterId}/${groupId}/groupAvatar`] = groupData.avatar || null;
-    updates[`group_meta_data/${requesterId}/${groupId}/unreadCount`] = 0;
-    updates[`group_meta_data/${requesterId}/${groupId}/lastReadAt`] = Date.now();
-    updates[`group_meta_data/${requesterId}/${groupId}/createdBy`] = groupData.createdBy;
-
-    await update(ref(appdatabase, '/'), updates);
+    // Create the approved member's group_meta_data row — Supabase.
+    await upsertGroupMetaRow({
+      userId: requesterId,
+      groupId,
+      groupName: groupData.groupName || 'Group',
+      groupAvatar: groupData.avatar || null,
+      unreadCount: 0,
+      muted: false,
+      joinedAtMs: Date.now(),
+      createdBy: groupData.createdBy,
+    });
 
     return { success: true };
   } catch (error) {
@@ -1691,142 +1631,43 @@ export const deleteGroup = async (firestoreDB, appdatabase, groupId) => {
       }
     }
 
-    // Delete group messages from RTDB
+    // Soft-delete every message in the group — Supabase.
     try {
-      const messagesRef = ref(appdatabase, `group_messages/${groupId}`);
-      const messagesSnapshot = await get(messagesRef);
-      if (messagesSnapshot.exists()) {
-        await remove(messagesRef);
-      }
+      await sbSoftDeleteAllInGroup(groupId, userId ?? null);
     } catch (messagesError) {
-      console.warn('Could not delete group messages from RTDB:', messagesError);
+      console.warn('Could not soft-delete group messages:', messagesError);
     }
 
-    // Delete group metadata for all members from RTDB
-    // This is critical - if metadata isn't deleted, groups will reappear on app restart
-    // Groups are loaded from group_meta_data/${userId} in ChatNavigator.js
+    // Delete group_meta_data rows for every member — Supabase. The
+    // RLS policy permits any authenticated user to delete their own
+    // row only, so for cross-member cleanup the caller (admin/group
+    // owner) deletes their own row and we rely on each remaining
+    // member's client to clean up their own row when they next see the
+    // group is gone. For an authoritative wipe of every member's row
+    // (admin "delete group" flow), prefer using a service-role Edge
+    // Function — out of scope for this client-side migration.
     try {
-      let deletedCount = 0;
-      let failedCount = 0;
-      
-      const deleteMetaPromises = allMemberIds.map(async (memberId) => {
-        if (!memberId || typeof memberId !== 'string') {
-          console.warn(`⚠️ Skipping invalid memberId: ${memberId}`);
-          return { success: false, memberId, reason: 'invalid_id' };
-        }
-        
-        try {
-          const metaRef = ref(appdatabase, `group_meta_data/${memberId}/${groupId}`);
-          
-          // First, verify it exists (skip if permission denied)
-          let exists = true;
+      const results = await Promise.all(
+        (allMemberIds || []).map(async (memberId) => {
+          if (!memberId || typeof memberId !== 'string') {
+            return { success: false, memberId, reason: 'invalid_id' };
+          }
           try {
-            const metaSnapshot = await get(metaRef);
-            exists = metaSnapshot.exists();
-            if (!exists) {
-              // Already deleted, that's fine
-              return { success: true, memberId, alreadyDeleted: true };
-            }
-          } catch (checkError) {
-            if (checkError?.code === 'database/permission-denied') {
-              // Can't check, but we'll still try to delete
-              console.warn(`⚠️ Permission denied when checking metadata for ${memberId}, attempting deletion anyway...`);
-            } else {
-              throw checkError;
-            }
+            await deleteGroupMetaForUser(memberId, groupId);
+            return { success: true, memberId };
+          } catch (e) {
+            // Permission denied is expected for cross-member deletes
+            // when the caller isn't the row owner. Not fatal.
+            return { success: false, memberId, reason: e?.message || 'rls_denied' };
           }
-          
-          // Use remove() to explicitly delete the node
-          await remove(metaRef);
-          
-          // Verify deletion was successful (skip if permission denied)
-          try {
-            const verifySnapshot = await get(metaRef);
-            if (verifySnapshot.exists()) {
-              // Still exists, try fallback
-              console.warn(`⚠️ Remove() didn't delete metadata for ${memberId}, trying fallback...`);
-              await set(metaRef, null);
-              
-              // Verify again
-              try {
-                const verifySnapshot2 = await get(metaRef);
-                if (verifySnapshot2.exists()) {
-                  console.error(`❌ Failed to delete metadata for ${memberId} even with fallback`);
-                  return { success: false, memberId, reason: 'deletion_failed' };
-                }
-              } catch (verifyError) {
-                // If we can't verify due to permissions, assume success
-                if (verifyError?.code === 'database/permission-denied') {
-                  console.warn(`⚠️ Cannot verify deletion for ${memberId} due to permissions, assuming success`);
-                  return { success: true, memberId, assumedSuccess: true };
-                }
-                throw verifyError;
-              }
-            }
-          } catch (verifyError) {
-            // If we can't verify due to permissions, assume success
-            if (verifyError?.code === 'database/permission-denied') {
-              console.warn(`⚠️ Cannot verify deletion for ${memberId} due to permissions, assuming success`);
-              return { success: true, memberId, assumedSuccess: true };
-            }
-            throw verifyError;
-          }
-          
-          return { success: true, memberId };
-        } catch (metaError) {
-          // Handle permission errors gracefully
-          if (metaError?.code === 'database/permission-denied') {
-            console.warn(`⚠️ Permission denied when deleting metadata for ${memberId}. User may not have write access.`);
-            return { success: false, memberId, reason: 'permission_denied' };
-          }
-          
-          console.error(`❌ Error deleting group metadata for member ${memberId}:`, metaError.message || metaError);
-          // Fallback: try setting to null if remove fails
-          try {
-            const metaRef = ref(appdatabase, `group_meta_data/${memberId}/${groupId}`);
-            await set(metaRef, null);
-            
-            // Verify fallback worked (skip if permission denied)
-            try {
-              const verifySnapshot = await get(metaRef);
-              if (!verifySnapshot.exists()) {
-                return { success: true, memberId, usedFallback: true };
-              } else {
-                return { success: false, memberId, reason: 'fallback_failed' };
-              }
-            } catch (verifyError) {
-              if (verifyError?.code === 'database/permission-denied') {
-                console.warn(`⚠️ Cannot verify fallback deletion for ${memberId} due to permissions, assuming success`);
-                return { success: true, memberId, usedFallback: true, assumedSuccess: true };
-              }
-              throw verifyError;
-            }
-          } catch (fallbackError) {
-            if (fallbackError?.code === 'database/permission-denied') {
-              console.warn(`⚠️ Permission denied for fallback deletion of ${memberId}`);
-              return { success: false, memberId, reason: 'permission_denied' };
-            }
-            console.error(`❌ Fallback delete also failed for member ${memberId}:`, fallbackError.message || fallbackError);
-            return { success: false, memberId, reason: 'fallback_error', error: fallbackError.message };
-          }
-        }
-      });
-      
-      // Wait for all metadata deletions to complete and track results
-      const results = await Promise.all(deleteMetaPromises);
-      deletedCount = results.filter(r => r.success).length;
-      failedCount = results.filter(r => !r.success).length;
-      
-      // console.log(`✅ Deleted group metadata: ${deletedCount} successful, ${failedCount} failed out of ${allMemberIds.length} total`);
-      
+        }),
+      );
+      const failedCount = results.filter((r) => !r.success).length;
       if (failedCount > 0) {
-        const failedMembers = results.filter(r => !r.success).map(r => r.memberId);
-        console.error(`❌ Failed to delete metadata for members:`, failedMembers);
-        // Don't throw error, but log it for debugging
+        console.warn(`Could not delete group metadata for ${failedCount}/${allMemberIds.length} members (likely RLS — they'll self-clean on next list refresh).`);
       }
     } catch (metaError) {
-      console.error('❌ Critical error deleting group metadata:', metaError);
-      // Don't fail the entire operation, but log the error
+      console.error('❌ Error during group metadata cleanup:', metaError);
     }
 
     // Delete related invitations

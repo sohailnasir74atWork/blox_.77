@@ -51,9 +51,11 @@ import {
   getCountFromServer,
 } from '@react-native-firebase/firestore';
 import { ref, get, set } from '@react-native-firebase/database';
+import { getRoblox, getRoles, getCosmetics } from '../../Supabase/userBackend';
+import { SUPABASE_USERS_ENABLED } from '../../Supabase/featureFlags';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { banUserwithEmail, unbanUserWithEmail, setUserStrike, checkBanStatus, makeModerator, removeModerator, muteUser } from '../utils'; // ✅ Import moderator utils
+import { banUserwithEmail, unbanUserWithEmail, setUserStrike, checkBanStatus, makeModerator, removeModerator, muteUser, makeBabyMod, removeBabyMod, canModerate } from '../utils'; // ✅ Import moderator utils
 import { getAuth } from '@react-native-firebase/auth';
 
 // Initialize dayjs plugins
@@ -238,11 +240,48 @@ const ProfileBottomDrawer = ({
 
     const fetchUserData = async () => {
       try {
-        // ✅ OPTIMIZED: Only fetch fields that are NOT already in selectedUser
-        // This reduces Firebase reads from 6 potential reads to only what's missing
+        // ── Supabase path ────────────────────────────────────────────
+        // 3 batched lookups (roblox, roles, cosmetics) cover 11 of the
+        // 13 fields. lastGameWinAt + flage stay on RTDB (not migrated
+        // this phase — flage isn't in user_identity, lastGameWinAt is
+        // gameplay state we kept off the migration). Net: 13 RTDB
+        // reads → 3 Supabase + up to 2 RTDB reads.
+        if (SUPABASE_USERS_ENABLED) {
+          const [roblox, roles, cos, flageSnap, lastGameWinAtSnap] = await Promise.all([
+            getRoblox(selectedUserId),
+            getRoles(selectedUserId),
+            getCosmetics(selectedUserId),
+            !selectedUser?.flage
+              ? get(ref(appdatabase, `users/${selectedUserId}/flage`)).catch(() => null)
+              : Promise.resolve(null),
+            !selectedUser?.lastGameWinAt
+              ? get(ref(appdatabase, `users/${selectedUserId}/lastGameWinAt`)).catch(() => null)
+              : Promise.resolve(null),
+          ]);
+
+          if (roblox || roles || cos) {
+            if (!isMounted) return;
+            setUserData({
+              robloxUsername: roblox?.robloxUsername ?? null,
+              robloxUserId: roblox?.robloxUserId ?? null,
+              robloxUsernameVerified: !!roblox?.robloxUsernameVerified,
+              isPro: !!cos?.isPro,
+              lastGameWinAt: lastGameWinAtSnap?.exists() ? lastGameWinAtSnap.val() : null,
+              flage: flageSnap?.exists() ? flageSnap.val() : null,
+              isModerator: !!roles?.isModerator,
+              isAdmin: !!roles?.isAdmin,
+              isBabyMod: !!roles?.isBabyMod,
+              isTrusted: !!roles?.isTrusted,
+              isGrinder: !!roles?.isGrinder,
+              isRaider: !!roles?.isRaider,
+            });
+            return;
+          }
+        }
+
+        // ── RTDB fallback (original conditional fan-out) ─────────────
         const fieldsToFetch = [];
 
-        // Check each field and only add to fetch list if missing
         if (!selectedUser?.robloxUsername) {
           fieldsToFetch.push({ key: 'robloxUsername', path: `users/${selectedUserId}/robloxUsername` });
         }
@@ -259,38 +298,33 @@ const ProfileBottomDrawer = ({
           fieldsToFetch.push({ key: 'lastGameWinAt', path: `users/${selectedUserId}/lastGameWinAt` });
         }
         if (!selectedUser?.flage) {
-          fieldsToFetch.push({ key: 'flage', path: `users/${selectedUserId}/flage` }); // ✅ Only fetch if missing
+          fieldsToFetch.push({ key: 'flage', path: `users/${selectedUserId}/flage` });
         }
-        // ✅ Always fetch isModerator, isAdmin, and isBabyMod if missing
         fieldsToFetch.push({ key: 'isModerator', path: `users/${selectedUserId}/isModerator` });
         fieldsToFetch.push({ key: 'isAdmin', path: `users/${selectedUserId}/admin` });
         fieldsToFetch.push({ key: 'isBabyMod', path: `users/${selectedUserId}/isBabyMod` });
         fieldsToFetch.push({ key: 'isTrusted', path: `users/${selectedUserId}/isTrusted` });
-        fieldsToFetch.push({ key: 'isCMSR', path: `users/${selectedUserId}/isCMSR` });
         fieldsToFetch.push({ key: 'isGrinder', path: `users/${selectedUserId}/isGrinder` });
         fieldsToFetch.push({ key: 'isRaider', path: `users/${selectedUserId}/isRaider` });
 
-        // ✅ If all fields are already available, skip Firebase read entirely (0 reads = $0 cost)
         if (fieldsToFetch.length === 0) {
           setUserData(null);
           return;
         }
 
-        // ✅ Fetch only missing fields in parallel (minimal reads, maximum efficiency)
         const snapshots = await Promise.all(
           fieldsToFetch.map(({ path }) => get(ref(appdatabase, path)).catch(() => null))
         );
 
         if (!isMounted) return;
 
-        // ✅ Extract values and build result object
         const fetchedData = {};
         fieldsToFetch.forEach(({ key }, index) => {
           const snap = snapshots[index];
           if (snap?.exists()) {
             fetchedData[key] = snap.val();
           } else if (key === 'robloxUsernameVerified') {
-            fetchedData[key] = false; // Default for boolean
+            fetchedData[key] = false;
           } else {
             fetchedData[key] = null;
           }
@@ -337,7 +371,6 @@ const ProfileBottomDrawer = ({
       isModerator: userData?.isModerator || false,
       isBabyMod: userData?.isBabyMod || false,
       isTrusted: userData?.isTrusted || false,
-      isCMSR: userData?.isCMSR || false,
       isGrinder: userData?.isGrinder || false,
       isRaider: userData?.isRaider || false,
       isAdmin: userData?.isAdmin || false,
@@ -478,9 +511,16 @@ const ProfileBottomDrawer = ({
       Alert.alert(t('chat.error'), t('chat.email_not_found'));
       return;
     }
-    const targetIsAdmin = mergedUser?.isAdmin || false;
-    const targetIsMod = mergedUser?.isModerator || false;
-    if (!isAdmin && (targetIsAdmin || targetIsMod)) {
+    // Strict hierarchy: caller rank must exceed target rank. utils.js
+    // re-checks against fresh RTDB roles; this is the UX-friendly early
+    // bail so we don't open the reason modal for a guaranteed-no-op.
+    const callerRoles = { isAdmin, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod };
+    const targetRoles = {
+      isAdmin: !!mergedUser?.isAdmin,
+      isModerator: !!mergedUser?.isModerator,
+      isBabyMod: !!mergedUser?.isBabyMod,
+    };
+    if (!canModerate(callerRoles, targetRoles)) {
       Alert.alert(t('chat.permission_denied'), t('chat.mod_cannot_ban'));
       return;
     }
@@ -554,7 +594,7 @@ const ProfileBottomDrawer = ({
         { text: t('chat.cancel'), style: "cancel" },
         {
           text: t('chat.promote'), onPress: async () => {
-            const success = await makeModerator(selectedUserId);
+            const success = await makeModerator(selectedUserId, { isAdmin, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod });
             if (success) {
               setUserData(prev => ({ ...prev, isModerator: true }));
             }
@@ -572,7 +612,7 @@ const ProfileBottomDrawer = ({
         { text: t('chat.cancel'), style: "cancel" },
         {
           text: t('chat.remove'), style: "destructive", onPress: async () => {
-            const success = await removeModerator(selectedUserId);
+            const success = await removeModerator(selectedUserId, { isAdmin, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod });
             if (success) {
               setUserData(prev => ({ ...prev, isModerator: false }));
             }
@@ -590,12 +630,10 @@ const ProfileBottomDrawer = ({
         { text: t('chat.cancel'), style: 'cancel' },
         {
           text: t('chat.promote'), onPress: async () => {
-            try {
-              await set(ref(appdatabase, `users/${selectedUserId}/isBabyMod`), true);
+            const success = await makeBabyMod(selectedUserId, { isAdmin, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod });
+            if (success) {
               setUserData(prev => ({ ...prev, isBabyMod: true }));
               Alert.alert('Success', 'User is now a JMD.');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to promote user to JMD.');
             }
           }
         }
@@ -611,12 +649,10 @@ const ProfileBottomDrawer = ({
         { text: t('chat.cancel'), style: 'cancel' },
         {
           text: t('chat.remove'), style: 'destructive', onPress: async () => {
-            try {
-              await set(ref(appdatabase, `users/${selectedUserId}/isBabyMod`), null);
+            const success = await removeBabyMod(selectedUserId, { isAdmin, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod });
+            if (success) {
               setUserData(prev => ({ ...prev, isBabyMod: false }));
               Alert.alert('Success', 'JMD privileges removed.');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to remove JMD status.');
             }
           }
         }
@@ -657,48 +693,6 @@ const ProfileBottomDrawer = ({
               await set(ref(appdatabase, `users/${selectedUserId}/isTrusted`), null);
               setUserData(prev => ({ ...prev, isTrusted: false }));
               Alert.alert('Success', 'Trusted status removed.');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to update status.');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  const handleMakeCMSR = () => {
-    Alert.alert(
-      'Make CMSR',
-      `Assign CMSR status to ${userName}?`,
-      [
-        { text: t('chat.cancel'), style: 'cancel' },
-        {
-          text: 'Confirm', onPress: async () => {
-            try {
-              await set(ref(appdatabase, `users/${selectedUserId}/isCMSR`), true);
-              setUserData(prev => ({ ...prev, isCMSR: true }));
-              Alert.alert('Success', 'User is now CMSR.');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to update status.');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  const handleRemoveCMSR = () => {
-    Alert.alert(
-      'Remove CMSR',
-      `Remove CMSR status from ${userName}?`,
-      [
-        { text: t('chat.cancel'), style: 'cancel' },
-        {
-          text: 'Remove', style: 'destructive', onPress: async () => {
-            try {
-              await set(ref(appdatabase, `users/${selectedUserId}/isCMSR`), null);
-              setUserData(prev => ({ ...prev, isCMSR: false }));
-              Alert.alert('Success', 'CMSR status removed.');
             } catch (error) {
               Alert.alert('Error', 'Failed to update status.');
             }
@@ -798,9 +792,13 @@ const ProfileBottomDrawer = ({
       Alert.alert(t('chat.error'), t('chat.email_not_found'));
       return;
     }
-    const targetIsAdmin = mergedUser?.isAdmin || false;
-    const targetIsMod = mergedUser?.isModerator || false;
-    if (!isAdmin && (targetIsAdmin || targetIsMod)) {
+    const callerRoles = { isAdmin, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod };
+    const targetRoles = {
+      isAdmin: !!mergedUser?.isAdmin,
+      isModerator: !!mergedUser?.isModerator,
+      isBabyMod: !!mergedUser?.isBabyMod,
+    };
+    if (!canModerate(callerRoles, targetRoles)) {
       Alert.alert(t('chat.permission_denied'), t('chat.mod_cannot_ban'));
       return;
     }
@@ -816,10 +814,24 @@ const ProfileBottomDrawer = ({
     if (!reasonActionType) return;
     setShowReasonModal(false);
 
-    const bannerInfo = { id: user?.id, displayName: user?.userName || user?.displayName || 'Admin', avatar: user?.avatar };
+    const bannerInfo = {
+      id: user?.id,
+      displayName: user?.userName || user?.displayName || 'Admin',
+      avatar: user?.avatar,
+      // Caller role flags — utils.js gates strike/mute against these.
+      isAdmin: !!isAdmin,
+      isModerator: !!isGlobalModerator,
+      isBabyMod: !!isGlobalBabyMod,
+    };
     const userInfo = {
+      id: selectedUserId,
       displayName: mergedUser?.displayName || mergedUser?.sender || userName,
-      avatar: mergedUser?.avatar
+      avatar: mergedUser?.avatar,
+      // Target role flags as a fallback; utils.js will still re-fetch
+      // from RTDB so a stale mergedUser can't bypass the gate.
+      isAdmin: !!mergedUser?.isAdmin,
+      isModerator: !!mergedUser?.isModerator,
+      isBabyMod: !!mergedUser?.isBabyMod,
     };
     const actionEmail = reasonActionType.email;
     if (!actionEmail) {
@@ -2671,7 +2683,9 @@ const ProfileBottomDrawer = ({
             </View>
 
             {/* ═══ MOD TOOLS (Collapsible Toggle) ═══ */}
-            {(isAdmin || isGlobalModerator || isGlobalBabyMod) && (
+            {/* Self-target guard: a JMD/mod must not see mod tools on their
+                own profile — that's how the self-mute "reset" trick worked. */}
+            {(isAdmin || isGlobalModerator || isGlobalBabyMod) && selectedUserId !== user?.id && (
               <View style={{ marginBottom: 8 }}>
                 <TouchableOpacity
                   onPress={() => setShowModTools(prev => !prev)}
@@ -2790,12 +2804,6 @@ const ProfileBottomDrawer = ({
                               label={mergedUser?.isTrusted ? 'Remove Trusted' : 'Make Trusted'}
                               color={mergedUser?.isTrusted ? '#f59e0b' : '#10b981'}
                               onPress={mergedUser?.isTrusted ? handleRemoveTrusted : handleMakeTrusted}
-                            />
-                            {/* Make/Remove CMSR - Admin & Mod */}
-                            <Chip
-                              label={mergedUser?.isCMSR ? 'Remove CMSR' : 'Make CMSR'}
-                              color={mergedUser?.isCMSR ? '#f59e0b' : '#6366f1'}
-                              onPress={mergedUser?.isCMSR ? handleRemoveCMSR : handleMakeCMSR}
                             />
                             {/* Make/Remove Grinder - Admin & Mod */}
                             <Chip

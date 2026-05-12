@@ -11,6 +11,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   TextInput,
+  Pressable,
+  Keyboard,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../../GlobelStats';
@@ -30,6 +32,8 @@ import FramedAvatar from './FramedAvatar';
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
 import { sendGameInvite, isUserInActiveGame } from '../../ValuesScreen/PetGuessingGame/utils/gameInviteSystem';
 import { getUserData, cacheUserData } from '../../Helper/UserDataCache';
+import { getIdentityBatch, getRolesBatch, getRobloxBatch, getCosmeticsBatch } from '../../Supabase/userBackend';
+import { SUPABASE_USERS_ENABLED } from '../../Supabase/featureFlags';
 const INITIAL_LOAD = 5; // Fetch first 10 online users
 const LOAD_MORE = 5; // Load 5 more on scroll
 const MAX_GROUP_MEMBERS = 100;
@@ -143,14 +147,79 @@ const OnlineUsersList = ({
         }
       });
 
-      // ✅ STEP 2: Only fetch uncached users from Firebase
-      // This reduces data transfer significantly (from ~100KB to ~2-5KB per user)
+      // STEP 2: Fetch uncached users.
+      //
+      // Supabase path: 4 batched lookups for ALL uncachedIds in one
+      // round-trip each (identity, roles, roblox, cosmetics). Per-user
+      // we still hit RTDB twice for the two non-migrated fields
+      // (lastGameWinAt + isPlaying). For uids the mirror hasn't seen
+      // yet, fall through to the original 14-field per-user fan-out.
+      //
+      // Cost: was 14×N RTDB reads. Now 4 Supabase + 2×N RTDB. For
+      // N=10 that's ~84% reduction.
+      let identityBatch = new Map();
+      let rolesBatch = new Map();
+      let robloxBatch = new Map();
+      let cosmeticsBatch = new Map();
+      let supaHits = new Set();
+      if (SUPABASE_USERS_ENABLED && uncachedIds.length > 0) {
+        try {
+          [identityBatch, rolesBatch, robloxBatch, cosmeticsBatch] = await Promise.all([
+            getIdentityBatch(uncachedIds),
+            getRolesBatch(uncachedIds),
+            getRobloxBatch(uncachedIds),
+            getCosmeticsBatch(uncachedIds),
+          ]);
+          // A uid counts as a "supa hit" only if identity is present —
+          // identity has displayName+avatar which are required for the
+          // tile to render. Roles/cosmetics may legitimately be empty.
+          for (const uid of uncachedIds) {
+            if (identityBatch.has(uid)) supaHits.add(uid);
+          }
+        } catch (e) {
+          // Any Supabase error → fall through; per-user RTDB fallback fires.
+          supaHits = new Set();
+        }
+      }
+
       const userPromises = uncachedIds.map(async (userId) => {
         try {
-          // ✅ Fetch only the fields we need (parallel requests to specific child paths)
+          // ── Supabase path (when batch hit) ────────────────────────
+          if (supaHits.has(userId)) {
+            const id = identityBatch.get(userId);
+            const roles = rolesBatch.get(userId);
+            const cos = cosmeticsBatch.get(userId);
+            const rob = robloxBatch.get(userId);
+
+            const [lastGameWinAtSnap, isPlayingSnap] = await Promise.all([
+              get(ref(appdatabase, `users/${userId}/lastGameWinAt`)).catch(() => null),
+              get(ref(appdatabase, `users/${userId}/isPlaying`)).catch(() => null),
+            ]);
+
+            const userData = {
+              id: userId,
+              displayName: id.displayName || 'Anonymous',
+              avatar: id.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+              isPro: !!cos?.isPro,
+              robloxUsernameVerified: !!rob?.robloxUsernameVerified,
+              lastGameWinAt: lastGameWinAtSnap?.exists() ? lastGameWinAtSnap.val() : null,
+              isAdmin: !!roles?.isAdmin,
+              OS: id.OS || null,
+              isPlaying: !!(isPlayingSnap?.exists() && isPlayingSnap.val()),
+              isModerator: !!roles?.isModerator,
+              isBabyMod: !!roles?.isBabyMod,
+              isTrusted: !!roles?.isTrusted,
+              isGrinder: !!roles?.isGrinder,
+              isRaider: !!roles?.isRaider,
+            };
+            cacheUserData(userId, userData);
+            return userData;
+          }
+
+          // ── RTDB fallback (original 14-field fan-out) ─────────────
           const [displayNameSnap, avatarSnap, isProSnap, robloxUsernameVerifiedSnap,
             lastGameWinAtSnap, isAdminSnap, OSSnap, isPlayingSnap,
-            isModeratorSnap, isBabyModSnap, isTrustedSnap, isCMSRSnap, isGrinderSnap, isRaiderSnap] = await Promise.all([
+            isModeratorSnap, isBabyModSnap, isTrustedSnap, isGrinderSnap, isRaiderSnap] = await Promise.all([
               get(ref(appdatabase, `users/${userId}/displayName`)).catch(() => null),
               get(ref(appdatabase, `users/${userId}/avatar`)).catch(() => null),
               get(ref(appdatabase, `users/${userId}/isPro`)).catch(() => null),
@@ -162,15 +231,11 @@ const OnlineUsersList = ({
               get(ref(appdatabase, `users/${userId}/isModerator`)).catch(() => null),
               get(ref(appdatabase, `users/${userId}/isBabyMod`)).catch(() => null),
               get(ref(appdatabase, `users/${userId}/isTrusted`)).catch(() => null),
-              get(ref(appdatabase, `users/${userId}/isCMSR`)).catch(() => null),
               get(ref(appdatabase, `users/${userId}/isGrinder`)).catch(() => null),
               get(ref(appdatabase, `users/${userId}/isRaider`)).catch(() => null),
             ]);
 
-          // ✅ Extract values (only if snapshots exist)
           const displayName = displayNameSnap?.exists() ? displayNameSnap.val() : null;
-
-          // If no displayName found, user might not exist - return null
           if (!displayNameSnap || (!displayNameSnap.exists() && !avatarSnap?.exists())) {
             return null;
           }
@@ -189,14 +254,11 @@ const OnlineUsersList = ({
             isModerator: !!(isModeratorSnap?.exists() && isModeratorSnap.val()),
             isBabyMod: !!(isBabyModSnap?.exists() && isBabyModSnap.val()),
             isTrusted: !!(isTrustedSnap?.exists() && isTrustedSnap.val()),
-            isCMSR: !!(isCMSRSnap?.exists() && isCMSRSnap.val()),
             isGrinder: !!(isGrinderSnap?.exists() && isGrinderSnap.val()),
             isRaider: !!(isRaiderSnap?.exists() && isRaiderSnap.val()),
           };
 
-          // ✅ STEP 3: Cache the fetched user data for future use
           cacheUserData(userId, userData);
-
           return userData;
         } catch (error) {
           console.error(`Error fetching user ${userId}:`, error);
@@ -757,8 +819,10 @@ const OnlineUsersList = ({
     );
   }, [styles, handleStartChat, isDarkMode, isSelectionMode, selectedUserIds, mode, invitingIds, invitedIds, handleGameInvite]);
 
-  // ✅ Memoize key extractor
-  const keyExtractor = useCallback((item) => item?.id || Math.random().toString(), []);
+  // ✅ Memoize key extractor. NEVER use Math.random() as a fallback — it makes
+  // the same item produce a different key on every render, forcing FlatList to
+  // tear down + remount the row (huge perf hit on the initial open).
+  const keyExtractor = useCallback((item, index) => item?.id || `idx-${index}`, []);
 
   return (
     <Modal
@@ -767,19 +831,32 @@ const OnlineUsersList = ({
       transparent={true}
       onRequestClose={onClose}
     >
-      <TouchableOpacity
-        style={styles.modalOverlay}
-        activeOpacity={1}
-        onPress={onClose}
-      >
+      <View style={styles.modalOverlay}>
+        {/* Tap-outside-to-dismiss backdrop. Sits BEHIND the KAV+content so
+            taps on the modal body never bubble to it. The previous
+            TouchableOpacity-wraps-everything pattern bubbled keyboard
+            dismissals up here and closed the modal mid-typing. */}
+        <Pressable
+          style={StyleSheet.absoluteFillObject}
+          onPress={onClose}
+        />
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1, justifyContent: 'flex-end' }}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+          pointerEvents="box-none"
+          keyboardVerticalOffset={0}
         >
-          <View
+          {/* Pressable wrapper dismisses the keyboard on taps to "dead"
+              areas of the modal body (header chrome, tab bar gutters,
+              footer text). Child TouchableOpacity / TextInput / FlatList
+              items capture their own touches via the responder system, so
+              their behavior is unchanged. Without this wrapper the only
+              way to dismiss the keyboard was to tap the backdrop, which
+              also closed the entire modal. */}
+          <Pressable
             style={styles.modalContent}
-            onStartShouldSetResponder={() => true}
+            onPress={Keyboard.dismiss}
+            android_disableSound={true}
           >
             {/* Header */}
             <View style={styles.header}>
@@ -966,9 +1043,10 @@ const OnlineUsersList = ({
                 contentContainerStyle={styles.listContent}
                 showsVerticalScrollIndicator={false}
                 removeClippedSubviews={false}
-                maxToRenderPerBatch={5}
-                windowSize={5}
-                initialNumToRender={5}
+                maxToRenderPerBatch={8}
+                updateCellsBatchingPeriod={50}
+                windowSize={7}
+                initialNumToRender={10}
                 onEndReached={handleLoadMore}
                 onEndReachedThreshold={0.5}
                 keyboardShouldPersistTaps="handled"
@@ -1000,9 +1078,9 @@ const OnlineUsersList = ({
                 }
               </Text>
             </View>
-          </View>
+          </Pressable>
         </KeyboardAvoidingView>
-      </TouchableOpacity>
+      </View>
 
       {/* Create Group Modal */}
       <CreateGroupModal
@@ -1029,8 +1107,13 @@ const getStyles = (isDark) =>
       backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
       borderTopLeftRadius: 20,
       borderTopRightRadius: 20,
-      maxHeight: 500,
-      minHeight: 400,
+      // height + maxHeight pair: target a fixed-ish drawer size, but cap
+      // at 85% of the KAV's current height so the keyboard always has
+      // space and the inner FlatList (flex:1) has a bounded parent to
+      // render inside. Without an explicit height the FlatList collapses
+      // to 0 in an auto-sized parent.
+      height: 520,
+      maxHeight: '85%',
     },
     header: {
       flexDirection: 'row',

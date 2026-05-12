@@ -62,6 +62,14 @@ const config = {
       black: 'black'
     },
 
+  // ── Supabase ────────────────────────────────────────────────────────────────
+  // Project: jaimyhmanefvrijvjzxl (ap-southeast-1)
+  // The publishable (anon) key is safe to ship — RLS protects data. The
+  // service role key is NEVER here; it lives in Firebase secrets and is read
+  // by Cloud Functions only. See SUPABASE_MIGRATION.md for full setup.
+  supabaseUrl: 'https://jaimyhmanefvrijvjzxl.supabase.co',
+  supabasePublishableKey: 'sb_publishable_lyvHMrAaua8qO2caLBdejA_jKv48Fng',
+
   // ── Unified Dark Mode Palette (Slate-based) ─────────────────────────────────
   darkColors: {
     bg: '#0f172a',   // Slate-900 — main screen background

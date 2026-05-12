@@ -1,7 +1,7 @@
 import React, { useMemo, useCallback, useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
-  Image, Platform, Dimensions, Share, StatusBar, Modal, Animated, Linking,
+  Image, Platform, Dimensions, Share, StatusBar, Modal, Animated, Linking, AppState,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
@@ -14,6 +14,7 @@ import { setAppLanguage } from '../../i18n';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { doc, getDoc, collection, query, where, limit, getDocs } from '@react-native-firebase/firestore';
 import { ref as dbRef, onValue } from '@react-native-firebase/database';
+import { getServerTime, getServerTimeQuick } from '../Helper/serverTime';
 
 import { getStarStatus } from '../Engagement/starUtils';
 import { getLevelFromXP, getXPProgress } from '../Engagement/xpUtils';
@@ -57,7 +58,7 @@ const AVAILABLE_LANGUAGES = [
 
 
 const HomeTabScreen = ({ selectedTheme }) => {
-  const { theme, user, appdatabase, firestoreDB, strikeInfo, isUserBlocked } = useGlobalState();
+  const { theme, user, appdatabase, firestoreDB, strikeInfo, deviceBanInfo, isUserBlocked } = useGlobalState();
   const { localState, updateLocalState } = useLocalState();
   const { t, i18n } = useTranslation();
   const navigation = useNavigation();
@@ -191,6 +192,46 @@ const HomeTabScreen = ({ selectedTheme }) => {
     getStarStatus(appdatabase, user.id).then(s => setCanClaimStar(!!s?.canClaim));
   }, [user?.id, appdatabase]);
 
+  // Ban-card countdown freshness.
+  //
+  // The card uses getServerTimeQuick() — Date.now() + cached probe offset.
+  // If the user rolls their device clock forward, that offset goes stale
+  // and the displayed countdown drops to 0 ("Expired") even though the
+  // ban gate (which force-probes server time) is still blocking access.
+  //
+  // Two things to fix:
+  //   1) Force a fresh probe on mount + AppState 'active' + every 60s, so
+  //      the offset is corrected within seconds of the user reopening the
+  //      app or every minute while it sits open.
+  //   2) Tick a state variable so the inline countdown re-renders against
+  //      the now-fresh offset.
+  const [serverTimeTick, setServerTimeTick] = useState(0);
+  useEffect(() => {
+    if (!isUserBlocked || !appdatabase) return;
+
+    let cancelled = false;
+    const probeUid = user?.id || 'anon';
+
+    const refresh = async () => {
+      try {
+        await getServerTime(appdatabase, probeUid, true);
+      } catch (_) { /* fall through — keep prior offset */ }
+      if (!cancelled) setServerTimeTick((t) => t + 1);
+    };
+
+    refresh();
+    const interval = setInterval(refresh, 60_000);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refresh();
+    });
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      sub.remove();
+    };
+  }, [isUserBlocked, appdatabase, user?.id]);
+
   // Parse fruit data for value lookup
   const parsedData = useMemo(() => {
     try {
@@ -217,7 +258,7 @@ const HomeTabScreen = ({ selectedTheme }) => {
   // Quick Action Items
   const quickActions = useMemo(() => [
     { key: 'values', icon: 'lemon', label: t('home_tab.action_values', { defaultValue: 'Values' }), color: '#2563EB', onPress: () => navigation.navigate('FruitValuesStack') },
-    { key: 'top_traders', icon: 'trophy', label: t('home_tab.action_top_traders', { defaultValue: 'Top Traders' }), color: '#10B981', onPress: () => navigation.navigate('LeaderboardStack') },
+    { key: 'leaderboard', icon: 'medal', label: t('home_tab.action_leaderboard', { defaultValue: 'Leaderboard' }), color: '#F59E0B', onPress: () => navigation.navigate('LeaderboardStack') },
     { key: 'stars', icon: 'star', label: t('home_tab.action_stars', { defaultValue: 'Stars' }), color: '#FB923C', onPress: () => requireSignIn(() => navigation.navigate('BadgesScreen'), t('home_tab.signin_claim_stars', { defaultValue: 'Sign in to claim stars' })), hasBadge: canClaimStar },
     { key: 'cosmetics', icon: 'shirt', label: t('home_tab.action_cosmetics', { defaultValue: 'My Cosmetics' }), color: '#EC4899', onPress: () => requireSignIn(() => navigation.navigate('CosmeticsScreen'), t('home_tab.signin_cosmetics', { defaultValue: 'Sign in to access cosmetics' })) },
     { key: 'following', icon: 'heart', label: t('home_tab.action_friends', { defaultValue: 'Friends' }), color: '#A855F7', onPress: () => requireSignIn(() => navigation.navigate('SocialDashboardScreen'), t('home_tab.signin_friends', { defaultValue: 'Sign in to see friends' })) },
@@ -370,74 +411,140 @@ const HomeTabScreen = ({ selectedTheme }) => {
         {/* Page content with background */}
         <View style={{ backgroundColor: selectedTheme.colors.background }}>
 
-          {/* ═══ BAN STATUS CARD (only visible when actively banned) ═══ */}
-          {isUserBlocked && strikeInfo && (
-            <View style={{
-              marginHorizontal: 16,
-              marginTop: 14,
-              marginBottom: 4,
-              borderRadius: 16,
-              overflow: 'hidden',
-              borderWidth: 1.5,
-              borderColor: isDarkMode ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.2)',
-            }}>
-              {/* Red header */}
+          {/* ═══ BAN STATUS CARD ═══
+              Three cases handled:
+                1. Direct ban (this email is in banned_users_by_email)
+                   → strikeInfo populated. Existing copy.
+                2. Associated-device ban (a different account on this device
+                   was banned, so this device is locked too)
+                   → only deviceBanInfo populated. Surfaces the originating
+                     email so the user understands why a fresh email didn't
+                     restore access.
+                3. Both — direct ban wins (it's the primary signal).
+          */}
+          {isUserBlocked && (strikeInfo || deviceBanInfo) && (() => {
+            const info = strikeInfo || deviceBanInfo;
+            const isAssociatedBan = !strikeInfo && !!deviceBanInfo;
+            const associatedEmail = deviceBanInfo?.email || null;
+            const isPermanent = info.bannedUntil === 'permanent';
+            return (
               <View style={{
-                backgroundColor: isDarkMode ? 'rgba(239,68,68,0.15)' : '#FEF2F2',
-                paddingVertical: 12,
-                paddingHorizontal: 16,
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 10,
+                marginHorizontal: 16,
+                marginTop: 14,
+                marginBottom: 4,
+                borderRadius: 16,
+                overflow: 'hidden',
+                borderWidth: 1.5,
+                borderColor: isDarkMode ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.2)',
               }}>
+                {/* Red header */}
                 <View style={{
-                  width: 36, height: 36, borderRadius: 18,
-                  backgroundColor: isDarkMode ? 'rgba(239,68,68,0.25)' : '#FEE2E2',
-                  alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <Ionicons name="ban" size={18} color="#EF4444" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#EF4444' }}>
-                    {strikeInfo.bannedUntil === 'permanent'
-                      ? t('home_tab.ban_permanent', { defaultValue: 'Account Permanently Banned' })
-                      : t('home_tab.ban_temporary', { defaultValue: 'Account Temporarily Restricted' })}
-                  </Text>
-                  <Text style={{ fontSize: 11, color: isDarkMode ? '#f87171' : '#DC2626', marginTop: 2 }}>
-                    {t('home_tab.ban_strike', { defaultValue: `Strike ${strikeInfo.strikeCount || 1}`, count: strikeInfo.strikeCount || 1 })}
-                    {' • '}
-                    {strikeInfo.bannedUntil === 'permanent'
-                      ? t('home_tab.ban_permanent_label', { defaultValue: 'Permanent' })
-                      : (() => {
-                          const diff = (strikeInfo.bannedUntil || 0) - Date.now();
-                          if (diff <= 0) return t('home_tab.ban_expired', { defaultValue: 'Expired' });
-                          const hrs = Math.floor(diff / (1000 * 60 * 60));
-                          const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                          if (hrs > 24) return t('home_tab.ban_time_days', { defaultValue: `${Math.floor(hrs / 24)}d ${hrs % 24}h remaining`, days: Math.floor(hrs / 24), hours: hrs % 24 });
-                          if (hrs > 0) return t('home_tab.ban_time_hours', { defaultValue: `${hrs}h ${mins}m remaining`, hours: hrs, minutes: mins });
-                          return t('home_tab.ban_time_minutes', { defaultValue: `${mins}m remaining`, minutes: mins });
-                        })()
-                    }
-                  </Text>
-                </View>
-              </View>
-              {/* Reason body */}
-              {strikeInfo.reason && (
-                <View style={{
-                  paddingHorizontal: 16,
+                  backgroundColor: isDarkMode ? 'rgba(239,68,68,0.15)' : '#FEF2F2',
                   paddingVertical: 12,
-                  backgroundColor: isDarkMode ? 'rgba(239,68,68,0.06)' : '#FFFBFB',
+                  paddingHorizontal: 16,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 10,
                 }}>
-                  <Text style={{ fontSize: 10, fontWeight: '600', color: isDarkMode ? '#888' : '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>
-                    {t('home_tab.ban_reason_label', { defaultValue: 'Reason' })}
-                  </Text>
-                  <Text style={{ fontSize: 13, color: isDarkMode ? '#e5e5e5' : '#374151', lineHeight: 18 }}>
-                    {strikeInfo.reason}
-                  </Text>
+                  <View style={{
+                    width: 36, height: 36, borderRadius: 18,
+                    backgroundColor: isDarkMode ? 'rgba(239,68,68,0.25)' : '#FEE2E2',
+                    alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Ionicons name={isAssociatedBan ? 'phone-portrait' : 'ban'} size={18} color="#EF4444" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#EF4444' }}>
+                      {isAssociatedBan
+                        ? (isPermanent
+                            ? t('home_tab.ban_associated_permanent', { defaultValue: 'Device Permanently Restricted' })
+                            : t('home_tab.ban_associated_temporary', { defaultValue: 'Device Temporarily Restricted' }))
+                        : (isPermanent
+                            ? t('home_tab.ban_permanent', { defaultValue: 'Account Permanently Banned' })
+                            : t('home_tab.ban_temporary', { defaultValue: 'Account Temporarily Restricted' }))}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: isDarkMode ? '#f87171' : '#DC2626', marginTop: 2 }}>
+                      {t('home_tab.ban_strike', { defaultValue: `Strike ${info.strikeCount || 1}`, count: info.strikeCount || 1 })}
+                      {' • '}
+                      {isPermanent
+                        ? t('home_tab.ban_permanent_label', { defaultValue: 'Permanent' })
+                        : (() => {
+                            // Cosmetic countdown — use the cached server-time
+                            // estimate so a rolled device clock doesn't make
+                            // the timer disagree with the (server-validated)
+                            // ban gate. The actual expiry decision lives in
+                            // GlobelStats and uses an authoritative probe.
+                            //
+                            // serverTimeTick is read here so the IIFE re-runs
+                            // when the periodic probe in this component
+                            // refreshes the cached offset.
+                            void serverTimeTick;
+                            const diff = (info.bannedUntil || 0) - getServerTimeQuick().getTime();
+                            if (diff <= 0) {
+                              // Gate says blocked but cached offset says
+                              // expired — almost certainly a stale probe (e.g.
+                              // user rolled the clock and the next refresh
+                              // hasn't landed yet). Don't lie with "Expired"
+                              // when the gate is still up; the next tick
+                              // will replace this with a real countdown.
+                              return t('home_tab.ban_verifying', { defaultValue: 'Verifying…' });
+                            }
+                            const hrs = Math.floor(diff / (1000 * 60 * 60));
+                            const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                            if (hrs > 24) return t('home_tab.ban_time_days', { defaultValue: `${Math.floor(hrs / 24)}d ${hrs % 24}h remaining`, days: Math.floor(hrs / 24), hours: hrs % 24 });
+                            if (hrs > 0) return t('home_tab.ban_time_hours', { defaultValue: `${hrs}h ${mins}m remaining`, hours: hrs, minutes: mins });
+                            return t('home_tab.ban_time_minutes', { defaultValue: `${mins}m remaining`, minutes: mins });
+                          })()
+                      }
+                    </Text>
+                  </View>
                 </View>
-              )}
-            </View>
-          )}
+
+                {/* Why-you're-seeing-this — associated ban only */}
+                {isAssociatedBan && (
+                  <View style={{
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    backgroundColor: isDarkMode ? 'rgba(239,68,68,0.06)' : '#FFFBFB',
+                    borderTopWidth: StyleSheet.hairlineWidth,
+                    borderTopColor: isDarkMode ? 'rgba(255,255,255,0.06)' : '#FCE4E4',
+                  }}>
+                    <Text style={{ fontSize: 10, fontWeight: '600', color: isDarkMode ? '#888' : '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>
+                      {t('home_tab.ban_why_label', { defaultValue: 'Why you are seeing this' })}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: isDarkMode ? '#e5e5e5' : '#374151', lineHeight: 18 }}>
+                      {associatedEmail
+                        ? t('home_tab.ban_associated_with_email', {
+                            defaultValue: `This device is linked to a banned account (${associatedEmail}). Signing in with a different email won't restore access.`,
+                            email: associatedEmail,
+                          })
+                        : t('home_tab.ban_associated_no_email', {
+                            defaultValue: "This device is linked to a banned account. Signing in with a different email won't restore access.",
+                          })}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Reason body */}
+                {info.reason && (
+                  <View style={{
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    backgroundColor: isDarkMode ? 'rgba(239,68,68,0.06)' : '#FFFBFB',
+                    borderTopWidth: isAssociatedBan ? StyleSheet.hairlineWidth : 0,
+                    borderTopColor: isDarkMode ? 'rgba(255,255,255,0.06)' : '#FCE4E4',
+                  }}>
+                    <Text style={{ fontSize: 10, fontWeight: '600', color: isDarkMode ? '#888' : '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>
+                      {t('home_tab.ban_reason_label', { defaultValue: 'Reason' })}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: isDarkMode ? '#e5e5e5' : '#374151', lineHeight: 18 }}>
+                      {info.reason}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            );
+          })()}
 
           {/* QUICK ACTIONS */}
           <View style={styles.quickActionsRow}>

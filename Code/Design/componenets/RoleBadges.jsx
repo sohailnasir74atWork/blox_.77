@@ -23,11 +23,10 @@ const RoleBadges = ({ userItem, style, cacheVersion }) => {
   const isModerator = (isCurrentUser && isGlobalModerator) || (cachedUser.isModerator ?? cachedProfile.isModerator ?? userItem.isModerator ?? false);
   const isJMD = cachedUser.isBabyMod ?? cachedProfile.isBabyMod ?? userItem.isBabyMod ?? false;
   const isTrusted = cachedUser.isTrusted ?? cachedProfile.isTrusted ?? userItem.isTrusted ?? false;
-  const isCMSR = cachedUser.isCMSR ?? cachedProfile.isCMSR ?? userItem.isCMSR ?? false;
   const isGrinder = cachedUser.isGrinder ?? cachedProfile.isGrinder ?? userItem.isGrinder ?? false;
   const isRaider = cachedUser.isRaider ?? cachedProfile.isRaider ?? userItem.isRaider ?? false;
 
-  if (!isAdmin && !isModerator && !isJMD && !isTrusted && !isCMSR && !isGrinder && !isRaider) {
+  if (!isAdmin && !isModerator && !isJMD && !isTrusted && !isGrinder && !isRaider) {
     return null;
   }
 
@@ -55,12 +54,6 @@ const RoleBadges = ({ userItem, style, cacheVersion }) => {
         <View style={styles.roleBadge_trusted}>
           <Ionicons name="checkmark-circle" size={8} color="#fff" />
           <Text style={styles.roleBadgeText}>Trusted</Text>
-        </View>
-      )}
-      {isCMSR && (
-        <View style={styles.roleBadge_cmsr}>
-          <Ionicons name="briefcase" size={8} color="#fff" />
-          <Text style={styles.roleBadgeText}>CMSR</Text>
         </View>
       )}
       {isGrinder && (
@@ -101,10 +94,6 @@ const styles = StyleSheet.create({
   },
   roleBadge_trusted: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#10B981',
-    paddingHorizontal: 4, paddingVertical: 1, borderRadius: 5, gap: 2,
-  },
-  roleBadge_cmsr: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#F97316',
     paddingHorizontal: 4, paddingVertical: 1, borderRadius: 5, gap: 2,
   },
   roleBadge_grinder: {

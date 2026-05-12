@@ -26,7 +26,7 @@ import leoProfanity from 'leo-profanity';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import { useLocalState } from '../../LocalGlobelStats';
-import database, { onValue, ref, remove, get, query as dbQuery, orderByKey, limitToLast, endAt, onChildAdded, push, set, child, serverTimestamp } from '@react-native-firebase/database';
+import database, { onValue, ref, get, query as dbQuery, orderByKey, limitToLast, endAt } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
 import { mixpanel } from '../../AppHelper/MixPenel';
 import InterstitialAdManager from '../../Ads/IntAd';
@@ -35,6 +35,20 @@ import { logoutUser } from '../../Firebase/UserLogics';
 import { showMessage } from 'react-native-flash-message';
 import PetModal from '../PrivateChat/PetsModel';
 import { getCachedProfile, getOrFetchProfile, seedCurrentUser, warmProfileCache } from '../../Helper/profileCache';
+import {
+  subscribeToMessages,
+  subscribeToPinned,
+  loadMessages as loadMessagesFromSupabase,
+  loadPinnedMessages as loadPinnedMessagesFromSupabase,
+  sendMessage as sbSendMessage,
+  newClientMsgId,
+  pinMessage as sbPinMessage,
+  unpinMessage as sbUnpinMessage,
+  clearPinnedForRoom as sbClearPinnedForRoom,
+  softDeleteMessage as sbSoftDeleteMessage,
+  softDeleteMessageByRtdbKey as sbSoftDeleteMessageByRtdbKey,
+} from '../../Supabase/chatBackend';
+import { SUPABASE_PUBLIC_CHAT_ENABLED } from '../../Supabase/featureFlags';
 // getMyCosmetics no longer needed — cosmetics resolved from profileCache on render
 
 leoProfanity.add(['hell', 'shit']);
@@ -63,7 +77,7 @@ const CHANNELS = [
 const bannerAdUnitId = getAdUnitId('banner');
 const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatFocused,
   setModalVisibleChatinfo, unreadMessagesCount, unreadcount, setunreadcount, onlineUsersVisible, setOnlineUsersVisible }) => {
-  const { user, theme, onlineMembersCount, appdatabase, setUser, isAdmin, proTagBought, currentUserEmail, proGranted, strikeInfo, isBabyMod, isTrusted, isCMSR, isGrinder, isRaider } = useGlobalState();
+  const { user, theme, onlineMembersCount, appdatabase, setUser, isAdmin, proTagBought, currentUserEmail, proGranted, strikeInfo, isBabyMod, isTrusted, isGrinder, isRaider, isUserBlocked } = useGlobalState();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [replyTo, setReplyTo] = useState(null);
@@ -101,8 +115,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   const flatListRef = useRef();
   const gifAllowed = true; // Always allow GIFs/emojis
 
+  // Kept for the RTDB-fallback path (kill switch). Not used for writes.
   const chatRef = useMemo(() => ref(appdatabase, activeChannel.path), [activeChannel.path]);
-  const pinnedMessagesRef = useMemo(() => appdatabase ? ref(appdatabase, 'pin_messages') : null, [appdatabase]);
 
   // ✅ Memoize openProfileDrawer
   const openProfileDrawer = useCallback(async (userData) => {
@@ -298,26 +312,70 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     lastSentMessageRef.current = null;
   }, [activeChannel.id]);
 
-  // ✅ Load messages when channel changes (covers initial mount + every switch)
-  //    Fully inlined to avoid ANY stale-closure issues with loadMessages/chatRef
+  // Initial channel load (mount + every switch).
+  //
+  // Supabase path: loadMessages pulls the last PAGE_SIZE rows in a
+  // single round-trip with proper indexing on (room_id, created_at).
+  // This is the new primary path now that mirror CFs are populating
+  // messages live (12k+ rows accumulated within hours of deploy).
+  //
+  // RTDB fallback: if Supabase returns empty (e.g. read fails) we run
+  // the original limitToLast() query. This also handles the pre-
+  // migration case where Supabase has no rows yet.
   useEffect(() => {
-    if (!appdatabase || !activeChannel?.path) return;
+    if (!activeChannel?.path) return;
     let cancelled = false;
-    const currentRef = ref(appdatabase, activeChannel.path);
 
     const load = async () => {
       try {
         setLoading(true);
         setLastLoadedKey(null);
 
-        const snapshot = await get(dbQuery(currentRef, orderByKey(), limitToLast(PAGE_SIZE)));
-        if (cancelled) return;
-
-        const data = snapshot.val() || {};
         const bannedIds = Array.isArray(bannedUsers)
           ? bannedUsers.map(u => (typeof u === 'string' ? u : u?.id)).filter(Boolean)
           : [];
 
+        // ── Supabase path ────────────────────────────────────────────
+        if (SUPABASE_PUBLIC_CHAT_ENABLED) {
+          try {
+            const rows = await loadMessagesFromSupabase(activeChannel.path, { limit: PAGE_SIZE });
+            if (cancelled) return;
+
+            // Adapt Supabase row → UI shape that validateMessage expects.
+            const parsed = rows
+              .map((m) => validateMessage({
+                id: m.rtdbKey || m.id,
+                senderId: m.senderId,
+                text: m.text,
+                gif: m.gif,
+                fruits: m.fruits,
+                replyTo: m.replyTo,
+                OS: m.OS,
+                timestamp: m.timestamp,
+              }))
+              .filter(Boolean)
+              .filter(msg => msg?.senderId && !bannedIds.includes(msg.senderId));
+
+            if (parsed.length > 0) {
+              if (cancelled) return;
+              setMessages(parsed);
+              setLastLoadedKey(parsed[parsed.length - 1]?.id || null);
+              return;
+            }
+            // Empty Supabase result → fall through to RTDB so the
+            // pre-migration / cold-start scenario still loads.
+          } catch (e) {
+            // Network blip or auth race → fall through.
+          }
+        }
+
+        // ── RTDB fallback (original code) ────────────────────────────
+        if (!appdatabase) return;
+        const currentRef = ref(appdatabase, activeChannel.path);
+        const snapshot = await get(dbQuery(currentRef, orderByKey(), limitToLast(PAGE_SIZE)));
+        if (cancelled) return;
+
+        const data = snapshot.val() || {};
         const parsed = Object.entries(data)
           .map(([key, value]) => {
             if (!key || !value || typeof value !== 'object') return null;
@@ -345,13 +403,111 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
   // const bannedUserIds = bannedUsers.map((user) => user.id); // Extract IDs from bannedUsers
 
-  // ✅ Real-time listener using onValue (more reliable than onChildAdded with limitToLast)
-  //    onChildAdded + limitToLast(1) has known bugs in Firebase SDKs where remote writes don't fire
-  //    Also: no isFocused gate so messages keep arriving when screen loses focus
+  // Real-time listener for new messages.
+  //
+  // Supabase path: subscribeToMessages opens a single Postgres realtime
+  // channel filtered by room_id and emits one event per INSERT. Cuts
+  // RTDB egress on the highest-traffic listener in the app.
+  //
+  // RTDB fallback: onValue(limitToLast(1)) — the original code, kept
+  // intact for the kill switch and for ensuring messages from old app
+  // versions (which write only to RTDB) still surface if the mirror CF
+  // ever lags.
+  //
+  // Initial load + pagination are still on RTDB this phase — the
+  // cursor semantics (RTDB push key vs Postgres timestamp) differ
+  // enough that swapping that path is a separate, larger change.
+  // Worst case here is some duplicate work on first page load, which
+  // the dedup logic in setMessages handles.
   useEffect(() => {
     if (!appdatabase || !activeChannel?.path) return;
 
     let cancelled = false;
+
+    // Shared "new message arrived" handler — fed by both code paths so
+    // the UI logic (banned filter, cache warming, scroll-position
+    // gate) is single-sourced.
+    const onNewMessage = (newMessage, key) => {
+      if (cancelled || !newMessage || !newMessage.id) return;
+
+      const banned = Array.isArray(bannedUsers) ? bannedUsers : [];
+      if (banned.includes(newMessage.senderId)) return;
+
+      if (newMessage.senderId && !getCachedProfile(newMessage.senderId)) {
+        getOrFetchProfile(appdatabase, newMessage.senderId).then(() => {
+          if (!cancelled) setMessages(prev => [...prev]);
+        });
+      }
+
+      setMessages((prev) => {
+        if (!Array.isArray(prev) || prev.length === 0) return [newMessage];
+        const exists = prev.some((m) => String(m?.id) === String(newMessage.id));
+        if (exists) return prev;
+
+        if (isAtBottomRef.current) {
+          newestMessageIdRef.current = key || newMessage.id;
+          return [newMessage, ...prev];
+        }
+        setPendingMessages((prevPending) => {
+          const pendingIds = new Set(prevPending.map((msg) => msg?.id).filter(Boolean));
+          if (pendingIds.has(newMessage.id)) return prevPending;
+          return [newMessage, ...prevPending];
+        });
+        return prev;
+      });
+    };
+
+    // ── Supabase path ────────────────────────────────────────────────
+    if (SUPABASE_PUBLIC_CHAT_ENABLED) {
+      // Removes a message from both the live messages list and the
+      // pending-messages queue. Used for soft-delete (UPDATE deleted=true)
+      // and hard-delete (DELETE row).
+      const removeFromState = (uiId) => {
+        if (!uiId) return;
+        setMessages((prev) => prev.filter((m) => m?.id !== uiId));
+        setPendingMessages((prev) => prev.filter((m) => m?.id !== uiId));
+      };
+
+      const unsub = subscribeToMessages(activeChannel.path, {
+        onInsert: (msg) => {
+          if (!msg) return;
+          // Adapt Supabase row → UI shape that validateMessage expects.
+          // Use rtdbKey when present so dedup against the initial RTDB
+          // page load works (initial load uses RTDB push keys as ids).
+          const adapted = validateMessage({
+            id: msg.rtdbKey || msg.id,
+            senderId: msg.senderId,
+            text: msg.text,
+            gif: msg.gif,
+            fruits: msg.fruits,
+            replyTo: msg.replyTo,
+            OS: msg.OS,
+            timestamp: msg.timestamp,
+          });
+          onNewMessage(adapted, msg.rtdbKey || msg.id);
+        },
+        onUpdate: (msg) => {
+          // Soft-delete arrives as an UPDATE with deleted=true. Drop it
+          // from state. Other UPDATEs are ignored (slim schema has no
+          // editable fields the UI cares about today).
+          if (msg?.deleted) removeFromState(msg.rtdbKey || msg.id);
+        },
+        onDelete: (id) => {
+          // Hard-delete: row id is the Supabase UUID. The UI's id might
+          // be the rtdbKey instead, so try both.
+          if (!id) return;
+          setMessages((prev) => prev.filter((m) => m?.id !== id && m?.supabaseId !== id));
+          setPendingMessages((prev) => prev.filter((m) => m?.id !== id && m?.supabaseId !== id));
+        },
+      });
+      return () => {
+        cancelled = true;
+        unsub();
+        hasInitializedRef.current = false;
+      };
+    }
+
+    // ── RTDB fallback (original code) ────────────────────────────────
     const currentRef = ref(appdatabase, activeChannel.path);
     const latestQuery = dbQuery(currentRef, orderByKey(), limitToLast(1));
 
@@ -364,37 +520,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         if (!key || !data || typeof data !== 'object') return;
 
         const newMessage = validateMessage({ id: key, ...data });
-        if (!newMessage || !newMessage.id) return;
-
-        // ✅ Check if message is from banned user
-        const banned = Array.isArray(bannedUsers) ? bannedUsers : [];
-        if (banned.includes(newMessage.senderId)) return;
-
-        // ✅ Fetch profile for uncached senders (slim messages have no name/avatar)
-        if (data.senderId && !getCachedProfile(data.senderId)) {
-          getOrFetchProfile(appdatabase, data.senderId).then(() => {
-            if (!cancelled) setMessages(prev => [...prev]); // Re-render with resolved profile
-          });
-        }
-
-        setMessages((prev) => {
-          if (!Array.isArray(prev) || prev.length === 0) return [newMessage];
-          const exists = prev.some((m) => String(m?.id) === String(key));
-          if (exists) return prev;
-
-          // ✅ Use ref for isAtBottom to prevent listener recreation
-          if (isAtBottomRef.current) {
-            newestMessageIdRef.current = key;
-            return [newMessage, ...prev];
-          } else {
-            setPendingMessages((prevPending) => {
-              const pendingIds = new Set(prevPending.map((msg) => msg?.id).filter(Boolean));
-              if (pendingIds.has(newMessage.id)) return prevPending;
-              return [newMessage, ...prevPending];
-            });
-            return prev;
-          }
-        });
+        onNewMessage(newMessage, key);
       });
     });
 
@@ -422,12 +548,61 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       return;
     }
 
-    if (!loading && lastLoadedKey) {
-      await loadMessages(false);
-    } else {
-      // console.log('No more messages to load or currently loading.');
+    if (loading || !lastLoadedKey) return;
+
+    // ── Supabase path ────────────────────────────────────────────────
+    // messages is sorted newest-first, so the last element is the oldest
+    // currently loaded — its timestamp is the `beforeMs` cursor.
+    if (SUPABASE_PUBLIC_CHAT_ENABLED) {
+      const oldest = messages[messages.length - 1];
+      if (oldest?.timestamp) {
+        try {
+          const rows = await loadMessagesFromSupabase(activeChannel.path, {
+            limit: PAGE_SIZE,
+            beforeMs: oldest.timestamp,
+          });
+
+          const bannedIds = Array.isArray(bannedUsers)
+            ? bannedUsers.map(u => (typeof u === 'string' ? u : u?.id)).filter(Boolean)
+            : [];
+          const parsed = rows
+            .map((m) => validateMessage({
+              id: m.rtdbKey || m.id,
+              senderId: m.senderId,
+              text: m.text,
+              gif: m.gif,
+              fruits: m.fruits,
+              replyTo: m.replyTo,
+              OS: m.OS,
+              timestamp: m.timestamp,
+            }))
+            .filter(Boolean)
+            .filter(msg => msg?.senderId && !bannedIds.includes(msg.senderId));
+
+          if (parsed.length === 0) {
+            setLastLoadedKey(null); // end of history
+            return;
+          }
+
+          const senderIds = parsed.map(m => m.senderId).filter(Boolean);
+          await warmProfileCache(appdatabase, senderIds);
+
+          setMessages(prev => {
+            const seen = new Set(prev.map(m => String(m?.id)));
+            const fresh = parsed.filter(m => !seen.has(String(m.id)));
+            return fresh.length ? [...prev, ...fresh] : prev;
+          });
+          setLastLoadedKey(parsed[parsed.length - 1]?.id || null);
+          return;
+        } catch (e) {
+          // Fall through to RTDB on network blip / auth race.
+        }
+      }
     }
-  }, [user?.id, signinMessage, loading, lastLoadedKey, loadMessages, t]);
+
+    // ── RTDB fallback (original code) ────────────────────────────────
+    await loadMessages(false);
+  }, [user?.id, signinMessage, loading, lastLoadedKey, loadMessages, t, messages, activeChannel.path, bannedUsers, validateMessage, appdatabase]);
 
 
 
@@ -466,73 +641,95 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadMessages(true);
-    setRefreshing(false);
+    try {
+      const bannedIds = Array.isArray(bannedUsers)
+        ? bannedUsers.map(u => (typeof u === 'string' ? u : u?.id)).filter(Boolean)
+        : [];
+
+      const rows = await loadMessagesFromSupabase(activeChannel.path, { limit: PAGE_SIZE });
+      const parsed = rows
+        .map((m) => validateMessage({
+          id: m.rtdbKey || m.id,
+          senderId: m.senderId,
+          text: m.text,
+          gif: m.gif,
+          fruits: m.fruits,
+          replyTo: m.replyTo,
+          OS: m.OS,
+          timestamp: m.timestamp,
+        }))
+        .filter(Boolean)
+        .filter(msg => msg?.senderId && !bannedIds.includes(msg.senderId));
+
+      const senderIds = parsed.map(m => m.senderId).filter(Boolean);
+      if (senderIds.length > 0) await warmProfileCache(appdatabase, senderIds);
+      setMessages(parsed);
+      setLastLoadedKey(parsed.length > 0 ? parsed[parsed.length - 1]?.id || null : null);
+    } catch (e) {
+      console.error('[handleRefresh] Supabase refresh failed:', e?.message || e);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
-  // ✅ Pinned messages: load + real-time listener
+  // Pinned messages: load + realtime — both Supabase. We refetch on
+  // any pin/unpin event for the room rather than reconciling individual
+  // INSERT/DELETE payloads, since the pin row alone doesn't carry the
+  // joined message content the UI needs.
+  //
+  // `firebaseKey` field name is preserved on each pinned-message object
+  // for backward compatibility with AdminHeader.jsx + ChatHeaderContent.jsx
+  // (they call onUnpinMessage(msg.firebaseKey)). It now holds the
+  // Supabase pin-row id, not an RTDB push key.
   useEffect(() => {
-    if (!pinnedMessagesRef) return;
+    if (!activeChannel?.path) return;
 
-    const fetchPinnedMessages = async () => {
+    let cancelled = false;
+
+    const fetchPinned = async () => {
       try {
-        const snapshot = await get(pinnedMessagesRef);
-        const pinnedMessagesData = snapshot.val() || {};
-
-        const pinnedMessagesArray = Object.entries(pinnedMessagesData)
-          .map(([key, value]) => {
-            if (!key || !value || typeof value !== 'object') return null;
-            return { firebaseKey: key, ...value };
-          })
-          .filter(Boolean)
-          .sort((a, b) => (b.pinnedAt || 0) - (a.pinnedAt || 0));
-
-        setPinnedMessages(pinnedMessagesArray);
+        const rows = await loadPinnedMessagesFromSupabase(activeChannel.path);
+        if (cancelled) return;
+        setPinnedMessages(
+          (rows || []).map((p) => ({ ...p, firebaseKey: p.pinnedRowId })),
+        );
       } catch (error) {
         console.error('Error loading pinned messages:', error);
       }
     };
 
-    fetchPinnedMessages();
+    fetchPinned();
 
-    const unsubPinned = onChildAdded(pinnedMessagesRef, (snapshot) => {
-      if (!snapshot || !snapshot.key) return;
-      const data = snapshot.val();
-      if (!data || typeof data !== 'object') return;
-      const newPinnedMessage = { firebaseKey: snapshot.key, ...data };
-      setPinnedMessages((prev) => {
-        const exists = prev.some(msg => msg.firebaseKey === snapshot.key);
-        return exists ? prev : [newPinnedMessage, ...prev];
-      });
+    const unsubPinned = subscribeToPinned(activeChannel.path, {
+      onUpsert: () => { if (!cancelled) fetchPinned(); },
+      onRemove: () => { if (!cancelled) fetchPinned(); },
     });
 
     return () => {
-      unsubPinned();
+      cancelled = true;
+      unsubPinned?.();
     };
-  }, [pinnedMessagesRef]);
+  }, [activeChannel?.path]);
 
   const handlePinMessage = async (message) => {
+    if (!message?.id) {
+      console.warn('handlePinMessage: message.id missing');
+      return;
+    }
     try {
-      const pinnedMessage = { ...message, pinnedAt: Date.now() };
-      const newRef = push(pinnedMessagesRef);
-      await set(newRef, pinnedMessage);
-
-      setPinnedMessages((prev) => [
-        ...prev,
-        { firebaseKey: newRef.key, ...pinnedMessage },
-      ]);
+      await sbPinMessage(activeChannel.path, message.id, user?.id ?? null);
+      // realtime sub triggers fetchPinned; no manual state update needed
     } catch (error) {
       console.error('Error pinning message:', error);
       Alert.alert(t('home.alert.error'), t('chat.pin_error'));
     }
   };
 
-  const unpinSingleMessage = async (firebaseKey) => {
+  const unpinSingleMessage = async (pinId) => {
+    if (!pinId) return;
     try {
-      const messageRef = child(pinnedMessagesRef, firebaseKey);
-      await remove(messageRef);
-
-      setPinnedMessages((prev) => prev.filter((msg) => msg.firebaseKey !== firebaseKey));
+      await sbUnpinMessage(pinId);
+      setPinnedMessages((prev) => prev.filter((msg) => msg.firebaseKey !== pinId));
     } catch (error) {
       console.error('Error unpinning message:', error);
       Alert.alert(t('home.alert.error'), t('chat.unpin_error'));
@@ -541,7 +738,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
   const clearAllPinnedMessages = async () => {
     try {
-      await remove(pinnedMessagesRef);
+      await sbClearPinnedForRoom(activeChannel.path);
       setPinnedMessages([]);
     } catch (error) {
       console.error('Error clearing pinned messages:', error);
@@ -568,10 +765,11 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
     }
 
-    // ✅ Admins are exempt from blocking
-    if (strikeInfo && !isAdmin) {
-      const { strikeCount, bannedUntil } = strikeInfo;
-      const now = Date.now();
+    // Block banned users from sending (admins exempt). Defer expiry to
+    // server-time-validated `isUserBlocked` so a clock-rolled device
+    // can't slip past — strikeInfo is used only for the message text.
+    if (isUserBlocked && !isAdmin) {
+      const { strikeCount, bannedUntil } = strikeInfo || {};
 
       if (bannedUntil === 'permanent') {
         showMessage({
@@ -582,14 +780,15 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         return false;
       }
 
-      if (typeof bannedUntil === 'number' && now < bannedUntil) {
-        const totalMinutes = Math.ceil((bannedUntil - now) / 60000);
+      if (typeof bannedUntil === 'number') {
+        const remaining = Math.max(0, bannedUntil - Date.now());
+        const totalMinutes = Math.ceil(remaining / 60000);
         const hours = Math.floor(totalMinutes / 60);
         const minutes = totalMinutes % 60;
         const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 
         showMessage({
-          message: `⚠️ Strike ${strikeCount}`,
+          message: `⚠️ Strike ${strikeCount ?? ''}`.trim(),
           description: `You are banned from chatting for ${timeLeftText} more minute(s).`,
           type: 'warning',
           duration: 5000,
@@ -597,6 +796,9 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         });
         return false;
       }
+
+      showMessage({ message: '⛔ Banned', description: 'You are currently banned from sending messages.', type: 'danger' });
+      return false;
     }
     // Use the argument, not external state
     const trimmedInput = (trimmedInputArg || '').trim();
@@ -660,18 +862,16 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     }
 
     try {
-      // ✅ Use chatRef instead of creating new ref
-      if (!chatRef) {
-        console.error('❌ Chat ref not available');
-        return;
-      }
-
-      // ✅ SLIM MESSAGE: Only send message-specific data
-      // User metadata (name, avatar, badges, cosmetics) resolved from profileCache on render
-      await push(chatRef, {
-        text: trimmedInput || null,
-        timestamp: serverTimestamp(),
+      // SLIM MESSAGE: only message-specific fields. Sender profile
+      // (avatar, badges, cosmetics) is resolved client-side from
+      // profileCache on render — not snapshotted here.
+      // clientMsgId makes the send idempotent: a network retry that
+      // collides on UNIQUE(room_id, client_msg_id) returns the existing
+      // row instead of creating a duplicate.
+      await sbSendMessage(activeChannel.path, {
+        clientMsgId: newClientMsgId(),
         senderId: user.id,
+        text: trimmedInput || null,
         replyTo: replyToArg
           ? { id: replyToArg.id, text: replyToArg.text }
           : null,
@@ -769,7 +969,25 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                 flatListRef={flatListRef}
                 isDarkMode={theme === 'dark'}
                 onPinMessage={handlePinMessage}
-                onDeleteMessage={(messageId) => chatRef.child(messageId.replace(`${activeChannel.path}-`, '')).remove()}
+                onDeleteMessage={async (messageId) => {
+                  if (!messageId) return;
+                  try {
+                    // UI ids are either Supabase UUIDs (new direct writes)
+                    // or legacy RTDB push keys (mirror-CF rows where the
+                    // dedup logic preferred rtdb_key). Detect by format
+                    // and route to the right soft-delete helper.
+                    const isUuid =
+                      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(messageId);
+                    if (isUuid) {
+                      await sbSoftDeleteMessage(messageId, user?.id ?? null);
+                    } else {
+                      await sbSoftDeleteMessageByRtdbKey(activeChannel.path, messageId, user?.id ?? null);
+                    }
+                    setMessages((prev) => prev.filter((m) => m?.id !== messageId));
+                  } catch (e) {
+                    console.error('softDelete failed:', e?.message || e);
+                  }
+                }}
                 // isAdmin={isAdmin}
                 refreshing={refreshing}
                 onRefresh={handleRefresh}
@@ -784,6 +1002,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                 // isOwner={isOwner}
                 isAtBottom={isAtBottom}
                 setIsAtBottom={setIsAtBottom}
+                pendingCount={pendingMessages.length}
                 // toggleDrawer={toggleDrawer}
                 setMessages={setMessages}
                 isAdmin={isAdmin}
