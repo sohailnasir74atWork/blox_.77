@@ -27,6 +27,17 @@ import BannerAdComponent from '../../Ads/bannerAds';
 import { seedCurrentUser } from '../../Helper/profileCache';
 import InterstitialAdManager from '../../Ads/IntAd';
 import config from '../../Helper/Environment';
+
+// Dedicated MMKV instance for ad-frequency caps. Falls back to a no-op
+// store if MMKV fails to init so the cap never blocks normal rendering.
+let adFreqStorage;
+try {
+  const { createMMKV } = require('react-native-mmkv');
+  adFreqStorage = createMMKV({ id: 'ad-frequency' });
+} catch (_) {
+  adFreqStorage = { getString: () => undefined, set: () => {} };
+}
+const PVT_CHAT_BACK_AD_KEY = 'pvt_chat_back_ad_date';
 import PetModal from './PetsModel';
 import {
   doc,
@@ -653,6 +664,24 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       // ✅ Reset refs when entering chat (used by exit-ad logic)
       hasSentMessageRef.current = 0;
       chatEnterTimeRef.current = Date.now();
+
+      // Back-ad: fire on blur (back press / nav away). Gated on the user
+      // having sent at least 3 messages in this session (no ad for
+      // drive-by opens) and capped to one show per local calendar day
+      // across all private chats. Pro users skip. Date string is local-
+      // time YYYY-MM-DD so the cap follows the user's perceived day.
+      return () => {
+        if (localState?.isPro) return;
+        if (hasSentMessageRef.current < 3) return;
+        try {
+          const today = new Date().toLocaleDateString('en-CA');
+          if (adFreqStorage.getString(PVT_CHAT_BACK_AD_KEY) === today) return;
+          adFreqStorage.set(PVT_CHAT_BACK_AD_KEY, today);
+          setTimeout(() => {
+            try { InterstitialAdManager.showAd(() => {}); } catch (_) {}
+          }, 400);
+        } catch (_) {}
+      };
     }, [user?.id, selectedUserId, chatKey, localState?.isPro, localState?.showReadReceipts])
   );
 

@@ -19,10 +19,13 @@ import {
 import { DAILY_REWARDS, getStarStatus, claimDailyStar } from './starUtils';
 import { getThemeColors } from '../Helper/themeColors';
 import SwipeableBottomDrawer from '../Helper/SwipeableBottomDrawer';
+import { useLocalState } from '../LocalGlobelStats';
+import InterstitialAdManager from '../Ads/IntAd';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const DailyStarRewards = ({ visible, onClose, db, uid, isDarkMode = false }) => {
+  const { localState } = useLocalState();
   const [status, setStatus] = useState(null);
   const [claiming, setClaiming] = useState(false);
   const [claimedReward, setClaimedReward] = useState(null);
@@ -63,11 +66,24 @@ const DailyStarRewards = ({ visible, onClose, db, uid, isDarkMode = false }) => 
   }, [status, db, uid, claiming]);
 
   const handleClose = useCallback(() => {
+    const didClaim = !!claimedReward;
     setClaimedReward(null);
     scaleAnim.setValue(0);
     bounceAnim.setValue(1);
     onClose();
-  }, [onClose]);
+
+    // Show interstitial only when the user actually claimed in this
+    // session (window-shoppers don't get an ad). Deferred behind RAF +
+    // 400ms so the modal close animation finishes first — matches the
+    // pattern used by StatusFeed / UploadModal.
+    if (didClaim && !localState?.isPro) {
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          try { InterstitialAdManager.showAd(() => {}); } catch (_) {}
+        }, 400);
+      });
+    }
+  }, [onClose, claimedReward, localState?.isPro]);
 
   if (!visible) return null;
 
