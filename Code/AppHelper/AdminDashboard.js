@@ -73,7 +73,7 @@ import { useNavigation } from '@react-navigation/native';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
 import { launchImageLibrary } from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
-import { Image as CompressorImage } from 'react-native-compressor';
+import { safeCompressImage } from '../Helper/safeCompressImage';
 
 const BUNNY_STORAGE_HOST = 'storage.bunnycdn.com';
 const BUNNY_STORAGE_ZONE = 'post-gag';
@@ -1402,9 +1402,9 @@ const AdminDashboard = () => {
             const fileSize = asset.fileSize || 0;
             if (fileSize > 1024 * 1024) {
               try {
-                imageUri = await CompressorImage.compress(imageUri, {
+                imageUri = (await safeCompressImage(imageUri, {
                   maxWidth: 1024, quality: 0.7, returnableOutputType: 'uri',
-                });
+                })).uri;
               } catch (e) { console.warn('Compression failed, using original:', e); }
             }
 

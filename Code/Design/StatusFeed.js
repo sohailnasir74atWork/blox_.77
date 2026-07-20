@@ -33,7 +33,7 @@ import {
   addDoc, serverTimestamp, Timestamp, doc, updateDoc, arrayUnion, arrayRemove, deleteDoc,
 } from '@react-native-firebase/firestore';
 import { launchImageLibrary } from 'react-native-image-picker';
-import { Image as CompressorImage } from 'react-native-compressor';
+import { safeCompressImage } from '../Helper/safeCompressImage';
 import RNFS from 'react-native-fs';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import { useTranslation } from 'react-i18next';
@@ -321,44 +321,59 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
       const now = Timestamp.now();
       const nowMillis = now.toMillis();
 
-      const q1 = query(
+      // Expired statuses are never deleted server-side; the 24h expiry is only
+      // enforced here by filtering `expiresAt > now`. That means a random window
+      // by `randomSeed` can be dominated by stale (expired) docs, leaving very
+      // few live ones. So we keep pulling — random window first (for fairness),
+      // then the guaranteed-live `expiresAt` index as a backfill — until we have
+      // enough live statuses. Dedupe by id across all queries.
+      const results = [];
+      const seenIds = new Set();
+      const collectLive = (docs) => {
+        for (const d of docs) {
+          if (seenIds.has(d.id)) continue;
+          const data = { id: d.id, ...d.data() };
+          if (data.expiresAt?.toMillis() > nowMillis) {
+            seenIds.add(d.id);
+            results.push(data);
+          }
+        }
+      };
+
+      // Random window forward from the seed.
+      collectLive((await getDocs(query(
         collection(firestoreDB, 'statuses'),
         where('randomSeed', '>=', rand),
         orderBy('randomSeed', 'asc'),
-        limit(15),
-      );
-      let snap = await getDocs(q1);
-      let results = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .filter(s => s.expiresAt?.toMillis() > nowMillis);
+        limit(20),
+      ))).docs);
 
-      if (results.length < 10) {
-        const q2 = query(
+      // Random window backward to wrap around the seed.
+      if (results.length < GLOBAL_STATUS_LIMIT) {
+        collectLive((await getDocs(query(
           collection(firestoreDB, 'statuses'),
           where('randomSeed', '<', rand),
           orderBy('randomSeed', 'desc'),
-          limit(15 - results.length),
-        );
-        const snap2 = await getDocs(q2);
-        const moreResults = snap2.docs
-          .map(d => ({ id: d.id, ...d.data() }))
-          .filter(s => s.expiresAt?.toMillis() > nowMillis);
-        results = results.concat(moreResults);
+          limit(20),
+        ))).docs);
       }
 
-      if (results.length === 0) {
-        const fallbackQ = query(
+      // Backfill from the live-only index when the random window came up short
+      // (e.g. it landed in a cluster of expired docs). This query can only
+      // return live statuses, so it reliably tops the pool back up.
+      if (results.length < GLOBAL_STATUS_LIMIT) {
+        collectLive((await getDocs(query(
           collection(firestoreDB, 'statuses'),
           where('expiresAt', '>', now),
           orderBy('expiresAt', 'desc'),
-          limit(15),
-        );
-        const fbSnap = await getDocs(fallbackQ);
-        results = fbSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        for (let i = results.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [results[i], results[j]] = [results[j], results[i]];
-        }
+          limit(20),
+        ))).docs);
+      }
+
+      // Shuffle so the feed isn't always ordered by randomSeed / recency.
+      for (let i = results.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [results[i], results[j]] = [results[j], results[i]];
       }
 
       return results.slice(0, 15);
@@ -533,11 +548,11 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
 
       let finalUri = asset.uri;
       try {
-        const compressPromise = CompressorImage.compress(asset.uri, {
+        const compressPromise = safeCompressImage(asset.uri, {
           maxWidth: 1200,
           quality: 0.7,
           returnableOutputType: 'uri',
-        });
+        }).then((r) => r.uri);
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Compression timeout')), 5000)
         );

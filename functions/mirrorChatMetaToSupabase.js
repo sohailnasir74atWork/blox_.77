@@ -53,6 +53,23 @@ exports.mirrorChatMetaToSupabase = functions
 
     const v = change.after.val() || {};
 
+    // Ghost-row guard (ported from adoptme-jan7): skip writes where the
+    // parent RTDB node holds only a sub-leaf (e.g. a stray lastRead or
+    // mirror marker) with none of the identifying fields a real chat row
+    // carries. Without this we upsert a row with chat_id/last_message/
+    // timestamp_ms/receiver_* all null, and the inbox renders those as
+    // "Anonymous — No messages yet" entries from people the user never
+    // chatted with (~10% of chat_meta_data was ghosts in adoptme before
+    // this guard landed). Skipping writes only — existing ghost rows are
+    // cleaned up by supabase/018_cleanup_ghost_chat_meta.sql.
+    const hasChatId    = typeof v.chatId === 'string' && v.chatId.length > 0;
+    const hasLastMsg   = typeof v.lastMessage === 'string';
+    const hasTimestamp = typeof v.timestamp === 'number';
+    const hasReceiver  = typeof v.receiverId === 'string' && v.receiverId.length > 0;
+    if (!hasChatId && !hasLastMsg && !hasTimestamp && !hasReceiver) {
+      return null;
+    }
+
     // Mirror every field defined in the table. Coerce to expected types
     // so a stray null/undefined from a partial write doesn't break the
     // upsert (Postgres NOT NULL columns reject undefined).

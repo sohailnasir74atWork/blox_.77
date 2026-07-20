@@ -11,8 +11,8 @@ import CoinStore from './Store/Store';
 import config from '../Helper/Environment';
 import { get, ref } from '@react-native-firebase/database';
 import UserPurchases from './Store/MyPurchases';
-import { RewardedIntAd } from '../Ads/reward_int';
 import ThreeRewardedAdComponent from './RewardComponenet/ThreeAds';
+import { showSuccessMessage } from '../Helper/MessageHelper';
 
 const RewardCenterScreenWithTabs = ({ selectedTheme }) => {
   const { user, appdatabase, theme, updateLocalStateAndDatabase } = useGlobalState();

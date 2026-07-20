@@ -13,7 +13,7 @@ import { useLocalState } from '../LocalGlobelStats';
 import ImageViewerScreenChat from './PrivateChat/ImageViewer';
 import { ref, update, get, onChildAdded, onChildChanged, onChildRemoved } from '@react-native-firebase/database';
 import {
-  subscribeToChatMeta,
+  subscribeToChatMetaShared,
   resetUnreadCount as sbResetUnreadCount,
 } from '../Supabase/chatMetaBackend';
 import { subscribeToGroupMeta } from '../Supabase/groupMetaBackend';
@@ -113,7 +113,7 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
         recomputeTotal();
       };
 
-      const unsub = subscribeToChatMeta(user.id, {
+      const unsub = subscribeToChatMetaShared(user.id, {
         onUpsert: handleSupaUpsert,
         onRemove: handleSupaRemove,
       });
@@ -200,6 +200,9 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
           unreadCount: row.unreadCount || 0,
           memberCount: row.memberCount || 0,
           createdBy: row.createdBy || null,
+          // Carried so GroupsScreen can build its mute map from these rows
+          // instead of re-fetching all group_meta_data.
+          muted: !!row.muted,
         });
         updateGroupsList();
       };
@@ -232,6 +235,7 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
         unreadCount: groupData.unreadCount || 0,
         memberCount: groupData.memberCount || 0,
         createdBy: groupData.createdBy || null,
+        muted: !!groupData.muted,
       };
     };
 

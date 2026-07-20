@@ -22,6 +22,13 @@
 
 import { supabase } from './client';
 
+// Explicit column lists — exactly what the row mappers below read.
+// Skips updated_at (and any future housekeeping columns) on every read.
+const POLL_COLS =
+  'id, question, image_url, active, created_at, created_by, option_texts, option_counts, total_votes';
+const POLL_COMMENT_COLS =
+  'id, user_id, user_name, user_avatar, text, reply_to, created_at';
+
 // -----------------------------------------------------------------
 // Row mappers — DB snake_case → UI shape used by PollCard
 // -----------------------------------------------------------------
@@ -69,7 +76,7 @@ function fromCommentRow(row) {
 export async function fetchActivePolls(userId, limit = 3) {
   const { data, error } = await supabase
     .from('polls')
-    .select('*')
+    .select(POLL_COLS)
     .eq('active', true)
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -88,7 +95,7 @@ export async function fetchActivePolls(userId, limit = 3) {
 export async function fetchAllPolls(limit = 10) {
   const { data, error } = await supabase
     .from('polls')
-    .select('*')
+    .select(POLL_COLS)
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) {
@@ -166,7 +173,7 @@ export async function createPoll({ question, optionTexts, imageUrl = null, creat
       active: true,
       created_by: createdBy || null,
     })
-    .select('*')
+    .select(POLL_COLS)
     .single();
   if (error) {
     console.warn('[pollsBackend] createPoll error:', error.message);
@@ -207,7 +214,7 @@ export async function fetchPollComments(pollId, { pageSize = 2, afterCreatedAt =
   if (!pollId) return { items: [], hasMore: false };
   let q = supabase
     .from('poll_comments')
-    .select('*')
+    .select(POLL_COMMENT_COLS)
     .eq('poll_id', pollId)
     .order('created_at', { ascending: true })
     .order('id', { ascending: true })
@@ -241,7 +248,7 @@ export async function postPollComment({ pollId, userId, userName, userAvatar, te
       text: trimmed,
       reply_to: replyTo || null,
     })
-    .select('*')
+    .select(POLL_COMMENT_COLS)
     .single();
   if (error) {
     console.warn('[pollsBackend] postPollComment error:', error.message);

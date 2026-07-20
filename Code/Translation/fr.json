@@ -203,7 +203,8 @@
         "feature_error": "Erreur lors de la mise en avant",
         "feature_error_message": "Échec de la mise en avant de l'échange. Veuillez réessayer.",
         "purchase_success": "Achat réussi",
-        "purchase_success_message": "L'utilisateur a maintenant des fonctionnalités Pro !"
+        "purchase_success_message": "L'utilisateur a maintenant des fonctionnalités Pro !",
+        "saved_guide": "Appuie sur le filtre Enregistrés en haut pour voir tes échanges enregistrés à tout moment."
     },
     "signin": {
         "title_signin": "Connexion",
@@ -399,5 +400,12 @@
         "vote_error": "Impossible de soumettre le vote.",
         "comment_error": "Impossible de poster le commentaire.",
         "error": "Erreur"
+    },
+    "trending": {
+        "market_overview": "Aperçu du Marché",
+        "full_analytics": "Analyse Complète",
+        "hot": "En hausse",
+        "dropping": "En baisse",
+        "locked_teaser": "Découvrez quels objets montent et lesquels baissent"
     }
 }

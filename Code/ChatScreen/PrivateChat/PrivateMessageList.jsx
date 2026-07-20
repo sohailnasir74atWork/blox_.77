@@ -27,7 +27,6 @@ import { mixpanel } from '../../AppHelper/MixPenel';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { resolveProfile, seedFromMessage } from '../../Helper/profileCache';
 import { getSafeTextColor, RainbowText, isMultiColorText, getMultiColorPalette } from '../../Helper/contrastHelper';
-import FramedAvatar from '../GroupChat/FramedAvatar';
 
 const FRUIT_KEYWORDS = [
   'rocket', 'spin', 'chop', 'spring', 'bomb', 'spike', 'blade',
@@ -60,7 +59,6 @@ const PrivateMessageList = ({
   chatKey,
   isAdmin,
   otherLastRead,
-  onDeleteMessage,
   onDeleteAllChat,
 }) => {
   const { theme, isAdmin: globalIsAdmin, api, freeTranslation, proGranted } = useGlobalState();
@@ -445,16 +443,6 @@ const PrivateMessageList = ({
               {!isMyMessage && (
                 <MenuOption onSelect={() => handleReport(item)}>
                   <Text style={styles.menuOptionText}>{t("chat.report")}</Text>
-                </MenuOption>
-              )}
-              {(isAdmin || globalIsAdmin) && onDeleteMessage && (
-                <MenuOption onSelect={() => {
-                  Alert.alert('Delete Message', 'Delete this message?', [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Delete', style: 'destructive', onPress: () => onDeleteMessage(item.id) },
-                  ]);
-                }}>
-                  <Text style={[styles.menuOptionText, { color: '#EF4444' }]}>Delete</Text>
                 </MenuOption>
               )}
               {(isAdmin || globalIsAdmin) && onDeleteAllChat && (

@@ -7,7 +7,8 @@ import {
     TestIds,
   } from 'react-native-google-mobile-ads';
   import getAdUnitId from '../Ads/ads';
-  
+  import { npaRequired } from './consent';
+
   // For quick verification, switch to Google's TEST native ad unit below.
   // const AD_UNIT_ID = TestIds.NATIVE;
   const AD_UNIT_ID = getAdUnitId('native');
@@ -31,7 +32,8 @@ import {
         aspectRatio: NativeMediaAspectRatio.LANDSCAPE,
         adChoicesPlacement: NativeAdChoicesPlacement.TOP_RIGHT,
         startVideoMuted: true,
-        requestNonPersonalizedAdsOnly: false,
+        // NPA decided from persisted UMP consent — never hardcode false.
+        requestNonPersonalizedAdsOnly: npaRequired(),
       });
   
       return await new Promise<NativeAd>((resolve, reject) => {

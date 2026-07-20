@@ -96,7 +96,8 @@ export const getStyles = (isDarkMode) =>
     },
     myMessageTextOnly: {
       fontSize: 13,
-      color: isDarkMode ? 'white' : 'black',
+      // "My" bubble is always blue (#3B82F6 light / #2563EB dark), so keep text white in both themes for contrast.
+      color: '#ffffff',
       // backgroundColor: isDarkMode ? config.colors.primary : 'lightgreen',
       // paddingVertical: 5,
       // paddingHorizontal: 10,

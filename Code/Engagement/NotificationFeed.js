@@ -141,11 +141,10 @@ const NotificationFeed = () => {
   }, [hasMore, refreshing, fetchNotifications, notifications.length]);
 
   const handleNotifPress = useCallback((item) => {
+    // Legacy accept-flow notifications — Active Trades tab no longer exists,
+    // just open My Stuff (defaults to My Fruits)
     if (item.type === 'trade_accepted' || item.type === 'trade_ping') {
-      navigation.navigate('MyStuffScreen', {
-        initialTab: 'active',
-        ...(item.type === 'trade_accepted' && item.tradeId ? { highlightTradeId: item.tradeId } : {}),
-      });
+      navigation.navigate('MyStuffScreen');
     }
   }, [navigation]);
 

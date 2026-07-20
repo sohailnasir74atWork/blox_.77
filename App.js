@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Appearance,
+  Platform,
 
 } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
@@ -14,7 +15,10 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import SettingsScreen from './Code/SettingScreen/Setting';
 import { useGlobalState } from './Code/GlobelStats';
 import { useLocalState } from './Code/LocalGlobelStats';
-import { AdsConsent, AdsConsentStatus, MobileAds } from 'react-native-google-mobile-ads';
+import { AdsConsent, AdsConsentStatus } from 'react-native-google-mobile-ads';
+import { requestTrackingPermission, getTrackingStatus } from 'react-native-tracking-transparency';
+import AttPrimer from './Code/AppHelper/AttPrimer';
+import { ensureAdsInitialized } from './Code/Ads/init';
 import MainTabs from './Code/AppHelper/MainTabs';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {
@@ -26,7 +30,8 @@ import OnboardingScreen from './Code/AppHelper/OnBoardingScreen';
 import { useTranslation } from 'react-i18next';
 import RewardRulesModal from './Code/SettingScreen/RewardRulesModel';
 import InterstitialAdManager from './Code/Ads/IntAd';
-import AppOpenAdManager from './Code/Ads/openApp';
+// AppOpenAdManager is lazy-required inside requestIdleCallback (below) so the
+// ad manager stays off the critical startup path — matches adoptme-jan7.
 import RNBootSplash from "react-native-bootsplash";
 import SystemNavigationBar from 'react-native-system-navigation-bar';
 import AdminUnbanScreen from './Code/AppHelper/AdminDashboard';
@@ -92,6 +97,35 @@ const setNavigationBarAppearance = (theme) => {
 
 // const adUnitId = getAdUnitId('openapp');
 
+// Module-level singleton for the ATT request. Native lib (0.1.2) can resolve
+// its promise twice if the system dialog is interrupted by a scene transition;
+// caching the in-flight promise + short-circuiting on already-determined
+// statuses ensures requestTrackingPermission is reached at most once per
+// app session, even if the caller is invoked multiple times.
+let _attPromise = null;
+async function ensureAttRequested(beforePrompt) {
+  if (_attPromise) return _attPromise;
+  _attPromise = (async () => {
+    try {
+      const status = await getTrackingStatus().catch(() => 'unavailable');
+      if (status !== 'not-determined') return status;
+      // First launch only: show our own priming screen explaining WHY we
+      // ask before triggering Apple's one-shot system dialog. A higher
+      // opt-in rate here directly lifts iOS eCPM (IDFA → personalised ads +
+      // clean SKAdNetwork attribution). The primer is informational only,
+      // so a failure/skip must never block the real prompt — hence the
+      // swallow. beforePrompt resolves when the user taps "Continue".
+      if (typeof beforePrompt === 'function') {
+        try { await beforePrompt(); } catch {}
+      }
+      return await requestTrackingPermission();
+    } catch {
+      return 'unavailable';
+    }
+  })();
+  return _attPromise;
+}
+
 function App() {
   const { theme, single_offer_wall } = useGlobalState();
   const { t } = useTranslation();
@@ -102,6 +136,10 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [showofferwall, setShowofferwall] = useState(false);
+  // ATT priming pre-prompt (iOS). The resolver ref lets the async consent
+  // flow await the user tapping "Continue" before Apple's system dialog fires.
+  const [attPrimerVisible, setAttPrimerVisible] = useState(false);
+  const attPrimerResolveRef = React.useRef(null);
 
   // ✅ Fixed: Use ref to prevent infinite loop when updating warnedAboutTheme
   const warnedAboutThemeRef = React.useRef(false);
@@ -190,10 +228,40 @@ function App() {
     updateLocalStateRef.current('consentStatus', status);
   }, []); // ✅ Empty deps - uses ref instead
 
+  // Shows the ATT primer and resolves once the user taps "Continue", so the
+  // consent flow can then trigger Apple's real tracking dialog.
+  const showAttPrimer = useCallback(
+    () => new Promise((resolve) => {
+      attPrimerResolveRef.current = resolve;
+      setAttPrimerVisible(true);
+    }),
+    [],
+  );
+  const handleAttPrimerContinue = useCallback(() => {
+    setAttPrimerVisible(false);
+    const resolve = attPrimerResolveRef.current;
+    attPrimerResolveRef.current = null;
+    if (resolve) resolve();
+  }, []);
+
   const handleUserConsent = useCallback(async () => {
     try {
+      // Request ATT once per app session (iOS). Guarded inside
+      // ensureAttRequested: skips if already determined, and shares an
+      // in-flight promise so the library's known double-resolve bug (when the
+      // system dialog is interrupted by a scene transition) can't fire twice.
+      if (Platform.OS === 'ios') {
+        await ensureAttRequested(showAttPrimer);
+      }
+
       const consentInfo = await AdsConsent.requestInfoUpdate();
-      await MobileAds().initialize();
+
+      // Config-before-init: setRequestConfiguration (maxAdContentRating 'T',
+      // child-treatment flag) THEN initialize(), via the single shared promise
+      // every ad manager also awaits. Previously this was a bare
+      // MobileAds().initialize() with no config, so the first (highest-value)
+      // impressions served at AdMob's default 'G' ceiling and lower eCPM.
+      await ensureAdsInitialized();
       // await MobileAds().openAdInspector();
 
       if (
@@ -211,7 +279,7 @@ function App() {
     } catch (error) {
       // Silently handle consent errors
     }
-  }, [saveConsentStatus]);
+  }, [saveConsentStatus, showAttPrimer]);
 
   // Handle Consent
   useEffect(() => {
@@ -253,10 +321,12 @@ function App() {
     <View style={{ flex: 1 }}>
       <Animated.View style={{ flex: 1 }}>
         <NavigationContainer theme={selectedTheme}>
+          {/* Edge-to-edge: backgroundColor/translucent are ignored by the OS here, and
+              forcing them conflicted with the window on some older devices (whole-screen
+              shift / wrong header inset). Only barStyle (icon color) is set; all spacing
+              comes from useSafeAreaInsets on each screen. */}
           <StatusBar
             barStyle={theme === 'dark' ? 'light-content' : 'dark-content'}
-            backgroundColor="transparent"
-            translucent={true}
           />
 
           <Stack.Navigator screenOptions={{ animation: 'fade', animationDuration: 200 }}>
@@ -436,6 +506,13 @@ function App() {
           <RewardRulesModal visible={modalVisible} onClose={handleCloseModal} selectedTheme={selectedTheme} />
         )}
         <SubscriptionScreen visible={showofferwall} onClose={handleCloseOfferWall} track='Home' showoffer={!single_offer_wall} oneWallOnly={single_offer_wall} />
+        {/* ATT priming pre-prompt (iOS) — shown once before Apple's system
+            tracking dialog to lift opt-in, which lifts iOS eCPM. */}
+        <AttPrimer
+          visible={attPrimerVisible}
+          onContinue={handleAttPrimerContinue}
+          isDarkMode={theme === 'dark'}
+        />
       </Animated.View>
     </View>
   );
@@ -453,23 +530,30 @@ export default function AppWrapper() {
     }
   }, [localState.isAppReady]);
 
-  // ✅ Fixed: Add proper cleanup for AppOpenAdManager to prevent memory leaks
+  // App Open ad lifecycle. start() registers the AppState listener so the ad
+  // shows on every genuine background→foreground return (frequency-capped,
+  // Pro-gated via MMKV, de-duped against other full-screen ads), not just once
+  // per app lifetime. start() is idempotent; the manager re-checks isPro at
+  // show time so a mid-session purchase still suppresses the ad.
+  //
+  // Deferred to requestIdleCallback with a lazy require (adoptme pattern) so
+  // loading + initialising the ad manager never competes with first paint.
   useEffect(() => {
     if (!localState.showOnBoardingScreen && !localState.isPro) {
-      AppOpenAdManager.initAndShow();
+      const id = requestIdleCallback(() => {
+        try {
+          const AppOpenAdManager = require('./Code/Ads/openApp').default;
+          AppOpenAdManager.start();
+        } catch (_) {}
+      });
+      return () => cancelIdleCallback(id);
     }
-
-    // ✅ Cleanup on unmount or when dependencies change
-    return () => {
-      // Only cleanup if component is unmounting, not on dependency changes
-      // AppOpenAdManager.cleanup(); // Uncomment if you want to cleanup on dependency changes
-    };
   }, [localState.showOnBoardingScreen, localState.isPro]);
 
-  // ✅ Add cleanup on component unmount
+  // ✅ Tear down the AppState listener + warm ad on unmount.
   useEffect(() => {
     return () => {
-      AppOpenAdManager.cleanup();
+      try { require('./Code/Ads/openApp').default.stop(); } catch (_) {}
     };
   }, []);
 

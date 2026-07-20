@@ -108,9 +108,9 @@ export default function NativeFeedAd({ mediaHeight = 220, onImpression, onClick 
           )}
         </View>
 
-        {!!ad.cta && (
-          <NativeAsset assetType={NativeAssetType.CTA}>
-            <Text style={styles.cta} numberOfLines={1}>{ad.cta}</Text>
+        {!!ad.callToAction && (
+          <NativeAsset assetType={NativeAssetType.CALL_TO_ACTION}>
+            <Text style={styles.cta} numberOfLines={1}>{ad.callToAction}</Text>
           </NativeAsset>
         )}
       </View>

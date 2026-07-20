@@ -14,6 +14,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGlobalState } from '../../GlobelStats';
 import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
@@ -23,7 +24,7 @@ import { leaveGroup, acceptGroupInvite, declineGroupInvite, updateGroupAvatar, a
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
 import { collection, query, where, onSnapshot, doc, getDoc, getCountFromServer } from '@react-native-firebase/firestore';
 import { ref, get, set } from '@react-native-firebase/database';
-import { setGroupMuted as sbSetGroupMuted, loadGroupMeta } from '../../Supabase/groupMetaBackend';
+import { setGroupMuted as sbSetGroupMuted } from '../../Supabase/groupMetaBackend';
 import InterstitialAdManager from '../../Ads/IntAd';
 import { useLocalState } from '../../LocalGlobelStats';
 import GroupsGuideModal from './GroupsGuideModal';
@@ -86,6 +87,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
   const { user, theme, appdatabase, firestoreDB, isAdmin, isModerator } = useGlobalState();
   const { localState } = useLocalState();
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const [pendingInvitations, setPendingInvitations] = useState([]);
   const [invitationsLoading, setInvitationsLoading] = useState(false);
   const [pendingJoinRequests, setPendingJoinRequests] = useState([]); // Join requests for groups where user is creator
@@ -497,31 +499,18 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
     }
   }, [setGroups]);
 
-  // ✅ Load mute status for all groups
+  // ✅ Mute status comes free with the group rows ChatNavigator already
+  // streams over the group-meta realtime channel — no extra Supabase
+  // round-trip (this used to re-download every group_meta_data row on
+  // each groups change).
   useEffect(() => {
-    if (!appdatabase || !user?.id || groups.length === 0) return;
-
-    const loadMuteStatus = async () => {
-      // One Supabase round-trip for ALL of this user's group rows.
-      const rows = await loadGroupMeta(user.id);
-      const inGroups = new Set(groups.map((g) => g.groupId).filter(Boolean));
-      const muteStatusMap = {};
-      for (const row of rows || []) {
-        if (inGroups.has(row.groupId)) {
-          muteStatusMap[row.groupId] = !!row.muted;
-        }
-      }
-      // Default any groups without a row to false (= not muted).
-      for (const g of groups) {
-        if (g.groupId && muteStatusMap[g.groupId] === undefined) {
-          muteStatusMap[g.groupId] = false;
-        }
-      }
-      setMutedGroups(muteStatusMap);
-    };
-
-    loadMuteStatus();
-  }, [appdatabase, user?.id, groups]);
+    if (groups.length === 0) return;
+    const muteStatusMap = {};
+    for (const g of groups) {
+      if (g.groupId) muteStatusMap[g.groupId] = !!g.muted;
+    }
+    setMutedGroups(muteStatusMap);
+  }, [groups]);
 
   // Handle show group info
   const handleShowGroupInfo = useCallback(async (groupId) => {
@@ -1783,6 +1772,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
             borderTopRightRadius: 20,
             maxHeight: '90%',
             minHeight: 400,
+            paddingBottom: Math.max(insets.bottom, 16),
           }}>
             {/* Header */}
             <View style={{

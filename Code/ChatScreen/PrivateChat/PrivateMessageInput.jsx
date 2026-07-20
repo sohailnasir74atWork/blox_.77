@@ -15,8 +15,9 @@ import { useGlobalState } from '../../GlobelStats';
 import { useTranslation } from 'react-i18next';
 import InterstitialAdManager from '../../Ads/IntAd';
 import { useLocalState } from '../../LocalGlobelStats';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { launchImageLibrary } from 'react-native-image-picker';
-import { Image as CompressorImage } from 'react-native-compressor';
+import { safeCompressImage } from '../../Helper/safeCompressImage';
 import RNFS from 'react-native-fs';
 import { validateContent } from '../../Helper/ContentModeration';
 
@@ -91,9 +92,13 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
   const { localState } = useLocalState()
 
 
-  const { theme, user } = useGlobalState();
+  const { theme, user, isAdmin } = useGlobalState();
+  // Admins and full (non-baby) moderators bypass moderation so they can post
+  // links, warnings, and quoted content the filter would otherwise block.
+  const canBypassModeration = !!isAdmin || (!!user?.isModerator && !user?.isBabyMod);
   const isDark = theme === 'dark';
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
 
 
   const styles = getStyles(isDark);
@@ -129,12 +134,12 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
         const asset = response.assets && response.assets[0];
         if (asset?.uri) {
           // Compress before holding in state — large/text-heavy images crash on upload
-          CompressorImage.compress(asset.uri, {
+          safeCompressImage(asset.uri, {
             maxWidth: 1024,
             quality: 0.7,
             returnableOutputType: 'uri',
           })
-            .then((compressedUri) => setImageUri(compressedUri || asset.uri))
+            .then(({ uri }) => setImageUri(uri || asset.uri))
             .catch(() => setImageUri(asset.uri));
         }
       },
@@ -198,7 +203,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
 
     // ✅ Comprehensive content moderation check
     if (trimmedInput) {
-      const validation = validateContent(trimmedInput);
+      const validation = validateContent(trimmedInput, { skipAll: canBypassModeration });
       if (!validation.isValid) {
         Alert.alert('Error', validation.reason || 'Inappropriate content detected.');
         return;
@@ -415,6 +420,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
               borderTopRightRadius: 20,
               maxHeight: '60%',
               paddingTop: 20,
+              paddingBottom: Math.max(insets.bottom, 16),
             }}
             onPress={(e) => e.stopPropagation()}
           >
@@ -460,7 +466,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
                     if (!trimmedInput || isSending) return;
 
                     // ✅ Comprehensive content moderation check (safety check for templates)
-                    const validation = validateContent(trimmedInput);
+                    const validation = validateContent(trimmedInput, { skipAll: canBypassModeration });
                     if (!validation.isValid) {
                       Alert.alert('Error', validation.reason || 'Inappropriate content detected.');
                       return;

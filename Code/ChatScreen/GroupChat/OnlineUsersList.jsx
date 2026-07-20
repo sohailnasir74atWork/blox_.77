@@ -15,6 +15,7 @@ import {
   Keyboard,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGlobalState } from '../../GlobelStats';
 import { ref, get, query, orderByValue, equalTo, limitToFirst, startAfter, orderByChild, startAt, endAt } from '@react-native-firebase/database';
 import { useNavigation } from '@react-navigation/native';
@@ -56,6 +57,7 @@ const OnlineUsersList = ({
   const navigation = useNavigation();
   const { t } = useTranslation();
   const { triggerHapticFeedback } = useHaptic();
+  const insets = useSafeAreaInsets();
   const isDarkMode = theme === 'dark';
 
   // ✅ Store online users from RTDB (id, displayName, avatar, etc.)
@@ -1068,7 +1070,7 @@ const OnlineUsersList = ({
             )}
 
             {/* Footer Info */}
-            <View style={styles.footer}>
+            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
               <Text style={styles.footerText}>
                 {mode === 'select'
                   ? selectedUserIds.size > 0

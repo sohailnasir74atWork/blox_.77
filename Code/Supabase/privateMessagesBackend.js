@@ -20,6 +20,11 @@ import { uuidv4 } from './uuid';
 
 const PAGE_SIZE_DEFAULT = 15;
 
+// Explicit column list for reads — avoids select('*') egress on every page
+// of message history. Must list exactly the columns fromPrivateMessageRow() reads.
+const PRIVATE_MSG_COLS =
+  'id, client_msg_id, chat_id, sender_id, recipient_id, text, image_url, fruits, reply_to, os, deleted, created_at';
+
 // Canonical chat id used by both RTDB and the Supabase chat_id column.
 // Sort the two UIDs alphabetically and join with an underscore.
 export function chatIdForPair(uidA, uidB) {
@@ -84,7 +89,7 @@ export async function loadPrivateMessages(chatId, { limit = PAGE_SIZE_DEFAULT, b
   if (!chatId) return [];
   let q = supabase
     .from('private_messages')
-    .select('*')
+    .select(PRIVATE_MSG_COLS)
     .eq('chat_id', chatId)
     .eq('deleted', false)
     .order('created_at', { ascending: false })
@@ -189,7 +194,7 @@ export async function sendPrivateMessage({
   const { data, error } = await supabase
     .from('private_messages')
     .insert(payload)
-    .select()
+    .select(PRIVATE_MSG_COLS)
     .single();
 
   if (error) {
@@ -198,7 +203,7 @@ export async function sendPrivateMessage({
     if (error.code === '23505' && payload.client_msg_id) {
       const { data: existing, error: selectErr } = await supabase
         .from('private_messages')
-        .select('*')
+        .select(PRIVATE_MSG_COLS)
         .eq('chat_id', chatId)
         .eq('client_msg_id', payload.client_msg_id)
         .maybeSingle();

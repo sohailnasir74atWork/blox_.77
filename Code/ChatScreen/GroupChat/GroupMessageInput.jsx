@@ -8,9 +8,9 @@ import { useTranslation } from 'react-i18next';
 import InterstitialAdManager from '../../Ads/IntAd';
 import { useLocalState } from '../../LocalGlobelStats';
 import { launchImageLibrary } from 'react-native-image-picker';
-import { Image as CompressorImage } from 'react-native-compressor';
+import { safeCompressImage } from '../../Helper/safeCompressImage';
 import RNFS from 'react-native-fs';
-import { validateContent } from '../../Helper/ContentModeration';
+import { validateContent, containsLink, isAllowedLink } from '../../Helper/ContentModeration';
 
 const BUNNY_STORAGE_HOST = 'storage.bunnycdn.com';
 const BUNNY_STORAGE_ZONE = 'post-gag';
@@ -70,7 +70,10 @@ const GroupMessageInput = ({
   const [imageUri, setImageUri] = useState(null);
 
   const { localState } = useLocalState();
-  const { theme, user } = useGlobalState();
+  const { theme, user, isAdmin } = useGlobalState();
+  // Admins and full (non-baby) moderators bypass moderation so they can post
+  // links, warnings, and quoted content the filter would otherwise block.
+  const canBypassModeration = !!isAdmin || (!!user?.isModerator && !user?.isBabyMod);
   const isDark = theme === 'dark';
   const { t } = useTranslation();
 
@@ -122,12 +125,12 @@ const GroupMessageInput = ({
         const asset = response.assets?.[0];
         if (asset?.uri) {
           // Compress before upload — large/text-heavy images crash on upload
-          CompressorImage.compress(asset.uri, {
+          safeCompressImage(asset.uri, {
             maxWidth: 1024,
             quality: 0.7,
             returnableOutputType: 'uri',
           })
-            .then((compressedUri) => setImageUri(compressedUri || asset.uri))
+            .then(({ uri }) => setImageUri(uri || asset.uri))
             .catch(() => setImageUri(asset.uri));
         }
       }
@@ -147,7 +150,14 @@ const GroupMessageInput = ({
 
     // ✅ Comprehensive content moderation check
     if (textToSend) {
-      const validation = validateContent(textToSend);
+      // If the message contains a link, only YouTube and TikTok are allowed for
+      // everyone; block everything else (admins/mods bypass entirely).
+      if (containsLink(textToSend) && !isAllowedLink(textToSend) && !canBypassModeration) {
+        Alert.alert('Error', 'Only YouTube and TikTok links are allowed.');
+        return;
+      }
+      // Remaining checks (profanity, spam, NSFW) — link check handled above.
+      const validation = validateContent(textToSend, { skipLinkCheck: true, skipAll: canBypassModeration });
       if (!validation.isValid) {
         Alert.alert('Error', validation.reason || 'Inappropriate content detected.');
         return;

@@ -10,7 +10,8 @@ import {
   FlatList,
   Image,
 } from 'react-native';
-import { useFocusEffect, useRoute, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useRoute, useNavigation, useIsFocused } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getStyles } from '../Style';
 import GroupMessageInput from './GroupMessageInput';
 import GroupMessageList from './GroupMessageList';
@@ -41,8 +42,10 @@ import BannerAdComponent from '../../Ads/bannerAds';
 import InterstitialAdManager from '../../Ads/IntAd';
 import { seedCurrentUser } from '../../Helper/profileCache';
 
-const INITIAL_PAGE_SIZE = 15; // ✅ Initial load: 15 messages
+const INITIAL_PAGE_SIZE = 10; // ✅ Initial load: 10 messages
 const PAGE_SIZE = 10; // ✅ Pagination: load 10 messages per batch
+// Cap the live in-memory list — long sessions re-fetch older pages on scroll.
+const MAX_LIVE = 150;
 const MEMBER_STATUS_BATCH_SIZE = 5; // ✅ Load 5 member statuses at a time
 
 const GroupChatScreen = () => {
@@ -51,6 +54,7 @@ const GroupChatScreen = () => {
   const { groupId } = route.params || {};
 
   const { user, theme, appdatabase, firestoreDB, currentUserEmail, strikeInfo, isAdmin, isUserBlocked } = useGlobalState();
+  const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -82,6 +86,10 @@ const GroupChatScreen = () => {
   // read the current user id without forcing a resubscribe on user object
   // identity changes from useGlobalState.
   const userIdRef = useRef(user?.id);
+  const isFocused = useIsFocused();
+  // Set when another member's message arrives while focused; blur clears the
+  // server-side unread count once instead of per message.
+  const unreadWhileFocusedRef = useRef(false);
   userIdRef.current = user?.id;
   const { t } = useTranslation();
 
@@ -429,6 +437,9 @@ const GroupChatScreen = () => {
       setMessages([]);
       return;
     }
+    // Channel only while the screen is focused — the focus effect's unread
+    // reset + initial load cover the return path.
+    if (!isFocused) return;
 
     let isMounted = true;
 
@@ -440,11 +451,11 @@ const GroupChatScreen = () => {
       if (newestMessageIdRef.current && String(msg.id) === String(newestMessageIdRef.current)) return;
 
       // When another member posts while we're in the group, the fanout
-      // RPC has already bumped our unread_count on the server. Clear it
-      // immediately so the bell + groups list don't show +1 for a
-      // message the user is reading inline.
+      // RPC has already bumped our unread_count on the server. Don't fire
+      // an UPDATE per message (each echoes back over the meta channel) —
+      // flag it and clear once on blur.
       if (msg.senderId && msg.senderId !== userIdRef.current && userIdRef.current) {
-        sbResetGroupUnreadCount(userIdRef.current, groupId);
+        unreadWhileFocusedRef.current = true;
       }
 
       setMessages((prev) => {
@@ -463,7 +474,8 @@ const GroupChatScreen = () => {
             return updated.sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
           }
         }
-        const updated = [msg, ...prev].sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
+        let updated = [msg, ...prev].sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
+        if (updated.length > MAX_LIVE) updated = updated.slice(0, MAX_LIVE);
         if (updated.length > 0) newestMessageIdRef.current = updated[0]?.id;
         return updated;
       });
@@ -491,7 +503,7 @@ const GroupChatScreen = () => {
       isMounted = false;
       if (typeof unsubscribe === 'function') unsubscribe();
     };
-  }, [groupId, isMember]);
+  }, [groupId, isMember, isFocused]);
 
   // Active-chat lifecycle: focus + AppState aware. Writes both
   // /activeChats/{userId} = groupId AND /activeGroupChats/{groupId}/{userId}
@@ -499,7 +511,8 @@ const GroupChatScreen = () => {
   // group, and immediately revokes that skip when the app is backgrounded.
   useActiveChatLifecycle({ userId: user?.id, chatId: groupId, groupId });
 
-  // Reset unread + per-screen refs on focus.
+  // Reset unread + per-screen refs on focus; clear once more on blur if
+  // messages arrived while we were reading (their fan-out bumped the count).
   useFocusEffect(
     useCallback(() => {
       if (!user?.id || !groupId) return;
@@ -511,6 +524,13 @@ const GroupChatScreen = () => {
       if (isActualMember) {
         sbResetGroupUnreadCount(user.id, groupId);
       }
+
+      return () => {
+        if (unreadWhileFocusedRef.current) {
+          unreadWhileFocusedRef.current = false;
+          if (isActualMember) sbResetGroupUnreadCount(user.id, groupId);
+        }
+      };
     }, [user?.id, groupId, groupData?.memberIds])
   );
 
@@ -1157,7 +1177,7 @@ const GroupChatScreen = () => {
           onRequestClose={() => setShowMembersModal(false)}
         >
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-            <View style={{ backgroundColor: isDarkMode ? '#1F2937' : '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%' }}>
+            <View style={{ backgroundColor: isDarkMode ? '#1F2937' : '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%', paddingBottom: Math.max(insets.bottom, 16) }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: isDarkMode ? '#374151' : '#E5E7EB' }}>
                 <Text style={{ fontSize: 20, fontWeight: 'bold', color: isDarkMode ? '#fff' : '#000' }}>
                   Members ({memberCount})

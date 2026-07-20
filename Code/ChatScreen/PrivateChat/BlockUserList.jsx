@@ -15,6 +15,8 @@ import { useLocalState } from '../../LocalGlobelStats';
 import { useGlobalState } from '../../GlobelStats';
 import { useTranslation } from 'react-i18next';
 import { showSuccessMessage } from '../../Helper/MessageHelper';
+import FramedAvatar from '../GroupChat/FramedAvatar';
+import { getCachedProfile } from '../../Helper/profileCache';
 
 
 const BlockedUsersScreen = () => {
@@ -119,7 +121,14 @@ const BlockedUsersScreen = () => {
 
   const renderBlockedUser = ({ item }) => (
     <View style={styles.userContainer}>
-      <Image source={{ uri: item.avatar }} style={styles.avatar} />
+      <View style={{ marginRight: 10 }}>
+        <FramedAvatar
+          avatarUri={item.avatar}
+          frame={item.profileFrame || getCachedProfile(item.id)?.profileFrame || null}
+          isDarkMode={isDarkMode}
+          avatarSize={44}
+        />
+      </View>
       <View style={styles.textContainer}>
         <Text style={styles.userName}>{item.displayName}</Text>
         <TouchableOpacity

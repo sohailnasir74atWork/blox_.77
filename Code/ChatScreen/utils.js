@@ -1208,10 +1208,22 @@ export const removeBabyMod = async (userId, callerRoles = {}) => {
 /**
  * Update lastRead timestamp for the current user in a private chat.
  * Called when user enters or is actively viewing the chat.
+ *
+ * Cost note: this fires once per incoming partner message while the chat
+ * is open, and each call used to be an unthrottled RTDB set(). We COALESCE
+ * (pattern from adoptme-jan7): write immediately on the leading edge (the
+ * blue tick still feels instant), suppress repeats within a short window,
+ * and write once more on the trailing edge if any were suppressed — rapid
+ * bursts collapse from N writes to 2. Keyed per-chat so two conversations
+ * don't share a window. Storage stays on the same RTDB path existing
+ * builds read/listen on — only the write FREQUENCY changes, so this is
+ * fully backward compatible.
  */
-export const updateLastRead = async (chatKey, userId) => {
-  if (!chatKey || !userId) return;
+const LAST_READ_DEBOUNCE_MS = 4000;
+const _lastReadTimers = new Map();   // chatKey -> timeout id (window open)
+const _lastReadPending = new Map();  // chatKey -> bool (calls suppressed in window)
 
+const _fireLastRead = async (chatKey, userId) => {
   try {
     const db = getDatabase();
     const lastReadRef = ref(db, `private_messages/${chatKey}/lastRead/${userId}`);
@@ -1219,6 +1231,41 @@ export const updateLastRead = async (chatKey, userId) => {
   } catch (error) {
     console.warn('updateLastRead error:', error?.message);
   }
+};
+
+export const updateLastRead = (chatKey, userId) => {
+  if (!chatKey || !userId) return;
+  if (!_lastReadTimers.has(chatKey)) {
+    // Leading edge: write now, open a coalescing window.
+    _fireLastRead(chatKey, userId);
+    _lastReadPending.set(chatKey, false);
+    _lastReadTimers.set(chatKey, setTimeout(() => {
+      _lastReadTimers.delete(chatKey);
+      const hadPending = _lastReadPending.get(chatKey);
+      _lastReadPending.delete(chatKey);
+      if (hadPending) _fireLastRead(chatKey, userId); // trailing edge
+    }, LAST_READ_DEBOUNCE_MS));
+  } else {
+    // Within the window — mark that a trailing write is owed.
+    _lastReadPending.set(chatKey, true);
+  }
+};
+
+/**
+ * Flush any owed lastRead write immediately and close the window. Call on
+ * chat blur/unmount so the final read receipt lands promptly instead of
+ * waiting out the debounce. No-op if nothing is pending.
+ */
+export const flushLastRead = (chatKey, userId) => {
+  if (!chatKey || !userId) return;
+  const timer = _lastReadTimers.get(chatKey);
+  if (timer) {
+    clearTimeout(timer);
+    _lastReadTimers.delete(chatKey);
+  }
+  const hadPending = _lastReadPending.get(chatKey);
+  _lastReadPending.delete(chatKey);
+  if (hadPending) _fireLastRead(chatKey, userId);
 };
 
 /**

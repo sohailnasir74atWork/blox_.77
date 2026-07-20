@@ -10,6 +10,7 @@ import {
   Pressable,
   KeyboardAvoidingView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function EditProfileModal({
   visible,
@@ -19,6 +20,7 @@ export default function EditProfileModal({
   selectedImage,
   setSelectedImage,
 }) {
+  const insets = useSafeAreaInsets();
   const imageOptions = [
     require('../Avtar/display-pic.png'),
     require('../Avtar/eagle.png'),
@@ -52,6 +54,7 @@ export default function EditProfileModal({
         style={{
           backgroundColor: '#fff',
           padding: 20,
+          paddingBottom: Math.max(insets.bottom, 20),
           borderTopLeftRadius: 20,
           borderTopRightRadius: 20,
         }}

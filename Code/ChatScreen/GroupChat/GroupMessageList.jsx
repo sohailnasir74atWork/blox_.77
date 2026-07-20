@@ -23,6 +23,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
 import { parseMessageText } from '../ChatHelper';
 import { resolveProfile, seedFromMessage } from '../../Helper/profileCache';
+import FramedAvatar from './FramedAvatar';
 import { getSafeTextColor, RainbowText, isMultiColorText, getMultiColorPalette } from '../../Helper/contrastHelper';
 
 const GroupMessageList = ({
@@ -62,6 +63,19 @@ const GroupMessageList = ({
       totalValue: isDarkMode ? '#f97373' : '#b91c1c',
     }),
     [isDarkMode],
+  );
+
+  // "My" bubble is always blue, so the fruits portfolio needs light text in both themes for contrast.
+  const myFruitColors = useMemo(
+    () => ({
+      wrapperBg: '#ffffff1f',
+      name: '#ffffff',
+      valueColor: '#e0e7ff',
+      divider: '#ffffff33',
+      totalLabel: '#e0e7ff',
+      totalValue: '#fecaca',
+    }),
+    [],
   );
 
   // Pre-compile regex patterns for FRUIT_KEYWORDS
@@ -113,6 +127,8 @@ const GroupMessageList = ({
       if (!item || typeof item !== 'object') return null;
 
       const isMyMessage = item.senderId === userId;
+      // Pick fruit-portfolio colors that contrast with this message's bubble.
+      const fc = isMyMessage ? myFruitColors : fruitColors;
 
       // ✅ Resolve profile for cosmetics (text color, bubble bg, etc.)
       const profile = resolveProfile(item);
@@ -163,12 +179,12 @@ const GroupMessageList = ({
               activeOpacity={0.7}
               style={{ alignItems: 'center', justifyContent: 'center' }}
             >
-              <Image
-                source={{
-                  uri: senderAvatar ||
-                    'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
-                }}
-                style={styles.profileImage}
+              <FramedAvatar
+                avatarUri={senderAvatar ||
+                  'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png'}
+                frame={profile.profileFrame || null}
+                isDarkMode={isDarkMode}
+                avatarSize={34}
               />
             </TouchableOpacity>
           </View>
@@ -229,6 +245,8 @@ const GroupMessageList = ({
                       <Text
                         style={[
                           styles.userNameText,
+                          // "My" bubble is always blue; force white name for contrast in light mode.
+                          isMyMessage && { color: '#ffffff' },
                           { flexShrink: 1 },
                         ]}
                         numberOfLines={1}
@@ -300,7 +318,9 @@ const GroupMessageList = ({
                   {hasFruits && (
                     <View
                       style={[
-                        fruitStyles.fruitsWrapper,]}
+                        fruitStyles.fruitsWrapper,
+                        { backgroundColor: fc.wrapperBg },
+                      ]}
                     >
                       {fruits.map((fruit, index) => {
                         const valueType = (fruit.valueType || 'd').toLowerCase();
@@ -323,7 +343,7 @@ const GroupMessageList = ({
                               <Text
                                 style={[
                                   fruitStyles.fruitName,
-                                  { color: fruitColors.name },
+                                  { color: fc.name },
                                 ]}
                                 numberOfLines={1}
                               >
@@ -333,7 +353,7 @@ const GroupMessageList = ({
                               <Text
                                 style={[
                                   fruitStyles.fruitValue,
-                                  { color: fruitColors.valueColor },
+                                  { color: fc.valueColor },
                                 ]}
                               >
                                 · Value: {Number(fruit.value || 0).toLocaleString()}
@@ -371,13 +391,13 @@ const GroupMessageList = ({
                         <View
                           style={[
                             fruitStyles.totalRow,
-                            { borderTopColor: fruitColors.divider },
+                            { borderTopColor: fc.divider },
                           ]}
                         >
                           <Text
                             style={[
                               fruitStyles.totalLabel,
-                              { color: fruitColors.totalLabel },
+                              { color: fc.totalLabel },
                             ]}
                           >
                             Total:
@@ -385,7 +405,7 @@ const GroupMessageList = ({
                           <Text
                             style={[
                               fruitStyles.totalValue,
-                              { color: fruitColors.totalValue },
+                              { color: fc.totalValue },
                             ]}
                           >
                             {totalFruitValue.toLocaleString()}
@@ -454,7 +474,7 @@ const GroupMessageList = ({
         </View>
       );
     },
-    [userId, user, groupData, styles, fruitColors, handleCopy, navigation, triggerHapticFeedback, onUserPress, isDarkMode, onReply, scrollToMessage, highlightedMessageId, getReplyPreview, t]
+    [userId, user, groupData, styles, fruitColors, myFruitColors, handleCopy, navigation, triggerHapticFeedback, onUserPress, isDarkMode, onReply, scrollToMessage, highlightedMessageId, getReplyPreview, t]
   );
 
   const keyExtractor = useCallback((item, index) => {

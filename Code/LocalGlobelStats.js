@@ -48,6 +48,9 @@ export const LocalStateProvider = ({ children }) => {
     lastPreviousStockFetch: storage.getString('lastPreviousStockFetch') || null,
     isAppReady: storage.getBoolean('isAppReady') ?? false,
     lastActivity: storage.getString('lastActivity') || null,
+    // ms-epoch of the last set_last_activity() RPC send — throttles the
+    // Supabase heartbeat to ~once/6h across restarts (see GlobelStats).
+    lastActivitySyncedAt: storage.getString('lastActivitySyncedAt') || null,
     showOnBoardingScreen: storage.getBoolean('showOnBoardingScreen') ?? true,
     user_name: storage.getString('user_name') || 'Anonymous',
     translationUsage: safeParseJSON('translationUsage', {

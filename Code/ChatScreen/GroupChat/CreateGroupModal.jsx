@@ -22,6 +22,8 @@ import { useNavigation } from '@react-navigation/native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import FramedAvatar from './FramedAvatar';
+import { getCachedProfile } from '../../Helper/profileCache';
 
 const BUNNY_STORAGE_HOST = 'storage.bunnycdn.com';
 const BUNNY_STORAGE_ZONE = 'post-gag';
@@ -561,14 +563,17 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
                   ) : (
                     selectedMembersList.map((item) => (
                       <View key={item.id} style={styles.memberItem}>
-                        <Image
-                          source={{
-                            uri:
+                        <View style={{ marginRight: 12 }}>
+                          <FramedAvatar
+                            avatarUri={
                               item.avatar ||
-                              'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
-                          }}
-                          style={styles.memberAvatar}
-                        />
+                              'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png'
+                            }
+                            frame={item.profileFrame || getCachedProfile(item.id)?.profileFrame || null}
+                            isDarkMode={isDarkMode}
+                            avatarSize={40}
+                          />
+                        </View>
                         <Text style={styles.memberName} numberOfLines={1}>
                           {item.displayName || 'Anonymous'}
                         </Text>

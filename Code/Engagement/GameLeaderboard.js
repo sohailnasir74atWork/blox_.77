@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import ViewShot from 'react-native-view-shot';
 import Share from 'react-native-share';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { getThemeColors } from '../Helper/themeColors';
 import config from '../Helper/Environment';
@@ -47,6 +48,7 @@ const RANK_CONFIG = {
 const GameLeaderboard = ({ visible, onClose }) => {
   const { firestoreDB, user, theme } = useGlobalState();
   const { localState, updateLocalState } = useLocalState();
+  const insets = useSafeAreaInsets();
   const isDarkMode = theme === 'dark';
   const c = getThemeColors(isDarkMode);
 
@@ -594,7 +596,7 @@ const GameLeaderboard = ({ visible, onClose }) => {
           )}
 
           {/* Footer Share */}
-          <View style={[styles.footer, { borderTopColor: isDarkMode ? config.colors.surfaceDark : '#e2e8f0' }]}>
+          <View style={[styles.footer, { borderTopColor: isDarkMode ? config.colors.surfaceDark : '#e2e8f0', paddingBottom: Math.max(insets.bottom, 36) }]}>
             <TouchableOpacity
               style={[styles.shareBtn, { backgroundColor: activeTab.color, opacity: (userRankInfo && !isSharing) ? 1 : 0.5 }]}
               onPress={handleShareAchievement}

@@ -13,7 +13,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
-import { Image as CompressorImage } from 'react-native-compressor';
+import { safeCompressImage } from '../../Helper/safeCompressImage';
 import config from '../../Helper/Environment';
 import { useGlobalState } from '../../GlobelStats';
 import { useLocalState } from '../../LocalGlobelStats';
@@ -109,7 +109,7 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
         for (const asset of result.assets) {
           try {
             // ✅ Always compress to ensure < 1MB and good quality
-            const uri = await CompressorImage.compress(asset.uri, {
+            const { uri } = await safeCompressImage(asset.uri, {
               maxWidth: 1024, // Good resolution
               quality: 0.7,   // Good compression
               returnableOutputType: 'uri',
@@ -570,6 +570,9 @@ const getStyles = (isDark, insets = { top: 0 }) =>
       backgroundColor: isDark ? '#333' : '#eee',
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    footer: {
+      paddingBottom: Math.max(insets.bottom, 16),
     },
     uploadBtn: {
       backgroundColor: config.colors.secondary, // Or primary? User used secondary in old code. I'll stick to secondary or switch to primary if secondary is weak. Secondary is likely Green/Red/etc. Let's use config.colors.primary for main action usually, but user code said secondary. I'll keep secondary to respect theme scheme, but ensure it pops.

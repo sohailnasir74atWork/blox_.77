@@ -6,6 +6,8 @@ import {
 import { Platform } from 'react-native';
 import getAdUnitId from './ads';
 import config from '../Helper/Environment';
+import { ensureAdsInitialized } from './init';
+import { setFullScreenAdVisible } from './adVisibility';
 
 // ✅ Two ad unit IDs for A/B testing
 const interstitialAdUnitId = getAdUnitId('interstitial');
@@ -29,7 +31,16 @@ class InterstitialAdManager {
   
   // ✅ A/B test tracking (50/50 split)
   static abTestCounter = 0;
-  
+
+  // ✅ Global frequency cap. There are ~13 interstitial call sites across the app
+  // firing independently (chat send, search, upload, post, daily rewards, wallpaper,
+  // scammer DB, home). Without a shared cooldown, two quick user actions serve two
+  // back-to-back interstitials — ad fatigue, lower eCPM, and AdMob ad-serving-limit
+  // risk. Inside the cooldown we skip the ad and run the caller's callback
+  // immediately so content is never blocked.
+  static lastShownAt = 0;
+  static COOLDOWN_MS = 60000;
+
   static init() {
     if (this.hasInitialized) return;
 
@@ -68,12 +79,26 @@ class InterstitialAdManager {
     );
 
     this.unsubscribeEvents = [onAdALoaded, onAdAError, onAdBLoaded, onAdBError];
-    
-    // ✅ Load both ads immediately
-    this.adA.load();
-    this.adB.load();
-    
+
+    // ✅ Mark initialized synchronously so re-entry / show() before the async
+    // init resolves doesn't double-attach listeners or re-load.
     this.hasInitialized = true;
+
+    // ✅ Config-before-load: await the shared AdMob init (setRequestConfiguration
+    // → initialize) so the first ad request already respects maxAdContentRating
+    // 'T'. Without this, the first (highest-value) impressions can serve at
+    // AdMob's default 'G' ceiling. The promise runs once and is shared with
+    // every other ad manager.
+    ensureAdsInitialized()
+      .then(() => {
+        this.adA.load();
+        this.adB.load();
+      })
+      .catch(() => {
+        // If init somehow rejects, still attempt to load so ads aren't dead.
+        this.adA.load();
+        this.adB.load();
+      });
   }
 
   // ✅ Retry with shorter delays (1s, 2s, 4s, 8s, 16s) then continue with 30s interval
@@ -114,6 +139,13 @@ class InterstitialAdManager {
       this.init();
     }
 
+    // ✅ Global frequency cap: inside the cooldown window, skip the ad and let the
+    // caller proceed immediately (content is never gated on the ad).
+    if (Date.now() - this.lastShownAt < this.COOLDOWN_MS) {
+      if (typeof onAdClosedCallback === 'function') onAdClosedCallback();
+      return;
+    }
+
     // ✅ Determine which ad to try first (A/B test: 50/50 split)
     this.abTestCounter += 1;
     const tryAdAFirst = this.abTestCounter % 2 === 0;
@@ -150,12 +182,16 @@ class InterstitialAdManager {
   }
 
   static showAdA(onAdClosedCallback) {
+    this.lastShownAt = Date.now();
+    // Mark a full-screen ad on screen so the App Open manager won't stack on it.
+    setFullScreenAdVisible(true);
     const unsubscribeClose = this.adA.addAdEventListener(
       AdEventType.CLOSED,
       () => {
+        setFullScreenAdVisible(false);
         this.isAdALoaded = false;
         this.adA.load(); // Preload next immediately
-        
+
         if (typeof onAdClosedCallback === 'function') {
           onAdClosedCallback();
         }
@@ -167,12 +203,16 @@ class InterstitialAdManager {
   }
 
   static showAdB(onAdClosedCallback) {
+    this.lastShownAt = Date.now();
+    // Mark a full-screen ad on screen so the App Open manager won't stack on it.
+    setFullScreenAdVisible(true);
     const unsubscribeClose = this.adB.addAdEventListener(
       AdEventType.CLOSED,
       () => {
+        setFullScreenAdVisible(false);
         this.isAdBLoaded = false;
         this.adB.load(); // Preload next immediately
-        
+
         if (typeof onAdClosedCallback === 'function') {
           onAdClosedCallback();
         }

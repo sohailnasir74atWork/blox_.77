@@ -12,6 +12,11 @@
 
 import { supabase } from './client';
 
+// Explicit column list for hot reads — avoids select('*') egress on the
+// group-list table. Must list exactly the columns fromGroupMetaRow() reads.
+const GROUP_META_COLS =
+  'group_id, group_name, group_avatar, last_message, last_message_timestamp_ms, last_message_sender_id, last_message_sender_name, member_count, created_by, unread_count, muted, joined_at_ms, last_read_at_ms';
+
 // -----------------------------------------------------------------
 // Row mapper — DB snake_case → UI camelCase
 // -----------------------------------------------------------------
@@ -36,18 +41,36 @@ export function fromGroupMetaRow(row) {
 
 // -----------------------------------------------------------------
 // Initial load.
+//
+// Paginated via .range() because Supabase enforces a server-side
+// max_rows cap (default 1000) that .limit(N) doesn't override. Same
+// silent-truncation class as loadChatMeta — see that fn for context.
+// Ordering by last_message_timestamp_ms DESC keeps the most-recent
+// groups in the first page.
 // -----------------------------------------------------------------
+const GROUP_META_PAGE = 1000;
+
 export async function loadGroupMeta(userId) {
   if (!userId) return [];
-  const { data, error } = await supabase
-    .from('group_meta_data')
-    .select('*')
-    .eq('user_id', userId);
-  if (error) {
-    console.warn('[groupMetaBackend] loadGroupMeta error:', error.message);
-    return [];
+  const out = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('group_meta_data')
+      .select(GROUP_META_COLS)
+      .eq('user_id', userId)
+      .order('last_message_timestamp_ms', { ascending: false, nullsFirst: false })
+      .range(from, from + GROUP_META_PAGE - 1);
+    if (error) {
+      console.warn('[groupMetaBackend] loadGroupMeta error:', error.message);
+      break;
+    }
+    if (!data || data.length === 0) break;
+    for (const row of data) out.push(fromGroupMetaRow(row));
+    if (data.length < GROUP_META_PAGE) break;
+    from += GROUP_META_PAGE;
   }
-  return (data || []).map(fromGroupMetaRow);
+  return out;
 }
 
 // -----------------------------------------------------------------

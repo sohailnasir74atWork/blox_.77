@@ -10,6 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGlobalState } from '../GlobelStats';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useHaptic } from '../Helper/HepticFeedBack';
@@ -23,6 +24,7 @@ const CodesDrawer = ({ isVisible, toggleModal, codes }) => {
   const isDarkMode = theme === 'dark';
   const { triggerHapticFeedback } = useHaptic();
   const platform = Platform.OS.toLowerCase();
+  const insets = useSafeAreaInsets();
 
 
   const normalizedCodes =
@@ -67,7 +69,7 @@ const CodesDrawer = ({ isVisible, toggleModal, codes }) => {
       <Pressable style={styles.overlay} onPress={toggleModal} />
 
       {/* Drawer */}
-      <View style={styles.drawer}>
+      <View style={[styles.drawer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
         <FlatList
           data={normalizedCodes}
           keyExtractor={(item, index) => index.toString()}

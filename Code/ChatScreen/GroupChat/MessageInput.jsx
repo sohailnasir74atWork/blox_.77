@@ -54,7 +54,10 @@ const MessageInput = ({
   const { t } = useTranslation();
   const { localState } = useLocalState();
   const [loadingImage, setLoadingImage] = useState(false);
-  const { theme } = useGlobalState();
+  const { theme, isAdmin, user } = useGlobalState();
+  // Admins and full (non-baby) moderators bypass moderation so they can post
+  // links, warnings, and quoted content the filter would otherwise block.
+  const canBypassModeration = !!isAdmin || (!!user?.isModerator && !user?.isBabyMod);
   const isDark = theme === 'dark';
   // const gifAllowed = true
 
@@ -99,7 +102,7 @@ const MessageInput = ({
 
     // ✅ Comprehensive content moderation check
     if (trimmedInput) {
-      const validation = validateContent(trimmedInput);
+      const validation = validateContent(trimmedInput, { skipLinkCheck: canBypassModeration, skipAll: canBypassModeration });
       if (!validation.isValid) {
         showMessage({
           message: validation.reason || "Inappropriate content detected.",

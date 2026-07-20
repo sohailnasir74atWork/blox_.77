@@ -152,22 +152,64 @@ export const supabase = createClient(
 );
 
 // -------------------------------------------------------------------
-// Foreground reconnect
+// Background disconnect / foreground reconnect
 // -------------------------------------------------------------------
-// When the app returns from background the WebSocket may be silently
-// dead (network switch, OS reclaim, device sleep). supabase-js doesn't
-// always notice, so force a reconnect. Auth is handled by the top-level
-// `accessToken` callback above — Realtime calls it on reconnect, so we
-// don't touch realtime auth manually.
+// Realtime postgres_changes are billed per delivered message. A user who
+// leaves the app open on a busy public-room chat and then backgrounds it
+// keeps the channel open — on Android the OS frequently keeps the
+// WebSocket alive, so they keep RECEIVING (and being BILLED for) every
+// room message while not even looking. The public room's cost is the
+// per-subscriber fanout, so dropping backgrounded subscribers is the
+// single highest-leverage realtime saving (ported from adoptme-jan7).
+//
+// We proactively close the socket once the app has been backgrounded for
+// a short grace period, and reconnect on foreground. This is exactly the
+// state iOS already reaches on its own (it kills the background socket
+// within ~30s) — we just make it deterministic and extend it to Android.
+// supabase-js keeps channels registered across a disconnect()/connect()
+// cycle and rejoins them on reconnect; the public room's onStatus →
+// gap-fill path (Trader.jsx) and the chat_meta shared subscription's
+// foreground refresh then backfill anything missed during the blur
+// window. Auth is handled by the top-level `accessToken` callback —
+// Realtime calls it on reconnect, so we don't touch realtime auth here.
+//
+// The grace timer avoids churn on quick app-switches: a 2-second flip out
+// and back shouldn't tear down + re-handshake + gap-fill every channel.
+const BACKGROUND_DISCONNECT_MS = 20000;
 let lastAppState = AppState.currentState;
-AppState.addEventListener('change', (next) => {
-  const cameToForeground = lastAppState.match(/inactive|background/) && next === 'active';
-  lastAppState = next;
-  if (!cameToForeground) return;
+let bgDisconnectTimer = null;
 
-  try {
-    supabase.realtime.connect();
-  } catch (e) {
-    console.warn('[supabase] realtime reconnect failed:', e?.message);
+AppState.addEventListener('change', (next) => {
+  const prev = lastAppState;
+  lastAppState = next;
+
+  const wentToBackground = /inactive|background/.test(next);
+  const cameToForeground = /inactive|background/.test(prev) && next === 'active';
+
+  if (wentToBackground) {
+    // Arm (or re-arm) the teardown. If the user comes back before it
+    // fires, the foreground branch cancels it and nothing happened.
+    if (bgDisconnectTimer) clearTimeout(bgDisconnectTimer);
+    bgDisconnectTimer = setTimeout(() => {
+      bgDisconnectTimer = null;
+      try {
+        supabase.realtime.disconnect();
+      } catch (e) {
+        console.warn('[supabase] realtime background disconnect failed:', e?.message);
+      }
+    }, BACKGROUND_DISCONNECT_MS);
+    return;
+  }
+
+  if (cameToForeground) {
+    if (bgDisconnectTimer) {
+      clearTimeout(bgDisconnectTimer);
+      bgDisconnectTimer = null;
+    }
+    try {
+      supabase.realtime.connect();
+    } catch (e) {
+      console.warn('[supabase] realtime reconnect failed:', e?.message);
+    }
   }
 });

@@ -202,7 +202,8 @@
         "feature_error": "خطأ في تمييز الصفقة",
         "feature_error_message": "فشل في تمييز الصفقة. يرجى المحاولة مرة أخرى.",
         "purchase_success": "تم الشراء بنجاح",
-        "purchase_success_message": "يتمتع المستخدم الآن بميزات Pro!"
+        "purchase_success_message": "يتمتع المستخدم الآن بميزات Pro!",
+        "saved_guide": "اضغط على فلتر المحفوظات في الأعلى لعرض تداولاتك المحفوظة في أي وقت."
     },
     "signin": {
         "title_signin": "تسجيل الدخول",
@@ -399,5 +400,12 @@
         "vote_error": "تعذر إرسال التصويت.",
         "comment_error": "تعذر نشر التعليق.",
         "error": "خطأ"
+    },
+    "trending": {
+        "market_overview": "نظرة عامة على السوق",
+        "full_analytics": "تحليلات كاملة",
+        "hot": "صاعد",
+        "dropping": "هابط",
+        "locked_teaser": "اكتشف أي العناصر ترتفع قيمتها وأيها تنخفض"
     }
 }

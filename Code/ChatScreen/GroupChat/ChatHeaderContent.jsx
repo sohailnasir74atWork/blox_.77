@@ -15,6 +15,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../../GlobelStats';
 import config from '../../Helper/Environment';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ChatRulesModal from './ChatRuleModel';
 import OnlineUsersList from './OnlineUsersList';
 
@@ -34,6 +35,7 @@ const ChatHeaderContent = ({
   const isAdminOrMod = isAdmin || !!user?.isModerator;
   const isDarkMode = theme === 'dark';
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const [pinMessageOpen, setPinMessageOpen] = useState(false);
 
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
@@ -122,7 +124,7 @@ const ChatHeaderContent = ({
       >
         <View style={styles.modalOverlay}>
           <Pressable style={{ flex: 1 }} onPress={() => setPinMessageOpen(false)} />
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'ios' ? 34 : 20) }]}>
             {/* Handle */}
             <View style={styles.handleBar} />
 

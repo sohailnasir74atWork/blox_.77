@@ -1,4 +1,6 @@
 <resources>
     <color name="bootsplash_background">#ffffff</color>
     <color name="bootsplash_background_dark">#0f172a</color>
+    <!-- Adaptive launcher-icon background (matches the icon's dark card). -->
+    <color name="ic_launcher_background">#131313</color>
 </resources>

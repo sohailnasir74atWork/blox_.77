@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, FlatList, TextInput, Image, Keyboard, Pressable, Platform, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import ViewShot from 'react-native-view-shot';
 import { useGlobalState } from '../GlobelStats';
@@ -53,6 +54,7 @@ const HomeScreen = ({ selectedTheme }) => {
   const { t } = useTranslation();
 
   const isDarkMode = theme === 'dark';
+  const insets = useSafeAreaInsets();
   const viewRef = useRef();
   const timeoutRefs = useRef({});
   const rafRefs = useRef({});
@@ -974,7 +976,7 @@ const HomeScreen = ({ selectedTheme }) => {
               <Pressable style={styles.modalOverlay} onPress={closeDrawer} />
               <ConditionalKeyboardWrapper>
                 <View>
-                  <View style={[styles.drawerContainer, { backgroundColor: isDarkMode ? '#0d1f3c' : 'white' }]}>
+                  <View style={[styles.drawerContainer, { backgroundColor: isDarkMode ? '#0d1f3c' : 'white', paddingBottom: Math.max(insets.bottom, 16) }]}>
                     <View style={{
                       flexDirection: 'row', justifyContent: 'space-between', marginVertical: 10,
                     }}>
@@ -1058,7 +1060,7 @@ const HomeScreen = ({ selectedTheme }) => {
               <Pressable style={styles.modalOverlay} onPress={() => setModalVisible(false)} />
               <ConditionalKeyboardWrapper>
                 <View>
-                  <View style={[styles.drawerContainer, { backgroundColor: isDarkMode ? '#0d1f3c' : 'white' }]}>
+                  <View style={[styles.drawerContainer, { backgroundColor: isDarkMode ? '#0d1f3c' : 'white', paddingBottom: Math.max(insets.bottom, 16) }]}>
                     <Text style={styles.modalMessage}>
                       {t("home.trade_description")}
                     </Text>
@@ -1365,7 +1367,7 @@ const HomeScreen = ({ selectedTheme }) => {
             <Pressable style={styles.modalOverlay} onPress={closeDrawer} />
             <ConditionalKeyboardWrapper>
               <View>
-                <View style={[styles.drawerContainer, { backgroundColor: isDarkMode ? '#3B404C' : 'white' }]}>
+                <View style={[styles.drawerContainer, { backgroundColor: isDarkMode ? '#3B404C' : 'white', paddingBottom: Math.max(insets.bottom, 16) }]}>
                   <View style={{
                     flexDirection: 'row', justifyContent: 'space-between', marginVertical: 10,
                   }}>
@@ -1451,7 +1453,7 @@ const HomeScreen = ({ selectedTheme }) => {
             <Pressable style={styles.modalOverlay} onPress={() => setModalVisible(false)} />
             <ConditionalKeyboardWrapper>
               <View>
-                <View style={[styles.drawerContainer, { backgroundColor: isDarkMode ? '#3B404C' : 'white' }]}>
+                <View style={[styles.drawerContainer, { backgroundColor: isDarkMode ? '#3B404C' : 'white', paddingBottom: Math.max(insets.bottom, 16) }]}>
                   <Text style={styles.modalMessage}>
                     {t("home.trade_description")}
                   </Text>

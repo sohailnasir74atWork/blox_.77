@@ -19,8 +19,10 @@ import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-m
 import { useTranslation } from 'react-i18next';
 import { ref, update, remove, onChildAdded, onChildChanged, onChildRemoved } from '@react-native-firebase/database';
 import { showSuccessMessage } from '../../Helper/MessageHelper';
+import FramedAvatar from './FramedAvatar';
+import { getCachedProfile, warmProfileCache } from '../../Helper/profileCache';
 import {
-  subscribeToChatMeta,
+  subscribeToChatMetaShared,
   setChatMuted as sbSetChatMuted,
   deleteChatForOwner as sbDeleteChatForOwner,
   resetUnreadCount as sbResetUnreadCount,
@@ -38,6 +40,8 @@ const InboxScreen = ({ bannedUsers }) => {
   const [localLoading, setLocalLoading] = useState(false);
   const [localChats, setLocalChats] = useState([]);
   const [displayedChatsCount, setDisplayedChatsCount] = useState(INITIAL_LOAD);
+  // Bumped when warmProfileCache lands so rows re-render with frames/avatars.
+  const [profileCacheVersion, setProfileCacheVersion] = useState(0);
   const debounceTimerRef = useRef(null); // ✅ Debounce updateChatsList
   const hasLoadedOnce = useRef(false); // ✅ Track if initial load is done
 
@@ -118,7 +122,7 @@ const InboxScreen = ({ bannedUsers }) => {
         updateChatsList();
       };
 
-      const unsub = subscribeToChatMeta(user.id, {
+      const unsub = subscribeToChatMetaShared(user.id, {
         onUpsert: handleSupaUpsert,
         onRemove: handleSupaRemove,
         onReady: () => {
@@ -213,6 +217,23 @@ const InboxScreen = ({ bannedUsers }) => {
       setDisplayedChatsCount(prev => Math.min(prev + LOAD_MORE, filteredChats.length));
     }
   }, [displayedChatsCount, filteredChats.length]);
+
+  // Warm the profile cache so avatar frames render on inbox rows (the
+  // chat_meta rows don't carry cosmetics). COST: warm ONLY the on-screen
+  // slice — uncached uids only, 30-min TTL, so repeat opens are free.
+  useEffect(() => {
+    if (!appdatabase || filteredChats.length === 0) return;
+    const uncached = filteredChats
+      .slice(0, displayedChatsCount)
+      .map(chat => chat.otherUserId)
+      .filter(id => id && id !== user?.id && !getCachedProfile(id));
+    if (uncached.length === 0) return;
+    let cancelled = false;
+    warmProfileCache(appdatabase, uncached)
+      .then(() => { if (!cancelled) setProfileCacheVersion(v => v + 1); })
+      .catch(() => { });
+    return () => { cancelled = true; };
+  }, [filteredChats, displayedChatsCount, appdatabase, user?.id]);
 
   const isDarkMode = theme === 'dark';
   const c = getThemeColors(isDarkMode);
@@ -353,8 +374,11 @@ const InboxScreen = ({ bannedUsers }) => {
 
     const chatId = item.chatId;
     const otherUserId = item.otherUserId;
+    // Cached profile gives us the partner's cosmetic frame (and freshest
+    // avatar) without any network — rows themselves don't carry cosmetics.
+    const cachedProfile = getCachedProfile(otherUserId);
     const otherUserName = item.otherUserName || 'Anonymous';
-    const otherUserAvatar = item.otherUserAvatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png';
+    const otherUserAvatar = cachedProfile?.avatar || item.otherUserAvatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png';
     const userAvatar = user?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png';
     const lastMessage = item.lastMessage || 'No messages yet';
     const unreadCount = item.unreadCount || 0;
@@ -368,12 +392,14 @@ const InboxScreen = ({ bannedUsers }) => {
           style={styles.chatItem}
           onPress={() => handleOpenChat(chatId, otherUserId, otherUserName, otherUserAvatar)}
         >
-          <Image
-            source={{
-              uri: otherUserId !== user?.id ? otherUserAvatar : userAvatar
-            }}
-            style={styles.avatar}
-          />
+          <View style={{ marginRight: 10 }}>
+            <FramedAvatar
+              avatarUri={otherUserId !== user?.id ? otherUserAvatar : userAvatar}
+              frame={cachedProfile?.profileFrame || null}
+              isDarkMode={isDarkMode}
+              avatarSize={46}
+            />
+          </View>
           <View style={styles.textContainer}>
             <Text style={styles.userName}>
               {otherUserName}
@@ -448,6 +474,7 @@ const InboxScreen = ({ bannedUsers }) => {
           data={displayedChats}
           keyExtractor={(item, index) => item?.chatId || `chat-${index}`}
           renderItem={renderChatItem}
+          extraData={`${profileCacheVersion}-${displayedChatsCount}`}
           removeClippedSubviews={false}
           maxToRenderPerBatch={10}
           windowSize={10}

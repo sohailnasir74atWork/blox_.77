@@ -13,6 +13,7 @@ import {
   Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import config from '../Helper/Environment';
 import { useGlobalState } from '../GlobelStats';
 import { useTranslation } from 'react-i18next';
@@ -23,6 +24,7 @@ const FruitSelectionDrawer = ({ visible, onClose, onSelect, data, selectedTheme 
   const { theme } = useGlobalState();
   const isDarkMode = theme === 'dark';
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (visible) {
@@ -50,7 +52,7 @@ const FruitSelectionDrawer = ({ visible, onClose, onSelect, data, selectedTheme 
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <Pressable style={styles.modalOverlay} onPress={onClose} />
-      <View style={[styles.drawer, { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }]}>
+      <View style={[styles.drawer, { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', paddingBottom: Math.max(insets.bottom, 20) }]}>
         {/* Handle bar */}
         <View style={styles.handleBar}>
           <View style={[styles.handle, { backgroundColor: isDarkMode ? '#475569' : '#cbd5e1' }]} />

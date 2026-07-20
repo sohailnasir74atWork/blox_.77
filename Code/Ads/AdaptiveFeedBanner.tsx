@@ -6,6 +6,7 @@ import {
   TestIds,
 } from 'react-native-google-mobile-ads';
 import getAdUnitId from '../Ads/ads'; // make sure this returns your banner unit id for key 'banner'
+import { npaRequired } from './consent';
 import { useGlobalState } from '../GlobelStats';
 
 type Props = {
@@ -76,7 +77,8 @@ export default function AdaptiveFeedBanner({
           // For INLINE_ADAPTIVE_BANNER, react-native-google-mobile-ads uses the container width.
           // So ensuring the wrapper has a concrete width (via onLayout) is enough.
           requestOptions={{
-            requestNonPersonalizedAdsOnly: false,
+            // NPA decided from persisted UMP consent — never hardcode false.
+            requestNonPersonalizedAdsOnly: npaRequired(),
           }}
           onAdLoaded={() => {
             setLoading(false);

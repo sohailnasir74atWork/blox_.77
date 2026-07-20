@@ -40,7 +40,8 @@ import { Platform } from 'react-native';
 import { getMyCosmetics } from '../Helper/cosmeticsCache';
 import { showMessage } from 'react-native-flash-message';
 // import { nativeAdPool } from '../Ads/NativeAdPool';
-import SingleNativeAd from '../Ads/SingleNative';
+import NativeAdCard from '../Ads/NativeAdCard';
+import { releaseByPrefix as releaseNativeAds } from '../Ads/NativeAdManager';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
 import PostsHeader from './componenets/PostsHeader';
@@ -55,6 +56,10 @@ const DesignFeedScreen = ({ route }) => {
   const { localState } = useLocalState();
   const isDarkMode = theme === 'dark';
   const navigation = useNavigation();
+
+  // Free all cached feed native ads when the screen unmounts so their handles
+  // aren't leaked (NativeAdManager caches one per `ad-N` slot key).
+  useEffect(() => () => { releaseNativeAds('ad-'); }, []);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [isSigninDrawerVisible, setSigninDrawerVisible] = useState(false);
@@ -115,6 +120,7 @@ const DesignFeedScreen = ({ route }) => {
   const fetchMyPosts = async (tag = null) => {
     if (!user?.id) return;
     setInitialLoading(true);
+    setActiveSort('latest'); // keep sort state coherent with the filter
     try {
       let q = query(
         collection(firestoreDB, 'designPosts_upgrade'),
@@ -178,6 +184,10 @@ const DesignFeedScreen = ({ route }) => {
   const fetchPostsByTag = async (tag) => {
     try {
       setInitialLoading(true);
+      // Tag results render from `posts`, which baseList only shows while
+      // activeSort === 'latest' — clear any Hot/Trending sort or the tag
+      // tap appears to do nothing.
+      setActiveSort('latest');
 
       const q = query(
         collection(firestoreDB, 'designPosts_upgrade'),
@@ -217,6 +227,10 @@ const DesignFeedScreen = ({ route }) => {
 
   const fetchInitialPosts = async () => {
     try {
+      // Leave any Hot/Trending sort — this IS the "latest" feed. Without
+      // this, toggling a filter off while sorted by Hot/Trending kept
+      // rendering rankedPosts and the feed looked stuck/empty.
+      setActiveSort('latest');
       const q = query(
         collection(firestoreDB, 'designPosts_upgrade'),
         orderBy('createdAt', 'desc'),
@@ -274,6 +288,7 @@ const DesignFeedScreen = ({ route }) => {
     if (isLoadMore && !followingHasMoreRef.current) return;
     if (!isLoadMore) {
       setInitialLoading(true);
+      setActiveSort('latest'); // keep sort state coherent with the filter
       lastFollowingDocRef.current = null;
       followingHasMoreRef.current = true;
     } else {
@@ -605,7 +620,10 @@ const DesignFeedScreen = ({ route }) => {
     //    return <NativeFeedAd mediaHeight={220} />;
     //  }
     if (item?.__type === 'ad') {
-      return <View style={{ flex: 1 }}><SingleNativeAd /></View>;
+      // Native ad keyed by the stable interleave id (`ad-N`). NativeAdManager
+      // caches one ad per key, so FlatList recycling reuses it (no reload /
+      // flicker / no-fill) and collapses to zero height until an ad fills.
+      return <NativeAdCard adKey={item.id} isDarkMode={isDarkMode} />;
     }
 
     return (
@@ -646,7 +664,9 @@ const DesignFeedScreen = ({ route }) => {
 
   const dataToRender = initialLoading
     ? skeletonArray
-    : interleaveAds(filteredBase, false);
+    // Interleave a native ad every AD_FREQUENCY posts for non-Pro users
+    // (matches adoptme). Was hardcoded `false`, so no feed ad ever rendered.
+    : interleaveAds(filteredBase, !localState?.isPro);
 
   const keyExtractor = (item, index) =>
     // initialLoading ? `skeleton-${index}` : item?.id || `post-${index}`;

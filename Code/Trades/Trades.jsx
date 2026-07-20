@@ -17,12 +17,14 @@ import SubscriptionScreen from '../SettingScreen/OfferWall';
 import { mixpanel } from '../AppHelper/MixPenel';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
+import NativeAdCard from '../Ads/NativeAdCard';
+import { releaseByPrefix as releaseNativeAds } from '../Ads/NativeAdManager';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import StyledUsernamePreview from '../SettingScreen/Store/StyledName';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
 import { isUserOnline } from '../ChatScreen/utils';
 import { useHaptic } from '../Helper/HepticFeedBack';
-import { acceptTrade, saveTrade, unsaveTrade } from './tradeHelpers';
+import { saveTrade, unsaveTrade, fetchSavedTradeRefs } from './tradeHelpers';
 import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
 import { getCachedProfile, warmProfileCache } from '../Helper/profileCache';
 import { ref as dbRef, onValue } from '@react-native-firebase/database';
@@ -30,6 +32,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   limit,
   orderBy,
@@ -127,75 +130,89 @@ const TradeList = ({ route }) => {
   const [followingIds, setFollowingIds] = useState([]);
   const isMyTradesActive = selectedFilters.includes('myTrades');
   const isFollowingActive = selectedFilters.includes('following');
+  const isSavedActive = selectedFilters.includes('saved');
 
-  // Filter button press handlers
-  const handleMyTradesPress = useCallback(() => {
+  // Filter button press handlers — only one of the three can be active at a time
+  const FEED_FILTER_KEYS = ['myTrades', 'following', 'saved'];
+  const makeFilterHandler = (key) => () => {
     triggerHapticFeedback('impactLight');
     if (!user?.id) { setIsSigninDrawerVisible(true); return; }
     setSelectedFilters(prev =>
-      prev.includes('myTrades')
-        ? prev.filter(f => f !== 'myTrades')
-        : [...prev.filter(f => f !== 'following'), 'myTrades']
+      prev.includes(key)
+        ? prev.filter(f => f !== key)
+        : [...prev.filter(f => !FEED_FILTER_KEYS.includes(f)), key]
     );
-  }, [user?.id]);
-
-  const handleFollowingPress = useCallback(() => {
-    triggerHapticFeedback('impactLight');
-    if (!user?.id) { setIsSigninDrawerVisible(true); return; }
-    setSelectedFilters(prev =>
-      prev.includes('following')
-        ? prev.filter(f => f !== 'following')
-        : [...prev.filter(f => f !== 'myTrades'), 'following']
-    );
-  }, [user?.id]);
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const handleMyTradesPress = useCallback(makeFilterHandler('myTrades'), [user?.id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const handleFollowingPress = useCallback(makeFilterHandler('following'), [user?.id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const handleSavedPress = useCallback(makeFilterHandler('saved'), [user?.id]);
 
   useEffect(() => {
     const headerTint = selectedTheme.colors.text;
     const primary = config.colors.primary;
     navigation.setOptions({
-      title: t('tabs.trade', { defaultValue: 'Trades' }),
+      // Title reflects the active filter (the Saved button is icon-only)
+      title: isMyTradesActive
+        ? t('trade.my_trades_title', { defaultValue: 'My Trades' })
+        : isFollowingActive
+          ? t('trade.following_trades_title', { defaultValue: 'Following Trades' })
+          : isSavedActive
+            ? t('trade.saved_trades_title', { defaultValue: 'Saved Trades' })
+            : t('tabs.trade', { defaultValue: 'Trades' }),
       headerRight: () => (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <TouchableOpacity
             onPress={handleMyTradesPress}
             activeOpacity={0.75}
             style={{
-              flexDirection: 'row',
               alignItems: 'center',
+              justifyContent: 'center',
               paddingHorizontal: 8,
               paddingVertical: 4,
               borderRadius: 12,
               backgroundColor: isMyTradesActive ? primary : 'transparent',
               borderWidth: 1,
               borderColor: isMyTradesActive ? primary : headerTint + '55',
-              gap: 4,
             }}
           >
-            <Icon name={isMyTradesActive ? 'person' : 'person-outline'} size={12} color={isMyTradesActive ? '#fff' : headerTint} />
-            <Text style={{ fontSize: 11, fontWeight: '700', color: isMyTradesActive ? '#fff' : headerTint }}>
-              {t('trade.my_trades', { defaultValue: 'My Trades' })}
-            </Text>
+            <Icon name={isMyTradesActive ? 'person' : 'person-outline'} size={14} color={isMyTradesActive ? '#fff' : headerTint} />
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={handleFollowingPress}
             activeOpacity={0.75}
             style={{
-              flexDirection: 'row',
               alignItems: 'center',
+              justifyContent: 'center',
               paddingHorizontal: 8,
               paddingVertical: 4,
               borderRadius: 12,
               backgroundColor: isFollowingActive ? '#8b5cf6' : 'transparent',
               borderWidth: 1,
               borderColor: isFollowingActive ? '#8b5cf6' : headerTint + '55',
-              gap: 4,
             }}
           >
-            <Icon name={isFollowingActive ? 'people' : 'people-outline'} size={12} color={isFollowingActive ? '#fff' : headerTint} />
-            <Text style={{ fontSize: 11, fontWeight: '700', color: isFollowingActive ? '#fff' : headerTint }}>
-              {t('trade.following', { defaultValue: 'Following' })}
-            </Text>
+            <Icon name={isFollowingActive ? 'people' : 'people-outline'} size={14} color={isFollowingActive ? '#fff' : headerTint} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleSavedPress}
+            activeOpacity={0.75}
+            style={{
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              borderRadius: 12,
+              backgroundColor: isSavedActive ? '#F59E0B' : 'transparent',
+              borderWidth: 1,
+              borderColor: isSavedActive ? '#F59E0B' : headerTint + '55',
+            }}
+          >
+            <Icon name={isSavedActive ? 'bookmark' : 'bookmark-outline'} size={14} color={isSavedActive ? '#fff' : headerTint} />
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => navigation.navigate('Trade Notifier')} activeOpacity={0.8} style={{ padding: 4 }}>
@@ -204,11 +221,33 @@ const TradeList = ({ route }) => {
         </View>
       ),
     });
-  }, [navigation, t, handleMyTradesPress, handleFollowingPress, isMyTradesActive, isFollowingActive, selectedTheme]);
+  }, [navigation, t, handleMyTradesPress, handleFollowingPress, handleSavedPress, isMyTradesActive, isFollowingActive, isSavedActive, selectedTheme]);
 
   useEffect(() => {
     setIsProStatus(localState.isPro || proGranted); // ✅ Force update state and trigger re-render
   }, [localState.isPro, proGranted]);
+
+  // Native ads interleaved every TRADE_AD_FREQUENCY trades for non-Pro users
+  // (matches adoptme's Trades screen). Ad rows carry __type:'ad' + a stable
+  // `trade-ad-N` key; NativeAdManager caches one ad per key so FlatList
+  // recycling reuses it. Declared up here (before any conditional return) to
+  // satisfy the rules of hooks.
+  const TRADE_AD_FREQUENCY = 8;
+  const tradesWithAds = useMemo(() => {
+    const base = isSearchMode ? trades : filteredTrades;
+    if (isProStatus || !Array.isArray(base) || base.length === 0) return base;
+    const out = [];
+    let count = 0;
+    for (let i = 0; i < base.length; i++) {
+      out.push(base[i]);
+      count++;
+      if (count % TRADE_AD_FREQUENCY === 0) out.push({ __type: 'ad', id: `trade-ad-${i}` });
+    }
+    return out;
+  }, [isSearchMode, trades, filteredTrades, isProStatus]);
+
+  // Free this screen's native ad handles on unmount.
+  useEffect(() => () => { releaseNativeAds('trade-ad-'); }, []);
 
   // ✅ Client-side filtering for non-search scenarios (filters, banned users)
   useEffect(() => {
@@ -230,6 +269,7 @@ const TradeList = ({ route }) => {
         const statusFilters = selectedFilters.filter(f => ['win', 'lose', 'fair'].includes(f));
         const hasMyTradesFilter = selectedFilters.includes("myTrades");
         const hasFollowingFilter = selectedFilters.includes("following");
+        const hasSavedFilter = selectedFilters.includes("saved");
 
         // ✅ Check status filter match
         let matchesStatus = true;
@@ -251,11 +291,17 @@ const TradeList = ({ route }) => {
           matchesFollowing = followingIds.includes(trade.userId);
         }
 
+        // ✅ Check saved filter match
+        let matchesSaved = true;
+        if (hasSavedFilter) {
+          matchesSaved = !!savedTradeRefs[trade.id];
+        }
+
         // ✅ All selected filters must match (AND logic)
-        return matchesStatus && matchesMyTrades && matchesFollowing;
+        return matchesStatus && matchesMyTrades && matchesFollowing && matchesSaved;
       })
     );
-  }, [trades, selectedFilters, user?.id, bannedUsers, followingIds]);
+  }, [trades, selectedFilters, user?.id, bannedUsers, followingIds, savedTradeRefs]);
 
 
   useEffect(() => {
@@ -951,6 +997,41 @@ const TradeList = ({ route }) => {
     }
   }, [user?.id, firestoreDB]);
 
+  // ── Fetch saved trades (RTDB refs → Firestore trade docs) ──
+  const fetchSavedTrades = useCallback(async () => {
+    if (!user?.id || !appdatabase || !firestoreDB) return;
+    setLoading(true);
+    try {
+      const refs = await fetchSavedTradeRefs(appdatabase, user.id);
+      setSavedTradeRefs(refs || {});
+      const ids = Object.keys(refs || {});
+      if (ids.length === 0) {
+        setTrades([]);
+        setHasMore(false);
+        return;
+      }
+      const results = await Promise.all(ids.map(async (tradeId) => {
+        try {
+          const snap = await getDoc(doc(firestoreDB, 'trades_new_upgrade', tradeId));
+          return snap.exists() ? { id: tradeId, ...snap.data() } : null; // deleted trades are skipped
+        } catch {
+          return null;
+        }
+      }));
+      const valid = results.filter(Boolean).sort((a, b) => {
+        const ta = a.timestamp?.toMillis ? a.timestamp.toMillis() : (a.timestamp?.seconds ? a.timestamp.seconds * 1000 : 0);
+        const tb = b.timestamp?.toMillis ? b.timestamp.toMillis() : (b.timestamp?.seconds ? b.timestamp.seconds * 1000 : 0);
+        return tb - ta;
+      });
+      setTrades(valid);
+      setHasMore(false); // Fixed list — no pagination
+    } catch (e) {
+      console.warn('[Trades] fetchSavedTrades error:', e?.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id, appdatabase, firestoreDB]);
+
   // ✅ Fetch trades from followed users (for "Following" filter)
   const fetchFollowingTrades = useCallback(async () => {
     if (!user?.id || followingIds.length === 0) {
@@ -1107,12 +1188,14 @@ const TradeList = ({ route }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]); // ✅ Only depend on user.id
 
-  // ✅ Refetch trades when My Trades / Following filter changes
+  // ✅ Refetch trades when My Trades / Following / Saved filter changes
   useEffect(() => {
     if (selectedFilters.includes('myTrades')) {
       fetchMyTrades();
     } else if (selectedFilters.includes('following')) {
       fetchFollowingTrades();
+    } else if (selectedFilters.includes('saved')) {
+      fetchSavedTrades();
     } else {
       fetchInitialTrades();
     }
@@ -1120,7 +1203,7 @@ const TradeList = ({ route }) => {
     if (flatListRef.current) {
       flatListRef.current.scrollToOffset({ offset: 0, animated: true });
     }
-  }, [isMyTradesActive, isFollowingActive]);
+  }, [isMyTradesActive, isFollowingActive, isSavedActive]);
 
   const closeProfileDrawer = async () => {
     setIsDrawerVisible(false);
@@ -1189,6 +1272,8 @@ const TradeList = ({ route }) => {
       await fetchMyTrades();
     } else if (isFollowingActive) {
       await fetchFollowingTrades();
+    } else if (isSavedActive) {
+      await fetchSavedTrades();
     } else {
       await fetchInitialTrades();
     }
@@ -1247,6 +1332,9 @@ const TradeList = ({ route }) => {
 
   // ── Alternate trade card renderer (non-Noman) ──
   const renderTradeAlt = ({ item, index }) => {
+    if (item?.__type === 'ad') {
+      return <NativeAdCard adKey={item.id} isDarkMode={isDarkMode} />;
+    }
     const { deal, tradeRatio } = getTradeDeal(item.hasTotal, item.wantsTotal);
     const tradePercentage = Math.abs(((tradeRatio - 1) * 100).toFixed(0));
     const isProfit = tradeRatio > 1;
@@ -1398,7 +1486,7 @@ const TradeList = ({ route }) => {
             </TouchableOpacity>
           </View>
         )}
-        {/* Accept/Save buttons for alt layout */}
+        {/* Save button for alt layout */}
         {item.userId !== user?.id && (
           <View style={styles.tradeActionRow}>
             <TouchableOpacity
@@ -1429,45 +1517,6 @@ const TradeList = ({ route }) => {
             >
               <Icon name={savedTradeRefs[item.id] ? 'bookmark' : 'bookmark-outline'} size={14} color="#3B82F6" />
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={async () => {
-                if (!user?.id) { setIsSigninDrawerVisible(true); return; }
-                const tradeId = item.id;
-                if (savedTradeRefs[tradeId]?.type === 'accepted') {
-                  triggerHapticFeedback('impactLight');
-                  return;
-                }
-                Alert.alert(
-                  t('trade.accept_trade', { defaultValue: 'Accept This Trade?' }),
-                  t('trade.accept_confirm_guide', { defaultValue: 'Accept this trade? The trader will be notified.' }),
-                  [
-                    { text: t('chat.cancel', { defaultValue: 'Cancel' }), style: 'cancel' },
-                    {
-                      text: t('trade.yes_accept', { defaultValue: 'Yes, Accept' }),
-                      onPress: async () => {
-                        triggerHapticFeedback('impactMedium');
-                        setSavedTradeRefs(prev => ({ ...prev, [tradeId]: { type: 'accepted' } }));
-                        try {
-                          await acceptTrade(appdatabase, firestoreDB, user.id, user.displayName || 'Someone', item, { avatar: user.avatar || '', robloxUsername: user.robloxUsername || '' });
-                          triggerHapticFeedback('notificationSuccess');
-                          showSuccessMessage(t('trade.accepted', { defaultValue: 'Trade Accepted!' }), t('trade.accepted_guide', { defaultValue: 'The trader has been notified!' }));
-                        } catch (e) {
-                          setSavedTradeRefs(prev => { const next = { ...prev }; delete next[tradeId]; return next; });
-                          showErrorMessage(t('home.alert.error'), e?.message || 'Error');
-                        }
-                      }
-                    }
-                  ]
-                );
-              }}
-              style={[styles.tradeAcceptBtn, savedTradeRefs[item.id]?.type === 'accepted' && { backgroundColor: '#10B981' }]}
-              activeOpacity={0.75}
-            >
-              <Icon name={savedTradeRefs[item.id]?.type === 'accepted' ? 'checkmark-circle' : 'checkmark'} size={12} color={savedTradeRefs[item.id]?.type === 'accepted' ? '#fff' : '#10B981'} />
-              <Text style={[styles.tradeAcceptBtnText, savedTradeRefs[item.id]?.type === 'accepted' && { color: '#fff' }]}>
-                {savedTradeRefs[item.id]?.type === 'accepted' ? t('trade.accepted_short', { defaultValue: 'Accepted' }) : t('trade.accept', { defaultValue: 'Accept' })}
-              </Text>
-            </TouchableOpacity>
             <TouchableOpacity style={styles.tradeChatBtn2} onPress={handleChatNavigation} activeOpacity={0.8}>
               <Icon name="paper-plane-outline" size={10} color="#fff" />
               <Text style={styles.tradeChatBtnLabel}>Chat</Text>
@@ -1479,6 +1528,9 @@ const TradeList = ({ route }) => {
   };
 
   const renderTrade = ({ item, index }) => {
+    if (item?.__type === 'ad') {
+      return <NativeAdCard adKey={item.id} isDarkMode={isDarkMode} />;
+    }
     const { deal, tradeRatio } = getTradeDeal(item.hasTotal, item.wantsTotal);
     const tradePercentage = Math.abs(((tradeRatio - 1) * 100).toFixed(0));
 
@@ -1737,7 +1789,7 @@ const TradeList = ({ route }) => {
 
           {/* Right side: Engagement Actions */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            {/* Save / Accept — only for other users' trades */}
+            {/* Save — only for other users' trades */}
             {item.userId !== user?.id && (
               <>
                 <TouchableOpacity
@@ -1759,7 +1811,7 @@ const TradeList = ({ route }) => {
                         setSavedTradeRefs(prev => ({ ...prev, [tradeId]: { type: 'saved' } }));
                         Alert.alert(
                           '🔖 ' + t('trade.saved', { defaultValue: 'Trade Saved!' }),
-                          t('trade.saved_guide', { defaultValue: 'This trade has been saved to My Stuff → Active Trades → Saved tab.\n\nFrom there you can:\n• View the trader\'s Roblox username & copy it\n• Chat with the trader\n• Ping the trader when you\'re ready' }),
+                          t('trade.saved_guide', { defaultValue: 'Tap the Saved filter at the top to view your saved trades anytime.' }),
                           [{ text: t('trade.got_it', { defaultValue: 'Got it!' }) }]
                         );
                       } catch (e) {
@@ -1771,51 +1823,6 @@ const TradeList = ({ route }) => {
                   activeOpacity={0.75}
                 >
                   <Icon name={savedTradeRefs[item.id] ? 'bookmark' : 'bookmark-outline'} size={14} color="#3B82F6" />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={async () => {
-                    if (!user?.id) { setIsSigninDrawerVisible(true); return; }
-                    const tradeId = item.id;
-                    if (savedTradeRefs[tradeId]?.type === 'accepted') {
-                      triggerHapticFeedback('impactLight');
-                      showSuccessMessage('✅', t('trade.already_accepted', { defaultValue: 'Already accepted!' }));
-                      return;
-                    }
-                    Alert.alert(
-                      '🤝 ' + t('trade.accept_trade', { defaultValue: 'Accept This Trade?' }),
-                      t('trade.accept_confirm_guide', { defaultValue: 'Are you sure you want to accept this trade?\n\nOnce accepted, the trader will be notified. You can find this trade in My Stuff → Active Trades → Accepted tab.' }),
-                      [
-                        { text: t('chat.cancel', { defaultValue: 'Cancel' }), style: 'cancel' },
-                        {
-                          text: t('trade.yes_accept', { defaultValue: 'Yes, Accept' }),
-                          onPress: async () => {
-                            triggerHapticFeedback('impactMedium');
-                            setSavedTradeRefs(prev => ({ ...prev, [tradeId]: { type: 'accepted' } }));
-                            try {
-                              await acceptTrade(appdatabase, firestoreDB, user.id, user.displayName || 'Someone', item, { avatar: user.avatar || '', robloxUsername: user.robloxUsername || '' });
-                              triggerHapticFeedback('notificationSuccess');
-                              Alert.alert(
-                                '✅ ' + t('trade.accepted', { defaultValue: 'Trade Accepted!' }),
-                                t('trade.accepted_guide', { defaultValue: 'The trader has been notified!\n\nHead to My Stuff → Active Trades → Accepted tab to:\n• Copy the trader\'s Roblox username\n• Chat with them to set up the trade\n• Ping them when you\'re online and ready' }),
-                                [{ text: t('trade.got_it', { defaultValue: 'Got it!' }) }]
-                              );
-                            } catch (e) {
-                              setSavedTradeRefs(prev => { const next = { ...prev }; delete next[tradeId]; return next; });
-                              showErrorMessage(t('home.alert.error'), e?.message || 'Error');
-                            }
-                          }
-                        }
-                      ]
-                    );
-                  }}
-                  style={[styles.tradeAcceptBtn, savedTradeRefs[item.id]?.type === 'accepted' && { backgroundColor: '#10B981' }]}
-                  activeOpacity={0.75}
-                >
-                  <Icon name={savedTradeRefs[item.id]?.type === 'accepted' ? 'checkmark-circle' : 'checkmark'} size={12} color={savedTradeRefs[item.id]?.type === 'accepted' ? '#fff' : '#10B981'} />
-                  <Text style={[styles.tradeAcceptBtnText, savedTradeRefs[item.id]?.type === 'accepted' && { color: '#fff' }]}>
-                    {savedTradeRefs[item.id]?.type === 'accepted' ? t('trade.accepted_short', { defaultValue: 'Accepted' }) : t('trade.accept', { defaultValue: 'Accept' })}
-                  </Text>
                 </TouchableOpacity>
               </>
             )}
@@ -1936,7 +1943,7 @@ const TradeList = ({ route }) => {
 
       <FlatList
         ref={flatListRef}
-        data={isSearchMode ? trades : filteredTrades}
+        data={tradesWithAds}
         renderItem={config.isNoman ? renderTrade : renderTradeAlt}
         keyExtractor={(item, index) => {
           // ✅ FIX: Featured trades already have 'featured-' prefix in their id
@@ -2392,20 +2399,6 @@ const getStyles = (isDarkMode) =>
       backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9',
       justifyContent: 'center',
       alignItems: 'center',
-    },
-    tradeAcceptBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 3,
-      paddingHorizontal: 9,
-      paddingVertical: 5,
-      borderRadius: 999,
-      backgroundColor: isDarkMode ? 'rgba(16,185,129,0.1)' : '#ECFDF5',
-    },
-    tradeAcceptBtnText: {
-      fontSize: 10,
-      fontWeight: '700',
-      color: '#10B981',
     },
     tradeChatBtn2: {
       flexDirection: 'row',

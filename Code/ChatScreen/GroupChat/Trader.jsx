@@ -39,9 +39,12 @@ import {
   subscribeToMessages,
   subscribeToPinned,
   loadMessages as loadMessagesFromSupabase,
+  loadMessagesSince as loadMessagesSinceFromSupabase,
   loadPinnedMessages as loadPinnedMessagesFromSupabase,
   sendMessage as sbSendMessage,
   newClientMsgId,
+  ensureRealtimeAuth as sbEnsureRealtimeAuth,
+  resetRealtimeAndAuth as sbResetRealtimeAndAuth,
   pinMessage as sbPinMessage,
   unpinMessage as sbUnpinMessage,
   clearPinnedForRoom as sbClearPinnedForRoom,
@@ -112,6 +115,65 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   const newestMessageIdRef = useRef(null);
   const hasInitializedRef = useRef(false);
 
+  // ── §4.1 realtime recovery + send retry ─────────────────────────────
+  // Newest { createdAt, id } cursor we've actually rendered. Gap-fill on
+  // reconnect resumes strictly after this so INSERTs missed while the socket
+  // was dead/resubscribing are backfilled (the "chat froze forever" class).
+  const newestCursorRef = useRef(null);
+  const lastRealtimeStatusRef = useRef(null);
+  const channelErrorAttemptsRef = useRef(0);
+  const channelRetryTimerRef = useRef(null);
+  const gapFillTimerRef = useRef(null);
+  // Sends that failed (offline / socket wedged) — replayed on reconnect.
+  // sbSendMessage is idempotent on clientMsgId so replay is duplicate-free.
+  const retryQueueRef = useRef([]);
+  // Bumping this re-runs the realtime effect → tears down the wedged channel
+  // and opens a fresh one after a hard auth/socket reset.
+  const [resubKey, setResubKey] = useState(0);
+
+  // -------------------------------------------------------------------
+  // Idle auto-pause for the (billed) public-room realtime stream.
+  // -------------------------------------------------------------------
+  // The room channel fans EVERY message out to EVERY subscriber, so a user
+  // who leaves the chat open but stops interacting is pure realtime-message
+  // cost. After IDLE_PAUSE_MS with no interaction we tear the subscription
+  // down and show a resume bar; any touch (scroll/tap/send) flips
+  // realtimePaused back to false, the subscription effect re-subscribes,
+  // and the existing onStatus → gap-fill backfills whatever was missed.
+  const IDLE_PAUSE_MS = 180000; // 3 min — tune for cost vs. interruption
+  const [realtimePaused, setRealtimePaused] = useState(false);
+  const idleTimerRef = useRef(null);
+
+  const clearIdleTimer = useCallback(() => {
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
+  }, []);
+
+  const armIdleTimer = useCallback(() => {
+    clearIdleTimer();
+    idleTimerRef.current = setTimeout(() => {
+      idleTimerRef.current = null;
+      setRealtimePaused(true);
+    }, IDLE_PAUSE_MS);
+  }, [clearIdleTimer]);
+
+  // Wire onto every interaction signal (container onTouchStart, send).
+  // Resumes if paused and restarts the idle countdown. Returning the same
+  // value from the updater makes React bail out, so touches while
+  // already-live cost no re-render.
+  const registerChatActivity = useCallback(() => {
+    setRealtimePaused((paused) => (paused ? false : paused));
+    armIdleTimer();
+  }, [armIdleTimer]);
+
+  // Reset any leftover pause when the tab blurs, so the next visit
+  // starts live again.
+  useEffect(() => {
+    if (!isFocused) setRealtimePaused(false);
+  }, [isFocused]);
+
   const flatListRef = useRef();
   const gifAllowed = true; // Always allow GIFs/emojis
 
@@ -146,13 +208,23 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     isAtBottomRef.current = isAtBottom;
     if (isAtBottom && pendingMessages.length > 0) {
       // console.log("✅ User scrolled to bottom. Releasing held messages...");
-      setMessages((prev) => [...pendingMessages, ...prev]);
+      setMessages((prev) => {
+        const next = [...pendingMessages, ...prev];
+        return next.length > MAX_LIVE ? next.slice(0, MAX_LIVE) : next;
+      });
       setPendingMessages([]); // Clear the queue
     }
   }, [isAtBottom, pendingMessages]);
 
 
-  const PAGE_SIZE = 20;
+  const INITIAL_PAGE_SIZE = 10; // first paint — older pages load on scroll
+  const PAGE_SIZE = 10;         // pagination batch
+  const PENDING_CAP = 50;
+  // Cap the live in-memory list. Without this the array grows unbounded for
+  // the whole session (every insert prepends), so per-event + render cost
+  // climbs the longer the room stays open. Scrolling past this re-fetches
+  // older pages from Supabase.
+  const MAX_LIVE = 150;
 
   const navigation = useNavigation()
 
@@ -310,6 +382,13 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     newestMessageIdRef.current = null;
     hasInitializedRef.current = false;
     lastSentMessageRef.current = null;
+    // Reset §4.1 recovery state for the new channel.
+    newestCursorRef.current = null;
+    retryQueueRef.current = [];
+    lastRealtimeStatusRef.current = null;
+    channelErrorAttemptsRef.current = 0;
+    if (gapFillTimerRef.current) { clearTimeout(gapFillTimerRef.current); gapFillTimerRef.current = null; }
+    if (channelRetryTimerRef.current) { clearTimeout(channelRetryTimerRef.current); channelRetryTimerRef.current = null; }
   }, [activeChannel.id]);
 
   // Initial channel load (mount + every switch).
@@ -338,21 +417,37 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         // ── Supabase path ────────────────────────────────────────────
         if (SUPABASE_PUBLIC_CHAT_ENABLED) {
           try {
-            const rows = await loadMessagesFromSupabase(activeChannel.path, { limit: PAGE_SIZE });
+            const rows = await loadMessagesFromSupabase(activeChannel.path, { limit: INITIAL_PAGE_SIZE });
             if (cancelled) return;
+
+            // Seed the gap-fill cursor from the newest loaded row (uuid + ts)
+            // so the first reconnect resumes from here, not from the top.
+            if (rows.length > 0 && rows[0]?.id) {
+              newestCursorRef.current = {
+                createdAt: new Date(rows[0].timestamp || Date.now()).toISOString(),
+                id: rows[0].id,
+              };
+            }
 
             // Adapt Supabase row → UI shape that validateMessage expects.
             const parsed = rows
-              .map((m) => validateMessage({
-                id: m.rtdbKey || m.id,
-                senderId: m.senderId,
-                text: m.text,
-                gif: m.gif,
-                fruits: m.fruits,
-                replyTo: m.replyTo,
-                OS: m.OS,
-                timestamp: m.timestamp,
-              }))
+              .map((m) => {
+                const v = validateMessage({
+                  id: m.rtdbKey || m.id,
+                  senderId: m.senderId,
+                  text: m.text,
+                  gif: m.gif,
+                  fruits: m.fruits,
+                  replyTo: m.replyTo,
+                  OS: m.OS,
+                  timestamp: m.timestamp,
+                });
+                // Carry the real Supabase uuid for the gap-free load-more cursor.
+                // State `id` may be a legacy RTDB key, which can't anchor the
+                // composite cursor against the uuid `id` column.
+                if (v) v._sbId = m.id;
+                return v;
+              })
               .filter(Boolean)
               .filter(msg => msg?.senderId && !bannedIds.includes(msg.senderId));
 
@@ -372,7 +467,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         // ── RTDB fallback (original code) ────────────────────────────
         if (!appdatabase) return;
         const currentRef = ref(appdatabase, activeChannel.path);
-        const snapshot = await get(dbQuery(currentRef, orderByKey(), limitToLast(PAGE_SIZE)));
+        const snapshot = await get(dbQuery(currentRef, orderByKey(), limitToLast(INITIAL_PAGE_SIZE)));
         if (cancelled) return;
 
         const data = snapshot.val() || {};
@@ -422,6 +517,12 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   useEffect(() => {
     if (!appdatabase || !activeChannel?.path) return;
 
+    // Cost gates: no subscription while the chat tab is blurred (user is on
+    // Home/Values/etc. — the fan-out would be pure waste) or while idle-paused.
+    // On refocus/resume the effect re-runs, re-subscribes, and the
+    // onStatus → gap-fill path backfills anything missed.
+    if (!isFocused || realtimePaused) return;
+
     let cancelled = false;
 
     // Shared "new message arrived" handler — fed by both code paths so
@@ -446,12 +547,15 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
         if (isAtBottomRef.current) {
           newestMessageIdRef.current = key || newMessage.id;
-          return [newMessage, ...prev];
+          const next = [newMessage, ...prev];
+          return next.length > MAX_LIVE ? next.slice(0, MAX_LIVE) : next;
         }
         setPendingMessages((prevPending) => {
           const pendingIds = new Set(prevPending.map((msg) => msg?.id).filter(Boolean));
           if (pendingIds.has(newMessage.id)) return prevPending;
-          return [newMessage, ...prevPending];
+          const nextPending = [newMessage, ...prevPending];
+          // Cap so a long scrollback session can't grow pending unboundedly.
+          return nextPending.length > PENDING_CAP ? nextPending.slice(0, PENDING_CAP) : nextPending;
         });
         return prev;
       });
@@ -468,24 +572,84 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         setPendingMessages((prev) => prev.filter((m) => m?.id !== uiId));
       };
 
-      const unsub = subscribeToMessages(activeChannel.path, {
-        onInsert: (msg) => {
-          if (!msg) return;
-          // Adapt Supabase row → UI shape that validateMessage expects.
-          // Use rtdbKey when present so dedup against the initial RTDB
-          // page load works (initial load uses RTDB push keys as ids).
-          const adapted = validateMessage({
-            id: msg.rtdbKey || msg.id,
-            senderId: msg.senderId,
-            text: msg.text,
-            gif: msg.gif,
-            fruits: msg.fruits,
-            replyTo: msg.replyTo,
-            OS: msg.OS,
-            timestamp: msg.timestamp,
-          });
-          onNewMessage(adapted, msg.rtdbKey || msg.id);
-        },
+      // Advance the gap-fill cursor whenever a realtime row lands, so a later
+      // reconnect resumes from the last thing we actually saw (uuid + ts).
+      const advanceCursor = (msg) => {
+        if (!msg?.id) return;
+        const t = typeof msg?.timestamp === 'number' ? msg.timestamp : Date.now();
+        const cur = newestCursorRef.current;
+        if (!cur || new Date(cur.createdAt).getTime() < t) {
+          newestCursorRef.current = { createdAt: new Date(t).toISOString(), id: msg.id };
+        }
+      };
+
+      // Adapt a raw Supabase row → UI shape and route it through the shared
+      // onNewMessage path (banned filter, cache warm, scroll-gate, dedup).
+      // Use rtdbKey as the UI id when present so dedup against initial RTDB
+      // page rows still works; carry the uuid as _sbId for the load-more cursor.
+      const ingest = (msg) => {
+        if (!msg) return;
+        advanceCursor(msg);
+        const adapted = validateMessage({
+          id: msg.rtdbKey || msg.id,
+          senderId: msg.senderId,
+          text: msg.text,
+          gif: msg.gif,
+          fruits: msg.fruits,
+          replyTo: msg.replyTo,
+          OS: msg.OS,
+          timestamp: msg.timestamp,
+        });
+        if (adapted) adapted._sbId = msg.id;
+        onNewMessage(adapted, msg.rtdbKey || msg.id);
+      };
+
+      // Forward gap-fill: pull everything strictly newer than the cursor and
+      // ingest it. onNewMessage dedups by id, so rows already on screen are
+      // ignored — only the genuinely-missed INSERTs get added.
+      const gapFillSince = async () => {
+        const since = newestCursorRef.current;
+        try {
+          const rows = await loadMessagesSinceFromSupabase(activeChannel.path, since, { limit: 60 });
+          if (cancelled || !rows.length) return;
+          // Oldest-first so they stack in the right order via onNewMessage.
+          for (let i = rows.length - 1; i >= 0; i--) ingest(rows[i]);
+        } catch (e) {
+          // Best-effort — a failed backfill just retries on the next reconnect.
+        }
+      };
+      const scheduleGapFill = () => {
+        if (gapFillTimerRef.current) clearTimeout(gapFillTimerRef.current);
+        gapFillTimerRef.current = setTimeout(() => {
+          gapFillTimerRef.current = null;
+          gapFillSince();
+        }, 400);
+      };
+
+      // Replay sends that failed while offline / wedged. Idempotent on
+      // clientMsgId, so a row that actually landed just returns the existing
+      // one; the result surfaces via ingest (and the INSERT echo is deduped).
+      const flushRetryQueue = async () => {
+        const queue = retryQueueRef.current;
+        if (!queue.length) return;
+        retryQueueRef.current = [];
+        for (const item of queue) {
+          try {
+            const saved = await sbSendMessage(item.path, item.payload);
+            if (!cancelled && saved) ingest(saved);
+          } catch (e) {
+            // Still failing — keep for the next reconnect, but cap attempts so
+            // a poison send (e.g. RLS reject) can't loop on every reconnect.
+            if ((item.attempts || 0) < 3) {
+              retryQueueRef.current.push({ ...item, attempts: (item.attempts || 0) + 1 });
+            }
+          }
+        }
+      };
+
+      let unsubscribe = () => {};
+      const subscribeCallbacks = {
+        onInsert: (msg) => { if (msg) ingest(msg); },
         onUpdate: (msg) => {
           // Soft-delete arrives as an UPDATE with deleted=true. Drop it
           // from state. Other UPDATEs are ignored (slim schema has no
@@ -493,17 +657,65 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
           if (msg?.deleted) removeFromState(msg.rtdbKey || msg.id);
         },
         onDelete: (id) => {
-          // Hard-delete: row id is the Supabase UUID. The UI's id might
-          // be the rtdbKey instead, so try both.
+          // Hard-delete: row id is the Supabase UUID. The UI's id might be the
+          // rtdbKey instead, so match on both the UI id and the carried _sbId.
           if (!id) return;
-          setMessages((prev) => prev.filter((m) => m?.id !== id && m?.supabaseId !== id));
-          setPendingMessages((prev) => prev.filter((m) => m?.id !== id && m?.supabaseId !== id));
+          setMessages((prev) => prev.filter((m) => m?.id !== id && m?._sbId !== id));
+          setPendingMessages((prev) => prev.filter((m) => m?.id !== id && m?._sbId !== id));
         },
+        onStatus: (status) => {
+          const prev = lastRealtimeStatusRef.current;
+          lastRealtimeStatusRef.current = status;
+
+          if (status === 'SUBSCRIBED') {
+            // Every fresh SUBSCRIBED (incl. the first) backfills the gap — on
+            // cold-start the channel may have opened pre-auth and RLS dropped
+            // INSERTs that landed in that window.
+            if (prev !== 'SUBSCRIBED') {
+              scheduleGapFill();
+              flushRetryQueue();
+            }
+            channelErrorAttemptsRef.current = 0;
+            return;
+          }
+
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            const attempts = channelErrorAttemptsRef.current;
+            if (attempts >= 5) return; // give up — the warn log shows the cause
+            channelErrorAttemptsRef.current = attempts + 1;
+            const delay = Math.min(2000 * Math.pow(2, attempts), 30000);
+            if (channelRetryTimerRef.current) clearTimeout(channelRetryTimerRef.current);
+            channelRetryTimerRef.current = setTimeout(async () => {
+              channelRetryTimerRef.current = null;
+              // Hard-reset socket + refresh JWT before resubscribing, else the
+              // new channel inherits the wedged WS + stale token and re-fails.
+              await sbResetRealtimeAndAuth();
+              if (!cancelled) setResubKey((k) => k + 1);
+            }, delay);
+          }
+        },
+      };
+
+      // Start the idle countdown now that we're committing to a (billed)
+      // subscription. Interaction re-arms it via registerChatActivity.
+      armIdleTimer();
+
+      // Pre-flight realtime auth so the channel JOIN carries a valid JWT.
+      // supabase-js's connect-time auth is fire-and-forget; without this a
+      // cold-start channel can join unauth and get rejected (InvalidJWTToken).
+      sbEnsureRealtimeAuth().finally(() => {
+        if (cancelled) return;
+        unsubscribe = subscribeToMessages(activeChannel.path, subscribeCallbacks);
       });
+
       return () => {
         cancelled = true;
-        unsub();
+        unsubscribe();
+        clearIdleTimer();
         hasInitializedRef.current = false;
+        lastRealtimeStatusRef.current = null;
+        if (gapFillTimerRef.current) { clearTimeout(gapFillTimerRef.current); gapFillTimerRef.current = null; }
+        if (channelRetryTimerRef.current) { clearTimeout(channelRetryTimerRef.current); channelRetryTimerRef.current = null; }
       };
     }
 
@@ -529,7 +741,10 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       unsubscribe();
       hasInitializedRef.current = false;
     };
-  }, [activeChannel.path, appdatabase, validateMessage, bannedUsers]);
+    // resubKey: bumped by the onStatus error path after a hard auth/socket
+    // reset, so this effect tears down the wedged channel and opens a fresh one.
+    // isFocused / realtimePaused: cost gates — see top of effect.
+  }, [activeChannel.path, appdatabase, validateMessage, bannedUsers, resubKey, isFocused, realtimePaused, armIdleTimer, clearIdleTimer]);
 
 
 
@@ -559,23 +774,32 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         try {
           const rows = await loadMessagesFromSupabase(activeChannel.path, {
             limit: PAGE_SIZE,
-            beforeMs: oldest.timestamp,
+            // Gap-free composite cursor when we have the Supabase uuid (rows that
+            // came from a Supabase load); fall back to timestamp-only for the rare
+            // RTDB-fallback rows that have no uuid to anchor on.
+            ...(oldest._sbId
+              ? { before: { createdAt: new Date(oldest.timestamp).toISOString(), id: oldest._sbId } }
+              : { beforeMs: oldest.timestamp }),
           });
 
           const bannedIds = Array.isArray(bannedUsers)
             ? bannedUsers.map(u => (typeof u === 'string' ? u : u?.id)).filter(Boolean)
             : [];
           const parsed = rows
-            .map((m) => validateMessage({
-              id: m.rtdbKey || m.id,
-              senderId: m.senderId,
-              text: m.text,
-              gif: m.gif,
-              fruits: m.fruits,
-              replyTo: m.replyTo,
-              OS: m.OS,
-              timestamp: m.timestamp,
-            }))
+            .map((m) => {
+              const v = validateMessage({
+                id: m.rtdbKey || m.id,
+                senderId: m.senderId,
+                text: m.text,
+                gif: m.gif,
+                fruits: m.fruits,
+                replyTo: m.replyTo,
+                OS: m.OS,
+                timestamp: m.timestamp,
+              });
+              if (v) v._sbId = m.id;
+              return v;
+            })
             .filter(Boolean)
             .filter(msg => msg?.senderId && !bannedIds.includes(msg.senderId));
 
@@ -646,7 +870,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         ? bannedUsers.map(u => (typeof u === 'string' ? u : u?.id)).filter(Boolean)
         : [];
 
-      const rows = await loadMessagesFromSupabase(activeChannel.path, { limit: PAGE_SIZE });
+      const rows = await loadMessagesFromSupabase(activeChannel.path, { limit: INITIAL_PAGE_SIZE });
       const parsed = rows
         .map((m) => validateMessage({
           id: m.rtdbKey || m.id,
@@ -683,6 +907,9 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   // Supabase pin-row id, not an RTDB push key.
   useEffect(() => {
     if (!activeChannel?.path) return;
+    // Channel (and refetches) only while the tab is focused — pins change
+    // rarely; the refetch on refocus keeps them current.
+    if (!isFocused) return;
 
     let cancelled = false;
 
@@ -709,7 +936,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       cancelled = true;
       unsubPinned?.();
     };
-  }, [activeChannel?.path]);
+  }, [activeChannel?.path, isFocused]);
 
   const handlePinMessage = async (message) => {
     if (!message?.id) {
@@ -747,6 +974,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   };
 
   const handleSendMessage = async (replyToArg, trimmedInputArg, fruits, emojiUrl) => {
+    // Sending is interaction — resume/extend the live realtime window.
+    registerChatActivity();
     const hasEmoji = !!emojiUrl;
 
     // console.log(emojiUrl)
@@ -861,24 +1090,26 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       return false;
     }
 
+    // SLIM MESSAGE: only message-specific fields. Sender profile
+    // (avatar, badges, cosmetics) is resolved client-side from profileCache
+    // on render — not snapshotted here. The clientMsgId is generated ONCE and
+    // reused by the offline retry path, so a row that actually landed before
+    // the socket dropped is returned (UNIQUE(room_id, client_msg_id)) instead
+    // of duplicated.
+    const sendPayload = {
+      clientMsgId: newClientMsgId(),
+      senderId: user.id,
+      text: trimmedInput || null,
+      replyTo: replyToArg
+        ? { id: replyToArg.id, text: replyToArg.text }
+        : null,
+      fruits: hasFruits ? fruits : [],
+      gif: hasEmoji ? emojiUrl : null,
+      OS: Platform.OS,
+    };
+
     try {
-      // SLIM MESSAGE: only message-specific fields. Sender profile
-      // (avatar, badges, cosmetics) is resolved client-side from
-      // profileCache on render — not snapshotted here.
-      // clientMsgId makes the send idempotent: a network retry that
-      // collides on UNIQUE(room_id, client_msg_id) returns the existing
-      // row instead of creating a duplicate.
-      await sbSendMessage(activeChannel.path, {
-        clientMsgId: newClientMsgId(),
-        senderId: user.id,
-        text: trimmedInput || null,
-        replyTo: replyToArg
-          ? { id: replyToArg.id, text: replyToArg.text }
-          : null,
-        fruits: hasFruits ? fruits : [],
-        gif: hasEmoji ? emojiUrl : null,
-        OS: Platform.OS,
-      });
+      await sbSendMessage(activeChannel.path, sendPayload);
 
       // ✅ Store last sent message to prevent duplicates (session-based, no Firebase cost)
       lastSentMessageRef.current = currentMessage;
@@ -894,8 +1125,22 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       return true;
     } catch (error) {
       console.error('Error sending message:', error);
-      showMessage({ message: t('home.alert.error'), description: 'Could not send your message. Please try again.', type: 'danger' });
-      return false;
+      // §4.1 offline send queue: keep the message and replay it (idempotent on
+      // clientMsgId) when the realtime channel next reconnects, instead of
+      // dropping it. Set the dup-guard + clear input so a manual re-send can't
+      // race the auto-retry into a duplicate. flushRetryQueue (realtime effect)
+      // drains this on SUBSCRIBED and caps attempts so a poison send can't loop.
+      retryQueueRef.current.push({ path: activeChannel.path, payload: sendPayload, attempts: 0 });
+      lastSentMessageRef.current = currentMessage;
+      setInput('');
+      setReplyTo(null);
+      showMessage({
+        message: 'Offline',
+        description: "Your message will send automatically when you're back online.",
+        type: 'warning',
+        duration: 3000,
+      });
+      return true;
     }
   };
 
@@ -904,7 +1149,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     <>
       <GestureHandlerRootView>
 
-        <View style={styles.container}>
+        <View style={styles.container} onTouchStart={registerChatActivity}>
           {/* ✅ Channel Pill Switcher */}
           <ScrollView
             horizontal
@@ -1012,6 +1257,24 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
             )}
 
 
+            {realtimePaused && (
+              <TouchableOpacity
+                onPress={registerChatActivity}
+                activeOpacity={0.85}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingVertical: 8,
+                  paddingHorizontal: 14,
+                  backgroundColor: config.colors.primary,
+                }}
+              >
+                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600', textAlign: 'center' }}>
+                  ⏸  {t('chat.paused_resume', { defaultValue: 'Live chat paused to save data — tap to resume' })}
+                </Text>
+              </TouchableOpacity>
+            )}
             {user.id ? (
               <MessageInput
                 input={input}

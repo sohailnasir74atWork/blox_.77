@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import ValueScreen from '../../ValuesScreen/ValueScreen';
 import { useGlobalState } from '../../GlobelStats';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -15,6 +16,7 @@ const PetModal = ({ fromChat, visible, selectedFruits, setSelectedFruits , fromS
 
   const {theme} = useGlobalState()
   const isDark = theme == 'dark'
+  const insets = useSafeAreaInsets()
   return (
 
     <Modal
@@ -28,7 +30,7 @@ const PetModal = ({ fromChat, visible, selectedFruits, setSelectedFruits , fromS
         <Pressable style={styles.backdrop} onPress={onClose} />
 
         {/* Bottom drawer */}
-        <View style={[styles.drawer, {backgroundColor: !isDark ? 'white' : 'black'}]}>
+        <View style={[styles.drawer, {backgroundColor: !isDark ? 'white' : 'black', paddingBottom: Math.max(insets.bottom, 16)}]}>
           <ValueScreen fromChat={fromChat} selectedFruits={selectedFruits} setSelectedFruits={setSelectedFruits} onRequestClose={onClose} fromSetting={fromSetting} owned={owned} ownedPets={ownedPets} setOwnedPets={setOwnedPets} wishlistPets={wishlistPets} setWishlistPets={setWishlistPets}/>
         </View>
       </View>

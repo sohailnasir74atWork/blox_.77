@@ -60,6 +60,26 @@ export async function getIdentity(uid) {
   return fromIdentityRow(data);
 }
 
+// -----------------------------------------------------------------
+// Write-side helper: advance the caller's last_activity_ms heartbeat.
+// Bypasses the RTDB → mirrorUsersToSupabase round-trip (which fired a
+// Cloud Function invocation per heartbeat even though no other mirror
+// cared). Backed by set_last_activity() in supabase/016_user_last_activity.sql
+// — server-side clock is authoritative so client clock skew can't
+// back-date the timestamp.
+//
+// Fire-and-forget from the caller's perspective. Returns the ms-epoch
+// written, or 0 on failure / no auth.
+// -----------------------------------------------------------------
+export async function setLastActivity() {
+  const { data, error } = await supabase.rpc('set_last_activity');
+  if (error) {
+    console.warn('[userBackend] setLastActivity error:', error.message);
+    return 0;
+  }
+  return Number(data) || 0;
+}
+
 export async function getIdentityBatch(uids) {
   return _batchByUid('user_identity', uids, fromIdentityRow);
 }

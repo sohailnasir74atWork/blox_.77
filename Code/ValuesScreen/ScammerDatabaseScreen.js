@@ -33,6 +33,7 @@ import {
     Dimensions,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
     getFirestore,
     collection,
@@ -53,7 +54,7 @@ import {
 } from '@react-native-firebase/firestore';
 import { launchImageLibrary } from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
-import { Image as CompressorImage } from 'react-native-compressor';
+import { safeCompressImage } from '../Helper/safeCompressImage';
 import { useGlobalState } from '../GlobelStats';
 import { useLocalState } from '../LocalGlobelStats';
 import InterstitialAdManager from '../Ads/IntAd';
@@ -131,6 +132,7 @@ const ScammerDatabaseScreen = () => {
     const { localState } = useLocalState();
     const isDark = theme === 'dark';
     const isMod = isAdmin || user?.isModerator || user?.isMod;
+    const insets = useSafeAreaInsets();
 
     const db = useMemo(() => getFirestore(), []);
 
@@ -333,7 +335,7 @@ const ScammerDatabaseScreen = () => {
                         let uri = asset.uri;
                         if (fileSize > 1024 * 1024) {
                             try {
-                                uri = await CompressorImage.compress(uri, { maxWidth: 800, quality: 0.6, returnableOutputType: 'uri' });
+                                uri = (await safeCompressImage(uri, { maxWidth: 800, quality: 0.6, returnableOutputType: 'uri' })).uri;
                             } catch { /* use original */ }
                         }
                         uris.push(uri);
@@ -745,7 +747,7 @@ const ScammerDatabaseScreen = () => {
             {/* ════════════════════════════════════════ */}
             <Modal visible={showDetailModal} animationType="slide" transparent>
                 <View style={s.modalOverlay}>
-                    <View style={[s.modalContent, { backgroundColor: C.card }]}>
+                    <View style={[s.modalContent, { backgroundColor: C.card, paddingBottom: Math.max(insets.bottom, 20) }]}>
                         <ScrollView showsVerticalScrollIndicator={false}>
                             {/* Close */}
                             <View style={s.modalHeader}>
@@ -869,7 +871,7 @@ const ScammerDatabaseScreen = () => {
             {/* ════════════════════════════════════════ */}
             <Modal visible={showReportModal} animationType="slide" transparent>
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={s.modalOverlay}>
-                    <View style={[s.modalContent, { backgroundColor: C.card, maxHeight: '90%' }]}>
+                    <View style={[s.modalContent, { backgroundColor: C.card, maxHeight: '90%', paddingBottom: Math.max(insets.bottom, 20) }]}>
                         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                             {/* Header */}
                             <View style={s.modalHeader}>

@@ -49,8 +49,9 @@ import {
   deleteDoc,
   serverTimestamp,
   getCountFromServer,
+  writeBatch,
 } from '@react-native-firebase/firestore';
-import { ref, get, set } from '@react-native-firebase/database';
+import { ref, get, set, remove } from '@react-native-firebase/database';
 import { getRoblox, getRoles, getCosmetics } from '../../Supabase/userBackend';
 import { SUPABASE_USERS_ENABLED } from '../../Supabase/featureFlags';
 import dayjs from 'dayjs';
@@ -926,6 +927,145 @@ const ProfileBottomDrawer = ({
 
     return () => { isMounted = false; };
   }, [selectedUserId, appdatabase, user?.id]);
+
+  // ─────────────────────────────────────────────
+  // Admin: Delete ALL user data (ported from adoptme-jan7, adapted to
+  // this app's collections). Covers Firebase RTDB + Firestore. Supabase
+  // rows (chat/message mirrors, user_* tables) are NOT deletable from the
+  // client — RLS only allows writes to your own rows — so they are left
+  // as-is; the RTDB users/{uid} removal stops the mirror CF from
+  // refreshing them.
+  const [deletingUser, setDeletingUser] = useState(false);
+
+  const handleDeleteUserData = useCallback(async () => {
+    if (!selectedUserId || !firestoreDB || !appdatabase) return;
+    if (!isAdmin) return; // admin only
+
+    const targetName = mergedUser?.displayName || mergedUser?.sender || selectedUser?.sender || 'this user';
+
+    const confirmStep1 = () => new Promise((resolve, reject) => {
+      Alert.alert(
+        '⚠️ Delete User Data',
+        `This will permanently delete ALL data for "${targetName}" (${selectedUserId}).\n\nThis includes:\n• Profile & user node\n• All reviews (given & received)\n• All trades\n• All posts\n• Followers/following\n• Chat metadata (legacy)\n• Group invites/requests\n• Trade journal, stats, saved trades\n\nThis action CANNOT be undone.`,
+        [
+          { text: 'Cancel', style: 'cancel', onPress: reject },
+          { text: 'Continue', style: 'destructive', onPress: resolve },
+        ]
+      );
+    });
+
+    const confirmStep2 = () => new Promise((resolve, reject) => {
+      Alert.alert(
+        '🔴 Final Confirmation',
+        `Are you ABSOLUTELY sure you want to delete all data for "${targetName}"?`,
+        [
+          { text: 'Cancel', style: 'cancel', onPress: reject },
+          { text: 'DELETE EVERYTHING', style: 'destructive', onPress: resolve },
+        ]
+      );
+    });
+
+    try {
+      await confirmStep1();
+      await confirmStep2();
+
+      setDeletingUser(true);
+
+      const uid = selectedUserId;
+      const errors = [];
+
+      // ── 1. RTDB: remove user nodes ──────────────────────────
+      const rtdbPaths = [
+        `users/${uid}`,           // profile, xp, shop, roles, badges
+        `presence/${uid}`,        // online status
+        `chat_meta_data/${uid}`,  // legacy RTDB chat metadata
+        `group_meta_data/${uid}`, // legacy RTDB group metadata
+        `activeChats/${uid}`,     // active chat session tracking
+        `savedTrades/${uid}`,     // saved/accepted trade refs
+        `tradeJournal/${uid}`,    // completed trade history
+        `tradeStats/${uid}`,      // trade win/loss stats
+        `reward/${uid}`,          // reward center data
+      ];
+      for (const path of rtdbPaths) {
+        try { await remove(ref(appdatabase, path)); }
+        catch (e) { errors.push(`RTDB ${path}: ${e.message}`); }
+      }
+
+      // ── 2. Firestore: delete docs where the user matches ─────
+      const deleteQueryDocs = async (collectionName, field, value) => {
+        try {
+          const q = query(collection(firestoreDB, collectionName), where(field, '==', value));
+          const snap = await getDocs(q);
+          if (snap.empty) return 0;
+          const CHUNK = 450; // writeBatch limit is 500 ops
+          for (let i = 0; i < snap.docs.length; i += CHUNK) {
+            const batch = writeBatch(firestoreDB);
+            snap.docs.slice(i, i + CHUNK).forEach(d => batch.delete(d.ref));
+            await batch.commit();
+          }
+          return snap.size;
+        } catch (e) {
+          errors.push(`Firestore ${collectionName}[${field}]: ${e.message}`);
+          return 0;
+        }
+      };
+
+      const deleteSingleDoc = async (collectionName, docId) => {
+        try { await deleteDoc(doc(firestoreDB, collectionName, docId)); }
+        catch (e) { errors.push(`Firestore ${collectionName}/${docId}: ${e.message}`); }
+      };
+
+      // Reviews (given / received / profile doc with fruits+bio)
+      await deleteQueryDocs('reviews', 'fromUserId', uid);
+      await deleteQueryDocs('reviews', 'toUserId', uid);
+      await deleteSingleDoc('reviews', uid);
+
+      // Profile + summary docs
+      await deleteSingleDoc('user_ratings_summary', uid);
+      await deleteSingleDoc('user_profiles', uid);
+      await deleteSingleDoc('game_stats', uid);
+      await deleteSingleDoc('cosmetics_inventory', uid);
+
+      // Trades
+      await deleteQueryDocs('trades_new_upgrade', 'userId', uid);
+
+      // Following (both directions)
+      await deleteQueryDocs('following', 'followerId', uid);
+      await deleteQueryDocs('following', 'followingId', uid);
+
+      // Notifications (this app keys by toUid/fromUid)
+      await deleteQueryDocs('notifications', 'toUid', uid);
+      await deleteQueryDocs('notifications', 'fromUid', uid);
+
+      // Feed posts
+      await deleteQueryDocs('designPosts_upgrade', 'userId', uid);
+
+      // Group invitations + join requests
+      await deleteQueryDocs('group_invitations', 'invitedUserId', uid);
+      await deleteQueryDocs('group_invitations', 'invitedBy', uid);
+      await deleteQueryDocs('group_join_requests', 'userId', uid);
+
+      setDeletingUser(false);
+
+      if (errors.length > 0) {
+        console.warn('[DeleteUser] Partial errors:', errors);
+        Alert.alert(
+          'Deletion Complete (with warnings)',
+          `User data for "${targetName}" has been deleted.\n\n${errors.length} non-critical error(s) occurred. Check console for details.`
+        );
+      } else {
+        Alert.alert('✅ User Deleted', `All data for "${targetName}" has been permanently removed.`);
+      }
+
+      toggleModal();
+    } catch (e) {
+      setDeletingUser(false);
+      if (e?.message) {
+        console.error('[DeleteUser] Error:', e);
+        Alert.alert('Error', `Failed to delete user data: ${e.message}`);
+      }
+    }
+  }, [selectedUserId, firestoreDB, appdatabase, isAdmin, mergedUser, selectedUser, toggleModal]);
 
   // ✅ Check if current user is following this user (Firestore)
   useEffect(() => {
@@ -2818,6 +2958,37 @@ const ProfileBottomDrawer = ({
                               onPress={mergedUser?.isRaider ? handleRemoveRaider : handleMakeRaider}
                             />
                           </View>
+                        </View>
+                      )}
+
+                      {/* ── Section: Danger Zone (Admin only) ── */}
+                      {isAdmin && (
+                        <View style={{ marginTop: 12 }}>
+                          <View style={{ height: 1, backgroundColor: modBorder, marginBottom: 12 }} />
+                          <Text style={{ fontSize: 10, color: '#dc2626', fontWeight: '700', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>
+                            Danger Zone
+                          </Text>
+                          <TouchableOpacity
+                            onPress={handleDeleteUserData}
+                            disabled={deletingUser}
+                            activeOpacity={0.7}
+                            style={{
+                              flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                              paddingVertical: 10, borderRadius: 10,
+                              backgroundColor: '#dc262618',
+                              borderWidth: 1, borderColor: '#dc262650',
+                              opacity: deletingUser ? 0.6 : 1,
+                            }}
+                          >
+                            {deletingUser ? (
+                              <ActivityIndicator size="small" color="#dc2626" />
+                            ) : (
+                              <Icon name="trash" size={14} color="#dc2626" />
+                            )}
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#dc2626' }}>
+                              {deletingUser ? 'Deleting all data…' : 'Delete Profile (ALL DATA)'}
+                            </Text>
+                          </TouchableOpacity>
                         </View>
                       )}
                     </View>

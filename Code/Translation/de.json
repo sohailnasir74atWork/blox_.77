@@ -202,7 +202,8 @@
         "feature_error": "Fehler beim Hervorheben",
         "feature_error_message": "Fehler beim Hervorheben des Trades. Bitte versuche es erneut.",
         "purchase_success": "Kauf erfolgreich",
-        "purchase_success_message": "Der Benutzer hat jetzt Pro-Funktionen!"
+        "purchase_success_message": "Der Benutzer hat jetzt Pro-Funktionen!",
+        "saved_guide": "Tippe oben auf den Gespeichert-Filter, um deine gespeicherten Trades jederzeit anzusehen."
     },
     "signin": {
         "title_signin": "Anmelden",
@@ -399,5 +400,12 @@
         "vote_error": "Abstimmung konnte nicht gesendet werden.",
         "comment_error": "Kommentar konnte nicht gepostet werden.",
         "error": "Fehler"
+    },
+    "trending": {
+        "market_overview": "Marktübersicht",
+        "full_analytics": "Vollständige Analyse",
+        "hot": "Steigend",
+        "dropping": "Fallend",
+        "locked_teaser": "Finde heraus, welche Items steigen und welche fallen"
     }
 }

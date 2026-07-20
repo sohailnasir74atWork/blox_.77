@@ -21,6 +21,15 @@ const { mirrorUsersToSupabase } = require('./mirrorUsersToSupabase');
 // is rejected by Supabase Realtime as `InvalidJWTToken`.
 const { setSupabaseRoleClaim, ensureRoleClaim } = require('./setSupabaseRoleClaim');
 
+// Scheduled cleanup: wipe the RTDB presence node every 20 min so it (and its
+// .value index) stays bounded. Live clients re-arm onDisconnect on next write.
+const { clearPresenceNode } = require('./clearPresenceNode');
+
+// Scheduled feed ranking: computes Hot/Trending scores from recent
+// designPosts_upgrade docs and writes /feedRanking to RTDB. The Feed
+// screen's Hot & Trending tabs are empty without it.
+const { computeFeedRanking } = require('./computeFeedRanking');
+
 exports.notifyTradeAccept = notifyTradeAccept;
 exports.syncModRoster = syncModRoster;
 
@@ -33,3 +42,7 @@ exports.mirrorUsersToSupabase = mirrorUsersToSupabase;
 
 exports.setSupabaseRoleClaim = setSupabaseRoleClaim;
 exports.ensureRoleClaim = ensureRoleClaim;
+
+exports.clearPresenceNode = clearPresenceNode;
+
+exports.computeFeedRanking = computeFeedRanking;

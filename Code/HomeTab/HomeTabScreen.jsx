@@ -12,7 +12,7 @@ import config from '../Helper/Environment';
 import { useTranslation } from 'react-i18next';
 import { setAppLanguage } from '../../i18n';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { doc, getDoc, collection, query, where, limit, getDocs } from '@react-native-firebase/firestore';
+import { doc, getDoc } from '@react-native-firebase/firestore';
 import { ref as dbRef, onValue } from '@react-native-firebase/database';
 import { getServerTime, getServerTimeQuick } from '../Helper/serverTime';
 
@@ -27,6 +27,7 @@ import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
 import { getCachedAvatar } from '../Helper/cosmeticsCache';
 import { getActiveCosmetics } from '../Engagement/shopUtils';
 import GameLeaderboard from '../Engagement/GameLeaderboard';
+import BannerAdComponent from '../Ads/bannerAds';
 
 
 const { width } = Dimensions.get('window');
@@ -58,7 +59,7 @@ const AVAILABLE_LANGUAGES = [
 
 
 const HomeTabScreen = ({ selectedTheme }) => {
-  const { theme, user, appdatabase, firestoreDB, strikeInfo, deviceBanInfo, isUserBlocked } = useGlobalState();
+  const { theme, user, appdatabase, firestoreDB, strikeInfo, deviceBanInfo, isUserBlocked, proGranted } = useGlobalState();
   const { localState, updateLocalState } = useLocalState();
   const { t, i18n } = useTranslation();
   const navigation = useNavigation();
@@ -74,7 +75,6 @@ const HomeTabScreen = ({ selectedTheme }) => {
   const [ownedFruits, setOwnedFruits] = useState([]);
   const [myCosmetics, setMyCosmetics] = useState(null);
   const [showGameLeaderboard, setShowGameLeaderboard] = useState(false);
-  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   // Helper: require sign-in before performing action
   const requireSignIn = (action, message) => {
@@ -130,27 +130,6 @@ const HomeTabScreen = ({ selectedTheme }) => {
       if (!user?.id || !appdatabase) return;
       getActiveCosmetics(appdatabase, user.id).then(setMyCosmetics).catch(() => {});
     }, [user?.id, appdatabase])
-  );
-
-  // Check unread notifications count on focus
-  useFocusEffect(
-    useCallback(() => {
-      if (!user?.id || !firestoreDB) return;
-      (async () => {
-        try {
-          const q = query(
-            collection(firestoreDB, 'notifications'),
-            where('toUid', '==', user.id),
-            where('read', '==', false),
-            limit(10),
-          );
-          const snap = await getDocs(q);
-          setUnreadNotifCount(snap.docs.length);
-        } catch (e) {
-          // Silently fail
-        }
-      })();
-    }, [user?.id, firestoreDB])
   );
 
   // Live XP listener
@@ -324,24 +303,8 @@ const HomeTabScreen = ({ selectedTheme }) => {
                 {user?.displayName || t('home_tab.fruit_trader_default', { defaultValue: 'Fruit Trader' })}
               </Text>
             </View>
-            {/* Notification Bell + Settings */}
+            {/* Settings */}
             <View style={styles.heroRightGroup}>
-              <TouchableOpacity
-                onPress={() => navigation.navigate('NotificationFeedScreen')}
-                activeOpacity={0.7}
-                style={styles.langIcon}
-              >
-                <Ionicons name="notifications-outline" size={20} color="rgba(255,255,255,0.85)" />
-                {unreadNotifCount > 0 && (
-                  <View style={{
-                    position: 'absolute', top: 1, right: 1,
-                    width: 10, height: 10, borderRadius: 5,
-                    backgroundColor: '#FACC15',
-                    borderWidth: 1.5,
-                    borderColor: '#fff',
-                  }} />
-                )}
-              </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => navigation.navigate('Setting')}
                 activeOpacity={0.8}
@@ -768,6 +731,9 @@ const HomeTabScreen = ({ selectedTheme }) => {
 
         </View>
       </ScrollView>
+
+      {/* ═══ Sticky Banner Ad (outside ScrollView, matches adoptme) ═══ */}
+      {(!localState?.isPro && !proGranted) && <BannerAdComponent />}
 
       {/* Sign In Drawer */}
       <SignInDrawer

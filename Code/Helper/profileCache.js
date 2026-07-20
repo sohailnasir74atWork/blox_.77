@@ -16,7 +16,10 @@
  */
 
 import { ref, get } from '@react-native-firebase/database';
-import { getIdentity, getRoles, getCosmetics as getCosmeticsBadge, getRoblox } from '../Supabase/userBackend';
+import {
+  getIdentity, getRoles, getCosmetics as getCosmeticsBadge, getRoblox,
+  getIdentityBatch, getRolesBatch, getCosmeticsBatch, getRobloxBatch,
+} from '../Supabase/userBackend';
 import { SUPABASE_USERS_ENABLED } from '../Supabase/featureFlags';
 
 let cache;
@@ -218,13 +221,77 @@ export const getOrFetchProfile = async (db, uid) => {
 
 // ────────────────────────────────────────────────────────
 //  WARM CACHE — pre-fetch profiles for a batch of UIDs
-//  Call this when loading messages to cache all senders
+//  Call this when loading messages to cache all senders.
+//
+//  Batched: 4 Supabase queries for the whole batch (identity/roles/
+//  roblox/cosmetics via .in('uid', …)) instead of 4 PER SENDER — a
+//  public-chat page with 20 uncached senders used to fire up to 80
+//  requests. RTDB extras (shop cosmetics, game-win flags) stay per-uid;
+//  they're not part of the Supabase bill.
 // ────────────────────────────────────────────────────────
 export const warmProfileCache = async (db, uids) => {
   if (!db || !Array.isArray(uids) || uids.length === 0) return;
   const uncached = [...new Set(uids)].filter(uid => !getCachedProfile(uid));
   if (uncached.length === 0) return;
   const batch = uncached.slice(0, 20);
+
+  if (SUPABASE_USERS_ENABLED) {
+    try {
+      const [identities, roles, robloxes, cosmeticsBadges, rtdbExtras] = await Promise.all([
+        getIdentityBatch(batch),
+        getRolesBatch(batch),
+        getRobloxBatch(batch),
+        getCosmeticsBatch(batch),
+        Promise.allSettled(batch.map(async (uid) => {
+          const [shopSnap, recentWinSnap, lastWinSnap] = await Promise.all([
+            get(ref(db, `users/${uid}/shop/activeItems`)),
+            get(ref(db, `users/${uid}/hasRecentGameWin`)),
+            get(ref(db, `users/${uid}/lastGameWinAt`)),
+          ]);
+          return { shopSnap, recentWinSnap, lastWinSnap };
+        })),
+      ]);
+
+      const missing = [];
+      batch.forEach((uid, i) => {
+        const identity = identities?.get?.(uid);
+        if (!identity) { missing.push(uid); return; } // not mirrored yet → per-uid fallback
+
+        const role = roles?.get?.(uid);
+        const roblox = robloxes?.get?.(uid);
+        const cosBadge = cosmeticsBadges?.get?.(uid);
+        const extras = rtdbExtras?.[i]?.status === 'fulfilled' ? rtdbExtras[i].value : null;
+        const cosmetics = extractCosmetics(extras?.shopSnap?.exists() ? extras.shopSnap.val() : null);
+
+        setCachedProfile(uid, {
+          displayName: identity.displayName ?? 'Anonymous',
+          avatar: identity.avatar ?? null,
+          isPro: !!cosBadge?.isPro,
+          robloxUsernameVerified: !!roblox?.robloxUsernameVerified,
+          hasRecentGameWin: !!(extras?.recentWinSnap?.exists() && extras.recentWinSnap.val()),
+          lastGameWinAt: extras?.lastWinSnap?.exists() ? extras.lastWinSnap.val() : null,
+          isAdmin: !!role?.isAdmin,
+          isModerator: !!role?.isModerator,
+          isBabyMod: !!role?.isBabyMod,
+          isTrusted: !!role?.isTrusted,
+          isGrinder: !!role?.isGrinder,
+          isRaider: !!role?.isRaider,
+          topBadge: cosBadge?.topBadge ?? null,
+          ...cosmetics,
+        });
+      });
+
+      // Users with no Supabase identity row yet fall back to the per-uid
+      // path (which itself falls back to RTDB per-field reads).
+      if (missing.length > 0) {
+        await Promise.allSettled(missing.map(uid => getOrFetchProfile(db, uid)));
+      }
+      return;
+    } catch (e) {
+      // Batched path failed (network blip, JWT race) → per-uid fallback below.
+    }
+  }
+
   await Promise.allSettled(batch.map(uid => getOrFetchProfile(db, uid)));
 };
 

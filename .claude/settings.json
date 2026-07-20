@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"updateLocalState\\\\|storage.set\\\\|__isAd\\\\|isAd\\\\|type === 'ad'\\\\|'ad-'\\\\|ad-\\\\${\" LocalGlobelStats.js)",
+      "Bash(git --no-pager diff -- Code/Supabase/chatMetaBackend.js Code/Supabase/groupMetaBackend.js Code/Supabase/groupMessagesBackend.js Code/Supabase/privateMessagesBackend.js Code/Supabase/userBackend.js Code/Supabase/chatBackend.js)",
+      "Bash(git --no-pager diff -- Code/GlobelStats.js)",
+      "Bash(git --no-pager diff -- Code/LocalGlobelStats.js)",
+      "Bash(grep -nE \"^#{1,3} \" HANDOFF.md)",
+      "Bash(grep -nE \"^#{1,3} \" docs/ADOPTME_GAP_ANALYSIS.md)"
+    ]
+  }
+}

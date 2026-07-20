@@ -121,6 +121,14 @@ const INAPPROPRIATE_PATTERNS = [
 ];
 
 
+// ✅ Allowlisted link domains — these are permitted even when general links
+// are blocked (e.g. sharing a YouTube clip or TikTok in chat).
+const ALLOWED_LINK_PATTERNS = [
+  /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)\//i,
+  /(?:https?:\/\/)?(?:www\.)?tiktok\.com\//i,
+  /(?:https?:\/\/)?vm\.tiktok\.com\//i,
+];
+
 // ✅ URL patterns (already covered, but included for completeness)
 const URL_PATTERNS = [
   /https?:\/\//i,
@@ -170,14 +178,32 @@ export const containsLink = (text) => {
 };
 
 /**
+ * Check if text contains ONLY allowlisted links (YouTube / TikTok).
+ * @param {string} text - Text to check
+ * @returns {boolean} - True if an allowlisted link is present
+ */
+export const isAllowedLink = (text) => {
+  if (!text || typeof text !== 'string') return false;
+  return ALLOWED_LINK_PATTERNS.some(pattern => pattern.test(text));
+};
+
+/**
  * Comprehensive content moderation check
  * Checks for: profanity, spam, inappropriate content, links
  * @param {string} text - Text to check
+ * @param {{skipLinkCheck?: boolean, skipAll?: boolean}} [options] - Options
+ *   - skipLinkCheck: bypass only the link check (e.g. an allowlisted link)
+ *   - skipAll: bypass every check (used for admins / full moderators)
  * @returns {{isValid: boolean, reason?: string}} - Validation result
  */
-export const validateContent = (text) => {
+export const validateContent = (text, options = {}) => {
   if (!text || typeof text !== 'string') {
     return { isValid: true }; // Empty text is valid
+  }
+
+  // Full bypass — admins / full moderators can post anything.
+  if (options.skipAll) {
+    return { isValid: true };
   }
 
   // Check profanity
@@ -204,8 +230,8 @@ export const validateContent = (text) => {
     };
   }
 
-  // Check links
-  if (containsLink(text)) {
+  // Check links (skipped for admins/mods, or when only allowlisted links present)
+  if (!options.skipLinkCheck && containsLink(text)) {
     return {
       isValid: false,
       reason: 'Links are not allowed in messages.',

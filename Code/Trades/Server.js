@@ -16,6 +16,8 @@ import config from '../Helper/Environment';
 import { useGlobalState } from '../GlobelStats';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import { useLocalState } from '../LocalGlobelStats';
+import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
+import { getMyCosmetics } from '../Helper/cosmeticsCache';
 import BannerAdComponent from '../Ads/bannerAds';
 import InterstitialAdManager from '../Ads/IntAd';
 import { mixpanel } from '../AppHelper/MixPenel';
@@ -128,6 +130,9 @@ const ServerScreen = () => {
             username: user?.displayName || 'Anonymous',
             userId: user?.id,
             userPhoto: user?.avatar || '',
+            // Denormalize the poster's cosmetic frame so board rows can
+            // render it without a per-row profile fetch.
+            profileFrame: getMyCosmetics()?.profileFrame || null,
             link,
             message,
             rating: 0,
@@ -203,7 +208,14 @@ const ServerScreen = () => {
 
                 <View style={styles.topRow}>
                     <View style={styles.userInfo}>
-                        <Image source={{ uri: item.userPhoto }} style={styles.avatar} />
+                        <View style={{ marginRight: 8 }}>
+                            <FramedAvatar
+                                avatarUri={item.userPhoto}
+                                frame={item.profileFrame || null}
+                                isDarkMode={isDarkMode}
+                                avatarSize={28}
+                            />
+                        </View>
                         <Text style={styles.username}>{item.username}</Text>
                     </View>
 

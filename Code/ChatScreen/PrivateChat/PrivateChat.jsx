@@ -7,14 +7,14 @@ import {
   Image,
   TouchableOpacity, TextInput,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { getStyles } from '../Style';
 import PrivateMessageInput from './PrivateMessageInput';
 import PrivateMessageList from './PrivateMessageList';
 import { useGlobalState } from '../../GlobelStats';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
-import { isUserOnline, updateLastRead, useOtherLastRead, useActiveChatLifecycle } from '../utils';
+import { isUserOnline, updateLastRead, flushLastRead, useOtherLastRead, useActiveChatLifecycle } from '../utils';
 import { useLocalState } from '../../LocalGlobelStats';
 // RTDB usage in this file is now limited to: rewardPoints reads/writes
 // (`/users/{uid}/rewardPoints`) and the trade subtree
@@ -55,13 +55,16 @@ import {
   loadPrivateMessages as sbLoadPrivateMessages,
   subscribeToPrivateMessages as sbSubscribeToPrivateMessages,
   sendPrivateMessage as sbSendPrivateMessage,
-  softDeletePrivateMessage as sbSoftDeletePrivateMessage,
   softDeleteAllInChat as sbSoftDeleteAllInChat,
   newClientMsgId as newPvtClientMsgId,
 } from '../../Supabase/privateMessagesBackend';
 
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 10;
+// Cap the live in-memory list so a long back-and-forth session doesn't grow
+// the array (and per-insert sort cost) unboundedly. Older pages re-fetch on
+// scroll.
+const MAX_LIVE = 150;
 
 const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVisible }) => {
   const { selectedUser: initialSelectedUser, selectedTheme, item } = route.params || {};
@@ -99,6 +102,10 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
   const metaIdentityWrittenRef = useRef(new Set());
   const myUserIdRef = useRef(myUserId);
   const chatKeyRef = useRef(null);
+  const isFocused = useIsFocused();
+  // Set when a partner message arrives while this chat is focused; the blur
+  // handler then issues ONE unread reset instead of one per incoming message.
+  const unreadWhileFocusedRef = useRef(false);
   myUserIdRef.current = myUserId;
 
   useEffect(() => {
@@ -671,6 +678,18 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       // across all private chats. Pro users skip. Date string is local-
       // time YYYY-MM-DD so the cap follows the user's perceived day.
       return () => {
+        // Land any coalesced read receipt immediately on blur — must run
+        // before the back-ad early returns below, which don't apply to it.
+        flushLastRead(chatKey, user.id);
+
+        // Partner messages that arrived while we sat in the chat bumped our
+        // server-side unread_count (the per-message reset was removed to
+        // save writes). Clear it once on the way out.
+        if (unreadWhileFocusedRef.current) {
+          unreadWhileFocusedRef.current = false;
+          sbResetUnreadCount(user.id, selectedUserId);
+        }
+
         if (localState?.isPro) return;
         if (hasSentMessageRef.current < 3) return;
         try {
@@ -690,19 +709,6 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     await loadMessages(true);
     setRefreshing(false);
   }, [loadMessages]);
-
-  // ── Admin / participant: soft-delete a single message ──
-  // Soft delete leaves the row in Supabase with deleted=true so we keep
-  // an audit trail. Realtime UPDATE fires for the other participant.
-  const handleDeleteMessage = useCallback(async (messageId) => {
-    if (!messageId || !chatKey) return;
-    try {
-      await sbSoftDeletePrivateMessage(messageId, user?.id ?? null);
-      setMessages(prev => prev.filter(m => m.id !== messageId));
-    } catch (e) {
-      Alert.alert('Error', 'Failed to delete message.');
-    }
-  }, [chatKey, user?.id]);
 
   // ── Admin: soft-delete ALL messages in this chat ──
   const handleDeleteAllChat = useCallback(() => {
@@ -735,24 +741,30 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
   // promoted to the real row.
   useEffect(() => {
     if (!chatKey) return;
+    // Channel only while this screen is focused — navigating deeper (profile
+    // drawer pushes, settings) or away tears it down; the focus effect's
+    // unread reset + initial-load path cover anything missed on return.
+    if (!isFocused) return;
 
     const handleInsert = (msg) => {
       if (!msg) return;
 
       // When the partner sends while we're sitting in this chat, the
-      // send_private_chat_meta RPC has already bumped our unread_count
-      // on the server. Clear it immediately so the bell + inbox badge
-      // don't show +1 for a message the user is reading inline.
+      // send_private_chat_meta RPC has already bumped our unread_count on
+      // the server. Don't fire an UPDATE per incoming message (each one
+      // also echoes back over both parties' meta channels) — just flag it;
+      // the blur handler clears the count once on the way out.
       const isFromPartner =
         msg.senderId &&
         msg.senderId !== myUserIdRef.current &&
         chatKeyRef.current;
 
       if (isFromPartner) {
-        sbResetUnreadCount(myUserIdRef.current, msg.senderId);
+        unreadWhileFocusedRef.current = true;
 
         // lastRead write is gated on the read-receipts toggle so the
         // sender doesn't see a blue tick if this user has read receipts off.
+        // (Coalesced RTDB write — cheap, and keeps live blue ticks working.)
         if (showReadReceiptsRef.current !== false) {
           updateLastRead(chatKeyRef.current, myUserIdRef.current);
         }
@@ -777,7 +789,8 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
         // Plain dedup by id (handles both our own non-optimistic
         // self-INSERT echo and double-fire scenarios).
         if (prev.some((m) => String(m?.id) === String(msg.id))) return prev;
-        return [msg, ...prev].sort((a, b) => (b?.serverTime || b?.timestamp || 0) - (a?.serverTime || a?.timestamp || 0));
+        const next = [msg, ...prev].sort((a, b) => (b?.serverTime || b?.timestamp || 0) - (a?.serverTime || a?.timestamp || 0));
+        return next.length > MAX_LIVE ? next.slice(0, MAX_LIVE) : next;
       });
     };
 
@@ -805,7 +818,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
-  }, [chatKey]);
+  }, [chatKey, isFocused]);
 
 
 
@@ -892,7 +905,6 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
                 user={user}
                 isAdmin={isAdmin}
                 onReply={(message) => setReplyTo(message)}
-                onDeleteMessage={handleDeleteMessage}
                 onDeleteAllChat={handleDeleteAllChat}
                 canRate={canRate}
                 hasRated={hasRated}

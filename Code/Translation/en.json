@@ -202,7 +202,8 @@
         "feature_error": "Error Featuring Trade",
         "feature_error_message": "Failed to feature trade. Please try again.",
         "purchase_success": "Purchase Successful",
-        "purchase_success_message": "User now has Pro features!"
+        "purchase_success_message": "User now has Pro features!",
+        "saved_guide": "Tap the Saved filter at the top to view your saved trades anytime."
     },
     "signin": {
         "title_signin": "Sign In",
@@ -467,5 +468,12 @@
         "vote_error": "Could not submit vote.",
         "comment_error": "Could not post comment.",
         "error": "Error"
+    },
+    "trending": {
+        "market_overview": "Market Overview",
+        "full_analytics": "Full Analytics",
+        "hot": "Hot",
+        "dropping": "Dropping",
+        "locked_teaser": "Check which items are going up and which are going down"
     }
 }

@@ -18,6 +18,8 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
+import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
+import { getMyCosmetics } from '../Helper/cosmeticsCache';
 import { useGlobalState } from '../GlobelStats';
 import { getStyles } from './settingstyle';
 import { handleGetSuggestions, handleOpenFacebook, handleOpenWebsite, handleRateApp, handleadoptme, handleShareApp, imageOptions, handleBloxFruit, handleMM2, handleRefresh, handleReport, handleOpenPrivacy, handleOpenChild } from './settinghelper';
@@ -39,7 +41,7 @@ import { showSuccessMessage, showErrorMessage } from '../Helper/MessageHelper';
 import { setAppLanguage } from '../../i18n';
 import StyledUsernamePreview from './Store/StyledName';
 import StyledDisplayName from './Store/NameDisplayReUser';
-import { Image as CompressorImage } from 'react-native-compressor';
+import { safeCompressImage } from '../Helper/safeCompressImage';
 import RNFS from 'react-native-fs';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -446,6 +448,7 @@ const EditProfileDrawerContent = ({
 const formatName = (name) => name.replace(/^\+/, '').replace(/\s+/g, '-');
 
 export default function SettingsScreen({ selectedTheme }) {
+  const insets = useSafeAreaInsets();
   const [isDrawerVisible, setDrawerVisible] = useState(false);
   const [newDisplayName, setNewDisplayName] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
@@ -462,6 +465,9 @@ export default function SettingsScreen({ selectedTheme }) {
   const [avatarSearch, setAvatarSearch] = useState('');
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [activeTab, setActiveTab] = useState("profile"); // "profile" | "app"
+  // Own active cosmetics from MMKV cache (instant, no DB call) — re-read on
+  // tab switch so a frame equipped in the store shows up when returning.
+  const myActiveCosmetics = useMemo(() => getMyCosmetics(), [activeTab]);
   const [userReviews, setUserReviews] = useState([]); // Reviews user gave to others
   const [receivedReviews, setReceivedReviews] = useState([]); // Reviews others gave to user
   const [loadingReviews, setLoadingReviews] = useState(false);
@@ -633,7 +639,7 @@ export default function SettingsScreen({ selectedTheme }) {
       setUploadingAvatar(true);
 
       // 🔹 Compress to small DP-friendly size
-      const compressedUri = await CompressorImage.compress(asset.uri, {
+      const { uri: compressedUri } = await safeCompressImage(asset.uri, {
         maxWidth: 300,
         quality: 0.7,
       });
@@ -2392,14 +2398,18 @@ export default function SettingsScreen({ selectedTheme }) {
             <View style={[styles.cardContainer, { paddingBottom: 20 }]}>
               <View style={[styles.optionuserName, styles.option]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Image
-                    source={
-                      user?.avatar && typeof user.avatar === 'string' && user.avatar.trim()
-                        ? { uri: user.avatar }
-                        : { uri: 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }
-                    }
-                    style={styles.profileImage}
-                  />
+                  <View style={{ marginRight: 10 }}>
+                    <FramedAvatar
+                      avatarUri={
+                        user?.avatar && typeof user.avatar === 'string' && user.avatar.trim()
+                          ? user.avatar
+                          : 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png'
+                      }
+                      frame={myActiveCosmetics?.profileFrame || null}
+                      isDarkMode={isDarkMode}
+                      avatarSize={56}
+                    />
+                  </View>
                   <TouchableOpacity onPress={user?.id ? () => { } : () => { setOpenSignin(true) }} disabled={user?.id !== null}>
                     {!user?.id ? (
                       <Text style={styles.userNameLogout}>
@@ -3112,7 +3122,7 @@ export default function SettingsScreen({ selectedTheme }) {
             justifyContent: 'flex-end',
             backgroundColor: 'rgba(0,0,0,0.5)'
           }}>
-            <View style={[styles.drawer, { maxHeight: '90%' }]}>
+            <View style={[styles.drawer, { maxHeight: '90%', paddingBottom: Math.max(insets.bottom, 16) }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <Text style={styles.drawerSubtitle}>Reviews I Gave</Text>
                 <TouchableOpacity onPress={() => {
@@ -3249,7 +3259,7 @@ export default function SettingsScreen({ selectedTheme }) {
             justifyContent: 'flex-end',
             backgroundColor: 'rgba(0,0,0,0.5)'
           }}>
-            <View style={[styles.drawer, { maxHeight: '90%' }]}>
+            <View style={[styles.drawer, { maxHeight: '90%', paddingBottom: Math.max(insets.bottom, 16) }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <Text style={styles.drawerSubtitle}>Reviews I Received</Text>
                 <TouchableOpacity onPress={() => {
@@ -3370,7 +3380,7 @@ export default function SettingsScreen({ selectedTheme }) {
           />
           <ConditionalKeyboardWrapper>
             <View style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-              <View style={styles.drawer}>
+              <View style={[styles.drawer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                   <Text style={styles.drawerSubtitle}>Edit Review</Text>
                   <TouchableOpacity
@@ -3449,7 +3459,7 @@ export default function SettingsScreen({ selectedTheme }) {
             justifyContent: 'flex-end',
             backgroundColor: 'rgba(0,0,0,0.5)'
           }}>
-            <View style={[styles.drawer, { maxHeight: '90%' }]}>
+            <View style={[styles.drawer, { maxHeight: '90%', paddingBottom: Math.max(insets.bottom, 16) }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <Text style={styles.drawerSubtitle}>My Trades</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -3556,7 +3566,7 @@ export default function SettingsScreen({ selectedTheme }) {
             justifyContent: 'flex-end',
             backgroundColor: 'rgba(0,0,0,0.5)'
           }}>
-            <View style={[styles.drawer, { maxHeight: '90%' }]}>
+            <View style={[styles.drawer, { maxHeight: '90%', paddingBottom: Math.max(insets.bottom, 16) }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <Text style={styles.drawerSubtitle}>Followers</Text>
                 <TouchableOpacity onPress={() => {

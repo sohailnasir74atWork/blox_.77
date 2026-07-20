@@ -202,7 +202,8 @@
         "feature_error": "Error al destacar intercambio",
         "feature_error_message": "No se pudo destacar el intercambio. Inténtalo de nuevo.",
         "purchase_success": "Compra exitosa",
-        "purchase_success_message": "¡El usuario ahora tiene funciones Pro!"
+        "purchase_success_message": "¡El usuario ahora tiene funciones Pro!",
+        "saved_guide": "Toca el filtro Guardados en la parte superior para ver tus intercambios guardados en cualquier momento."
     },
     "signin": {
         "title_signin": "Iniciar sesión",
@@ -398,5 +399,12 @@
         "vote_error": "No se pudo enviar el voto.",
         "comment_error": "No se pudo publicar el comentario.",
         "error": "Error"
+    },
+    "trending": {
+        "market_overview": "Resumen del Mercado",
+        "full_analytics": "Análisis Completo",
+        "hot": "Subiendo",
+        "dropping": "Bajando",
+        "locked_teaser": "Descubre qué objetos suben y cuáles bajan"
     }
 }

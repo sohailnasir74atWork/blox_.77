@@ -16,6 +16,7 @@ import {
   StyleSheet,
   Dimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DAILY_REWARDS, getStarStatus, claimDailyStar } from './starUtils';
 import { getThemeColors } from '../Helper/themeColors';
 import SwipeableBottomDrawer from '../Helper/SwipeableBottomDrawer';
@@ -26,6 +27,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const DailyStarRewards = ({ visible, onClose, db, uid, isDarkMode = false }) => {
   const { localState } = useLocalState();
+  const insets = useSafeAreaInsets();
   const [status, setStatus] = useState(null);
   const [claiming, setClaiming] = useState(false);
   const [claimedReward, setClaimedReward] = useState(null);
@@ -102,7 +104,7 @@ const DailyStarRewards = ({ visible, onClose, db, uid, isDarkMode = false }) => 
       onRequestClose={handleClose}
     >
       <View style={styles.overlay}>
-        <SwipeableBottomDrawer onClose={handleClose} isDarkMode={isDarkMode} style={[styles.container, { backgroundColor: bg }]}>
+        <SwipeableBottomDrawer onClose={handleClose} isDarkMode={isDarkMode} style={[styles.container, { backgroundColor: bg, paddingBottom: Math.max(insets.bottom, 20) }]}>
           {/* Header */}
           <View style={styles.header}>
             <Text style={[styles.title, { color: textColor }]}>⭐ Daily Stars</Text>

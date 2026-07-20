@@ -11,6 +11,7 @@ import { clearUserCache } from './Helper/UserDataCache';
 import { generateOnePieceUsername } from './Helper/RendomNamegen';
 import { getDeviceFingerprint } from './Helper/deviceFingerprint';
 import { getServerTime } from './Helper/serverTime';
+import { setLastActivity } from './Supabase/userBackend';
 import Purchases from 'react-native-purchases';
 const app = getApps();
 const auth = getAuth(app);
@@ -420,7 +421,7 @@ export const GlobalStateProvider = ({ children }) => {
         try {
           if (loggedInUser?.uid) {
             await Purchases.logIn(loggedInUser.uid);
-          } else {
+          } else if (!(await Purchases.isAnonymous())) {
             await Purchases.logOut();
           }
         } catch (e) {
@@ -517,15 +518,37 @@ export const GlobalStateProvider = ({ children }) => {
 
 
   useEffect(() => {
-    // console.log("🕓 Saving lastActivity:", new Date().toISOString());
-    updateLocalStateAndDatabase('lastActivity', new Date().toISOString());
-  }, []);
+    // Local-only write (MMKV), NOT updateLocalStateAndDatabase. This anchors
+    // the stock-data cache freshness check below (fetchStockData reads
+    // localState.lastActivity) but no longer writes RTDB /users/{uid}/lastActivity
+    // — that per-launch write was firing the mirrorUsersToSupabase Cloud
+    // Function on every app open for a field nothing else mirrored. The actual
+    // activity heartbeat now goes straight to Supabase, throttled, below.
+    updateLocalState('lastActivity', new Date().toISOString());
+  }, [updateLocalState]);
 
 
 
   // ✅ Ref to always have latest localState without adding it to useCallback deps
   const localStateRef = useRef(localState);
   useEffect(() => { localStateRef.current = localState; }, [localState]);
+
+  // 6h-throttled Supabase activity heartbeat. Replaces the old RTDB-write →
+  // mirror-CF fan-out (see the lastActivity effect above) — the single largest
+  // avoidable Cloud Function class. set_last_activity() (016_user_last_activity.sql)
+  // uses the server clock, so a skewed client can't back-date the cohort
+  // timestamp. We only advance the local throttle on a successful RPC, so an
+  // early call before the Supabase JWT is attached just retries next session.
+  useEffect(() => {
+    if (!user?.id) return;
+    const HEARTBEAT_THROTTLE_MS = 6 * 60 * 60 * 1000; // 6h
+    const prevMs = Number(localStateRef.current?.lastActivitySyncedAt) || 0;
+    const now = Date.now();
+    if (now - prevMs < HEARTBEAT_THROTTLE_MS) return;
+    setLastActivity()
+      .then((ms) => { if (ms > 0) updateLocalState('lastActivitySyncedAt', now); })
+      .catch(() => {});
+  }, [user?.id, updateLocalState]);
 
   const fetchStockData = useCallback(async (refresh) => {
     const currentLocalState = localStateRef.current;
