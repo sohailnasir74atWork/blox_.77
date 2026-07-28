@@ -30,13 +30,8 @@ export const DAILY_REWARDS = [
 // ────────────────────────────────────────────────────────
 //  SERVER-TIME BASED DATE (anti-cheat: probe-verified)
 // ────────────────────────────────────────────────────────
-const getToday = async (db, uid) => formatServerDate(await getServerTime(db, uid, true));
-
-const getYesterday = async (db, uid) => {
-  const d = await getServerTime(db, uid, true);
-  d.setUTCDate(d.getUTCDate() - 1);
-  return formatServerDate(d);
-};
+// getStarStatus derives today + yesterday from a SINGLE getServerTime() probe
+// (see below) — no per-date helper probes.
 
 // ────────────────────────────────────────────────────────
 //  CHECK STAR STATUS — returns current state without claiming
@@ -48,12 +43,18 @@ export const getStarStatus = async (db, uid) => {
     const snap = await get(ref(db, `users/${uid}/dailyStars`));
     const data = snap.exists() ? snap.val() : null;
 
-    if (!data) {
-      return { canClaim: true, currentDay: 1, cycleNumber: 1, totalStarsEarned: 0, isNew: true };
-    }
+    // Single server-clock probe per status check — today AND yesterday are
+    // derived from this one probe. Previously getToday()+getYesterday() each
+    // forced their own set()+get() probe, and claimDailyStar forced a 3rd.
+    const serverNow = await getServerTime(db, uid, true);
+    const today = formatServerDate(serverNow);
+    const yDate = new Date(serverNow);
+    yDate.setUTCDate(yDate.getUTCDate() - 1);
+    const yesterday = formatServerDate(yDate);
 
-    const today = await getToday(db, uid);
-    const yesterday = await getYesterday(db, uid);
+    if (!data) {
+      return { canClaim: true, currentDay: 1, cycleNumber: 1, totalStarsEarned: 0, isNew: true, today };
+    }
 
     if (data.lastClaimDate === today) {
       return {
@@ -72,6 +73,7 @@ export const getStarStatus = async (db, uid) => {
         currentDay: nextDay,
         cycleNumber: nextCycle,
         totalStarsEarned: data.totalStarsEarned || 0,
+        today,
       };
     }
 
@@ -82,6 +84,7 @@ export const getStarStatus = async (db, uid) => {
       cycleNumber: data.cycleNumber || 1,
       totalStarsEarned: data.totalStarsEarned || 0,
       streakBroken: true,
+      today,
     };
   } catch (err) {
     console.warn('[starUtils] getStarStatus error:', err?.message);
@@ -105,7 +108,7 @@ export const claimDailyStar = async (db, uid) => {
     await update(ref(db, `users/${uid}/dailyStars`), {
       currentDay: status.currentDay,
       cycleNumber: status.cycleNumber,
-      lastClaimDate: await getToday(db, uid),
+      lastClaimDate: status.today,
       totalStarsEarned: increment(reward.stars || 1),
       starBalance: increment(reward.stars || 1),
     });

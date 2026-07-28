@@ -206,6 +206,7 @@ const OnlineUsersList = ({
               robloxUsernameVerified: !!rob?.robloxUsernameVerified,
               lastGameWinAt: lastGameWinAtSnap?.exists() ? lastGameWinAtSnap.val() : null,
               isAdmin: !!roles?.isAdmin,
+              isSeniorMod: !!roles?.isSeniorMod,
               OS: id.OS || null,
               isPlaying: !!(isPlayingSnap?.exists() && isPlayingSnap.val()),
               isModerator: !!roles?.isModerator,
@@ -220,7 +221,7 @@ const OnlineUsersList = ({
 
           // ── RTDB fallback (original 14-field fan-out) ─────────────
           const [displayNameSnap, avatarSnap, isProSnap, robloxUsernameVerifiedSnap,
-            lastGameWinAtSnap, isAdminSnap, OSSnap, isPlayingSnap,
+            lastGameWinAtSnap, isAdminSnap, isSeniorModSnap, OSSnap, isPlayingSnap,
             isModeratorSnap, isBabyModSnap, isTrustedSnap, isGrinderSnap, isRaiderSnap] = await Promise.all([
               get(ref(appdatabase, `users/${userId}/displayName`)).catch(() => null),
               get(ref(appdatabase, `users/${userId}/avatar`)).catch(() => null),
@@ -228,6 +229,7 @@ const OnlineUsersList = ({
               get(ref(appdatabase, `users/${userId}/robloxUsernameVerified`)).catch(() => null),
               get(ref(appdatabase, `users/${userId}/lastGameWinAt`)).catch(() => null),
               get(ref(appdatabase, `users/${userId}/isAdmin`)).catch(() => null),
+              get(ref(appdatabase, `users/${userId}/isSeniorMod`)).catch(() => null),
               get(ref(appdatabase, `users/${userId}/OS`)).catch(() => null),
               get(ref(appdatabase, `users/${userId}/isPlaying`)).catch(() => null),
               get(ref(appdatabase, `users/${userId}/isModerator`)).catch(() => null),
@@ -251,6 +253,7 @@ const OnlineUsersList = ({
             robloxUsernameVerified: robloxUsernameVerifiedSnap?.exists() ? robloxUsernameVerifiedSnap.val() : false,
             lastGameWinAt: lastGameWinAtSnap?.exists() ? lastGameWinAtSnap.val() : null,
             isAdmin: isAdminSnap?.exists() ? isAdminSnap.val() : false,
+            isSeniorMod: !!(isSeniorModSnap?.exists() && isSeniorModSnap.val()),
             OS: OSSnap?.exists() ? OSSnap.val() : null,
             isPlaying: isPlayingSnap?.exists() ? isPlayingSnap.val() : false,
             isModerator: !!(isModeratorSnap?.exists() && isModeratorSnap.val()),
@@ -406,6 +409,7 @@ const OnlineUsersList = ({
           isPro: userData.isPro || false,
           robloxUsernameVerified: userData.robloxUsernameVerified || false,
           isAdmin: userData.isAdmin || false,
+          isSeniorMod: userData.isSeniorMod || false,
           isModerator: userData.isModerator || false,
           isOnline: allOnlineUserIds.includes(child.key),
         });

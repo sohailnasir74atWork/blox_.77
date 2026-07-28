@@ -79,6 +79,7 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
               isPro: !!cosmetics?.isPro,
               lastGameWinAt: lastGameWinAtSnap?.exists() ? lastGameWinAtSnap.val() : null,
               isAdmin: !!roles?.isAdmin,
+              isSeniorMod: !!roles?.isSeniorMod,
               isModerator: !!roles?.isModerator,
               isTrusted: !!roles?.isTrusted,
               isGrinder: !!roles?.isGrinder,
@@ -91,13 +92,14 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
 
         // Fallback: original 12-field RTDB fan-out.
         const [robloxUsernameSnap, robloxUserIdSnap, robloxUsernameVerifiedSnap,
-          isProSnap, lastGameWinAtSnap, isAdminSnap, isModeratorSnap, isTrustedSnap, isGrinderSnap, isRaiderSnap, profileFrameSnap] = await Promise.all([
+          isProSnap, lastGameWinAtSnap, isAdminSnap, isSeniorModSnap, isModeratorSnap, isTrustedSnap, isGrinderSnap, isRaiderSnap, profileFrameSnap] = await Promise.all([
             get(ref(appdatabase, `users/${selectedUserId}/robloxUsername`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/robloxUserId`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/robloxUsernameVerified`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/isPro`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/lastGameWinAt`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/isAdmin`)).catch(() => null),
+            get(ref(appdatabase, `users/${selectedUserId}/isSeniorMod`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/isModerator`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/isTrusted`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/isGrinder`)).catch(() => null),
@@ -114,6 +116,7 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
           isPro: isProSnap?.exists() ? isProSnap.val() : false,
           lastGameWinAt: lastGameWinAtSnap?.exists() ? lastGameWinAtSnap.val() : null,
           isAdmin: isAdminSnap?.exists() ? isAdminSnap.val() : false,
+          isSeniorMod: !!(isSeniorModSnap?.exists() && isSeniorModSnap.val()),
           isModerator: isModeratorSnap?.exists() ? isModeratorSnap.val() : false,
           isTrusted: isTrustedSnap?.exists() ? isTrustedSnap.val() : false,
           isGrinder: isGrinderSnap?.exists() ? isGrinderSnap.val() : false,
@@ -157,6 +160,7 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
         ? selectedUser.lastGameWinAt
         : userData.lastGameWinAt,
       isAdmin: selectedUser?.isAdmin !== undefined ? selectedUser.isAdmin : userData.isAdmin,
+      isSeniorMod: selectedUser?.isSeniorMod !== undefined ? selectedUser.isSeniorMod : userData.isSeniorMod,
       isModerator: selectedUser?.isModerator !== undefined ? selectedUser.isModerator : userData.isModerator,
       isTrusted: userData.isTrusted ?? selectedUser?.isTrusted ?? false,
       isGrinder: userData.isGrinder ?? selectedUser?.isGrinder ?? false,

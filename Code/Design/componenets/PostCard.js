@@ -73,8 +73,8 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
     setBannedUsers(localState.bannedUsers);
   }, [localState.bannedUsers]);
 
-  const { theme, isAdmin, isModerator } = useGlobalState();
-  const canModerate = isAdmin || isModerator;
+  const { theme, isAdmin, isSeniorMod, isModerator } = useGlobalState();
+  const canModerate = isAdmin || isSeniorMod || isModerator;
   const isDark = theme === 'dark';
 
   const getTagConfig = (tag) => TAG_CONFIG[tag?.toLowerCase()] || { color: config.colors.primary, icon: 'tag' };
@@ -86,6 +86,7 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
       // hand it the role flags we know about.
       const bannerInfo = {
         isAdmin: !!isAdmin,
+        isSeniorMod: !!isSeniorMod,
         isModerator: !!isModerator,
         isBabyMod: false,
       };

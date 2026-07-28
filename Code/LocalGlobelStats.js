@@ -69,6 +69,11 @@ export const LocalStateProvider = ({ children }) => {
     pollVotes: safeParseJSON('pollVotes', {}), // ✅ Store user's poll votes (pollId -> optionLabel)
     showReadReceipts: storage.getBoolean('showReadReceipts') ?? true, // ✅ Default ON
     gameAdDays: safeParseJSON('gameAdDays', {}), // Per-game free play tracking { gameId: "YYYY-MM-DD" }
+    // User inventory (My Stuff). Source of truth is Firestore user_profiles;
+    // TradeJournal/TradeCompletion mirror it here so the calculator's "My Items"
+    // picker tab can read it from cache without a fetch. Hydrate from MMKV on boot.
+    ownedFruits: safeParseJSON('ownedFruits', []),
+    wishlistFruits: safeParseJSON('wishlistFruits', []),
   }));
 
   // RevenueCat subscriptions (for info/expiry)

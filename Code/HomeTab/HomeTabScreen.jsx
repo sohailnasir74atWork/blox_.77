@@ -733,7 +733,7 @@ const HomeTabScreen = ({ selectedTheme }) => {
       </ScrollView>
 
       {/* ═══ Sticky Banner Ad (outside ScrollView, matches adoptme) ═══ */}
-      {(!localState?.isPro && !proGranted) && <BannerAdComponent />}
+      {(!localState?.isPro && !proGranted) && <BannerAdComponent collapsible />}
 
       {/* Sign In Drawer */}
       <SignInDrawer

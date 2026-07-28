@@ -25,6 +25,17 @@
 
 import { supabase } from './client';
 
+// Explicit column lists per table — one per from*Row() mapper below. Selecting
+// only the columns the mapper reads (instead of select('*')) trims egress on
+// these hot, batched profile-hydration reads (online list, leaderboard, chat
+// headers). Keep in sync with the mappers when a column is added.
+const IDENTITY_COLS = 'uid, display_name, avatar, email, is_block, created_at_ms, last_activity_ms, online, os';
+const ROLES_COLS = 'uid, is_admin, is_cmsr, is_moderator, is_baby_mod, is_trusted, is_grinder, is_raider';
+const COSMETICS_COLS = 'uid, top_badge, is_pro';
+const ROBLOX_COLS = 'uid, roblox_username, roblox_user_id, roblox_username_verified';
+const SETTINGS_COLS = 'uid, is_reminder_enabled, is_selected_reminder_enabled';
+const NOTIFICATIONS_COLS = 'uid, is_token_invalid, mute_trade_notifs, notification_settings';
+
 // =================================================================
 // WAVE 1 — identity (display name, avatar, basic profile)
 // =================================================================
@@ -48,7 +59,7 @@ export async function getIdentity(uid) {
   if (!uid) return null;
   const { data, error } = await supabase
     .from('user_identity')
-    .select('*')
+    .select(IDENTITY_COLS)
     .eq('uid', uid)
     .maybeSingle();
   if (error) {
@@ -81,7 +92,7 @@ export async function setLastActivity() {
 }
 
 export async function getIdentityBatch(uids) {
-  return _batchByUid('user_identity', uids, fromIdentityRow);
+  return _batchByUid('user_identity', uids, fromIdentityRow, IDENTITY_COLS);
 }
 
 
@@ -94,6 +105,11 @@ export function fromRolesRow(row) {
   return {
     uid: row.uid,
     isAdmin: !!row.is_admin,
+    // Senior Mod (one rank below Admin) reuses the pre-scaffolded is_cmsr
+    // column so no Supabase schema migration is needed. RTDB
+    // users/{uid}/isSeniorMod stays the source of truth; the mirror CF
+    // writes it here as is_cmsr.
+    isSeniorMod: !!row.is_cmsr,
     isModerator: !!row.is_moderator,
     isBabyMod: !!row.is_baby_mod,
     isTrusted: !!row.is_trusted,
@@ -115,7 +131,7 @@ export async function getRoles(uid) {
   if (!uid) return null;
   const { data, error } = await supabase
     .from('user_roles')
-    .select('*')
+    .select(ROLES_COLS)
     .eq('uid', uid)
     .maybeSingle();
   if (error) {
@@ -129,7 +145,7 @@ export async function getCosmetics(uid) {
   if (!uid) return null;
   const { data, error } = await supabase
     .from('user_cosmetics')
-    .select('*')
+    .select(COSMETICS_COLS)
     .eq('uid', uid)
     .maybeSingle();
   if (error) {
@@ -140,7 +156,7 @@ export async function getCosmetics(uid) {
 }
 
 export async function getRolesBatch(uids) {
-  return _batchByUid('user_roles', uids, fromRolesRow);
+  return _batchByUid('user_roles', uids, fromRolesRow, ROLES_COLS);
 }
 
 // Fetch users where `roleField` is true, joined with displayName/avatar
@@ -180,7 +196,7 @@ export async function getUsersByRole(roleField, limit = 100) {
 }
 
 export async function getCosmeticsBatch(uids) {
-  return _batchByUid('user_cosmetics', uids, fromCosmeticsRow);
+  return _batchByUid('user_cosmetics', uids, fromCosmeticsRow, COSMETICS_COLS);
 }
 
 
@@ -202,7 +218,7 @@ export async function getRoblox(uid) {
   if (!uid) return null;
   const { data, error } = await supabase
     .from('user_roblox')
-    .select('*')
+    .select(ROBLOX_COLS)
     .eq('uid', uid)
     .maybeSingle();
   if (error) {
@@ -213,7 +229,7 @@ export async function getRoblox(uid) {
 }
 
 export async function getRobloxBatch(uids) {
-  return _batchByUid('user_roblox', uids, fromRobloxRow);
+  return _batchByUid('user_roblox', uids, fromRobloxRow, ROBLOX_COLS);
 }
 
 
@@ -247,7 +263,7 @@ export async function getSettings(uid) {
   if (!uid) return null;
   const { data, error } = await supabase
     .from('user_settings')
-    .select('*')
+    .select(SETTINGS_COLS)
     .eq('uid', uid)
     .maybeSingle();
   if (error) {
@@ -261,7 +277,7 @@ export async function getNotifications(uid) {
   if (!uid) return null;
   const { data, error } = await supabase
     .from('user_notifications')
-    .select('*')
+    .select(NOTIFICATIONS_COLS)
     .eq('uid', uid)
     .maybeSingle();
   if (error) {
@@ -364,7 +380,7 @@ export async function getBadgesBatch(uids) {
 // shape, so we factor the chunk-and-merge logic out instead of
 // duplicating it per table.
 // =================================================================
-async function _batchByUid(table, uids, mapRow) {
+async function _batchByUid(table, uids, mapRow, cols = '*') {
   const result = new Map();
   if (!Array.isArray(uids) || uids.length === 0) return result;
 
@@ -378,7 +394,7 @@ async function _batchByUid(table, uids, mapRow) {
     const slice = dedup.slice(i, i + CHUNK);
     const { data, error } = await supabase
       .from(table)
-      .select('*')
+      .select(cols)
       .in('uid', slice);
     if (error) {
       console.warn(`[userBackend] _batchByUid(${table}) chunk failed:`, error.message);

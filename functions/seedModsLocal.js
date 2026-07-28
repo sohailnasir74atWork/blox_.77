@@ -22,7 +22,13 @@ admin.initializeApp({
 const db = admin.database();
 
 async function seedMods() {
-  console.log('Scanning all users for isModerator / isBabyMod...\n');
+  console.log('Scanning all users for isSeniorMod / isModerator / isBabyMod...\n');
+
+  // Query senior mods (one rank below Admin — highest roster tier)
+  const seniorSnap = await db.ref('users')
+    .orderByChild('isSeniorMod')
+    .equalTo(true)
+    .once('value');
 
   // Query mods
   const modSnap = await db.ref('users')
@@ -39,17 +45,34 @@ async function seedMods() {
   const updates = {};
   let count = 0;
 
-  if (modSnap.exists()) {
-    modSnap.forEach(child => {
+  if (seniorSnap.exists()) {
+    seniorSnap.forEach(child => {
       const data = child.val();
       updates[`mods/${child.key}`] = {
         displayName: data.displayName || 'Unknown',
         avatar: data.avatar || '',
-        role: 'mod',
+        role: 'srmod',
         updatedAt: Date.now(),
       };
-      console.log(`  MOD: ${data.displayName || 'Unknown'} (${child.key})`);
+      console.log(`  SR MOD: ${data.displayName || 'Unknown'} (${child.key})`);
       count++;
+    });
+  }
+
+  if (modSnap.exists()) {
+    modSnap.forEach(child => {
+      // Don't overwrite if already added as a senior mod (higher tier)
+      if (!updates[`mods/${child.key}`]) {
+        const data = child.val();
+        updates[`mods/${child.key}`] = {
+          displayName: data.displayName || 'Unknown',
+          avatar: data.avatar || '',
+          role: 'mod',
+          updatedAt: Date.now(),
+        };
+        console.log(`  MOD: ${data.displayName || 'Unknown'} (${child.key})`);
+        count++;
+      }
     });
   }
 

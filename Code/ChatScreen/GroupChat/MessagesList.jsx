@@ -93,7 +93,10 @@ const MessagesList = ({
   // const [isAtBottom, setIsAtBottom] = useState(true);
   const { t } = useTranslation();
   // const { language, changeLanguage } = useLanguage();
-  const { isAdmin, isModerator, api, freeTranslation, proGranted, appdatabase } = useGlobalState()
+  const { isAdmin, isSeniorMod, isModerator, api, freeTranslation, proGranted, appdatabase } = useGlobalState()
+  // Senior Mod is a separate flag from isModerator — a Sr Mod who was never
+  // also flagged as a plain Mod had no pin/delete menu at all.
+  const isStaff = isAdmin || isSeniorMod || isModerator
   const { canTranslate, incrementTranslationCount, getRemainingTranslationTries, localState } = useLocalState();
   const deviceLanguage = useMemo(() => getDeviceLanguage(), []);
 
@@ -647,7 +650,7 @@ const MessagesList = ({
             </Text>
 
           </View>
-          {(!isAdmin && !isModerator && item.senderId === user?.id) && (
+          {(!isStaff && item.senderId === user?.id) && (
             <Menu>
               <MenuTrigger>
                 <Icon
@@ -681,7 +684,7 @@ const MessagesList = ({
               </MenuOptions>
             </Menu>
           )}
-          {(isAdmin || isModerator) && (
+          {isStaff && (
             <Menu>
               <MenuTrigger>
                 <Icon

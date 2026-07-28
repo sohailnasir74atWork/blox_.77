@@ -42,8 +42,13 @@ class RewardedAdManager {
   static lastShownAt = 0;
   static COOLDOWN_MS = 30000;
 
-  // Wait timeout when no ad is preloaded (try to load one on-the-fly)
-  static WAIT_TIMEOUT_MS = 5000;
+  // Wait timeout when no ad is preloaded (try to load one on-the-fly).
+  // Was 5s — rewarded creatives (video) routinely take longer than that to
+  // load cold, so the user's FIRST tap nearly always ended in "unavailable"
+  // and taught them the button is broken (AdMob showed 50% fill but 1.4%
+  // show). 12s behind the caller's own spinner gives a cold load a real
+  // chance; screens that call prepare() on mount won't hit the wait at all.
+  static WAIT_TIMEOUT_MS = 12000;
 
   // ── Init (call once at app start) ──
   static init() {
@@ -95,21 +100,34 @@ class RewardedAdManager {
     }
   }
 
-  // ── Retry with exponential backoff (1s, 2s, 4s, 8s, 16s) then 15s interval ──
+  // ── Retry with exponential backoff (1s, 2s, 4s, 8s, 16s), then STOP ──
+  // The old 15s-forever loop kept filling rewarded ads in the background that
+  // no one would ever tap to see (fills with ~1% show rate are worse than no
+  // fills — they depress bids and invite ad-serving limits). Loading resumes
+  // on the next user signal: prepare() from a rewarded-surface mount, or a
+  // show attempt.
   static _retryLoad() {
-    if (this.retryCount < this.maxRetries) {
-      const delay = Math.pow(2, this.retryCount) * 1000;
-      setTimeout(() => {
-        this.retryCount += 1;
-        this._load();
-      }, delay);
-    } else {
-      // Keep trying every 15s
-      setTimeout(() => {
-        this.retryCount = 0;
-        this._load();
-      }, 15000);
+    if (this.retryCount >= this.maxRetries) return;
+    const delay = Math.pow(2, this.retryCount) * 1000;
+    setTimeout(() => {
+      this.retryCount += 1;
+      this._load();
+    }, delay);
+  }
+
+  // ── Proximity preload: call from screens that render a rewarded button ──
+  // (GameScreen, MysteryEgg, reward centers) so the ad is warm BEFORE the
+  // user taps. Idempotent; also un-sticks a manager whose bounded retries
+  // ran out.
+  static prepare() {
+    if (!this.hasInitialized) {
+      this.init();
+      return;
     }
+    if (this.isLoaded || this.isLoading) return;
+    this.retryCount = 0;
+    if (this.ad) this._load();
+    else this._createAndLoad();
   }
 
   // ══════════════════════════════════════════════

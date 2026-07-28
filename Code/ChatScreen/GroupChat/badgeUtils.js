@@ -365,6 +365,43 @@ export const incrementAndCheckBadge = async (database, userId, counterName, thre
   }
 };
 
+/**
+ * Award badges from an externally-maintained running count.
+ *
+ * Unlike incrementAndCheckBadge, this keeps NO counter of its own — pass the
+ * authoritative total (e.g. tradeStats/{uid}.total, which the trade flow already
+ * maintains) and it awards every threshold that's been crossed. Idempotent: only
+ * writes a badge that isn't already set, so it's safe to call on every event.
+ */
+export const checkThresholdBadges = async (database, userId, count, thresholds = []) => {
+  if (!database || !userId || typeof count !== 'number') return;
+  try {
+    // Same MMKV short-circuit as incrementAndCheckBadge: once a badge is earned,
+    // later calls cost ZERO Firebase reads/writes (just a local flag check). This
+    // is what keeps a 250+ trade veteran from re-reading badge nodes every trade.
+    let badgeStore;
+    try {
+      const { createMMKV } = require('react-native-mmkv');
+      badgeStore = createMMKV({ id: 'badge-cache' });
+    } catch (e) {
+      badgeStore = { getBoolean: () => undefined, set: () => {} };
+    }
+
+    const { ref, get, set } = require('@react-native-firebase/database');
+    for (const { count: threshold, badgeId } of thresholds) {
+      if (count < threshold) continue;                                    // not reached yet — no read
+      if (badgeStore.getBoolean(`earned_${userId}_${badgeId}`)) continue; // already earned — no read
+      const badgeSnap = await get(ref(database, `users/${userId}/badges/${badgeId}`));
+      if (!badgeSnap.exists() || !badgeSnap.val()) {
+        await set(ref(database, `users/${userId}/badges/${badgeId}`), true);
+      }
+      badgeStore.set(`earned_${userId}_${badgeId}`, true);
+    }
+  } catch (e) {
+    console.warn('[Badges] Threshold badge check failed:', e);
+  }
+};
+
 // Pre-defined threshold configs
 export const TRADE_BADGE_THRESHOLDS = [
   { count: 5, badgeId: 'firstTrade' },
@@ -444,11 +481,26 @@ export const checkDailyStreak = async (database, userId) => {
 export const checkInfluencerBadge = async (database, firestoreDB, followedUserId) => {
   if (!database || !firestoreDB || !followedUserId) return;
   try {
+    // Earned-flag cache (same store as the other badges). Once this device has
+    // seen followedUserId hit influencer, later follows skip BOTH the RTDB read
+    // and the Firestore count query — zero ops on the common already-earned path.
+    let badgeStore;
+    try {
+      const { createMMKV } = require('react-native-mmkv');
+      badgeStore = createMMKV({ id: 'badge-cache' });
+    } catch (e) {
+      badgeStore = { getBoolean: () => undefined, set: () => {} };
+    }
+    if (badgeStore.getBoolean(`earned_${followedUserId}_influencer`)) return;
+
     const { ref, get, set } = require('@react-native-firebase/database');
     const { collection, query, where, getCountFromServer } = require('@react-native-firebase/firestore');
 
     const badgeSnap = await get(ref(database, `users/${followedUserId}/badges/influencer`));
-    if (badgeSnap.exists() && badgeSnap.val()) return;
+    if (badgeSnap.exists() && badgeSnap.val()) {
+      badgeStore.set(`earned_${followedUserId}_influencer`, true); // cache so next follow skips the read
+      return;
+    }
 
     const followersQuery = query(
       collection(firestoreDB, 'following'),
@@ -459,6 +511,7 @@ export const checkInfluencerBadge = async (database, firestoreDB, followedUserId
 
     if (followerCount >= 200) {
       await set(ref(database, `users/${followedUserId}/badges/influencer`), true);
+      badgeStore.set(`earned_${followedUserId}_influencer`, true);
     }
   } catch (e) {
     console.warn('[Badges] Influencer check failed:', e);
@@ -466,14 +519,33 @@ export const checkInfluencerBadge = async (database, firestoreDB, followedUserId
 };
 
 /**
- * Check Night Owl trade (after midnight)
+ * Check Night Owl trade (logged 00:00–05:00 UTC).
+ *
+ * Cost note: this runs on EVERY trade, so it must not hit Firebase on the common
+ * daytime path. It (1) short-circuits for free once the badge is earned, and
+ * (2) reads the hour from the session-cached server offset (getServerTimeQuick,
+ * zero DB ops) instead of forcing a write+read probe per trade. A cosmetic badge
+ * doesn't warrant a probe on every trade; the offset is already warmed by the
+ * daily-streak probe on app open, and worst case it falls back to device time.
  */
 export const checkNightOwlTrade = async (database, userId) => {
   if (!database || !userId) return;
-  const now = await getServerTime(database, userId, true);
-  const hour = now.getUTCHours();
-  if (hour >= 0 && hour < 5) {
-    await incrementAndCheckBadge(database, userId, 'nightTradeCount', NIGHT_TRADE_BADGE_THRESHOLDS);
+  try {
+    let badgeStore;
+    try {
+      const { createMMKV } = require('react-native-mmkv');
+      badgeStore = createMMKV({ id: 'badge-cache' });
+    } catch (e) {
+      badgeStore = { getBoolean: () => undefined };
+    }
+    if (badgeStore.getBoolean(`earned_${userId}_nightOwl`)) return; // already earned — no DB work
+
+    const hour = getServerTimeQuick().getUTCHours();
+    if (hour >= 0 && hour < 5) {
+      await incrementAndCheckBadge(database, userId, 'nightTradeCount', NIGHT_TRADE_BADGE_THRESHOLDS);
+    }
+  } catch (e) {
+    console.warn('[Badges] Night Owl check failed:', e);
   }
 };
 

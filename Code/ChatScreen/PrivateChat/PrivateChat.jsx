@@ -46,6 +46,8 @@ import {
   serverTimestamp,
 } from '@react-native-firebase/firestore';
 import { updateUserRatingSummary } from '../utils/ratingSummaryHelper';
+import { incrementAndCheckBadge, awardBadge, REVIEW_BADGE_THRESHOLDS } from '../GroupChat/badgeUtils';
+import { addXP, XP_ACTIONS } from '../../Engagement/xpUtils';
 import ProfileBottomDrawer from '../GroupChat/BottomDrawer';
 import {
   sendPrivateChatMeta,
@@ -130,8 +132,11 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
               const data = snapshot.val();
               setCurrentSelectedUser(prev => ({
                 ...prev,
-                isAdmin: data.admin || false,
+                // `admin` is legacy, `isAdmin` is current — both exist in RTDB.
+                isAdmin: data.isAdmin || data.admin || false,
+                isSeniorMod: data.isSeniorMod || false,
                 isModerator: data.isModerator || false,
+                isBabyMod: data.isBabyMod || false,
                 avatar: data.avatar || prev?.avatar, // Also update avatar if changed
                 sender: data.displayName || data.robloxUsername || prev?.sender
               }));
@@ -326,11 +331,19 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       reviewWasUpdated = isUpdate;
 
       // ✅ OPTIMIZED: Update user_ratings_summary collection (background update, doesn't block UI)
-      // This maintains aggregated data for efficient leaderboard queries
-      updateUserRatingSummary(firestoreDB, selectedUserId).catch((err) => {
-        console.error('Error updating rating summary:', err);
-        // Don't show error to user - this is a background operation
-      });
+      // This maintains aggregated data for efficient leaderboard queries.
+      // The returned aggregate also drives the reviewed user's 5-Star badge
+      // (4.5★ average with 50+ reviews received).
+      updateUserRatingSummary(firestoreDB, selectedUserId)
+        .then((summary) => {
+          if (summary && summary.count >= 50 && summary.averageRating >= 4.5) {
+            awardBadge(appdatabase, selectedUserId, 'fiveStar');
+          }
+        })
+        .catch((err) => {
+          console.error('Error updating rating summary:', err);
+          // Don't show error to user - this is a background operation
+        });
 
       showSuccessMessage(
         "Success",
@@ -346,6 +359,12 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       setReviewText('');
       if (user?.id) {
         await updateUserPoints(user.id, 100);
+        // A NEW review (not an edit) grants the reviewer's +30 XP and counts
+        // toward the Reviewer badge (25 reviews). Edits must re-award neither.
+        if (!isUpdate) {
+          addXP(appdatabase, user.id, XP_ACTIONS.LEAVE_REVIEW, 'LEAVE_REVIEW');
+          incrementAndCheckBadge(appdatabase, user.id, 'reviewCount', REVIEW_BADGE_THRESHOLDS);
+        }
       }
       setStartRating(false);
 

@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../Translation/LanguageProvider';
 import { showSuccessMessage, showErrorMessage } from '../Helper/MessageHelper';
 import ShareTradeModal from '../Trades/SharetradeModel';
+import TradeCompletion from '../Engagement/TradeCompletion';
 import { mixpanel } from '../AppHelper/MixPenel';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
@@ -32,9 +33,11 @@ const HomeScreen = ({ selectedTheme }) => {
   const [wantsItems, setWantsItems] = useState(initialItems);
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
   const [selectedSection, setSelectedSection] = useState(null);
+  const [pickerTab, setPickerTab] = useState('all'); // 'all' | 'mine' — item picker source
   const [searchText, setSearchText] = useState('');
   const [hasTotal, setHasTotal] = useState({ price: 0, value: 0 });
   const [wantsTotal, setWantsTotal] = useState({ price: 0, value: 0 });
+  const [showTradeCompletion, setShowTradeCompletion] = useState(false);
   const { triggerHapticFeedback } = useHaptic();
   const { localState } = useLocalState();
   const [modalVisible, setModalVisible] = useState(false);
@@ -737,9 +740,56 @@ const HomeScreen = ({ selectedTheme }) => {
     item.Name.toLowerCase().includes(searchText.toLowerCase())
   );
 
+  // ── "My Items" picker tab ──
+  // Re-price the user's saved inventory (localState.ownedFruits, shape
+  // { name, type: 'f'|'p'|'gamepass', ... }) against the current calculator
+  // catalog (fruitRecords), so values/prices match the rest of the calculator.
+  const ownedPickerItems = useMemo(() => {
+    const owned = Array.isArray(localState.ownedFruits) ? localState.ownedFruits : [];
+    if (owned.length === 0 || fruitRecords.length === 0) return [];
+    return owned
+      .map((f) => {
+        const wantPerm = f?.type === 'p';
+        const name = (f?.name || '').toLowerCase();
+        const match = fruitRecords.find(
+          (r) =>
+            (r.Name || '').toLowerCase() === name &&
+            (wantPerm ? r.Type === 'p' : r.Type === 'n')
+        );
+        if (match) return match;
+        // Fallback if the fruit isn't in the current catalog.
+        if (!f?.name) return null;
+        return {
+          Name: f.name,
+          Value: wantPerm ? (f.permValue ?? f.value ?? 0) : (f.value ?? 0),
+          Type: wantPerm ? 'p' : 'n',
+          Price: f.beli || 0,
+        };
+      })
+      .filter((it) => it && it.Name);
+  }, [localState.ownedFruits, fruitRecords]);
+
+  const filteredOwnedData = ownedPickerItems.filter((item) =>
+    item.Name.toLowerCase().includes(searchText.toLowerCase())
+  );
+
+  // Open the picker on the "My Items" tab when the user has an inventory,
+  // otherwise fall back to "All".
+  useEffect(() => {
+    if (isDrawerVisible) {
+      setPickerTab(ownedPickerItems.length > 0 ? 'mine' : 'all');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDrawerVisible]);
+
   const profitLoss = wantsTotal.value - hasTotal.value;
   const isProfit = profitLoss >= 0;
   const neutral = profitLoss === 0;
+
+  // Pre-selected rating for the Log Trade sheet. Note the journal schema uses
+  // 'loss', while handleCreateTrade's own getTradeStatus says 'lose' — keep this
+  // one on the journal's spelling or every logged loss lands unlabelled.
+  const loggedTradeResult = neutral ? 'fair' : (profitLoss > 0 ? 'win' : 'loss');
 
   const profitPercentage = hasTotal.value > 0
     ? ((profitLoss / hasTotal.value) * 100).toFixed(0)
@@ -748,6 +798,117 @@ const HomeScreen = ({ selectedTheme }) => {
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
   const lastFilledIndexHas = hasItems.reduce((lastIndex, item, index) => (item ? index : lastIndex), -1);
   const lastFilledIndexWant = wantsItems.reduce((lastIndex, item, index) => (item ? index : lastIndex), -1);
+
+  // ── Shared item-picker renderers (used by both layout variants) ──
+  const getDemandString = (item) => {
+    let demandString = '0/10';
+    if (localState.data) {
+      try {
+        let parsedData = localState.data;
+        if (typeof localState.data === 'string') {
+          parsedData = JSON.parse(localState.data);
+        }
+        const dataArray = Array.isArray(parsedData) ? parsedData : Object.values(parsedData || {});
+        const originalItem = dataArray.find(
+          (dataItem) =>
+            dataItem?.name &&
+            dataItem.name.toLowerCase() === item.Name.toLowerCase()
+        );
+        if (originalItem) {
+          demandString = item.Type === 'p'
+            ? (originalItem.permDemand || '0/10')
+            : (originalItem.demand || '0/10');
+        }
+      } catch (error) {
+        // Silently fail, use default
+      }
+    }
+    return demandString;
+  };
+
+  const renderPickerCell = (item, variant) => {
+    const demandString = getDemandString(item);
+    const blockStyle = variant === 'alt' ? styles.altDrawerItem : styles.itemBlock;
+    const bg = item.Type === 'p'
+      ? '#e1a900'
+      : (variant === 'alt'
+          ? (isDarkMode ? '#152642' : '#e8f0fe')
+          : (isDarkMode ? '#34495E' : '#CCCCFF'));
+    const textColor = item.Type === 'p'
+      ? 'black'
+      : (variant === 'alt' ? (isDarkMode ? 'white' : '#1a1a2e') : (isDarkMode ? 'white' : 'black'));
+    return (
+      <TouchableOpacity style={[blockStyle, { backgroundColor: bg }]} onPress={() => selectItem(item)}>
+        <>
+          {demandString !== '0/10' && (
+            <Text style={styles.demandBadgeText}>{demandString}</Text>
+          )}
+          <Image
+            source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
+            style={[styles.itemImageOverlay]}
+          />
+          <Text style={[styles.itemText, { color: textColor }]}>${Number(item.Value)?.toLocaleString()}</Text>
+          <Text style={[styles.itemText, { color: textColor }]}>{item.Type === 'p' && 'Perm'} {item.Name}</Text>
+        </>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderPickerTabs = () => (
+    <View style={styles.pickerTabRow}>
+      <TouchableOpacity
+        style={[styles.pickerTab, pickerTab === 'mine' && styles.pickerTabActive]}
+        onPress={() => { triggerHapticFeedback('impactLight'); setPickerTab('mine'); }}
+        activeOpacity={0.85}
+      >
+        <Text style={[styles.pickerTabText, pickerTab === 'mine' && styles.pickerTabTextActive]}>
+          {t('home.picker_my_items', { defaultValue: 'My Items' })}{ownedPickerItems.length ? ` (${ownedPickerItems.length})` : ''}
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.pickerTab, pickerTab === 'all' && styles.pickerTabActive]}
+        onPress={() => { triggerHapticFeedback('impactLight'); setPickerTab('all'); }}
+        activeOpacity={0.85}
+      >
+        <Text style={[styles.pickerTabText, pickerTab === 'all' && styles.pickerTabTextActive]}>
+          {t('home.picker_all', { defaultValue: 'All' })}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderMyItemsEmpty = () => (
+    <View style={styles.pickerEmpty}>
+      <Text style={styles.pickerEmptyText}>
+        {t('home.picker_empty', { defaultValue: 'No items in your inventory yet.\nAdd fruits from My Stuff to see them here.' })}
+      </Text>
+      <TouchableOpacity style={styles.pickerEmptyBtn} onPress={() => setPickerTab('all')} activeOpacity={0.85}>
+        <Text style={styles.pickerEmptyBtnText}>{t('home.picker_browse_all', { defaultValue: 'Browse all items' })}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderPickerList = (variant) => (
+    <>
+      {renderPickerTabs()}
+      <FlatList
+        onScroll={() => Keyboard.dismiss()}
+        onTouchStart={() => Keyboard.dismiss()}
+        keyboardShouldPersistTaps="handled"
+        data={pickerTab === 'mine' ? filteredOwnedData : filteredData}
+        keyExtractor={(item, index) => `${item.Name}-${item.Type}-${index}`}
+        renderItem={({ item }) => renderPickerCell(item, variant)}
+        numColumns={3}
+        contentContainerStyle={styles.flatListContainer}
+        columnWrapperStyle={styles.columnWrapper}
+        ListEmptyComponent={pickerTab === 'mine' ? renderMyItemsEmpty() : null}
+        initialNumToRender={12}
+        maxToRenderPerBatch={9}
+        windowSize={5}
+        updateCellsBatchingPeriod={100}
+      />
+    </>
+  );
 
   // ── Alternate (non-Noman) layout ──
   if (!config.isNoman) {
@@ -991,62 +1152,7 @@ const HomeScreen = ({ selectedTheme }) => {
                         <Text style={styles.closeButtonText}>{t('home.close')}</Text>
                       </TouchableOpacity>
                     </View>
-                    <FlatList
-                      onScroll={() => Keyboard.dismiss()}
-                      onTouchStart={() => Keyboard.dismiss()}
-                      keyboardShouldPersistTaps="handled"
-                      data={filteredData}
-                      keyExtractor={(item) => item.Name}
-                      renderItem={({ item }) => {
-                        let demandString = '0/10';
-                        if (localState.data) {
-                          try {
-                            let parsedData = localState.data;
-                            if (typeof localState.data === 'string') {
-                              parsedData = JSON.parse(localState.data);
-                            }
-                            const dataArray = Array.isArray(parsedData) ? parsedData : Object.values(parsedData || {});
-                            const originalItem = dataArray.find(
-                              (dataItem) =>
-                                dataItem?.name &&
-                                dataItem.name.toLowerCase() === item.Name.toLowerCase()
-                            );
-                            if (originalItem) {
-                              demandString = item.Type === 'p'
-                                ? (originalItem.permDemand || '0/10')
-                                : (originalItem.demand || '0/10');
-                            }
-                          } catch (error) {
-                            // Silently fail, use default
-                          }
-                        }
-
-                        return (
-                          <TouchableOpacity style={[styles.altDrawerItem, { backgroundColor: item.Type === 'p' ? '#e1a900' : isDarkMode ? '#152642' : '#e8f0fe' }]} onPress={() => selectItem(item)}>
-                            <>
-                              {demandString !== '0/10' && (
-                                <Text style={styles.demandBadgeText}>{demandString}</Text>
-                              )}
-                              <Image
-                                source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
-                                style={[styles.itemImageOverlay]}
-                              />
-                              <Text style={[[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : '#1a1a2e') }
-                              ]]}>${Number(item.Value)?.toLocaleString()}</Text>
-                              <Text style={[[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : '#1a1a2e') }
-                              ]]}>{item.Type === 'p' && 'Perm'} {item.Name}</Text>
-                            </>
-                          </TouchableOpacity>
-                        );
-                      }}
-                      numColumns={3}
-                      contentContainerStyle={styles.flatListContainer}
-                      columnWrapperStyle={styles.columnWrapper}
-                      initialNumToRender={12}
-                      maxToRenderPerBatch={9}
-                      windowSize={5}
-                      updateCellsBatchingPeriod={100}
-                    />
+                    {renderPickerList('alt')}
                   </View>
                 </View>
               </ConditionalKeyboardWrapper>
@@ -1119,7 +1225,7 @@ const HomeScreen = ({ selectedTheme }) => {
           </View>
           <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} track='Remove Ads' oneWallOnly={single_offer_wall} />
         </GestureHandlerRootView>
-        {(!localState.isPro && !proGranted) && <BannerAdComponent />}
+        {(!localState.isPro && !proGranted) && <BannerAdComponent collapsible />}
       </>
     );
   }
@@ -1352,6 +1458,10 @@ const HomeScreen = ({ selectedTheme }) => {
                 <Icon name="enter-outline" size={18} color="white" style={{ padding: 4 }} />
                 <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>{t('home.create_trade')}</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={styles.middleTradeButton} onPress={() => setShowTradeCompletion(true)}>
+                <Icon name="book-outline" size={16} color="white" style={{ padding: 4 }} />
+                <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>Log Trade</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={styles.shareTradeButton} onPress={() => handleCreateTradePress('share')}>
                 <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>{t('home.share_trade')}</Text>
                 <Icon name="share-outline" size={18} color="white" style={{ padding: 4 }} />
@@ -1382,64 +1492,7 @@ const HomeScreen = ({ selectedTheme }) => {
                       <Text style={styles.closeButtonText}>{t('home.close')}</Text>
                     </TouchableOpacity>
                   </View>
-                  <FlatList
-                    onScroll={() => Keyboard.dismiss()}
-                    onTouchStart={() => Keyboard.dismiss()}
-                    keyboardShouldPersistTaps="handled"
-                    data={filteredData}
-                    keyExtractor={(item) => item.Name}
-                    renderItem={({ item }) => {
-                      // ✅ Get demand for this item from localState.data
-                      let demandString = '0/10';
-                      if (localState.data) {
-                        try {
-                          let parsedData = localState.data;
-                          if (typeof localState.data === 'string') {
-                            parsedData = JSON.parse(localState.data);
-                          }
-                          const dataArray = Array.isArray(parsedData) ? parsedData : Object.values(parsedData || {});
-                          const originalItem = dataArray.find(
-                            (dataItem) =>
-                              dataItem?.name &&
-                              dataItem.name.toLowerCase() === item.Name.toLowerCase()
-                          );
-                          if (originalItem) {
-                            demandString = item.Type === 'p'
-                              ? (originalItem.permDemand || '0/10')
-                              : (originalItem.demand || '0/10');
-                          }
-                        } catch (error) {
-                          // Silently fail, use default
-                        }
-                      }
-
-                      return (
-                        <TouchableOpacity style={[styles.itemBlock, { backgroundColor: item.Type === 'p' ? '#e1a900' : isDarkMode ? '#34495E' : '#CCCCFF' }]} onPress={() => selectItem(item)}>
-                          <>
-                            {/* ✅ Demand Badge - Top Left Corner (same as grid) */}
-                            {demandString !== '0/10' && (
-                              <Text style={styles.demandBadgeText}>{demandString}</Text>
-                            )}
-                            <Image
-                              source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
-                              style={[styles.itemImageOverlay]}
-                            />
-                            <Text style={[[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
-                            ]]}>${Number(item.Value)?.toLocaleString()}</Text>
-                            <Text style={[[styles.itemText, { color: item.Type === 'p' ? 'black' : (isDarkMode ? 'white' : 'black') }
-                            ]]}>{item.Type === 'p' && 'Perm'} {item.Name}</Text>
-                          </>
-                        </TouchableOpacity>
-                      );
-                    }}
-                    numColumns={3}
-                    contentContainerStyle={styles.flatListContainer}
-                    columnWrapperStyle={styles.columnWrapper}
-                    initialNumToRender={12}
-                    maxToRenderPerBatch={9}
-                    windowSize={5}
-                    updateCellsBatchingPeriod={100}
-                  />
+                  {renderPickerList('default')}
                 </View>
               </View>
             </ConditionalKeyboardWrapper>
@@ -1511,8 +1564,19 @@ const HomeScreen = ({ selectedTheme }) => {
           />
         </View>
         <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} track='Remove Ads' oneWallOnly={single_offer_wall} />
+        <TradeCompletion
+          visible={showTradeCompletion}
+          onClose={() => setShowTradeCompletion(false)}
+          db={appdatabase}
+          uid={user?.id}
+          isDarkMode={isDarkMode}
+          hasItems={hasItems}
+          wantsItems={wantsItems}
+          tradeResult={loggedTradeResult}
+          firestoreDB={firestoreDB}
+        />
       </GestureHandlerRootView>
-      {(!localState.isPro && !proGranted) && <BannerAdComponent />}
+      {(!localState.isPro && !proGranted) && <BannerAdComponent collapsible />}
     </>
   );
 };
@@ -1668,6 +1732,56 @@ const getStyles = (isDarkMode) =>
       justifyContent: 'space-between',
       paddingBottom: 20
     },
+    // ── "My Items" / "All" picker tabs ──
+    pickerTabRow: {
+      flexDirection: 'row',
+      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : '#eef1f6',
+      borderRadius: 10,
+      padding: 3,
+      marginBottom: 10,
+    },
+    pickerTab: {
+      flex: 1,
+      paddingVertical: 8,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pickerTabActive: {
+      backgroundColor: config.colors.primary,
+    },
+    pickerTabText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: isDarkMode ? '#b8c2d0' : '#5b6472',
+    },
+    pickerTabTextActive: {
+      color: 'white',
+      fontWeight: '700',
+    },
+    pickerEmpty: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 32,
+      paddingHorizontal: 20,
+    },
+    pickerEmptyText: {
+      fontSize: 13,
+      textAlign: 'center',
+      color: isDarkMode ? '#b8c2d0' : '#5b6472',
+      marginBottom: 14,
+    },
+    pickerEmptyBtn: {
+      backgroundColor: config.colors.primary,
+      paddingVertical: 10,
+      paddingHorizontal: 20,
+      borderRadius: 8,
+    },
+    pickerEmptyBtnText: {
+      color: 'white',
+      fontWeight: '700',
+      fontSize: 13,
+    },
     columnWrapper: {
       flex: 1,
       justifyContent: 'space-around',
@@ -1681,33 +1795,41 @@ const getStyles = (isDarkMode) =>
       padding: 10,
       flex: 1,
     },
+    // Three-up pill: Create | Log | Share. flex:1 rather than minWidth:120 so the
+    // third button still fits on narrow phones.
     createtrade: {
-      alignSelf: 'center',
+      alignSelf: 'stretch',
       justifyContent: 'center',
-      flexDirection: 'row'
+      flexDirection: 'row',
+      paddingHorizontal: 16,
+      gap: 1,
     },
     createtradeButton: {
       backgroundColor: config.colors.hasBlockGreen,
-      alignSelf: 'center',
+      flex: 1,
       padding: 5,
       justifyContent: 'center',
       flexDirection: 'row',
-      minWidth: 120,
       borderTopStartRadius: 20,
       borderBottomStartRadius: 20,
-      marginRight: 1,
+      alignItems: 'center'
+    },
+    middleTradeButton: {
+      backgroundColor: '#10B981',
+      flex: 1,
+      padding: 5,
+      justifyContent: 'center',
+      flexDirection: 'row',
       alignItems: 'center'
     },
     shareTradeButton: {
       backgroundColor: config.colors.wantBlockRed,
-      alignSelf: 'center',
+      flex: 1,
       padding: 5,
       flexDirection: 'row',
       justifyContent: 'center',
-      minWidth: 120,
       borderTopEndRadius: 20,
       borderBottomEndRadius: 20,
-      marginLeft: 1,
       alignItems: 'center'
     },
     modalMessage: {

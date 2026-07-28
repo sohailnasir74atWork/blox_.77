@@ -59,78 +59,44 @@ const LeaderboardModal = ({
 
   // ✅ MIGRATED: Fetch leaderboard from Firestore user_ratings_summary
   const fetchLeaderboard = useCallback(async () => {
-    if (!firestoreDB || !appdatabase || !user?.id) return;
+    if (!firestoreDB || !user?.id) return;
 
     setLoading(true);
     try {
-      // ✅ Query Firestore user_ratings_summary ordered by count, limit to top 50
-      const summaryQuery = query(
-        collection(firestoreDB, 'user_ratings_summary'),
-        orderBy('count', 'desc'), // Order by review count (highest first)
-        limit(50) // ✅ ONLY fetch top 50 = 50 Firestore reads (optimized!)
-      );
+      // ✅ COST: read the precomputed leaderboard_cache/top50 doc (1 read)
+      // instead of 50 user_ratings_summary reads + 100 RTDB name/avatar gets.
+      // The cache doc already embeds displayName + avatar per user — same
+      // source LeaderboardScreen.fetchTopRated reads.
+      const cacheDocSnap = await getDoc(doc(firestoreDB, 'leaderboard_cache', 'top50'));
 
-      const summarySnapshot = await getDocs(summaryQuery);
-
-      if (summarySnapshot.empty) {
+      if (!cacheDocSnap.exists) {
         setLeaderboardData([]);
         setLoading(false);
         return;
       }
 
-      // ✅ Extract and sort users: First by review count (desc), then by average rating (desc)
-      const allUsers = summarySnapshot.docs.map((doc) => {
-        const data = doc.data();
-        return {
-          userId: doc.id,
-          ratingCount: data.count || 0,
-          averageRating: data.averageRating || 0,
-          updatedAt: data.updatedAt?.toMillis?.() || data.updatedAt || Date.now(),
-        };
-      }).filter(item => item.ratingCount > 0);
+      const cacheData = cacheDocSnap.data();
+      const cachedUsers = Array.isArray(cacheData?.users) ? cacheData.users : [];
 
-      // ✅ Sort: First by review count (desc), then by average rating (desc)
-      const ratingsArray = allUsers.sort((a, b) => {
-        if (b.ratingCount !== a.ratingCount) {
-          return b.ratingCount - a.ratingCount;
-        }
-        return b.averageRating - a.averageRating;
-      });
+      // Already sorted top-50 server-side; index → rank (matches LeaderboardScreen).
+      const leaderboardWithDetails = cachedUsers
+        .filter(u => (u.ratingCount || 0) > 0)
+        .map((u, i) => ({
+          userId: u.userId,
+          ratingCount: u.ratingCount || 0,
+          averageRating: u.averageRating || 0,
+          displayName: u.displayName || 'Anonymous',
+          avatar: u.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
+          updatedAt: u.updatedAt || Date.now(),
+          rank: i + 1,
+        }));
 
-      // ✅ Fetch user details (displayName, avatar) for each user in parallel
-      const userDetailsPromises = ratingsArray.map(async (item) => {
-        try {
-          const [displayNameSnap, avatarSnap] = await Promise.all([
-            get(ref(appdatabase, `users/${item.userId}/displayName`)).catch(() => null),
-            get(ref(appdatabase, `users/${item.userId}/avatar`)).catch(() => null),
-          ]);
-
-          return {
-            ...item,
-            displayName: displayNameSnap?.exists() ? displayNameSnap.val() : 'Anonymous',
-            avatar: avatarSnap?.exists() ? avatarSnap.val() : 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
-            rank: ratingsArray.indexOf(item) + 1,
-          };
-        } catch (error) {
-          console.error(`Error fetching user ${item.userId}:`, error);
-          return {
-            ...item,
-            displayName: 'Anonymous',
-            avatar: 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
-            rank: ratingsArray.indexOf(item) + 1,
-          };
-        }
-      });
-
-      const leaderboardWithDetails = await Promise.all(userDetailsPromises);
-
-      // ✅ Save to cache
-      const cacheData = {
+      // ✅ Save to local cache (2-day TTL) — same shape/semantics as before
+      updateLocalState('leaderboardTop50', {
         data: leaderboardWithDetails,
         timestamp: Date.now(),
         lastFetched: new Date().toISOString(),
-      };
-      updateLocalState('leaderboardTop50', cacheData);
+      });
 
       setLeaderboardData(leaderboardWithDetails);
     } catch (error) {
@@ -139,7 +105,7 @@ const LeaderboardModal = ({
     } finally {
       setLoading(false);
     }
-  }, [appdatabase, user?.id, updateLocalState]);
+  }, [firestoreDB, user?.id, updateLocalState]);
 
   // ✅ Load leaderboard data (check cache first)
   useEffect(() => {

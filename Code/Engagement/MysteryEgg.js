@@ -445,6 +445,13 @@ const MysteryEggScreen = ({ navigation }) => {
     ).start();
   }, [bgPulse]);
 
+  // Warm the rewarded ad on entry — the "Watch Ad for Free Hatch" button
+  // needs it loaded BEFORE the tap (cold loads used to time out as
+  // "unavailable" and burn the user's tap).
+  useEffect(() => {
+    try { RewardedAdManager.prepare(); } catch (_) {}
+  }, []);
+
   // Load user data
   useEffect(() => {
     if (!user?.id || !appdatabase) return;

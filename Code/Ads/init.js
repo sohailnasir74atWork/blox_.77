@@ -25,6 +25,9 @@ export function ensureAdsInitialized() {
         // Confirms this is NOT a kids-app build, avoiding the conservative
         // kids pricing AdMob applies when treatment is left unspecified.
         tagForChildDirectedTreatment: false,
+        // Explicit: not a mixed-audience under-age build either — leaving it
+        // unspecified lets AdMob guess; false keeps personalized ads eligible.
+        tagForUnderAgeOfConsent: false,
       })
       .then(() => MobileAds().initialize())
       .catch((err) => {

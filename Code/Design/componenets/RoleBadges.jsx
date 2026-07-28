@@ -8,7 +8,7 @@ import { useGlobalState } from '../../GlobelStats';
 // eslint-disable-next-line no-unused-vars
 const RoleBadges = ({ userItem, style, cacheVersion }) => {
   const globalState = useGlobalState() || {};
-  const { user: currentUser, isAdmin: isGlobalAdmin, isModerator: isGlobalModerator } = globalState;
+  const { user: currentUser, isAdmin: isGlobalAdmin, isModerator: isGlobalModerator, isSeniorMod: isGlobalSeniorMod } = globalState;
 
   if (!userItem) return null;
 
@@ -20,13 +20,14 @@ const RoleBadges = ({ userItem, style, cacheVersion }) => {
   const cachedProfile = getCachedProfile(userId) || {};
 
   const isAdmin = (isCurrentUser && isGlobalAdmin) || (cachedUser.admin ?? cachedUser.isAdmin ?? cachedProfile.isAdmin ?? userItem.admin ?? userItem.isAdmin ?? false);
+  const isSeniorMod = (isCurrentUser && isGlobalSeniorMod) || (cachedUser.isSeniorMod ?? cachedProfile.isSeniorMod ?? userItem.isSeniorMod ?? false);
   const isModerator = (isCurrentUser && isGlobalModerator) || (cachedUser.isModerator ?? cachedProfile.isModerator ?? userItem.isModerator ?? false);
   const isJMD = cachedUser.isBabyMod ?? cachedProfile.isBabyMod ?? userItem.isBabyMod ?? false;
   const isTrusted = cachedUser.isTrusted ?? cachedProfile.isTrusted ?? userItem.isTrusted ?? false;
   const isGrinder = cachedUser.isGrinder ?? cachedProfile.isGrinder ?? userItem.isGrinder ?? false;
   const isRaider = cachedUser.isRaider ?? cachedProfile.isRaider ?? userItem.isRaider ?? false;
 
-  if (!isAdmin && !isModerator && !isJMD && !isTrusted && !isGrinder && !isRaider) {
+  if (!isAdmin && !isSeniorMod && !isModerator && !isJMD && !isTrusted && !isGrinder && !isRaider) {
     return null;
   }
 
@@ -38,13 +39,20 @@ const RoleBadges = ({ userItem, style, cacheVersion }) => {
           <Text style={styles.roleBadgeText}>Admin</Text>
         </View>
       )}
-      {!isAdmin && isModerator && (
+      {/* Senior Mod ranks above Mod — show it instead of the Mod badge. */}
+      {!isAdmin && isSeniorMod && (
+        <View style={styles.roleBadge_seniorMod}>
+          <Ionicons name="shield-half" size={8} color="#fff" />
+          <Text style={styles.roleBadgeText}>Sr Mod</Text>
+        </View>
+      )}
+      {!isAdmin && !isSeniorMod && isModerator && (
         <View style={styles.roleBadge_mod}>
           <Ionicons name="shield-checkmark" size={8} color="#fff" />
           <Text style={styles.roleBadgeText}>Mod</Text>
         </View>
       )}
-      {!isAdmin && !isModerator && isJMD && (
+      {!isAdmin && !isSeniorMod && !isModerator && isJMD && (
         <View style={styles.roleBadge_jmd}>
           <Ionicons name="paw" size={8} color="#fff" />
           <Text style={styles.roleBadgeText}>JMD</Text>
@@ -82,6 +90,10 @@ const styles = StyleSheet.create({
   },
   roleBadge_admin: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#EF4444',
+    paddingHorizontal: 4, paddingVertical: 1, borderRadius: 5, gap: 2,
+  },
+  roleBadge_seniorMod: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#4F46E5',
     paddingHorizontal: 4, paddingVertical: 1, borderRadius: 5, gap: 2,
   },
   roleBadge_mod: {

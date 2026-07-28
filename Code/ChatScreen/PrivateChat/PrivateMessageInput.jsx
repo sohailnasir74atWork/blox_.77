@@ -95,7 +95,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
   const { theme, user, isAdmin } = useGlobalState();
   // Admins and full (non-baby) moderators bypass moderation so they can post
   // links, warnings, and quoted content the filter would otherwise block.
-  const canBypassModeration = !!isAdmin || (!!user?.isModerator && !user?.isBabyMod);
+  const canBypassModeration = !!isAdmin || !!user?.isSeniorMod || (!!user?.isModerator && !user?.isBabyMod);
   const isDark = theme === 'dark';
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -223,10 +223,13 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
 
     setMessageCount(prevCount => {
       const newCount = prevCount + 1;
-      if (!localState?.isPro && newCount % 10 === 0) {
+      if (!localState?.isPro && newCount % 7 === 0) {
         // Show ad only if user is NOT pro
         InterstitialAdManager.showAd(() => { });
       } else {
+        // One message before the ad message: warm the interstitial so the
+        // trigger actually has something to show (lazy-load pipeline).
+        if (!localState?.isPro && newCount % 7 === 6) InterstitialAdManager.prepare();
         setIsSending(false);
       }
       return newCount;

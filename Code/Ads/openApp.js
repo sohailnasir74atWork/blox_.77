@@ -133,20 +133,18 @@ class AppOpenAdManager {
     }
   }
 
-  // Exponential backoff (1s,2s,4s,8s,16s) then keep trying every 30s.
+  // Exponential backoff (1s,2s,4s,8s,16s), then STOP. The old 30s-forever
+  // loop burned no-fill requests all session in zero-fill geos. Every
+  // background→foreground return calls showAdIfAvailable(), which calls
+  // _load() when nothing is loaded — that natural signal (with retryCount
+  // reset) replaces the blind timer.
   static _retryLoad() {
-    if (this.retryCount < this.maxRetries) {
-      const delay = Math.pow(2, this.retryCount) * 1000;
-      setTimeout(() => {
-        this.retryCount += 1;
-        this._load();
-      }, delay);
-    } else {
-      setTimeout(() => {
-        this.retryCount = 0;
-        this._load();
-      }, 30000);
-    }
+    if (this.retryCount >= this.maxRetries) return;
+    const delay = Math.pow(2, this.retryCount) * 1000;
+    setTimeout(() => {
+      this.retryCount += 1;
+      this._load();
+    }, delay);
   }
 
   static _isExpired() {

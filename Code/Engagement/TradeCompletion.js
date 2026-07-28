@@ -30,6 +30,7 @@ import { getThemeColors } from '../Helper/themeColors';
 import { useLocalState } from '../LocalGlobelStats';
 import config from '../Helper/Environment';
 import { addXP, XP_ACTIONS } from './xpUtils';
+import { checkThresholdBadges, TRADE_BADGE_THRESHOLDS, checkNightOwlTrade } from '../ChatScreen/GroupChat/badgeUtils';
 import InterstitialAdManager from '../Ads/IntAd';
 
 const TRADE_RATINGS = [
@@ -115,14 +116,21 @@ const TradeCompletion = ({
       try {
         const statsSnap = await get(ref(db, `tradeStats/${uid}`));
         const cur = statsSnap.exists() ? statsSnap.val() : { total: 0, wins: 0, fairs: 0, losses: 0, totalGave: 0, totalGot: 0 };
+        const newTotal = (cur.total || 0) + 1;
         await set(ref(db, `tradeStats/${uid}`), {
-          total: (cur.total || 0) + 1,
+          total: newTotal,
           wins: (cur.wins || 0) + (selectedRating === 'win' ? 1 : 0),
           fairs: (cur.fairs || 0) + (selectedRating === 'fair' ? 1 : 0),
           losses: (cur.losses || 0) + (selectedRating === 'loss' ? 1 : 0),
           totalGave: (cur.totalGave || 0) + gaveValue,
           totalGot: (cur.totalGot || 0) + gotValue,
         });
+
+        // Trade-count badges (Trade→5, Star Trader→25, Diamond→100, Centurion→250).
+        // tradeStats.total is the authoritative running count, so award from it.
+        // Night Owl (15 trades 00:00–05:00 UTC) keeps its own dedicated counter.
+        checkThresholdBadges(db, uid, newTotal, TRADE_BADGE_THRESHOLDS);
+        checkNightOwlTrade(db, uid);
       } catch (e) { console.warn('[TradeCompletion] stats update error:', e?.message); }
 
       // Auto-update owned fruits inventory

@@ -43,6 +43,7 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false); // State for pull-to-refresh
   const [showAd1, setShowAd1] = useState(localState?.showAd1);
+  const [chatSource, setChatSource] = useState('all'); // 'all' | 'mine' — chat picker source tab
 
 
   const editValuesRef = useRef({
@@ -239,6 +240,29 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
 
     setFilteredData(filtered);
   }, [valuesData, searchText, selectedFilter]);
+
+  // ── Chat picker "My Items" tab ──
+  // Names the user owns (localState.ownedFruits, shape { name, type, ... }),
+  // mirrored from the My Stuff screen. Used to filter the catalog down to the
+  // user's inventory so they can quickly pick items to send in chat.
+  const ownedNameSet = useMemo(() => {
+    const owned = Array.isArray(localState.ownedFruits) ? localState.ownedFruits : [];
+    return new Set(owned.map((f) => (f?.name || '').toLowerCase()).filter(Boolean));
+  }, [localState.ownedFruits]);
+  const ownedCount = ownedNameSet.size;
+
+  // Default the chat picker to "My Items" when the user has an inventory.
+  useEffect(() => {
+    if (fromChat) setChatSource(ownedCount > 0 ? 'mine' : 'all');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromChat]);
+
+  const displayedData = useMemo(() => {
+    if (fromChat && chatSource === 'mine') {
+      return filteredData.filter((item) => ownedNameSet.has((item?.name || '').toLowerCase()));
+    }
+    return filteredData;
+  }, [fromChat, chatSource, filteredData, ownedNameSet]);
   // const EditFruitModal = () => (
   //   <Modal visible={isModalVisible} transparent={true} animationType="slide">
   //     <View style={styles.modalContainer}>
@@ -596,6 +620,29 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
             </View>
           )}
 
+          {fromChat && (
+            <View style={styles.chatSourceToggle}>
+              <TouchableOpacity
+                style={[styles.chatSourceBtn, chatSource === 'mine' && styles.chatSourceBtnActive]}
+                onPress={() => { triggerHapticFeedback('impactLight'); setChatSource('mine'); }}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.chatSourceText, chatSource === 'mine' && styles.chatSourceTextActive]}>
+                  {`My Items${ownedCount ? ` (${ownedCount})` : ''}`}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.chatSourceBtn, chatSource === 'all' && styles.chatSourceBtnActive]}
+                onPress={() => { triggerHapticFeedback('impactLight'); setChatSource('all'); }}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.chatSourceText, chatSource === 'all' && styles.chatSourceTextActive]}>
+                  All
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <View style={styles.searchFilterContainer}>
             <TextInput
               style={styles.searchInput}
@@ -643,10 +690,10 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
 
 
 
-          {filteredData.length > 0 ? (
+          {displayedData.length > 0 ? (
             <>
               <FlatList
-                data={filteredData}
+                data={displayedData}
                 keyExtractor={(item) => item.name}
                 renderItem={config.isNoman ? renderItem : renderItemAlt}
                 showsVerticalScrollIndicator={false}
@@ -661,6 +708,21 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
               />
               {/* {isModalVisible && selectedFruit && <EditFruitModal />} */}
             </>
+          ) : (fromChat && chatSource === 'mine') ? (
+            <View style={styles.chatEmptyMine}>
+              <Text style={[styles.description, { textAlign: 'center', color: 'gray' }]}>
+                {ownedCount === 0
+                  ? 'No items in your inventory yet.\nAdd fruits from My Stuff to see them here.'
+                  : 'No matching items in your inventory.'}
+              </Text>
+              <TouchableOpacity
+                style={[styles.filterButton, { backgroundColor: config.colors.primary, marginTop: 14, alignSelf: 'center' }]}
+                onPress={() => setChatSource('all')}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.filterText}>Browse all items</Text>
+              </TouchableOpacity>
+            </View>
           ) : (
             <Text style={[styles.description, { textAlign: 'center', marginTop: 20, color: 'gray' }]}>
               {t("value.no_results")}
@@ -693,6 +755,39 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
 export const getStyles = (isDarkMode) =>
   StyleSheet.create({
     container: { paddingHorizontal: 8, marginHorizontal: 2, flex: 1, paddingTop: 10 },
+    // ── Chat picker "My Items" / "All" tabs ──
+    chatSourceToggle: {
+      flexDirection: 'row',
+      backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : '#eef1f6',
+      borderRadius: 10,
+      padding: 3,
+      marginTop: 4,
+    },
+    chatSourceBtn: {
+      flex: 1,
+      paddingVertical: 8,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    chatSourceBtnActive: {
+      backgroundColor: config.colors.primary,
+    },
+    chatSourceText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: isDarkMode ? '#b8c2d0' : '#5b6472',
+    },
+    chatSourceTextActive: {
+      color: 'white',
+      fontWeight: '700',
+    },
+    chatEmptyMine: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 28,
+      paddingHorizontal: 20,
+    },
     searchFilterContainer: { flexDirection: 'row', marginVertical: 5, alignItems: 'center' },
     searchInput: {
       height: 40,

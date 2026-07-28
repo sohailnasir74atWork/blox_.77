@@ -42,6 +42,7 @@ export const GlobalStateProvider = ({ children }) => {
 
 
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSeniorMod, setIsSeniorMod] = useState(false); // ✅ Global Senior Mod State (one rank below Admin)
   const [isModerator, setIsModerator] = useState(false); // ✅ Global Moderator State
   const [isBabyMod, setIsBabyMod] = useState(false); // ✅ Global JMD State
   const [isTrusted, setIsTrusted] = useState(false); // ✅ Global Trusted State
@@ -309,7 +310,6 @@ export const GlobalStateProvider = ({ children }) => {
       if (makeadmin) { setIsAdmin(makeadmin) }
       setCurrentuserEmail(loggedInUser.email)
 
-
       if (snapshot.exists()) {
         const existing = snapshot.val();
 
@@ -319,6 +319,10 @@ export const GlobalStateProvider = ({ children }) => {
           existing.isAdmin = true;
         }
 
+        // ✅ Check if user is Senior Mod from DB (one rank below Admin).
+        // Senior Mod is granted in-app via the Admin dashboard (makeSeniorMod),
+        // no hardcoded bootstrap — RTDB users/{uid}/isSeniorMod is the source of truth.
+        if (existing.isSeniorMod) setIsSeniorMod(true);
         // ✅ Check if user is moderator from DB
         if (existing.isModerator) setIsModerator(true);
         // ✅ Also check admin from DB if not hardcoded
@@ -1071,6 +1075,7 @@ export const GlobalStateProvider = ({ children }) => {
       loading,
       freeTranslation,
       isAdmin,
+      isSeniorMod, // ✅ Export Senior Mod status (one rank below Admin)
       isModerator, // ✅ Export moderator status
       isBabyMod, // ✅ Export JMD status
       isTrusted, // ✅ Export Trusted status
@@ -1086,7 +1091,7 @@ export const GlobalStateProvider = ({ children }) => {
       isUserBlocked, // ✅ Boolean flag if user is currently blocked
 
     }),
-    [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api, freeTranslation, proTagBought, stockNotifierPurchase, proGranted, currentUserEmail, single_offer_wall, auth, isInActiveGame, setIsInActiveGame, tradingServerLink, strikeInfo, deviceBanInfo, isUserBlocked, isAdmin, isModerator, isBabyMod, isTrusted, isGrinder, isRaider, updateLocalStateAndDatabase, reload]
+    [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api, freeTranslation, proTagBought, stockNotifierPurchase, proGranted, currentUserEmail, single_offer_wall, auth, isInActiveGame, setIsInActiveGame, tradingServerLink, strikeInfo, deviceBanInfo, isUserBlocked, isAdmin, isSeniorMod, isModerator, isBabyMod, isTrusted, isGrinder, isRaider, updateLocalStateAndDatabase, reload]
   );
 
   return (

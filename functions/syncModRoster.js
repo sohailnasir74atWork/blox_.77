@@ -2,8 +2,8 @@
  * Cloud Function: Mod/JMod roster sync
  *
  * syncModRoster:
- *   RTDB trigger on users/{uid}. Only fires when isModerator, isBabyMod,
- *   displayName, or avatar changes. Lightweight — reads nothing extra.
+ *   RTDB trigger on users/{uid}. Only fires when isSeniorMod, isModerator,
+ *   isBabyMod, displayName, or avatar changes. Lightweight — reads nothing extra.
  *
  * No seed function needed — the listener catches all changes going forward.
  * To populate existing mods, just toggle isModerator off/on once per mod
@@ -40,18 +40,20 @@ exports.syncModRoster = functions
       return null;
     }
 
-    const relevantFields = ['isModerator', 'isBabyMod', 'displayName', 'avatar'];
+    const relevantFields = ['isSeniorMod', 'isModerator', 'isBabyMod', 'displayName', 'avatar'];
     const changed = !before || relevantFields.some(f => before[f] !== after[f]);
     if (!changed) return null;
 
+    const isSenior = after.isSeniorMod === true;
     const isMod = after.isModerator === true;
     const isJmod = after.isBabyMod === true;
 
-    if (isMod || isJmod) {
+    if (isSenior || isMod || isJmod) {
       await db.ref(`mods/${uid}`).set({
         displayName: after.displayName || 'Unknown',
         avatar: after.avatar || '',
-        role: isMod ? 'mod' : 'jmod',
+        // Senior Mod outranks Mod outranks JMD — pick the highest held role.
+        role: isSenior ? 'srmod' : isMod ? 'mod' : 'jmod',
         updatedAt: Date.now(),
       });
     } else {

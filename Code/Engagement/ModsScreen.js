@@ -26,9 +26,13 @@ import config from '../Helper/Environment';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
 
 const ROLE_META = {
+  srmod: { label: 'Senior Mod', color: '#4F46E5', icon: 'shield-heart' },
   mod: { label: 'Moderator', color: '#3B82F6', icon: 'shield-halved' },
   jmod: { label: 'Junior Mod', color: '#8B5CF6', icon: 'shield' },
 };
+
+// Roster ordering: Senior Mods first, then Mods, then Junior Mods.
+const ROLE_ORDER = { srmod: 0, mod: 1, jmod: 2 };
 
 // ─── Mod Card ───
 const ModCard = React.memo(({ mod, myVote, onVote, onChat, isDarkMode }) => {
@@ -165,9 +169,11 @@ const ModsScreen = () => {
         };
       });
 
-      // Sort: mods first, then by score desc
+      // Sort: Senior Mods first, then Mods, then Junior Mods; ties by score desc
       list.sort((a, b) => {
-        if (a.role !== b.role) return a.role === 'mod' ? -1 : 1;
+        const ra = ROLE_ORDER[a.role] ?? 99;
+        const rb = ROLE_ORDER[b.role] ?? 99;
+        if (ra !== rb) return ra - rb;
         return b.score - a.score;
       });
 
@@ -286,10 +292,11 @@ const ModsScreen = () => {
 
   // Stats
   const stats = useMemo(() => {
+    const srCount = mods.filter(m => m.role === 'srmod').length;
     const modCount = mods.filter(m => m.role === 'mod').length;
     const jmodCount = mods.filter(m => m.role === 'jmod').length;
     const best = mods.length > 0 ? mods.reduce((a, b) => a.score >= b.score ? a : b) : null;
-    return { modCount, jmodCount, best };
+    return { srCount, modCount, jmodCount, best };
   }, [mods]);
 
   const renderItem = useCallback(({ item, index }) => (
@@ -325,6 +332,16 @@ const ModsScreen = () => {
 
       {/* Stats bar */}
       <View style={[styles.statsBar, { borderBottomColor: isDarkMode ? '#1e293b' : '#e2e8f0' }]}>
+        {stats.srCount > 0 && (
+          <>
+            <View style={styles.statItem}>
+              <FontAwesome name="shield-heart" size={12} color="#4F46E5" solid />
+              <Text style={[styles.statNum, { color: textColor }]}>{stats.srCount}</Text>
+              <Text style={[styles.statLabel, { color: subColor }]}>Sr Mods</Text>
+            </View>
+            <View style={[styles.statDivider, { backgroundColor: isDarkMode ? '#334155' : '#e2e8f0' }]} />
+          </>
+        )}
         <View style={styles.statItem}>
           <FontAwesome name="shield-halved" size={12} color="#3B82F6" solid />
           <Text style={[styles.statNum, { color: textColor }]}>{stats.modCount}</Text>

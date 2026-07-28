@@ -139,6 +139,7 @@ export const getOrFetchProfile = async (db, uid) => {
           hasRecentGameWin: false,                 // still on RTDB; not migrated this phase
           lastGameWinAt: null,                     // ditto
           isAdmin: !!roles?.isAdmin,
+          isSeniorMod: !!roles?.isSeniorMod,
           isModerator: !!roles?.isModerator,
           isBabyMod: !!roles?.isBabyMod,
           isTrusted: !!roles?.isTrusted,
@@ -175,7 +176,7 @@ export const getOrFetchProfile = async (db, uid) => {
   // 3. RTDB fallback — original per-field reads.
   try {
     const [displayNameSnap, avatarSnap, isProSnap, verifiedSnap, recentWinSnap,
-      lastWinSnap, adminSnap, modSnap, babyModSnap, trustedSnap, grinderSnap,
+      lastWinSnap, adminSnap, seniorModSnap, modSnap, babyModSnap, trustedSnap, grinderSnap,
       raiderSnap, topBadgeSnap, cosmeticsSnap] = await Promise.all([
       get(ref(db, `users/${uid}/displayName`)),
       get(ref(db, `users/${uid}/avatar`)),
@@ -184,6 +185,7 @@ export const getOrFetchProfile = async (db, uid) => {
       get(ref(db, `users/${uid}/hasRecentGameWin`)),
       get(ref(db, `users/${uid}/lastGameWinAt`)),
       get(ref(db, `users/${uid}/admin`)),
+      get(ref(db, `users/${uid}/isSeniorMod`)),
       get(ref(db, `users/${uid}/isModerator`)),
       get(ref(db, `users/${uid}/isBabyMod`)),
       get(ref(db, `users/${uid}/isTrusted`)),
@@ -203,6 +205,7 @@ export const getOrFetchProfile = async (db, uid) => {
       hasRecentGameWin: !!(recentWinSnap?.exists() && recentWinSnap.val()),
       lastGameWinAt: lastWinSnap?.exists() ? lastWinSnap.val() : null,
       isAdmin: !!(adminSnap?.exists() && adminSnap.val()),
+      isSeniorMod: !!(seniorModSnap?.exists() && seniorModSnap.val()),
       isModerator: !!(modSnap?.exists() && modSnap.val()),
       isBabyMod: !!(babyModSnap?.exists() && babyModSnap.val()),
       isTrusted: !!(trustedSnap?.exists() && trustedSnap.val()),
@@ -271,6 +274,7 @@ export const warmProfileCache = async (db, uids) => {
           hasRecentGameWin: !!(extras?.recentWinSnap?.exists() && extras.recentWinSnap.val()),
           lastGameWinAt: extras?.lastWinSnap?.exists() ? extras.lastWinSnap.val() : null,
           isAdmin: !!role?.isAdmin,
+          isSeniorMod: !!role?.isSeniorMod,
           isModerator: !!role?.isModerator,
           isBabyMod: !!role?.isBabyMod,
           isTrusted: !!role?.isTrusted,
@@ -317,6 +321,7 @@ export const seedFromMessage = (msg) => {
     hasRecentGameWin: !!msg.hasRecentGameWin,
     lastGameWinAt: msg.lastGameWinAt || null,
     isAdmin: !!msg.isAdmin,
+    isSeniorMod: !!msg.isSeniorMod,
     isModerator: !!msg.isModerator,
     isBabyMod: !!msg.isBabyMod,
     isTrusted: !!msg.isTrusted,
@@ -341,7 +346,7 @@ const DEFAULT_PROFILE = {
   robloxUsernameVerified: false, hasRecentGameWin: false,
   chatTextColor: null, profileFrame: null, tradeCardBg: null,
   chatBubbleBg: null, profileBanner: null, topBadge: null,
-  isAdmin: false, isModerator: false, isBabyMod: false, isTrusted: false, isGrinder: false, isRaider: false,
+  isAdmin: false, isSeniorMod: false, isModerator: false, isBabyMod: false, isTrusted: false, isGrinder: false, isRaider: false,
 };
 
 export const resolveProfile = (msg) => {
@@ -359,6 +364,7 @@ export const resolveProfile = (msg) => {
       Date.now() - (msg.lastGameWinAt || cached?.lastGameWinAt) <= 24 * 60 * 60 * 1000
     ),
     isAdmin: msg.isAdmin ?? cached?.isAdmin ?? false,
+    isSeniorMod: msg.isSeniorMod ?? cached?.isSeniorMod ?? false,
     isModerator: msg.isModerator ?? cached?.isModerator ?? false,
     isBabyMod: msg.isBabyMod ?? cached?.isBabyMod ?? false,
     isTrusted: msg.isTrusted ?? cached?.isTrusted ?? false,
@@ -388,6 +394,7 @@ export const seedCurrentUser = async (user, localState, db) => {
     hasRecentGameWin: !!user.hasRecentGameWin || (user.lastGameWinAt && Date.now() - user.lastGameWinAt <= 24 * 60 * 60 * 1000) || false,
     lastGameWinAt: user.lastGameWinAt || null,
     isAdmin: !!user.isAdmin || !!user.admin,
+    isSeniorMod: !!user.isSeniorMod,
     isModerator: !!user.isModerator,
     isBabyMod: !!user.isBabyMod,
     isTrusted: !!user.isTrusted,

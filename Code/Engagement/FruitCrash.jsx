@@ -25,7 +25,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import { useGlobalState } from '../GlobelStats';
 import { addXP } from './xpUtils';
-import { ref, get, update, onValue } from '@react-native-firebase/database';
+import { ref, get, update, onValue, query, orderByChild, limitToLast } from '@react-native-firebase/database';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { useThemeColors } from '../Helper/themeColors';
 
@@ -279,9 +279,15 @@ export default function FruitCrash({ navigation }) {
   // ─── Listen to cashouts (unsubscriber pattern) ────────────
   useEffect(() => {
     if (!appdatabase) return;
-    const unsub = onValue(ref(appdatabase, 'fruitCrash/cashouts'), (snap) => {
-      setCashouts(snap.exists() ? snap.val() : {});
-    });
+    // Bound to the 12 most-recent cashouts (the feed renders exactly 12).
+    // Previously this pulled the ENTIRE shared cashouts node on every player's
+    // cash-out — egress scaled ~O(players²) per round to display 12 rows.
+    const unsub = onValue(
+      query(ref(appdatabase, 'fruitCrash/cashouts'), orderByChild('cashedAt'), limitToLast(12)),
+      (snap) => {
+        setCashouts(snap.exists() ? snap.val() : {});
+      }
+    );
     return unsub;
   }, [appdatabase]);
 
@@ -377,7 +383,7 @@ export default function FruitCrash({ navigation }) {
             <View style={st.playersBadge}>
               <View style={st.liveIndicator} />
               <Text style={[st.playersText, { color: textDim }]}>
-                {cashoutsArray.length > 0 ? `${cashoutsArray.length} cashed out` : 'Live'}
+                {cashoutsArray.length > 0 ? `${cashoutsArray.length}${cashoutsArray.length >= 12 ? '+' : ''} cashed out` : 'Live'}
               </Text>
             </View>
           </View>

@@ -131,7 +131,7 @@ async function mirrorRoblox(uid, before, after, supabase) {
 // Both `admin` and `isAdmin` are used in Blox Fruit RTDB
 // (GlobelStats.js:316 reads either). Coalesce.
 const ROLES_KEYS = [
-  'admin', 'isAdmin',
+  'admin', 'isAdmin', 'isSeniorMod',
   'isModerator', 'isBabyMod', 'isTrusted',
   'isGrinder', 'isRaider',
 ];
@@ -141,6 +141,9 @@ async function mirrorRoles(uid, before, after, supabase) {
   const row = {
     uid,
     is_admin: asBool(after.admin) || asBool(after.isAdmin),
+    // Senior Mod (one rank below Admin) mirrors into the pre-scaffolded
+    // is_cmsr column — see fromRolesRow in Code/Supabase/userBackend.js.
+    is_cmsr: asBool(after.isSeniorMod),
     is_moderator: asBool(after.isModerator),
     is_baby_mod: asBool(after.isBabyMod),
     is_trusted: asBool(after.isTrusted),

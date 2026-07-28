@@ -1,0 +1,186 @@
+{
+  "_comment": "ROLLBACK COPY of the rules that were live on project `fruiteblocks` before the staff-role lockdown was deployed. Transcribed from what you pasted out of the Firebase Console. To roll back: copy this file over database.rules.json and run `firebase deploy --only database`. NOTE: these rules let ANY unauthenticated caller write any user's record, including role flags — only restore them if the new rules break something, and fix forward quickly.",
+  "rules": {
+    "users": {
+      ".indexOn": ["displayName", "isSelectedReminderEnabled", "isReminderEnabled", "fcmToken", "isModerator", "isBabyMod"],
+      ".read": true,
+      "$userId": { ".read": true, ".write": true }
+    },
+    "submissions": { ".read": true, ".write": true },
+    "savedTrades": { ".read": true, ".write": true },
+    "mods": { ".read": true, ".write": true },
+    "mod_votes_by_user": { ".read": true, ".write": true },
+    "mod_votes_summary": { ".read": true, ".write": true },
+    "tradeAcceptors": { ".read": true, ".write": true },
+    "tradeAcceptNotifications": { ".read": true, ".write": true },
+    "tradeJournal": { ".read": true, ".write": true },
+    "tradeStats": { ".read": true, ".write": true },
+    "feedRanking": { ".read": true, ".write": true },
+    "banned_devices": { ".read": true, ".write": true },
+    "mod": { ".read": true, ".write": true },
+    "analytics": { ".read": true, ".write": true },
+    "chat_raid": { ".read": true, ".write": true },
+    "chat_help": { ".read": true, ".write": true },
+    "chat_playing": { ".read": true, ".write": true },
+    "reviews": { ".read": true, ".write": true },
+    "notifier": { ".read": true, ".write": true },
+    "notifier_index": { ".read": true, ".write": true },
+    "presence": {
+      ".indexOn": [".value"],
+      ".read": "auth != null",
+      "$uid": { ".write": "$uid === auth.uid" }
+    },
+    "activeGroupChats": { ".read": true, ".write": true },
+    "group_meta_data": { ".read": true, ".write": true },
+    "group_messages": { ".read": true, ".write": true },
+    "single_offer_wall": { ".read": true, ".write": true },
+    "pic_numbers": { ".read": true, ".write": true },
+    "like_counter": { ".read": true, ".write": true },
+    "fruitCrash": {
+      "currentRound": { ".read": true, ".write": false },
+      "cashouts": { ".read": true, "$uid": { ".write": "$uid === auth.uid" } },
+      "leaderboard": { ".read": true, ".write": false }
+    },
+    "news_feedback": { ".read": true, ".write": true },
+    "news": { ".read": true, ".write": true },
+    "stock": { ".read": true, ".write": true },
+    "xlsData": { ".read": true, ".write": true },
+    "banned_users_by_email": {
+      ".indexOn": ["bannedAt", "displayName"],
+      ".read": true,
+      ".write": true
+    },
+    "banned_users_by_email_post": { ".read": true, ".write": true },
+    "withdrawals": { ".read": true, ".write": true },
+    "storeItems": { ".read": true, ".write": true },
+    "background": { ".read": true, ".write": true },
+    "hd": { ".read": true, ".write": true },
+    "api": { ".read": true, ".write": true },
+    "free_translation": { ".read": true, ".write": true },
+    "server": { ".read": true, ".write": true },
+    "users_server": { ".read": false, ".write": false },
+    "fruit_data": { ".read": true, ".write": true },
+    "ratings": { ".read": true, ".write": true },
+    "averageRatings": { ".read": true, ".write": true },
+    "noman_app_version": { ".read": true, ".write": true },
+    "leader_board": { ".read": true, ".write": true },
+    "previous_enrole": { ".read": true, ".write": true },
+    "waqas_app_version": { ".read": true, ".write": true },
+    "ios_version": { ".read": true, ".write": true },
+    "featuredCounts": { ".read": true, ".write": true },
+    "reward": { ".read": true, ".write": true },
+    "prize": { ".read": true, ".write": true },
+    "winners": { ".read": true, ".write": true },
+    "calcData": { ".read": true, ".write": true },
+    "chat_new": { ".read": false, ".write": false, ".indexOn": ["senderId", "timestamp"] },
+    "pin_messages": { ".read": true, ".write": true },
+    "privateChats": { ".read": false, ".write": false },
+    "privateChat": { ".read": false, ".write": false },
+    "chat_es": { ".read": true, ".write": true },
+    "chat_pt": { ".indexOn": ["senderId", "timestamp"], ".read": true, ".write": true },
+    "chat_fr": { ".indexOn": ["senderId", "timestamp"], ".read": true, ".write": true },
+    "chat_de": { ".indexOn": ["senderId", "timestamp"], ".read": true, ".write": true },
+    "chat_tr": { ".indexOn": ["senderId", "timestamp"], ".read": true, ".write": true },
+    "chat_ar": { ".indexOn": ["senderId", "timestamp"], ".read": true, ".write": true },
+    "chat_ph": { ".indexOn": ["senderId", "timestamp"], ".read": true, ".write": true },
+    "chat_ja": { ".indexOn": ["senderId", "timestamp"], ".read": true, ".write": true },
+    "chat_id": { ".indexOn": ["senderId", "timestamp"], ".read": true, ".write": true },
+    "chat_ko": { ".indexOn": ["senderId", "timestamp"], ".read": true, ".write": true },
+    "chat_ru": { ".indexOn": ["senderId", "timestamp"], ".read": true, ".write": true },
+    "bannedUsers": { ".read": true, ".write": true },
+    "reports": { ".read": true, ".write": true },
+    "lastseen": { ".read": true, ".write": false },
+    "codes": { ".read": true, ".write": true },
+    "onlineUsers": { ".read": true, ".write": false, ".indexOn": ["status"] },
+    "enrole": { ".read": true, ".write": true },
+    "online_users": { ".read": true, ".write": true },
+    "freeTradeUsed": { ".read": true, ".write": true },
+    "tradeReports": { ".read": true, ".write": true },
+    "activeChats": { ".read": true, ".write": true },
+    "previousStock": { ".read": true, ".write": true },
+    "onlineUsersCount": { ".read": true, ".write": false },
+    "notifications": { ".read": false, ".write": false },
+    "appVersions": { ".read": true, ".write": true },
+    "lastChecked": { ".read": true, ".write": true },
+    "testing": { ".read": true, ".write": true },
+    "private_chat_new": {
+      ".indexOn": ["participants"],
+      ".read": true,
+      ".write": true,
+      "$chatId": {
+        "messages": { ".indexOn": ["timestamp"] },
+        "participants": { ".indexOn": ["user1", "user2"] }
+      }
+    },
+    "chat_meta_data": { ".read": true, ".write": true },
+    "private_messages": { ".read": true, ".write": true },
+    "chat_new_upgrade": {
+      ".read": "auth != null",
+      "$message_id": { ".write": false, ".validate": "newData.hasChildren(['senderId', 'timestamp'])" }
+    },
+    "chat_raid_upgrade": {
+      ".read": "auth != null",
+      "$message_id": { ".write": "auth != null", ".validate": "newData.hasChildren(['senderId', 'timestamp'])" }
+    },
+    "chat_help_upgrade": {
+      ".read": "auth != null",
+      "$message_id": { ".write": "auth != null", ".validate": "newData.hasChildren(['senderId', 'timestamp'])" }
+    },
+    "chat_playing_upgrade": {
+      ".read": "auth != null",
+      "$message_id": { ".write": "auth != null", ".validate": "newData.hasChildren(['senderId', 'timestamp'])" }
+    },
+    "chat_es_upgrade": {
+      ".read": "auth != null",
+      "$message_id": { ".write": "auth != null", ".validate": "newData.hasChildren(['senderId', 'timestamp'])" }
+    },
+    "chat_ar_upgrade": {
+      ".read": "auth != null",
+      "$message_id": { ".write": "auth != null", ".validate": "newData.hasChildren(['senderId', 'timestamp'])" }
+    },
+    "chat_pt_upgrade": {
+      ".read": "auth != null",
+      "$message_id": { ".write": "auth != null", ".validate": "newData.hasChildren(['senderId', 'timestamp'])" }
+    },
+    "chat_fr_upgrade": {
+      ".read": "auth != null",
+      "$message_id": { ".write": "auth != null", ".validate": "newData.hasChildren(['senderId', 'timestamp'])" }
+    },
+    "chat_de_upgrade": {
+      ".read": "auth != null",
+      "$message_id": { ".write": "auth != null", ".validate": "newData.hasChildren(['senderId', 'timestamp'])" }
+    },
+    "chat_tr_upgrade": {
+      ".read": "auth != null",
+      "$message_id": { ".write": "auth != null", ".validate": "newData.hasChildren(['senderId', 'timestamp'])" }
+    },
+    "chat_ru_upgrade": {
+      ".read": "auth != null",
+      "$message_id": { ".write": "auth != null", ".validate": "newData.hasChildren(['senderId', 'timestamp'])" }
+    },
+    "chat_id_upgrade": {
+      ".read": "auth != null",
+      "$message_id": { ".write": "auth != null", ".validate": "newData.hasChildren(['senderId', 'timestamp'])" }
+    },
+    "chat_ja_upgrade": {
+      ".read": "auth != null",
+      "$message_id": { ".write": "auth != null", ".validate": "newData.hasChildren(['senderId', 'timestamp'])" }
+    },
+    "chat_ko_upgrade": {
+      ".read": "auth != null",
+      "$message_id": { ".write": "auth != null", ".validate": "newData.hasChildren(['senderId', 'timestamp'])" }
+    },
+    "chat_ph_upgrade": {
+      ".read": "auth != null",
+      "$message_id": { ".write": "auth != null", ".validate": "newData.hasChildren(['senderId', 'timestamp'])" }
+    },
+    "private_chat": {
+      ".read": true,
+      ".write": true,
+      "$chatId": {
+        "messages": { ".indexOn": ["timestamp"] },
+        "participants": { ".indexOn": ["user1", "user2"] }
+      }
+    }
+  }
+}

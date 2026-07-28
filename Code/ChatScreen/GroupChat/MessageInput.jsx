@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, TextInput, TouchableOpacity, Text, Modal, Image, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
 import { getStyles } from './../Style';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -57,7 +57,7 @@ const MessageInput = ({
   const { theme, isAdmin, user } = useGlobalState();
   // Admins and full (non-baby) moderators bypass moderation so they can post
   // links, warnings, and quoted content the filter would otherwise block.
-  const canBypassModeration = !!isAdmin || (!!user?.isModerator && !user?.isBabyMod);
+  const canBypassModeration = !!isAdmin || !!user?.isSeniorMod || (!!user?.isModerator && !user?.isBabyMod);
   const isDark = theme === 'dark';
   // const gifAllowed = true
 
@@ -66,6 +66,17 @@ const MessageInput = ({
   const [showGifPopup, setShowGifPopup] = useState(false); // To show GIF selection popup
   const lastSendTimeRef = useRef(0); // ✅ Track last send time for cooldown
   const COOLDOWN_MS = 10000; // ✅ 10-sec cooldown for non-pro users
+
+  // Universal anti-double-send floor (all users, all channels, Pro included).
+  const MIN_SEND_GAP_MS = 1500;
+  const sendLockRef = useRef(false);
+  const lastAnySendAtRef = useRef(0);
+  const cooldownTimerRef = useRef(null);
+  const [coolingDown, setCoolingDown] = useState(false);
+
+  useEffect(() => () => {
+    if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
+  }, []);
   const hasFruits = Array.isArray(selectedFruits) && selectedFruits.length > 0;
   const maxFruitsReached = Array.isArray(selectedFruits) && selectedFruits.length >= 4;
   const hasContent = (input || '').trim().length > 0 || hasFruits || selectedEmoji;
@@ -83,7 +94,12 @@ const MessageInput = ({
     const fruits = hasFruits ? [...selectedFruits] : [];
 
     if (!trimmedInput && !hasFruits && !hasEmoji) return;
-    if (isSending) return;
+    // `isSending` is state — two taps in the same frame both read it as false.
+    // sendLockRef flips synchronously, so it is the guard that actually holds.
+    // The 10s cooldown below only covers non-Pro users in Trade Chat; this
+    // 1.5s floor applies everywhere, Pro included.
+    if (sendLockRef.current) return;
+    if (Date.now() - lastAnySendAtRef.current < MIN_SEND_GAP_MS) return;
 
     // ✅ 25-sec cooldown for non-pro users (Trade Chat only)
     if (!localState?.isPro && activeChannelId === 'trade') {
@@ -113,6 +129,7 @@ const MessageInput = ({
       }
     }
 
+    sendLockRef.current = true;
     setIsSending(true);
 
     const adCallback = () => setIsSending(false);
@@ -136,14 +153,25 @@ const MessageInput = ({
       const newCount = messageCount + 1;
       setMessageCount(newCount);
 
-      if (!localState?.isPro && newCount % 10 === 0) {
+      if (!localState?.isPro && newCount % 7 === 0) {
         InterstitialAdManager.showAd(adCallback);
       } else {
+        // One message before the ad message: warm the interstitial so the
+        // trigger actually has something to show (lazy-load pipeline).
+        if (!localState?.isPro && newCount % 7 === 6) InterstitialAdManager.prepare();
         setIsSending(false);
       }
     } catch (error) {
       console.error('Error sending message:', error);
       setIsSending(false);
+    } finally {
+      // Runs for the early `success !== true` return too, so a rejected send
+      // never leaves the lock stuck on.
+      lastAnySendAtRef.current = Date.now();
+      sendLockRef.current = false;
+      setCoolingDown(true);
+      if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
+      cooldownTimerRef.current = setTimeout(() => setCoolingDown(false), MIN_SEND_GAP_MS);
     }
   };
 
@@ -267,11 +295,11 @@ const MessageInput = ({
             styles.sendButton,
             {
               backgroundColor:
-                hasContent && !isSending ? '#1E88E5' : config.colors.primary,
+                hasContent && !isSending && !coolingDown ? '#1E88E5' : config.colors.primary,
             },
           ]}
           onPress={() => handleSend()}
-          disabled={isSending || !hasContent}
+          disabled={isSending || coolingDown || !hasContent}
         >
           <Text style={styles.sendButtonText}>{isSending ? t("chat.sending") : t("chat.send")}</Text>
         </TouchableOpacity>

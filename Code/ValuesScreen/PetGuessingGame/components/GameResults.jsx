@@ -44,15 +44,17 @@ const GameResults = ({ roomData, currentUser }) => {
   useEffect(() => {
     if (!appdatabase || !currentUser?.id) return;
 
-    const userRef = ref(appdatabase, `users/${currentUser.id}`);
+    // ✅ COST: scope to the single rewardPoints field, not the whole user node.
+    // Downloads one number and the listener only fires on points changes
+    // instead of re-downloading the entire user object on every field write.
+    const pointsRef = ref(appdatabase, `users/${currentUser.id}/rewardPoints`);
 
     // Initial fetch
     const fetchUserStats = async () => {
       try {
-        const snapshot = await get(userRef);
+        const snapshot = await get(pointsRef);
         if (snapshot.exists()) {
-          const userData = snapshot.val();
-          setUserPoints(userData.rewardPoints || 0);
+          setUserPoints(snapshot.val() || 0);
         }
 
         // Wins are now tracked in Firestore only
@@ -72,10 +74,9 @@ const GameResults = ({ roomData, currentUser }) => {
     fetchUserStats();
 
     // Listen for real-time updates for points only (RTDB)
-    const unsubscribe = onValue(userRef, (snapshot) => {
+    const unsubscribe = onValue(pointsRef, (snapshot) => {
       if (snapshot.exists()) {
-        const userData = snapshot.val();
-        setUserPoints(userData.rewardPoints || 0);
+        setUserPoints(snapshot.val() || 0);
       }
     });
 

@@ -176,6 +176,9 @@ export const supabase = createClient(
 // The grace timer avoids churn on quick app-switches: a 2-second flip out
 // and back shouldn't tear down + re-handshake + gap-fill every channel.
 const BACKGROUND_DISCONNECT_MS = 20000;
+// Give the socket a moment to finish its handshake (and the library its own
+// chance to rejoin) before we sweep for channels it left behind.
+const REJOIN_SWEEP_DELAY_MS = 2000;
 let lastAppState = AppState.currentState;
 let bgDisconnectTimer = null;
 
@@ -211,5 +214,31 @@ AppState.addEventListener('change', (next) => {
     } catch (e) {
       console.warn('[supabase] realtime reconnect failed:', e?.message);
     }
+
+    // The comment above assumes supabase-js rejoins every channel by itself
+    // after a disconnect()/connect() cycle. In practice a channel torn down
+    // with the socket can settle in 'closed'/'errored' and never rejoin, so
+    // the screen stays mounted but stops receiving INSERTs — new messages
+    // only appear after leaving and re-entering the chat (which resubscribes).
+    //
+    // Re-subscribing a healthy channel throws ("tried to subscribe multiple
+    // times"), so we touch ONLY channels that are already dead. If the
+    // library did rejoin them, this loop finds nothing and does nothing.
+    setTimeout(() => {
+      try {
+        const dead = supabase.realtime
+          .getChannels()
+          .filter((ch) => ch?.state === 'closed' || ch?.state === 'errored');
+        if (!dead.length) return;
+        console.warn(`[supabase] rejoining ${dead.length} stale realtime channel(s)`);
+        dead.forEach((ch) => {
+          try { ch.subscribe(); } catch (e) {
+            console.warn('[supabase] channel rejoin failed:', e?.message);
+          }
+        });
+      } catch (e) {
+        console.warn('[supabase] realtime rejoin sweep failed:', e?.message);
+      }
+    }, REJOIN_SWEEP_DELAY_MS);
   }
 });

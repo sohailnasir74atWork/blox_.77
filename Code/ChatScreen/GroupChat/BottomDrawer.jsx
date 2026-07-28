@@ -56,7 +56,7 @@ import { getRoblox, getRoles, getCosmetics } from '../../Supabase/userBackend';
 import { SUPABASE_USERS_ENABLED } from '../../Supabase/featureFlags';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { banUserwithEmail, unbanUserWithEmail, setUserStrike, checkBanStatus, makeModerator, removeModerator, muteUser, makeBabyMod, removeBabyMod, canModerate } from '../utils'; // ✅ Import moderator utils
+import { banUserwithEmail, unbanUserWithEmail, setUserStrike, checkBanStatus, makeSeniorMod, removeSeniorMod, makeModerator, removeModerator, muteUser, makeBabyMod, removeBabyMod, canModerate } from '../utils'; // ✅ Import moderator utils
 import { getAuth } from '@react-native-firebase/auth';
 
 // Initialize dayjs plugins
@@ -148,7 +148,7 @@ const ProfileBottomDrawer = ({
   fromPvtChat,
   onFollowChange,
 }) => {
-  const { theme, firestoreDB, appdatabase, isAdmin, user, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod } = useGlobalState(); // ✅ Get isAdmin, user, and role flags
+  const { theme, firestoreDB, appdatabase, isAdmin, user, isSeniorMod: isGlobalSenior, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod } = useGlobalState(); // ✅ Get isAdmin, user, and role flags
   const { updateLocalState } = useLocalState();
   const { t } = useTranslation();
   const { triggerHapticFeedback } = useHaptic();
@@ -269,6 +269,10 @@ const ProfileBottomDrawer = ({
               isPro: !!cos?.isPro,
               lastGameWinAt: lastGameWinAtSnap?.exists() ? lastGameWinAtSnap.val() : null,
               flage: flageSnap?.exists() ? flageSnap.val() : null,
+              // Rides the same Supabase roles row (is_cmsr) as every other role
+              // here — no extra RTDB read on the hot path. Steady-state truth,
+              // same eventual-consistency the other role flags already accept.
+              isSeniorMod: !!roles?.isSeniorMod,
               isModerator: !!roles?.isModerator,
               isAdmin: !!roles?.isAdmin,
               isBabyMod: !!roles?.isBabyMod,
@@ -301,6 +305,7 @@ const ProfileBottomDrawer = ({
         if (!selectedUser?.flage) {
           fieldsToFetch.push({ key: 'flage', path: `users/${selectedUserId}/flage` });
         }
+        fieldsToFetch.push({ key: 'isSeniorMod', path: `users/${selectedUserId}/isSeniorMod` });
         fieldsToFetch.push({ key: 'isModerator', path: `users/${selectedUserId}/isModerator` });
         fieldsToFetch.push({ key: 'isAdmin', path: `users/${selectedUserId}/admin` });
         fieldsToFetch.push({ key: 'isBabyMod', path: `users/${selectedUserId}/isBabyMod` });
@@ -369,6 +374,7 @@ const ProfileBottomDrawer = ({
       flage: selectedUser?.flage !== undefined
         ? selectedUser.flage
         : userData.flage, // ✅ Flag/flag emoji
+      isSeniorMod: userData?.isSeniorMod || false,
       isModerator: userData?.isModerator || false,
       isBabyMod: userData?.isBabyMod || false,
       isTrusted: userData?.isTrusted || false,
@@ -515,9 +521,10 @@ const ProfileBottomDrawer = ({
     // Strict hierarchy: caller rank must exceed target rank. utils.js
     // re-checks against fresh RTDB roles; this is the UX-friendly early
     // bail so we don't open the reason modal for a guaranteed-no-op.
-    const callerRoles = { isAdmin, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod };
+    const callerRoles = { isAdmin, isSeniorMod: isGlobalSenior, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod };
     const targetRoles = {
       isAdmin: !!mergedUser?.isAdmin,
+      isSeniorMod: !!mergedUser?.isSeniorMod,
       isModerator: !!mergedUser?.isModerator,
       isBabyMod: !!mergedUser?.isBabyMod,
     };
@@ -595,7 +602,7 @@ const ProfileBottomDrawer = ({
         { text: t('chat.cancel'), style: "cancel" },
         {
           text: t('chat.promote'), onPress: async () => {
-            const success = await makeModerator(selectedUserId, { isAdmin, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod });
+            const success = await makeModerator(selectedUserId, { isAdmin, isSeniorMod: isGlobalSenior, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod });
             if (success) {
               setUserData(prev => ({ ...prev, isModerator: true }));
             }
@@ -613,7 +620,7 @@ const ProfileBottomDrawer = ({
         { text: t('chat.cancel'), style: "cancel" },
         {
           text: t('chat.remove'), style: "destructive", onPress: async () => {
-            const success = await removeModerator(selectedUserId, { isAdmin, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod });
+            const success = await removeModerator(selectedUserId, { isAdmin, isSeniorMod: isGlobalSenior, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod });
             if (success) {
               setUserData(prev => ({ ...prev, isModerator: false }));
             }
@@ -631,7 +638,7 @@ const ProfileBottomDrawer = ({
         { text: t('chat.cancel'), style: 'cancel' },
         {
           text: t('chat.promote'), onPress: async () => {
-            const success = await makeBabyMod(selectedUserId, { isAdmin, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod });
+            const success = await makeBabyMod(selectedUserId, { isAdmin, isSeniorMod: isGlobalSenior, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod });
             if (success) {
               setUserData(prev => ({ ...prev, isBabyMod: true }));
               Alert.alert('Success', 'User is now a JMD.');
@@ -650,10 +657,46 @@ const ProfileBottomDrawer = ({
         { text: t('chat.cancel'), style: 'cancel' },
         {
           text: t('chat.remove'), style: 'destructive', onPress: async () => {
-            const success = await removeBabyMod(selectedUserId, { isAdmin, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod });
+            const success = await removeBabyMod(selectedUserId, { isAdmin, isSeniorMod: isGlobalSenior, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod });
             if (success) {
               setUserData(prev => ({ ...prev, isBabyMod: false }));
               Alert.alert('Success', 'JMD privileges removed.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleMakeSeniorMod = () => {
+    Alert.alert(
+      'Promote to Senior Mod',
+      `Make ${userName} a Senior Mod? They'll rank one step below Admin and be able to appoint Mods and JMDs.`,
+      [
+        { text: t('chat.cancel'), style: 'cancel' },
+        {
+          text: t('chat.promote'), onPress: async () => {
+            const success = await makeSeniorMod(selectedUserId, { isAdmin, isSeniorMod: isGlobalSenior, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod });
+            if (success) {
+              setUserData(prev => ({ ...prev, isSeniorMod: true }));
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleRemoveSeniorMod = () => {
+    Alert.alert(
+      'Remove Senior Mod',
+      `Remove ${userName}'s Senior Mod status?`,
+      [
+        { text: t('chat.cancel'), style: 'cancel' },
+        {
+          text: t('chat.remove'), style: 'destructive', onPress: async () => {
+            const success = await removeSeniorMod(selectedUserId, { isAdmin, isSeniorMod: isGlobalSenior, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod });
+            if (success) {
+              setUserData(prev => ({ ...prev, isSeniorMod: false }));
             }
           }
         }
@@ -793,9 +836,10 @@ const ProfileBottomDrawer = ({
       Alert.alert(t('chat.error'), t('chat.email_not_found'));
       return;
     }
-    const callerRoles = { isAdmin, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod };
+    const callerRoles = { isAdmin, isSeniorMod: isGlobalSenior, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod };
     const targetRoles = {
       isAdmin: !!mergedUser?.isAdmin,
+      isSeniorMod: !!mergedUser?.isSeniorMod,
       isModerator: !!mergedUser?.isModerator,
       isBabyMod: !!mergedUser?.isBabyMod,
     };
@@ -821,6 +865,7 @@ const ProfileBottomDrawer = ({
       avatar: user?.avatar,
       // Caller role flags — utils.js gates strike/mute against these.
       isAdmin: !!isAdmin,
+      isSeniorMod: !!isGlobalSenior,
       isModerator: !!isGlobalModerator,
       isBabyMod: !!isGlobalBabyMod,
     };
@@ -831,6 +876,7 @@ const ProfileBottomDrawer = ({
       // Target role flags as a fallback; utils.js will still re-fetch
       // from RTDB so a stale mergedUser can't bypass the gate.
       isAdmin: !!mergedUser?.isAdmin,
+      isSeniorMod: !!mergedUser?.isSeniorMod,
       isModerator: !!mergedUser?.isModerator,
       isBabyMod: !!mergedUser?.isBabyMod,
     };
@@ -845,7 +891,7 @@ const ProfileBottomDrawer = ({
 
     if (reasonActionType.type === 'strike') {
       const strikeCount = reasonActionType.value;
-      const isStaff = isAdmin || isGlobalModerator;
+      const isStaff = isAdmin || isGlobalSenior || isGlobalModerator;
       const success = await setUserStrike(actionEmail, strikeCount, selectedUserId, isStaff, bannerInfo, userInfo, isStaff, finalReason);
       if (success) setIsBanned(true);
     } else if (reasonActionType.type === 'mute') {
@@ -1133,6 +1179,11 @@ const ProfileBottomDrawer = ({
         setFollowersCount(prev => prev + 1);
         triggerHapticFeedback('notificationSuccess');
         onFollowChange?.(selectedUserId, true);
+        // Influencer badge: award the followed user once they reach 200+ followers.
+        try {
+          const { checkInfluencerBadge } = require('./badgeUtils');
+          checkInfluencerBadge(appdatabase, firestoreDB, selectedUserId);
+        } catch (_) {}
       }
     } catch (err) {
       console.error('Error toggling follow:', err);
@@ -1238,19 +1289,17 @@ const ProfileBottomDrawer = ({
 
     const loadRatingSummary = async () => {
       setLoadingRating(true);
+      setLoadingPets(true);
       try {
-        // ✅ Fetch review count and average from Firestore reviews collection
-        const reviewsQuery = query(
-          collection(firestoreDB, 'reviews'),
-          where('toUserId', '==', selectedUserId),
-        );
-
-        // ✅ OPTIMIZED: Fetch only rewardPoints field instead of full user object
-        const [reviewsSnap, createdSnap, rewardPointsSnap, reviewDocSnap, countSnapshot] = await Promise.all([
-          getDocs(reviewsQuery),
+        // ✅ COST: read the precomputed rating summary (1 doc) instead of
+        // scanning EVERY review doc for this user on each profile open. Same
+        // source of truth used for the signed-in user's own profile
+        // (HomeScreen / Setting read user_ratings_summary the same way).
+        const [summarySnap, createdSnap, rewardPointsSnap, reviewDocSnap, countSnapshot] = await Promise.all([
+          getDoc(doc(firestoreDB, 'user_ratings_summary', selectedUserId)),
           get(ref(appdatabase, `users/${selectedUserId}/createdAt`)),
           get(ref(appdatabase, `users/${selectedUserId}/rewardPoints`)),
-          getDoc(doc(firestoreDB, 'reviews', selectedUserId)), // ✅ Load bio from Firestore
+          getDoc(doc(firestoreDB, 'reviews', selectedUserId)), // bio + pets (one read, shared below)
           getCountFromServer(query(collection(firestoreDB, 'following'), where('followingId', '==', selectedUserId))).catch(() => null),
         ]);
 
@@ -1261,18 +1310,12 @@ const ProfileBottomDrawer = ({
           setFollowersCount(countSnapshot.data().count || 0);
         }
 
-        // ✅ Calculate rating summary from Firestore reviews
-        if (reviewsSnap && !reviewsSnap.empty) {
-          const reviews = reviewsSnap.docs.map(doc => doc.data());
-          const validRatings = reviews.filter(r => typeof r.rating === 'number' && r.rating > 0);
-          const count = validRatings.length;
-          const sum = validRatings.reduce((acc, r) => acc + r.rating, 0);
-          const averageValue = count > 0 ? sum / count : 0;
-
-          setRatingSummary({
-            value: averageValue,
-            count: count,
-          });
+        // ✅ Rating summary from user_ratings_summary/{uid} (averageRating + count)
+        if (summarySnap.exists) {
+          const summaryData = summarySnap.data() || {};
+          const avg = summaryData.averageRating || 0;
+          const cnt = summaryData.count || 0;
+          setRatingSummary(cnt > 0 ? { value: avg, count: cnt } : null);
         } else {
           setRatingSummary(null);
         }
@@ -1287,6 +1330,17 @@ const ProfileBottomDrawer = ({
         }
         // ✅ Set bio value (use default if not found or empty)
         setUserBio(bioValue || t('chat.default_bio'));
+
+        // ✅ Pets from the SAME reviews/{uid} doc already fetched above —
+        // removes the duplicate getDoc a separate loadPets effect used to do.
+        if (reviewDocSnap.exists) {
+          const petData = reviewDocSnap.data() || {};
+          setOwnedPets(Array.isArray(petData.ownedPets) ? petData.ownedPets : []);
+          setWishlistPets(Array.isArray(petData.wishlistPets) ? petData.wishlistPets : []);
+        } else {
+          setOwnedPets([]);
+          setWishlistPets([]);
+        }
 
         if (createdSnap.exists()) {
           const raw = createdSnap.val();
@@ -1326,9 +1380,14 @@ const ProfileBottomDrawer = ({
           setCreatedAtText(null);
           setUserPoints(null);
           setGameWins(null);
+          setOwnedPets([]);
+          setWishlistPets([]);
         }
       } finally {
-        if (isMounted) setLoadingRating(false);
+        if (isMounted) {
+          setLoadingRating(false);
+          setLoadingPets(false);
+        }
       }
     };
 
@@ -1340,48 +1399,9 @@ const ProfileBottomDrawer = ({
   }, [isVisible, selectedUserId, loadDetails, appdatabase, firestoreDB, formatCreatedAt]);
 
   // ─────────────────────────────────────────────
-  // Load pets
-  useEffect(() => {
-    if (!isVisible || !selectedUserId || !loadDetails) return;
-
-    let isMounted = true;
-
-    const loadPets = async () => {
-      setLoadingPets(true);
-      try {
-        const reviewDocSnap = await getDoc(
-          doc(firestoreDB, 'reviews', selectedUserId),
-        );
-
-        if (!isMounted) return;
-
-        if (reviewDocSnap.exists) {
-          const data = reviewDocSnap.data() || {};
-          setOwnedPets(Array.isArray(data.ownedPets) ? data.ownedPets : []);
-          setWishlistPets(
-            Array.isArray(data.wishlistPets) ? data.wishlistPets : [],
-          );
-        } else {
-          setOwnedPets([]);
-          setWishlistPets([]);
-        }
-      } catch (err) {
-        // console.log('Pets load error:', err);
-        if (isMounted) {
-          setOwnedPets([]);
-          setWishlistPets([]);
-        }
-      } finally {
-        if (isMounted) setLoadingPets(false);
-      }
-    };
-
-    loadPets();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isVisible, selectedUserId, loadDetails, firestoreDB]);
+  // Pets are now loaded together with the rating summary above (one shared
+  // reviews/{uid} read), so the previous separate loadPets effect — which
+  // re-fetched the exact same doc on every profile open — was removed.
 
   // ─────────────────────────────────────────────
   // Load reviews (paged) — ✅ Memoized with useCallback
@@ -1487,19 +1507,36 @@ const ProfileBottomDrawer = ({
   const handleDeleteReview = useCallback(async (review) => {
     if (!review?.id || !selectedUserId) return;
 
-    // Moderators cannot delete reviews from other mods/admins
-    if (!isAdmin && isGlobalModerator && review.fromUserId) {
+    // Staff may only delete a review left by someone STRICTLY below them.
+    // The old check ran only for plain Mods and never looked at isSeniorMod,
+    // so a Sr Mod's review was deletable by any Mod while a Sr Mod couldn't
+    // reach this code at all. canModerate is the same ladder used by ban/mute.
+    if (review.fromUserId) {
+      const callerRoles = {
+        isAdmin,
+        isSeniorMod: isGlobalSenior,
+        isModerator: isGlobalModerator,
+        isBabyMod: isGlobalBabyMod,
+      };
       try {
         const reviewerSnap = await get(ref(appdatabase, `users/${review.fromUserId}`));
-        if (reviewerSnap.exists()) {
-          const reviewerData = reviewerSnap.val();
-          if (reviewerData?.isModerator || reviewerData?.admin) {
-            Alert.alert('Restricted', 'Moderators cannot delete reviews from other moderators or admins.');
-            return;
-          }
+        const r = reviewerSnap.exists() ? (reviewerSnap.val() || {}) : {};
+        const reviewerRoles = {
+          isAdmin: !!(r.isAdmin || r.admin),
+          isSeniorMod: !!r.isSeniorMod,
+          isModerator: !!r.isModerator,
+          isBabyMod: !!r.isBabyMod,
+        };
+        if (!canModerate(callerRoles, reviewerRoles)) {
+          Alert.alert('Restricted', 'You cannot delete reviews left by staff at or above your rank.');
+          return;
         }
       } catch (err) {
+        // Fail closed — the old code warned and deleted anyway, so a flaky read
+        // was enough to bypass the rank check entirely.
         console.warn('Error checking reviewer status:', err);
+        Alert.alert('Error', 'Could not verify the reviewer. Try again.');
+        return;
       }
     }
 
@@ -1548,7 +1585,7 @@ const ProfileBottomDrawer = ({
         },
       ]
     );
-  }, [selectedUserId, isAdmin, isGlobalModerator, appdatabase, firestoreDB]);
+  }, [selectedUserId, isAdmin, isGlobalSenior, isGlobalModerator, isGlobalBabyMod, appdatabase, firestoreDB]);
 
   // ─────────────────────────────────────────────
   // Load trades (paged) — ✅ Initially show 1, then load 2 by 2
@@ -2561,7 +2598,7 @@ const ProfileBottomDrawer = ({
                               </Text>
                             )}
                             {renderStars(rev?.rating || 0)}
-                            {(isAdmin || isGlobalModerator) && selectedUserId !== user?.id && (
+                            {(isAdmin || isGlobalSenior || isGlobalModerator) && selectedUserId !== user?.id && (
                               <TouchableOpacity
                                 onPress={() => handleDeleteReview(rev)}
                                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -2825,7 +2862,7 @@ const ProfileBottomDrawer = ({
             {/* ═══ MOD TOOLS (Collapsible Toggle) ═══ */}
             {/* Self-target guard: a JMD/mod must not see mod tools on their
                 own profile — that's how the self-mute "reset" trick worked. */}
-            {(isAdmin || isGlobalModerator || isGlobalBabyMod) && selectedUserId !== user?.id && (
+            {(isAdmin || isGlobalSenior || isGlobalModerator || isGlobalBabyMod) && selectedUserId !== user?.id && (
               <View style={{ marginBottom: 8 }}>
                 <TouchableOpacity
                   onPress={() => setShowModTools(prev => !prev)}
@@ -2849,7 +2886,7 @@ const ProfileBottomDrawer = ({
                 </TouchableOpacity>
 
                 {showModTools && (() => {
-                  const isJMDOnly = isGlobalBabyMod && !isAdmin && !isGlobalModerator;
+                  const isJMDOnly = isGlobalBabyMod && !isAdmin && !isGlobalSenior && !isGlobalModerator;
                   const modBg = isDarkMode ? '#1e293b' : '#f8fafc';
                   const modBorder = isDarkMode ? '#334155' : '#e2e8f0';
                   const dimColor = isDarkMode ? '#94a3b8' : '#64748b';
@@ -2874,7 +2911,7 @@ const ProfileBottomDrawer = ({
                         fontSize: 10, fontWeight: '700', color: dimColor,
                         textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12,
                       }}>
-                        {isAdmin ? 'Admin Tools' : isGlobalModerator ? 'Moderator Tools' : 'Junior Mod Tools'}
+                        {isAdmin ? 'Admin Tools' : isGlobalSenior ? 'Senior Mod Tools' : isGlobalModerator ? 'Moderator Tools' : 'Junior Mod Tools'}
                       </Text>
 
                       {/* ── Section: Mute ── */}
@@ -2925,15 +2962,23 @@ const ProfileBottomDrawer = ({
                         <View>
                           <Text style={{ fontSize: 10, color: dimColor, fontWeight: '600', marginBottom: 6 }}>Manage Roles</Text>
                           <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                            {/* Make/Remove Mod - Admin Only */}
+                            {/* Make/Remove Sr Mod - Admin Only */}
                             {isAdmin && (
+                              <Chip
+                                label={mergedUser?.isSeniorMod ? 'Remove Sr Mod' : 'Make Sr Mod'}
+                                color={mergedUser?.isSeniorMod ? '#f59e0b' : '#4F46E5'}
+                                onPress={mergedUser?.isSeniorMod ? handleRemoveSeniorMod : handleMakeSeniorMod}
+                              />
+                            )}
+                            {/* Make/Remove Mod - Admin & Senior Mod */}
+                            {(isAdmin || isGlobalSenior) && (
                               <Chip
                                 label={mergedUser?.isModerator ? t('chat.remove_mod_btn') || 'Remove Mod' : t('chat.make_mod') || 'Make Mod'}
                                 color={mergedUser?.isModerator ? '#f59e0b' : '#3b82f6'}
                                 onPress={mergedUser?.isModerator ? handleDemoteModerator : handlePromoteModerator}
                               />
                             )}
-                            {/* Make/Remove JMD - Admin & Mod */}
+                            {/* Make/Remove JMD - Admin, Senior Mod & Mod */}
                             <Chip
                               label={mergedUser?.isBabyMod ? 'Remove JMD' : 'Make JMD'}
                               color={mergedUser?.isBabyMod ? '#f59e0b' : '#3b82f6'}

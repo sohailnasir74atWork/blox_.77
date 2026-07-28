@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../../GlobelStats';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import config from '../../Helper/Environment';
 import { useTranslation } from 'react-i18next';
 import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
-import { collection, query, where, onSnapshot } from '@react-native-firebase/firestore';
+import { collection, query, where, getDocs, getCountFromServer } from '@react-native-firebase/firestore';
 const CommunityChatHeader = ({
   selectedTheme,
   unreadcount,
@@ -17,82 +17,87 @@ const CommunityChatHeader = ({
   onOnlineUsersPress,
   onLeaderboardPress,
 }) => {
-  const { user, firestoreDB, theme, isAdmin, isModerator, isUserBlocked } = useGlobalState();
+  const { user, firestoreDB, theme, isAdmin, isSeniorMod, isModerator, isUserBlocked } = useGlobalState();
   const navigation = useNavigation();
   const { t } = useTranslation();
   const [pendingGroupInvitationsCount, setPendingGroupInvitationsCount] = useState(0);
   const [pendingJoinRequestsCount, setPendingJoinRequestsCount] = useState(0);
 
-  // ✅ Listen to pending group invitations
-  useEffect(() => {
-    if (!firestoreDB || !user?.id) {
-      setPendingGroupInvitationsCount(0);
-      return;
-    }
+  // ✅ Pending group-invitations badge — fetched ON FOCUS only. Was an always-on
+  // onSnapshot that kept streaming Firestore reads to render a "!" badge even
+  // while the user was deep in other screens/tabs (and duplicated the
+  // focus-gated listeners in GroupsScreen). A count badge doesn't need live data.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      if (!firestoreDB || !user?.id) {
+        setPendingGroupInvitationsCount(0);
+        return;
+      }
 
-    const invitationsQuery = query(
-      collection(firestoreDB, 'group_invitations'),
-      where('invitedUserId', '==', user.id),
-      where('status', '==', 'pending')
-    );
+      const invitationsQuery = query(
+        collection(firestoreDB, 'group_invitations'),
+        where('invitedUserId', '==', user.id),
+        where('status', '==', 'pending')
+      );
 
-    const unsubscribe = onSnapshot(
-      invitationsQuery,
-      (snapshot) => {
-        const now = Date.now();
-        let validCount = 0;
-
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          // Check if invitation is not expired
-          if (data.expiresAt && now < data.expiresAt) {
-            validCount++;
-          } else if (!data.expiresAt) {
-            // If no expiry, consider it valid
-            validCount++;
-          }
+      getDocs(invitationsQuery)
+        .then((snapshot) => {
+          if (cancelled) return;
+          const now = Date.now();
+          let validCount = 0;
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            // Not expired (or no expiry) → counts.
+            if (data.expiresAt && now < data.expiresAt) validCount++;
+            else if (!data.expiresAt) validCount++;
+          });
+          setPendingGroupInvitationsCount(validCount);
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          console.error('Error loading group invitations:', error);
+          setPendingGroupInvitationsCount(0);
         });
 
-        setPendingGroupInvitationsCount(validCount);
-      },
-      (error) => {
-        console.error('Error loading group invitations:', error);
-        setPendingGroupInvitationsCount(0);
-      }
-    );
+      return () => { cancelled = true; };
+    }, [firestoreDB, user?.id])
+  );
 
-    return () => unsubscribe();
-  }, [firestoreDB, user?.id]);
-
-  // ✅ Listen to pending join requests for groups where user is creator (optimized - only count)
-  useEffect(() => {
-    if (!firestoreDB || !user?.id) {
-      setPendingJoinRequestsCount(0);
-      return;
-    }
-
-    const joinRequestsQuery = query(
-      collection(firestoreDB, 'group_join_requests'),
-      where('creatorId', '==', user.id),
-      where('status', '==', 'pending')
-    );
-
-    const unsubscribe = onSnapshot(
-      joinRequestsQuery,
-      (snapshot) => {
-        setPendingJoinRequestsCount(snapshot.size);
-      },
-      (error) => {
-        console.error('Error loading join requests count:', error);
-        if (error.code === 'failed-precondition') {
-          console.error('⚠️ Firestore index required. Please create index for group_join_requests: creatorId (Ascending), status (Ascending)');
-        }
+  // ✅ Pending join-requests badge (groups I created) — count-only aggregate ON
+  // FOCUS. getCountFromServer bills a single read regardless of how many pending
+  // requests match, vs the old always-on onSnapshot streaming every pending doc.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      if (!firestoreDB || !user?.id) {
         setPendingJoinRequestsCount(0);
+        return;
       }
-    );
 
-    return () => unsubscribe();
-  }, [firestoreDB, user?.id]);
+      const joinRequestsQuery = query(
+        collection(firestoreDB, 'group_join_requests'),
+        where('creatorId', '==', user.id),
+        where('status', '==', 'pending')
+      );
+
+      getCountFromServer(joinRequestsQuery)
+        .then((snapshot) => {
+          if (cancelled) return;
+          setPendingJoinRequestsCount(snapshot.data().count);
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          console.error('Error loading join requests count:', error);
+          if (error.code === 'failed-precondition') {
+            console.error('⚠️ Firestore index required for group_join_requests: creatorId (Ascending), status (Ascending)');
+          }
+          setPendingJoinRequestsCount(0);
+        });
+
+      return () => { cancelled = true; };
+    }, [firestoreDB, user?.id])
+  );
 
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 0 }}>
@@ -143,8 +148,8 @@ const CommunityChatHeader = ({
             )}
           </TouchableOpacity>
 
-          {/* Admin Dashboard Button (Only for Admins/Moderators, never while banned) */}
-          {(isAdmin || isModerator) && !isUserBlocked && (
+          {/* Admin Dashboard Button (Only for Admins/Senior Mods/Moderators, never while banned) */}
+          {(isAdmin || isSeniorMod || isModerator) && !isUserBlocked && (
             <TouchableOpacity
               onPress={() => {
                 navigation.navigate('AdminDashboard');

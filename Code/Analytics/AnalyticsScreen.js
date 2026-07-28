@@ -967,7 +967,7 @@ const AnalyticsScreen = ({ navigation }) => {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {!isPro && <BannerAdComponent />}
+      {!isPro && <BannerAdComponent collapsible />}
       <SubscriptionScreen
         visible={showOfferwall}
         onClose={() => setShowOfferwall(false)}

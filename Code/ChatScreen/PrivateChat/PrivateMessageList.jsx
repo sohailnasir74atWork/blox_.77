@@ -278,8 +278,15 @@ const PrivateMessageList = ({
     const senderData = isMyMessage ? user : selectedUser;
 
     // ✅ Use explicit isAdmin prop for current user if available, otherwise check object
-    const isSenderAdmin = isMyMessage ? (isAdmin || user?.isAdmin) : (selectedUser?.isAdmin || false);
+    // `admin` is the legacy flag, `isAdmin` the current one — both exist in the wild.
+    const isSenderAdmin = isMyMessage
+      ? (isAdmin || user?.isAdmin || user?.admin || false)
+      : (selectedUser?.isAdmin || selectedUser?.admin || false);
+    // Senior Mod outranks Mod but is a SEPARATE flag — a Sr Mod who was never
+    // also flagged isModerator used to render no badge at all in DMs.
+    const isSenderSeniorMod = senderData?.isSeniorMod || false;
     const isSenderMod = senderData?.isModerator || false;
+    const isSenderJMD = senderData?.isBabyMod || false;
 
     const bubble = (
       <View
@@ -390,16 +397,27 @@ const PrivateMessageList = ({
 
               {!!item.text && (
                 <View>
-                  {(isSenderAdmin || isSenderMod) && (
+                  {/* Strict ladder — show only the highest rank the sender holds. */}
+                  {(isSenderAdmin || isSenderSeniorMod || isSenderMod || isSenderJMD) && (
                     <View style={{ flexDirection: 'row', marginBottom: 2 }}>
                       {isSenderAdmin && (
                         <View style={[styles.adminContainer, { marginBottom: 2 }]}>
                           <Text style={styles.admin}>{t("chat.admin")}</Text>
                         </View>
                       )}
-                      {(!isSenderAdmin && isSenderMod) && (
+                      {(!isSenderAdmin && isSenderSeniorMod) && (
+                        <View style={[styles.moderatorContainer, { marginBottom: 2 }]}>
+                          <Text style={styles.moderator}>SR MOD</Text>
+                        </View>
+                      )}
+                      {(!isSenderAdmin && !isSenderSeniorMod && isSenderMod) && (
                         <View style={[styles.moderatorContainer, { marginBottom: 2 }]}>
                           <Text style={styles.moderator}>MOD</Text>
+                        </View>
+                      )}
+                      {(!isSenderAdmin && !isSenderSeniorMod && !isSenderMod && isSenderJMD) && (
+                        <View style={[styles.moderatorContainer, { marginBottom: 2 }]}>
+                          <Text style={styles.moderator}>JMD</Text>
                         </View>
                       )}
                     </View>

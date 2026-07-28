@@ -38,6 +38,7 @@ import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-m
 import { useLanguage } from '../Translation/LanguageProvider';
 import { useTranslation } from 'react-i18next';
 import { showSuccessMessage, showErrorMessage } from '../Helper/MessageHelper';
+import { claimUsername } from '../Supabase/usernameBackend';
 import { setAppLanguage } from '../../i18n';
 import StyledUsernamePreview from './Store/StyledName';
 import StyledDisplayName from './Store/NameDisplayReUser';
@@ -1200,6 +1201,20 @@ export default function SettingsScreen({ selectedTheme }) {
       if (displayNameChanged) {
         const trimmedName = newDisplayName.trim();
         if (trimmedName && trimmedName !== 'Anonymous' && trimmedName !== 'Guest User') {
+          // Enforce case-insensitive uniqueness BEFORE writing to RTDB (and
+          // before the cooldown timestamp below is set) so a taken name costs
+          // the user nothing. Aborts the whole save on conflict.
+          try {
+            await claimUsername(trimmedName);
+          } catch (err) {
+            showErrorMessage(
+              t('home.alert.error'),
+              err?.taken
+                ? 'That username is already taken. Please choose a different one.'
+                : (err?.message || 'Could not verify username availability. Please try again.')
+            );
+            return;
+          }
           updateData.displayName = trimmedName;
         }
       }
@@ -2198,9 +2213,20 @@ export default function SettingsScreen({ selectedTheme }) {
 
       // ✅ OPTIMIZED: Update user_ratings_summary collection (background update)
       const { updateUserRatingSummary } = require('../ChatScreen/utils/ratingSummaryHelper');
-      updateUserRatingSummary(firestoreDB, editingReview.toUserId).catch((err) => {
-        console.error('Error updating rating summary:', err);
-      });
+      updateUserRatingSummary(firestoreDB, editingReview.toUserId)
+        .then((summary) => {
+          // Editing a review changes the target's average, which can be what
+          // finally pushes them over the 5-Star line (4.5★ with 50+ reviews).
+          // Only the DM rating path used to re-check this, so a user could sit
+          // at 50+/4.5+ indefinitely without the badge ever being granted.
+          if (summary && summary.count >= 50 && summary.averageRating >= 4.5) {
+            const { awardBadge } = require('../ChatScreen/GroupChat/badgeUtils');
+            awardBadge(appdatabase, editingReview.toUserId, 'fiveStar');
+          }
+        })
+        .catch((err) => {
+          console.error('Error updating rating summary:', err);
+        });
 
       // Update local state
       setUserReviews((prev) =>

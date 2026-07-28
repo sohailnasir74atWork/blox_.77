@@ -1188,8 +1188,16 @@ const TradeList = ({ route }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]); // ✅ Only depend on user.id
 
-  // ✅ Refetch trades when My Trades / Following / Saved filter changes
+  // ✅ Refetch trades when My Trades / Following / Saved filter changes.
+  // Skip the very first run: the mount effect above already ran the initial
+  // (no-filter) fetch, so without this guard BOTH effects fire fetchInitialTrades
+  // on mount = 2× the initial feed read + a duplicate profile warm.
+  const didInitialFilterRun = useRef(false);
   useEffect(() => {
+    if (!didInitialFilterRun.current) {
+      didInitialFilterRun.current = true;
+      return;
+    }
     if (selectedFilters.includes('myTrades')) {
       fetchMyTrades();
     } else if (selectedFilters.includes('following')) {
@@ -2047,7 +2055,7 @@ const TradeList = ({ route }) => {
         isOnline={isOnline}
         bannedUsers={bannedUsers}
       />
-      {(!localState.isPro && !proGranted) && <BannerAdComponent />}
+      {(!localState.isPro && !proGranted) && <BannerAdComponent collapsible />}
     </View>
   );
 };

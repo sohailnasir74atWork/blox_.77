@@ -168,7 +168,7 @@ const timeAgo = (v) => {
 };
 
 const AdminDashboard = () => {
-  const { theme, user: currentUser, isAdmin, isModerator, isBabyMod, isUserBlocked, currentUserEmail } = useGlobalState();
+  const { theme, user: currentUser, isAdmin, isSeniorMod, isModerator, isBabyMod, isUserBlocked, currentUserEmail } = useGlobalState();
   const isDark = theme === 'dark';
   const db = useMemo(() => getDatabase(), []);
   const navigation = useNavigation();
@@ -530,7 +530,7 @@ const AdminDashboard = () => {
             displayName: u.displayName || u.userName || 'Unknown',
             email: u.email, avatar: getAvatarSafe(u),
             robloxUsername: u.robloxUsername,
-            isAdmin: u.admin || false, isModerator: u.isModerator || false,
+            isAdmin: u.admin || false, isSeniorMod: u.isSeniorMod || false, isModerator: u.isModerator || false,
           });
         }
       } else if (isEmailSearch) {
@@ -550,7 +550,7 @@ const AdminDashboard = () => {
             displayName: u.displayName || u.userName || 'Unknown',
             email: u.email, avatar: getAvatarSafe(u),
             robloxUsername: u.robloxUsername,
-            isAdmin: u.admin || false, isModerator: u.isModerator || false,
+            isAdmin: u.admin || false, isSeniorMod: u.isSeniorMod || false, isModerator: u.isModerator || false,
           });
         }
 
@@ -576,7 +576,7 @@ const AdminDashboard = () => {
                 displayName: u.displayName || u.userName || 'Unknown',
                 email: u.email, avatar: getAvatarSafe(u),
                 robloxUsername: u.robloxUsername,
-                isAdmin: u.admin || false, isModerator: u.isModerator || false,
+                isAdmin: u.admin || false, isSeniorMod: u.isSeniorMod || false, isModerator: u.isModerator || false,
               });
             });
           }
@@ -614,7 +614,7 @@ const AdminDashboard = () => {
                   displayName: u.displayName || u.userName || 'Unknown',
                   email: u.email, avatar: getAvatarSafe(u),
                   robloxUsername: u.robloxUsername,
-                  isAdmin: u.admin || false, isModerator: u.isModerator || false,
+                  isAdmin: u.admin || false, isSeniorMod: u.isSeniorMod || false, isModerator: u.isModerator || false,
                 });
               });
             }
@@ -644,7 +644,7 @@ const AdminDashboard = () => {
                     displayName: u.displayName || u.userName || 'Unknown',
                     email: u.email, avatar: getAvatarSafe(u),
                     robloxUsername: u.robloxUsername,
-                    isAdmin: u.admin || false, isModerator: u.isModerator || false,
+                    isAdmin: u.admin || false, isSeniorMod: u.isSeniorMod || false, isModerator: u.isModerator || false,
                   });
                 }
               });
@@ -738,6 +738,7 @@ const AdminDashboard = () => {
       // Target role flags from search results so the hierarchy gate inside
       // banUserwithEmail can reject Mod→Mod and peer-Admin→Admin attempts.
       isAdmin: !!userItem.isAdmin,
+      isSeniorMod: !!userItem.isSeniorMod,
       isModerator: !!userItem.isModerator,
       isBabyMod: !!userItem.isBabyMod,
     };
@@ -747,11 +748,12 @@ const AdminDashboard = () => {
       displayName: currentUser?.userName || 'Admin',
       avatar: currentUser?.avatar,
       isAdmin: !!isAdmin,
+      isSeniorMod: !!isSeniorMod,
       isModerator: !!isModerator,
       isBabyMod: !!isBabyMod,
     };
 
-    const isStaff = isAdmin || isModerator;
+    const isStaff = isAdmin || isSeniorMod || isModerator;
     const success = await banUserwithEmail(userItem.email, isAdmin, userItem.id, userInfo, bannerInfo, isStaff, isStaff);
     if (success) {
       setSelectedUser(null);
@@ -784,6 +786,7 @@ const AdminDashboard = () => {
       displayName: currentUser?.userName || currentUser?.displayName || 'Admin',
       avatar: currentUser?.avatar,
       isAdmin: !!isAdmin,
+      isSeniorMod: !!isSeniorMod,
       isModerator: !!isModerator,
       isBabyMod: !!isBabyMod,
     };
@@ -792,12 +795,13 @@ const AdminDashboard = () => {
       displayName: userItem.displayName || userItem.sender,
       avatar: userItem.avatar,
       isAdmin: !!userItem.isAdmin,
+      isSeniorMod: !!userItem.isSeniorMod,
       isModerator: !!userItem.isModerator,
       isBabyMod: !!userItem.isBabyMod,
     };
 
     // Both Admins and Moderators should see confirmation and success alerts
-    const isStaff = isAdmin || isModerator;
+    const isStaff = isAdmin || isSeniorMod || isModerator;
     const success = await setUserStrike(userItem.email, strikeCount, userItem.id, isStaff, bannerInfo, userInfo, isStaff);
     if (success) {
       setSelectedUser(null);
@@ -832,6 +836,7 @@ const AdminDashboard = () => {
       displayName: currentUser?.userName || currentUser?.displayName || 'Admin',
       avatar: currentUser?.avatar,
       isAdmin: !!isAdmin,
+      isSeniorMod: !!isSeniorMod,
       isModerator: !!isModerator,
       isBabyMod: !!isBabyMod,
     };
@@ -840,6 +845,7 @@ const AdminDashboard = () => {
       displayName: userItem.displayName,
       avatar: userItem.avatar,
       isAdmin: !!userItem.isAdmin,
+      isSeniorMod: !!userItem.isSeniorMod,
       isModerator: !!userItem.isModerator,
       isBabyMod: !!userItem.isBabyMod,
     };
@@ -1157,6 +1163,7 @@ const AdminDashboard = () => {
           avatar: getAvatarSafe(u),
           email: u.email,
           isAdmin: u.admin || false,
+          isSeniorMod: u.isSeniorMod || false,
           isModerator: u.isModerator || false,
         });
       };
@@ -1261,12 +1268,23 @@ const AdminDashboard = () => {
     try {
       const firestoreDB = getFirestore();
       const reportsRef = collection(firestoreDB, 'chat_reports');
-      const q = firestoreQuery(reportsRef, where('chatConsent', '==', true), orderBy('createdAt', 'desc'), limit(30));
+      // Order by createdAt only (single-field → uses Firestore's automatic
+      // index). Previously this also filtered `where('chatConsent','==',true)`,
+      // which combined with the orderBy REQUIRES a composite index that was
+      // never created — so the query threw FAILED_PRECONDITION and mods saw an
+      // empty list. Every report is written with chatConsent:true anyway
+      // (Scamwarning.js), so we filter it client-side instead of in the query.
+      const q = firestoreQuery(reportsRef, orderBy('createdAt', 'desc'), limit(30));
       const snapshot = await getDocs(q);
-      const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const list = snapshot.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((r) => r.chatConsent === true);
       setChatReports(list);
     } catch (err) {
+      // Surface the real reason (missing index, insufficient permissions, …)
+      // instead of leaving mods staring at a silent empty list.
       console.error('Fetch chat reports error:', err);
+      Alert.alert('Could not load reports', err?.message || 'Unknown error while loading reported chats.');
     } finally {
       setLoadingReports(false);
     }
@@ -1378,7 +1396,11 @@ const AdminDashboard = () => {
       fetchPolls();
     } catch (err) {
       console.error('Create poll error:', err);
-      Alert.alert('Error', 'Could not create poll.');
+      // Show the real Supabase error. An RLS denial ("new row violates
+      // row-level security policy") means the account isn't an admin in
+      // user_roles; a missing-relation error means migration 015_polls.sql
+      // hasn't been applied to this project.
+      Alert.alert('Could not create poll', err?.message || 'Unknown error.');
     } finally {
       setCreatingPoll(false);
     }

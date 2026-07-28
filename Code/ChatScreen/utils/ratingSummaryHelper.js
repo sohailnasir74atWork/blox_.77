@@ -71,9 +71,14 @@ export const updateUserRatingSummary = async (firestoreDB, userId) => {
       },
       { merge: true }
     );
+
+    // Returned so callers can drive the 5-Star badge (4.5★ avg with 50+ reviews)
+    // without re-reading the collection they just computed.
+    return { count, averageRating };
   } catch (error) {
     console.error(`❌ Error updating rating summary for user ${userId}:`, error);
     // Don't throw - this is a background update, shouldn't block review submission
+    return null;
   }
 };
 

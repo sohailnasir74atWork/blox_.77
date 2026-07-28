@@ -9,7 +9,7 @@
  *   - Max 4 rounds per game per day (1 free + 3 ad-unlocked)
  */
 
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useLocalState } from '../LocalGlobelStats';
@@ -25,6 +25,13 @@ const GameScreen = () => {
   const route = useRoute();
   const { gameId } = route.params || {};
   const { localState, updateLocalState } = useLocalState();
+
+  // Warm the rewarded ad as soon as a game opens — the "watch ad to unlock
+  // rounds" button needs it loaded BEFORE the tap (cold loads used to time
+  // out and hand out the unlock for free).
+  useEffect(() => {
+    try { RewardedAdManager.prepare(); } catch (_) {}
+  }, []);
 
   const handleClose = () => navigation.goBack();
 

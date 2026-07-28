@@ -17,6 +17,7 @@ import {
   doc,
   query,
   orderBy,
+  limit,
   onSnapshot,
   addDoc,
   updateDoc,
@@ -45,12 +46,16 @@ const CommentModal = ({ visible, onClose, postId }) => {
   const insets = useSafeAreaInsets();
   const isDarkMode = theme === 'dark';
 
-  // Load comments
+  // Load comments — only while the modal is actually open. CommentModal is
+  // rendered by every PostCard in the feed, so subscribing regardless of
+  // `visible` opened one live listener per mounted card (unbounded reads that
+  // grew as the user scrolled, for a modal usually never opened). Gate on
+  // `visible` and bound the query so at most one bounded listener exists.
   useEffect(() => {
-    if (!postId || !firestoreDB) return;
+    if (!visible || !postId || !firestoreDB) return;
 
     const commentsRef = collection(firestoreDB, 'designPosts_upgrade', postId, 'comments');
-    const q = query(commentsRef, orderBy('createdAt', 'desc'));
+    const q = query(commentsRef, orderBy('createdAt', 'desc'), limit(100));
 
     const unsubscribe = onSnapshot(q, snapshot => {
       const commentsData = snapshot.docs.map(d => ({
@@ -61,7 +66,7 @@ const CommentModal = ({ visible, onClose, postId }) => {
     });
 
     return () => unsubscribe();
-  }, [postId, firestoreDB]);
+  }, [visible, postId, firestoreDB]);
 
   const handleChatNavigation = useCallback((comment) => {
     const callback = () => {

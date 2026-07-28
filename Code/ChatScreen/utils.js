@@ -20,13 +20,19 @@ const isSelfTargeting = (targetEmail) => {
 // ─── Staff hierarchy ────────────────────────────────────────────────
 // Strict ladder: a staffer can only act on someone STRICTLY below them.
 // Mods can't ban Mods. Admins can't ban Admins. JMDs can only act on
-// regular users. Promote/demote rules: only Admins can manage Mods;
-// Admins and Mods can manage JMDs.
-export const STAFF_RANK = { admin: 3, moderator: 2, babyMod: 1, user: 0 };
+// regular users. Promote/demote rules: only Admins can manage Senior
+// Mods; Admins and Senior Mods can manage Mods; Admins, Senior Mods and
+// Mods can manage JMDs.
+//
+// Senior Mod (isSeniorMod) sits ONE step below Admin — it outranks every
+// Mod/JMD, so canModerate lets a Senior Mod ban/mute/strike them and
+// canManageMod lets a Senior Mod appoint or remove Mods and JMDs.
+export const STAFF_RANK = { admin: 4, seniorMod: 3, moderator: 2, babyMod: 1, user: 0 };
 
 export const getStaffRank = (roles) => {
   if (!roles) return STAFF_RANK.user;
   if (roles.isAdmin) return STAFF_RANK.admin;
+  if (roles.isSeniorMod) return STAFF_RANK.seniorMod;
   if (roles.isModerator) return STAFF_RANK.moderator;
   if (roles.isBabyMod) return STAFF_RANK.babyMod;
   return STAFF_RANK.user;
@@ -35,9 +41,13 @@ export const getStaffRank = (roles) => {
 export const canModerate = (caller, target) =>
   getStaffRank(caller) > getStaffRank(target);
 
-export const canManageMod = (caller) => !!caller?.isAdmin;
+// Only Admins can appoint/remove Senior Mods.
+export const canManageSeniorMod = (caller) => !!caller?.isAdmin;
+// Admins AND Senior Mods can appoint/remove Mods.
+export const canManageMod = (caller) => !!(caller?.isAdmin || caller?.isSeniorMod);
+// Admins, Senior Mods AND Mods can appoint/remove JMDs.
 export const canManageBabyMod = (caller) =>
-  !!(caller?.isAdmin || caller?.isModerator);
+  !!(caller?.isAdmin || caller?.isSeniorMod || caller?.isModerator);
 
 // Look up target's role flags from RTDB so utility-level checks don't
 // rely on every caller populating userInfo. Tolerant of the legacy
@@ -47,9 +57,10 @@ const fetchTargetRoles = async (userId) => {
   if (!userId) return null;
   try {
     const db = getDatabase();
-    const [adminLegacySnap, adminSnap, modSnap, jmdSnap] = await Promise.all([
+    const [adminLegacySnap, adminSnap, seniorSnap, modSnap, jmdSnap] = await Promise.all([
       get(ref(db, `users/${userId}/admin`)),
       get(ref(db, `users/${userId}/isAdmin`)),
+      get(ref(db, `users/${userId}/isSeniorMod`)),
       get(ref(db, `users/${userId}/isModerator`)),
       get(ref(db, `users/${userId}/isBabyMod`)),
     ]);
@@ -58,6 +69,7 @@ const fetchTargetRoles = async (userId) => {
         (adminLegacySnap?.exists() && adminLegacySnap.val()) ||
         (adminSnap?.exists() && adminSnap.val())
       ),
+      isSeniorMod: !!(seniorSnap?.exists() && seniorSnap.val()),
       isModerator: !!(modSnap?.exists() && modSnap.val()),
       isBabyMod: !!(jmdSnap?.exists() && jmdSnap.val()),
     };
@@ -74,15 +86,30 @@ const resolveTargetRoles = async (userId, fallback = {}) => {
   if (fetched) return fetched;
   return {
     isAdmin: !!fallback?.isAdmin,
+    isSeniorMod: !!fallback?.isSeniorMod,
     isModerator: !!fallback?.isModerator,
     isBabyMod: !!fallback?.isBabyMod,
   };
+};
+
+// Comparative hierarchy gate for role changes. The canManage* helpers above
+// only answer "is the caller senior enough to touch this TIER of role" — they
+// say nothing about who the target is. This closes that half: a staffer may
+// only alter the roles of someone STRICTLY below them, mirroring canModerate
+// (already used by ban/mute/strike). Without it, one Senior Mod could strip a
+// peer Senior Mod's Mod flag, and a Mod could stamp/clear the JMD flag on an
+// Admin. Reads the target's roles fresh from RTDB, so a stale userInfo can't
+// be passed in to fake a low-ranked target.
+const outranksTarget = async (userId, callerRoles, fallbackRoles = {}) => {
+  const targetRoles = await resolveTargetRoles(userId, fallbackRoles);
+  return canModerate(callerRoles, targetRoles);
 };
 
 // Pull caller role flags off a bannerInfo blob. Callers are expected to
 // stamp these on bannerInfo from useGlobalState.
 const callerRolesFromBanner = (bannerInfo) => ({
   isAdmin: !!bannerInfo?.isAdmin,
+  isSeniorMod: !!bannerInfo?.isSeniorMod,
   isModerator: !!bannerInfo?.isModerator,
   isBabyMod: !!bannerInfo?.isBabyMod,
 });
@@ -674,6 +701,7 @@ export const banUserwithEmail = async (email, isAdmin = false, senderId = null, 
   // regresses below the actual caller's rank.
   const callerRoles = {
     isAdmin: !!(isAdmin || bannerInfo?.isAdmin),
+    isSeniorMod: !!bannerInfo?.isSeniorMod,
     isModerator: !!bannerInfo?.isModerator,
     isBabyMod: !!bannerInfo?.isBabyMod,
   };
@@ -1112,14 +1140,73 @@ export const checkBanStatus = async (email) => {
   }
 };
 
-// Make Moderator — Admin-only.
+// Make Senior Mod — Admin-only. Senior Mod is one rank below Admin and
+// can itself appoint/remove Mods and JMDs (see canManageMod above).
+export const makeSeniorMod = async (userId, callerRoles = {}) => {
+  if (!userId) {
+    Alert.alert('Error', 'Invalid user ID.');
+    return false;
+  }
+  if (!canManageSeniorMod(callerRoles)) {
+    Alert.alert('Permission Denied', 'Only Admins can promote Senior Mods.');
+    return false;
+  }
+  if (!(await outranksTarget(userId, callerRoles))) {
+    Alert.alert('Permission Denied', 'You cannot change the roles of someone at or above your rank.');
+    return false;
+  }
+  try {
+    const db = getDatabase();
+    const userRef = ref(db, `users/${userId}`);
+    await update(userRef, { isSeniorMod: true });
+    Alert.alert('Success', 'User is now a Senior Mod.');
+    return true;
+  } catch (error) {
+    console.error('Error making senior mod:', error);
+    Alert.alert('Error', 'Failed to promote user.');
+    return false;
+  }
+};
+
+// Remove Senior Mod — Admin-only.
+export const removeSeniorMod = async (userId, callerRoles = {}) => {
+  if (!userId) {
+    Alert.alert('Error', 'Invalid user ID.');
+    return false;
+  }
+  if (!canManageSeniorMod(callerRoles)) {
+    Alert.alert('Permission Denied', 'Only Admins can demote Senior Mods.');
+    return false;
+  }
+  if (!(await outranksTarget(userId, callerRoles))) {
+    Alert.alert('Permission Denied', 'You cannot change the roles of someone at or above your rank.');
+    return false;
+  }
+  try {
+    const db = getDatabase();
+    const userRef = ref(db, `users/${userId}`);
+    await update(userRef, { isSeniorMod: false });
+    Alert.alert('Success', 'Senior Mod privileges removed.');
+    return true;
+  } catch (error) {
+    console.error('Error removing senior mod:', error);
+    Alert.alert('Error', 'Failed to demote user.');
+    return false;
+  }
+};
+
+// Make Moderator — Admin or Senior Mod.
 export const makeModerator = async (userId, callerRoles = {}) => {
   if (!userId) {
     Alert.alert('Error', 'Invalid user ID.');
     return false;
   }
   if (!canManageMod(callerRoles)) {
-    Alert.alert('Permission Denied', 'Only Admins can promote Moderators.');
+    Alert.alert('Permission Denied', 'Only Admins or Senior Mods can promote Moderators.');
+    return false;
+  }
+  if (!(await outranksTarget(userId, callerRoles))) {
+    Alert.alert('Permission Denied', 'You cannot change the roles of someone at or above your rank.');
     return false;
   }
   try {
@@ -1135,14 +1222,18 @@ export const makeModerator = async (userId, callerRoles = {}) => {
   }
 };
 
-// Remove Moderator — Admin-only.
+// Remove Moderator — Admin or Senior Mod.
 export const removeModerator = async (userId, callerRoles = {}) => {
   if (!userId) {
     Alert.alert('Error', 'Invalid user ID.');
     return false;
   }
   if (!canManageMod(callerRoles)) {
-    Alert.alert('Permission Denied', 'Only Admins can demote Moderators.');
+    Alert.alert('Permission Denied', 'Only Admins or Senior Mods can demote Moderators.');
+    return false;
+  }
+  if (!(await outranksTarget(userId, callerRoles))) {
+    Alert.alert('Permission Denied', 'You cannot change the roles of someone at or above your rank.');
     return false;
   }
   try {
@@ -1158,14 +1249,18 @@ export const removeModerator = async (userId, callerRoles = {}) => {
   }
 };
 
-// Promote to JMD (BabyMod) — Admin or Moderator can manage JMDs.
+// Promote to JMD (BabyMod) — Admin, Senior Mod or Moderator can manage JMDs.
 export const makeBabyMod = async (userId, callerRoles = {}) => {
   if (!userId) {
     Alert.alert('Error', 'Invalid user ID.');
     return false;
   }
   if (!canManageBabyMod(callerRoles)) {
-    Alert.alert('Permission Denied', 'Only Admins or Moderators can promote JMDs.');
+    Alert.alert('Permission Denied', 'Only Admins, Senior Mods or Moderators can promote JMDs.');
+    return false;
+  }
+  if (!(await outranksTarget(userId, callerRoles))) {
+    Alert.alert('Permission Denied', 'You cannot change the roles of someone at or above your rank.');
     return false;
   }
   try {
@@ -1179,17 +1274,21 @@ export const makeBabyMod = async (userId, callerRoles = {}) => {
   }
 };
 
-// Demote JMD — Admin or Moderator. We block demoting a JMD who has
-// already been upgraded to a real Mod (canManageBabyMod doesn't cover
-// Mods, but the rank check below catches the corner case where this is
-// called against a Mod by a Mod).
+// Demote JMD — Admin, Senior Mod or Moderator. The outranksTarget check
+// blocks demoting a JMD who has already been upgraded to a real Mod
+// (canManageBabyMod doesn't cover Mods, so without it a Mod could clear a
+// peer Mod's — or an Admin's — JMD flag).
 export const removeBabyMod = async (userId, callerRoles = {}) => {
   if (!userId) {
     Alert.alert('Error', 'Invalid user ID.');
     return false;
   }
   if (!canManageBabyMod(callerRoles)) {
-    Alert.alert('Permission Denied', 'Only Admins or Moderators can remove JMDs.');
+    Alert.alert('Permission Denied', 'Only Admins, Senior Mods or Moderators can remove JMDs.');
+    return false;
+  }
+  if (!(await outranksTarget(userId, callerRoles))) {
+    Alert.alert('Permission Denied', 'You cannot change the roles of someone at or above your rank.');
     return false;
   }
   try {

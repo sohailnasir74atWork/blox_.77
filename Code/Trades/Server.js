@@ -9,7 +9,7 @@ import Icon from 'react-native-vector-icons/FontAwesome';
 import {
     ref, push, onValue, query,
     orderByChild, startAt, equalTo, remove,
-    set
+    set, get
 } from '@react-native-firebase/database';
 import { showSuccessMessage, showErrorMessage, showWarningMessage } from '../Helper/MessageHelper';
 import config from '../Helper/Environment';
@@ -51,9 +51,6 @@ const ServerScreen = () => {
             startAt(Date.now())
         );
 
-        const adminServerQuery = ref(appdatabase, 'server');
-
-
         const userUnsubscribe = onValue(userServerQuery, (snapshot) => {
             const data = snapshot.val() || {};
             const userList = Object.entries(data)
@@ -63,15 +60,17 @@ const ServerScreen = () => {
 
         });
 
-        const adminUnsubscribe = onValue(adminServerQuery, (snapshot) => {
+        // ✅ COST: admin `server` config changes rarely — read it ONCE on mount
+        // instead of a session-long realtime listener that re-downloads the
+        // whole node on any admin edit.
+        get(ref(appdatabase, 'server')).then((snapshot) => {
             const data = snapshot.val() || {};
             const adminList = Object.entries(data).map(([id, value]) => ({ id, ...value }));
             setAdminServer(adminList);
-        });
+        }).catch((e) => console.warn('[Server] admin config fetch error:', e?.message));
 
         return () => {
             userUnsubscribe();
-            adminUnsubscribe();
         };
     }, []);
 
@@ -304,7 +303,9 @@ const ServerScreen = () => {
                         {/* <Icon name="plus" size={24} color="#fff" /> */}
                     </TouchableOpacity></>
             )}
-            {(!localState.isPro && proGranted) && <BannerAdComponent />}
+            {/* Was `&& proGranted` (inverted) — the banner only rendered for
+                users holding a Pro grant, i.e. almost never. */}
+            {(!localState.isPro && !proGranted) && <BannerAdComponent collapsible />}
 
 
             <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>

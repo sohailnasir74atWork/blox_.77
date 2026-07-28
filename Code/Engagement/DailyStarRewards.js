@@ -39,7 +39,12 @@ const DailyStarRewards = ({ visible, onClose, db, uid, isDarkMode = false }) => 
     if (visible && db && uid) {
       getStarStatus(db, uid).then(setStatus);
     }
-  }, [visible, db, uid]);
+    // A claim ends with an interstitial (handleClose) — warm it while the
+    // user is looking at the rewards so the close actually has an ad.
+    if (visible && !localState?.isPro) {
+      try { InterstitialAdManager.prepare(); } catch (_) {}
+    }
+  }, [visible, db, uid, localState?.isPro]);
 
   // Claim star
   const handleClaim = useCallback(async () => {

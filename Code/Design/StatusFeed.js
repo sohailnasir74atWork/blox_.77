@@ -43,6 +43,7 @@ import SwipeableBottomDrawer from '../Helper/SwipeableBottomDrawer';
 import { useLocalState } from '../LocalGlobelStats';
 import { useGlobalState } from '../GlobelStats';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
+import { checkBanStatus } from '../ChatScreen/utils';
 
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -63,10 +64,15 @@ try {
     delete: () => {},
   };
 }
-const STATUS_CACHE_TTL = 5 * 60 * 1000;
-const FOLLOWING_CACHE_TTL = 30 * 60 * 1000;
-const FOLLOWING_CHUNK_SIZE = 30;
-const GLOBAL_STATUS_LIMIT = 10;
+const STATUS_CACHE_TTL = 60 * 60 * 1000;       // 1 hour — refetch only after this
+const FOLLOWING_CACHE_TTL = 60 * 60 * 1000;    // 1 hour
+const FOLLOWING_CHUNK_SIZE = 30;               // Firestore 'in' limit
+// The feed groups statuses into ONE BUBBLE PER USER, so a cap on statuses is not
+// a cap on what the user sees. Cap distinct users instead, and read a wide
+// enough window to find them.
+const GLOBAL_USER_LIMIT = 20;                  // Max global (non-following) BUBBLES
+const GLOBAL_FETCH_LIMIT = 60;                 // Window to pick those bubbles from
+const FOLLOWING_FETCH_LIMIT = 40;              // Hard bound on the following query
 
 // ── Cache helpers ──
 const getCachedJSON = (key) => {
@@ -84,6 +90,15 @@ const isCacheValid = (key, ttl) => {
 };
 const setCacheTimestamp = (key) => {
   statusCache.set(`${key}_ts`, Date.now());
+};
+// Which user the cached feed was built for. Persisted (not a ref) so a cold
+// start with the same signed-in user can serve from cache for zero reads.
+// '' = signed out. undefined (no MMKV) reads as "changed", so we just refetch.
+const getCachedIdentity = () => {
+  try { return statusCache.getString('statuses_cached_for'); } catch { return undefined; }
+};
+const setCachedIdentity = (identity) => {
+  try { statusCache.set('statuses_cached_for', identity); } catch {}
 };
 
 // ── Ring colors ──
@@ -224,7 +239,7 @@ const deserializeStatus = (s) => ({
 const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignIn }) => {
   const { t } = useTranslation();
   const navigation = useNavigation();
-  const { isAdmin } = useGlobalState();
+  const { isAdmin, currentUserEmail } = useGlobalState();
   const isAdminOrMod = isAdmin || !!user?.isModerator;
   const insets = useSafeAreaInsets();
   const [statuses, setStatuses] = useState(() => {
@@ -259,6 +274,14 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
   const followingChunkRef = useRef(0);
   const allFollowingLoadedRef = useRef(false);
   const viewedLocallyRef = useRef(new Set());
+  // Only one round-trip set in flight at a time
+  const inFlightRef = useRef(false);
+  // Mirrors statuses.length so fetchStatuses doesn't have to depend on it
+  const hasStatusesRef = useRef(statuses.length > 0);
+  // Global (non-following) half, reused for the rest of the session
+  const globalCacheRef = useRef(null);
+
+  useEffect(() => { hasStatusesRef.current = statuses.length > 0; }, [statuses.length]);
 
   // ── Fetch who I follow ──
   useEffect(() => {
@@ -313,73 +336,31 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
     }
   }, []);
 
-  // ── Fetch global random statuses ──
-  const fetchGlobalRandom = useCallback(async () => {
+  // ── Fetch the latest statuses app-wide ──
+  // ONE query, exactly what we show. Statuses all share a fixed 24h TTL, so
+  // ordering by expiresAt DESC is the same as newest-first — and it satisfies
+  // Firestore's rule that the first orderBy match the inequality field, so no
+  // composite index is needed (the automatic single-field index covers it).
+  //
+  // Replaced a randomSeed rotation that cost 1–3 queries (15–45 reads) to show
+  // a random sample. This is one read window, flat.
+  const fetchGlobalLatest = useCallback(async () => {
     if (!firestoreDB) return [];
     try {
-      const rand = Math.random();
       const now = Timestamp.now();
-      const nowMillis = now.toMillis();
-
-      // Expired statuses are never deleted server-side; the 24h expiry is only
-      // enforced here by filtering `expiresAt > now`. That means a random window
-      // by `randomSeed` can be dominated by stale (expired) docs, leaving very
-      // few live ones. So we keep pulling — random window first (for fairness),
-      // then the guaranteed-live `expiresAt` index as a backfill — until we have
-      // enough live statuses. Dedupe by id across all queries.
-      const results = [];
-      const seenIds = new Set();
-      const collectLive = (docs) => {
-        for (const d of docs) {
-          if (seenIds.has(d.id)) continue;
-          const data = { id: d.id, ...d.data() };
-          if (data.expiresAt?.toMillis() > nowMillis) {
-            seenIds.add(d.id);
-            results.push(data);
-          }
-        }
-      };
-
-      // Random window forward from the seed.
-      collectLive((await getDocs(query(
+      const q = query(
         collection(firestoreDB, 'statuses'),
-        where('randomSeed', '>=', rand),
-        orderBy('randomSeed', 'asc'),
-        limit(20),
-      ))).docs);
-
-      // Random window backward to wrap around the seed.
-      if (results.length < GLOBAL_STATUS_LIMIT) {
-        collectLive((await getDocs(query(
-          collection(firestoreDB, 'statuses'),
-          where('randomSeed', '<', rand),
-          orderBy('randomSeed', 'desc'),
-          limit(20),
-        ))).docs);
-      }
-
-      // Backfill from the live-only index when the random window came up short
-      // (e.g. it landed in a cluster of expired docs). This query can only
-      // return live statuses, so it reliably tops the pool back up.
-      if (results.length < GLOBAL_STATUS_LIMIT) {
-        collectLive((await getDocs(query(
-          collection(firestoreDB, 'statuses'),
-          where('expiresAt', '>', now),
-          orderBy('expiresAt', 'desc'),
-          limit(20),
-        ))).docs);
-      }
-
-      // Shuffle so the feed isn't always ordered by randomSeed / recency.
-      for (let i = results.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [results[i], results[j]] = [results[j], results[i]];
-      }
-
-      return results.slice(0, 15);
+        where('expiresAt', '>', now),
+        orderBy('expiresAt', 'desc'),
+        limit(GLOBAL_FETCH_LIMIT),
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
     } catch (err) {
-      console.warn('[StatusFeed] Global random fetch error:', err?.message);
-      return [];
+      // null (not []) so the caller can tell "request failed" apart from
+      // "nobody has posted". Returning [] here used to blank the whole feed.
+      console.warn('[StatusFeed] Global fetch error:', err?.message);
+      return null;
     }
   }, [firestoreDB]);
 
@@ -404,10 +385,14 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
 
     try {
       const now = Timestamp.now();
+      // Bounded + newest-first. Needs a composite index on
+      // statuses(userId ASC, expiresAt DESC).
       const q = query(
         collection(firestoreDB, 'statuses'),
         where('userId', 'in', combined),
         where('expiresAt', '>', now),
+        orderBy('expiresAt', 'desc'),
+        limit(FOLLOWING_FETCH_LIMIT),
       );
       const snap = await getDocs(q);
       const results = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -417,16 +402,38 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
       }
       return results;
     } catch (err) {
-      console.warn('[StatusFeed] Following chunk fetch error:', err?.message);
-      return [];
+      // null = failed (keep showing what we have). If this reports a missing
+      // index, Firestore puts a one-click creation URL in the message — the
+      // query needs statuses(userId ASC, expiresAt DESC).
+      if (/index/i.test(err?.message || '')) {
+        console.warn('[StatusFeed] MISSING INDEX for following query — create it via the link in:\n', err?.message);
+      } else {
+        console.warn('[StatusFeed] Following chunk fetch error:', err?.message);
+      }
+      return null;
     }
   }, [firestoreDB, user?.id, followingIds]);
 
   // ── Main fetch: combines following + global ──
   const fetchStatuses = useCallback(async (force = false) => {
     if (!firestoreDB) return;
-    if (!force && isCacheValid('statuses_grouped', STATUS_CACHE_TTL) && statuses.length > 0) return;
+    if (inFlightRef.current) return;               // single-flight
 
+    // Serve from cache for the full TTL. The identity check matters because the
+    // first pass of a cold start can run before auth resolves: without it, a
+    // guest result would satisfy the cache and the user's following statuses
+    // wouldn't appear until the TTL was up. Read from MMKV (not a ref) so a cold
+    // start with the SAME user still hits the cache — that feed was already
+    // built with their following list.
+    const identity = user?.id || '';
+    const identityChanged = getCachedIdentity() !== identity;
+    if (!force && !identityChanged
+        && isCacheValid('statuses_grouped', STATUS_CACHE_TTL)
+        && hasStatusesRef.current) {
+      return;
+    }
+
+    inFlightRef.current = true;
     try {
       followingChunkRef.current = 0;
       allFollowingLoadedRef.current = false;
@@ -434,13 +441,38 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
       const followingResults = await fetchFollowingChunk(0);
       followingChunkRef.current = 1;
 
-      const globalResults = await fetchGlobalRandom();
+      // The global half is identical for everyone, so when this re-runs purely
+      // because auth resolved, reuse it instead of re-querying.
+      let globalResults;
+      if (!force && identityChanged && globalCacheRef.current) {
+        globalResults = globalCacheRef.current;
+      } else {
+        globalResults = await fetchGlobalLatest();
+        if (globalResults !== null) globalCacheRef.current = globalResults;
+      }
+
+      // Keep showing what we have on total failure — a dropped request must not
+      // fall through as an empty success that blanks the list and overwrites the
+      // MMKV cache with [].
+      if (followingResults === null && globalResults === null) {
+        return;
+      }
 
       const followingSet = new Set([user?.id, ...followingIds]);
-      const myAndFollowing = followingResults;
-      const globalOnly = globalResults
+      const myAndFollowing = followingResults || [];
+      // Take whole users, newest-first, until we have GLOBAL_USER_LIMIT of them
+      // — NOT the first N statuses. Slicing statuses let one prolific poster eat
+      // most of the row; this gives every included user their full story while
+      // still bounding the bubble count.
+      const globalUsers = new Set();
+      const globalOnly = (globalResults || [])
         .filter(s => !followingSet.has(s.userId))
-        .slice(0, GLOBAL_STATUS_LIMIT);
+        .filter((s) => {
+          if (globalUsers.has(s.userId)) return true;
+          if (globalUsers.size >= GLOBAL_USER_LIMIT) return false;
+          globalUsers.add(s.userId);
+          return true;
+        });
 
       const allRaw = [...myAndFollowing, ...globalOnly];
       const grouped = groupStatuses(allRaw, user?.id, t('status_feed.anonymous', { defaultValue: 'Anonymous' }));
@@ -457,6 +489,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
       });
 
       setStatuses(arr);
+      hasStatusesRef.current = arr.length > 0;
 
       const serialized = arr.map(g => ({
         ...g,
@@ -464,10 +497,15 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
       }));
       setCachedJSON('statuses_grouped', serialized);
       setCacheTimestamp('statuses_grouped');
+      // Written last, and only on success, so a failed fetch leaves the identity
+      // stale and the next run retries instead of trusting a half-built cache.
+      setCachedIdentity(identity);
     } catch (err) {
       console.warn('[StatusFeed] fetch error:', err?.message);
+    } finally {
+      inFlightRef.current = false;
     }
-  }, [firestoreDB, user?.id, followingIds, fetchFollowingChunk, fetchGlobalRandom, statuses.length]);
+  }, [firestoreDB, user?.id, followingIds, fetchFollowingChunk, fetchGlobalLatest]);
 
   useEffect(() => {
     if (!followingResolved) return;
@@ -482,7 +520,8 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
       const moreResults = await fetchFollowingChunk(followingChunkRef.current);
       followingChunkRef.current += 1;
 
-      if (moreResults.length > 0) {
+      // null = the request failed; keep what's already on screen.
+      if (moreResults && moreResults.length > 0) {
         const moreGrouped = groupStatuses(moreResults, user?.id, t('status_feed.anonymous', { defaultValue: 'Anonymous' }));
         setStatuses(prev => {
           const existingMap = {};
@@ -574,6 +613,20 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
 
   const handlePostStatus = useCallback(async () => {
     if (!user?.id || !firestoreDB) return;
+
+    // 🔒 Check Ban Status — statuses are public, so a banned account posting
+    // one is the same broadcast a ban is meant to stop. UploadModal already
+    // gates posts this way; this path had no check at all.
+    if (!currentUserEmail) {
+      Alert.alert('Missing Email', 'Could not detect your account email. Please re-login.');
+      return;
+    }
+    const banStatus = await checkBanStatus(currentUserEmail);
+    if (banStatus.isBanned) {
+      Alert.alert('Banned', banStatus.message);
+      return;
+    }
+
     const hasContent = caption.trim() || selectedImage;
     const hasValidPoll = isPollMode && pollOptions.filter(o => o.trim()).length >= 2;
     if (!hasContent && !hasValidPoll) {
@@ -683,7 +736,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
         }, 400);
       });
     }
-  }, [user, firestoreDB, appdatabase, caption, selectedImage, uploadToBunny, localState.isPro, isPollMode, pollOptions, selectedThemeId]);
+  }, [user, firestoreDB, appdatabase, caption, selectedImage, uploadToBunny, localState.isPro, isPollMode, pollOptions, selectedThemeId, currentUserEmail]);
 
   // ── Delete status ──
   const handleDeleteStatus = useCallback(async (statusId) => {
@@ -825,6 +878,11 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
         setFollowingIds(updated);
         setCachedJSON('following_ids', updated);
         setCacheTimestamp('following_ids');
+        // Influencer badge: award the followed user once they reach 200+ followers.
+        try {
+          const { checkInfluencerBadge } = require('../ChatScreen/GroupChat/badgeUtils');
+          checkInfluencerBadge(appdatabase, firestoreDB, targetUserId);
+        } catch (_) {}
       }
     } catch (err) {
       console.warn('[StatusFeed] follow toggle error:', err?.message);
