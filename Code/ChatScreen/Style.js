@@ -485,6 +485,27 @@ export const getStyles = (isDarkMode) =>
     },
     emptyText: {
       color: isDarkMode ? config.darkColors.textPrimary : 'black',
+    },
+    // Shown above the input when a chat-availability switch closes this door.
+    chatUnavailableBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: isDarkMode ? '#3f1d1d' : '#fde8e8',
+      borderTopWidth: 1,
+      borderTopColor: isDarkMode ? '#7f1d1d' : '#f5c2c2',
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+    },
+    chatUnavailableIcon: {
+      fontSize: 14,
+      marginRight: 8,
+    },
+    chatUnavailableText: {
+      flex: 1,
+      fontSize: 12.5,
+      fontWeight: '600',
+      lineHeight: 17,
+      color: isDarkMode ? '#fca5a5' : '#991b1b',
     }
     ,
     tradeDetails: {

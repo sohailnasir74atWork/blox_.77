@@ -1,7 +1,6 @@
 // Re-export all cloud functions from separate files.
 //
 // Existing CFs (unchanged):
-const { notifyTradeAccept } = require('./notifyTradeAccept');
 const { syncModRoster } = require('./syncModRoster');
 
 // Supabase mirror CFs (RTDB → Supabase). RTDB stays the source of truth;
@@ -30,7 +29,6 @@ const { clearPresenceNode } = require('./clearPresenceNode');
 // screen's Hot & Trending tabs are empty without it.
 const { computeFeedRanking } = require('./computeFeedRanking');
 
-exports.notifyTradeAccept = notifyTradeAccept;
 exports.syncModRoster = syncModRoster;
 
 exports.mirrorPublicChatMessageToSupabase = mirrorPublicChatMessageToSupabase;

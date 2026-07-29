@@ -7,11 +7,12 @@ import {
   Image,
   TouchableOpacity, TextInput,
 } from 'react-native';
-import { useFocusEffect, useIsFocused } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused, useRoute } from '@react-navigation/native';
 import { getStyles } from '../Style';
 import PrivateMessageInput from './PrivateMessageInput';
 import PrivateMessageList from './PrivateMessageList';
 import { useGlobalState } from '../../GlobelStats';
+import { chatTypeForRoute, fetchChatAvailability, resolveChatBlock } from '../chatAvailability';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import { isUserOnline, updateLastRead, flushLastRead, useOtherLastRead, useActiveChatLifecycle } from '../utils';
@@ -195,6 +196,32 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     const banned = Array.isArray(bannedUsers) ? bannedUsers : [];
     return banned.includes(selectedUserId);
   }, [bannedUsers, selectedUserId]);
+
+  // ── Chat availability ────────────────────────────────────────────────────
+  // The door decides which switch applies: the Trades screen pushes
+  // PrivateChatTrade, everything else (inbox, feed, leaderboard, profiles) is
+  // general. Same thread, different door = different switch. That's intended.
+  const navRoute = useRoute();
+  const routeName = route?.name || navRoute?.name;
+  const chatType = useMemo(() => chatTypeForRoute(routeName), [routeName]);
+
+  const [theirAvailability, setTheirAvailability] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    if (!appdatabase || !selectedUserId) { setTheirAvailability(null); return undefined; }
+    fetchChatAvailability(appdatabase, selectedUserId).then((a) => {
+      if (!cancelled) setTheirAvailability(a);
+    });
+    return () => { cancelled = true; };
+  }, [appdatabase, selectedUserId]);
+
+  // Blocks both ways: 'them' = they closed this door, 'me' = I did, and I can't
+  // message anyone through it either.
+  const chatBlockedBy = useMemo(
+    () => resolveChatBlock(chatType, user, theirAvailability),
+    [chatType, user, theirAvailability]
+  );
+  const isChatUnavailable = !!chatBlockedBy;
   const isDarkMode = theme === 'dark';
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
 
@@ -515,6 +542,22 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
 
 
   const sendMessage = useCallback(async (text, image, fruits, replyToMsg) => {
+    // Guard for a stale screen — the input is already disabled when this door
+    // is shut, so this only fires if the switch flipped while the chat was open.
+    if (chatBlockedBy) {
+      Alert.alert(
+        "Error",
+        chatBlockedBy === 'them'
+          ? (chatType === 'trade'
+            ? "This user has disabled trade chat. You cannot message them from a trade."
+            : "This user has disabled chat. You cannot message them right now.")
+          : (chatType === 'trade'
+            ? "You have disabled trade chat. Turn it back on in Settings."
+            : "You have disabled chat. Turn it back on in Settings.")
+      );
+      return;
+    }
+
     const trimmedText = (text || '').trim();
     const hasImage = !!image;
     const hasFruits = Array.isArray(fruits) && fruits.length > 0;
@@ -627,6 +670,9 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
         replyTo: replyToPayload,
         OS: undefined, // PrivateChat doesn't track OS today; leave null
         clientMsgId,
+        // Lets the server enforce availability without trusting this client.
+        // Dropped automatically if the column isn't there yet.
+        origin: chatType,
       });
 
       // chat_meta_data is now Supabase-native. sendPrivateChatMeta does
@@ -669,7 +715,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       console.error("Error sending message:", error);
       Alert.alert("Error", "Could not send your message. Please try again.");
     }
-  }, [myUserId, selectedUserId, appdatabase, currentSelectedUser, user, t, currentUserEmail, strikeInfo, isAdmin]);
+  }, [myUserId, selectedUserId, appdatabase, currentSelectedUser, user, t, currentUserEmail, strikeInfo, isAdmin, chatBlockedBy, chatType]);
 
   useFocusEffect(
     useCallback(() => {
@@ -935,9 +981,24 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
 
             {!localState.isPro && <BannerAdComponent />}
 
+            {isChatUnavailable && (
+              <View style={styles.chatUnavailableBanner}>
+                <Text style={styles.chatUnavailableIcon}>🚫</Text>
+                <Text style={styles.chatUnavailableText}>
+                  {chatBlockedBy === 'them'
+                    ? (chatType === 'trade'
+                      ? 'This user has disabled trade chat. You cannot message them from a trade.'
+                      : 'This user has disabled chat. You cannot message them right now.')
+                    : (chatType === 'trade'
+                      ? 'You have disabled trade chat. Turn it back on in Settings.'
+                      : 'You have disabled chat. Turn it back on in Settings.')}
+                </Text>
+              </View>
+            )}
+
             <PrivateMessageInput
               onSend={sendMessage}
-              isBanned={isBanned}
+              isBanned={isBanned || isChatUnavailable}
               bannedUsers={bannedUsers}
               replyTo={replyTo}
               onCancelReply={() => setReplyTo(null)}

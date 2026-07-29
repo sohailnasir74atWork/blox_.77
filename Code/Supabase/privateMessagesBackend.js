@@ -58,9 +58,14 @@ export function fromPrivateMessageRow(row) {
   };
 }
 
+// Set false the first time Postgres tells us `origin` doesn't exist, so a repo
+// whose SQL migration hasn't been applied yet keeps sending messages instead of
+// failing every insert. Flips back on only by restarting the app.
+let originColumnSupported = true;
+
 function toInsertPayload({
   chatId, clientMsgId, senderId, recipientId,
-  text, imageUrl, fruits, replyTo, OS,
+  text, imageUrl, fruits, replyTo, OS, origin,
 }) {
   return {
     chat_id: chatId,
@@ -72,8 +77,16 @@ function toInsertPayload({
     fruits: fruits ?? [],
     reply_to: replyTo ?? null,
     os: OS ?? null,
+    // Which door the message came through: 'trade' or 'general'. Omitted
+    // entirely when the column isn't there, so the insert stays valid.
+    ...(originColumnSupported ? { origin: origin ?? null } : {}),
   };
 }
+
+// PostgREST reports an unknown column as 42703 (or PGRST204 on newer builds).
+const isUnknownOriginColumn = (error) =>
+  !!error && (error.code === '42703' || error.code === 'PGRST204') &&
+  String(error.message || '').includes('origin');
 
 export function newClientMsgId() {
   return uuidv4();
@@ -173,13 +186,13 @@ export function subscribeToPrivateMessages(chatId, { onInsert, onUpdate, onDelet
 export async function sendPrivateMessage({
   chatId, senderId, recipientId,
   text = null, imageUrl = null, fruits = [], replyTo = null,
-  OS = null, clientMsgId = null,
+  OS = null, clientMsgId = null, origin = null,
 }) {
   if (!chatId || !senderId || !recipientId) {
     throw new Error('sendPrivateMessage: chatId + senderId + recipientId required');
   }
 
-  const payload = toInsertPayload({
+  const buildPayload = () => toInsertPayload({
     chatId,
     clientMsgId: clientMsgId ?? newClientMsgId(),
     senderId,
@@ -189,13 +202,27 @@ export async function sendPrivateMessage({
     fruits,
     replyTo,
     OS,
+    origin,
   });
 
-  const { data, error } = await supabase
+  let payload = buildPayload();
+  let { data, error } = await supabase
     .from('private_messages')
     .insert(payload)
     .select(PRIVATE_MSG_COLS)
     .single();
+
+  // Schema hasn't caught up: drop `origin` and send again rather than losing
+  // the message. Costs one wasted round-trip, once per app session.
+  if (isUnknownOriginColumn(error)) {
+    originColumnSupported = false;
+    payload = buildPayload();
+    ({ data, error } = await supabase
+      .from('private_messages')
+      .insert(payload)
+      .select(PRIVATE_MSG_COLS)
+      .single());
+  }
 
   if (error) {
     // Idempotency: a previous retry already landed → fetch + return it

@@ -2631,6 +2631,45 @@ export default function SettingsScreen({ selectedTheme }) {
                 </View>
               </View>)}
 
+              {/* Chat availability — two independent doors. Trade chat opens from
+                  the Trades screen; general chat is everywhere else (public chat,
+                  feed, leaderboard, inbox, profiles). Each blocks both directions. */}
+              {user?.id && (
+                <View style={styles.option}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+                    <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Icon name="chatbubble-ellipses-outline" size={18} color={'white'} style={{ backgroundColor: '#8B5CF6', padding: 5, borderRadius: 5 }} />
+                      <Text style={styles.optionText}>Unavailable for General Chat</Text>
+                    </TouchableOpacity>
+                    <Switch
+                      value={!!user?.chatOffGeneral}
+                      onValueChange={(v) => {
+                        triggerHapticFeedback('impactLight');
+                        updateLocalStateAndDatabase('chatOffGeneral', v);
+                      }}
+                    />
+                  </View>
+                </View>
+              )}
+
+              {user?.id && (
+                <View style={styles.option}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+                    <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Icon name="swap-horizontal-outline" size={18} color={'white'} style={{ backgroundColor: '#F59E0B', padding: 5, borderRadius: 5 }} />
+                      <Text style={styles.optionText}>Unavailable for Trade Chat</Text>
+                    </TouchableOpacity>
+                    <Switch
+                      value={!!user?.chatOffTrade}
+                      onValueChange={(v) => {
+                        triggerHapticFeedback('impactLight');
+                        updateLocalStateAndDatabase('chatOffTrade', v);
+                      }}
+                    />
+                  </View>
+                </View>
+              )}
+
               {/* ✅ Roblox Username Section */}
               {user?.id && (
                 <View style={styles.option}>
