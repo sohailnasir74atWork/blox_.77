@@ -2639,13 +2639,13 @@ export default function SettingsScreen({ selectedTheme }) {
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
                     <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <Icon name="chatbubble-ellipses-outline" size={18} color={'white'} style={{ backgroundColor: '#8B5CF6', padding: 5, borderRadius: 5 }} />
-                      <Text style={styles.optionText}>Unavailable for General Chat</Text>
+                      <Text style={styles.optionText}>{user?.chatOffGeneral ? 'General Chat Off' : 'General Chat On'}</Text>
                     </TouchableOpacity>
                     <Switch
-                      value={!!user?.chatOffGeneral}
+                      value={!user?.chatOffGeneral}
                       onValueChange={(v) => {
                         triggerHapticFeedback('impactLight');
-                        updateLocalStateAndDatabase('chatOffGeneral', v);
+                        updateLocalStateAndDatabase('chatOffGeneral', !v);
                       }}
                     />
                   </View>
@@ -2657,13 +2657,13 @@ export default function SettingsScreen({ selectedTheme }) {
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
                     <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <Icon name="swap-horizontal-outline" size={18} color={'white'} style={{ backgroundColor: '#F59E0B', padding: 5, borderRadius: 5 }} />
-                      <Text style={styles.optionText}>Unavailable for Trade Chat</Text>
+                      <Text style={styles.optionText}>{user?.chatOffTrade ? 'Trade Chat Off' : 'Trade Chat On'}</Text>
                     </TouchableOpacity>
                     <Switch
-                      value={!!user?.chatOffTrade}
+                      value={!user?.chatOffTrade}
                       onValueChange={(v) => {
                         triggerHapticFeedback('impactLight');
-                        updateLocalStateAndDatabase('chatOffTrade', v);
+                        updateLocalStateAndDatabase('chatOffTrade', !v);
                       }}
                     />
                   </View>
