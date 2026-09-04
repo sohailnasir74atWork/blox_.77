@@ -1,5 +1,12 @@
 {
   "rules": {
+    "_serverTime": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.isNumber()"
+      }
+    },
     "users": {
       ".indexOn": [
         "displayName",
@@ -52,7 +59,7 @@
     },
     "mods": {
       ".read": true,
-      ".write": true
+      ".write": false
     },
     "mod_votes_by_user": {
       ".read": true,
@@ -80,7 +87,7 @@
     },
     "feedRanking": {
       ".read": true,
-      ".write": true
+      ".write": false
     },
     "banned_devices": {
       ".read": true,
@@ -245,7 +252,7 @@
     },
     "leader_board": {
       ".read": true,
-      ".write": true
+      ".write": false
     },
     "previous_enrole": {
       ".read": true,
@@ -277,7 +284,7 @@
     },
     "calcData": {
       ".read": true,
-      ".write": true
+      ".write": false
     },
     "chat_new": {
       ".read": false,
@@ -428,7 +435,7 @@
     },
     "previousStock": {
       ".read": true,
-      ".write": true
+      ".write": false
     },
     "onlineUsersCount": {
       ".read": true,
@@ -476,7 +483,14 @@
     },
     "private_messages": {
       ".read": true,
-      ".write": true
+      ".write": true,
+      "$chatKey": {
+        "messages": {
+          "$msgId": {
+            ".validate": "!newData.hasChild('senderId') || (newData.child('origin').val() === 'trade' ? root.child('users').child($chatKey.replace(newData.child('senderId').val(), '').replace('_', '')).child('chatOffTrade').val() !== true : root.child('users').child($chatKey.replace(newData.child('senderId').val(), '').replace('_', '')).child('chatOffGeneral').val() !== true)"
+          }
+        }
+      }
     },
     "chat_new_upgrade": {
       ".read": "auth != null",

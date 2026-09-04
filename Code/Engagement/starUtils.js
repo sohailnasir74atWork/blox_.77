@@ -46,7 +46,9 @@ export const getStarStatus = async (db, uid) => {
     // Single server-clock probe per status check — today AND yesterday are
     // derived from this one probe. Previously getToday()+getYesterday() each
     // forced their own set()+get() probe, and claimDailyStar forced a 3rd.
-    const serverNow = await getServerTime(db, uid, true);
+    // Not forced (2026-09): shares the 30 s probe cache with checkDailyStreak,
+    // which runs in the same launch tick — one probe per launch instead of two.
+    const serverNow = await getServerTime(db, uid, false);
     const today = formatServerDate(serverNow);
     const yDate = new Date(serverNow);
     yDate.setUTCDate(yDate.getUTCDate() - 1);

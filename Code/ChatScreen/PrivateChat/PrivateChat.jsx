@@ -24,21 +24,8 @@ import { useLocalState } from '../../LocalGlobelStats';
 import { get, set, ref, update } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
-import BannerAdComponent from '../../Ads/bannerAds';
 import { seedCurrentUser } from '../../Helper/profileCache';
-import InterstitialAdManager from '../../Ads/IntAd';
 import config from '../../Helper/Environment';
-
-// Dedicated MMKV instance for ad-frequency caps. Falls back to a no-op
-// store if MMKV fails to init so the cap never blocks normal rendering.
-let adFreqStorage;
-try {
-  const { createMMKV } = require('react-native-mmkv');
-  adFreqStorage = createMMKV({ id: 'ad-frequency' });
-} catch (_) {
-  adFreqStorage = { getString: () => undefined, set: () => {} };
-}
-const PVT_CHAT_BACK_AD_KEY = 'pvt_chat_back_ad_date';
 import PetModal from './PetsModel';
 import {
   doc,
@@ -99,7 +86,6 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
   const [reviewText, setReviewText] = useState('');
   const [startRating, setStartRating] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
-  const hasSentMessageRef = useRef(0); // ✅ Track count of messages user sent (for exit ad)
   const chatEnterTimeRef = useRef(null); // ✅ Track when user entered chat
   // ✅ Cost opt: write receiverName/receiverAvatar into chat_meta_data only once per session
   const metaIdentityWrittenRef = useRef(new Set());
@@ -395,10 +381,9 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       }
       setStartRating(false);
 
-      // ✅ Show interstitial ad after review submit/edit (non-Pro only)
-      if (!localState?.isPro) {
-        InterstitialAdManager.showAd(() => { });
-      }
+      // No post-review interstitial: the review modal lives on the private
+      // chat screen, so an ad here still serves on a private-communications
+      // surface.
 
     } catch (error) {
       console.error("Rating error:", error);
@@ -710,7 +695,6 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       if (writeSenderIdentity) metaIdentityWrittenRef.current.add(receiverKey);
 
       setReplyTo(null);
-      hasSentMessageRef.current += 1; // ✅ Increment message count
     } catch (error) {
       console.error("Error sending message:", error);
       Alert.alert("Error", "Could not send your message. Please try again.");
@@ -733,18 +717,14 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
         updateLastRead(chatKey, user.id);
       }
 
-      // ✅ Reset refs when entering chat (used by exit-ad logic)
-      hasSentMessageRef.current = 0;
       chatEnterTimeRef.current = Date.now();
 
-      // Back-ad: fire on blur (back press / nav away). Gated on the user
-      // having sent at least 3 messages in this session (no ad for
-      // drive-by opens) and capped to one show per local calendar day
-      // across all private chats. Pro users skip. Date string is local-
-      // time YYYY-MM-DD so the cap follows the user's perceived day.
+      // The exit interstitial that used to fire here on blur is gone. It was
+      // triggered by private-message activity and painted over the chat as it
+      // unmounted (or over the inbox), both private-communications surfaces
+      // under AdMob policy. Do not reintroduce it.
       return () => {
-        // Land any coalesced read receipt immediately on blur — must run
-        // before the back-ad early returns below, which don't apply to it.
+        // Land any coalesced read receipt immediately on blur.
         flushLastRead(chatKey, user.id);
 
         // Partner messages that arrived while we sat in the chat bumped our
@@ -754,19 +734,8 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
           unreadWhileFocusedRef.current = false;
           sbResetUnreadCount(user.id, selectedUserId);
         }
-
-        if (localState?.isPro) return;
-        if (hasSentMessageRef.current < 3) return;
-        try {
-          const today = new Date().toLocaleDateString('en-CA');
-          if (adFreqStorage.getString(PVT_CHAT_BACK_AD_KEY) === today) return;
-          adFreqStorage.set(PVT_CHAT_BACK_AD_KEY, today);
-          setTimeout(() => {
-            try { InterstitialAdManager.showAd(() => {}); } catch (_) {}
-          }, 400);
-        } catch (_) {}
       };
-    }, [user?.id, selectedUserId, chatKey, localState?.isPro, localState?.showReadReceipts])
+    }, [user?.id, selectedUserId, chatKey, localState?.showReadReceipts])
   );
 
   const handleRefresh = useCallback(async () => {
@@ -979,7 +948,10 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
               />
             )}
 
-            {!localState.isPro && <BannerAdComponent />}
+            {/* No ad slot here. AdMob's "Ads in private communications"
+                policy prohibits ads on screens whose primary focus is a
+                direct message; a banner in this thread is what put the app
+                under restricted ad serving. Do not reintroduce it. */}
 
             {isChatUnavailable && (
               <View style={styles.chatUnavailableBanner}>

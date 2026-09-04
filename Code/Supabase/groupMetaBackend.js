@@ -83,7 +83,8 @@ export async function resetGroupUnreadCount(userId, groupId) {
     .from('group_meta_data')
     .update({ unread_count: 0, updated_at: new Date().toISOString() })
     .eq('user_id', userId)
-    .eq('group_id', groupId);
+    .eq('group_id', groupId)
+    .gt('unread_count', 0); // 2026-09: skip no-op updates (see chatMetaBackend)
 }
 
 // =====================================================================
@@ -241,38 +242,27 @@ export function subscribeToGroupMeta(userId, { onUpsert, onRemove, onReady, onSt
   const topic = `group-meta:${userId}:${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const channel = supabase
     .channel(topic)
+    // ONE binding for all events (2026-09) — see chatMetaBackend for why.
     .on(
       'postgres_changes',
       {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'group_meta_data',
-        filter: `user_id=eq.${userId}`,
-      },
-      (payload) => { if (!cancelled) onUpsert?.(fromGroupMetaRow(payload.new)); },
-    )
-    .on(
-      'postgres_changes',
-      {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'group_meta_data',
-        filter: `user_id=eq.${userId}`,
-      },
-      (payload) => { if (!cancelled) onUpsert?.(fromGroupMetaRow(payload.new)); },
-    )
-    .on(
-      'postgres_changes',
-      {
-        event: 'DELETE',
+        event: '*',
         schema: 'public',
         table: 'group_meta_data',
         filter: `user_id=eq.${userId}`,
       },
       (payload) => {
         if (cancelled) return;
-        const groupId = payload.old?.group_id;
-        if (groupId) onRemove?.(groupId);
+        try {
+          if (payload?.eventType === 'DELETE') {
+            const groupId = payload.old?.group_id;
+            if (groupId) onRemove?.(groupId);
+          } else if (payload?.new) {
+            onUpsert?.(fromGroupMetaRow(payload.new));
+          }
+        } catch (e) {
+          console.warn('[groupMetaBackend] realtime handler failed:', e?.message);
+        }
       },
     )
     .subscribe((status, err) => {

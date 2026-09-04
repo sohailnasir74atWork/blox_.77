@@ -44,6 +44,7 @@ import { useLocalState } from '../LocalGlobelStats';
 import { useGlobalState } from '../GlobelStats';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
 import { checkBanStatus } from '../ChatScreen/utils';
+import { clearFollowingCache } from '../Helper/followingCache';
 
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -884,6 +885,8 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
           checkInfluencerBadge(appdatabase, firestoreDB, targetUserId);
         } catch (_) {}
       }
+      // Shared per-uid following cache (Trades / Posts filters) must not serve a stale list.
+      clearFollowingCache(user.id);
     } catch (err) {
       console.warn('[StatusFeed] follow toggle error:', err?.message);
     }

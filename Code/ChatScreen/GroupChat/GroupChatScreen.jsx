@@ -38,8 +38,6 @@ import {
 } from '../../Supabase/groupMessagesBackend';
 import PetModal from '../PrivateChat/PetsModel';
 import config from '../../Helper/Environment';
-import BannerAdComponent from '../../Ads/bannerAds';
-import InterstitialAdManager from '../../Ads/IntAd';
 import { seedCurrentUser } from '../../Helper/profileCache';
 
 const INITIAL_PAGE_SIZE = 10; // ✅ Initial load: 10 messages
@@ -1341,7 +1339,9 @@ const GroupChatScreen = () => {
           setSelectedFruits={setSelectedFruits}
         />
       </GestureHandlerRootView>
-      {!localState.isPro && <BannerAdComponent />}
+      {/* No ad slot here. User-created groups are private chatrooms, which
+          AdMob's "Ads in private communications" policy prohibits serving on.
+          Only the public community chat (Trader.jsx) stays monetized. */}
     </>
   );
 };

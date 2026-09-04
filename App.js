@@ -5,7 +5,6 @@ import {
   Animated,
   ActivityIndicator,
   TouchableOpacity,
-  Appearance,
   Platform,
 
 } from 'react-native';
@@ -33,7 +32,6 @@ import InterstitialAdManager from './Code/Ads/IntAd';
 // AppOpenAdManager is lazy-required inside requestIdleCallback (below) so the
 // ad manager stays off the critical startup path — matches adoptme-jan7.
 import RNBootSplash from "react-native-bootsplash";
-import SystemNavigationBar from 'react-native-system-navigation-bar';
 import AdminUnbanScreen from './Code/AppHelper/AdminDashboard';
 import SocialDashboard from './Code/AppHelper/SocialDashboard';
 import CustomTopTabs from './Code/ValuesScreen/TopTabs';
@@ -87,13 +85,6 @@ const PrivateChatRootWrapper = (props) => {
 
 
 const Stack = createNativeStackNavigator();
-const setNavigationBarAppearance = (theme) => {
-  if (theme === 'dark') {
-    SystemNavigationBar.setNavigationColor('#000000', 'light', 'navigation');
-  } else {
-    SystemNavigationBar.setNavigationColor('#FFFFFF', 'dark', 'navigation');
-  }
-};
 
 // const adUnitId = getAdUnitId('openapp');
 
@@ -159,24 +150,6 @@ function App() {
   }, []);
 
 
-
-  useEffect(() => {
-    if (theme === 'dark') {
-      setNavigationBarAppearance('dark');
-    } else if (theme === 'light') {
-      setNavigationBarAppearance('light');
-    } else if (theme === 'system') {
-      setNavigationBarAppearance(Appearance.getColorScheme());
-    }
-
-    const listener = Appearance.addChangeListener(({ colorScheme }) => {
-      if (theme === 'system') {
-        setNavigationBarAppearance(colorScheme);
-      }
-    });
-
-    return () => listener.remove();
-  }, [theme]);
 
 
   if (loading) {

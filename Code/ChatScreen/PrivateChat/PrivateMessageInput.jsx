@@ -13,8 +13,6 @@ import { getStyles } from '../Style';
 import config from '../../Helper/Environment';
 import { useGlobalState } from '../../GlobelStats';
 import { useTranslation } from 'react-i18next';
-import InterstitialAdManager from '../../Ads/IntAd';
-import { useLocalState } from '../../LocalGlobelStats';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { safeCompressImage } from '../../Helper/safeCompressImage';
@@ -88,8 +86,6 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
   const [imageUri, setImageUri] = useState(null); // single image only
   const [showTemplates, setShowTemplates] = useState(false);
 
-  const [messageCount, setMessageCount] = useState(0);
-  const { localState } = useLocalState()
 
 
   const { theme, user, isAdmin } = useGlobalState();
@@ -220,21 +216,11 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
     setImageUri(null);
     setSelectedFruits([]);
 
-
-    setMessageCount(prevCount => {
-      const newCount = prevCount + 1;
-      if (!localState?.isPro && newCount % 7 === 0) {
-        // Show ad only if user is NOT pro
-        InterstitialAdManager.showAd(() => { });
-      } else {
-        // One message before the ad message: warm the interstitial so the
-        // trigger actually has something to show (lazy-load pipeline).
-        if (!localState?.isPro && newCount % 7 === 6) InterstitialAdManager.prepare();
-        setIsSending(false);
-      }
-      return newCount;
-    });
-
+    // No ads on this screen. AdMob's "Ads in private communications" policy
+    // prohibits ad serving on screens whose primary focus is a direct
+    // message, so the per-message interstitial that used to fire here is
+    // gone. Do not reintroduce it — it put the app under restricted ad
+    // serving. setIsSending is reset in the finally block below.
 
     try {
 

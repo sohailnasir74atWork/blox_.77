@@ -140,7 +140,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   // down and show a resume bar; any touch (scroll/tap/send) flips
   // realtimePaused back to false, the subscription effect re-subscribes,
   // and the existing onStatus → gap-fill backfills whatever was missed.
-  const IDLE_PAUSE_MS = 180000; // 3 min — tune for cost vs. interruption
+  const IDLE_PAUSE_MS = 90000; // 90 s (was 3 min) — this room is ~90% of all realtime deliveries
   const [realtimePaused, setRealtimePaused] = useState(false);
   const idleTimerRef = useRef(null);
 

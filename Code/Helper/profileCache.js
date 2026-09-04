@@ -34,7 +34,7 @@ try {
     delete: () => {},
   };
 }
-const TTL = 30 * 60 * 1000; // 30 minutes
+const TTL = 60 * 60 * 1000; // 60 minutes (was 30; profile data is now Supabase-only, no RTDB ops)
 
 // ────────────────────────────────────────────────────────
 //  READ from cache (synchronous — safe in render)
@@ -115,29 +115,32 @@ export const getOrFetchProfile = async (db, uid) => {
   const cached = getCachedProfile(uid);
   if (cached) return cached;
 
-  // 2. Try Supabase first (parallel) + RTDB shop/activeItems (deferred to a later phase).
+  // 2. Try Supabase first (parallel). Since 2026-09 the mirror carries
+  // shop/activeItems (user_cosmetics.*) and lastGameWinAt (user_identity),
+  // so this path issues ZERO RTDB reads — those three tiny gets were 64% of
+  // all RTDB operations project-wide.
   if (SUPABASE_USERS_ENABLED) {
     try {
-      const [identity, roles, roblox, cosBadge, shopSnap] = await Promise.all([
+      const [identity, roles, roblox, cosBadge] = await Promise.all([
         getIdentity(uid),
         getRoles(uid),
         getRoblox(uid),
         getCosmeticsBadge(uid),
-        get(ref(db, `users/${uid}/shop/activeItems`)),
       ]);
 
       // Need at least identity to consider this a hit. Roles/cosmetics
       // can be null (user has no role / no badge) and that's fine —
       // they'll fall through as default false / null in the merged shape.
       if (identity) {
-        const cosmetics = extractCosmetics(shopSnap?.exists() ? shopSnap.val() : null);
+        const cosmetics = extractCosmetics(cosBadge?.activeItems || null);
+        const lastGameWinAt = typeof identity.lastGameWinAt === 'number' ? identity.lastGameWinAt : null;
         const profile = {
           displayName: identity.displayName ?? 'Anonymous',
           avatar: identity.avatar ?? null,
           isPro: !!cosBadge?.isPro,
           robloxUsernameVerified: !!roblox?.robloxUsernameVerified,
-          hasRecentGameWin: false,                 // still on RTDB; not migrated this phase
-          lastGameWinAt: null,                     // ditto
+          hasRecentGameWin: !!(lastGameWinAt && Date.now() - lastGameWinAt <= 24 * 60 * 60 * 1000),
+          lastGameWinAt,
           isAdmin: !!roles?.isAdmin,
           isSeniorMod: !!roles?.isSeniorMod,
           isModerator: !!roles?.isModerator,
@@ -148,21 +151,6 @@ export const getOrFetchProfile = async (db, uid) => {
           topBadge: cosBadge?.topBadge ?? null,
           ...cosmetics,
         };
-
-        // Best-effort: pull recent-game-win flags from RTDB without
-        // blocking the path above (they're tiny). Fire-and-forget;
-        // resolveProfile is tolerant of missing values.
-        Promise.all([
-          get(ref(db, `users/${uid}/hasRecentGameWin`)),
-          get(ref(db, `users/${uid}/lastGameWinAt`)),
-        ]).then(([recentWinSnap, lastWinSnap]) => {
-          const updated = {
-            ...profile,
-            hasRecentGameWin: !!(recentWinSnap?.exists() && recentWinSnap.val()),
-            lastGameWinAt: lastWinSnap?.exists() ? lastWinSnap.val() : null,
-          };
-          setCachedProfile(uid, updated);
-        }).catch(() => { /* keep base profile cached */ });
 
         setCachedProfile(uid, profile);
         return profile;
@@ -240,19 +228,13 @@ export const warmProfileCache = async (db, uids) => {
 
   if (SUPABASE_USERS_ENABLED) {
     try {
-      const [identities, roles, robloxes, cosmeticsBadges, rtdbExtras] = await Promise.all([
+      // 4 batched Supabase queries for up to 20 uids and NO per-uid RTDB
+      // reads (cosmetics + game-win now ride the mirror, see 027 migration).
+      const [identities, roles, robloxes, cosmeticsBadges] = await Promise.all([
         getIdentityBatch(batch),
         getRolesBatch(batch),
         getRobloxBatch(batch),
         getCosmeticsBatch(batch),
-        Promise.allSettled(batch.map(async (uid) => {
-          const [shopSnap, recentWinSnap, lastWinSnap] = await Promise.all([
-            get(ref(db, `users/${uid}/shop/activeItems`)),
-            get(ref(db, `users/${uid}/hasRecentGameWin`)),
-            get(ref(db, `users/${uid}/lastGameWinAt`)),
-          ]);
-          return { shopSnap, recentWinSnap, lastWinSnap };
-        })),
       ]);
 
       const missing = [];
@@ -263,16 +245,16 @@ export const warmProfileCache = async (db, uids) => {
         const role = roles?.get?.(uid);
         const roblox = robloxes?.get?.(uid);
         const cosBadge = cosmeticsBadges?.get?.(uid);
-        const extras = rtdbExtras?.[i]?.status === 'fulfilled' ? rtdbExtras[i].value : null;
-        const cosmetics = extractCosmetics(extras?.shopSnap?.exists() ? extras.shopSnap.val() : null);
+        const cosmetics = extractCosmetics(cosBadge?.activeItems || null);
+        const lastGameWinAt = typeof identity.lastGameWinAt === 'number' ? identity.lastGameWinAt : null;
 
         setCachedProfile(uid, {
           displayName: identity.displayName ?? 'Anonymous',
           avatar: identity.avatar ?? null,
           isPro: !!cosBadge?.isPro,
           robloxUsernameVerified: !!roblox?.robloxUsernameVerified,
-          hasRecentGameWin: !!(extras?.recentWinSnap?.exists() && extras.recentWinSnap.val()),
-          lastGameWinAt: extras?.lastWinSnap?.exists() ? extras.lastWinSnap.val() : null,
+          hasRecentGameWin: !!(lastGameWinAt && Date.now() - lastGameWinAt <= 24 * 60 * 60 * 1000),
+          lastGameWinAt,
           isAdmin: !!role?.isAdmin,
           isSeniorMod: !!role?.isSeniorMod,
           isModerator: !!role?.isModerator,

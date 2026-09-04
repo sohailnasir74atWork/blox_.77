@@ -20,6 +20,7 @@ import config from '../../Helper/Environment';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { getStyles } from '../../SettingScreen/settingstyle';
 import { useLocalState } from '../../LocalGlobelStats';
+import InterstitialAdManager from '../../Ads/IntAd';
 import { useTranslation } from 'react-i18next';
 import { showSuccessMessage } from '../../Helper/MessageHelper';
 import { mixpanel } from '../../AppHelper/MixPenel';
@@ -32,6 +33,7 @@ import CompactPortfolio from './CompactPortfolio';
 import ProfilePostsSection from './ProfilePostsSection';
 import RoleBadges from '../../Design/componenets/RoleBadges';
 import { getCachedProfile } from '../../Helper/profileCache';
+import { clearFollowingCache } from '../../Helper/followingCache';
 import { computeBadges } from './badgeUtils';
 import XPBar from '../../Engagement/XPBar';
 import { getUserXP } from '../../Engagement/xpUtils';
@@ -138,6 +140,20 @@ const getTradeDeal = (hasTotal, wantsTotal) => {
   return { deal, tradeRatio };
 };
 
+// One DM-entry interstitial per app session, and NOT on the first person the
+// user talks to — the ad fires when they open a DM with the *second distinct*
+// person, then never again that session. Tracking distinct partner ids (rather
+// than a plain open-count) means re-opening the same person's DM doesn't burn
+// the ad; "2nd person" means a genuinely different person.
+//
+// Module scope, not component state: the drawer unmounts between opens, so
+// state would reset every time, and this needs to be shared across all the
+// screens that render the drawer. Resets on app restart / JS reload, which is
+// what "per session" means here. dmEntryAdShown only flips once an ad actually
+// rendered — a show AdMob skipped (cooldown, no fill) leaves the chance intact.
+const dmPartnersThisSession = new Set();
+let dmEntryAdShownThisSession = false;
+
 const ProfileBottomDrawer = ({
   isVisible,
   toggleModal,
@@ -149,7 +165,7 @@ const ProfileBottomDrawer = ({
   onFollowChange,
 }) => {
   const { theme, firestoreDB, appdatabase, isAdmin, user, isSeniorMod: isGlobalSenior, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod } = useGlobalState(); // ✅ Get isAdmin, user, and role flags
-  const { updateLocalState } = useLocalState();
+  const { localState, updateLocalState } = useLocalState();
   const { t } = useTranslation();
   const { triggerHapticFeedback } = useHaptic();
   const insets = useSafeAreaInsets();
@@ -1126,7 +1142,8 @@ const ProfileBottomDrawer = ({
           query(
             collection(firestoreDB, 'following'),
             where('followerId', '==', user.id),
-            where('followingId', '==', selectedUserId)
+            where('followingId', '==', selectedUserId),
+            limit(1)
           )
         );
         setIsFollowing(!followSnapshot.empty);
@@ -1167,6 +1184,7 @@ const ProfileBottomDrawer = ({
         }
         setIsFollowing(false);
         setFollowersCount(prev => Math.max(0, prev - 1));
+        clearFollowingCache(user.id); // Trades / Posts "Following" filter must refetch
         triggerHapticFeedback('impactLight');
         onFollowChange?.(selectedUserId, false);
       } else {
@@ -1177,6 +1195,7 @@ const ProfileBottomDrawer = ({
         });
         setIsFollowing(true);
         setFollowersCount(prev => prev + 1);
+        clearFollowingCache(user.id); // Trades / Posts "Following" filter must refetch
         triggerHapticFeedback('notificationSuccess');
         onFollowChange?.(selectedUserId, true);
         // Influencer badge: award the followed user once they reach 200+ followers.
@@ -1243,9 +1262,57 @@ const ProfileBottomDrawer = ({
   // console.log(selectedUser)
   // ─────────────────────────────────────────────
   // Start chat
+  //
+  // Shows one interstitial per session before entering a DM — skipped for the
+  // first person the user talks to, fired on the second distinct person, then
+  // never again that session. The ad MUST be
+  // dismissed before startChat() navigates: AdMob's "Ads in private
+  // communications" policy prohibits serving on the DM screen itself, so the
+  // ad has to render here (still on the profile drawer) and be gone by the
+  // time PrivateChat mounts. Never move startChat() ahead of the callback.
+  //
+  // Pro is checked here, not inside the manager — showAd() itself isn't
+  // Pro-gated, and for a Pro user the ad never loads, so an unguarded call
+  // would stall navigation for the full 3s WAIT_TIMEOUT_MS.
   const handleStartChat = () => {
-    if (startChat) startChat();
+    if (!startChat) return;
+
+    // Record who we're opening before deciding: the first distinct person
+    // brings the set to 1 (no ad), the second brings it to 2 (ad fires).
+    if (selectedUserId) dmPartnersThisSession.add(selectedUserId);
+
+    const skipAd =
+      dmEntryAdShownThisSession ||
+      dmPartnersThisSession.size < 2 || // never on the first person of the session
+      localState?.isPro ||
+      fromPvtChat; // defence in depth: the Chat button is already !fromPvtChat-gated
+
+    if (skipAd) {
+      startChat();
+      return;
+    }
+
+    // lastShownAt only moves when an ad actually rendered, so a cooldown or
+    // no-fill skip doesn't burn this session's single chance.
+    const lastShownBefore = InterstitialAdManager.lastShownAt;
+    InterstitialAdManager.showAd(() => {
+      if (InterstitialAdManager.lastShownAt !== lastShownBefore) {
+        dmEntryAdShownThisSession = true;
+      }
+      startChat();
+    });
   };
+
+  // Warm the interstitial while the user is reading the profile, so tapping
+  // Chat shows it immediately instead of waiting out WAIT_TIMEOUT_MS. Only
+  // worth doing once they've already talked to someone — before that the next
+  // tap is the first person and won't show an ad anyway.
+  useEffect(() => {
+    if (!isVisible || fromPvtChat) return;
+    if (dmEntryAdShownThisSession || localState?.isPro) return;
+    if (dmPartnersThisSession.size < 1) return;
+    try { InterstitialAdManager.prepare(); } catch (_) {}
+  }, [isVisible, fromPvtChat, localState?.isPro]);
 
   // Reset when drawer closes
   useEffect(() => {

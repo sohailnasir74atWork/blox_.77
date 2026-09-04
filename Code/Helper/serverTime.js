@@ -20,7 +20,7 @@ let _lastProbeAt = 0;
  * Always returns real server time regardless of device clock.
  *
  * @param {object} db  - Firebase RTDB instance
- * @param {string} uid - User ID (writes to users/{uid}/_st)
+ * @param {string} uid - User ID (writes to _serverTime/{uid}; legacy fallback users/{uid}/_st)
  * @param {boolean} [forceProbe=false] - Skip the 30-second cache
  * @returns {Promise<Date>}
  */
@@ -33,10 +33,17 @@ export const getServerTime = async (db, uid, forceProbe = false) => {
     return new Date(now + _probeOffset);
   }
 
-  // Probe: write serverTimestamp(), read back the server-generated value
+  // Probe: write serverTimestamp(), read back the server-generated value.
+  //
+  // 2026-09: the probe lives at `_serverTime/{uid}` instead of
+  // `users/{uid}/_st`. Every write under /users/{uid} fires the
+  // mirrorUsersToSupabase Cloud Function (512 MB) for nothing — this probe
+  // alone was ~80% of all its invocations. If the new path is rejected
+  // (rules not deployed yet on some environment) we fall back to the legacy
+  // path so behaviour is identical to older builds.
   if (uid) {
-    try {
-      const probeRef = ref(db, `users/${uid}/_st`);
+    const probeOnce = async (path) => {
+      const probeRef = ref(db, path);
       await set(probeRef, serverTimestamp());
       const snap = await get(probeRef);
       const ts = snap.val();
@@ -45,8 +52,18 @@ export const getServerTime = async (db, uid, forceProbe = false) => {
         _lastProbeAt = Date.now();
         return new Date(ts);
       }
+      return null;
+    };
+    try {
+      const d = await probeOnce(`_serverTime/${uid}`);
+      if (d) return d;
     } catch (e) {
-      console.warn('[serverTime] probe failed:', e?.message);
+      try {
+        const d = await probeOnce(`users/${uid}/_st`);
+        if (d) return d;
+      } catch (e2) {
+        console.warn('[serverTime] probe failed:', e2?.message || e?.message);
+      }
     }
   }
 

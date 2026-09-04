@@ -1,0 +1,233 @@
+## one-shot/listen reads by path (listener-listen)
+  listener-listen        /users/$id/shop                                         n= 10,217 (23.2%)  bytes=      441KB
+  listener-listen        /users/$id/lastGameWinAt                                n=  9,201 (20.9%)  bytes=        3KB
+  listener-listen        /users/$id/hasRecentGameWin                             n=  8,577 (19.5%)  bytes=        0KB
+  listener-listen        /users/$id/xp                                           n=    801 ( 1.8%)  bytes=       12KB
+  listener-listen        /users/$id/$id                                          n=    756 ( 1.7%)  bytes=        1KB
+  listener-listen        /users/$id/isPro                                        n=    713 ( 1.6%)  bytes=        3KB
+  listener-listen        /users/$id/isModerator                                  n=    712 ( 1.6%)  bytes=        0KB
+  listener-listen        /users/$id/isTrusted                                    n=    712 ( 1.6%)  bytes=        0KB
+  listener-listen        /users/$id/isGrinder                                    n=    712 ( 1.6%)  bytes=        0KB
+  listener-listen        /users/$id/isRaider                                     n=    712 ( 1.6%)  bytes=        0KB
+  listener-listen        /users/$id/isSeniorMod                                  n=    707 ( 1.6%)  bytes=        0KB
+  listener-listen        /users/$id/admin                                        n=    696 ( 1.6%)  bytes=        0KB
+  listener-listen        /users/$id/isBabyMod                                    n=    696 ( 1.6%)  bytes=        0KB
+  listener-listen        /users/$id/fcmToken                                     n=    654 ( 1.5%)  bytes=       91KB
+  listener-listen        /users/$id/displayName                                  n=    628 ( 1.4%)  bytes=        8KB
+  listener-listen        /users/$id/avatar                                       n=    622 ( 1.4%)  bytes=       52KB
+  listener-listen        /users/$id/flage                                        n=    600 ( 1.4%)  bytes=        1KB
+  listener-listen        /users/$id/topBadge                                     n=    592 ( 1.3%)  bytes=        0KB
+  listener-listen        /users/$id/createdAt                                    n=    557 ( 1.3%)  bytes=        7KB
+  listener-listen        /users/$id/badges                                       n=    547 ( 1.2%)  bytes=       14KB
+  listener-listen        /users/$id                                              n=    456 ( 1.0%)  bytes=      987KB
+  listener-listen        /presence/$id                                           n=    442 ( 1.0%)  bytes=        1KB
+  listener-listen        /activeChats/$id                                        n=    384 ( 0.9%)  bytes=        8KB
+  listener-listen        /private_messages/$id/lastRead                          n=    369 ( 0.8%)  bytes=        3KB
+  listener-listen        /private_messages/$id/trade                             n=    289 ( 0.7%)  bytes=       91KB
+  listener-listen        /banned_users_by_email/$id                              n=    269 ( 0.6%)  bytes=        2KB
+  listener-listen        /calcData                                               n=    196 ( 0.4%)  bytes=      384KB
+  listener-listen        /users/$id/isBlock                                      n=    172 ( 0.4%)  bytes=        0KB
+  listener-listen        /users/$id/_st                                          n=    171 ( 0.4%)  bytes=        2KB
+  listener-listen        /previousStock                                          n=    152 ( 0.3%)  bytes=      146KB
+
+## bytes by path (all ops, top)
+  rest-read              /users                                                  n=      2 ( 0.0%)  bytes=  134,007KB
+  listener-listen        /users/$id                                              n=    456 ( 0.0%)  bytes=      987KB
+  listener-listen        /users/$id/shop                                         n= 10,217 ( 0.0%)  bytes=      441KB
+  listener-listen        /calcData                                               n=    196 ( 0.0%)  bytes=      384KB
+  listener-listen        /previousStock                                          n=    152 ( 0.0%)  bytes=      146KB
+  listener-listen        /users/$id/fcmToken                                     n=    654 ( 0.0%)  bytes=       91KB
+  listener-listen        /private_messages/$id/trade                             n=    289 ( 0.0%)  bytes=       91KB
+  rest-read              /analytics                                              n=      3 ( 0.0%)  bytes=       85KB
+  realtime-read          /calcData                                               n=     32 ( 0.0%)  bytes=       63KB
+  listener-listen        /users/$id/avatar                                       n=    622 ( 0.0%)  bytes=       52KB
+  rest-read              /calcData                                               n=     17 ( 0.0%)  bytes=       33KB
+  listener-listen        /server                                                 n=    136 ( 0.0%)  bytes=       30KB
+  realtime-write         /private_messages/$id/trade                             n=     30 ( 0.0%)  bytes=       25KB
+  realtime-write         /activeChats/$id                                        n=    812 ( 0.0%)  bytes=       24KB
+  listener-broadcast     /private_messages/$id/lastRead                          n=    429 ( 0.0%)  bytes=       23KB
+  listener-listen        /users/$id/badges                                       n=    547 ( 0.0%)  bytes=       14KB
+  listener-listen        /users/$id/xp                                           n=    801 ( 0.0%)  bytes=       12KB
+  listener-listen        /activeChats/$id                                        n=    384 ( 0.0%)  bytes=        8KB
+  listener-listen        /users/$id/displayName                                  n=    628 ( 0.0%)  bytes=        8KB
+  listener-listen        /users/$id/dailyStars                                   n=    123 ( 0.0%)  bytes=        7KB
+  listener-listen        /users/$id/createdAt                                    n=    557 ( 0.0%)  bytes=        7KB
+  listener-listen        /savedTrades/$id                                        n=     89 ( 0.0%)  bytes=        6KB
+  listener-listen        /fruitCrash/leaderboard                                 n=      1 ( 0.0%)  bytes=        6KB
+  realtime-write         /private_messages/$id/lastRead                          n=    429 ( 0.0%)  bytes=        5KB
+  listener-listen        /api                                                    n=    136 ( 0.0%)  bytes=        5KB
+  listener-listen        /users/$id/streak                                       n=    117 ( 0.0%)  bytes=        4KB
+  listener-listen        /users/$id/isPro                                        n=    713 ( 0.0%)  bytes=        3KB
+  realtime-write         /users/$id/_st                                          n=    261 ( 0.0%)  bytes=        3KB
+  listener-listen        /private_messages/$id/lastRead                          n=    369 ( 0.0%)  bytes=        3KB
+  listener-listen        /users/$id/lastGameWinAt                                n=  9,201 ( 0.0%)  bytes=        3KB
+
+## writes by path (realtime-write)
+  realtime-write         /activeChats/$id                                        n=    812 (31.3%)  bytes=       24KB
+  realtime-write         /presence/$id                                           n=    449 (17.3%)  bytes=        2KB
+  realtime-write         /private_messages/$id/lastRead                          n=    429 (16.5%)  bytes=        5KB
+  realtime-write         /private_messages/$id/unread                            n=    413 (15.9%)  bytes=        0KB
+  realtime-write         /users/$id/_st                                          n=    261 (10.1%)  bytes=        3KB
+  realtime-write         /users/$id/isPro                                        n=    116 ( 4.5%)  bytes=        1KB
+  realtime-write         /private_messages/$id/trade                             n=     30 ( 1.2%)  bytes=       25KB
+  realtime-write         /users/$id/streak                                       n=     27 ( 1.0%)  bytes=        1KB
+  realtime-write         /users/$id/fcmToken                                     n=     15 ( 0.6%)  bytes=        2KB
+  realtime-write         /users/$id/isTokenInvalid                               n=     15 ( 0.6%)  bytes=        0KB
+  realtime-write         /mods/$id                                               n=     12 ( 0.5%)  bytes=        0KB
+  realtime-write         /users/$id                                              n=      5 ( 0.2%)  bytes=        1KB
+  realtime-write         /users/$id/blocked_users                                n=      2 ( 0.1%)  bytes=        0KB
+  realtime-write         /tradeJournal/$id/$id                                   n=      2 ( 0.1%)  bytes=        1KB
+  realtime-write         /tradeStats/$id                                         n=      2 ( 0.1%)  bytes=        0KB
+  realtime-write         /users/$id/shop                                         n=      1 ( 0.0%)  bytes=        0KB
+  realtime-write         /users/$id/counters                                     n=      1 ( 0.0%)  bytes=        0KB
+  realtime-write         /users/$id/badges                                       n=      1 ( 0.0%)  bytes=        0KB
+
+## updates by path (realtime-update)
+  realtime-update        /users/$id                                              n=    131 (93.6%)  bytes=        3KB
+  realtime-update        /users/$id/xp                                           n=      8 ( 5.7%)  bytes=        0KB
+  realtime-update        /users/$id/dailyStars                                   n=      1 ( 0.7%)  bytes=        0KB
+
+## on-disconnect by path
+  on-disconnect-put      /activeChats/$id                                        n=    412 (94.1%)  bytes=        0KB
+  on-disconnect-put      /presence/$id                                           n=     23 ( 5.3%)  bytes=        0KB
+  on-disconnect-cancel   /presence/$id                                           n=      3 ( 0.7%)  bytes=        0KB
+
+## other ops (transactions, rest, etc)
+  listener-broadcast     /activeChats/$id                                        n=    798 (30.1%)  bytes=        0KB
+  listener-broadcast     /private_messages/$id/lastRead                          n=    429 (16.2%)  bytes=       23KB
+  concurrent-connect     /                                                       n=    308 (11.6%)  bytes=        0KB
+  concurrent-disconnect  /                                                       n=    302 (11.4%)  bytes=        0KB
+  listener-broadcast     /users/$id/_st                                          n=    261 ( 9.8%)  bytes=        1KB
+  listener-broadcast     /presence/$id                                           n=    226 ( 8.5%)  bytes=        1KB
+  listener-broadcast     /private_messages/$id/unread                            n=     87 ( 3.3%)  bytes=        0KB
+  run-on-disconnect      /                                                       n=     78 ( 2.9%)  bytes=        0KB
+  realtime-read          /calcData                                               n=     32 ( 1.2%)  bytes=       63KB
+  listener-broadcast     /private_messages/$id/trade                             n=     29 ( 1.1%)  bytes=        0KB
+  listener-broadcast     /users/$id/streak                                       n=     27 ( 1.0%)  bytes=        0KB
+  listener-broadcast     /users/$id                                              n=     22 ( 0.8%)  bytes=        2KB
+  rest-read              /calcData                                               n=     17 ( 0.6%)  bytes=       33KB
+  listener-broadcast     /users/$id/fcmToken                                     n=      9 ( 0.3%)  bytes=        1KB
+  listener-broadcast     /users/$id/isTokenInvalid                               n=      6 ( 0.2%)  bytes=        0KB
+  listener-broadcast     /users/$id/xp                                           n=      4 ( 0.2%)  bytes=        0KB
+  rest-read              /analytics                                              n=      3 ( 0.1%)  bytes=       85KB
+  listener-broadcast     /tradeJournal/$id/$id                                   n=      2 ( 0.1%)  bytes=        0KB
+  listener-broadcast     /tradeStats/$id                                         n=      2 ( 0.1%)  bytes=        0KB
+  realtime-read          /users/$id                                              n=      2 ( 0.1%)  bytes=        1KB
+  rest-read              /users                                                  n=      2 ( 0.1%)  bytes=  134,007KB
+  listener-broadcast     /users/$id/shop                                         n=      1 ( 0.0%)  bytes=        0KB
+  listener-broadcast     /users/$id/counters                                     n=      1 ( 0.0%)  bytes=        0KB
+  rest-read              /calcData/test                                          n=      1 ( 0.0%)  bytes=        0KB
+  rest-read              /fruitCrash/currentRound                                n=      1 ( 0.0%)  bytes=        0KB
+  realtime-read          /api                                                    n=      1 ( 0.0%)  bytes=        0KB
+  realtime-read          /free_translation                                       n=      1 ( 0.0%)  bytes=        0KB
+  realtime-read          /server                                                 n=      1 ( 0.0%)  bytes=        0KB
+  listener-broadcast     /users/$id/dailyStars                                   n=      1 ( 0.0%)  bytes=        0KB
+  listener-broadcast     /users/$id/blocked_users                                n=      1 ( 0.0%)  bytes=        0KB
+
+## unIndexed queries: 4
+   3 /tradeJournal/$id
+   1 /fruitCrash/cashouts
+
+## /users/$id/<child> listens (depth 4)
+   10,212  users/$id/shop/activeItems
+    9,201  users/$id/lastGameWinAt
+    8,577  users/$id/hasRecentGameWin
+      801  users/$id/xp
+      735  users/$id/robloxUsernameVerified
+      713  users/$id/isPro
+      712  users/$id/isModerator
+      712  users/$id/isTrusted
+      712  users/$id/isGrinder
+      712  users/$id/isRaider
+      707  users/$id/isSeniorMod
+      696  users/$id/admin
+      696  users/$id/isBabyMod
+      654  users/$id/fcmToken
+      628  users/$id/displayName
+      622  users/$id/avatar
+      600  users/$id/flage
+      592  users/$id/topBadge
+      557  users/$id/createdAt
+      544  users/$id/badges
+      456  users/$id/
+      172  users/$id/isBlock
+      171  users/$id/_st
+      141  users/$id/robloxUsername
+      123  users/$id/dailyStars
+
+## /users/$id/<child> writes (depth 4)
+      261  users/$id/_st
+      136  users/$id/
+      116  users/$id/isPro
+       27  users/$id/streak
+       15  users/$id/fcmToken
+       15  users/$id/isTokenInvalid
+        8  users/$id/xp
+        1  users/$id/blocked_users/2Uv004qsoyeMtodkAFhAWsB4Z9g2
+        1  users/$id/shop/activeItems
+        1  users/$id/counters/reviewCount
+        1  users/$id/badges/firstPost
+        1  users/$id/dailyStars
+        1  users/$id/blocked_users/LedNugd6j1QsuBaK8pMdZnAMy5l2
+
+## TOP 6 CLIENTS: what are they doing?
+
+  client 196.117.196.152… ops=6,004 over 94s = 64.2 ops/s  ua=Firebase/5/22.0.1/36/Android
+        673  listener-listen      /users/$id/shop/activeItems
+        673  listener-unlisten    /users/$id/shop/activeItems
+        634  listener-listen      /users/$id/lastGameWinAt
+        634  listener-unlisten    /users/$id/lastGameWinAt
+        624  listener-listen      /users/$id/hasRecentGameWin
+        624  listener-unlisten    /users/$id/hasRecentGameWin
+         84  listener-listen      /users/$id/$id
+         84  listener-listen      /users/$id/isPro
+
+  client 181.131.76.136… ops=4,892 over 69s = 70.5 ops/s  ua=Firebase/5/22.0.1/34/Android
+        502  listener-listen      /users/$id/shop/activeItems
+        502  listener-unlisten    /users/$id/shop/activeItems
+        438  listener-listen      /users/$id/hasRecentGameWin
+        438  listener-unlisten    /users/$id/hasRecentGameWin
+        437  listener-listen      /users/$id/lastGameWinAt
+        437  listener-unlisten    /users/$id/lastGameWinAt
+         89  listener-listen      /users/$id/displayName
+         89  listener-listen      /users/$id/avatar
+
+  client 57.129.133.192… ops=4,770 over 190s = 25.1 ops/s  ua=Firebase/5/22.0.1/31/Android
+        523  listener-listen      /users/$id/shop/activeItems
+        523  listener-unlisten    /users/$id/shop/activeItems
+        462  listener-listen      /users/$id/hasRecentGameWin
+        462  listener-listen      /users/$id/lastGameWinAt
+        462  listener-unlisten    /users/$id/hasRecentGameWin
+        462  listener-unlisten    /users/$id/lastGameWinAt
+         78  listener-listen      /users/$id/displayName
+         78  listener-listen      /users/$id/avatar
+
+  client 2409:40e1:11a9:d901:d5… ops=3,886 over 201s = 19.3 ops/s  ua=Firebase/5/22.0.1/34/Android
+        389  listener-listen      /users/$id/shop/activeItems
+        385  listener-unlisten    /users/$id/shop/activeItems
+        333  listener-listen      /users/$id/hasRecentGameWin
+        333  listener-listen      /users/$id/lastGameWinAt
+        329  listener-unlisten    /users/$id/hasRecentGameWin
+        329  listener-unlisten    /users/$id/lastGameWinAt
+         76  listener-listen      /users/$id/displayName
+         76  listener-listen      /users/$id/avatar
+
+  client 187.149.83.66… ops=2,704 over 149s = 18.1 ops/s  ua=Firebase/5/22.0.1/35/Android
+        433  listener-listen      /users/$id/lastGameWinAt
+        433  listener-unlisten    /users/$id/lastGameWinAt
+        428  listener-listen      /users/$id/hasRecentGameWin
+        428  listener-unlisten    /users/$id/hasRecentGameWin
+        414  listener-listen      /users/$id/shop/activeItems
+        414  listener-unlisten    /users/$id/shop/activeItems
+          8  realtime-write       /activeChats/$id
+          8  listener-broadcast   /activeChats/$id
+
+  client 2001:42d8:3913:f400:51… ops=2,210 over 135s = 16.4 ops/s  ua=Firebase/5/22.0.1/35/Android
+        117  listener-listen      /users/$id/lastGameWinAt
+        117  listener-unlisten    /users/$id/lastGameWinAt
+        108  listener-listen      /users/$id/shop/activeItems
+        108  listener-unlisten    /users/$id/shop/activeItems
+         59  listener-listen      /users/$id/$id
+         59  listener-listen      /users/$id/isPro
+         59  listener-listen      /users/$id/isSeniorMod
+         59  listener-listen      /users/$id/isModerator

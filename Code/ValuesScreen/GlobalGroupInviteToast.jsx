@@ -1,13 +1,21 @@
 // GlobalGroupInviteToast.jsx - Global toast notification for group and game invitations
 import React, { useState, useEffect, useRef } from 'react';
 import { useGlobalState } from '../GlobelStats';
-import { collection, query, where, getDocs, doc, deleteDoc } from '@react-native-firebase/firestore';
+import { collection, query, where, getDocs, doc, deleteDoc, onSnapshot } from '@react-native-firebase/firestore';
 import { showInfoMessage } from '../Helper/MessageHelper';
 import GroupInviteToast from './GroupInviteToast';
 import { AppState } from 'react-native';
 
 const INVITE_EXPIRY_MS = 60000; // 1 minute for game invites
-const POLLING_INTERVAL_MS = 45000; // ✅ Poll every 45 seconds instead of real-time (reduces reads by ~95%)
+// Invites arrive over ONE real-time listener per query, attached only while the
+// app is in the foreground (a listener bills reads only when a doc changes; the
+// old 45 s poll re-read every pending invite ~80x/hour). The poll below is a
+// safety net that only runs if that listener errors (e.g. missing index).
+const FALLBACK_POLL_INTERVAL_MS = 5 * 60 * 1000;
+// Anything that isn't an explicit 'background' counts as foreground for the
+// initial attach: on a cold start RN can report 'unknown'/'inactive' before the
+// first 'active' event and we must not miss the first snapshot.
+const isForegroundState = (state) => state !== 'background';
 
 const GlobalGroupInviteToast = () => {
   const { firestoreDB, user, isInActiveGame = false } = useGlobalState();
@@ -130,7 +138,11 @@ const GlobalGroupInviteToast = () => {
     }
   };
 
-  // ✅ OPTIMIZED: Poll group invitations instead of real-time listener (reduces reads by ~95%)
+  // ✅ Group invitations: ONE real-time listener on the same query (was a 45 s
+  // poll). Attached while the app is in the foreground, detached in the
+  // background, re-attached on foreground and torn down on unmount. If the
+  // listener errors it falls back to a 5-minute foreground-only poll so
+  // invites still arrive.
   useEffect(() => {
     if (!firestoreDB || !user?.id) {
       groupInvitesRef.current = [];
@@ -138,72 +150,137 @@ const GlobalGroupInviteToast = () => {
       return;
     }
 
-    let pollInterval;
     let isActive = true;
+    let unsubscribe = null;
+    let fallbackInterval = null;
+    let listenerFailed = false;
+
+    const invitationsQuery = query(
+      collection(firestoreDB, 'group_invitations'),
+      where('invitedUserId', '==', user.id),
+      where('status', '==', 'pending')
+    );
+
+    // Same handler as before; fed with snapshot.docs from the listener or the poll.
+    const handleGroupInviteDocs = (docs) => {
+      const now = Date.now();
+      const validInvites = [];
+
+      (docs || []).forEach((docSnap) => {
+        const data = docSnap.data();
+        if (!data) return;
+        // Handle both timestamp (Firestore Timestamp) and createdAt
+        let timestamp = now;
+        if (data.timestamp?.toMillis) {
+          timestamp = data.timestamp.toMillis();
+        } else if (data.timestamp && typeof data.timestamp === 'number') {
+          timestamp = data.timestamp;
+        } else if (data.createdAt?.toMillis) {
+          timestamp = data.createdAt.toMillis();
+        } else if (data.createdAt && typeof data.createdAt === 'number') {
+          timestamp = data.createdAt;
+        }
+
+        const expiresAt = data.expiresAt || (timestamp + 7 * 24 * 60 * 60 * 1000); // Default 7 days expiry
+
+        if (now <= expiresAt && data.status === 'pending') {
+          validInvites.push({
+            id: docSnap.id,
+            ...data,
+            expiresAt: expiresAt,
+            timestamp: timestamp,
+          });
+        }
+      });
+
+      groupInvitesRef.current = validInvites;
+      updateToast();
+    };
+
+    const handleGroupInviteError = (error) => {
+      console.warn('❌ Error loading group invitations:', error?.message || error);
+      if (error?.code === 'failed-precondition') {
+        console.warn('⚠️ Firestore index required. Please create index for group_invitations: invitedUserId (Ascending), status (Ascending)');
+      }
+      groupInvitesRef.current = [];
+      updateToast();
+    };
 
     const pollGroupInvites = async () => {
       if (!isActive) return;
-
       try {
-        const invitationsQuery = query(
-          collection(firestoreDB, 'group_invitations'),
-          where('invitedUserId', '==', user.id),
-          where('status', '==', 'pending')
-        );
-
         const snapshot = await getDocs(invitationsQuery);
-        const now = Date.now();
-        const validInvites = [];
-
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          // Handle both timestamp (Firestore Timestamp) and createdAt
-          let timestamp = now;
-          if (data.timestamp?.toMillis) {
-            timestamp = data.timestamp.toMillis();
-          } else if (data.timestamp && typeof data.timestamp === 'number') {
-            timestamp = data.timestamp;
-          } else if (data.createdAt?.toMillis) {
-            timestamp = data.createdAt.toMillis();
-          } else if (data.createdAt && typeof data.createdAt === 'number') {
-            timestamp = data.createdAt;
-          }
-          
-          const expiresAt = data.expiresAt || (timestamp + 7 * 24 * 60 * 60 * 1000); // Default 7 days expiry
-          
-          if (now <= expiresAt && data.status === 'pending') {
-            validInvites.push({
-              id: doc.id,
-              ...data,
-              expiresAt: expiresAt,
-              timestamp: timestamp,
-            });
-          }
-        });
-
-        groupInvitesRef.current = validInvites;
-        updateToast();
+        if (!isActive) return;
+        handleGroupInviteDocs(snapshot?.docs);
       } catch (error) {
-        console.error('❌ Error polling group invitations:', error);
-        if (error.code === 'failed-precondition') {
-          console.error('⚠️ Firestore index required. Please create index for group_invitations: invitedUserId (Ascending), status (Ascending)');
-        }
-        groupInvitesRef.current = [];
-        updateToast();
+        handleGroupInviteError(error);
       }
     };
 
-    // Poll immediately on mount
-    pollGroupInvites();
+    const stopFallbackPoll = () => {
+      if (fallbackInterval) {
+        clearInterval(fallbackInterval);
+        fallbackInterval = null;
+      }
+    };
 
-    // Set up polling interval
-    pollInterval = setInterval(pollGroupInvites, POLLING_INTERVAL_MS);
+    // Safety net: only used after the listener errored; foreground-only.
+    const startFallbackPoll = () => {
+      if (!isActive || fallbackInterval) return;
+      pollGroupInvites();
+      fallbackInterval = setInterval(pollGroupInvites, FALLBACK_POLL_INTERVAL_MS);
+    };
 
-    // ✅ Only poll when app is in foreground
+    const detach = () => {
+      if (unsubscribe) {
+        try { unsubscribe(); } catch (_) {}
+        unsubscribe = null;
+      }
+      stopFallbackPoll();
+    };
+
+    const attach = () => {
+      if (!isActive || unsubscribe || fallbackInterval) return;
+      if (listenerFailed) {
+        startFallbackPoll();
+        return;
+      }
+      try {
+        unsubscribe = onSnapshot(
+          invitationsQuery,
+          (snapshot) => {
+            if (!isActive) return;
+            try {
+              handleGroupInviteDocs(snapshot?.docs);
+            } catch (error) {
+              handleGroupInviteError(error);
+            }
+          },
+          (error) => {
+            // Firestore tears the listener down on error — switch to the poll.
+            unsubscribe = null;
+            listenerFailed = true;
+            handleGroupInviteError(error);
+            if (isActive && isForegroundState(AppState.currentState)) startFallbackPoll();
+          }
+        );
+      } catch (error) {
+        unsubscribe = null;
+        listenerFailed = true;
+        handleGroupInviteError(error);
+        startFallbackPoll();
+      }
+    };
+
+    if (isForegroundState(AppState.currentState)) attach();
+
+    // ✅ Listen only while the app is in the foreground
     const handleAppStateChange = (nextAppState) => {
-      if (nextAppState === 'active' && isActive) {
-        // App came to foreground - poll immediately
-        pollGroupInvites();
+      if (!isActive) return;
+      if (nextAppState === 'active') {
+        attach();
+      } else if (nextAppState === 'background') {
+        detach();
       }
     };
 
@@ -211,12 +288,12 @@ const GlobalGroupInviteToast = () => {
 
     return () => {
       isActive = false;
-      if (pollInterval) clearInterval(pollInterval);
+      detach();
       appStateSubscription?.remove();
     };
   }, [firestoreDB, user?.id]);
 
-  // ✅ OPTIMIZED: Poll game invitations instead of real-time listener (reduces reads by ~95%)
+  // ✅ Game invitations: same listener-with-fallback pattern as above.
   useEffect(() => {
     if (!firestoreDB || !user?.id || isInActiveGame) {
       gameInvitesRef.current = [];
@@ -224,88 +301,153 @@ const GlobalGroupInviteToast = () => {
       return;
     }
 
-    let pollInterval;
     let isActive = true;
+    let unsubscribe = null;
+    let fallbackInterval = null;
+    let listenerFailed = false;
+
+    const invitesCollectionRef = collection(
+      firestoreDB,
+      'fruitGuessingGame_userInvites',
+      user.id,
+      'invites'
+    );
+
+    const q = query(
+      invitesCollectionRef,
+      where('status', '==', 'pending')
+    );
+
+    // Same handler as before (incl. expired-invite cleanup); fed with snapshot.docs.
+    const handleGameInviteDocs = (docs) => {
+      const invites = [];
+      const now = Date.now();
+      const expiredInviteIds = [];
+
+      if (docs && docs.length > 0) {
+        docs.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (!data) return;
+
+          const timestamp = data.timestamp?.toMillis?.() || data.timestamp || Date.now();
+          const expiresAt = data.expiresAt || (timestamp + INVITE_EXPIRY_MS);
+
+          if (now > expiresAt && data.status === 'pending') {
+            expiredInviteIds.push(docSnap.id);
+            return;
+          }
+
+          invites.push({
+            roomId: docSnap.id,
+            ...data,
+            timestamp: timestamp,
+            expiresAt: expiresAt,
+          });
+        });
+
+        // Delete expired invites
+        if (expiredInviteIds.length > 0) {
+          expiredInviteIds.forEach(async (inviteId) => {
+            try {
+              const inviteRef = doc(
+                collection(firestoreDB, 'fruitGuessingGame_userInvites', user.id, 'invites'),
+                inviteId
+              );
+              await deleteDoc(inviteRef);
+            } catch (error) {
+              console.error('Error deleting expired invite:', error);
+            }
+          });
+        }
+
+        invites.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      }
+
+      gameInvitesRef.current = invites;
+      updateToast();
+    };
+
+    const handleGameInviteError = (error) => {
+      console.warn('❌ Error loading game invitations:', error?.message || error);
+      gameInvitesRef.current = [];
+      updateToast();
+    };
 
     const pollGameInvites = async () => {
       if (!isActive) return;
-
       try {
-        const invitesCollectionRef = collection(
-          firestoreDB,
-          'fruitGuessingGame_userInvites',
-          user.id,
-          'invites'
-        );
-        
-        const q = query(
-          invitesCollectionRef,
-          where('status', '==', 'pending')
-        );
-        
         const snapshot = await getDocs(q);
-        const invites = [];
-        const now = Date.now();
-        const expiredInviteIds = [];
-        
-        if (!snapshot.empty) {
-          snapshot.forEach((docSnap) => {
-            const data = docSnap.data();
-            if (!data) return;
-            
-            const timestamp = data.timestamp?.toMillis?.() || data.timestamp || Date.now();
-            const expiresAt = data.expiresAt || (timestamp + INVITE_EXPIRY_MS);
-            
-            if (now > expiresAt && data.status === 'pending') {
-              expiredInviteIds.push(docSnap.id);
-              return;
-            }
-            
-            invites.push({
-              roomId: docSnap.id,
-              ...data,
-              timestamp: timestamp,
-              expiresAt: expiresAt,
-            });
-          });
-
-          // Delete expired invites
-          if (expiredInviteIds.length > 0) {
-            expiredInviteIds.forEach(async (inviteId) => {
-              try {
-                const inviteRef = doc(
-                  collection(firestoreDB, 'fruitGuessingGame_userInvites', user.id, 'invites'),
-                  inviteId
-                );
-                await deleteDoc(inviteRef);
-              } catch (error) {
-                console.error('Error deleting expired invite:', error);
-              }
-            });
-          }
-
-          invites.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-        }
-
-        gameInvitesRef.current = invites;
-        updateToast();
+        if (!isActive) return;
+        handleGameInviteDocs(snapshot?.docs);
       } catch (error) {
-        console.error('❌ Error polling game invitations:', error);
-        gameInvitesRef.current = [];
-        updateToast();
+        handleGameInviteError(error);
       }
     };
 
-    // Poll immediately on mount
-    pollGameInvites();
+    const stopFallbackPoll = () => {
+      if (fallbackInterval) {
+        clearInterval(fallbackInterval);
+        fallbackInterval = null;
+      }
+    };
 
-    // Set up polling interval
-    pollInterval = setInterval(pollGameInvites, POLLING_INTERVAL_MS);
+    // Safety net: only used after the listener errored; foreground-only.
+    const startFallbackPoll = () => {
+      if (!isActive || fallbackInterval) return;
+      pollGameInvites();
+      fallbackInterval = setInterval(pollGameInvites, FALLBACK_POLL_INTERVAL_MS);
+    };
 
-    // ✅ Only poll when app is in foreground
+    const detach = () => {
+      if (unsubscribe) {
+        try { unsubscribe(); } catch (_) {}
+        unsubscribe = null;
+      }
+      stopFallbackPoll();
+    };
+
+    const attach = () => {
+      if (!isActive || unsubscribe || fallbackInterval) return;
+      if (listenerFailed) {
+        startFallbackPoll();
+        return;
+      }
+      try {
+        unsubscribe = onSnapshot(
+          q,
+          (snapshot) => {
+            if (!isActive) return;
+            try {
+              handleGameInviteDocs(snapshot?.docs);
+            } catch (error) {
+              handleGameInviteError(error);
+            }
+          },
+          (error) => {
+            // Firestore tears the listener down on error — switch to the poll.
+            unsubscribe = null;
+            listenerFailed = true;
+            handleGameInviteError(error);
+            if (isActive && isForegroundState(AppState.currentState)) startFallbackPoll();
+          }
+        );
+      } catch (error) {
+        unsubscribe = null;
+        listenerFailed = true;
+        handleGameInviteError(error);
+        startFallbackPoll();
+      }
+    };
+
+    if (isForegroundState(AppState.currentState)) attach();
+
+    // ✅ Listen only while the app is in the foreground
     const handleAppStateChange = (nextAppState) => {
-      if (nextAppState === 'active' && isActive) {
-        pollGameInvites();
+      if (!isActive) return;
+      if (nextAppState === 'active') {
+        attach();
+      } else if (nextAppState === 'background') {
+        detach();
       }
     };
 
@@ -313,7 +455,7 @@ const GlobalGroupInviteToast = () => {
 
     return () => {
       isActive = false;
-      if (pollInterval) clearInterval(pollInterval);
+      detach();
       appStateSubscription?.remove();
     };
   }, [firestoreDB, user?.id, isInActiveGame]);

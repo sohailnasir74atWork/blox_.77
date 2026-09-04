@@ -1,0 +1,302 @@
+
+## db size
+  db_size | stats_age
+  8711 MB | None
+
+## table sizes
+  ERROR {'error': 400, 'body': '{"message":"Failed to run sql query: ERROR:  42702: column reference \\"relname\\" is ambiguous\\nLINE 1: select relname, pg_size_pretty(pg_total_relation_size(c.oid)) total, pg_size_pretty(pg_relation_size(c.oid)) data, pg_size_pretty(pg_indexes_size(c.oid)) idx, n_live_tup live, n_dead_tup dead, roun'}
+
+## table activity since stats reset
+  relname | ins | upd | del | seq_scan | seq_tup_read | idx_scan | idx_tup_fetch
+  subscription | 16014067 | 111207 | 16014606 | 130126 | 84156460 | 28955932 | 1806261857
+  private_messages | 1561124 | 0 | 6944356 | 361 | 27235607 | 19583971 | 132861610
+  chat_meta_data | 306854 | 4172942 | 47435 | 0 | 0 | 11582022 | 161117662
+  hooks | 1573966 | 0 | 1019909 | 18 | 4532589 | 1 | 3
+  http_request_queue | 1573966 | 0 | 0 | 0 | 0 | None | None
+  group_meta_data | 10122 | 468366 | 622 | 0 | 0 | 1098507 | 1062898
+  messages | 284660 | 4515 | 0 | 9 | 1797701 | 15966315 | 54880026
+  user_identity | 8865 | 231208 | 244 | 4 | 780720 | 34891892 | 34687446
+  user_settings | 3482 | 11586 | 71 | 0 | 0 | 1576940 | 1092487
+  user_blocks | 13597 | 0 | 1542 | 0 | 0 | 14709 | 1542
+  group_messages | 12890 | 380 | 0 | 2 | 161426 | 85741 | 1002380
+  user_notifications | 9198 | 135 | 705 | 0 | 0 | 10051 | 840
+  user_roblox | 2942 | 2299 | 119 | 2 | 321904 | 39048266 | 31693383
+  user_badges | 2007 | 0 | 72 | 2 | 24754 | 2725 | 72
+  usernames | 1297 | 246 | 122 | 0 | 0 | 4741 | 3553
+  polls | 0 | 929 | 0 | 95196 | 95196 | 0 | 0
+  poll_votes | 362 | 566 | 0 | 0 | 0 | 70420 | 18976
+  user_cosmetics | 0 | 0 | 59 | 2 | 363198 | 39049440 | 24510449
+  user_roles | 0 | 0 | 28 | 2 | 283688 | 39020194 | 14247578
+  poll_comments | 10 | 0 | 0 | 13 | 1080 | 1199 | 15163
+  pinned_messages | 3 | 0 | 4 | 73011 | 495744 | 958697 | 5948151
+  job | 3 | 3 | 1 | 17 | 22 | 8 | 5
+  migrations | 3 | 0 | 0 | 3 | 190 | 3 | 3
+  webauthn_credentials | 0 | 0 | 0 | 0 | 0 | 0 | 0
+  messages_2026_09_04 | 0 | 0 | 0 | 2 | 0 | 0 | 0
+
+## top statements by total time
+  calls | total_s | mean_ms | rows | query
+  5051364 | 126070 | 25.0 | 7883124 | SELECT wal->>$5 as type, wal->>$6 as schema, wal->>$7 as table, COALES
+  709723 | 69861 | 98.4 | 709723 | WITH pgrst_source AS ( SELECT "public"."chat_meta_data"."partner_uid",
+  1655487 | 12085 | 7.3 | 1655487 | WITH pgrst_source AS ( SELECT "public"."private_messages"."id", "publi
+  21629 | 11006 | 508.8 | 21629 | select public.purge_private_messages($1, $2)
+  16112557 | 10461 | 0.6 | 16112557 | with sub_tables as ( select rr.entity from pg_publication_tables pub, 
+  1548024 | 7590 | 4.9 | 1548024 | WITH pgrst_source AS (INSERT INTO "public"."private_messages"("chat_id
+  1069319 | 6206 | 5.8 | 1545502 | WITH rows AS ( SELECT ctid FROM net._http_response WHERE created < now
+  4171876 | 6029 | 1.4 | 4171876 | WITH pgrst_source AS ( SELECT "public"."user_identity"."uid", "public"
+  4167621 | 4511 | 1.1 | 4167621 | WITH pgrst_source AS ( SELECT "public"."user_cosmetics"."uid", "public
+  4168302 | 4203 | 1.0 | 4168302 | WITH pgrst_source AS ( SELECT "public"."user_roblox"."uid", "public"."
+  4169073 | 3454 | 0.8 | 4169073 | WITH pgrst_source AS ( SELECT "public"."user_roles"."uid", "public"."u
+  1559526 | 3161 | 2.0 | 1559526 | WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 A
+  2228130 | 2669 | 1.2 | 2228130 | WITH pgrst_source AS ( SELECT "public"."private_messages"."id", "publi
+  74286968 | 2433 | 0.0 | 74286968 | select set_config('search_path', $1, true), set_config($2, $3, true), 
+  283396 | 2017 | 7.1 | 283396 | WITH pgrst_source AS (INSERT INTO "public"."messages"("client_msg_id",
+  1521301 | 1772 | 1.2 | 1521301 | WITH pgrst_source AS (UPDATE "public"."chat_meta_data" SET "unread_cou
+  11510332 | 1478 | 0.1 | 11510332 | WITH pgrst_source AS ( SELECT "public"."user_roblox"."uid", "public"."
+  11507992 | 1461 | 0.1 | 11507992 | WITH pgrst_source AS ( SELECT "public"."user_cosmetics"."uid", "public
+  11511630 | 1173 | 0.1 | 11511630 | WITH pgrst_source AS ( SELECT "public"."user_roles"."uid", "public"."u
+  7213521 | 902 | 0.1 | 7213521 | WITH pgrst_source AS ( SELECT "public"."user_identity"."uid", "public"
+  231374 | 853 | 3.7 | 231374 | WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT "pub
+  1584244 | 657 | 0.4 | 1584244 | WITH pgrst_source AS ( SELECT "public"."chat_meta_data"."partner_uid",
+  953055 | 585 | 0.6 | 953055 | WITH pgrst_source AS ( SELECT "public"."messages"."id", "public"."mess
+  283692 | 562 | 2.0 | 283692 | WITH pgrst_source AS ( SELECT "public"."group_meta_data"."group_id", "
+  969965 | 552 | 0.6 | 969965 | WITH pgrst_source AS ( SELECT "public"."messages"."id", "public"."mess
+
+## top statements by rows returned (egress proxy)
+  calls | rows | rows_per_call | total_s | query
+  74286992 | 74286992 | 1 | 2433 | select set_config('search_path', $1, true), set_config($2, $3, true), 
+  16112566 | 16112566 | 1 | 10461 | with sub_tables as ( select rr.entity from pg_publication_tables pub, 
+  101928 | 16010715 | 157 | 89 | delete from realtime.subscription where subscription_id = ANY($1::uuid
+  11511634 | 11511634 | 1 | 1173 | WITH pgrst_source AS ( SELECT "public"."user_roles"."uid", "public"."u
+  11510336 | 11510336 | 1 | 1478 | WITH pgrst_source AS ( SELECT "public"."user_roblox"."uid", "public"."
+  11507996 | 11507996 | 1 | 1461 | WITH pgrst_source AS ( SELECT "public"."user_cosmetics"."uid", "public
+  5051367 | 7883127 | 2 | 126070 | SELECT wal->>$5 as type, wal->>$6 as schema, wal->>$7 as table, COALES
+  7213526 | 7213526 | 1 | 902 | WITH pgrst_source AS ( SELECT "public"."user_identity"."uid", "public"
+  4171876 | 4171876 | 1 | 6029 | WITH pgrst_source AS ( SELECT "public"."user_identity"."uid", "public"
+  4169073 | 4169073 | 1 | 3454 | WITH pgrst_source AS ( SELECT "public"."user_roles"."uid", "public"."u
+  4168302 | 4168302 | 1 | 4203 | WITH pgrst_source AS ( SELECT "public"."user_roblox"."uid", "public"."
+  4167621 | 4167621 | 1 | 4511 | WITH pgrst_source AS ( SELECT "public"."user_cosmetics"."uid", "public
+  2554092 | 2554092 | 1 | 82 | select set_config('search_path', $1, true), set_config($2, $3, true), 
+  2228130 | 2228130 | 1 | 2669 | WITH pgrst_source AS ( SELECT "public"."private_messages"."id", "publi
+  1655488 | 1655488 | 1 | 12085 | WITH pgrst_source AS ( SELECT "public"."private_messages"."id", "publi
+  1626629 | 1626629 | 1 | 46 | select set_config('search_path', $1, true), set_config('role', $2, tru
+  1584245 | 1584245 | 1 | 657 | WITH pgrst_source AS ( SELECT "public"."chat_meta_data"."partner_uid",
+  1069319 | 1573966 | 1 | 99 | WITH rows AS ( SELECT id FROM net.http_request_queue ORDER BY id LIMIT
+  1573966 | 1573966 | 1 | 159 | insert into net._http_response(id, status_code, content, headers, cont
+  1560568 | 1560568 | 1 | 170 | WITH pgrst_source AS ( SELECT "public"."chat_meta_data"."muted", "publ
+  1559527 | 1559527 | 1 | 3161 | WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 A
+  1548025 | 1548025 | 1 | 7590 | WITH pgrst_source AS (INSERT INTO "public"."private_messages"("chat_id
+  1069319 | 1545502 | 1 | 6206 | WITH rows AS ( SELECT ctid FROM net._http_response WHERE created < now
+  1521301 | 1521301 | 1 | 1772 | WITH pgrst_source AS (UPDATE "public"."chat_meta_data" SET "unread_cou
+  15 | 1019909 | 67994 | 56 | delete from supabase_functions.hooks where created_at < now() - interv
+
+## top statements by calls
+  calls | rows | mean_ms | query
+  74287033 | 74287033 | 0.03 | select set_config('search_path', $1, true), set_config($2, $3, true), 
+  16112581 | 16112581 | 0.65 | with sub_tables as ( select rr.entity from pg_publication_tables pub, 
+  11511639 | 11511639 | 0.10 | WITH pgrst_source AS ( SELECT "public"."user_roles"."uid", "public"."u
+  11510341 | 11510341 | 0.13 | WITH pgrst_source AS ( SELECT "public"."user_roblox"."uid", "public"."
+  11508001 | 11508001 | 0.13 | WITH pgrst_source AS ( SELECT "public"."user_cosmetics"."uid", "public
+  7213530 | 7213530 | 0.13 | WITH pgrst_source AS ( SELECT "public"."user_identity"."uid", "public"
+  5375798 | 0 | 0.00 | BEGIN
+  5375764 | 0 | 0.00 | COMMIT
+  5051370 | 7883130 | 24.96 | SELECT wal->>$5 as type, wal->>$6 as schema, wal->>$7 as table, COALES
+  4171878 | 4171878 | 1.45 | WITH pgrst_source AS ( SELECT "public"."user_identity"."uid", "public"
+  4169075 | 4169075 | 0.83 | WITH pgrst_source AS ( SELECT "public"."user_roles"."uid", "public"."u
+  4168304 | 4168304 | 1.01 | WITH pgrst_source AS ( SELECT "public"."user_roblox"."uid", "public"."
+  4167623 | 4167623 | 1.08 | WITH pgrst_source AS ( SELECT "public"."user_cosmetics"."uid", "public
+  2554092 | 2554092 | 0.03 | select set_config('search_path', $1, true), set_config($2, $3, true), 
+  2228130 | 2228130 | 1.20 | WITH pgrst_source AS ( SELECT "public"."private_messages"."id", "publi
+  1655489 | 1655489 | 7.30 | WITH pgrst_source AS ( SELECT "public"."private_messages"."id", "publi
+  1626629 | 1626629 | 0.03 | select set_config('search_path', $1, true), set_config('role', $2, tru
+  1584246 | 1584246 | 0.41 | WITH pgrst_source AS ( SELECT "public"."chat_meta_data"."partner_uid",
+  1573966 | 1573966 | 0.10 | insert into net._http_response(id, status_code, content, headers, cont
+  1560568 | 1560568 | 0.11 | WITH pgrst_source AS ( SELECT "public"."chat_meta_data"."muted", "publ
+  1559528 | 1559528 | 2.03 | WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 A
+  1548026 | 1548026 | 4.90 | WITH pgrst_source AS (INSERT INTO "public"."private_messages"("chat_id
+  1521302 | 1521302 | 1.16 | WITH pgrst_source AS (UPDATE "public"."chat_meta_data" SET "unread_cou
+  1069319 | 1545502 | 5.80 | WITH rows AS ( SELECT ctid FROM net._http_response WHERE created < now
+  1069319 | 1573966 | 0.09 | WITH rows AS ( SELECT id FROM net.http_request_queue ORDER BY id LIMIT
+
+## pg_stat_statements age
+  age
+  18 days 01:34:49.289095
+
+## realtime publication tables
+  tablename
+  chat_meta_data
+  group_messages
+  group_meta_data
+  messages
+  pinned_messages
+  private_messages
+
+## replica identity
+  relname | relreplident
+  chat_meta_data | f
+  group_messages | f
+  group_meta_data | f
+  messages | f
+  pinned_messages | f
+  poll_comments | d
+  poll_votes | d
+  polls | d
+  private_messages | f
+  rooms | d
+  user_badges | d
+  user_blocks | d
+  user_cosmetics | d
+  user_identity | d
+  user_notifications | d
+  user_roblox | d
+  user_roles | d
+  user_settings | d
+  usernames | d
+
+## live realtime subscriptions by table
+  tbl | subs | ids | users
+  chat_meta_data | 240 | 240 | 51
+  group_meta_data | 219 | 219 | 50
+  private_messages | 111 | 111 | 31
+  messages | 108 | 108 | 29
+  pinned_messages | 96 | 96 | 23
+  group_messages | 24 | 24 | 6
+
+## live realtime subscriptions sample filters
+  tbl | f | n
+  messages | {"(room_id,eq,chat_new_upgrade,f)"} | 105
+  pinned_messages | {"(room_id,eq,chat_new_upgrade,f)"} | 93
+  group_messages | {"(group_id,eq,group_1787073800726_wvmkw3v1a,f)"} | 18
+  private_messages | {"(chat_id,eq,E6BUE9TSOJNqY0ISIxQetBZW5M63_XLsQZBt0OtV7ctkyorbez5EIkzF | 12
+  private_messages | {"(chat_id,eq,AdoIRepmtaOcLlsgF80RUgRKxUX2_IZFmzwupzEZxIO2fsPMGTpwHio3 | 9
+  chat_meta_data | {"(owner_uid,eq,RymBAAuqLEfRD8hFVbj5MjhWMrB2,f)"} | 6
+  private_messages | {"(chat_id,eq,DtTutaMekKbQekq0FMJCCg116ga2_nS3XuFcjwnNaGLoCCZcGrzvNMhY | 6
+  chat_meta_data | {"(owner_uid,eq,foWiGsKjOKhhRpP7wbzT4ygPlq32,f)"} | 6
+  private_messages | {"(chat_id,eq,dI6iovBv5ZSNf67Sja7LwoR8ZP93_gBvEYsr0GeRxwu2QJZrOaEJhI0x | 6
+  chat_meta_data | {"(owner_uid,eq,YDHv2ohWlaY7vYlaUYf77f0174u2,f)"} | 6
+  chat_meta_data | {"(owner_uid,eq,MyfBTiNtuHZtMMeVJYdBxSr1GSo2,f)"} | 6
+  private_messages | {"(chat_id,eq,2Uv004qsoyeMtodkAFhAWsB4Z9g2_AdoIRepmtaOcLlsgF80RUgRKxUX | 6
+  group_meta_data | {"(user_id,eq,wptpm8fEqnciSVW1JEhe4aHhCxE2,f)"} | 6
+  chat_meta_data | {"(owner_uid,eq,wptpm8fEqnciSVW1JEhe4aHhCxE2,f)"} | 6
+  chat_meta_data | {"(owner_uid,eq,tSyXksJkJbcUUa3Wb1ZHSbTaKV12,f)"} | 6
+
+## webhooks (supabase_functions.hooks)
+  ERROR {'error': 400, 'body': '{"message":"Failed to run sql query: ERROR:  42703: column \\"type\\" does not exist\\nLINE 1: select id, hook_table_id::regclass tbl, hook_name, type, left(function_args::text,120) args, created_at::date from supabase_functions.hooks order by id\\n                                                       '}
+
+## webhook triggers
+  tgname | tbl | tgenabled
+  notify-new-private-message | private_messages | O
+  notify-new-group-message | group_messages | O
+
+## triggers per table (all)
+  tbl | n | names
+  private_messages | 2 | notify-new-private-message, trg_reject_unavailable_chat
+  storage.buckets | 2 | enforce_bucket_name_length_trigger, protect_buckets_delete
+  storage.objects | 2 | update_objects_updated_at, protect_objects_delete
+  realtime.subscription | 1 | tr_check_filters
+  cron.job | 1 | cron_job_cache_invalidate
+  group_messages | 1 | notify-new-group-message
+
+## unused big indexes
+  relname | indexrelname | idx_scan | size
+  private_messages | idx_private_messages_chat_client_msg_id | 39 | 1175 MB
+  messages | idx_messages_room_client_msg_id | 32 | 144 MB
+  _http_response | _http_response_created_idx | 2 | 26 MB
+  messages | idx_messages_room_rtdb_key | 4 | 23 MB
+  hooks | supabase_functions_hooks_request_id_idx | 0 | 10 MB
+  hooks | hooks_pkey | 1 | 10 MB
+
+## retention: oldest rows
+  t | oldest | newest | n
+  messages | 2026-05-05 | 2026-09-03 | 2014067
+  private_messages | 2026-08-04 | 2026-09-03 | 2818220
+  group_messages | 2026-05-08 | 2026-09-03 | 92005
+  chat_meta_data | 2026-05-05 | 2026-09-04 | 2701690
+  user_identity | 2026-05-05 | 2026-09-03 | 202273
+
+## chat_meta rows per owner (distribution)
+  p50 | p90 | p99 | max | owners
+  7 | 84 | 501.649999999999 | 3252 | 73936
+
+## messages per day last 14d (public)
+  d | n
+  2026-08-20 | 2859
+  2026-08-21 | 15412
+  2026-08-22 | 17489
+  2026-08-23 | 18371
+  2026-08-24 | 14463
+  2026-08-25 | 14767
+  2026-08-26 | 16894
+  2026-08-27 | 14657
+  2026-08-28 | 14022
+  2026-08-29 | 15545
+  2026-08-30 | 17254
+  2026-08-31 | 14750
+  2026-09-01 | 14714
+  2026-09-02 | 13800
+  2026-09-03 | 11920
+
+## private messages per day last 14d
+  d | n
+  2026-08-20 | 17925
+  2026-08-21 | 87276
+  2026-08-22 | 101611
+  2026-08-23 | 112485
+  2026-08-24 | 79701
+  2026-08-25 | 82859
+  2026-08-26 | 92090
+  2026-08-27 | 74619
+  2026-08-28 | 79029
+  2026-08-29 | 89933
+  2026-08-30 | 94611
+  2026-08-31 | 74219
+  2026-09-01 | 76195
+  2026-09-02 | 68691
+  2026-09-03 | 56895
+
+## group messages per day last 14d
+  d | n
+  2026-08-20 | 310
+  2026-08-21 | 1047
+  2026-08-22 | 571
+  2026-08-23 | 651
+  2026-08-24 | 490
+  2026-08-25 | 1184
+  2026-08-26 | 641
+  2026-08-27 | 303
+  2026-08-28 | 780
+  2026-08-29 | 696
+  2026-08-30 | 917
+  2026-08-31 | 632
+  2026-09-01 | 961
+  2026-09-02 | 354
+  2026-09-03 | 373
+
+## public messages per room last 7d
+  room_id | n
+  chat_new_upgrade | 97587
+  chat_raid_upgrade | 1814
+  chat_help_upgrade | 1508
+  chat_es_upgrade | 1104
+  chat_ar_upgrade | 1099
+  chat_playing_upgrade | 518
+  chat_pt_upgrade | 347
+  chat_ru_upgrade | 309
+  chat_id_upgrade | 214
+  chat_fr_upgrade | 147
+  chat_tr_upgrade | 106
+  chat_ph_upgrade | 48
+  chat_de_upgrade | 41
+  chat_ja_upgrade | 27
+  chat_ko_upgrade | 22
+
+## user_identity coverage
+  identity_rows | cosmetics_rows | roles_rows
+  202273 | 181556 | 141823
+
+## user_cosmetics columns
+  column_name
+  uid
+  top_badge
+  is_pro
+  updated_at

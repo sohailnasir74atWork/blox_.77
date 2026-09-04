@@ -50,6 +50,11 @@ const InboxScreen = ({ bannedUsers }) => {
   const chatsMapRef = useRef(new Map());
   const initialLoadTimerRef = useRef(null);
 
+  // Banned list via ref: keeps the shared chat-meta subscription alive across
+  // `bannedUsers` identity changes instead of re-subscribing (see ChatNavigator).
+  const bannedUsersRef = useRef(bannedUsers);
+  bannedUsersRef.current = bannedUsers;
+
   useEffect(() => {
     if (!user?.id || !appdatabase) {
       setLocalChats([]);
@@ -70,7 +75,8 @@ const InboxScreen = ({ bannedUsers }) => {
 
     const chatsMap = chatsMapRef.current;
     chatsMap.clear();
-    const banned = Array.isArray(bannedUsers) ? bannedUsers : [];
+    // Always the latest banned list (via ref) without being an effect dependency.
+    const getBanned = () => (Array.isArray(bannedUsersRef.current) ? bannedUsersRef.current : []);
 
     // Debounced flush — both code paths feed into this so the rapid
     // burst of inserts on first subscribe doesn't trigger N renders.
@@ -95,7 +101,7 @@ const InboxScreen = ({ bannedUsers }) => {
       const handleSupaUpsert = (row) => {
         if (!row || !row.partnerId) return;
         const chatPartnerId = row.partnerId;
-        const isBlocked = banned.includes(chatPartnerId);
+        const isBlocked = getBanned().includes(chatPartnerId);
         const rawUnread = row.unreadCount || 0;
 
         if (isBlocked && rawUnread > 0) {
@@ -151,7 +157,7 @@ const InboxScreen = ({ bannedUsers }) => {
       if (!chatData || typeof chatData !== 'object') return;
 
       const chatPartnerId = snapshot.key;
-      const isBlocked = banned.includes(chatPartnerId);
+      const isBlocked = getBanned().includes(chatPartnerId);
       const rawUnread = chatData?.unreadCount || 0;
 
       if (isBlocked && rawUnread > 0) {
@@ -192,7 +198,8 @@ const InboxScreen = ({ bannedUsers }) => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       if (initialLoadTimerRef.current) clearTimeout(initialLoadTimerRef.current);
     };
-  }, [user?.id, appdatabase, bannedUsers]);
+    // bannedUsers intentionally omitted: read via bannedUsersRef / getBanned().
+  }, [user?.id, appdatabase]);
 
   const allChats = localChats;
   const displayLoading = localLoading;

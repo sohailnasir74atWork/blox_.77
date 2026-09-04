@@ -1,0 +1,163 @@
+
+## table sizes (fixed)
+  relname | total | data | idx | live | dead | dead_pct | av
+  private_messages | 5109 MB | 1906 MB | 3202 MB | 2813451 | 5133 | 0.2 | 2026-09-03
+  chat_meta_data | 1530 MB | 870 MB | 659 MB | 2651172 | 8014 | 0.3 | 2026-09-03
+  messages | 1051 MB | 550 MB | 500 MB | 2016576 | 11672 | 0.6 | None
+  _http_response | 642 MB | 616 MB | 26 MB | 0 | 0 | None | None
+  group_messages | 77 MB | 41 MB | 35 MB | 92034 | 408 | 0.4 | None
+  user_identity | 65 MB | 41 MB | 24 MB | 202275 | 15720 | 7.2 | None
+  hooks | 52 MB | 27 MB | 25 MB | 271551 | 0 | 0.0 | 2026-09-03
+  user_blocks | 34 MB | 19 MB | 15 MB | 106675 | 4444 | 4.0 | None
+  user_notifications | 26 MB | 14 MB | 13 MB | 8496 | 818 | 8.8 | None
+  user_cosmetics | 25 MB | 13 MB | 12 MB | 0 | 59 | 100.0 | None
+  user_roblox | 23 MB | 12 MB | 11 MB | 2823 | 327 | 10.4 | None
+  user_settings | 22 MB | 11 MB | 11 MB | 3412 | 261 | 7.1 | None
+  user_roles | 19 MB | 10 MB | 8992 kB | 0 | 28 | 100.0 | None
+  group_meta_data | 8200 kB | 5240 kB | 2816 kB | 17776 | 52 | 0.3 | 2026-09-03
+  subscription | 6704 kB | 1176 kB | 5488 kB | 426 | 636 | 59.9 | 2026-09-03
+  job_run_details | 4120 kB | 3592 kB | 496 kB | 0 | 0 | None | None
+  user_badges | 2360 kB | 1104 kB | 1216 kB | 13995 | 283 | 2.0 | None
+  http_request_queue | 1672 kB | 72 kB | 0 bytes | 81 | 76 | 48.4 | 2026-09-03
+  poll_votes | 880 kB | 440 kB | 400 kB | 2487 | 208 | 7.7 | None
+  usernames | 680 kB | 288 kB | 352 kB | 3046 | 153 | 4.8 | None
+
+## biggest indexes
+  relname | indexrelname | size | idx_scan
+  private_messages | idx_private_messages_chat_created | 1328 MB | 3870368
+  private_messages | idx_private_messages_chat_client_msg_id | 1175 MB | 39
+  private_messages | private_messages_pkey | 332 MB | 9297297
+  chat_meta_data | idx_chat_meta_owner_updated | 319 MB | 1584489
+  chat_meta_data | chat_meta_data_pkey | 307 MB | 9278211
+  messages | idx_messages_room_created | 233 MB | 2668187
+  private_messages | idx_private_messages_created_at | 182 MB | 1804370
+  messages | idx_messages_room_client_msg_id | 144 MB | 32
+  private_messages | idx_private_messages_sender | 92 MB | 2306945
+  private_messages | idx_private_messages_recipient | 92 MB | 2306945
+  messages | messages_pkey | 78 MB | 13299722
+  chat_meta_data | idx_chat_meta_owner | 32 MB | 720764
+  _http_response | _http_response_created_idx | 26 MB | 2
+  messages | idx_messages_room_rtdb_key | 23 MB | 4
+  messages | idx_messages_sender | 22 MB | 67
+
+## duplicate live subscriptions per user+table
+  usr | tbl | n | oldest | newest
+  None | group_meta_data | 51 | 2026-09-03 16:44:35.491811 | 2026-09-03 17:22:05.576521
+  None | chat_meta_data | 48 | 2026-09-03 16:44:35.495117 | 2026-09-03 17:22:05.572881
+  None | pinned_messages | 9 | 2026-09-03 17:13:21.542927 | 2026-09-03 17:22:11.550598
+  umUdfIaNePa2sD00kDhnaBL7FkD3 | private_messages | 9 | 2026-09-03 17:21:11.238936 | 2026-09-03 17:22:16.34523
+  FRQ6Ij9K4kQO1ebnCg7jYWwzkoG3 | messages | 6 | 2026-09-03 17:22:10.985049 | 2026-09-03 17:22:18.934306
+  CEr5tjpD1TOVbgwvaJERIFISETa2 | chat_meta_data | 6 | 2026-09-03 17:22:18.381128 | 2026-09-03 17:22:18.975646
+  FRQ6Ij9K4kQO1ebnCg7jYWwzkoG3 | pinned_messages | 6 | 2026-09-03 17:22:10.982283 | 2026-09-03 17:22:18.930286
+  FRQ6Ij9K4kQO1ebnCg7jYWwzkoG3 | private_messages | 6 | 2026-09-03 17:22:14.949912 | 2026-09-03 17:22:22.002985
+  Mt9wlfLU7wbFL2ikP3d4nboHeiQ2 | private_messages | 6 | 2026-09-03 17:22:17.673089 | 2026-09-03 17:22:21.737131
+  wptpm8fEqnciSVW1JEhe4aHhCxE2 | group_messages | 6 | 2026-09-03 17:21:57.672811 | 2026-09-03 17:22:22.288292
+  AdDAsx0MXsTeq280JCzYyUhtUp52 | messages | 6 | 2026-09-03 17:22:17.714281 | 2026-09-03 17:22:21.577183
+  C1K6PeipbzcFqP9WSTjrrvy9MgK2 | group_messages | 6 | 2026-09-03 17:21:28.610286 | 2026-09-03 17:22:23.342244
+  AdDAsx0MXsTeq280JCzYyUhtUp52 | pinned_messages | 6 | 2026-09-03 17:22:17.712182 | 2026-09-03 17:22:21.569924
+  rLwIy91CW6TRoPMxJImpAcxIx333 | messages | 3 | 2026-09-03 17:22:05.706862 | 2026-09-03 17:22:05.706862
+  TqrCyPDoxIZcUEpNAogb12XxJsv2 | messages | 3 | 2026-09-03 17:22:00.911683 | 2026-09-03 17:22:00.911683
+
+## subscription age distribution
+  tbl | n | oldest_min | p50_min
+  chat_meta_data | 186 | 38 | 2
+  group_meta_data | 180 | 38 | 2
+  private_messages | 96 | 3 | 1
+  messages | 57 | 5441 | 0
+  pinned_messages | 54 | 5441 | 0
+  group_messages | 21 | 1 | 0
+
+## users with >1 sub on chat_meta: how many
+  users_with_dupes | users | subs
+  41 | 41 | 162
+
+## cron jobs
+  jobid | jobname | schedule | active | command
+  2 | purge-webhook-hooks | 17 4 * * * | True | delete from supabase_functions.hooks where created_at < now() - interv
+  5 | purge-private-messages | * * * * * | True | select public.purge_private_messages('30 days', 5000)
+
+## cron recent runs
+  jobid | status | secs | msg | start_time
+  5 | succeeded | 0.2 | 1 row | 2026-09-03 17:22:00.492415+00
+  5 | succeeded | 0.2 | 1 row | 2026-09-03 17:21:00.224013+00
+  5 | succeeded | 0.3 | 1 row | 2026-09-03 17:20:00.573116+00
+  5 | succeeded | 0.2 | 1 row | 2026-09-03 17:19:00.295815+00
+  5 | succeeded | 0.3 | 1 row | 2026-09-03 17:18:00.288827+00
+  5 | succeeded | 0.3 | 1 row | 2026-09-03 17:17:00.247973+00
+  5 | succeeded | 0.3 | 1 row | 2026-09-03 17:16:00.462397+00
+  5 | succeeded | 0.5 | 1 row | 2026-09-03 17:15:00.289322+00
+  5 | succeeded | 0.3 | 1 row | 2026-09-03 17:14:00.323834+00
+  5 | succeeded | 0.3 | 1 row | 2026-09-03 17:13:00.321746+00
+  5 | succeeded | 0.3 | 1 row | 2026-09-03 17:12:00.534865+00
+  5 | succeeded | 0.2 | 1 row | 2026-09-03 17:11:00.321024+00
+
+## webhook trigger defs
+  tgname | def
+  notify-new-private-message | CREATE TRIGGER "notify-new-private-message" AFTER INSERT ON public.pri
+  notify-new-group-message | CREATE TRIGGER "notify-new-group-message" AFTER INSERT ON public.group
+
+## purge fn def
+  def
+  CREATE OR REPLACE FUNCTION public.purge_private_messages(p_older_than 
+
+## chat_meta_data columns
+  column_name | data_type
+  owner_uid | text
+  partner_uid | text
+  chat_id | text
+  last_message | text
+  timestamp_ms | bigint
+  receiver_id | text
+  receiver_name | text
+  receiver_avatar | text
+  unread_count | integer
+  muted | boolean
+  updated_at | timestamp with time zone
+
+## private_messages columns
+  column_name | data_type
+  id | uuid
+  client_msg_id | uuid
+  chat_id | text
+  sender_id | text
+  recipient_id | text
+  text | text
+  image_url | text
+  fruits | jsonb
+  reply_to | jsonb
+  os | text
+  deleted | boolean
+  deleted_at | timestamp with time zone
+  deleted_by | text
+  created_at | timestamp with time zone
+  origin | text
+
+## messages partitions?
+  (no rows)
+
+## autovacuum settings on hot tables
+  relname | reloptions
+  messages | None
+  chat_meta_data | ['autovacuum_vacuum_scale_factor=0.01', 'autovacuum_analyze_scale_fact
+  group_meta_data | ['autovacuum_vacuum_scale_factor=0.01', 'autovacuum_analyze_scale_fact
+  user_identity | None
+  private_messages | ['autovacuum_vacuum_scale_factor=0.01', 'autovacuum_analyze_scale_fact
+  messages | None
+
+## chat_meta_data update sources (top statements touching it)
+  calls | total_s | rows | query
+  1584490 | 657 | 1584490 | WITH pgrst_source AS ( SELECT "public"."chat_meta_data"."partner_uid",
+  1560778 | 170 | 1560778 | WITH pgrst_source AS ( SELECT "public"."chat_meta_data"."muted", "publ
+  1521474 | 1773 | 1521474 | WITH pgrst_source AS (UPDATE "public"."chat_meta_data" SET "unread_cou
+  709801 | 69868 | 709801 | WITH pgrst_source AS ( SELECT "public"."chat_meta_data"."partner_uid",
+  48629 | 23 | 48629 | WITH pgrst_source AS (DELETE FROM "public"."chat_meta_data" WHERE "pub
+  14644 | 14 | 14644 | WITH pgrst_source AS (UPDATE "public"."chat_meta_data" SET "muted" = "
+  5343 | 148 | 5343 | WITH pgrst_source AS ( SELECT "public"."chat_meta_data"."partner_uid",
+  3547 | 3 | 3547 | WITH pgrst_source AS ( SELECT "public"."chat_meta_data"."partner_uid",
+  2097 | 118 | 2097 | WITH pgrst_source AS ( SELECT "public"."chat_meta_data".* FROM "public
+  1867 | 9 | 1867 | WITH pgrst_source AS (INSERT INTO "public"."chat_meta_data"("chat_id",
+
+## full chat_meta load statement
+  calls | mean_ms | max_ms | query
+  709801 | 98.4 | 7858 | WITH pgrst_source AS ( SELECT "public"."chat_meta_data"."partner_uid",
+  1521474 | 1.2 | 1903 | WITH pgrst_source AS (UPDATE "public"."chat_meta_data" SET "unread_cou

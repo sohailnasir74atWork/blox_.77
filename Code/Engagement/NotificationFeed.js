@@ -25,6 +25,10 @@ const NOTIF_ICONS = {
 };
 
 const PAGE_SIZE = 20;
+// Focus re-fetches (a fresh 20-doc page from the top) are throttled to once per
+// 2 min per uid. First load, pull-to-refresh and pagination are unchanged.
+const FOCUS_REFETCH_MS = 2 * 60 * 1000;
+let lastFocusFetch = { uid: null, ts: 0 };
 
 const NotificationFeed = () => {
   const { user, theme, firestoreDB, appdatabase } = useGlobalState();
@@ -43,6 +47,7 @@ const NotificationFeed = () => {
   const hasMarkedRead = useRef(false);
   const lastDocRef = useRef(null);
   const loadingRef = useRef(true);
+  const hasLoadedRef = useRef(false); // first load in this instance is never throttled
 
   const textColor = isDarkMode ? '#f1f5f9' : '#1a1a2e';
   const subtextColor = isDarkMode ? '#94a3b8' : '#64748b';
@@ -82,6 +87,7 @@ const NotificationFeed = () => {
       }
 
       const snap = await getDocs(q);
+      if (isRefresh) lastFocusFetch = { uid: user.id, ts: Date.now() };
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
       if (isRefresh) {
@@ -106,8 +112,14 @@ const NotificationFeed = () => {
   // Load on focus
   useFocusEffect(
     useCallback(() => {
-      hasMarkedRead.current = false;
-      fetchNotifications(true);
+      const throttled = hasLoadedRef.current
+        && lastFocusFetch.uid === user?.id
+        && (Date.now() - lastFocusFetch.ts) < FOCUS_REFETCH_MS;
+      if (!throttled) {
+        hasLoadedRef.current = true;
+        hasMarkedRead.current = false;
+        fetchNotifications(true);
+      }
       // Load mute preference
       if (user?.id && appdatabase) {
         get(ref(appdatabase, `users/${user.id}/muteTradeNotifs`)).then(snap => {

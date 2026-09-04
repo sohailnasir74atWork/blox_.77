@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import ChatScreen from './GroupChat/Trader';
 import PrivateChatScreen from './PrivateChat/PrivateChat';
@@ -74,6 +74,14 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
   //
   // Writes (resetting unread on blocked partners) STILL go to RTDB —
   // mirror CF tails them and updates Supabase. We don't dual-write.
+  // Read the banned list through a ref inside the subscription handlers so a
+  // change to `bannedUsers` (array identity changes on every localState
+  // update) does NOT tear down and re-create the realtime channel. Each
+  // re-create is a new server-side subscription + full initial load; this was
+  // a major source of the ~890k subscription churn/day measured in 2026-09.
+  const bannedUsersRef = useRef(bannedUsers);
+  bannedUsersRef.current = bannedUsers;
+
   useEffect(() => {
     if (!user?.id || !appdatabase) {
       setunreadcount(0);
@@ -95,7 +103,8 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
       const handleSupaUpsert = (row) => {
         if (!row || !row.partnerId) return;
         const chatPartnerId = row.partnerId;
-        const isBlocked = Array.isArray(bannedUsers) && bannedUsers.includes(chatPartnerId);
+        const bannedNow = bannedUsersRef.current;
+      const isBlocked = Array.isArray(bannedNow) && bannedNow.includes(chatPartnerId);
         const rawUnread = row.unreadCount || 0;
         if (isBlocked && rawUnread > 0) {
           // Reset directly on Supabase (now the source of truth).
@@ -129,7 +138,8 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
       if (!chatData || typeof chatData !== 'object') return;
 
       const chatPartnerId = snapshot.key;
-      const isBlocked = Array.isArray(bannedUsers) && bannedUsers.includes(chatPartnerId);
+      const bannedNow = bannedUsersRef.current;
+      const isBlocked = Array.isArray(bannedNow) && bannedNow.includes(chatPartnerId);
       const rawUnread = chatData?.unreadCount || 0;
 
       if (isBlocked && rawUnread > 0) {
@@ -163,7 +173,8 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
       unsubChanged();
       unsubRemoved();
     };
-  }, [user?.id, appdatabase, bannedUsers]);
+    // bannedUsers intentionally omitted: read via bannedUsersRef (see above).
+  }, [user?.id, appdatabase]);
 
   // Group list + unread badge.
   //

@@ -42,10 +42,10 @@
     <key>NSAllowsLocalNetworking</key>
     <true/>
   </dict>
-  <key>NSLocationWhenInUseUsageDescription</key>
-  <string></string>
   <key>NSPhotoLibraryUsageDescription</key>
-  <string>This app needs access to your photo library to save and share images you create.</string>
+  <string>Fruit Values opens your photo library only when you tap to add an image, so you can pick a photo or screenshot you already have — for example, choosing a saved picture as your profile photo, setting a group's icon, attaching a screenshot to a chat message, or uploading your artwork to the Designs feed.</string>
+  <key>NSPhotoLibraryAddUsageDescription</key>
+  <string>Fruit Values asks to save to Photos only when you tap Save or Download, so the image you chose is stored on your device — for example, saving an HD wallpaper to set as your lock screen, or keeping an image you unlocked in the Store.</string>
 
   <!-- Add your AdMob App ID -->
   <key>GADApplicationIdentifier</key>
@@ -53,7 +53,7 @@
 
   <!-- Recommended for iOS 14+ ATT prompt -->
   <key>NSUserTrackingUsageDescription</key>
-  <string>This identifier will be used to deliver more relevant ads to you.</string>
+  <string>Fruit Values uses this identifier to show ads relevant to you — for example, ads for other Roblox games instead of unrelated products — and to measure which ads work.</string>
 
   <key>RCTNewArchEnabled</key>
   <true/>

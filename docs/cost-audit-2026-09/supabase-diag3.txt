@@ -1,0 +1,31 @@
+
+## anon (no sub claim) subscriptions
+  tbl | role | f | n
+  pinned_messages | anon | {"(room_id,eq,chat_new_upgrade,f)"} | 9
+  chat_meta_data | anon | {"(owner_uid,eq,rxc137A7VqQJIALqsw3fS6Yvpqm1,f)"} | 6
+  chat_meta_data | anon | {"(owner_uid,eq,q4e50EBgEqXORdBjzRJzxh2hDM13,f)"} | 6
+  chat_meta_data | anon | {"(owner_uid,eq,98QGBRMXaDeHOoq0K5Ccbx0iqW62,f)"} | 3
+  chat_meta_data | anon | {"(owner_uid,eq,IZFmzwupzEZxIO2fsPMGTpwHio33,f)"} | 3
+  chat_meta_data | anon | {"(owner_uid,eq,LaClm6bDAfUeYnWd9Zwovh9FU7d2,f)"} | 3
+  chat_meta_data | anon | {"(owner_uid,eq,ElmEbeCsH5cPVRvjGagEwAmPMRi1,f)"} | 3
+  chat_meta_data | anon | {"(owner_uid,eq,Mt9wlfLU7wbFL2ikP3d4nboHeiQ2,f)"} | 3
+  chat_meta_data | anon | {"(owner_uid,eq,ND3KrQCNkEYaaPEU9Fnqr6udcTm1,f)"} | 3
+  chat_meta_data | anon | {"(owner_uid,eq,mcQjnnWuxicZUSE6E9zzhtgFQO72,f)"} | 3
+
+## full chat_meta load query text
+  q
+  WITH pgrst_source AS ( SELECT "public"."chat_meta_data"."partner_uid",
+
+## private_messages index bytes per row
+  idx_total | idx_bytes_per_row | heap | heap_bytes_per_row
+  3202 MB | 1191 | 1906 MB | 709
+
+## pg_net response table bloat
+  size | rows_now
+  642 MB | 28461
+
+## extensions
+  extname
+  pg_cron
+  pg_net
+  pg_stat_statements

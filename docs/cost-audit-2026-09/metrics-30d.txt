@@ -1,0 +1,166 @@
+# fruiteblocks — last 30 days (2026-08-04 → 2026-09-03)
+
+## firebasedatabase :: network/sent_bytes_count
+   database_id=?                                                70.57 GB
+
+## firebasedatabase :: network/sent_payload_bytes_count
+   database_id=?                                                18.81 GB
+
+## firebasedatabase :: network/received_bytes_count
+   ERROR: {   "error": {     "code": 404,     "message": "Cannot find metric(s) that match type = \"firebasedatabase.googleapis.com/network/received_bytes_count\". If a metric was created recently, it could tak
+
+## firebasedatabase :: storage/total_bytes
+   database_id=?                                                avg=778.74 MB
+
+## firebasedatabase :: network/active_connections
+   database_id=?                                                avg=209.08
+
+## firebasedatabase :: network/api_hits_count
+   operation_type=realtime_listen                               255,510,549
+   operation_type=realtime_unlisten                             245,329,565
+   operation_type=realtime_set                                  20,151,524
+   operation_type=ondisconnect_set                              3,272,924
+   operation_type=realtime_update                               1,214,956
+   operation_type=realtime_get                                  95,717
+   operation_type=rest_get                                      48,614
+   operation_type=ondisconnect_cancel                           18,993
+   operation_type=rest_shallow_get                              5
+
+## firebasedatabase :: io/database_load
+   type=listen                                                  avg=0.03
+   type=put                                                     avg=0.01
+   type=on_disconnect                                           avg=0.00
+   type=get_shallow                                             avg=0.00
+   type=client_management                                       avg=0.00
+   type=update                                                  avg=0.00
+   type=get                                                     avg=0.00
+   type=auth                                                    avg=0.00
+   type=admin                                                   avg=0.00
+   type=transaction                                             avg=0.00
+
+## firestore :: document/read_count
+   type=QUERY                                                   76,497,566
+   type=LOOKUP                                                  41,300
+   type=NOT_FOUND                                               3,181
+
+## firestore :: document/write_count
+   op=UPDATE                                                    539,542
+   op=CREATE                                                    195,956
+   op=UPDATE_NOOP                                               2,948
+
+## firestore :: document/delete_count
+   (all)                                                        43,134
+
+## firestore :: network/active_connections
+   (all)                                                        avg=94.94
+   (all)                                                        avg=94.92
+
+## firestore :: network/snapshot_listeners
+   (all)                                                        avg=19.77
+   (all)                                                        avg=19.76
+
+## cloudfunctions :: function/execution_count
+   function_name=syncModRoster | status=ok                      2,854,326
+   function_name=mirrorUsersToSupabase | status=ok              2,854,319
+   function_name=notifyPrivateMessage | status=ok               2,795,133
+   function_name=syncTopicsOnSelectedFruitsChange | status=ok   45,676
+   function_name=fruitCrashController | status=ok               43,076
+   function_name=syncTopicsOnTokenChange | status=ok            37,172
+   function_name=ensureRoleClaim | status=ok                    28,612
+   function_name=notifyGroupNewMessage | status=ok              22,210
+   function_name=notifyPrivateMessage | status=error            20,743
+   function_name=setSupabaseRoleClaim | status=ok               16,172
+   function_name=syncSubscriptionOnSelectedReminderToggle | status=ok 12,805
+   function_name=syncTopicsOnSelectedReminderToggle | status=ok 12,802
+   function_name=syncTopicsOnReminderToggle | status=ok         12,716
+   function_name=sendStockNotifications | status=ok             5,761
+   function_name=checkStockUpdates | status=ok                  5,684
+   function_name=mirrorChatMetaToSupabase | status=ok           4,947
+   function_name=clearPresenceNode | status=ok                  2,157
+   function_name=computeFeedRanking | status=ok                 1,438
+   function_name=fetchWorldCupDataScheduled | status=ok         1,436
+   function_name=notifyFromTrade | status=ok                    757
+   function_name=backupAndClearCalcData | status=ok             361
+   function_name=refreshModProfiles | status=ok                 121
+   function_name=notifyTradeAccept | status=ok                  120
+   function_name=notifyPrivateMessage | status=timeout          84
+   function_name=aggregateTradeAnalytics | status=ok            60
+   function_name=checkStockUpdates | status=crash               56
+   function_name=mirrorUsersToSupabase | status=timeout         55
+   function_name=notifyPostComment | status=ok                  32
+   function_name=seedModRoster | status=ok                      30
+   function_name=updateLeaderboardCache | status=ok             30
+   function_name=checkStockUpdates | status=timeout             15
+   function_name=mirrorChatMetaToSupabase | status=timeout      15
+   function_name=syncModRole_BabyMod | status=ok                5
+   function_name=notifyPrivateMessage | status=system error     2
+   function_name=syncTopicsOnTokenChange | status=timeout       2
+   function_name=checkStockUpdates | status=error               1
+   function_name=fruitCrashController | status=system error     1
+   function_name=notifyGroupNewMessage | status=timeout         1
+   function_name=syncSubscriptionOnSelectedReminderToggle | status=timeout 1
+   function_name=fruitCrashController | status=connection error 0
+
+## cloudfunctions :: function/network_egress
+   function_name=notifyPrivateMessage                           3.88 GB
+   function_name=checkStockUpdates                              778.58 MB
+   function_name=mirrorUsersToSupabase                          775.05 MB
+   function_name=notifyGroupNewMessage                          69.49 MB
+   function_name=mirrorChatMetaToSupabase                       9.61 MB
+   function_name=fetchWorldCupDataScheduled                     2.64 MB
+   function_name=ensureRoleClaim                                614.84 KB
+   function_name=fruitCrashController                           0.00 B
+
+## cloudfunctions :: function/execution_times
+   function_name=notifyPrivateMessage                           invocations=2,817,656  total_time=1,111,611s  mean=395ms
+   function_name=mirrorUsersToSupabase                          invocations=2,856,465  total_time=118,943s  mean=42ms
+   function_name=checkStockUpdates                              invocations=5,760  total_time=111,470s  mean=19,352ms
+   function_name=syncModRoster                                  invocations=2,856,355  total_time=67,664s  mean=24ms
+   function_name=syncTopicsOnTokenChange                        invocations=37,187  total_time=21,483s  mean=578ms
+   function_name=syncTopicsOnSelectedFruitsChange               invocations=45,718  total_time=20,903s  mean=457ms
+   function_name=notifyGroupNewMessage                          invocations=22,222  total_time=19,110s  mean=860ms
+   function_name=notifyFromTrade                                invocations=756  total_time=12,347s  mean=16,332ms
+   function_name=syncTopicsOnReminderToggle                     invocations=12,762  total_time=6,022s  mean=472ms
+   function_name=ensureRoleClaim                                invocations=28,640  total_time=5,150s  mean=180ms
+   function_name=syncSubscriptionOnSelectedReminderToggle       invocations=12,843  total_time=3,722s  mean=290ms
+   function_name=syncTopicsOnSelectedReminderToggle             invocations=12,854  total_time=2,917s  mean=227ms
+   function_name=setSupabaseRoleClaim                           invocations=16,189  total_time=2,384s  mean=147ms
+   function_name=mirrorChatMetaToSupabase                       invocations=4,946  total_time=2,257s  mean=456ms
+   function_name=fetchWorldCupDataScheduled                     invocations=1,437  total_time=1,450s  mean=1,009ms
+   function_name=computeFeedRanking                             invocations=1,438  total_time=1,334s  mean=928ms
+   function_name=aggregateTradeAnalytics                        invocations=60  total_time=872s  mean=14,533ms
+   function_name=sendStockNotifications                         invocations=5,765  total_time=799s  mean=139ms
+   function_name=fruitCrashController                           invocations=43,080  total_time=619s  mean=14ms
+   function_name=clearPresenceNode                              invocations=2,157  total_time=611s  mean=283ms
+   function_name=updateLeaderboardCache                         invocations=30  total_time=147s  mean=4,897ms
+   function_name=backupAndClearCalcData                         invocations=360  total_time=118s  mean=328ms
+   function_name=notifyTradeAccept                              invocations=120  total_time=48s  mean=398ms
+   function_name=refreshModProfiles                             invocations=121  total_time=31s  mean=258ms
+   function_name=notifyPostComment                              invocations=32  total_time=30s  mean=934ms
+   function_name=seedModRoster                                  invocations=30  total_time=6s  mean=211ms
+   function_name=syncModRole_BabyMod                            invocations=5  total_time=1s  mean=242ms
+
+## run :: container/billable_instance_time
+   service_name=fruitcrashcontroller                            348,512 s (96.8 h)
+
+## run :: request_count
+   service_name=fruitcrashcontroller                            42,999
+
+## storage :: network/sent_bytes_count
+   (no data)
+
+## storage :: storage/total_bytes
+   bucket_name=gcf-sources-409137828081-us-central1             avg=7.27 MB
+   bucket_name=gcf-v2-sources-409137828081-us-central1          avg=244.60 KB
+   bucket_name=run-sources-fruiteblocks-us-central1             avg=702.00 B
+
+## logging :: byte_count
+   type=?                                                       7.33 GB
+   type=?                                                       181.31 MB
+   type=?                                                       181.28 MB
+   type=?                                                       79.80 MB
+   type=?                                                       7.41 KB
+
+## firebasehosting :: network/sent_bytes_count
+   site_name=fruiteblocks                                       0.00 B
+

@@ -440,7 +440,9 @@ export const checkDailyStreak = async (database, userId) => {
     const data = snap.exists() ? snap.val() : null;
 
     // Use probe-verified server time (immune to device clock changes)
-    const now = await getServerTime(database, userId, true);
+    // Not forced (2026-09): getStarStatus probes within the same launch;
+    // a <30 s cached server offset is exact enough for a date boundary.
+    const now = await getServerTime(database, userId, false);
     const todayStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
 
     if (data?.lastDate === todayStr) return;

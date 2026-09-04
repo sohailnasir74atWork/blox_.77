@@ -27,6 +27,7 @@ import { useHaptic } from '../Helper/HepticFeedBack';
 import { saveTrade, unsaveTrade, fetchSavedTradeRefs } from './tradeHelpers';
 import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
 import { getCachedProfile, warmProfileCache } from '../Helper/profileCache';
+import { getCachedFollowingIds, setCachedFollowingIds } from '../Helper/followingCache';
 import { ref as dbRef, onValue } from '@react-native-firebase/database';
 import {
   collection,
@@ -311,8 +312,15 @@ const TradeList = ({ route }) => {
   }, [user?.id, localState.bannedUsers]);
 
   // ✅ Fetch following IDs for "Following" filter
+  // Served from MMKV (1 h TTL, keyed by uid); the query only runs when the
+  // cache is cold or a follow/unfollow cleared it.
   useEffect(() => {
     if (!user?.id || !firestoreDB) return;
+    const cachedIds = getCachedFollowingIds(user.id);
+    if (cachedIds !== null) {
+      setFollowingIds(cachedIds);
+      return;
+    }
     (async () => {
       try {
         const q = query(
@@ -323,6 +331,7 @@ const TradeList = ({ route }) => {
         const snap = await getDocs(q);
         const ids = snap.docs.map(d => d.data().followingId).filter(Boolean);
         setFollowingIds(ids);
+        setCachedFollowingIds(user.id, ids);
       } catch (err) {
         console.warn('[Trades] Error fetching following list:', err?.message);
       }
@@ -436,7 +445,8 @@ const TradeList = ({ route }) => {
           collection(firestoreDB, "trades_new_upgrade"),
           where("userId", "==", user.id),
           where("isFeatured", "==", true),
-          where("featuredUntil", ">", oneDayAgo)
+          where("featuredUntil", ">", oneDayAgo),
+          limit(200)
         )
       );
 

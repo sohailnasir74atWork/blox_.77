@@ -11,7 +11,7 @@ import {
     RefreshControl,
 } from 'react-native';
 import { getDatabase, ref, get, query, orderByChild, startAt, endAt, limitToFirst } from '@react-native-firebase/database';
-import { collection, getDocs, query as firestoreQuery, where } from '@react-native-firebase/firestore';
+import { collection, getDocs, query as firestoreQuery, where, limit as firestoreLimit } from '@react-native-firebase/firestore';
 import { useGlobalState } from '../GlobelStats';
 import { useNavigation } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -179,7 +179,8 @@ const SocialDashboard = () => {
             const followingSnapshot = await getDocs(
                 firestoreQuery(
                     collection(firestoreDB, 'following'),
-                    where('followerId', '==', currentUser.id)
+                    where('followerId', '==', currentUser.id),
+                    firestoreLimit(500)
                 )
             );
 

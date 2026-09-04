@@ -13,6 +13,22 @@ import { getDeviceFingerprint } from './Helper/deviceFingerprint';
 import { getServerTime } from './Helper/serverTime';
 import { setLastActivity } from './Supabase/userBackend';
 import Purchases from 'react-native-purchases';
+
+// registerForNotifications used to run three times per cold start (login
+// handler, user-id effect, auth listener). Run it once per uid per sign-in;
+// the APNS/FCM retry logic inside Globelhelper is untouched. The set is
+// cleared on sign-out so a re-login registers again.
+const notificationsRegisteredFor = new Set();
+const registerForNotificationsOnce = async (uid) => {
+  if (!uid || notificationsRegisteredFor.has(uid)) return;
+  notificationsRegisteredFor.add(uid);
+  try {
+    await registerForNotifications(uid);
+  } catch (e) {
+    // Let a later trigger retry if this attempt failed outright.
+    notificationsRegisteredFor.delete(uid);
+  }
+};
 const app = getApps();
 const auth = getAuth(app);
 const firestoreDB = getFirestore(app);
@@ -152,6 +168,9 @@ export const GlobalStateProvider = ({ children }) => {
   // ✅ OPTIMIZED: Debounce helper for non-critical updates
   const debounceTimeoutRef = useRef(null);
   const pendingUpdatesRef = useRef({});
+  // Last isPro value known to be in RTDB (users/{uid} read at login, or our own
+  // last write) so updateUserProStatus only writes when the value changes.
+  const lastKnownIsProRef = useRef({ uid: null, value: undefined });
 
   // ✅ Critical fields that should update immediately (no debounce)
   const CRITICAL_FIELDS = ['rewardPoints', 'isBlock', 'fcmToken', 'email', 'isPro'];
@@ -277,6 +296,8 @@ export const GlobalStateProvider = ({ children }) => {
   // ✅ Memoize handleUserLogin
   const handleUserLogin = useCallback(async (loggedInUser) => {
     if (!loggedInUser) {
+      notificationsRegisteredFor.clear();
+      lastKnownIsProRef.current = { uid: null, value: undefined };
       resetUserState(); // No longer recreates resetUserState
       setIsAdmin(false);
       setIsModerator(false); // ✅ Reset moderator status
@@ -375,16 +396,21 @@ export const GlobalStateProvider = ({ children }) => {
       }
       // console.log(userData, 'user')
       setUser(userData);
+      lastKnownIsProRef.current = {
+        uid: userId,
+        value: typeof userData?.isPro === 'boolean' ? userData.isPro : undefined,
+      };
 
       // Stamp this user's record with the current device fingerprint so the
       // ban flow can mirror an entry into banned_devices when the email is
       // banned. Best-effort: on failure we just don't gain device-side ban.
+      // Skipped when users/{uid}.deviceId (read above) already holds this value.
       getDeviceFingerprint().then((fp) => {
-        if (fp) update(userRef, { deviceId: fp }).catch(() => {});
+        if (fp && userData?.deviceId !== fp) update(userRef, { deviceId: fp }).catch(() => {});
       }).catch(() => {});
 
       // 🔥 Refresh and update FCM token
-      await Promise.all([registerForNotifications(userId)]);
+      await Promise.all([registerForNotificationsOnce(userId)]);
 
     } catch (error) {
       console.error("❌ Auth state change error:", error);
@@ -397,7 +423,7 @@ export const GlobalStateProvider = ({ children }) => {
     const run = async () => {
       try {
         // console.log('Registering push token for user:', user.id);
-        await registerForNotifications(user.id);
+        await registerForNotificationsOnce(user.id);
       } catch (e) {
         // console.log('registerForNotifications error', e);
       }
@@ -414,7 +440,7 @@ export const GlobalStateProvider = ({ children }) => {
         await handleUserLogin(loggedInUser);
 
         if (loggedInUser?.uid) {
-          await registerForNotifications(loggedInUser.uid);
+          await registerForNotificationsOnce(loggedInUser.uid);
           // await requestPermission();
         }
 
@@ -492,10 +518,18 @@ export const GlobalStateProvider = ({ children }) => {
 
   const updateUserProStatus = () => {
     if (!user?.id) return;
+    const nextIsPro = !!localState?.isPro;
+    const known = lastKnownIsProRef.current;
+    // Skip the write when RTDB already holds this value (login read / last write).
+    if (known?.uid === user.id && known.value === nextIsPro) return;
     const userIsProRef = ref(appdatabase, `/users/${user?.id}/isPro`);
-    set(userIsProRef, !!localState?.isPro).catch((error) => {
-      console.error('Error updating isPro:', error);
-    });
+    set(userIsProRef, nextIsPro)
+      .then(() => {
+        lastKnownIsProRef.current = { uid: user.id, value: nextIsPro };
+      })
+      .catch((error) => {
+        console.error('Error updating isPro:', error);
+      });
   };
 
   const checkInternetConnection = async () => {

@@ -2,7 +2,7 @@ import React, { useMemo, useCallback, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, Modal, ScrollView, ActivityIndicator } from 'react-native';
 import { useGlobalState } from '../../GlobelStats';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { getFirestore, collection, addDoc, Timestamp, query as firestoreQuery, where, getDocs } from '@react-native-firebase/firestore';
+import { getFirestore, collection, addDoc, Timestamp, query as firestoreQuery, where, getDocs, limit as firestoreLimit } from '@react-native-firebase/firestore';
 
 const REPORT_REASONS = [
   'Scam / Fraud',
@@ -67,6 +67,7 @@ export default function ScamSafetyBox({
           where('chatKey', '==', chatKey),
           where('reportedBy', '==', userId),
           where('status', '==', 'pending'),
+          firestoreLimit(20),
         ),
       );
 

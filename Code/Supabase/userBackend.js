@@ -29,9 +29,9 @@ import { supabase } from './client';
 // only the columns the mapper reads (instead of select('*')) trims egress on
 // these hot, batched profile-hydration reads (online list, leaderboard, chat
 // headers). Keep in sync with the mappers when a column is added.
-const IDENTITY_COLS = 'uid, display_name, avatar, email, is_block, created_at_ms, last_activity_ms, online, os';
+const IDENTITY_COLS = 'uid, display_name, avatar, email, is_block, created_at_ms, last_activity_ms, online, os, last_game_win_ms';
 const ROLES_COLS = 'uid, is_admin, is_cmsr, is_moderator, is_baby_mod, is_trusted, is_grinder, is_raider';
-const COSMETICS_COLS = 'uid, top_badge, is_pro';
+const COSMETICS_COLS = 'uid, top_badge, is_pro, profile_frame, chat_text_color, trade_card_bg, profile_banner, chat_bubble_bg';
 const ROBLOX_COLS = 'uid, roblox_username, roblox_user_id, roblox_username_verified';
 const SETTINGS_COLS = 'uid, is_reminder_enabled, is_selected_reminder_enabled';
 const NOTIFICATIONS_COLS = 'uid, is_token_invalid, mute_trade_notifs, notification_settings';
@@ -52,6 +52,10 @@ export function fromIdentityRow(row) {
     lastactivity: row.last_activity_ms ?? null,    // matches RTDB key
     online: !!row.online,
     OS: row.os ?? null,
+    // Mirrored from RTDB users/{uid}/lastGameWinAt (2026-09). Older rows have
+    // null here; callers treat null as "no recent win" — same as an absent
+    // RTDB leaf.
+    lastGameWinAt: typeof row.last_game_win_ms === 'number' ? row.last_game_win_ms : null,
   };
 }
 
@@ -124,6 +128,15 @@ export function fromCosmeticsRow(row) {
     uid: row.uid,
     topBadge: row.top_badge ?? null,
     isPro: !!row.is_pro,
+    // Active shop items mirrored as jsonb from RTDB users/{uid}/shop/activeItems
+    // (same object shape, incl. expiresAt). null = none / not mirrored yet.
+    activeItems: {
+      profileFrame: row.profile_frame ?? null,
+      chatTextColor: row.chat_text_color ?? null,
+      tradeCardBg: row.trade_card_bg ?? null,
+      profileBanner: row.profile_banner ?? null,
+      chatBubbleBg: row.chat_bubble_bg ?? null,
+    },
   };
 }
 

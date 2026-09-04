@@ -5,8 +5,6 @@ import { getStyles } from '../Style';
 import config from '../../Helper/Environment';
 import { useGlobalState } from '../../GlobelStats';
 import { useTranslation } from 'react-i18next';
-import InterstitialAdManager from '../../Ads/IntAd';
-import { useLocalState } from '../../LocalGlobelStats';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { safeCompressImage } from '../../Helper/safeCompressImage';
 import RNFS from 'react-native-fs';
@@ -66,10 +64,8 @@ const GroupMessageInput = ({
 }) => {
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [messageCount, setMessageCount] = useState(0);
   const [imageUri, setImageUri] = useState(null);
 
-  const { localState } = useLocalState();
   const { theme, user, isAdmin } = useGlobalState();
   // Admins and full (non-baby) moderators bypass moderation so they can post
   // links, warnings, and quoted content the filter would otherwise block.
@@ -171,18 +167,10 @@ const GroupMessageInput = ({
       setSelectedFruits([]);
     }
 
-    setMessageCount((prevCount) => {
-      const newCount = prevCount + 1;
-      if (!localState?.isPro && newCount % 7 === 0) {
-        InterstitialAdManager.showAd(() => setIsSending(false));
-      } else {
-        // One message before the ad message: warm the interstitial so the
-        // trigger actually has something to show (lazy-load pipeline).
-        if (!localState?.isPro && newCount % 7 === 6) InterstitialAdManager.prepare();
-        setIsSending(false);
-      }
-      return newCount;
-    });
+    // No per-message interstitial here. User-created groups are private
+    // chatrooms, which AdMob's "Ads in private communications" policy
+    // prohibits serving on. Only the public community chat (MessageInput.jsx)
+    // still shows one. setIsSending is reset in the finally block below.
 
     try {
       let imageUrl = null;
@@ -210,7 +198,6 @@ const GroupMessageInput = ({
     isSending,
     onSend,
     setSelectedFruits,
-    localState?.isPro,
     uploadToBunny,
     replyTo,
     onCancelReply,

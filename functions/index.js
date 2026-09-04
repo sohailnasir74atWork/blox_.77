@@ -1,46 +1,56 @@
-// Re-export all cloud functions from separate files.
-//
-// Existing CFs (unchanged):
-const { syncModRoster } = require('./syncModRoster');
+/**
+ * Blox Fruit — Cloud Functions (single deployable codebase, 2026-09).
+ *
+ * This folder is the ONLY source of truth for what is deployed to `fruiteblocks`.
+ * Every module below is the latest version that was live in production (pulled
+ * from the deployed source archives on 2026-09-03), so deploying from here is
+ * behaviour-preserving for every app build. Retired functions live in
+ * docs/cost-audit-2026-09/retired-functions/ for reference only.
+ *
+ * Deploy (explicit names — never rely on the CLI's "delete missing" prompt):
+ *   firebase deploy --only functions:<name>,functions:<name> --project fruiteblocks
+ */
 
-// Supabase mirror CFs (RTDB → Supabase). RTDB stays the source of truth;
-// these tail every relevant write and fan it out to Supabase. See
-// SUPABASE_MIGRATION.md for the full migration story.
-const {
-  mirrorPublicChatMessageToSupabase,
-  mirrorPublicChatMessageDeleteToSupabase,
-  mirrorPublicChatPinToSupabase,
-} = require('./mirrorPublicChatToSupabase');
-const { mirrorChatMetaToSupabase } = require('./mirrorChatMetaToSupabase');
-const { mirrorGroupMetaToSupabase } = require('./mirrorGroupMetaToSupabase');
-const { mirrorUsersToSupabase } = require('./mirrorUsersToSupabase');
+// --- Supabase mirror / auth bridge ---------------------------------------
+exports.mirrorUsersToSupabase = require('./mirrorUsersToSupabase').mirrorUsersToSupabase;
+exports.mirrorChatMetaToSupabase = require('./mirrorChatMetaToSupabase').mirrorChatMetaToSupabase;
+const roleClaim = require('./setSupabaseRoleClaim');
+exports.setSupabaseRoleClaim = roleClaim.setSupabaseRoleClaim;
+exports.ensureRoleClaim = roleClaim.ensureRoleClaim;
 
-// Supabase auth bridge: every new Firebase user needs the
-// `role: "authenticated"` custom claim, otherwise their Firebase ID token
-// is rejected by Supabase Realtime as `InvalidJWTToken`.
-const { setSupabaseRoleClaim, ensureRoleClaim } = require('./setSupabaseRoleClaim');
+// --- Push notifications (Supabase webhooks + Firestore triggers) ---------
+exports.notifyPrivateMessage = require('./notifyPrivateMessage').notifyPrivateMessage;
+exports.notifyGroupNewMessage = require('./notifyGroupNewMessage').notifyGroupNewMessage;
+exports.notifyFromTrade = require('./notifyFromTrade').notifyFromTrade;
+exports.notifyPostComment = require('./notifyPostComment').notifyPostComment;
+exports.notifyTradeAccept = require('./notifyTradeAccept').notifyTradeAccept;
 
-// Scheduled cleanup: wipe the RTDB presence node every 20 min so it (and its
-// .value index) stays bounded. Live clients re-arm onDisconnect on next write.
-const { clearPresenceNode } = require('./clearPresenceNode');
+// --- Stock scraper + stock push topics -----------------------------------
+exports.checkStockUpdates = require('./checkStockUpdates').checkStockUpdates;
+exports.sendStockNotifications = require('./sendStockNotifications').sendStockNotifications;
+exports.backupAndClearCalcData = require('./backupAndClearCalcData').backupAndClearCalcData;
+const topics = require('./stockTopics');
+exports.syncTopicsOnTokenChange = topics.syncTopicsOnTokenChange;
+exports.syncTopicsOnReminderToggle = topics.syncTopicsOnReminderToggle;
+exports.syncTopicsOnSelectedReminderToggle = topics.syncTopicsOnSelectedReminderToggle;
+exports.syncTopicsOnSelectedFruitsChange = topics.syncTopicsOnSelectedFruitsChange;
 
-// Scheduled feed ranking: computes Hot/Trending scores from recent
-// designPosts_upgrade docs and writes /feedRanking to RTDB. The Feed
-// screen's Hot & Trending tabs are empty without it.
-const { computeFeedRanking } = require('./computeFeedRanking');
+// --- Scheduled maintenance -----------------------------------------------
+exports.clearPresenceNode = require('./clearPresenceNode').clearPresenceNode;
+exports.computeFeedRanking = require('./computeFeedRanking').computeFeedRanking;
+exports.aggregateTradeAnalytics = require('./aggregateTradeAnalytics').aggregateTradeAnalytics;
+exports.updateLeaderboardCache = require('./updateLeaderboardCache').updateLeaderboardCache;
+const mods = require('./modRoster');
+exports.refreshModProfiles = mods.refreshModProfiles;
+exports.seedModRoster = mods.seedModRoster;
 
-exports.syncModRoster = syncModRoster;
+// --- Fruit Crash game (2nd-gen scheduled function) ----------------------
+exports.fruitCrashController = require('./fruitCrashController').fruitCrashController;
 
-exports.mirrorPublicChatMessageToSupabase = mirrorPublicChatMessageToSupabase;
-exports.mirrorPublicChatMessageDeleteToSupabase = mirrorPublicChatMessageDeleteToSupabase;
-exports.mirrorPublicChatPinToSupabase = mirrorPublicChatPinToSupabase;
-exports.mirrorChatMetaToSupabase = mirrorChatMetaToSupabase;
-exports.mirrorGroupMetaToSupabase = mirrorGroupMetaToSupabase;
-exports.mirrorUsersToSupabase = mirrorUsersToSupabase;
-
-exports.setSupabaseRoleClaim = setSupabaseRoleClaim;
-exports.ensureRoleClaim = ensureRoleClaim;
-
-exports.clearPresenceNode = clearPresenceNode;
-
-exports.computeFeedRanking = computeFeedRanking;
+// Intentionally NOT exported (retired 2026-09, see COST_OPTIMIZATION_2026-09.md):
+//   syncModRoster, syncModRole_Moderator, syncModRole_BabyMod  → covered by mirrorModsRoster inside mirrorUsersToSupabase
+//   syncSubscriptionOnSelectedReminderToggle                    → legacy Firestore `subscriptions`; topics are used
+//   notifyNewMessage                                            → same body now deployed as notifyPrivateMessage
+//   fetchWorldCupDataNow / fetchWorldCupDataScheduled           → feature not present in app or website
+//   rebuildSubscriptionsFromRTDB                                → one-off admin tool, functions.config() (removed API)
+//   updateLeaderboardCacheManual, resetFruitCrashRound          → unauthenticated manual endpoints, never deployed

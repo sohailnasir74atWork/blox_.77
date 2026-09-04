@@ -13,7 +13,7 @@ import {
   Modal,
   ScrollView,
 } from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGlobalState } from '../../GlobelStats';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -22,10 +22,9 @@ import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-m
 import { useTranslation } from 'react-i18next';
 import { leaveGroup, acceptGroupInvite, declineGroupInvite, updateGroupAvatar, approveJoinRequest, rejectJoinRequest, getAllGroups, sendJoinRequest, deleteGroup } from '../utils/groupUtils';
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
-import { collection, query, where, onSnapshot, doc, getDoc, getCountFromServer } from '@react-native-firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc, getCountFromServer, limit } from '@react-native-firebase/firestore';
 import { ref, get, set } from '@react-native-firebase/database';
 import { setGroupMuted as sbSetGroupMuted } from '../../Supabase/groupMetaBackend';
-import InterstitialAdManager from '../../Ads/IntAd';
 import { useLocalState } from '../../LocalGlobelStats';
 import GroupsGuideModal from './GroupsGuideModal';
 import OnlineUsersList from './OnlineUsersList';
@@ -151,126 +150,126 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
   }, [navigation, isDarkMode]);
 
   // Load pending group invitations
-  // ✅ OPTIMIZED: Load pending invitations only when screen is focused (reduces reads by ~70%)
-  useFocusEffect(
-    useCallback(() => {
-      if (!firestoreDB || !user?.id) {
-        setPendingInvitations([]);
-        return;
-      }
+  // ✅ OPTIMIZED: one listener per mount (keyed on uid) instead of a fresh
+  // listener on every focus, bounded with limit(50). Same query, same UI.
+  useEffect(() => {
+    if (!firestoreDB || !user?.id) {
+      setPendingInvitations([]);
+      return;
+    }
 
-      setInvitationsLoading(true);
-      const invitationsQuery = query(
-        collection(firestoreDB, 'group_invitations'),
-        where('invitedUserId', '==', user.id),
-        where('status', '==', 'pending')
-      );
+    setInvitationsLoading(true);
+    const invitationsQuery = query(
+      collection(firestoreDB, 'group_invitations'),
+      where('invitedUserId', '==', user.id),
+      where('status', '==', 'pending'),
+      limit(50)
+    );
 
-      const unsubscribe = onSnapshot(
-        invitationsQuery,
-        (snapshot) => {
-          const invitations = [];
-          snapshot.forEach((doc) => {
-            const data = doc.data();
-            // Check if invitation is expired
-            if (data.expiresAt && Date.now() < data.expiresAt) {
-              invitations.push({
-                id: doc.id,
-                ...data,
-              });
-            }
-          });
-          setPendingInvitations(invitations);
-          setInvitationsLoading(false);
-        },
-        (error) => {
-          console.error('Error loading invitations:', error);
-          setInvitationsLoading(false);
-        }
-      );
-
-      return () => unsubscribe();
-    }, [firestoreDB, user?.id])
-  );
-
-  // ✅ OPTIMIZED: Load pending join requests only when screen is focused (reduces reads by ~70%)
-  useFocusEffect(
-    useCallback(() => {
-      if (!firestoreDB || !user?.id) {
-        setPendingJoinRequests([]);
-        return;
-      }
-
-      setJoinRequestsLoading(true);
-      const joinRequestsQuery = query(
-        collection(firestoreDB, 'group_join_requests'),
-        where('creatorId', '==', user.id),
-        where('status', '==', 'pending')
-      );
-
-      const unsubscribe = onSnapshot(
-        joinRequestsQuery,
-        (snapshot) => {
-          const requests = [];
-          snapshot.forEach((doc) => {
-            requests.push({
+    const unsubscribe = onSnapshot(
+      invitationsQuery,
+      (snapshot) => {
+        const invitations = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          // Check if invitation is expired
+          if (data.expiresAt && Date.now() < data.expiresAt) {
+            invitations.push({
               id: doc.id,
-              ...doc.data(),
+              ...data,
             });
-          });
-          setPendingJoinRequests(requests);
-          setJoinRequestsLoading(false);
-        },
-        (error) => {
-          console.error('Error loading join requests:', error);
-          if (error.code === 'failed-precondition') {
-            console.error('⚠️ Firestore index required. Please create index for group_join_requests: creatorId (Ascending), status (Ascending)');
           }
-          setJoinRequestsLoading(false);
-        }
-      );
-
-      return () => unsubscribe();
-    }, [firestoreDB, user?.id])
-  );
-
-  // ✅ OPTIMIZED: Load user's own pending join requests only when screen is focused (reduces reads by ~70%)
-  useFocusEffect(
-    useCallback(() => {
-      if (!firestoreDB || !user?.id) {
-        setMyPendingJoinRequests([]);
-        return;
+        });
+        setPendingInvitations(invitations);
+        setInvitationsLoading(false);
+      },
+      (error) => {
+        console.error('Error loading invitations:', error);
+        setInvitationsLoading(false);
       }
+    );
 
-      const myJoinRequestsQuery = query(
-        collection(firestoreDB, 'group_join_requests'),
-        where('requesterId', '==', user.id),
-        where('status', '==', 'pending')
-      );
+    return () => unsubscribe();
+  }, [firestoreDB, user?.id]);
 
-      const unsubscribe = onSnapshot(
-        myJoinRequestsQuery,
-        (snapshot) => {
-          const requests = [];
-          snapshot.forEach((doc) => {
-            requests.push({
-              id: doc.id,
-              ...doc.data(),
-            });
+  // ✅ OPTIMIZED: pending join requests (groups I created) — one listener per
+  // mount instead of per focus, bounded with limit(50)
+  useEffect(() => {
+    if (!firestoreDB || !user?.id) {
+      setPendingJoinRequests([]);
+      return;
+    }
+
+    setJoinRequestsLoading(true);
+    const joinRequestsQuery = query(
+      collection(firestoreDB, 'group_join_requests'),
+      where('creatorId', '==', user.id),
+      where('status', '==', 'pending'),
+      limit(50)
+    );
+
+    const unsubscribe = onSnapshot(
+      joinRequestsQuery,
+      (snapshot) => {
+        const requests = [];
+        snapshot.forEach((doc) => {
+          requests.push({
+            id: doc.id,
+            ...doc.data(),
           });
-          setMyPendingJoinRequests(requests);
-        },
-        (error) => {
-          console.error('Error loading my join requests:', error);
-          if (error.code === 'failed-precondition') {
-            console.error('⚠️ Firestore index required. Please create index for group_join_requests: requesterId (Ascending), status (Ascending)');
-          }
+        });
+        setPendingJoinRequests(requests);
+        setJoinRequestsLoading(false);
+      },
+      (error) => {
+        console.error('Error loading join requests:', error);
+        if (error.code === 'failed-precondition') {
+          console.error('⚠️ Firestore index required. Please create index for group_join_requests: creatorId (Ascending), status (Ascending)');
         }
-      );
+        setJoinRequestsLoading(false);
+      }
+    );
 
-      return () => unsubscribe();
-    }, [firestoreDB, user?.id])
-  );
+    return () => unsubscribe();
+  }, [firestoreDB, user?.id]);
+
+  // ✅ OPTIMIZED: user's own pending join requests — one listener per mount
+  // instead of per focus, bounded with limit(50)
+  useEffect(() => {
+    if (!firestoreDB || !user?.id) {
+      setMyPendingJoinRequests([]);
+      return;
+    }
+
+    const myJoinRequestsQuery = query(
+      collection(firestoreDB, 'group_join_requests'),
+      where('requesterId', '==', user.id),
+      where('status', '==', 'pending'),
+      limit(50)
+    );
+
+    const unsubscribe = onSnapshot(
+      myJoinRequestsQuery,
+      (snapshot) => {
+        const requests = [];
+        snapshot.forEach((doc) => {
+          requests.push({
+            id: doc.id,
+            ...doc.data(),
+          });
+        });
+        setMyPendingJoinRequests(requests);
+      },
+      (error) => {
+        console.error('Error loading my join requests:', error);
+        if (error.code === 'failed-precondition') {
+          console.error('⚠️ Firestore index required. Please create index for group_join_requests: requesterId (Ascending), status (Ascending)');
+        }
+      }
+    );
+
+    return () => unsubscribe();
+  }, [firestoreDB, user?.id]);
 
   // Handle accept invitation
   const handleAcceptInvitation = useCallback(async (inviteId, groupId) => {

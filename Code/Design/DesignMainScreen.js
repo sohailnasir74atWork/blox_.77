@@ -38,6 +38,7 @@ import SignInDrawer from '../Firebase/SigninDrawer';
 import config from '../Helper/Environment';
 import { Platform } from 'react-native';
 import { getMyCosmetics } from '../Helper/cosmeticsCache';
+import { getCachedFollowingIds, setCachedFollowingIds } from '../Helper/followingCache';
 import { showMessage } from 'react-native-flash-message';
 // import { nativeAdPool } from '../Ads/NativeAdPool';
 import NativeAdCard from '../Ads/NativeAdCard';
@@ -125,7 +126,8 @@ const DesignFeedScreen = ({ route }) => {
       let q = query(
         collection(firestoreDB, 'designPosts_upgrade'),
         where('userId', '==', user.id),
-        orderBy('createdAt', 'desc')
+        orderBy('createdAt', 'desc'),
+        limit(200)
       );
 
       if (tag) {
@@ -133,7 +135,8 @@ const DesignFeedScreen = ({ route }) => {
           collection(firestoreDB, 'designPosts_upgrade'),
           where('userId', '==', user.id),
           where('selectedTags', 'array-contains', tag),
-          orderBy('createdAt', 'desc')
+          orderBy('createdAt', 'desc'),
+          limit(200)
         );
 
       }
@@ -256,8 +259,15 @@ const DesignFeedScreen = ({ route }) => {
   }, []);
 
   // ── Fetch who I follow ──
+  // Served from MMKV (1 h TTL, keyed by uid); the query only runs when the
+  // cache is cold or a follow/unfollow cleared it.
   useEffect(() => {
     if (!user?.id || !firestoreDB) return;
+    const cachedIds = getCachedFollowingIds(user.id);
+    if (cachedIds !== null) {
+      setFollowingIds(cachedIds);
+      return;
+    }
     (async () => {
       try {
         const q = query(
@@ -268,6 +278,7 @@ const DesignFeedScreen = ({ route }) => {
         const snap = await getDocs(q);
         const ids = snap.docs.map(d => d.data().followingId).filter(Boolean);
         setFollowingIds(ids);
+        setCachedFollowingIds(user.id, ids);
       } catch (err) {
         console.warn('[Posts] Error fetching following list:', err?.message);
       }

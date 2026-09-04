@@ -7,6 +7,15 @@ import config from '../../Helper/Environment';
 import { useTranslation } from 'react-i18next';
 import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
 import { collection, query, where, getDocs, getCountFromServer } from '@react-native-firebase/firestore';
+// Focus re-fetch throttle for the two header badges (see the effects below).
+const BADGE_REFETCH_MS = 2 * 60 * 1000;
+let invitationsBadgeCache = { uid: null, ts: 0, count: 0 };
+let joinRequestsBadgeCache = { uid: null, ts: 0, count: 0 };
+const resetBadgeThrottle = () => {
+  invitationsBadgeCache = { ...invitationsBadgeCache, ts: 0 };
+  joinRequestsBadgeCache = { ...joinRequestsBadgeCache, ts: 0 };
+};
+
 const CommunityChatHeader = ({
   selectedTheme,
   unreadcount,
@@ -27,11 +36,19 @@ const CommunityChatHeader = ({
   // onSnapshot that kept streaming Firestore reads to render a "!" badge even
   // while the user was deep in other screens/tabs (and duplicated the
   // focus-gated listeners in GroupsScreen). A count badge doesn't need live data.
+  // Focus re-fetches are throttled to once per 2 min per uid (the cached count
+  // is re-applied in between); opening Groups resets the throttle so the badge
+  // is fresh when the user comes back from acting on invites/requests.
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
       if (!firestoreDB || !user?.id) {
         setPendingGroupInvitationsCount(0);
+        return;
+      }
+
+      if (invitationsBadgeCache.uid === user.id && (Date.now() - invitationsBadgeCache.ts) < BADGE_REFETCH_MS) {
+        setPendingGroupInvitationsCount(invitationsBadgeCache.count);
         return;
       }
 
@@ -43,7 +60,6 @@ const CommunityChatHeader = ({
 
       getDocs(invitationsQuery)
         .then((snapshot) => {
-          if (cancelled) return;
           const now = Date.now();
           let validCount = 0;
           snapshot.forEach((doc) => {
@@ -52,6 +68,8 @@ const CommunityChatHeader = ({
             if (data.expiresAt && now < data.expiresAt) validCount++;
             else if (!data.expiresAt) validCount++;
           });
+          invitationsBadgeCache = { uid: user.id, ts: Date.now(), count: validCount };
+          if (cancelled) return;
           setPendingGroupInvitationsCount(validCount);
         })
         .catch((error) => {
@@ -67,11 +85,17 @@ const CommunityChatHeader = ({
   // ✅ Pending join-requests badge (groups I created) — count-only aggregate ON
   // FOCUS. getCountFromServer bills a single read regardless of how many pending
   // requests match, vs the old always-on onSnapshot streaming every pending doc.
+  // Throttled to once per 2 min per uid like the invitations badge above.
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
       if (!firestoreDB || !user?.id) {
         setPendingJoinRequestsCount(0);
+        return;
+      }
+
+      if (joinRequestsBadgeCache.uid === user.id && (Date.now() - joinRequestsBadgeCache.ts) < BADGE_REFETCH_MS) {
+        setPendingJoinRequestsCount(joinRequestsBadgeCache.count);
         return;
       }
 
@@ -83,8 +107,10 @@ const CommunityChatHeader = ({
 
       getCountFromServer(joinRequestsQuery)
         .then((snapshot) => {
+          const count = snapshot.data().count;
+          joinRequestsBadgeCache = { uid: user.id, ts: Date.now(), count };
           if (cancelled) return;
-          setPendingJoinRequestsCount(snapshot.data().count);
+          setPendingJoinRequestsCount(count);
         })
         .catch((error) => {
           if (cancelled) return;
@@ -127,6 +153,7 @@ const CommunityChatHeader = ({
           {/* Groups Button */}
           <TouchableOpacity
             onPress={() => {
+              resetBadgeThrottle(); // user is about to act on invites/requests — refetch on return
               navigation.navigate('Groups');
               triggerHapticFeedback('impactLight');
               if (setGroupUnreadCount && typeof setGroupUnreadCount === 'function') {

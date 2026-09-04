@@ -622,7 +622,8 @@ export const leaveGroup = async (firestoreDB, appdatabase, groupId, userId) => {
         try {
           const invitationsQuery = query(
             collection(firestoreDB, 'group_invitations'),
-            where('groupId', '==', groupId)
+            where('groupId', '==', groupId),
+            limit(200)
           );
           const invitationsSnapshot = await getDocs(invitationsQuery);
           const deleteInvitationPromises = invitationsSnapshot.docs.map(doc => deleteDoc(doc.ref));
@@ -635,7 +636,8 @@ export const leaveGroup = async (firestoreDB, appdatabase, groupId, userId) => {
         try {
           const joinRequestsQuery = query(
             collection(firestoreDB, 'group_join_requests'),
-            where('groupId', '==', groupId)
+            where('groupId', '==', groupId),
+            limit(200)
           );
           const joinRequestsSnapshot = await getDocs(joinRequestsQuery);
           const deleteJoinRequestPromises = joinRequestsSnapshot.docs.map(doc => deleteDoc(doc.ref));
@@ -1591,7 +1593,8 @@ export const deleteGroup = async (firestoreDB, appdatabase, groupId) => {
       try {
         const invitationsQuery = query(
           collection(firestoreDB, 'group_invitations'),
-          where('groupId', '==', groupId)
+          where('groupId', '==', groupId),
+          limit(200)
         );
         const invitationsSnapshot = await getDocs(invitationsQuery);
         invitationMemberIds = invitationsSnapshot.docs
@@ -1674,7 +1677,8 @@ export const deleteGroup = async (firestoreDB, appdatabase, groupId) => {
     try {
       const invitationsQuery = query(
         collection(firestoreDB, 'group_invitations'),
-        where('groupId', '==', groupId)
+        where('groupId', '==', groupId),
+        limit(200)
       );
       const invitationsSnapshot = await getDocs(invitationsQuery);
       const deleteInvitationPromises = invitationsSnapshot.docs.map(doc => deleteDoc(doc.ref));
@@ -1687,7 +1691,8 @@ export const deleteGroup = async (firestoreDB, appdatabase, groupId) => {
     try {
       const joinRequestsQuery = query(
         collection(firestoreDB, 'group_join_requests'),
-        where('groupId', '==', groupId)
+        where('groupId', '==', groupId),
+        limit(200)
       );
       const joinRequestsSnapshot = await getDocs(joinRequestsQuery);
       const deleteJoinRequestPromises = joinRequestsSnapshot.docs.map(doc => deleteDoc(doc.ref));

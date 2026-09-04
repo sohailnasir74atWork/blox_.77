@@ -227,23 +227,24 @@ export function subscribeToMessages(roomId, { onInsert, onDelete, onUpdate, onSt
 
   const channel = supabase
     .channel(topic)
+    // ONE binding for all events (2026-09): three bindings = three server-side
+    // subscriptions evaluated per change; same deliveries, 3× the DB work.
     .on(
       'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` },
-      (payload) => { if (!cancelled) onInsert?.(fromMessageRow(payload.new)); },
-    )
-    .on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` },
-      (payload) => { if (!cancelled) onUpdate?.(fromMessageRow(payload.new)); },
-    )
-    .on(
-      'postgres_changes',
-      { event: 'DELETE', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` },
+      { event: '*', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` },
       (payload) => {
         if (cancelled) return;
-        const id = payload.old?.id;
-        if (id) onDelete?.(id);
+        try {
+          const type = payload?.eventType;
+          if (type === 'INSERT') onInsert?.(fromMessageRow(payload.new));
+          else if (type === 'UPDATE') onUpdate?.(fromMessageRow(payload.new));
+          else if (type === 'DELETE') {
+            const id = payload.old?.id;
+            if (id) onDelete?.(id);
+          }
+        } catch (e) {
+          console.warn('[chatBackend] realtime handler failed:', e?.message);
+        }
       },
     )
     .subscribe((status, err) => onStatus?.(status, err));
@@ -267,21 +268,19 @@ export function subscribeToPinned(roomId, { onUpsert, onRemove, onStatus } = {})
     .channel(topic)
     .on(
       'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'pinned_messages', filter: `room_id=eq.${roomId}` },
-      (payload) => { if (!cancelled) onUpsert?.(fromPinnedRow(payload.new)); },
-    )
-    .on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'pinned_messages', filter: `room_id=eq.${roomId}` },
-      (payload) => { if (!cancelled) onUpsert?.(fromPinnedRow(payload.new)); },
-    )
-    .on(
-      'postgres_changes',
-      { event: 'DELETE', schema: 'public', table: 'pinned_messages', filter: `room_id=eq.${roomId}` },
+      { event: '*', schema: 'public', table: 'pinned_messages', filter: `room_id=eq.${roomId}` },
       (payload) => {
         if (cancelled) return;
-        const id = payload.old?.id;
-        if (id) onRemove?.(id);
+        try {
+          if (payload?.eventType === 'DELETE') {
+            const id = payload.old?.id;
+            if (id) onRemove?.(id);
+          } else if (payload?.new) {
+            onUpsert?.(fromPinnedRow(payload.new));
+          }
+        } catch (e) {
+          console.warn('[chatBackend] pinned realtime handler failed:', e?.message);
+        }
       },
     )
     .subscribe((status, err) => onStatus?.(status, err));

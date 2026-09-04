@@ -58,6 +58,14 @@ const AVAILABLE_LANGUAGES = [
 
 
 
+// The two Home-focus reads below (user_profiles/{me} for owned fruits, RTDB
+// active cosmetics) ran on EVERY focus of the Home tab. Serve the last result
+// for 10 min per uid instead; the first focus for a uid (and any uid change)
+// still reads immediately and the screen shows the same data.
+const HOME_FOCUS_REFRESH_MS = 10 * 60 * 1000;
+const ownedFruitsFocusCache = new Map(); // uid -> { ts, ownedFruits }
+const cosmeticsFocusCache = new Map();   // uid -> { ts, cosmetics }
+
 const HomeTabScreen = ({ selectedTheme }) => {
   const { theme, user, appdatabase, firestoreDB, strikeInfo, deviceBanInfo, isUserBlocked, proGranted } = useGlobalState();
   const { localState, updateLocalState } = useLocalState();
@@ -108,27 +116,48 @@ const HomeTabScreen = ({ selectedTheme }) => {
     }, [isDarkMode])
   );
 
-  // Fetch/refresh owned fruits on focus for portfolio value
+  // Fetch/refresh owned fruits on focus for portfolio value (at most once per
+  // 10 min per uid — see ownedFruitsFocusCache)
   useFocusEffect(
     useCallback(() => {
       if (!user?.id || !firestoreDB) return;
+      const uid = user.id;
+      const cached = ownedFruitsFocusCache.get(uid);
+      if (cached && (Date.now() - cached.ts) < HOME_FOCUS_REFRESH_MS) {
+        if (Array.isArray(cached.ownedFruits)) setOwnedFruits(cached.ownedFruits);
+        return;
+      }
       (async () => {
         try {
-          let snap = await getDoc(doc(firestoreDB, 'user_profiles', user.id));
-          if (!snap.exists()) snap = await getDoc(doc(firestoreDB, 'reviews', user.id));
+          let snap = await getDoc(doc(firestoreDB, 'user_profiles', uid));
+          if (!snap.exists()) snap = await getDoc(doc(firestoreDB, 'reviews', uid));
+          let fruits = null;
           if (snap.exists()) {
-            setOwnedFruits(Array.isArray(snap.data()?.ownedFruits) ? snap.data().ownedFruits : []);
+            fruits = Array.isArray(snap.data()?.ownedFruits) ? snap.data().ownedFruits : [];
+            setOwnedFruits(fruits);
           }
+          ownedFruitsFocusCache.set(uid, { ts: Date.now(), ownedFruits: fruits });
         } catch (e) { console.warn('[Home] fetch fruits:', e?.message); }
       })();
     }, [user?.id, firestoreDB])
   );
 
-  // Fetch active cosmetics on focus
+  // Fetch active cosmetics on focus (at most once per 10 min per uid)
   useFocusEffect(
     useCallback(() => {
       if (!user?.id || !appdatabase) return;
-      getActiveCosmetics(appdatabase, user.id).then(setMyCosmetics).catch(() => {});
+      const uid = user.id;
+      const cached = cosmeticsFocusCache.get(uid);
+      if (cached && (Date.now() - cached.ts) < HOME_FOCUS_REFRESH_MS) {
+        setMyCosmetics(cached.cosmetics);
+        return;
+      }
+      getActiveCosmetics(appdatabase, uid)
+        .then((cosmetics) => {
+          cosmeticsFocusCache.set(uid, { ts: Date.now(), cosmetics });
+          setMyCosmetics(cosmetics);
+        })
+        .catch(() => {});
     }, [user?.id, appdatabase])
   );
 

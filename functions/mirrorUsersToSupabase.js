@@ -1,32 +1,35 @@
 /**
  * Cloud Function: mirror RTDB /users/{uid} into Supabase split tables.
  *
- * RTDB stays the SOURCE OF TRUTH. The app keeps reading/writing
- * /users/{uid} unchanged. This function tails every /users/{uid} write
- * and fans the relevant fields out to 8 narrow Supabase tables so new
- * clients can read profile data without pulling the full /users blob
- * from RTDB.
+ * RTDB stays the SOURCE OF TRUTH. The app (and 14 other CFs) keep
+ * reading/writing /users/{uid} unchanged. This function tails every
+ * /users/{uid} write and fans the relevant fields out to 8 narrow
+ * Supabase tables so new clients can read profile data without
+ * pulling the full /users blob from RTDB.
  *
  * See:
- *   - supabase/003_users_split.sql            — schema
- *   - SUPABASE_MIGRATION.md                   — context
+ *   - supabase/004_users_split.sql                  — schema
+ *   - supabase/004_users_split_FIELD_MAPPING.md     — field mapping
  *
- * Trigger: onWrite at /users/{uid} (the whole row), so we capture every
- * field change in one shot. We DON'T trigger per-leaf because (a) it
- * would create 8x more deployments, (b) reading the after-snapshot once
- * per write is already free.
+ * Trigger: onWrite at /users/{uid} (the whole row), so we capture
+ * every field change in one shot. We DON'T trigger per-leaf because
+ * (a) it would create 8x more deployments, (b) reading the after-snapshot
+ * once per write is already free.
  *
  * Cost note: this fires on EVERY /users write, including hot-path
- * writes to fields we don't mirror (rewardPoints, coins, xp, shop).
+ * writes to fields we don't mirror (rewardPoints, xp, dailyStars, shop).
  * Those fires no-op cheaply (each per-table function checks if its
- * fields changed and skips if not).
+ * fields changed and skips if not). Acceptable until measured otherwise.
  *
- * Failure handling: each per-table mirror is independent. If one upsert
- * fails, others still succeed. The next /users write will retry the
- * failed table.
+ * Failure handling: each per-table mirror is independent. If one
+ * upsert fails, others still succeed. The next /users write will
+ * retry the failed table. No dead-letter queue this phase — same
+ * approach as mirrorChatMetaToSupabase.
  *
  * Deployment:
  *   firebase deploy --only functions:mirrorUsersToSupabase
+ *   (Secrets SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY already set
+ *    for Phase 2; reused here.)
  */
 
 const admin = require('firebase-admin');
@@ -49,6 +52,7 @@ const asNumber = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
 const asJsonb = (v) => (v && typeof v === 'object' ? v : null);
 
 // Did any of the listed leaf keys change between before/after snapshots?
+// Used to skip per-table upserts when the changed leaf isn't ours.
 function anyKeyChanged(before, after, keys) {
   for (const k of keys) {
     if ((before?.[k] ?? null) !== (after?.[k] ?? null)) return true;
@@ -58,8 +62,8 @@ function anyKeyChanged(before, after, keys) {
 
 // Diff two RTDB objects-of-true (`{key1: true, key2: true}`) shape used
 // by /users/{uid}/badges and /users/{uid}/blocked_users.
-// Returns { toAdd: [keys], toRemove: [keys] } — never touches existing
-// keys so earned_at_ms / blocked_at_ms stay stable.
+// Returns { toAdd: [keys], toRemove: [keys] } — never touches existing keys
+// so earned_at_ms / blocked_at_ms stay stable.
 function diffBoolMap(before, after) {
   const beforeKeys = new Set(Object.keys(before || {}));
   const afterKeys = new Set(Object.keys(after || {}));
@@ -76,13 +80,17 @@ function diffBoolMap(before, after) {
 
 // --------------------------------------------------------------------
 // Per-table mirrors
+//
+// Each takes (uid, before, after, supabase). Returns a Promise that
+// resolves whether or not the mirror was needed. Errors are logged
+// inside; never throw — we don't want one table failure to block the
+// others (Promise.all rejects on first throw).
 // --------------------------------------------------------------------
 
-// Identity — the slim "show this user in chat" set. lastactivity is
-// intentionally typo'd in RTDB; mirror reads either spelling.
 const IDENTITY_KEYS = [
-  'displayName', 'avatar', 'email', 'isBlock',
-  'createdAt', 'lastactivity', 'lastActivity', 'online', 'OS',
+  'displayName', 'avatar', 'email', 'decodedEmail', 'flage',
+  'dateOfBirth', 'OS', 'createdAt', 'lastActivity', 'lastProfileEditAt',
+  'lastGameWinAt',   // 2026-09: mirrored so clients stop reading it from RTDB per profile
 ];
 async function mirrorIdentity(uid, before, after, supabase) {
   if (!anyKeyChanged(before, after, IDENTITY_KEYS)) return;
@@ -92,13 +100,14 @@ async function mirrorIdentity(uid, before, after, supabase) {
     display_name: asString(after.displayName),
     avatar: asString(after.avatar),
     email: asString(after.email),
-    is_block: asBool(after.isBlock),
-    created_at_ms: asNumber(after.createdAt),
-    // lastactivity is the typo'd RTDB field; lastActivity is a future-
-    // proofed alternative spelling — accept either.
-    last_activity_ms: asNumber(after.lastactivity ?? after.lastActivity),
-    online: asBool(after.online),
+    decoded_email: asString(after.decodedEmail),
+    flag: asString(after.flage),               // typo fix: flage → flag
+    date_of_birth: asString(after.dateOfBirth),
     os: asString(after.OS),
+    created_at_ms: asNumber(after.createdAt),
+    last_activity_ms: asNumber(after.lastActivity),
+    last_profile_edit_ms: asNumber(after.lastProfileEditAt),
+    last_game_win_ms: asNumber(after.lastGameWinAt),
     updated_at: nowIso(),
   };
 
@@ -128,27 +137,18 @@ async function mirrorRoblox(uid, before, after, supabase) {
   if (error) console.error('[mirrorUsers/roblox]', uid, error.message);
 }
 
-// Both `admin` and `isAdmin` are used in Blox Fruit RTDB
-// (GlobelStats.js:316 reads either). Coalesce.
-const ROLES_KEYS = [
-  'admin', 'isAdmin', 'isSeniorMod',
-  'isModerator', 'isBabyMod', 'isTrusted',
-  'isGrinder', 'isRaider',
-];
+const ROLES_KEYS = ['admin', 'isModerator', 'isBabyMod', 'isTrusted', 'isCMSR', 'isHelper'];
 async function mirrorRoles(uid, before, after, supabase) {
   if (!anyKeyChanged(before, after, ROLES_KEYS)) return;
 
   const row = {
     uid,
-    is_admin: asBool(after.admin) || asBool(after.isAdmin),
-    // Senior Mod (one rank below Admin) mirrors into the pre-scaffolded
-    // is_cmsr column — see fromRolesRow in Code/Supabase/userBackend.js.
-    is_cmsr: asBool(after.isSeniorMod),
+    is_admin: asBool(after.admin),             // rename: admin → is_admin
     is_moderator: asBool(after.isModerator),
     is_baby_mod: asBool(after.isBabyMod),
     is_trusted: asBool(after.isTrusted),
-    is_grinder: asBool(after.isGrinder),
-    is_raider: asBool(after.isRaider),
+    is_cmsr: asBool(after.isCMSR),
+    is_helper: asBool(after.isHelper),
     updated_at: nowIso(),
   };
 
@@ -159,13 +159,36 @@ async function mirrorRoles(uid, before, after, supabase) {
 }
 
 const COSMETICS_KEYS = ['topBadge', 'isPro'];
-async function mirrorCosmetics(uid, before, after, supabase) {
-  if (!anyKeyChanged(before, after, COSMETICS_KEYS)) return;
+// Active shop items mirrored as jsonb so the client (profileCache) can
+// do its own expiresAt check without us needing a re-mirror at expiry.
+const ACTIVE_ITEM_KEYS = ['profileFrame', 'chatTextColor', 'tradeCardBg', 'profileBanner', 'chatBubbleBg'];
 
+function activeItemsChanged(before, after) {
+  const beforeItems = before?.shop?.activeItems || {};
+  const afterItems  = after?.shop?.activeItems  || {};
+  for (const k of ACTIVE_ITEM_KEYS) {
+    // Active items are OBJECTS ({expiresAt, color, ...}); `!==` compared object
+    // identity, which is always different between the before/after snapshots,
+    // so every /users write for a user with any cosmetic re-upserted the row
+    // (2026-09: 11 M needless user_cosmetics updates on adoptme). Compare by value.
+    if (JSON.stringify(beforeItems[k] ?? null) !== JSON.stringify(afterItems[k] ?? null)) return true;
+  }
+  return false;
+}
+
+async function mirrorCosmetics(uid, before, after, supabase) {
+  if (!anyKeyChanged(before, after, COSMETICS_KEYS) && !activeItemsChanged(before, after)) return;
+
+  const activeItems = after?.shop?.activeItems || {};
   const row = {
     uid,
     top_badge: asString(after.topBadge),
     is_pro: asBool(after.isPro),
+    profile_frame:   asJsonb(activeItems.profileFrame),
+    chat_text_color: asJsonb(activeItems.chatTextColor),
+    trade_card_bg:   asJsonb(activeItems.tradeCardBg),
+    profile_banner:  asJsonb(activeItems.profileBanner),
+    chat_bubble_bg:  asJsonb(activeItems.chatBubbleBg),
     updated_at: nowIso(),
   };
 
@@ -200,11 +223,11 @@ async function mirrorSettings(uid, before, after, supabase) {
   const row = {
     uid,
     is_reminder_enabled: asBool(after.isReminderEnabled),
+    is_selected_reminder_enabled: asBool(after.isSelectedReminderEnabled),
     // Chat-availability switches — mirrored so the private_messages insert
     // trigger can reject blocked messages regardless of the sender's app version.
     chat_off_trade: asBool(after.chatOffTrade),
     chat_off_general: asBool(after.chatOffGeneral),
-    is_selected_reminder_enabled: asBool(after.isSelectedReminderEnabled),
     updated_at: nowIso(),
   };
 
@@ -219,6 +242,7 @@ async function mirrorSettings(uid, before, after, supabase) {
 async function mirrorBadges(uid, before, after, supabase) {
   const beforeBadges = (before && before.badges) || {};
   const afterBadges = (after && after.badges) || {};
+  // Quick equality short-circuit. Most /users writes don't touch badges.
   if (beforeBadges === afterBadges) return;
   const { toAdd, toRemove } = diffBoolMap(beforeBadges, afterBadges);
   if (toAdd.length === 0 && toRemove.length === 0) return;
@@ -275,11 +299,48 @@ async function mirrorBlocks(uid, before, after, supabase) {
   }
 }
 
+// --------------------------------------------------------------------
+// Mods roster (RTDB mods/{uid}) — absorbed from syncModRoster so the
+// roster rides THIS function's invocation instead of a second CF
+// triggering on every /users/{uid} write. After deploying this, delete
+// the old trigger:  firebase functions:delete syncModRoster
+// (keep seedModRoster — it's the separate scheduled seeder).
+// --------------------------------------------------------------------
+async function mirrorModsRoster(uid, before, after) {
+  const relevantFields = ['isModerator', 'isBabyMod', 'displayName', 'avatar'];
+  if (before && !anyKeyChanged(before, after, relevantFields)) return;
+
+  const isMod = after.isModerator === true;
+  const isJmod = after.isBabyMod === true;
+  const ref = admin.database().ref(`mods/${uid}`);
+  try {
+    if (isMod || isJmod) {
+      await ref.set({
+        displayName: after.displayName || 'Unknown',
+        avatar: after.avatar || '',
+        role: isMod ? 'mod' : 'jmod',
+        updatedAt: Date.now(),
+      });
+    } else {
+      await ref.remove();
+    }
+  } catch (e) {
+    console.error('[mirrorUsers/modsRoster]', uid, e.message);
+  }
+}
+
 // On full /users/{uid} delete, drop rows from all 8 tables.
+// Each delete is independent — if one fails, the others still go.
 async function deleteAllForUser(uid, supabase) {
   const tables = [
-    'user_identity', 'user_roblox', 'user_roles', 'user_cosmetics',
-    'user_notifications', 'user_settings', 'user_badges', 'user_blocks',
+    'user_identity',
+    'user_roblox',
+    'user_roles',
+    'user_cosmetics',
+    'user_notifications',
+    'user_settings',
+    'user_badges',
+    'user_blocks',
   ];
   await Promise.all(
     tables.map(async (t) => {
@@ -296,7 +357,7 @@ async function deleteAllForUser(uid, supabase) {
 exports.mirrorUsersToSupabase = functions
   .runWith({
     secrets: ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'],
-    memory: '512MB',
+    memory: '512MB',     // bigger than chat-meta — we read the full /users row
     timeoutSeconds: 60,
   })
   .database.ref('/users/{uid}')
@@ -304,9 +365,13 @@ exports.mirrorUsersToSupabase = functions
     const { uid } = context.params;
     const supabase = getSupabaseAdmin();
 
-    // Full delete — propagate to every table.
+    // Full delete — propagate to every table + the mods roster.
     if (!change.after.exists()) {
-      return deleteAllForUser(uid, supabase);
+      await Promise.all([
+        deleteAllForUser(uid, supabase),
+        admin.database().ref(`mods/${uid}`).remove().catch(() => {}),
+      ]);
+      return null;
     }
 
     const before = change.before.exists() ? change.before.val() : {};
@@ -324,6 +389,7 @@ exports.mirrorUsersToSupabase = functions
       mirrorSettings(uid, before, after, supabase),
       mirrorBadges(uid, before, after, supabase),
       mirrorBlocks(uid, before, after, supabase),
+      mirrorModsRoster(uid, change.before.exists() ? before : null, after),
     ]);
 
     return null;
