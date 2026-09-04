@@ -605,8 +605,9 @@ removed. `tsc --noEmit` passes.
    203,681 cosmetics rows, 1,811 with active cosmetics.
 3. F2 stage 1 (`users` reads → `auth != null`): needs the logged-out browsing
    paths checked first (public chat viewers, website public profile).
-4. `reindex index concurrently` on the six `private_messages` indexes (online)
-   and the optional `vacuum full net._http_response` (brief lock) — off-peak.
+4. ~~reindex + vacuum~~ — DONE 2026-09-04 via the Management API: the six
+   `private_messages` indexes rebuilt online 3.2 GB → 772 MB, `net._http_response`
+   642 MB → 8.6 MB, database **8.7 GB → 5.7 GB** (back under the 8 GB included).
 5. ~~Ship the app build~~ — signed AAB built 2026-09-04: `android/app/build/outputs/bundle/release/app-release.aab`, versionName 4.0.9 / versionCode 158, 53.2 MB (previous 52.8 MB). Upload to Play, then re-measure (§6).
 6. Also fixed 2026-09-04: `mirrorUsersToSupabase.activeItemsChanged` compared cosmetic OBJECTS by identity, so every /users write for a user with a cosmetic re-upserted `user_cosmetics` (11 M needless updates measured on adoptme). Now compares by value; redeployed.
 
