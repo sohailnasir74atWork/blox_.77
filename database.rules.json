@@ -14,7 +14,12 @@
         "isReminderEnabled",
         "fcmToken",
         "isModerator",
-        "isBabyMod"
+        "isBabyMod",
+        "isTrusted",
+        "isSeniorMod",
+        "isGrinder",
+        "isRaider",
+        "admin"
       ],
       ".read": true,
       "$userId": {

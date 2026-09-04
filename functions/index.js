@@ -54,3 +54,6 @@ exports.fruitCrashController = require('./fruitCrashController').fruitCrashContr
 //   fetchWorldCupDataNow / fetchWorldCupDataScheduled           → feature not present in app or website
 //   rebuildSubscriptionsFromRTDB                                → one-off admin tool, functions.config() (removed API)
 //   updateLeaderboardCacheManual, resetFruitCrashRound          → unauthenticated manual endpoints, never deployed
+
+// ── Roles mirror safety net (6-hourly RTDB ⇄ Supabase user_roles diff, 2026-09-04) ──
+exports.reconcileRolesMirror = require('./reconcileRolesMirror').reconcileRolesMirror;

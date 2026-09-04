@@ -1158,7 +1158,7 @@ export const makeSeniorMod = async (userId, callerRoles = {}) => {
   try {
     const db = getDatabase();
     const userRef = ref(db, `users/${userId}`);
-    await update(userRef, { isSeniorMod: true });
+    await update(userRef, { isSeniorMod: true, rolesUpdatedAt: Date.now() });
     Alert.alert('Success', 'User is now a Senior Mod.');
     return true;
   } catch (error) {
@@ -1185,7 +1185,7 @@ export const removeSeniorMod = async (userId, callerRoles = {}) => {
   try {
     const db = getDatabase();
     const userRef = ref(db, `users/${userId}`);
-    await update(userRef, { isSeniorMod: false });
+    await update(userRef, { isSeniorMod: false, rolesUpdatedAt: Date.now() });
     Alert.alert('Success', 'Senior Mod privileges removed.');
     return true;
   } catch (error) {
@@ -1212,7 +1212,9 @@ export const makeModerator = async (userId, callerRoles = {}) => {
   try {
     const db = getDatabase();
     const userRef = ref(db, `users/${userId}`);
-    await update(userRef, { isModerator: true });
+    // rolesUpdatedAt forces the Supabase mirror to run even if the flag value
+    // is unchanged (see functions/mirrorUsersToSupabase.js ROLES_KEYS).
+    await update(userRef, { isModerator: true, rolesUpdatedAt: Date.now() });
     Alert.alert('Success', 'User is now a moderator.');
     return true;
   } catch (error) {
@@ -1239,7 +1241,9 @@ export const removeModerator = async (userId, callerRoles = {}) => {
   try {
     const db = getDatabase();
     const userRef = ref(db, `users/${userId}`);
-    await update(userRef, { isModerator: false });
+    // The stamp makes a repeat removal a real write so a stale Supabase copy
+    // of the role gets re-mirrored instead of living forever.
+    await update(userRef, { isModerator: false, rolesUpdatedAt: Date.now() });
     Alert.alert('Success', 'Moderator privileges removed.');
     return true;
   } catch (error) {
@@ -1265,7 +1269,7 @@ export const makeBabyMod = async (userId, callerRoles = {}) => {
   }
   try {
     const db = getDatabase();
-    await set(ref(db, `users/${userId}/isBabyMod`), true);
+    await update(ref(db, `users/${userId}`), { isBabyMod: true, rolesUpdatedAt: Date.now() });
     return true;
   } catch (error) {
     console.error('Error promoting JMD:', error);
@@ -1293,7 +1297,7 @@ export const removeBabyMod = async (userId, callerRoles = {}) => {
   }
   try {
     const db = getDatabase();
-    await set(ref(db, `users/${userId}/isBabyMod`), null);
+    await update(ref(db, `users/${userId}`), { isBabyMod: null, rolesUpdatedAt: Date.now() });
     return true;
   } catch (error) {
     console.error('Error removing JMD:', error);

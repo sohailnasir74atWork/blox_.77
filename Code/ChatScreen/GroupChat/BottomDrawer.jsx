@@ -53,7 +53,7 @@ import {
   getCountFromServer,
   writeBatch,
 } from '@react-native-firebase/firestore';
-import { ref, get, set, remove } from '@react-native-firebase/database';
+import { ref, get, set, update, remove } from '@react-native-firebase/database';
 import { getRoblox, getRoles, getCosmetics } from '../../Supabase/userBackend';
 import { SUPABASE_USERS_ENABLED } from '../../Supabase/featureFlags';
 import dayjs from 'dayjs';
@@ -729,7 +729,9 @@ const ProfileBottomDrawer = ({
         {
           text: 'Confirm', onPress: async () => {
             try {
-              await set(ref(appdatabase, `users/${selectedUserId}/isTrusted`), true);
+              // One atomic write: flag + rolesUpdatedAt stamp so the Supabase
+              // mirror always runs, even when the flag value is unchanged.
+              await update(ref(appdatabase, `users/${selectedUserId}`), { isTrusted: true, rolesUpdatedAt: Date.now() });
               setUserData(prev => ({ ...prev, isTrusted: true }));
               Alert.alert('Success', 'User is now Trusted.');
             } catch (error) {
@@ -750,7 +752,7 @@ const ProfileBottomDrawer = ({
         {
           text: 'Remove', style: 'destructive', onPress: async () => {
             try {
-              await set(ref(appdatabase, `users/${selectedUserId}/isTrusted`), null);
+              await update(ref(appdatabase, `users/${selectedUserId}`), { isTrusted: null, rolesUpdatedAt: Date.now() });
               setUserData(prev => ({ ...prev, isTrusted: false }));
               Alert.alert('Success', 'Trusted status removed.');
             } catch (error) {
@@ -771,7 +773,7 @@ const ProfileBottomDrawer = ({
         {
           text: 'Assign', onPress: async () => {
             try {
-              await set(ref(appdatabase, `users/${selectedUserId}/isGrinder`), true);
+              await update(ref(appdatabase, `users/${selectedUserId}`), { isGrinder: true, rolesUpdatedAt: Date.now() });
               setUserData(prev => ({ ...prev, isGrinder: true }));
               Alert.alert('Success', 'User is now Grinder.');
             } catch (error) {
@@ -792,7 +794,7 @@ const ProfileBottomDrawer = ({
         {
           text: 'Remove', style: 'destructive', onPress: async () => {
             try {
-              await set(ref(appdatabase, `users/${selectedUserId}/isGrinder`), null);
+              await update(ref(appdatabase, `users/${selectedUserId}`), { isGrinder: null, rolesUpdatedAt: Date.now() });
               setUserData(prev => ({ ...prev, isGrinder: false }));
               Alert.alert('Success', 'Grinder status removed.');
             } catch (error) {
@@ -813,7 +815,7 @@ const ProfileBottomDrawer = ({
         {
           text: 'Assign', onPress: async () => {
             try {
-              await set(ref(appdatabase, `users/${selectedUserId}/isRaider`), true);
+              await update(ref(appdatabase, `users/${selectedUserId}`), { isRaider: true, rolesUpdatedAt: Date.now() });
               setUserData(prev => ({ ...prev, isRaider: true }));
               Alert.alert('Success', 'User is now Raider.');
             } catch (error) {
@@ -834,7 +836,7 @@ const ProfileBottomDrawer = ({
         {
           text: 'Remove', style: 'destructive', onPress: async () => {
             try {
-              await set(ref(appdatabase, `users/${selectedUserId}/isRaider`), null);
+              await update(ref(appdatabase, `users/${selectedUserId}`), { isRaider: null, rolesUpdatedAt: Date.now() });
               setUserData(prev => ({ ...prev, isRaider: false }));
               Alert.alert('Success', 'Raider status removed.');
             } catch (error) {

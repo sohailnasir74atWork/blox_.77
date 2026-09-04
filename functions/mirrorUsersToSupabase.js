@@ -137,7 +137,15 @@ async function mirrorRoblox(uid, before, after, supabase) {
   if (error) console.error('[mirrorUsers/roblox]', uid, error.message);
 }
 
-const ROLES_KEYS = ['admin', 'isModerator', 'isBabyMod', 'isTrusted', 'isCMSR', 'isHelper'];
+// 2026-09-04 fix: this upsert had FAILED on every call since the table was
+// created — it wrote `is_helper`, a column that does not exist here (Blox has
+// no helper role), so no role change since the May backfill ever reached
+// Supabase, and Senior Mod was read from `isCMSR`, a flag the Blox app never
+// writes (it uses `isSeniorMod`). Columns are exactly:
+//   uid, is_admin, is_moderator, is_baby_mod, is_trusted, is_cmsr, is_grinder, is_raider
+// `rolesUpdatedAt` is a stamp the admin UI writes with every role change so a
+// repeat removal (same value) still re-mirrors.
+const ROLES_KEYS = ['admin', 'isModerator', 'isBabyMod', 'isTrusted', 'isSeniorMod', 'isGrinder', 'isRaider', 'rolesUpdatedAt'];
 async function mirrorRoles(uid, before, after, supabase) {
   if (!anyKeyChanged(before, after, ROLES_KEYS)) return;
 
@@ -147,8 +155,9 @@ async function mirrorRoles(uid, before, after, supabase) {
     is_moderator: asBool(after.isModerator),
     is_baby_mod: asBool(after.isBabyMod),
     is_trusted: asBool(after.isTrusted),
-    is_cmsr: asBool(after.isCMSR),
-    is_helper: asBool(after.isHelper),
+    is_cmsr: asBool(after.isSeniorMod),        // the client maps is_cmsr → isSeniorMod
+    is_grinder: asBool(after.isGrinder),
+    is_raider: asBool(after.isRaider),
     updated_at: nowIso(),
   };
 

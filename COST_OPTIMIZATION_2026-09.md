@@ -632,3 +632,24 @@ python3 analyze_profile.py      # per-path op/bytes breakdown + top clients
 Firestore collection counts: `documents:runAggregationQuery` with a `count`
 aggregation (1 read per 1000 docs). Live rules:
 `GET https://fruiteblocks-default-rtdb.firebaseio.com/.settings/rules.json?access_token=$(gcloud auth print-access-token)`.
+
+## 8. Bug fix — roles mirror never worked; role changes invisible since May (2026-09-04)
+
+Found while fixing the same class of bug in Adopt Me: `mirrorRoles` in
+`mirrorUsersToSupabase` upserted an `is_helper` column that does not exist in
+this project's `user_roles` (columns: is_admin, is_moderator, is_baby_mod,
+is_trusted, is_cmsr, is_grinder, is_raider), so **every roles upsert has
+failed since the table was created** (logs: "Could not find the 'is_helper'
+column"). It also mapped `is_cmsr` from `isCMSR`, a flag this app never writes
+(Senior Mod is `isSeniorMod`), and never wrote Grinder/Raider. Because every
+screen trusts the Supabase row over RTDB, other users saw the May backfill's
+roles forever.
+
+Fixes: mirror writes exactly the existing columns (`is_cmsr ← isSeniorMod`,
+plus `is_grinder`/`is_raider`) and listens to `rolesUpdatedAt`; every admin
+role write (`utils.js` make/remove Moderator, Junior Mod, Senior Mod;
+`BottomDrawer.jsx` Trusted, Grinder, Raider) carries the stamp; new 6-hourly
+`reconcileRolesMirror` function diffs RTDB (indexed — `.indexOn` added for
+isTrusted, isSeniorMod, isGrinder, isRaider, admin; rules deployed) against
+`user_roles` and repairs drift — its first run (2026-09-04) repaired 10
+drifted rows. Ships in 4.0.10 / 159 (client stamps); the server side is live.
