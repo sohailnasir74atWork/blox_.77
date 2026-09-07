@@ -83,7 +83,7 @@ const LeaderboardScreen = ({ route }) => {
       const cacheDocRef = doc(firestoreDB, 'leaderboard_cache', 'top50');
       const cacheDocSnap = await getDoc(cacheDocRef);
 
-      if (!cacheDocSnap.exists) {
+      if (!cacheDocSnap.exists()) {
         setTopRatedData([]);
         return;
       }

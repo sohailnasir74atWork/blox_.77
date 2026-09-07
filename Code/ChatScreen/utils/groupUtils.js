@@ -277,7 +277,7 @@ export const sendGroupInvite = async (firestoreDB, groupId, invitedUserId, invit
   try {
     // Check if user is already in group (1 Firestore read)
     const groupDoc = await getDoc(doc(firestoreDB, 'groups', groupId));
-    if (!groupDoc.exists) {
+    if (!groupDoc.exists()) {
       return { success: false, error: 'Group not found' };
     }
 
@@ -314,16 +314,18 @@ export const sendGroupInvite = async (firestoreDB, groupId, invitedUserId, invit
       invitedUserDisplayName = invitedUserData.displayName || 'Anonymous';
       invitedUserAvatar = invitedUserData.avatar || null;
     } else {
-      // Try to fetch from RTDB users node
+      // Try to fetch from RTDB users node. This used to reference a bare
+      // `appdatabase`, which is neither a parameter of this function nor an
+      // import — the ReferenceError was swallowed by the catch below, so the
+      // lookup never ran and every invite fell back to "Anonymous".
       try {
-        if (appdatabase) {
-          const userRef = ref(appdatabase, `users/${invitedUserId}`);
-          const userSnapshot = await get(userRef);
-          if (userSnapshot.exists()) {
-            const userData = userSnapshot.val() || {};
-            invitedUserDisplayName = userData.displayName || 'Anonymous';
-            invitedUserAvatar = userData.avatar || null;
-          }
+        const database = getDatabase();
+        const userRef = ref(database, `users/${invitedUserId}`);
+        const userSnapshot = await get(userRef);
+        if (userSnapshot.exists()) {
+          const userData = userSnapshot.val() || {};
+          invitedUserDisplayName = userData.displayName || 'Anonymous';
+          invitedUserAvatar = userData.avatar || null;
         }
       } catch (error) {
         console.warn('Could not fetch invited user data:', error);
@@ -372,7 +374,7 @@ export const acceptGroupInvite = async (firestoreDB, appdatabase, inviteId, user
     const inviteRef = doc(firestoreDB, 'group_invitations', inviteId);
     const inviteSnap = await getDoc(inviteRef);
 
-    if (!inviteSnap.exists) {
+    if (!inviteSnap.exists()) {
       return { success: false, error: 'Invitation not found' };
     }
 
@@ -394,7 +396,7 @@ export const acceptGroupInvite = async (firestoreDB, appdatabase, inviteId, user
     const groupRef = doc(firestoreDB, 'groups', inviteData.groupId);
     const groupSnap = await getDoc(groupRef);
 
-    if (!groupSnap.exists) {
+    if (!groupSnap.exists()) {
       return { success: false, error: 'Group not found' };
     }
 
@@ -414,7 +416,7 @@ export const acceptGroupInvite = async (firestoreDB, appdatabase, inviteId, user
     // Add user to group (transaction to prevent race conditions)
     await runTransaction(firestoreDB, async (transaction) => {
       const freshGroupSnap = await transaction.get(groupRef);
-      if (!freshGroupSnap.exists) {
+      if (!freshGroupSnap.exists()) {
         throw new Error('Group not found');
       }
 
@@ -491,7 +493,7 @@ export const declineGroupInvite = async (firestoreDB, inviteId, userId) => {
     const inviteRef = doc(firestoreDB, 'group_invitations', inviteId);
     const inviteSnap = await getDoc(inviteRef);
 
-    if (!inviteSnap.exists) {
+    if (!inviteSnap.exists()) {
       return { success: false, error: 'Invitation not found' };
     }
 
@@ -526,7 +528,7 @@ export const leaveGroup = async (firestoreDB, appdatabase, groupId, userId) => {
 
     const result = await runTransaction(firestoreDB, async (transaction) => {
       const groupSnap = await transaction.get(groupRef);
-      if (!groupSnap.exists) {
+      if (!groupSnap.exists()) {
         // Group doesn't exist - return null to indicate group was not found
         // We'll handle cleanup outside the transaction
         return null;
@@ -688,7 +690,23 @@ export const sendGroupMessage = async (appdatabase, firestoreDB, groupId, messag
   try {
     const timestamp = Date.now();
 
-    // 1. Save the message body to Supabase (idempotent via clientMsgId).
+    // 1. Get group members from Firestore (1 read).
+    //
+    // This read comes BEFORE the Supabase insert on purpose. It used to run
+    // after, which meant a missing group or a transient Firestore failure left
+    // the message durably stored with the fan-out skipped — the body was in the
+    // group but nobody's chat-list preview or unread count ever moved. Reading
+    // first makes the send atomic from the user's point of view: either we know
+    // who to fan out to, or nothing is written at all.
+    const groupDoc = await getDoc(doc(firestoreDB, 'groups', groupId));
+    if (!groupDoc.exists()) {
+      return { success: false, error: 'Group not found' };
+    }
+
+    const groupData = groupDoc.data();
+    const memberIds = groupData.memberIds || [];
+
+    // 2. Save the message body to Supabase (idempotent via clientMsgId).
     // Sender profile fields (sender, avatar, isPro, etc.) come through
     // messageData unchanged — the backend snapshot-stores them.
     await sbSendGroupMessage({
@@ -697,15 +715,6 @@ export const sendGroupMessage = async (appdatabase, firestoreDB, groupId, messag
       message: messageData,
       clientMsgId: messageData.clientMsgId ?? undefined,
     });
-
-    // 2. Get group members from Firestore (1 read)
-    const groupDoc = await getDoc(doc(firestoreDB, 'groups', groupId));
-    if (!groupDoc.exists) {
-      return { success: false, error: 'Group not found' };
-    }
-
-    const groupData = groupDoc.data();
-    const memberIds = groupData.memberIds || [];
 
     // Last message preview
     const lastMessagePreview =
@@ -774,7 +783,7 @@ export const addMembersToGroup = async (firestoreDB, appdatabase, groupId, newMe
     const groupRef = doc(firestoreDB, 'groups', groupId);
     const groupSnap = await getDoc(groupRef);
     
-    if (!groupSnap.exists) {
+    if (!groupSnap.exists()) {
       return { success: false, error: 'Group not found' };
     }
 
@@ -903,7 +912,7 @@ export const removeMemberFromGroup = async (firestoreDB, appdatabase, groupId, m
 
     return await runTransaction(firestoreDB, async (transaction) => {
       const groupSnap = await transaction.get(groupRef);
-      if (!groupSnap.exists) {
+      if (!groupSnap.exists()) {
         throw new Error('Group not found');
       }
 
@@ -1103,7 +1112,7 @@ export const makeMemberCreator = async (firestoreDB, appdatabase, groupId, membe
 
     return await runTransaction(firestoreDB, async (transaction) => {
       const groupSnap = await transaction.get(groupRef);
-      if (!groupSnap.exists) {
+      if (!groupSnap.exists()) {
         throw new Error('Group not found');
       }
 
@@ -1159,7 +1168,7 @@ export const updateGroupName = async (firestoreDB, appdatabase, groupId, userId,
     const groupRef = doc(firestoreDB, 'groups', groupId);
     const groupSnap = await getDoc(groupRef);
 
-    if (!groupSnap.exists) {
+    if (!groupSnap.exists()) {
       return { success: false, error: 'Group not found' };
     }
 
@@ -1210,7 +1219,7 @@ export const updateGroupDescription = async (firestoreDB, appdatabase, groupId, 
     const groupRef = doc(firestoreDB, 'groups', groupId);
     const groupSnap = await getDoc(groupRef);
 
-    if (!groupSnap.exists) {
+    if (!groupSnap.exists()) {
       return { success: false, error: 'Group not found' };
     }
 
@@ -1253,7 +1262,7 @@ export const updateGroupAvatar = async (firestoreDB, appdatabase, groupId, userI
     const groupRef = doc(firestoreDB, 'groups', groupId);
     const groupSnap = await getDoc(groupRef);
 
-    if (!groupSnap.exists) {
+    if (!groupSnap.exists()) {
       return { success: false, error: 'Group not found' };
     }
 
@@ -1305,7 +1314,7 @@ export const sendJoinRequest = async (firestoreDB, groupId, requesterData) => {
     const groupRef = doc(firestoreDB, 'groups', groupId);
     const groupSnap = await getDoc(groupRef);
 
-    if (!groupSnap.exists) {
+    if (!groupSnap.exists()) {
       return { success: false, error: 'Group not found' };
     }
 
@@ -1374,7 +1383,7 @@ export const approveJoinRequest = async (firestoreDB, appdatabase, requestId, cr
     const requestRef = doc(firestoreDB, 'group_join_requests', requestId);
     const requestSnap = await getDoc(requestRef);
 
-    if (!requestSnap.exists) {
+    if (!requestSnap.exists()) {
       return { success: false, error: 'Join request not found' };
     }
 
@@ -1397,7 +1406,7 @@ export const approveJoinRequest = async (firestoreDB, appdatabase, requestId, cr
     const groupRef = doc(firestoreDB, 'groups', groupId);
     const groupSnap = await getDoc(groupRef);
 
-    if (!groupSnap.exists) {
+    if (!groupSnap.exists()) {
       return { success: false, error: 'Group not found' };
     }
 
@@ -1501,7 +1510,7 @@ export const rejectJoinRequest = async (firestoreDB, requestId, creatorId) => {
     const requestRef = doc(firestoreDB, 'group_join_requests', requestId);
     const requestSnap = await getDoc(requestRef);
 
-    if (!requestSnap.exists) {
+    if (!requestSnap.exists()) {
       return { success: false, error: 'Join request not found' };
     }
 
@@ -1538,7 +1547,7 @@ export const rejectJoinRequest = async (firestoreDB, requestId, creatorId) => {
  * @returns {Promise<{success: boolean, groups?: Array, error?: string}>}
  */
 // ✅ Delete group (Admin only)
-export const deleteGroup = async (firestoreDB, appdatabase, groupId) => {
+export const deleteGroup = async (firestoreDB, appdatabase, groupId, deletedByUserId = null) => {
   if (!firestoreDB || !appdatabase || !groupId) {
     return { success: false, error: 'Missing required parameters' };
   }
@@ -1551,8 +1560,7 @@ export const deleteGroup = async (firestoreDB, appdatabase, groupId) => {
     try {
       const groupDocRef = doc(firestoreDB, 'groups', groupId);
       const groupSnap = await getDoc(groupDocRef);
-      // Fix: exists is a property, not a function
-      if (groupSnap.exists) {
+      if (groupSnap.exists()) {
         groupData = groupSnap.data();
         memberIds = groupData.memberIds || [];
       }
@@ -1636,7 +1644,7 @@ export const deleteGroup = async (firestoreDB, appdatabase, groupId) => {
 
     // Soft-delete every message in the group — Supabase.
     try {
-      await sbSoftDeleteAllInGroup(groupId, userId ?? null);
+      await sbSoftDeleteAllInGroup(groupId, deletedByUserId ?? null);
     } catch (messagesError) {
       console.warn('Could not soft-delete group messages:', messagesError);
     }

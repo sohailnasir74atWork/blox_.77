@@ -230,7 +230,7 @@ export const sendGameInvite = async (
     const roomRef = doc(firestoreDB, 'fruitGuessingGame_rooms', roomId);
     const roomSnap = await getDoc(roomRef);
     
-    if (!roomSnap.exists) {
+    if (!roomSnap.exists()) {
       return false; // Room doesn't exist
     }
 
@@ -271,7 +271,7 @@ export const sendGameInvite = async (
       try {
         // Check if invite is still pending (not accepted/declined)
         const checkRoomSnap = await getDoc(roomRef);
-        if (checkRoomSnap.exists) {
+        if (checkRoomSnap.exists()) {
           const checkRoomData = checkRoomSnap.data();
           const checkInvites = checkRoomData.invites || {};
           if (checkInvites[invitedUserId]?.status === 'pending') {
@@ -287,7 +287,7 @@ export const sendGameInvite = async (
           roomId
         );
         const checkUserInviteSnap = await getDoc(checkUserInviteRef);
-        if (checkUserInviteSnap.exists) {
+        if (checkUserInviteSnap.exists()) {
           const checkUserInviteData = checkUserInviteSnap.data();
           if (checkUserInviteData.status === 'pending') {
             await deleteDoc(checkUserInviteRef);
@@ -397,7 +397,7 @@ export const acceptGameInvite = async (
     const roomRef = doc(firestoreDB, 'fruitGuessingGame_rooms', roomId);
     const roomSnap = await getDoc(roomRef);
 
-    if (!roomSnap.exists) {
+    if (!roomSnap.exists()) {
       return { success: false, error: 'Room does not exist' };
     }
 
@@ -520,7 +520,7 @@ export const declineGameInvite = async (firestoreDB, roomId, userId) => {
     const roomRef = doc(firestoreDB, 'fruitGuessingGame_rooms', roomId);
     const roomSnap = await getDoc(roomRef);
     
-    if (roomSnap.exists) {
+    if (roomSnap.exists()) {
       const roomData = roomSnap.data();
       const invites = roomData.invites || {};
       
@@ -643,7 +643,7 @@ export const cleanupExpiredInvites = async (firestoreDB, roomId) => {
     const roomRef = doc(firestoreDB, 'fruitGuessingGame_rooms', roomId);
     const roomSnap = await getDoc(roomRef);
     
-    if (!roomSnap.exists) return false;
+    if (!roomSnap.exists()) return false;
 
     const roomData = roomSnap.data();
     const invites = roomData.invites || {};
@@ -859,7 +859,7 @@ export const leaveGameRoom = async (firestoreDB, roomId, userId) => {
     const roomRef = doc(firestoreDB, 'fruitGuessingGame_rooms', roomId);
     const roomSnap = await getDoc(roomRef);
 
-    if (!roomSnap.exists) return false;
+    if (!roomSnap.exists()) return false;
 
     const roomData = roomSnap.data();
     
@@ -914,7 +914,7 @@ export const startGame = async (firestoreDB, roomId, hostId) => {
     const roomRef = doc(firestoreDB, 'fruitGuessingGame_rooms', roomId);
     const roomSnap = await getDoc(roomRef);
 
-    if (!roomSnap.exists) return false;
+    if (!roomSnap.exists()) return false;
 
     const roomData = roomSnap.data();
 
@@ -978,7 +978,7 @@ export const submitAnswer = async (firestoreDB, roomId, userId, answerData) => {
     const roomRef = doc(firestoreDB, 'fruitGuessingGame_rooms', roomId);
     const roomSnap = await getDoc(roomRef);
 
-    if (!roomSnap.exists) return false;
+    if (!roomSnap.exists()) return false;
 
     const roomData = roomSnap.data();
 
@@ -1044,7 +1044,7 @@ export const generateChallengeForRound = async (
     const roomRef = doc(firestoreDB, 'fruitGuessingGame_rooms', roomId);
     const roomSnap = await getDoc(roomRef);
 
-    if (!roomSnap.exists) return false;
+    if (!roomSnap.exists()) return false;
 
     const roomData = roomSnap.data();
 
@@ -1077,7 +1077,7 @@ export const advanceToNextRound = async (firestoreDB, roomId, hostId) => {
     const roomRef = doc(firestoreDB, 'fruitGuessingGame_rooms', roomId);
     const roomSnap = await getDoc(roomRef);
 
-    if (!roomSnap.exists) return false;
+    if (!roomSnap.exists()) return false;
 
     const roomData = roomSnap.data();
 
@@ -1133,7 +1133,7 @@ export const submitPetPick = async (firestoreDB, roomId, userId, pickData) => {
     const roomRef = doc(firestoreDB, 'fruitGuessingGame_rooms', roomId);
     const roomSnap = await getDoc(roomRef);
 
-    if (!roomSnap.exists) return false;
+    if (!roomSnap.exists()) return false;
 
     const roomData = roomSnap.data();
 
@@ -1180,7 +1180,7 @@ export const setGameWinner = async (firestoreDB, roomId, winnerData) => {
     const roomRef = doc(firestoreDB, 'fruitGuessingGame_rooms', roomId);
     const roomSnap = await getDoc(roomRef);
 
-    if (!roomSnap.exists) return false;
+    if (!roomSnap.exists()) return false;
 
     await updateDoc(roomRef, {
       'gameData.winner': winnerData,
@@ -1205,7 +1205,7 @@ export const recordSpinResult = async (firestoreDB, roomId, userId, spinResult) 
     const roomRef = doc(firestoreDB, 'fruitGuessingGame_rooms', roomId);
     const roomSnap = await getDoc(roomRef);
 
-    if (!roomSnap.exists) return false;
+    if (!roomSnap.exists()) return false;
 
     const roomData = roomSnap.data();
     const gameData = roomData.gameData || {};
@@ -1322,7 +1322,7 @@ export const endGameDueToTimeout = async (firestoreDB, roomId, timeoutUserId, re
     const roomRef = doc(firestoreDB, 'fruitGuessingGame_rooms', roomId);
     const roomSnap = await getDoc(roomRef);
 
-    if (!roomSnap.exists) return false;
+    if (!roomSnap.exists()) return false;
 
     const roomData = roomSnap.data();
     const gameData = roomData.gameData || {};

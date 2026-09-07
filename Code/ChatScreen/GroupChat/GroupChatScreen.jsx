@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
+  AppState,
   View,
   ActivityIndicator,
   Alert,
@@ -32,6 +33,7 @@ import { useLocalState } from '../../LocalGlobelStats';
 import { resetGroupUnreadCount as sbResetGroupUnreadCount } from '../../Supabase/groupMetaBackend';
 import {
   loadGroupMessages as sbLoadGroupMessages,
+  loadGroupMessagesSince as sbLoadGroupMessagesSince,
   subscribeToGroupMessages as sbSubscribeToGroupMessages,
   softDeleteGroupMessage as sbSoftDeleteGroupMessage,
   softDeleteGroupMessagesBySender as sbSoftDeleteGroupMessagesBySender,
@@ -52,6 +54,10 @@ const GroupChatScreen = () => {
   const { groupId } = route.params || {};
 
   const { user, theme, appdatabase, firestoreDB, currentUserEmail, strikeInfo, isAdmin, isUserBlocked } = useGlobalState();
+  // Declared up here with the other context hooks because `localState` is read
+  // during render further down (the sendMessage dep array) and inside effects
+  // that run before its old declaration site near the bottom of the file.
+  const { localState } = useLocalState();
   const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -75,8 +81,14 @@ const GroupChatScreen = () => {
   const [replyTo, setReplyTo] = useState(null); // Reply to message state
   const [highlightedMessageId, setHighlightedMessageId] = useState(null); // Highlighted message ID
   const flatListRef = useRef(null); // Ref for FlatList in GroupMessageList
-  const lastLoadedKeyRef = useRef(null); // Oldest message ID (for pagination)
+  const lastLoadedKeyRef = useRef(null); // Oldest message cursor (for pagination)
   const newestMessageIdRef = useRef(null); // Newest message ID (for real-time listener)
+  // Newest message cursor { createdAt, id } — the high-water mark the refocus /
+  // app-resume catch-up fetch reads from. Only ever moves forward.
+  const newestCursorRef = useRef(null);
+  // Latched once pagination reaches the start of history, so "load more" stops
+  // re-querying instead of relying on a nulled cursor.
+  const reachedOldestRef = useRef(false);
   const previousGroupIdRef = useRef(null);
   const hasSentMessageRef = useRef(0); // Track count of messages user sent (for exit ad)
   const chatEnterTimeRef = useRef(null); // Track when user entered chat (for exit ad)
@@ -363,6 +375,8 @@ const GroupChatScreen = () => {
         setMessages([]);
         lastLoadedKeyRef.current = null;
         newestMessageIdRef.current = null;
+        newestCursorRef.current = null;
+        reachedOldestRef.current = false;
       } else {
         setIsPaginating(true);
       }
@@ -375,7 +389,9 @@ const GroupChatScreen = () => {
 
         const rows = await sbLoadGroupMessages(groupId, { limit: limitSize, before });
         if (!Array.isArray(rows) || rows.length === 0) {
-          if (!reset) lastLoadedKeyRef.current = null;
+          // End of history. Latch it instead of nulling the cursor — nulling
+          // made the next "load more" re-query page 1 with before=null.
+          if (!reset) reachedOldestRef.current = true;
           return;
         }
 
@@ -392,16 +408,27 @@ const GroupChatScreen = () => {
           return combined.sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
         });
 
-        // Cursor → oldest row of this page (last in descending array).
+        // Fewer rows than we asked for means we've hit the start of history.
+        if (parsedMessages.length < limitSize) reachedOldestRef.current = true;
+
+        // Cursor → oldest row of this page (last in descending array). Uses the
+        // raw `createdAt` string, not a ms round-trip: Postgres stores
+        // microseconds, so `new Date(ms).toISOString()` produced a cursor that
+        // never equalled the row it came from and silently skipped any message
+        // sharing its millisecond.
         const oldest = parsedMessages[parsedMessages.length - 1];
         const newest = parsedMessages[0];
-        if (oldest) {
-          lastLoadedKeyRef.current = {
-            createdAt: new Date(oldest.timestamp).toISOString(),
-            id: oldest.id,
-          };
+        if (oldest?.createdAt) {
+          lastLoadedKeyRef.current = { createdAt: oldest.createdAt, id: oldest.id };
         }
-        if (newest) newestMessageIdRef.current = newest.id;
+        if (newest) {
+          newestMessageIdRef.current = newest.id;
+          // Only advance the catch-up cursor — a paginated page is older than
+          // what we already hold and must never move it backwards.
+          if (reset && newest.createdAt) {
+            newestCursorRef.current = { createdAt: newest.createdAt, id: newest.id };
+          }
+        }
       } catch (err) {
         console.warn('Error loading messages:', err);
       } finally {
@@ -474,7 +501,13 @@ const GroupChatScreen = () => {
         }
         let updated = [msg, ...prev].sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
         if (updated.length > MAX_LIVE) updated = updated.slice(0, MAX_LIVE);
-        if (updated.length > 0) newestMessageIdRef.current = updated[0]?.id;
+        if (updated.length > 0) {
+          newestMessageIdRef.current = updated[0]?.id;
+          const head = updated[0];
+          if (head?.createdAt) {
+            newestCursorRef.current = { createdAt: head.createdAt, id: head.id };
+          }
+        }
         return updated;
       });
     };
@@ -503,6 +536,66 @@ const GroupChatScreen = () => {
     };
   }, [groupId, isMember, isFocused]);
 
+  // Close the realtime gap.
+  //
+  // The INSERT channel above only lives while the screen is focused AND the app
+  // is foregrounded. Navigating to the image viewer, opening another screen, or
+  // backgrounding the app all stop delivery, and nothing used to backfill on the
+  // way in — messages sent during that window stayed missing until a manual
+  // pull-to-refresh. Pull anything newer than our high-water mark instead.
+  const catchUpMessages = useCallback(async () => {
+    if (!groupId || !isMember) return;
+    const after = newestCursorRef.current;
+    if (!after?.createdAt) return; // nothing loaded yet; the initial load covers it
+
+    try {
+      const { rows, gapped } = await sbLoadGroupMessagesSince(groupId, after, { limit: 50 });
+
+      // Missed more than one batch — the rows we got are the newest ones and
+      // don't join up with what's on screen. Reload rather than stitch a hole.
+      if (gapped) {
+        loadMessages(true);
+        return;
+      }
+      if (!rows.length) return;
+
+      setMessages((prev) => {
+        const base = Array.isArray(prev) ? prev : [];
+        const seen = new Set(base.map((m) => String(m?.id)));
+        const fresh = rows.filter((m) => !seen.has(String(m?.id)));
+        if (!fresh.length) return base;
+        let merged = [...fresh, ...base].sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
+        if (merged.length > MAX_LIVE) merged = merged.slice(0, MAX_LIVE);
+        return merged;
+      });
+
+      const newest = rows[0];
+      if (newest?.createdAt) {
+        newestMessageIdRef.current = newest.id;
+        newestCursorRef.current = { createdAt: newest.createdAt, id: newest.id };
+      }
+      // These arrived while we weren't looking; their fan-out bumped our
+      // server-side unread count, so clear it on the way out like the
+      // focused-arrival path does.
+      if (rows.some((m) => m?.senderId && m.senderId !== userIdRef.current)) {
+        unreadWhileFocusedRef.current = true;
+      }
+    } catch (err) {
+      console.warn('Error catching up group messages:', err);
+    }
+  }, [groupId, isMember, loadMessages]);
+
+  // Backfill when the app returns to the foreground while this screen is open.
+  // (Navigation focus doesn't change on background, so useFocusEffect alone
+  // never fires for this case.)
+  useEffect(() => {
+    if (!isFocused || !isMember) return;
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') catchUpMessages();
+    });
+    return () => sub.remove();
+  }, [isFocused, isMember, catchUpMessages]);
+
   // Active-chat lifecycle: focus + AppState aware. Writes both
   // /activeChats/{userId} = groupId AND /activeGroupChats/{groupId}/{userId}
   // so the notification CF skips push for users currently viewing this
@@ -518,6 +611,10 @@ const GroupChatScreen = () => {
       hasSentMessageRef.current = 0;
       chatEnterTimeRef.current = Date.now();
 
+      // Refocus backfill — the realtime channel was torn down while we were
+      // blurred (image viewer, another screen), so pull whatever we missed.
+      catchUpMessages();
+
       const isActualMember = groupData?.memberIds?.includes(user.id);
       if (isActualMember) {
         sbResetGroupUnreadCount(user.id, groupId);
@@ -529,7 +626,7 @@ const GroupChatScreen = () => {
           if (isActualMember) sbResetGroupUnreadCount(user.id, groupId);
         }
       };
-    }, [user?.id, groupId, groupData?.memberIds])
+    }, [user?.id, groupId, groupData?.memberIds, catchUpMessages])
   );
 
   // Handle refresh
@@ -542,7 +639,7 @@ const GroupChatScreen = () => {
   // Handle load more
   const handleLoadMore = useCallback(() => {
     // ✅ Prevent loading if already paginating, no more messages, or not a member
-    if (isPaginating || !lastLoadedKeyRef.current || !isMember) {
+    if (isPaginating || !lastLoadedKeyRef.current || reachedOldestRef.current || !isMember) {
       return;
     }
     loadMessages(false);
@@ -963,8 +1060,7 @@ const GroupChatScreen = () => {
     setIsDrawerVisible(true);
   }, []);
 
-  // Get banned users from local state
-  const { localState } = useLocalState();
+  // Get banned users from local state (`localState` is destructured at the top)
   const bannedUsers = useMemo(() => {
     return Array.isArray(localState?.bannedUsers) ? localState.bannedUsers : [];
   }, [localState?.bannedUsers]);

@@ -66,7 +66,7 @@ const QuickDraw = ({ onClose, roundInfo, onRoundComplete, onWatchAd }) => {
     (async () => {
       try {
         const snap = await getDoc(doc(firestoreDB, 'games', uid));
-        const data = snap.exists ? snap.data() : {};
+        const data = snap.exists() ? snap.data() : {};
         setBestTime(data.drawBestTime || 0);
         setPhase('rules');
         setRoundTimes([]);

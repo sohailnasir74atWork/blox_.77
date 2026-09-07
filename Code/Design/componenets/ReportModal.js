@@ -77,7 +77,7 @@ const ReportModal = ({ visible, onClose, item }) => {
       // PURE transaction: only Firestore reads/writes, no awaits to external code
       const txResult = await runTransaction(firestoreDB, async (tx) => {
         const snap = await tx.get(postRef);
-        if (!snap.exists) {
+        if (!snap.exists()) {
           return { status: 'missing' };
         }
 

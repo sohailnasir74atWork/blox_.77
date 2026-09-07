@@ -69,7 +69,7 @@ const LeaderboardModal = ({
       // source LeaderboardScreen.fetchTopRated reads.
       const cacheDocSnap = await getDoc(doc(firestoreDB, 'leaderboard_cache', 'top50'));
 
-      if (!cacheDocSnap.exists) {
+      if (!cacheDocSnap.exists()) {
         setLeaderboardData([]);
         setLoading(false);
         return;

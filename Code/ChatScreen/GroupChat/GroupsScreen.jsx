@@ -369,7 +369,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              const result = await deleteGroup(firestoreDB, appdatabase, groupId);
+              const result = await deleteGroup(firestoreDB, appdatabase, groupId, user?.id ?? null);
               if (result.success) {
                 showSuccessMessage('Success', 'Group deleted successfully');
                 // Update local state
@@ -528,7 +528,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
       const groupDocRef = doc(firestoreDB, 'groups', groupId);
       const groupDocSnapshot = await getDoc(groupDocRef);
 
-      if (!groupDocSnapshot.exists) {
+      if (!groupDocSnapshot.exists()) {
         showErrorMessage('Error', 'Group not found');
         setGroupInfoModalVisible(false);
         return;
@@ -1645,7 +1645,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                                   style: 'destructive',
                                   onPress: async () => {
                                     try {
-                                      const result = await deleteGroup(firestoreDB, appdatabase, groupId);
+                                      const result = await deleteGroup(firestoreDB, appdatabase, groupId, user?.id ?? null);
                                       if (result.success) {
                                         showSuccessMessage('Success', 'Group deleted successfully');
                                         // Remove from allGroups list

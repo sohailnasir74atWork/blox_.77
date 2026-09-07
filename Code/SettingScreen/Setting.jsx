@@ -994,7 +994,7 @@ export default function SettingsScreen({ selectedTheme }) {
 
         // ✅ Load bio from Firestore reviews/{userId}
         // ✅ If bio doesn't exist, initialize it with default value in Firestore
-        if (reviewDocSnap.exists) { // ✅ Firestore: exists is a property, not a function
+        if (reviewDocSnap.exists()) {
           const reviewData = reviewDocSnap.data();
           const loadedBio = (reviewData.bio && typeof reviewData.bio === 'string' && reviewData.bio.trim())
             ? reviewData.bio.trim()
@@ -1026,7 +1026,7 @@ export default function SettingsScreen({ selectedTheme }) {
         }
 
         // ✅ MIGRATED: Load rating from Firestore user_ratings_summary
-        if (summarySnap.exists) {
+        if (summarySnap.exists()) {
           const data = summarySnap.data() || {};
           setRatingSummary({
             value: Number(data.averageRating || 0),
@@ -1335,7 +1335,7 @@ export default function SettingsScreen({ selectedTheme }) {
         const userReviewRef = doc(firestoreDB, 'reviews', user.id);
         const docSnap = await getDoc(userReviewRef);
 
-        if (docSnap.exists) {
+        if (docSnap.exists()) {
           const data = docSnap.data();
           setOwnedPets(Array.isArray(data.ownedPets) ? data.ownedPets : []);
           setWishlistPets(Array.isArray(data.wishlistPets) ? data.wishlistPets : []);

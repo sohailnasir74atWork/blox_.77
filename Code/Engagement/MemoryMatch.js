@@ -96,7 +96,7 @@ const MemoryMatch = ({ onClose, roundInfo, onRoundComplete, onWatchAd }) => {
     (async () => {
       try {
         const snap = await getDoc(doc(firestoreDB, 'games', uid));
-        const data = snap.exists ? snap.data() : {};
+        const data = snap.exists() ? snap.data() : {};
         setBestMoves({
           easy:   data.memoryBestMoves_easy || 0,
           medium: data.memoryBestMoves_medium || 0,

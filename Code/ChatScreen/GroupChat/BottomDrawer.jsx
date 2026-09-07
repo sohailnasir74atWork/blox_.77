@@ -1380,7 +1380,7 @@ const ProfileBottomDrawer = ({
         }
 
         // ✅ Rating summary from user_ratings_summary/{uid} (averageRating + count)
-        if (summarySnap.exists) {
+        if (summarySnap.exists()) {
           const summaryData = summarySnap.data() || {};
           const avg = summaryData.averageRating || 0;
           const cnt = summaryData.count || 0;
@@ -1391,7 +1391,7 @@ const ProfileBottomDrawer = ({
 
         // ✅ Load bio from Firestore reviews/{userId}
         let bioValue = null;
-        if (reviewDocSnap.exists) { // ✅ Firestore: exists is a property, not a function
+        if (reviewDocSnap.exists()) {
           const reviewData = reviewDocSnap.data();
           if (reviewData.bio && typeof reviewData.bio === 'string' && reviewData.bio.trim()) {
             bioValue = reviewData.bio.trim();
@@ -1402,7 +1402,7 @@ const ProfileBottomDrawer = ({
 
         // ✅ Pets from the SAME reviews/{uid} doc already fetched above —
         // removes the duplicate getDoc a separate loadPets effect used to do.
-        if (reviewDocSnap.exists) {
+        if (reviewDocSnap.exists()) {
           const petData = reviewDocSnap.data() || {};
           setOwnedPets(Array.isArray(petData.ownedPets) ? petData.ownedPets : []);
           setWishlistPets(Array.isArray(petData.wishlistPets) ? petData.wishlistPets : []);
@@ -1433,7 +1433,7 @@ const ProfileBottomDrawer = ({
         // ✅ Load game wins (Firestore game_stats)
         if (firestoreDB && selectedUserId) {
           const statsDoc = await getDoc(doc(firestoreDB, 'game_stats', selectedUserId));
-          if (statsDoc.exists) {
+          if (statsDoc.exists()) {
             const stats = statsDoc.data() || {};
             setGameWins(stats.fruitGameWins || 0); // ✅ Changed from petGameWins to fruitGameWins
           } else {

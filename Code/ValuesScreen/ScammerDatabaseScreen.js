@@ -275,7 +275,7 @@ const ScammerDatabaseScreen = () => {
         setLoadingDetail(true);
         try {
             const snap = await getDoc(doc(db, 'scammerDetails', reportId));
-            if (snap.exists) {
+            if (snap.exists()) {
                 const data = { id: snap.id, ...snap.data() };
                 detailsCache.current[reportId] = data;
                 setDetailData(data);
@@ -422,7 +422,7 @@ const ScammerDatabaseScreen = () => {
                     const rateLimitRef = doc(db, 'userRateLimits', user.id);
                     const rateLimitSnap = await tx.get(rateLimitRef);
 
-                    if (rateLimitSnap.exists) {
+                    if (rateLimitSnap.exists()) {
                         const lastAt = rateLimitSnap.data()?.lastReportAt;
                         if (lastAt) {
                             const lastMs = lastAt?.toDate ? lastAt.toDate().getTime() : lastAt;

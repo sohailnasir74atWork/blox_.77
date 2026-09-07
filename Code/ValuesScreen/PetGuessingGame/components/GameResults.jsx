@@ -61,7 +61,7 @@ const GameResults = ({ roomData, currentUser }) => {
         if (firestoreDB) {
           const statsRef = doc(firestoreDB, 'game_stats', currentUser.id);
           const statsSnap = await getDoc(statsRef);
-          if (statsSnap.exists) {
+          if (statsSnap.exists()) {
             const stats = statsSnap.data() || {};
             setUserWins(stats.fruitGameWins || 0);
           }

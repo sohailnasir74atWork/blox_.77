@@ -57,6 +57,12 @@ export function fromGroupMessageRow(row) {
     OS: row.os ?? null,
     deleted: !!row.deleted,
     timestamp: ts,           // ms epoch — UI sort key
+    // Raw Postgres timestamptz (microsecond precision). `timestamp` above
+    // truncates to ms, which is fine for sorting but loses the sub-ms digits
+    // the keyset cursors compare against — two messages in the same
+    // millisecond would round to an identical cursor and one of them would
+    // be skipped by the `created_at.lt/gt` filter. Cursors use this field.
+    createdAt: row.created_at ?? null,
   };
 }
 
@@ -115,6 +121,43 @@ export async function loadGroupMessages(groupId, { limit = PAGE_SIZE_DEFAULT, be
     return [];
   }
   return (data || []).map(fromGroupMessageRow);
+}
+
+// Catch-up fetch — everything NEWER than `after` ({ createdAt, id }).
+//
+// The realtime channel is only open while the chat screen is focused and the
+// app is foregrounded. Anything posted outside that window never arrives as
+// an INSERT event, so on refocus/resume we have to pull the gap explicitly or
+// those messages stay missing until a manual refresh.
+//
+// Returns newest-first (same contract as loadGroupMessages) plus a `gapped`
+// flag: when more than `limit` messages were missed, the rows we got are the
+// newest ones and are NOT contiguous with what the caller still holds, so
+// stitching them in would leave a hole. The caller reloads from scratch
+// instead.
+export async function loadGroupMessagesSince(groupId, after, { limit = 50 } = {}) {
+  if (!groupId || !after?.createdAt) return { rows: [], gapped: false };
+
+  const { data, error } = await supabase
+    .from('group_messages')
+    .select(GROUP_MSG_COLS)
+    .eq('group_id', groupId)
+    .eq('deleted', false)
+    .or(
+      `created_at.gt.${after.createdAt},and(created_at.eq.${after.createdAt},id.gt.${after.id})`,
+    )
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(limit + 1); // +1 probe row tells us whether we truncated
+
+  if (error) {
+    console.warn('[groupMessagesBackend] loadGroupMessagesSince error:', error.message);
+    return { rows: [], gapped: false };
+  }
+
+  const raw = data || [];
+  const gapped = raw.length > limit;
+  return { rows: raw.slice(0, limit).map(fromGroupMessageRow), gapped };
 }
 
 // =====================================================================

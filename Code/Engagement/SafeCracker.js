@@ -71,7 +71,7 @@ const SafeCracker = ({ onClose, roundInfo, onRoundComplete, onWatchAd }) => {
     (async () => {
       try {
         const snap = await getDoc(doc(firestoreDB, 'games', uid));
-        const data = snap.exists ? snap.data() : {};
+        const data = snap.exists() ? snap.data() : {};
         setBestScore(data.safeCrackBestScore || 0);
         setPhase('rules');
       } catch {
