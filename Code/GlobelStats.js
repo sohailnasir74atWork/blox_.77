@@ -611,15 +611,18 @@ export const GlobalStateProvider = ({ children }) => {
         let data = {};
 
         try {
+          // No `cache: 'no-store'` here. React Native's fetch is the
+          // whatwg-fetch polyfill, which implements that option by appending a
+          // unique `?_=<timestamp>` to the URL — so it never actually reached
+          // the CDN as a no-store directive, it just guaranteed the device
+          // HTTP cache could never serve a repeat request and re-pulled the
+          // full body from Bunny on every 6-minute window. Freshness is
+          // already governed by the EXPIRY_LIMIT check above, so let the
+          // platform cache do its job; Bunny still revalidates because the
+          // origin sends `cache-control: max-age=0`.
           const [codesRes, dataRes] = await Promise.all([
-            fetch('https://blox-api.b-cdn.net/codes.json', {
-              method: 'GET',
-              cache: 'no-store',
-            }),
-            fetch('https://blox-api.b-cdn.net/data.json', {
-              method: 'GET',
-              cache: 'no-store',
-            })
+            fetch('https://blox-api.b-cdn.net/codes.json', { method: 'GET' }),
+            fetch('https://blox-api.b-cdn.net/data.json', { method: 'GET' }),
           ]);
 
           if (!codesRes.ok || !dataRes.ok) {

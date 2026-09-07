@@ -22,6 +22,7 @@ import { useGlobalState } from "../GlobelStats";
 import InterstitialAdManager from "../Ads/IntAd";
 import { useLocalState } from "../LocalGlobelStats";
 import { CameraRoll } from "@react-native-camera-roll/camera-roll"; // ✅ default import
+import { bunnyImageUrl } from "../Helper/bunnyImage";
 
 // Base URL for your wallpapers
 const IMAGE_BASE = "https://pull-blox.b-cdn.net";
@@ -94,7 +95,15 @@ const HDWallpaperScreen = () => {
         baseItems.push({
           id,
           fileName,
+          // Full-resolution original (1920x1080). Used by the fullscreen
+          // preview and by handleDownload — the saved wallpaper must never be
+          // a downscaled copy.
           url: `${IMAGE_BASE}/${fileName}`,
+          // Grid tile only. The tile is 9:16 portrait with resizeMode="cover"
+          // over a 16:9 source, so the scale is height-driven — `height` is
+          // the correct constraint and `width` would be upscaled. 960 covers
+          // a ~313dp-tall tile at 3x density with headroom.
+          thumbUrl: bunnyImageUrl(`${IMAGE_BASE}/${fileName}`, { height: 960 }),
           likes: remote.likes || 0,
           dislikes: remote.dislikes || 0,
           downloads: remote.downloads || 0,
@@ -331,7 +340,7 @@ const HDWallpaperScreen = () => {
         >
           <View>
             <Image
-              source={{ uri: item.url }}
+              source={{ uri: item.thumbUrl || item.url }}
               style={styles.image}
               resizeMode="cover"
               onLoadStart={() => {
