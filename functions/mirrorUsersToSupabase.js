@@ -145,13 +145,20 @@ async function mirrorRoblox(uid, before, after, supabase) {
 //   uid, is_admin, is_moderator, is_baby_mod, is_trusted, is_cmsr, is_grinder, is_raider
 // `rolesUpdatedAt` is a stamp the admin UI writes with every role change so a
 // repeat removal (same value) still re-mirrors.
-const ROLES_KEYS = ['admin', 'isModerator', 'isBabyMod', 'isTrusted', 'isSeniorMod', 'isGrinder', 'isRaider', 'rolesUpdatedAt'];
+const ROLES_KEYS = ['admin', 'isAdmin', 'isModerator', 'isBabyMod', 'isTrusted', 'isSeniorMod', 'isGrinder', 'isRaider', 'rolesUpdatedAt'];
 async function mirrorRoles(uid, before, after, supabase) {
   if (!anyKeyChanged(before, after, ROLES_KEYS)) return;
 
   const row = {
     uid,
-    is_admin: asBool(after.admin),             // rename: admin → is_admin
+    // 2026-09-09 fix: admin lives under EITHER RTDB key. Legacy grants use
+    // `admin`; the hardcoded-email bootstrap in Code/GlobelStats.js writes
+    // `isAdmin` (and database.rules.json guards `isAdmin` with its own child
+    // rule). The client gate is `existing.admin || existing.isAdmin`, so the
+    // mirror has to accept both — reading only `admin` left bootstrap admins
+    // at is_admin = false, and every RLS-gated write (poll creation) was
+    // rejected with "new row violates row-level security policy".
+    is_admin: asBool(after.admin) || asBool(after.isAdmin),
     is_moderator: asBool(after.isModerator),
     is_baby_mod: asBool(after.isBabyMod),
     is_trusted: asBool(after.isTrusted),

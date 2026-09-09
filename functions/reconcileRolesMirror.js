@@ -10,7 +10,7 @@
  * mirror fixed, any future outage or a repeat "remove" (a no-op RTDB write
  * that fires no trigger) would leave drift behind — this job repairs it.
  *
- * Cost: one indexed RTDB query per flag (7 tiny queries — every flag below
+ * Cost: one indexed RTDB query per RTDB key (8 tiny queries — every key below
  * has an `.indexOn` entry under /users) + one Supabase select of rows with
  * any flag true + upserts only for drift.
  */
@@ -21,15 +21,23 @@ const { getSupabaseAdmin } = require('./_supabaseAdmin');
 
 if (!admin.apps.length) admin.initializeApp();
 
-// RTDB flag → Supabase column (exactly the columns the table has).
+// RTDB flag(s) → Supabase column (exactly the columns the table has).
+//
+// 2026-09-09 fix: a column can be fed by MORE THAN ONE RTDB key. Admin grants
+// land under `admin` (legacy) or `isAdmin` (what the hardcoded-email bootstrap
+// in Code/GlobelStats.js writes), and the client gate accepts either. Reading
+// only `admin` made this job compute truth = "not an admin" for bootstrap
+// admins and then REVOKE the is_admin = true the May backfill had correctly
+// written (that backfill used `admin || isAdmin`) — which is what broke poll
+// creation from the AdminDashboard.
 const FLAGS = [
-  { rtdb: 'admin',       col: 'is_admin' },
-  { rtdb: 'isModerator', col: 'is_moderator' },
-  { rtdb: 'isBabyMod',   col: 'is_baby_mod' },
-  { rtdb: 'isTrusted',   col: 'is_trusted' },
-  { rtdb: 'isSeniorMod', col: 'is_cmsr' },     // client maps is_cmsr → isSeniorMod
-  { rtdb: 'isGrinder',   col: 'is_grinder' },
-  { rtdb: 'isRaider',    col: 'is_raider' },
+  { rtdb: ['admin', 'isAdmin'], col: 'is_admin' },
+  { rtdb: ['isModerator'],      col: 'is_moderator' },
+  { rtdb: ['isBabyMod'],        col: 'is_baby_mod' },
+  { rtdb: ['isTrusted'],        col: 'is_trusted' },
+  { rtdb: ['isSeniorMod'],      col: 'is_cmsr' },     // client maps is_cmsr → isSeniorMod
+  { rtdb: ['isGrinder'],        col: 'is_grinder' },
+  { rtdb: ['isRaider'],         col: 'is_raider' },
 ];
 
 exports.reconcileRolesMirror = functions
@@ -46,10 +54,13 @@ exports.reconcileRolesMirror = functions
     // 1) Truth: uids that hold each flag in RTDB.
     const truth = {}; // uid -> { col: true }
     for (const { rtdb, col } of FLAGS) {
-      const snap = await db.ref('users').orderByChild(rtdb).equalTo(true).once('value');
-      snap.forEach((child) => {
-        (truth[child.key] = truth[child.key] || {})[col] = true;
-      });
+      // OR across the aliases — any one of them being true grants the column.
+      for (const key of rtdb) {
+        const snap = await db.ref('users').orderByChild(key).equalTo(true).once('value');
+        snap.forEach((child) => {
+          (truth[child.key] = truth[child.key] || {})[col] = true;
+        });
+      }
     }
 
     // 2) Mirror: every Supabase row with any flag true.

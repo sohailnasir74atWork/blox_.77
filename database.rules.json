@@ -19,7 +19,8 @@
         "isSeniorMod",
         "isGrinder",
         "isRaider",
-        "admin"
+        "admin",
+        "isAdmin"
       ],
       ".read": true,
       "$userId": {
