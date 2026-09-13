@@ -165,9 +165,27 @@ const NativeAdCard = ({ adKey, isDarkMode = false }) => {
         )}
         {ad.callToAction ? (
           <NativeAsset assetType={NativeAssetType.CALL_TO_ACTION}>
-            <View style={[styles.cta, { backgroundColor: config.colors.secondary }]}>
-              <Text style={styles.ctaText}>{ad.callToAction}</Text>
-            </View>
+          {/*
+            A <Text>, NOT a <View> wrapping a <Text>, and deliberately so.
+
+            NativeAsset resolves this element's native tag and hands it to GMA
+            as `nativeAdView.callToActionView`; GMA then calls
+            setOnClickListener on it, which Android only reaches through the
+            normal onTouchEvent -> performClick path.
+
+            A ReactViewGroup takes part in React Native's own touch
+            interception, so the gesture is consumed before performClick fires
+            and the SDK never sees the click — the button looks pressable and
+            does nothing, while tapping the ad body still opens the ad.
+            ReactTextView is a leaf and intercepts nothing, which is why the
+            headline and icon assets always worked: they are leaves, and the
+            CTA was the only asset wrapped in a View.
+
+            Keep it a leaf. Styling it as a button is fine; nesting is not.
+          */}
+            <Text style={[styles.cta, { backgroundColor: config.colors.secondary }]}>
+              {ad.callToAction}
+            </Text>
           </NativeAsset>
         ) : null}
       </View>
@@ -254,12 +272,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#f5a623',
   },
+  // Button styling applied to the <Text> itself. overflow:hidden is required
+  // for borderRadius to clip on an Android Text.
   cta: {
+    alignSelf: 'stretch',
+    textAlign: 'center',
     paddingHorizontal: 16,
     paddingVertical: 9,
     borderRadius: 9,
-  },
-  ctaText: {
+    overflow: 'hidden',
     color: '#ffffff',
     fontWeight: '700',
     fontSize: 13,
