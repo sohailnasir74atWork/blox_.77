@@ -57,3 +57,4 @@ exports.fruitCrashController = require('./fruitCrashController').fruitCrashContr
 
 // ── Roles mirror safety net (6-hourly RTDB ⇄ Supabase user_roles diff, 2026-09-04) ──
 exports.reconcileRolesMirror = require('./reconcileRolesMirror').reconcileRolesMirror;
+exports.expireFeaturedTrades = require('./expireFeaturedTrades').expireFeaturedTrades;
