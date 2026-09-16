@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { View, FlatList, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, TextInput, Alert, Platform, Animated } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { bannerAware, ABOVE_BANNER, FLOATING_BUTTON_ICON_SIZE, FLOATING_BUTTON_RIGHT } from '../Helper/floatingButtonLayout';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { useGlobalState } from '../GlobelStats';
@@ -2012,6 +2013,7 @@ const TradeList = ({ route }) => {
         <Animated.View
           style={[
             styles.scrollToTopButton,
+            { bottom: bannerAware(ABOVE_BANNER, !!localState.isPro) },
             {
               opacity: scrollButtonOpacity,
               transform: [
@@ -2329,16 +2331,18 @@ const getStyles = (isDarkMode) =>
     boost: {
       justifyContent: 'flex-start', paddingVertical: 2, paddingHorizontal: 5, borderRadius: 3, alignItems: 'center', margin: 4
     },
+    // Position comes from Helper/floatingButtonLayout so Trades, Feed and group chat
+    // cannot drift apart again. `bottom` is applied at the call site because
+    // it depends on Pro status (a Pro member has no banner ad to clear).
     scrollToTopButton: {
       position: 'absolute',
-      bottom: 60, // Position above the bottom ad banner
-      right: 8,
+      right: FLOATING_BUTTON_RIGHT,
       zIndex: 1000,
-      elevation: 8, // For Android shadow
-      shadowColor: '#000', // For iOS shadow
+      elevation: 8,
+      shadowColor: '#000',
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.25,
-      shadowRadius: 3.84,
+      shadowRadius: 4,
     },
     scrollToTopTouchable: {
       borderRadius: 28,

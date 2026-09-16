@@ -13,6 +13,7 @@ import {
   Animated,
 } from 'react-native';
 import { getStyles } from './../Style';
+import { bannerAware, ABOVE_CHAT_INPUT_AND_BANNER, FLOATING_BUTTON_ICON_SIZE } from '../../Helper/floatingButtonLayout';
 import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
 import ReportPopup from './../ReportPopUp';
 import { parseMessageText } from '../ChatHelper';
@@ -769,6 +770,9 @@ const MessagesList = ({
         <Animated.View
           style={[
             styles.scrollToBottomButton,
+            // hasComposer: group chat has a message input bar beneath this,
+            // which Trades and the Feed do not.
+            { bottom: bannerAware(ABOVE_CHAT_INPUT_AND_BANNER, !!localState?.isPro) },
             {
               opacity: scrollButtonOpacity,
               transform: [

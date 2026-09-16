@@ -1,5 +1,6 @@
 import { StyleSheet } from "react-native";
 import config from "../Helper/Environment";
+import { FLOATING_BUTTON_RIGHT } from '../Helper/floatingButtonLayout';
 
 export const getStyles = (isDarkMode) =>
 
@@ -637,13 +638,13 @@ export const getStyles = (isDarkMode) =>
       height: 10,
       marginRight: 5,
     },
+    // Position comes from Helper/floatingButtonLayout; `bottom` is applied at the call
+    // site in MessagesList because it depends on Pro status (no banner ad).
     scrollToBottomButton: {
       position: 'absolute',
-      bottom: 100,
-      right: 8,
-      marginTop: -24, // Half of icon size (48/2) to center it perfectly
+      right: FLOATING_BUTTON_RIGHT,
       zIndex: 1000,
-      elevation: 8, // For Android shadow
+      elevation: 8,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.25,

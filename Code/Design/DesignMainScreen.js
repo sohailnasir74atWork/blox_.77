@@ -32,6 +32,8 @@ import { ref as dbRef, get } from '@react-native-firebase/database';
 import { useGlobalState } from '../GlobelStats';
 import { useLocalState } from '../LocalGlobelStats';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import { bannerAware, ABOVE_BANNER, FLOATING_BUTTON_ICON_SIZE, FLOATING_BUTTON_RIGHT } from '../Helper/floatingButtonLayout';
 import PostCard from './componenets/PostCard';
 import UploadModal from './componenets/UploadModal';
 import SignInDrawer from '../Firebase/SigninDrawer';
@@ -61,6 +63,17 @@ const DesignFeedScreen = ({ route }) => {
   // Free all cached feed native ads when the screen unmounts so their handles
   // aren't leaked (NativeAdManager caches one per `ad-N` slot key).
   useEffect(() => () => { releaseNativeAds('ad-'); }, []);
+
+  // Scroll-to-top. The Feed had no such control while Trades and group chat
+  // both did — same kind of list, same need.
+  const feedListRef = useRef(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const handleFeedScroll = useCallback((e) => {
+    setShowScrollTop((e?.nativeEvent?.contentOffset?.y || 0) > 300);
+  }, []);
+  const handleFeedScrollToTop = useCallback(() => {
+    feedListRef.current?.scrollToOffset({ offset: 0, animated: true });
+  }, []);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [isSigninDrawerVisible, setSigninDrawerVisible] = useState(false);
@@ -708,6 +721,9 @@ const DesignFeedScreen = ({ route }) => {
 
       <View style={{ flex: 1 }}>
         <FlatList
+          ref={feedListRef}
+          onScroll={handleFeedScroll}
+          scrollEventThrottle={16}
           data={dataToRender}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
@@ -757,9 +773,26 @@ const DesignFeedScreen = ({ route }) => {
           }
         />
 
-        {/* ── FAB ── */}
+        {/* ── Scroll to top ── Matches Trades and group chat: same icon, size,
+            blue and position, all from Helper/floatingButtonLayout. */}
+        {showScrollTop && (
+          <TouchableOpacity
+            style={[styles.feedScrollTop, { bottom: bannerAware(ABOVE_BANNER, !!localState?.isPro) }]}
+            onPress={handleFeedScrollToTop}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="chevron-up-circle" size={FLOATING_BUTTON_ICON_SIZE} color={'#3b82f6'} />
+          </TouchableOpacity>
+        )}
+
+        {/* ── FAB ── Sits one row above the scroll button so the two never
+            overlap. Keeps the brand colour: creating a post and scrolling are
+            different actions and shouldn't look identical. */}
         <TouchableOpacity
-          style={styles.fab}
+          style={[
+            styles.fab,
+            { bottom: bannerAware(ABOVE_BANNER, !!localState?.isPro) + (showScrollTop ? FLOATING_BUTTON_ICON_SIZE + 12 : 0) },
+          ]}
           onPress={() => user?.id ? setModalVisible(true) : setSigninDrawerVisible(true)}
           activeOpacity={0.85}
         >
@@ -798,8 +831,17 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 72,
-    right: 16,
+    right: FLOATING_BUTTON_RIGHT,
+  },
+  feedScrollTop: {
+    position: 'absolute',
+    right: FLOATING_BUTTON_RIGHT,
+    zIndex: 1000,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   fabInner: {
     width: 54,
