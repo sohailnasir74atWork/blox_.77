@@ -1,6 +1,13 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
+// Moved above `android {}` on 2026-09-21. The Crashlytics plugin registers its
+// `firebaseCrashlytics {}` extension per build type AT APPLY TIME, so with the
+// applies at the bottom of this file the extension does not exist while
+// buildTypes is being evaluated and configuration fails with "Could not find
+// method firebaseCrashlytics() ... on BuildType$AgpDecorated_Decorated".
+apply plugin: 'com.google.gms.google-services'
+apply plugin: 'com.google.firebase.crashlytics'
 apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")
 
 react { autolinkLibrariesWithApp() }
@@ -18,8 +25,8 @@ android {
     applicationId "com.bloxfruitevalues"
     minSdkVersion rootProject.ext.minSdkVersion
     targetSdkVersion rootProject.ext.targetSdkVersion
-    versionCode 159
-    versionName "4.0.10"
+    versionCode 161
+    versionName "4.0.12"
     ndk {
       abiFilters "arm64-v8a", "armeabi-v7a" // single declaration
     }
@@ -27,7 +34,19 @@ android {
 
   
   packaging {
-    jniLibs { excludes += ["**/x86/**", "**/x86_64/**"] }
+    // 32-bit x86 only. x86_64 was removed from this list on 2026-09-21.
+    //
+    // `packaging.jniLibs.excludes` is what ACTUALLY controls which ABIs ship -
+    // it filters the prebuilt .so files that arrive inside AAR dependencies,
+    // which in a React Native app is most of them. `ndk.abiFilters` does NOT:
+    // it only filters code built via externalNativeBuild. Proven by building
+    // the same AAB with and without x86_64 in abiFilters (identical output),
+    // and again here where abiFilters omitted x86 yet an x86 dir still appeared
+    // in merged_native_libs and was removed only by this exclude.
+    //
+    // Do not credit abiFilters for this fix. mm2values' build.gradle comment
+    // makes that mistake; its jniLibs line is what works.
+    jniLibs { excludes += ["**/x86/**"] }
   }
 
   signingConfigs {
@@ -47,6 +66,24 @@ android {
       minifyEnabled enableProguardInReleaseBuilds
       shrinkResources enableProguardInReleaseBuilds
       proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+      // Upload native debug symbols so native crashes (SIGSEGV/SIGABRT from
+      // libc.so, Hermes, or any .so) arrive symbolicated instead of as a wall
+      // of bare `at` frames. There was no firebaseCrashlytics block here at
+      // all, so every native crash this app has ever reported was
+      // undiagnosable.
+      //
+      // The task-name segment ("mergeReleaseNativeLibs") is NOT optional: AGP 8
+      // moved intermediates from <type>/out/ to <type>/<taskName>/out/, and
+      // pointing at the old layout fails SILENTLY - the plugin uploads nothing
+      // and never errors. See HANDOFF_2026-09-21.md in adoptme-jan7.
+      //
+      // NOTE: uploadCrashlyticsSymbolFileRelease does NOT run as part of
+      // bundleRelease. Invoke it explicitly for every shipped build:
+      //   ./gradlew :app:bundleRelease :app:uploadCrashlyticsSymbolFileRelease
+      firebaseCrashlytics {
+        nativeSymbolUploadEnabled true
+        unstrippedNativeLibsDir "build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib"
+      }
     }
   }
 }
@@ -79,5 +116,3 @@ dependencies {
 }
 
 
-apply plugin: 'com.google.gms.google-services'
-apply plugin: 'com.google.firebase.crashlytics'

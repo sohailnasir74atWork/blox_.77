@@ -8,7 +8,6 @@ import config from '../Helper/Environment';
 import { useGlobalState } from '../GlobelStats';
 import { useLocalState } from '../LocalGlobelStats';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
-import { mixpanel } from '../AppHelper/MixPenel';
 import InterstitialAdManager from '../Ads/IntAd';
 
 const ShareTradeModal = ({ visible, onClose, tradeData }) => {
@@ -54,7 +53,6 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const handleShare = async () => {
         try {
             if (!viewRef.current) return;
-            mixpanel.track("Trade Share");
             const uri = await captureRef(viewRef, {
                 format: 'png',
                 quality: 0.8,

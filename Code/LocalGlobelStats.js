@@ -6,7 +6,7 @@ import React, {
   useMemo,
   useCallback,
 } from 'react';
-import { Appearance, InteractionManager } from 'react-native';
+import { Appearance } from 'react-native';
 import { createMMKV } from 'react-native-mmkv';
 import Purchases from 'react-native-purchases';
 import config from './Helper/Environment';
@@ -222,10 +222,10 @@ export const LocalStateProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
+    const task = requestIdleCallback(() => {
       initRevenueCat();
-    });
-    return () => task.cancel();
+    }, { timeout: 1000 });
+    return () => cancelIdleCallback(task);
   }, []);
 
   const checkEntitlements = async () => {

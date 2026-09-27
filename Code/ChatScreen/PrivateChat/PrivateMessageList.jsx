@@ -23,7 +23,6 @@ import { showSuccessMessage } from '../../Helper/MessageHelper';
 import { useLocalState } from '../../LocalGlobelStats';
 import axios from 'axios';
 import { getDeviceLanguage } from '../../../i18n';
-import { mixpanel } from '../../AppHelper/MixPenel';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { resolveProfile, seedFromMessage } from '../../Helper/profileCache';
 import { getSafeTextColor, RainbowText, isMultiColorText, getMultiColorPalette } from '../../Helper/contrastHelper';
@@ -187,7 +186,6 @@ const PrivateMessageList = ({
       Object.entries(placeholders).forEach(([placeholder, word]) => {
         translated = translated.replace(new RegExp(placeholder, 'g'), word);
       });
-      mixpanel.track("Translation", { lang: targetLang });
 
       return translated;
     } catch (err) {

@@ -80,10 +80,6 @@
 -keep class io.invertase.notifee.** { *; }
 -dontwarn io.invertase.notifee.**
 
-# ---- Mixpanel ----
--keep class com.mixpanel.** { *; }
--dontwarn com.mixpanel.**
-
 # ---- Google Sign-In / Apple Authentication ----
 -keep class com.reactnativegooglesignin.** { *; }
 -dontwarn com.reactnativegooglesignin.**
@@ -119,8 +115,6 @@
 -dontwarn com.rnfs.**
 -keep class cl.json.** { *; }
 -dontwarn cl.json.**
--keep class com.zmxv.RNSound.** { *; }
--dontwarn com.zmxv.RNSound.**
 -keep class fr.greweb.reactnativeviewshot.** { *; }
 -dontwarn fr.greweb.reactnativeviewshot.**
 -keep class com.reactnativecommunity.** { *; }

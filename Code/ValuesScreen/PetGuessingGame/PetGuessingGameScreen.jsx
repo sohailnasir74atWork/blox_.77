@@ -8,7 +8,6 @@ import {
   ScrollView,
   ActivityIndicator,
   AppState,
-  Platform,
   Image,
   StatusBar,
 } from 'react-native';
@@ -18,8 +17,6 @@ import { useGlobalState } from '../../GlobelStats';
 import { useLocalState } from '../../LocalGlobelStats';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
-import { useBackgroundMusic } from '../../Helper/useBackgroundMusic';
-import { mixpanel } from '../../AppHelper/MixPenel';
 import InterstitialAdManager from '../../Ads/IntAd';
 import OnlineUsersList from '../../ChatScreen/GroupChat/OnlineUsersList';
 import InviteNotification from './components/InviteNotification';
@@ -42,7 +39,7 @@ import {
 
 const PetGuessingGameScreen = () => {
   const { appdatabase, firestoreDB, theme, user, setIsInActiveGame } = useGlobalState();
-  const { localState, updateLocalState } = useLocalState();
+  const { localState } = useLocalState();
   const { triggerHapticFeedback } = useHaptic();
   const isDarkMode = theme === 'dark';
 
@@ -50,28 +47,12 @@ const PetGuessingGameScreen = () => {
   const [roomData, setRoomData] = useState(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [loading, setLoading] = useState(false);
-  // ✅ Use persisted state from LocalGlobelStats.js (defaults to true)
-  const musicEnabled = localState?.gameMusicEnabled ?? true;
   // ✅ Track pending invitations (temporary UI state, not in database)
   const [pendingInvites, setPendingInvites] = useState([]);
   const processedGameFinishRef = useRef(new Set()); // Track processed game finishes
   const gameEndAdShownRef = useRef(new Set()); // ✅ Track which games already showed an ad per player
   const timeoutCheckIntervalRef = useRef(null); // For timeout checking
   const TURN_TIMEOUT_MS = 60000; // 60 seconds timeout per turn
-
-  // Play background music when game is active (room exists and game is in progress)
-  const shouldPlayMusic = useMemo(() => {
-    return currentRoomId && roomData && roomData.status !== 'finished';
-  }, [currentRoomId, roomData]);
-
-  // Background music - plays in loop when game is active
-  // For react-native-sound on Android: use filename without extension (file is in res/raw/)
-  // For iOS: use string filename with extension (file must be added to Xcode project bundle)
-  useBackgroundMusic(
-    Platform.OS === 'android' ? 'audio' : 'audio.mp3', // Android: no extension, iOS: with extension
-    shouldPlayMusic && musicEnabled, // ✅ Respect sound toggle
-    0.5 // Volume (0.0 to 1.0)
-  );
 
   // Get fruit data from localState (all items are fruits)
   const fruitData = useMemo(() => {
@@ -173,15 +154,6 @@ const PetGuessingGameScreen = () => {
           awardGameWin(appdatabase, firestoreDB, user.id)
             .then((result) => {
               if (result) {
-                // Track game win in Mixpanel
-                mixpanel.track('Game Won', {
-                  gameType: 'Fruit Guessing Game',
-                  roomId: gameId,
-                  pointsAwarded: 100,
-                  totalPoints: result.points,
-                  totalWins: result.wins,
-                  winnerScore: data.gameData?.winner?.score || 0,
-                });
                 // ✅ Simple victory toast (ad is handled separately for all players)
                 showSuccessMessage(
                   'Victory! 🎉',
@@ -350,12 +322,6 @@ const PetGuessingGameScreen = () => {
       const success = await startGame(firestoreDB, currentRoomId, user.id);
 
       if (success) {
-        // Track game start in Mixpanel
-        mixpanel.track('Game Started', {
-          gameType: 'Fruit Guessing Game',
-          roomId: currentRoomId,
-          playerCount: roomData?.currentPlayers || 0,
-        });
         showSuccessMessage('Game Started!', 'Take turns spinning the wheel!');
       } else {
         showErrorMessage('Error', 'Failed to start game');
@@ -499,8 +465,6 @@ const PetGuessingGameScreen = () => {
     <>
       <StatusBar
         barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={containerBgColor}
-        translucent={false}
       />
       <SafeAreaView style={{ flex: 1, backgroundColor: containerBgColor }}>
         <View style={[styles.container, { backgroundColor: containerBgColor }]}>
@@ -575,22 +539,6 @@ const PetGuessingGameScreen = () => {
               <View style={styles.section}>
                 {/* Action buttons - Top Right */}
                 <View style={styles.actionRow}>
-                  {/* Music toggle */}
-                  <TouchableOpacity
-                    style={styles.iconButton}
-                    onPress={() => {
-                      const newValue = !musicEnabled;
-                      updateLocalState('gameMusicEnabled', newValue);
-                      triggerHapticFeedback('impactLight');
-                    }}
-                  >
-                    <Icon
-                      name={musicEnabled ? 'volume-high-outline' : 'volume-mute-outline'}
-                      size={16}
-                      color="#fff"
-                    />
-                  </TouchableOpacity>
-
                   {/* Hide invite button when 2 players have joined */}
                   {roomData.status === 'waiting' && roomData.currentPlayers < 2 && (
                     <TouchableOpacity

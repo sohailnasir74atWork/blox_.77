@@ -12,7 +12,11 @@
  */
 
 // --- Supabase mirror / auth bridge ---------------------------------------
-exports.mirrorUsersToSupabase = require('./mirrorUsersToSupabase').mirrorUsersToSupabase;
+const usersMirror = require('./mirrorUsersToSupabase');
+exports.mirrorUsersToSupabase = usersMirror.mirrorUsersToSupabase;
+// Round 2 (2026-09): users_private/{uid} email → user_identity_base. Deploy
+// EARLY, together with mirrorUsersToSupabase and supabase/029.
+exports.mirrorUsersPrivateToSupabase = usersMirror.mirrorUsersPrivateToSupabase;
 exports.mirrorChatMetaToSupabase = require('./mirrorChatMetaToSupabase').mirrorChatMetaToSupabase;
 const roleClaim = require('./setSupabaseRoleClaim');
 exports.setSupabaseRoleClaim = roleClaim.setSupabaseRoleClaim;
@@ -58,3 +62,9 @@ exports.fruitCrashController = require('./fruitCrashController').fruitCrashContr
 // ── Roles mirror safety net (6-hourly RTDB ⇄ Supabase user_roles diff, 2026-09-04) ──
 exports.reconcileRolesMirror = require('./reconcileRolesMirror').reconcileRolesMirror;
 exports.expireFeaturedTrades = require('./expireFeaturedTrades').expireFeaturedTrades;
+
+// ── Round 2 PII privacy (2026-09): move emails that old builds still write
+// onto users/{uid} and Firestore posts into users_private / off the post.
+// Group → privatizeUserPII-email, -decodedEmail, -postEmail. Deploy at CUTOVER:
+//   firebase deploy --only functions:privatizeUserPII --project fruiteblocks
+exports.privatizeUserPII = require('./privatizeUserPII').privatizeUserPII;

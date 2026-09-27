@@ -21,7 +21,6 @@ import { ref, get, query, orderByValue, equalTo, limitToFirst, startAfter, order
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useLocalState } from '../../LocalGlobelStats';
-import { mixpanel } from '../../AppHelper/MixPenel';
 import config from '../../Helper/Environment';
 import RoleBadges from '../../Design/componenets/RoleBadges';
 import CreateGroupModal from './CreateGroupModal';
@@ -34,6 +33,7 @@ import { sendGameInvite, isUserInActiveGame } from '../../ValuesScreen/PetGuessi
 import { getUserData, cacheUserData } from '../../Helper/UserDataCache';
 import { getIdentityBatch, getRolesBatch, getRobloxBatch, getCosmeticsBatch } from '../../Supabase/userBackend';
 import { SUPABASE_USERS_ENABLED } from '../../Supabase/featureFlags';
+import { findUsersByEmail } from '../../Helper/privateProfile';
 const INITIAL_LOAD = 5; // Fetch first 10 online users
 const LOAD_MORE = 5; // Load 5 more on scroll
 const MAX_GROUP_MEMBERS = 100;
@@ -51,7 +51,10 @@ const OnlineUsersList = ({
   // mode: 'view' = just view online users and start chats
   // mode: 'select' = select users for group creation/addition
   // mode: 'gameInvite' = select users to invite to game
-  const { theme, user, appdatabase, firestoreDB } = useGlobalState();
+  const { theme, user, appdatabase, firestoreDB, isAdmin, isSeniorMod, isModerator, isBabyMod } = useGlobalState();
+  // Search by email is staff-only: emails live in users_private (round 2),
+  // which only staff can read.
+  const canSearchByEmail = !!(isAdmin || isSeniorMod || isModerator || isBabyMod);
   const { localState } = useLocalState();
   const navigation = useNavigation();
   const { t } = useTranslation();
@@ -414,7 +417,7 @@ const OnlineUsersList = ({
         });
       };
 
-      const isEmailSearch = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw) || raw.includes('(dot)');
+      const isEmailSearch = canSearchByEmail && (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw) || raw.includes('(dot)'));
       const isIdSearch = raw.length >= 15 && /^[a-zA-Z0-9]+$/.test(raw);
 
       if (isIdSearch) {
@@ -435,12 +438,16 @@ const OnlineUsersList = ({
         } catch (err) { /* ignore */ }
 
         if (allResults.size === 0) {
+          // Indexed users_private email query (staff), then each match's
+          // profile — replaces the unindexed orderByChild('email') on /users.
           try {
-            const emailQ = query(usersRef, orderByChild('email'), startAt(email), endAt(email + '\uf8ff'), limitToFirst(10));
-            const emailSnap = await get(emailQ);
-            if (emailSnap.exists()) {
-              emailSnap.forEach((child) => buildUserResult(child));
-            }
+            const matches = await findUsersByEmail(appdatabase, email, 10);
+            await Promise.all(matches.map(async ({ uid }) => {
+              const userSnap = await get(ref(appdatabase, `users/${uid}`));
+              if (userSnap.exists()) {
+                buildUserResult({ key: uid, val: () => userSnap.val() });
+              }
+            }));
           } catch (err) { /* ignore */ }
         }
       } else {
@@ -490,7 +497,7 @@ const OnlineUsersList = ({
     } finally {
       setSearching(false);
     }
-  }, [appdatabase, user?.id, allOnlineUserIds]);
+  }, [appdatabase, user?.id, allOnlineUserIds, canSearchByEmail]);
 
   const handleSearch = useCallback(() => {
     if (!searchQuery || searchQuery.trim().length < 2) return;
@@ -682,7 +689,6 @@ const OnlineUsersList = ({
           },
         });
       }
-      mixpanel.track("Online Users Chat");
     };
 
     callbackFunction();
@@ -842,7 +848,7 @@ const OnlineUsersList = ({
             TouchableOpacity-wraps-everything pattern bubbled keyboard
             dismissals up here and closed the modal mid-typing. */}
         <Pressable
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
           onPress={onClose}
         />
         <KeyboardAvoidingView
@@ -973,7 +979,7 @@ const OnlineUsersList = ({
                   <TextInput
                     value={searchQuery}
                     onChangeText={setSearchQuery}
-                    placeholder="Search by name, email, or ID"
+                    placeholder={canSearchByEmail ? 'Search by name, email, or ID' : 'Search by name or ID'}
                     placeholderTextColor={isDarkMode ? '#6B7280' : '#9CA3AF'}
                     style={{
                       flex: 1,
@@ -1036,7 +1042,7 @@ const OnlineUsersList = ({
                   color={isDarkMode ? '#4B5563' : '#D1D5DB'}
                 />
                 <Text style={styles.emptyText}>
-                  {searchQuery.trim().length === 0 ? 'Search users by name, email, or ID' : 'No users found'}
+                  {searchQuery.trim().length === 0 ? (canSearchByEmail ? 'Search users by name, email, or ID' : 'Search users by name or ID') : 'No users found'}
                 </Text>
               </View>
             ) : (

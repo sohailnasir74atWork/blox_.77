@@ -23,6 +23,7 @@ import { getMyCosmetics } from '../Helper/cosmeticsCache';
 import { useGlobalState } from '../GlobelStats';
 import { getStyles } from './settingstyle';
 import { handleGetSuggestions, handleOpenFacebook, handleOpenWebsite, handleRateApp, handleadoptme, handleShareApp, imageOptions, handleBloxFruit, handleMM2, handleRefresh, handleReport, handleOpenPrivacy, handleOpenChild } from './settinghelper';
+import EmailUpdatesRow from './EmailUpdatesRow';
 import { logoutUser } from '../Firebase/UserLogics';
 import SignInDrawer from '../Firebase/SigninDrawer';
 import { getAuth } from '@react-native-firebase/auth';
@@ -2630,6 +2631,15 @@ export default function SettingsScreen({ selectedTheme }) {
                   />
                 </View>
               </View>)}
+
+              {user?.id && (
+                <EmailUpdatesRow
+                  uid={user.id}
+                  appdatabase={appdatabase}
+                  styles={styles}
+                  onHaptic={() => triggerHapticFeedback('impactLight')}
+                />
+              )}
 
               {/* Chat availability — two independent doors. Trade chat opens from
                   the Trades screen; general chat is everywhere else (public chat,

@@ -23,7 +23,6 @@ import { useLocalState } from '../../LocalGlobelStats';
 import InterstitialAdManager from '../../Ads/IntAd';
 import { useTranslation } from 'react-i18next';
 import { showSuccessMessage } from '../../Helper/MessageHelper';
-import { mixpanel } from '../../AppHelper/MixPenel';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -60,6 +59,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { banUserwithEmail, unbanUserWithEmail, setUserStrike, checkBanStatus, makeSeniorMod, removeSeniorMod, makeModerator, removeModerator, muteUser, makeBabyMod, removeBabyMod, canModerate } from '../utils'; // ✅ Import moderator utils
 import { getAuth } from '@react-native-firebase/auth';
+import { getUserEmail } from '../../Helper/privateProfile';
 
 // Initialize dayjs plugins
 dayjs.extend(relativeTime);
@@ -366,12 +366,22 @@ const ProfileBottomDrawer = ({
     };
   }, [selectedUserId, selectedUser?.robloxUsername, selectedUser?.robloxUserId, selectedUser?.flage, selectedUser?.isPro, selectedUser?.lastGameWinAt, appdatabase]);
 
-  // ✅ Fetch ban status
+  // ✅ Fetch ban status — staff only. It only drives the Unban chip in the
+  // staff tools, and another user's email is staff-only data (round 2).
+  const canSeeUnban = !!(isAdmin || isGlobalSenior || isGlobalModerator);
   useEffect(() => {
-    if (selectedUser?.email) {
-      checkBanStatus(selectedUser.email).then(status => setIsBanned(status.isBanned));
-    }
-  }, [selectedUser?.email]);
+    if (!canSeeUnban) return undefined;
+    let alive = true;
+    (async () => {
+      // Records stop carrying an email after round 2 — resolve it from
+      // users_private (staff-readable) when the row has none.
+      const email = selectedUser?.email || (selectedUserId ? await getUserEmail(appdatabase, selectedUserId) : null);
+      if (!email || !alive) return;
+      const status = await checkBanStatus(email);
+      if (alive) setIsBanned(!!status?.isBanned);
+    })().catch(() => {});
+    return () => { alive = false; };
+  }, [canSeeUnban, selectedUser?.email, selectedUserId, appdatabase]);
 
   // ✅ Merge selectedUser with fetched userData
   const mergedUser = useMemo(() => {
@@ -406,7 +416,6 @@ const ProfileBottomDrawer = ({
     triggerHapticFeedback('impactLight');
     Clipboard.setString(code);
     showSuccessMessage(t('value.copy'), t('chat.copied_to_clipboard'));
-    mixpanel.track('Code UserName', { UserName: code });
   };
 
   // ─────────────────────────────────────────────
@@ -516,15 +525,9 @@ const ProfileBottomDrawer = ({
     let targetEmail = null;
     const authUser = getAuth().currentUser;
     if (authUser && authUser.uid === selectedUserId) targetEmail = authUser.email;
-    if (!targetEmail) {
-      try {
-        const userSnap = await get(ref(appdatabase, `users/${selectedUserId}`));
-        if (userSnap.exists()) {
-          const d = userSnap.val();
-          targetEmail = d.email || d.userEmail || null;
-        }
-      } catch (_) { }
-    }
+    // Staff-only read of users_private/{uid}/email (legacy users/{uid}/email
+    // until the PII migration runs) — no longer the whole users/{uid} record.
+    if (!targetEmail) targetEmail = await getUserEmail(appdatabase, selectedUserId);
     return targetEmail || selectedUser?.email || null;
   };
 
@@ -564,24 +567,9 @@ const ProfileBottomDrawer = ({
       targetEmail = currentUser.email;
     }
 
-    // 2️⃣ Try Firebase Realtime Database
+    // 2️⃣ Try users_private (staff-only; legacy users/{uid}/email fallback)
     if (!targetEmail) {
-      try {
-        const userRef = ref(appdatabase, `users/${selectedUserId}`);
-        const userSnap = await get(userRef);
-
-        if (userSnap.exists()) {
-          const userData = userSnap.val();
-
-          if (userData.email) {
-            targetEmail = userData.email;
-          } else if (userData.userEmail) {
-            targetEmail = userData.userEmail;
-          }
-        }
-      } catch (err) {
-        console.error("Error fetching user data for unban:", err);
-      }
+      targetEmail = await getUserEmail(appdatabase, selectedUserId);
     }
 
     // 3️⃣ Fallback to prop

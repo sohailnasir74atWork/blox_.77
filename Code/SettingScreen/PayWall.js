@@ -1,7 +1,6 @@
 // PayWall.js
 import Purchases from 'react-native-purchases';
 import RevenueCatUI from 'react-native-purchases-ui';
-import { mixpanel } from '../AppHelper/MixPenel';
 
 const ENTITLEMENT_ID = 'pro';
 
@@ -21,11 +20,6 @@ const openAndCheck = async (offering, offeringId, source, showoffer) => {
   }
 
   // ✅ 1) Paywall shown
-  mixpanel.track('paywall_presented', {
-    source: source || 'unknown',
-    offeringId,
-    flow: showoffer ? 'two_step' : 'single',
-  });
 
   await RevenueCatUI.presentPaywall({ offering });
 
@@ -33,18 +27,7 @@ const openAndCheck = async (offering, offeringId, source, showoffer) => {
 
   // ✅ 2) Purchase success OR dismissed
   if (hasEntitlement) {
-    mixpanel.track('purchase_completed', {
-      source: source || 'unknown',
-      offeringId,
-      entitlement: ENTITLEMENT_ID,
-      flow: showoffer ? 'two_step' : 'single',
-    });
   } else {
-    mixpanel.track('paywall_dismissed', {
-      source: source || 'unknown',
-      offeringId,
-      flow: showoffer ? 'two_step' : 'single',
-    });
   }
 
   return hasEntitlement;
@@ -96,9 +79,5 @@ export const handleOpenPaywall = async (source, showoffer, forceSecondOnly = fal
   } catch (e) {
     // console.log('Error showing paywall', e);
 
-    mixpanel.track('paywall_error', {
-      source: source || 'unknown',
-      message: String(e?.message || e),
-    });
   }
 };

@@ -1,3 +1,4 @@
+import {trackGrowthEvent} from '../Helper/growthAnalytics';
 import React, { useState } from 'react';
 import {
   View,
@@ -17,7 +18,6 @@ import { useLanguage } from '../Translation/LanguageProvider';
 import { useTranslation } from 'react-i18next';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { mixpanel } from './MixPenel';
 
 const { width } = Dimensions.get('window');
 
@@ -51,7 +51,6 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
 
   const handleNext = () => {
     if (screenIndex === 0) {
-      mixpanel.track("New Install");
       setScreenIndex(1);
     } else if (screenIndex === 1) {
       user?.id ? setScreenIndex(2) : setOpenSignin(true);
@@ -61,8 +60,8 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
   };
 
   const handleGuest = () => {
-    mixpanel.track("Go as Guest");
-    setScreenIndex(2);
+    trackGrowthEvent("onboarding_guest_continue");
+    onFinish(); // Let users try values and the calculator before an offer.
   };
 
   const handleLoginSuccess = () => {
@@ -121,6 +120,14 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
               {/* <View style={styles.spacer}></View> */}
               <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>{t("first.welcome_title")}</Text>
               <Text style={[styles.text, { color: isDarkMode ? '#ccc' : '#666' }]}>{t("first.welcome_text")}</Text>
+              <Text style={[styles.text, {color: isDarkMode ? '#ccc' : '#666'}]}>
+                {t('first.utility_note')}
+              </Text>
+              <TouchableOpacity accessibilityRole="button" onPress={handleGuest} style={{padding: 14}}>
+                <Text style={{color: isDarkMode ? '#93c5fd' : '#1d4ed8', textAlign: 'center', fontWeight: '700'}}>
+                  {t('first.try_values')}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
         );
@@ -157,7 +164,7 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
   return (
     <GestureHandlerRootView>
       <View style={[styles.container, { backgroundColor: isDarkMode ? '#0f172a' : '#f2f2f7' }]}>
-        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={isDarkMode ? '#0f172a' : '#f2f2f7'} />
+        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
         {renderScreen()}
 
         {screenIndex !== 2 && <View style={styles.bottomContainer}>
@@ -167,7 +174,7 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
           </TouchableOpacity>
           {screenIndex === 1 && !user?.id && (
             <TouchableOpacity style={styles.buttonOutline} onPress={handleGuest}>
-              <Text style={styles.buttonTextOutline}>Continue as Guest</Text>
+              <Text style={styles.buttonTextOutline}>{t('first.continue_guest', {defaultValue: 'Continue as Guest'})}</Text>
             </TouchableOpacity>
           )}
         </View>}

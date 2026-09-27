@@ -1,3 +1,5 @@
+import {trackGrowthEvent} from './Helper/growthAnalytics';
+import { fetchCatalog, refreshCatalog, usableCatalog, withDeadline } from './Helper/catalogNetwork';
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { getApps } from '@react-native-firebase/app';
 import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
@@ -6,13 +8,15 @@ import { getFirestore } from '@react-native-firebase/firestore';
 import { createNewUser, firebaseConfig, registerForNotifications } from './Globelhelper';
 import { useLocalState } from './LocalGlobelStats';
 import { requestPermission } from './Helper/PermissionCheck';
-import { useColorScheme, InteractionManager, AppState } from 'react-native';
+import { useColorScheme, AppState } from 'react-native';
 import { clearUserCache } from './Helper/UserDataCache';
 import { generateOnePieceUsername } from './Helper/RendomNamegen';
 import { getDeviceFingerprint } from './Helper/deviceFingerprint';
 import { getServerTime } from './Helper/serverTime';
 import { setLastActivity } from './Supabase/userBackend';
+import { saveOwnEmailOnce } from './Helper/privateProfile';
 import Purchases from 'react-native-purchases';
+import { getAnalytics, logEvent } from '@react-native-firebase/analytics';
 
 // registerForNotifications used to run three times per cold start (login
 // handler, user-id effect, auth listener). Run it once per uid per sign-in;
@@ -29,6 +33,24 @@ const registerForNotificationsOnce = async (uid) => {
     notificationsRegisteredFor.delete(uid);
   }
 };
+// ── Startup instrumentation (2026-09-21) ────────────────────────────────
+// Ported from adoptme-jan7; see HANDOFF_2026-09-21.md there.
+//
+// `am start -W` measures time to FIRST DRAW, which is only the splash
+// appearing. What users call "slow to open" is the time until isAppReady flips
+// and the real UI renders, which sits behind the auth + profile work below.
+// Nothing has ever measured that in this app.
+//
+// Sent to Analytics rather than Crashlytics deliberately: a Crashlytics log is
+// a breadcrumb visible only if that session later crashes, which is a useless
+// sample for typical startup time. Analytics aggregates across all users.
+const _launchedAt = Date.now();
+const logStartupTiming = (name, params) => {
+  try {
+    logEvent(getAnalytics(), name, params);
+  } catch (_) {}
+};
+
 const app = getApps();
 const auth = getAuth(app);
 const firestoreDB = getFirestore(app);
@@ -86,6 +108,7 @@ export const GlobalStateProvider = ({ children }) => {
 
   const [onlineMembersCount, setOnlineMembersCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [catalogStatus, setCatalogStatus] = useState('ready');
   const [proTagBought, setProTagBought] = useState(false);
   const [stockNotifierPurchase, setStockNotifierPurchase] = useState(false);
   const [_isEmailBanned, setIsEmailBanned] = useState(false);
@@ -325,6 +348,7 @@ export const GlobalStateProvider = ({ children }) => {
       // 🔄 Fetch user data
       const snapshot = await get(userRef);
       let userData;
+      let isNewRecord = false;
 
       // console.log(loggedInUser.email)
       const makeadmin = loggedInUser.email === 'thesolanalabs@gmail.com' || loggedInUser.email === 'sohailnasir74@gmail.com';
@@ -376,26 +400,35 @@ export const GlobalStateProvider = ({ children }) => {
           id: userId,
           displayName: healedDisplayName,
           createdAt: existing.createdAt || Date.now(),
-          email: loggedInUser.email || existing.email || null,
+          // Own email comes from Firebase Auth only. It is kept in memory but no
+          // longer written to users/{uid} (publicly readable) — it goes to
+          // users_private/{uid} below. The old "self-heal" write is gone.
+          email: loggedInUser.email || null,
         };
-
-        // ✅ Update email in Firebase if it's missing or changed
-        if (loggedInUser.email && existing.email !== loggedInUser.email) {
-          await update(userRef, { email: loggedInUser.email });
-        }
 
       } else {
         // console.log(robloxUsernameRef?.current, 'robloxUsername_inside')
-        userData = {
+        const newRecord = {
           ...createNewUser(userId, loggedInUser, robloxUsernameRef?.current),
           createdAt: Date.now(),
-          email: loggedInUser.email || null, // ✅ Store email for new users
         };
 
-        await set(userRef, userData);
+        // ✅ No email in the public record — see users_private below.
+        await set(userRef, newRecord);
+        isNewRecord = true;
+        userData = { ...newRecord, email: loggedInUser.email || null };
       }
       // console.log(userData, 'user')
       setUser(userData);
+
+      // Own email → users_private/{uid} (owner + staff readable only). Fire-and-
+      // forget: sign-in never waits on it, and a failure can't abort login the
+      // way the old awaited users/{uid} email write could. Phone accounts have
+      // no auth email and are skipped.
+      if (loggedInUser.email) {
+        saveOwnEmailOnce(appdatabase, userId, loggedInUser.email, { force: isNewRecord }).catch(() => {});
+      }
+
       lastKnownIsProRef.current = {
         uid: userId,
         value: typeof userData?.isPro === 'boolean' ? userData.isPro : undefined,
@@ -436,7 +469,7 @@ export const GlobalStateProvider = ({ children }) => {
   // ✅ Ensure useEffect runs only when necessary
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (loggedInUser) => {
-      InteractionManager.runAfterInteractions(async () => {
+      requestIdleCallback(async () => {
         await handleUserLogin(loggedInUser);
 
         if (loggedInUser?.uid) {
@@ -459,8 +492,10 @@ export const GlobalStateProvider = ({ children }) => {
           // both are non-fatal; the next auth transition will retry.
         }
 
+        // Time-to-interactive: process start -> splash hide.
+        logStartupTiming('startup_ready', { ms: Date.now() - _launchedAt });
         await updateLocalState('isAppReady', true);
-      });
+      }, { timeout: 1000 });
     });
 
     return () => unsubscribe();
@@ -549,9 +584,9 @@ export const GlobalStateProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    InteractionManager.runAfterInteractions(() => {
+    requestIdleCallback(() => {
       updateUserProStatus();
-    });
+    }, { timeout: 1000 });
   }, [user?.id, localState?.isPro]);
 
 
@@ -590,78 +625,39 @@ export const GlobalStateProvider = ({ children }) => {
 
   const fetchStockData = useCallback(async (refresh) => {
     const currentLocalState = localStateRef.current;
+    let catalogRefreshed = true;
     try {
       setLoading(true);
 
-      // ✅ Check when `codes & data` were last fetched
-      const lastActivity = currentLocalState.lastActivity ? new Date(currentLocalState.lastActivity).getTime() : 0;
+      // Catalog freshness must not use the user-presence heartbeat.
+      const lastFetched = Number(currentLocalState.fetchDataTime) || 0;
       const now = Date.now();
-      const timeElapsed = now - lastActivity;
-
-      // ✅ Fetch `codes & data` only if 6min have passed OR they are missing
-      const EXPIRY_LIMIT = refresh ? 1 * 1000 : 6 * 60 * 1000;
-
-      const shouldFetch =
-        timeElapsed > EXPIRY_LIMIT ||
-        !currentLocalState.data ||
-        !Object.keys(currentLocalState.data).length
-
+      const shouldFetch = refresh || now - lastFetched > 6 * 60 * 1000 ||
+        !usableCatalog(currentLocalState.data) || !usableCatalog(currentLocalState.codes);
       if (shouldFetch) {
-        let codes = {};
-        let data = {};
-
-        try {
-          // No `cache: 'no-store'` here. React Native's fetch is the
-          // whatwg-fetch polyfill, which implements that option by appending a
-          // unique `?_=<timestamp>` to the URL — so it never actually reached
-          // the CDN as a no-store directive, it just guaranteed the device
-          // HTTP cache could never serve a repeat request and re-pulled the
-          // full body from Bunny on every 6-minute window. Freshness is
-          // already governed by the EXPIRY_LIMIT check above, so let the
-          // platform cache do its job; Bunny still revalidates because the
-          // origin sends `cache-control: max-age=0`.
-          const [codesRes, dataRes] = await Promise.all([
-            fetch('https://blox-api.b-cdn.net/codes.json', { method: 'GET' }),
-            fetch('https://blox-api.b-cdn.net/data.json', { method: 'GET' }),
-          ]);
-
-          if (!codesRes.ok || !dataRes.ok) {
-            throw new Error(`CDN request failed: codes=${codesRes.status}, data=${dataRes.status}`);
-          }
-
-          const codesJson = await codesRes.json();
-          const dataJson = await dataRes.json();
-
-          codes = codesJson || {};
-          data = dataJson || {};
-
-          if (!Object.keys(codes).length || !Object.keys(data).length) {
-            throw new Error('CDN data incomplete: empty response');
-          }
-
-        } catch (err) {
-          console.error('❌ Failed to fetch from CDN:', err.message);
-
-          if (currentLocalState.codes && currentLocalState.data) {
-            try {
-              codes = typeof currentLocalState.codes === 'string' ? JSON.parse(currentLocalState.codes) : currentLocalState.codes;
-              data = typeof currentLocalState.data === 'string' ? JSON.parse(currentLocalState.data) : currentLocalState.data;
-              console.warn('⚠️ Using cached codes & data due to CDN failure');
-            } catch (parseErr) {
-              console.error('❌ Failed to parse cached data:', parseErr);
-              codes = {};
-              data = {};
-            }
-          } else {
-            codes = {};
-            data = {};
-            console.warn('⚠️ No cached data available, using empty objects');
-          }
-        }
-
-        // ✅ Store fetched data locally
-        updateLocalState('codes', JSON.stringify(codes));
-        updateLocalState('data', JSON.stringify(data));
+        const catalogStartedAt = Date.now();
+        const results = await Promise.all([
+          refreshCatalog({
+            load: () => fetchCatalog('https://blox-api.b-cdn.net/data.json'),
+            cached: currentLocalState.data,
+            save: value => updateLocalState('data', JSON.stringify(value)),
+          }),
+          refreshCatalog({
+            load: () => fetchCatalog('https://blox-api.b-cdn.net/codes.json'),
+            cached: currentLocalState.codes,
+            save: value => updateLocalState('codes', JSON.stringify(value)),
+          }),
+        ]);
+        catalogRefreshed = results.every(r => r.fresh);
+        trackGrowthEvent('catalog_load_result', {
+          duration_ms: Date.now() - catalogStartedAt,
+          fresh_feeds: results.filter(r => r.fresh).length,
+          available_feeds: results.filter(r => r.available).length,
+          manual_refresh: refresh ? 1 : 0,
+        });
+        setCatalogStatus(results.every(r => r.fresh) ? 'ready' :
+          results[0].available ? 'cached' : 'unavailable');
+        if (results.every(r => r.fresh)) updateLocalState('fetchDataTime', String(now));
       }
 
       // ✅ OPTIMIZED: Cache calcData — only fetch from Firebase if 5 min have passed
@@ -676,7 +672,7 @@ export const GlobalStateProvider = ({ children }) => {
       let mirageStock = {};
 
       if (shouldFetchCalcData) {
-        const calcSnapshot = await get(ref(appdatabase, 'calcData'));
+        const calcSnapshot = await withDeadline(() => get(ref(appdatabase, 'calcData')));
         normalStock = calcSnapshot.exists() ? calcSnapshot.val()?.test || {} : {};
         mirageStock = calcSnapshot.exists() ? calcSnapshot.val()?.mirage || {} : {};
 
@@ -693,7 +689,7 @@ export const GlobalStateProvider = ({ children }) => {
             : (currentLocalState.cachedMirageStock || {});
         } catch (parseErr) {
           console.error('❌ Failed to parse cached calcData:', parseErr);
-          const calcSnapshot = await get(ref(appdatabase, 'calcData'));
+          const calcSnapshot = await withDeadline(() => get(ref(appdatabase, 'calcData')));
           normalStock = calcSnapshot.exists() ? calcSnapshot.val()?.test || {} : {};
           mirageStock = calcSnapshot.exists() ? calcSnapshot.val()?.mirage || {} : {};
         }
@@ -710,7 +706,7 @@ export const GlobalStateProvider = ({ children }) => {
       let premirageStock = {};
 
       if (shouldFetchPreviousStock) {
-        const preSnapshot = await get(ref(appdatabase, 'previousStock'));
+        const preSnapshot = await withDeadline(() => get(ref(appdatabase, 'previousStock')));
         prenormalStock = preSnapshot.exists() ? preSnapshot.val()?.normalStock || {} : {};
         premirageStock = preSnapshot.exists() ? preSnapshot.val()?.mirageStock || {} : {};
 
@@ -737,23 +733,25 @@ export const GlobalStateProvider = ({ children }) => {
       updateLocalState('mirageStock', JSON.stringify(mirageStock));
 
     } catch (error) {
+      catalogRefreshed = false;
       console.error("❌ Error fetching stock data:", error);
     } finally {
       setLoading(false);
     }
+    return catalogRefreshed;
   }, [appdatabase, updateLocalState]); // ✅ Stable deps only — localState accessed via ref
 
   // ✅ Run the function only if needed
   useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
+    const task = requestIdleCallback(() => {
       fetchStockData();
-    });
+    }, { timeout: 1000 });
 
-    return () => task.cancel();
+    return () => cancelIdleCallback(task);
   }, [fetchStockData]);
 
   const reload = useCallback(() => {
-    fetchStockData(true);
+    return fetchStockData(true);
   }, [fetchStockData]);
 
   // ✅ Check if user is blocked by email (centralized - used everywhere)
@@ -1110,6 +1108,7 @@ export const GlobalStateProvider = ({ children }) => {
       updateLocalStateAndDatabase,
       fetchStockData,
       loading,
+      catalogStatus,
       freeTranslation,
       isAdmin,
       isSeniorMod, // ✅ Export Senior Mod status (one rank below Admin)
@@ -1128,7 +1127,7 @@ export const GlobalStateProvider = ({ children }) => {
       isUserBlocked, // ✅ Boolean flag if user is currently blocked
 
     }),
-    [user, onlineMembersCount, theme, fetchStockData, loading, robloxUsernameRef, api, freeTranslation, proTagBought, stockNotifierPurchase, proGranted, currentUserEmail, single_offer_wall, auth, isInActiveGame, setIsInActiveGame, tradingServerLink, strikeInfo, deviceBanInfo, isUserBlocked, isAdmin, isSeniorMod, isModerator, isBabyMod, isTrusted, isGrinder, isRaider, updateLocalStateAndDatabase, reload]
+    [user, onlineMembersCount, theme, fetchStockData, loading, catalogStatus, robloxUsernameRef, api, freeTranslation, proTagBought, stockNotifierPurchase, proGranted, currentUserEmail, single_offer_wall, auth, isInActiveGame, setIsInActiveGame, tradingServerLink, strikeInfo, deviceBanInfo, isUserBlocked, isAdmin, isSeniorMod, isModerator, isBabyMod, isTrusted, isGrinder, isRaider, updateLocalStateAndDatabase, reload]
   );
 
   return (

@@ -16,7 +16,6 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { doc, getDoc } from '@react-native-firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { useLocalState } from '../../LocalGlobelStats';
-import { mixpanel } from '../../AppHelper/MixPenel';
 import config from '../../Helper/Environment';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import ProfileBottomDrawer from './BottomDrawer';
@@ -204,7 +203,6 @@ const LeaderboardScreen = ({ route }) => {
       setIsOnline(false);
     }
     setIsDrawerVisible(true);
-    mixpanel.track('Leaderboard User Click', { tab: activeTab });
   }, [triggerHapticFeedback, activeTab]);
 
   const handleStartChat = useCallback(() => {
@@ -221,7 +219,6 @@ const LeaderboardScreen = ({ route }) => {
         },
       });
     }, 300);
-    mixpanel.track('Leaderboard Start Chat');
   }, [selectedUser, navigation]);
 
   // ── Renderers ──

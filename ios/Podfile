@@ -18,6 +18,24 @@ target 'bloxfruitevalues' do
   config = use_native_modules!
   use_frameworks! :linkage => :static
   $RNFirebaseAsStaticFramework = true
+  # Pin the Firebase iOS SDK ahead of React Native Firebase's default (12.10.0).
+  #
+  # Firebase iOS 12.19.0 (#16498): "Fixed an issue on iOS 15+ where users were
+  # randomly logged out during prewarming while the device was locked." iOS
+  # prewarms the app process before the user taps the icon, often while locked;
+  # the keychain is then unreadable, Auth cannot restore the persisted session,
+  # and the user appears signed out for no reason.
+  #
+  # Diagnosed and measured in adoptme-jan7 (Crashlytics 98edaf64: 256 events /
+  # 100 users a week, msSinceLaunch around 100ms). Unmeasured here - this app
+  # has no equivalent auth telemetry - but it ships the same SDK on the same
+  # minimum iOS version, so it carries the same bug.
+  #
+  # Use 12.19.0 EXACTLY: 12.19.1 and 12.19.2 exist on GitHub but were never
+  # published to the CocoaPods trunk, and CocoaPods misreports that as a
+  # "higher minimum deployment target" error. See HANDOFF_2026-09-21.md in
+  # adoptme-jan7.
+  $FirebaseSDKVersion = '12.19.0'
 
   use_react_native!(
     :path => config[:reactNativePath],

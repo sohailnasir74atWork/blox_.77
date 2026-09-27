@@ -16,7 +16,6 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { t } from 'i18next';
 import { showSuccessMessage } from '../Helper/MessageHelper';
-import { mixpanel } from '../AppHelper/MixPenel';
 
 const CodesDrawer = ({ isVisible, toggleModal, codes }) => {
   // Flatten codes if necessary
@@ -37,7 +36,6 @@ const CodesDrawer = ({ isVisible, toggleModal, codes }) => {
     triggerHapticFeedback('impactLight');
     Clipboard.setString(code); // Copies the code to the clipboard
     showSuccessMessage(t("value.copy"), t("value.copy_success"));
-    mixpanel.track("Code Copy", { Code: code });
 
   };
 

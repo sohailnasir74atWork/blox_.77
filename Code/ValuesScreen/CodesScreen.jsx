@@ -13,7 +13,6 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { t } from 'i18next';
 import { showSuccessMessage } from '../Helper/MessageHelper';
-import { mixpanel } from '../AppHelper/MixPenel';
 import config from '../Helper/Environment';
 
 const CodesScreen = () => {
@@ -52,7 +51,6 @@ const CodesScreen = () => {
     triggerHapticFeedback('impactLight');
     Clipboard.setString(code);
     showSuccessMessage(t("value.copy"), t("value.copy_success"));
-    mixpanel.track("Code Copy", { Code: code });
   };
 
   const renderCodeItem = ({ item }) => (

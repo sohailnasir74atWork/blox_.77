@@ -12,7 +12,6 @@ import { requestPermission } from '../Helper/PermissionCheck';
 import { useIsFocused } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { showSuccessMessage, showWarningMessage } from '../Helper/MessageHelper';
-import { mixpanel } from '../AppHelper/MixPenel';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
 
@@ -95,7 +94,6 @@ const TimerScreen = ({ selectedTheme }) => {
 
     const selectedFruits = user.selectedFruits || [];
     const isAlreadySelected = selectedFruits.some((item) => item.name === fruit.name);
-    mixpanel.track("Select Fruit", { fruit: fruit.name });
 
     if (isAlreadySelected) {
       showWarningMessage(t("settings.notice"), t("stock.already_selected"));

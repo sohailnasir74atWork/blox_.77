@@ -1019,7 +1019,7 @@ const s = StyleSheet.create({
   costBadge: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, marginTop: 10, zIndex: 1 },
   costText: { fontSize: 12, fontWeight: '800' },
   lockedOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.4)',
     borderRadius: 24,
     alignItems: 'center',

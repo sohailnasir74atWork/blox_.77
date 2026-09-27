@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   Image,
   Alert,
-  InteractionManager,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useGlobalState } from '../../GlobelStats';
@@ -83,7 +82,7 @@ const InboxScreen = ({ bannedUsers }) => {
     const updateChatsList = () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = setTimeout(() => {
-        InteractionManager.runAfterInteractions(() => {
+        requestIdleCallback(() => {
           const updatedChats = Array.from(chatsMap.values())
             .sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp);
           setLocalChats(updatedChats);
@@ -92,7 +91,7 @@ const InboxScreen = ({ bannedUsers }) => {
             hasLoadedOnce.current = true;
             if (initialLoadTimerRef.current) clearTimeout(initialLoadTimerRef.current);
           }
-        });
+        }, { timeout: 1000 });
       }, 500);
     };
 

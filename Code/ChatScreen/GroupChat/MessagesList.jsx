@@ -27,7 +27,6 @@ import { showSuccessMessage } from '../../Helper/MessageHelper';
 import axios from 'axios';
 import { useLocalState } from '../../LocalGlobelStats';
 import { getDeviceLanguage } from '../../../i18n';
-import { mixpanel } from '../../AppHelper/MixPenel';
 import StyledUsernamePreview from '../../SettingScreen/Store/StyledName';
 import { banUserwithEmail, unbanUserWithEmail } from '../utils';
 import RoleBadges from '../../Design/componenets/RoleBadges';
@@ -186,7 +185,6 @@ const MessagesList = ({
       Object.entries(placeholders).forEach(([placeholder, word]) => {
         translated = translated.replace(new RegExp(placeholder, 'g'), word);
       });
-      mixpanel.track("Translation", { lang: targetLang });
 
       return translated;
     } catch (err) {

@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end', // drawer from bottom
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.4)',
   },
   drawer: {

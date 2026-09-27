@@ -29,7 +29,9 @@ import { supabase } from './client';
 // only the columns the mapper reads (instead of select('*')) trims egress on
 // these hot, batched profile-hydration reads (online list, leaderboard, chat
 // headers). Keep in sync with the mappers when a column is added.
-const IDENTITY_COLS = 'uid, display_name, avatar, email, is_block, created_at_ms, last_activity_ms, online, os, last_game_win_ms';
+// No email: nothing on the client used it, and since supabase/029 the
+// user_identity view returns it only to the owner and staff.
+const IDENTITY_COLS = 'uid, display_name, avatar, is_block, created_at_ms, last_activity_ms, online, os, last_game_win_ms';
 const ROLES_COLS = 'uid, is_admin, is_cmsr, is_moderator, is_baby_mod, is_trusted, is_grinder, is_raider';
 const COSMETICS_COLS = 'uid, top_badge, is_pro, profile_frame, chat_text_color, trade_card_bg, profile_banner, chat_bubble_bg';
 const ROBLOX_COLS = 'uid, roblox_username, roblox_user_id, roblox_username_verified';
@@ -46,7 +48,6 @@ export function fromIdentityRow(row) {
     uid: row.uid,
     displayName: row.display_name ?? null,
     avatar: row.avatar ?? null,
-    email: row.email ?? null,
     isBlock: !!row.is_block,
     createdAt: row.created_at_ms ?? null,
     lastactivity: row.last_activity_ms ?? null,    // matches RTDB key

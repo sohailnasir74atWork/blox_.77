@@ -87,9 +87,30 @@ function diffBoolMap(before, after) {
 // others (Promise.all rejects on first throw).
 // --------------------------------------------------------------------
 
+// Round 2 (2026-09): supabase/029 renames the identity table to
+// user_identity_base and puts a masking VIEW named user_identity in front of
+// it (email / decoded_email / date_of_birth only for the owner and staff).
+// Writes must go to the base table. Until 029 has run the base doesn't exist,
+// so fall back to the old name — this function can deploy before the SQL.
+const IDENTITY_TABLE = 'user_identity_base';
+const IDENTITY_TABLE_LEGACY = 'user_identity';
+const isMissingTable = (error) => !!error && (
+  error.code === '42P01' || error.code === 'PGRST205' ||
+  /does not exist|could not find the table/i.test(error.message || '')
+);
+async function onIdentityTable(supabase, run) {
+  const res = await run(supabase.from(IDENTITY_TABLE));
+  if (isMissingTable(res.error)) return run(supabase.from(IDENTITY_TABLE_LEGACY));
+  return res;
+}
+
+// email / decodedEmail / dateOfBirth are NOT copied from users/{uid} any more
+// (round 2): the columns are omitted from this upsert so they are never
+// nulled, and mirrorUsersPrivateToSupabase below fills them from
+// users_private/{uid}.
 const IDENTITY_KEYS = [
-  'displayName', 'avatar', 'email', 'decodedEmail', 'flage',
-  'dateOfBirth', 'OS', 'createdAt', 'lastActivity', 'lastProfileEditAt',
+  'displayName', 'avatar', 'flage',
+  'OS', 'createdAt', 'lastActivity', 'lastProfileEditAt',
   'lastGameWinAt',   // 2026-09: mirrored so clients stop reading it from RTDB per profile
 ];
 async function mirrorIdentity(uid, before, after, supabase) {
@@ -99,10 +120,7 @@ async function mirrorIdentity(uid, before, after, supabase) {
     uid,
     display_name: asString(after.displayName),
     avatar: asString(after.avatar),
-    email: asString(after.email),
-    decoded_email: asString(after.decodedEmail),
     flag: asString(after.flage),               // typo fix: flage → flag
-    date_of_birth: asString(after.dateOfBirth),
     os: asString(after.OS),
     created_at_ms: asNumber(after.createdAt),
     last_activity_ms: asNumber(after.lastActivity),
@@ -111,9 +129,7 @@ async function mirrorIdentity(uid, before, after, supabase) {
     updated_at: nowIso(),
   };
 
-  const { error } = await supabase
-    .from('user_identity')
-    .upsert(row, { onConflict: 'uid' });
+  const { error } = await onIdentityTable(supabase, (t) => t.upsert(row, { onConflict: 'uid' }));
   if (error) console.error('[mirrorUsers/identity]', uid, error.message);
 }
 
@@ -348,8 +364,9 @@ async function mirrorModsRoster(uid, before, after) {
 // On full /users/{uid} delete, drop rows from all 8 tables.
 // Each delete is independent — if one fails, the others still go.
 async function deleteAllForUser(uid, supabase) {
+  const { error: identityError } = await onIdentityTable(supabase, (t) => t.delete().eq('uid', uid));
+  if (identityError) console.error('[mirrorUsers/delete identity]', uid, identityError.message);
   const tables = [
-    'user_identity',
     'user_roblox',
     'user_roles',
     'user_cosmetics',
@@ -367,6 +384,60 @@ async function deleteAllForUser(uid, supabase) {
 }
 
 // --------------------------------------------------------------------
+// users_private/{uid} → user_identity_base.email / decoded_email /
+// date_of_birth (round 2). Both email columns get the same canonical address
+// (users_private holds it raw and lowercased; decoded_email used to be the
+// website's raw copy next to its ','-encoded `email`). date_of_birth only
+// ever exists on Adopt Me, so it is only sent when present.
+//
+// UPDATE, not upsert: a row holding only an email would have no display name,
+// and profileCache would show "Anonymous" instead of falling back to RTDB.
+// When the /users mirror hasn't created the row yet, create it from
+// users/{uid} first (same mapper), then attach the email.
+// --------------------------------------------------------------------
+async function mirrorPrivate(uid, before, after, supabase) {
+  const email = asString(after?.email);
+  const dateOfBirth = asString(after?.dateOfBirth);
+  if (before && email === asString(before.email) && dateOfBirth === asString(before.dateOfBirth)) return;
+
+  const cols = { email, decoded_email: email, updated_at: nowIso() };
+  if (dateOfBirth || before?.dateOfBirth) cols.date_of_birth = dateOfBirth;
+
+  const update = () => onIdentityTable(supabase, (t) => t.update(cols).eq('uid', uid).select('uid'));
+  let { data, error } = await update();
+  if (error) { console.error('[mirrorUsersPrivate/identity]', uid, error.message); return; }
+  if ((data && data.length) || !after) return;
+
+  const snap = await admin.database().ref(`users/${uid}`).once('value');
+  if (!snap.exists()) return;
+  await mirrorIdentity(uid, {}, snap.val() || {}, supabase);
+  ({ error } = await update());
+  if (error) console.error('[mirrorUsersPrivate/identity]', uid, error.message);
+}
+
+exports.mirrorUsersPrivateToSupabase = functions
+  .runWith({
+    secrets: ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'],
+    memory: '256MB',
+    timeoutSeconds: 60,
+  })
+  .database.ref('/users_private/{uid}')
+  .onWrite(async (change, context) => {
+    const { uid } = context.params;
+    try {
+      await mirrorPrivate(
+        uid,
+        change.before.exists() ? change.before.val() : null,
+        change.after.exists() ? change.after.val() : null,
+        getSupabaseAdmin(),
+      );
+    } catch (e) {
+      console.error('[mirrorUsersPrivate]', uid, e.message);
+    }
+    return null;
+  });
+
+// --------------------------------------------------------------------
 // Trigger
 // --------------------------------------------------------------------
 
@@ -381,11 +452,14 @@ exports.mirrorUsersToSupabase = functions
     const { uid } = context.params;
     const supabase = getSupabaseAdmin();
 
-    // Full delete — propagate to every table + the mods roster.
+    // Full delete — propagate to every table + the mods roster. Also drop
+    // users_private/{uid} (round 2): account deletion removes users/{uid},
+    // and the rules don't let the client delete its own private record.
     if (!change.after.exists()) {
       await Promise.all([
         deleteAllForUser(uid, supabase),
         admin.database().ref(`mods/${uid}`).remove().catch(() => {}),
+        admin.database().ref(`users_private/${uid}`).remove().catch(() => {}),
       ]);
       return null;
     }

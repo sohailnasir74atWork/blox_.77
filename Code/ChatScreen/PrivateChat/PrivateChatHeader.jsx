@@ -8,7 +8,6 @@ import { useOnlineStatus } from '../utils';
 import { showSuccessMessage } from '../../Helper/MessageHelper';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useHaptic } from '../../Helper/HepticFeedBack';
-import { mixpanel } from '../../AppHelper/MixPenel';
 import { useGlobalState } from '../../GlobelStats';
 import { ref, get, set, remove } from '@react-native-firebase/database';
 import { softDeleteAllInChat as sbSoftDeleteAllInChat } from '../../Supabase/privateMessagesBackend';
@@ -40,7 +39,6 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
     triggerHapticFeedback('impactLight');
     Clipboard.setString(code);
     showSuccessMessage(t("value.copy"), "Copied to Clipboard");
-    mixpanel.track("Code UserName", { UserName: code });
   }, [triggerHapticFeedback, t]);
 
   // Fetch user data from Firebase if roblox data is missing

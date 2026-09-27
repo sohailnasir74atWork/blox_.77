@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  InteractionManager,
 } from 'react-native';
 import { NativeAd, NativeAdView } from 'react-native-google-mobile-ads';
 import config from '../Helper/Environment';
@@ -32,9 +31,9 @@ const SeamlessNativeAd = () => {
     timer = setTimeout(() => {
       if (isMounted) {
         setLoading(false); // Hide loading state
-        InteractionManager.runAfterInteractions(() => {
+        requestIdleCallback(() => {
           RNBootSplash.hide({ fade: true });
-        });
+        }, { timeout: 1000 });
       }
     }, 3000); // 3 seconds timer
   
@@ -45,18 +44,18 @@ const SeamlessNativeAd = () => {
           setLoading(false);
           // Hide splash screen immediately if the ad loads before 3 seconds
           clearTimeout(timer);
-          InteractionManager.runAfterInteractions(() => {
+          requestIdleCallback(() => {
             RNBootSplash.hide({ fade: true });
-          });
+          }, { timeout: 1000 });
         }
       })
       .catch((error) => {
         console.error('❌ Native Ad Load Error:', error);
         setLoading(false);
         clearTimeout(timer); // Ensure the timer is cleared in case of an error
-        InteractionManager.runAfterInteractions(() => {
+        requestIdleCallback(() => {
           RNBootSplash.hide({ fade: true });
-        });
+        }, { timeout: 1000 });
       });
   
     return () => {

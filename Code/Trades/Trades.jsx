@@ -39,7 +39,6 @@ import RoleBadges from '../Design/componenets/RoleBadges';
 import { useTranslation } from 'react-i18next';
 import { showSuccessMessage, showErrorMessage } from '../Helper/MessageHelper';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
-import { mixpanel } from '../AppHelper/MixPenel';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
 import NativeAdCard from '../Ads/NativeAdCard';
@@ -823,7 +822,6 @@ const TradeList = ({ route }) => {
         return;
       }
 
-      mixpanel.track("Inbox Trade");
       navigation.navigate('PrivateChatTrade', {
         selectedUser: selectedUser,
         item: selectedTrade,
@@ -1494,7 +1492,6 @@ const TradeList = ({ route }) => {
     const handleChatNavigation = async () => {
       const callbackfunction = () => {
         if (!user?.id) { setIsSigninDrawerVisible(true); return; }
-        mixpanel.track("Inbox Trade");
         navigation.navigate('PrivateChatTrade', {
           selectedUser: { senderId: item.userId, sender: item.traderName, avatar: item.avatar, flage: item?.flage || null },
           item,
@@ -1706,7 +1703,6 @@ const TradeList = ({ route }) => {
           setIsSigninDrawerVisible(true);
           return;
         }
-        mixpanel.track("Inbox Trade");
         navigation.navigate('PrivateChatTrade', {
           selectedUser: {
             senderId: item.userId,

@@ -1,3 +1,6 @@
+import useValueSearchTelemetry from '../Helper/useValueSearchTelemetry';
+import {matchesItemName} from '../Helper/itemSearch';
+import CatalogStatus from '../Helper/CatalogStatus';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View,
@@ -18,7 +21,6 @@ import { useHaptic } from '../Helper/HepticFeedBack';
 import { useLocalState } from '../LocalGlobelStats';
 import { useTranslation } from 'react-i18next';
 import { ref, update } from '@react-native-firebase/database';
-import { mixpanel } from '../AppHelper/MixPenel';
 import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
 import BannerAdComponent from '../Ads/bannerAds';
 import { handleadoptme, handleMM2 } from '../SettingScreen/settinghelper';
@@ -72,7 +74,8 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
     setRefreshing(true);
 
     try {
-      await reload(); // Re-fetch stock data
+      const refreshed = await reload();
+      if (refreshed === false) throw new Error('Catalog refresh incomplete'); // Re-fetch stock data
     } catch (error) {
       console.error('Error refreshing data:', error);
     } finally {
@@ -233,13 +236,15 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
       const itemType =
         item?.rarity == 'gamepass' ? 'GAME PASS' : item?.rarity?.toUpperCase();
       return (
-        item.name.toLowerCase().includes(searchText.toLowerCase()) &&
+        matchesItemName(item.name, searchText) &&
         (selectedFilter === 'All' || itemType === selectedFilter)
       );
     });
 
     setFilteredData(filtered);
   }, [valuesData, searchText, selectedFilter]);
+
+  useValueSearchTelemetry(searchText, filteredData.length, valuesData.length);
 
   // ── Chat picker "My Items" tab ──
   // Names the user owns (localState.ownedFruits, shape { name, type, ... }),
@@ -564,6 +569,7 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
       <GestureHandlerRootView>
 
         <View style={styles.container}>
+          <CatalogStatus />
           {/* <Text style={[styles.description, { color: selectedTheme.colors.text }]}>
             {t("value.description")}
           </Text> */}

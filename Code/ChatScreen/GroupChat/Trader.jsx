@@ -28,7 +28,6 @@ import { useHaptic } from '../../Helper/HepticFeedBack';
 import { useLocalState } from '../../LocalGlobelStats';
 import database, { onValue, ref, get, query as dbQuery, orderByKey, limitToLast, endAt } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
-import { mixpanel } from '../../AppHelper/MixPenel';
 import InterstitialAdManager from '../../Ads/IntAd';
 import BannerAdComponent from '../../Ads/bannerAds';
 import { logoutUser } from '../../Firebase/UserLogics';
@@ -80,7 +79,7 @@ const CHANNELS = [
 const bannerAdUnitId = getAdUnitId('banner');
 const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatFocused,
   setModalVisibleChatinfo, unreadMessagesCount, unreadcount, setunreadcount, onlineUsersVisible, setOnlineUsersVisible }) => {
-  const { user, theme, onlineMembersCount, appdatabase, setUser, isAdmin, proTagBought, currentUserEmail, proGranted, strikeInfo, isBabyMod, isTrusted, isGrinder, isRaider, isUserBlocked } = useGlobalState();
+  const { user, theme, onlineMembersCount, appdatabase, setUser, isAdmin, isSeniorMod, isModerator, proTagBought, currentUserEmail, proGranted, strikeInfo, isBabyMod, isTrusted, isGrinder, isRaider, isUserBlocked } = useGlobalState();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [replyTo, setReplyTo] = useState(null);
@@ -254,7 +253,6 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       if (navigation && typeof navigation.navigate === 'function') {
         navigation.navigate('PrivateChat', { selectedUser, selectedTheme });
       }
-      mixpanel.track("Inbox Chat");
     };
     callbackfunction();
   }, [selectedUser, selectedTheme, closeProfileDrawer]);
@@ -982,6 +980,12 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     const hasFruits = Array.isArray(fruits) && fruits.length > 0;
 
     const MAX_CHARACTERS = 250;
+    // Staff write the pinned announcements, which run long. They get a word
+    // budget instead of the 250-char cap; the char ceiling only stops a
+    // pasted blob with no spaces from counting as one word.
+    const MOD_MAX_WORDS = 300;
+    const MOD_MAX_CHARACTERS = 2000;
+    const isStaffSender = isAdmin || isSeniorMod || isModerator;
     const MESSAGE_COOLDOWN = 10 * 1000; // ms
     const LINK_REGEX = /(https?:\/\/[^\s]+)/i; // no "g" flag
     if (!user?.id || !currentUserEmail) {
@@ -1051,8 +1055,14 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     }
 
     // Length check
-    if (trimmedInput.length > MAX_CHARACTERS) {
-      showMessage({ message: t('home.alert.error'), description: t('misc.messageTooLong'), type: 'danger' });
+    if (isStaffSender) {
+      const wordCount = trimmedInput ? trimmedInput.split(/\s+/).length : 0;
+      if (wordCount > MOD_MAX_WORDS || trimmedInput.length > MOD_MAX_CHARACTERS) {
+        showMessage({ message: t('home.alert.error'), description: t('misc.messageTooLongWords', { max: MOD_MAX_WORDS }), type: 'danger' });
+        return false;
+      }
+    } else if (trimmedInput.length > MAX_CHARACTERS) {
+      showMessage({ message: t('home.alert.error'), description: t('misc.messageTooLong', { max: MAX_CHARACTERS }), type: 'danger' });
       return false;
     }
 

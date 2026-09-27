@@ -17,6 +17,7 @@ import { useLocalState } from './Code/LocalGlobelStats';
 import { AdsConsent, AdsConsentStatus } from 'react-native-google-mobile-ads';
 import { requestTrackingPermission, getTrackingStatus } from 'react-native-tracking-transparency';
 import AttPrimer from './Code/AppHelper/AttPrimer';
+import EmailOptInGate from './Code/AppHelper/EmailOptInGate';
 import { ensureAdsInitialized } from './Code/Ads/init';
 import MainTabs from './Code/AppHelper/MainTabs';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -118,7 +119,7 @@ async function ensureAttRequested(beforePrompt) {
 }
 
 function App() {
-  const { theme, single_offer_wall } = useGlobalState();
+  const { theme, single_offer_wall, user, appdatabase } = useGlobalState();
   const { t } = useTranslation();
   const { localState, updateLocalState } = useLocalState();
 
@@ -485,6 +486,15 @@ function App() {
           visible={attPrimerVisible}
           onContinue={handleAttPrimerContinue}
           isDarkMode={theme === 'dark'}
+        />
+        {/* Email news-and-updates opt-in: applies the sign-in checkbox, asks
+            undecided users once, and backs the Settings switch. Asks for a
+            date of birth the first time someone opts in (13+ only). */}
+        <EmailOptInGate
+          user={user}
+          appdatabase={appdatabase}
+          isDarkMode={theme === 'dark'}
+          blocked={attPrimerVisible}
         />
       </Animated.View>
     </View>

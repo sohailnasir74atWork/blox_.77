@@ -530,7 +530,7 @@ const DesignFeedScreen = ({ route }) => {
     }
   }, [user?.id, firestoreDB]);
 
-  const handleUploadPost = async (desc, imageUrls, selectedTags, currentUserEmail) => {
+  const handleUploadPost = async (desc, imageUrls, selectedTags) => {
     // ✅ Prevent multiple submissions - check if already submitting
     if (isSubmittingPost) {
       return;
@@ -589,7 +589,8 @@ const DesignFeedScreen = ({ route }) => {
         selectedTags: Array.isArray(selectedTags) && selectedTags.length > 0
           ? selectedTags
           : (selectedTags ? [selectedTags] : ['Discussion']), // ✅ Always ensure tags exist
-        email: currentUserEmail || null,
+        // No `email` (round 2): posts are world-readable and nothing reads it
+        // back. UploadModal still runs its ban check on the auth email first.
         report: false,
         flage: user?.flage || null,
         isBabyMod: !!isBabyMod,

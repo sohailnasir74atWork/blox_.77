@@ -893,14 +893,16 @@ export const setUserStrike = async (email, strikeCount, userId = null, showAlert
         } catch (_) { /* ignore */ }
       }
       if (!displayName && userId) {
+        // Leaf reads, not the whole users/{uid} record (which carried the
+        // target's email and every other field just to get a name).
         try {
-          const userRef = ref(database, `users/${userId}`);
-          const userSnap = await get(userRef);
-          if (userSnap.exists()) {
-            const data = userSnap.val();
-            displayName = data?.displayName || data?.userName || null;
-            avatar = avatar || data?.avatar || null;
-          }
+          const [nameSnap, legacyNameSnap, avatarSnap] = await Promise.all([
+            get(ref(database, `users/${userId}/displayName`)),
+            get(ref(database, `users/${userId}/userName`)),
+            avatar ? null : get(ref(database, `users/${userId}/avatar`)),
+          ]);
+          displayName = (nameSnap.exists() && nameSnap.val()) || (legacyNameSnap.exists() && legacyNameSnap.val()) || null;
+          avatar = avatar || (avatarSnap?.exists() ? avatarSnap.val() : null);
         } catch (_) { /* ignore */ }
       }
       displayName = displayName || 'Unknown';

@@ -18,7 +18,6 @@ import { collection, getDocs, query, orderBy, limit, doc, getDoc } from '@react-
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useLocalState } from '../../LocalGlobelStats';
-import { mixpanel } from '../../AppHelper/MixPenel';
 import config from '../../Helper/Environment';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -146,7 +145,6 @@ const LeaderboardModal = ({
     }
 
     setIsDrawerVisible(true);
-    mixpanel.track("Leaderboard User Click");
   }, [triggerHapticFeedback]);
 
   // ✅ Handle start chat from BottomDrawer
@@ -165,7 +163,6 @@ const LeaderboardModal = ({
         },
       });
     }
-    mixpanel.track("Leaderboard Start Chat");
   }, [selectedUser, navigation, onClose]);
 
   // ✅ Render leaderboard item

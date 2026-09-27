@@ -66,14 +66,21 @@ export const getAppDownloadLink = () => {
   };
 
   export const handleOpenPrivacy = () => {
-    const websiteUrl = 'https://bloxfruitscalc.com/privacy-policy/';
+    const websiteUrl = 'https://bloxfruitscalc.com/privacy';
+    Linking.openURL(websiteUrl).catch(() =>
+      Alert.alert('Error', 'Unable to open the website. Please try again later.')
+    );
+  };
+
+  export const handleOpenTerms = () => {
+    const websiteUrl = 'https://bloxfruitscalc.com/terms';
     Linking.openURL(websiteUrl).catch(() =>
       Alert.alert('Error', 'Unable to open the website. Please try again later.')
     );
   };
 
   export const handleOpenChild = () => {
-    const websiteUrl = 'https://bloxfruitscalc.com/hild-safety-standards-policy/';
+    const websiteUrl = 'https://bloxfruitscalc.com/child-safety-standards-policy';
     Linking.openURL(websiteUrl).catch(() =>
       Alert.alert('Error', 'Unable to open the website. Please try again later.')
     );

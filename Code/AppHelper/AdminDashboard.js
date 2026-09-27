@@ -67,6 +67,7 @@ import {
 } from '@react-native-firebase/firestore';
 
 import { unbanUserWithEmail, banUserwithEmail, setUserStrike, muteUser } from '../ChatScreen/utils';
+import { getUserEmail, findUsersByEmail, normalizeEmail } from '../Helper/privateProfile';
 import { useGlobalState } from '../GlobelStats';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
@@ -554,32 +555,27 @@ const AdminDashboard = () => {
           });
         }
 
-        // Also search by email field (in case key is different)
+        // Then the email field: indexed prefix query on users_private (staff
+        // read), then each match's profile. Replaces orderByChild('email') on
+        // /users, which had no index and downloaded the whole node.
         if (results.length === 0) {
-          const emailQ = query(
-            ref(db, 'users'),
-            orderByChild('email'),
-            startAt(email),
-            endAt(email + '\uf8ff'),
-            limitToFirst(10)
-          );
-          const emailSnap = await get(emailQ);
-          if (emailSnap.exists()) {
-            emailSnap.forEach((child) => {
-              const u = child.val();
-              if (BAD_KEYS.has(child.key)) return;
-              const id = u.id || child.key;
-              if (seen.has(id)) return;
-              seen.add(id);
-              results.push({
-                isBanned: false, id,
-                displayName: u.displayName || u.userName || 'Unknown',
-                email: u.email, avatar: getAvatarSafe(u),
-                robloxUsername: u.robloxUsername,
-                isAdmin: u.admin || false, isSeniorMod: u.isSeniorMod || false, isModerator: u.isModerator || false,
-              });
+          const matches = await findUsersByEmail(db, email, 10);
+          const snaps = await Promise.all(matches.map(({ uid }) => get(ref(db, `users/${uid}`)).catch(() => null)));
+          matches.forEach(({ uid, email: matchEmail }, i) => {
+            const snap = snaps[i];
+            if (BAD_KEYS.has(uid) || !snap?.exists()) return;
+            const u = snap.val();
+            const id = u.id || uid;
+            if (seen.has(id)) return;
+            seen.add(id);
+            results.push({
+              isBanned: false, id,
+              displayName: u.displayName || u.userName || 'Unknown',
+              email: matchEmail, avatar: getAvatarSafe(u),
+              robloxUsername: u.robloxUsername,
+              isAdmin: u.admin || false, isSeniorMod: u.isSeniorMod || false, isModerator: u.isModerator || false,
             });
-          }
+          });
         }
       } else {
         // ── NAME SEARCH: multiple case variants + client-side filter ──
@@ -655,7 +651,18 @@ const AdminDashboard = () => {
         }
       }
 
-      setSearchResults(results.slice(0, 50));
+      // Emails moved to users_private (round 2), so /users records stop
+      // carrying them after the PII migration. Fill in the missing ones (one
+      // small staff-only leaf read per row) so the email column, ban badges
+      // and the ban/strike/mute actions keep working.
+      // users_private first: the legacy users/{uid}/email leaf can be written
+      // by any signed-in user, so it is only the fallback for records the
+      // migration hasn't reached.
+      const withEmails = await Promise.all(results.slice(0, 50).map(async (r) => {
+        const priv = await getUserEmail(db, r.id, { legacy: false });
+        return { ...r, email: priv || normalizeEmail(r.email) || undefined };
+      }));
+      setSearchResults(withEmails);
     } catch (err) {
       console.error('Search error:', err);
       Alert.alert('Search Failed', err.message || 'An unexpected error occurred.');
@@ -690,6 +697,15 @@ const AdminDashboard = () => {
     }
   }, [db]);
 
+  // Rows from name/ID search, the chat viewer or a status post may not carry
+  // an email (it lives in users_private since round 2). Resolve it from there
+  // before a ban/strike/mute, since bans are keyed by email.
+  const withEmail = async (userItem) => {
+    if (!userItem || userItem.email || !userItem.id) return userItem;
+    const email = await getUserEmail(db, userItem.id);
+    return email ? { ...userItem, email } : userItem;
+  };
+
   // ─────────────────────────────────────────────
   // Actions
   const handleUnban = async (userItem) => {
@@ -720,7 +736,8 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleBan = async (userItem) => {
+  const handleBan = async (item) => {
+    const userItem = await withEmail(item);
     if (!userItem.email) {
       Alert.alert('Error', 'User has no email associated.');
       return;
@@ -771,7 +788,8 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleSetStrike = async (userItem, strikeCount) => {
+  const handleSetStrike = async (item, strikeCount) => {
+    const userItem = await withEmail(item);
     if (!userItem.email) {
       Alert.alert('Error', 'User has no email associated.');
       return;
@@ -821,7 +839,8 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleMuteUser = async (userItem, minutes) => {
+  const handleMuteUser = async (item, minutes) => {
+    const userItem = await withEmail(item);
     if (!userItem.email) {
       Alert.alert('Error', 'User has no email associated.');
       return;
@@ -1131,10 +1150,17 @@ const AdminDashboard = () => {
       fetchUserDetails(userItem.id);
       fetchReviews(userItem.id, true);
     }
-    if (userItem.email) {
-      fetchStrikeHistory(userItem.email);
+    // No email on the row → look it up in users_private (staff read) so the
+    // details header and strike history still show.
+    let email = userItem.email;
+    if (!email && userItem.id) {
+      email = await getUserEmail(db, userItem.id);
+      if (email) setSelectedUser((prev) => (prev && prev.id === userItem.id ? { ...prev, email } : prev));
     }
-  }, [fetchUserDetails, fetchReviews, fetchStrikeHistory]);
+    if (email) {
+      fetchStrikeHistory(email);
+    }
+  }, [db, fetchUserDetails, fetchReviews, fetchStrikeHistory]);
 
   // ─────────────────────────────────────────────
   // Chat Viewer — search users by displayName, email, or user ID
@@ -1190,12 +1216,13 @@ const AdminDashboard = () => {
           const userSnap = await get(ref(db, `users/${uid}`));
           if (userSnap.exists()) addUser({ ...userSnap.val(), id: uid });
         }
-        // Also search users by email field
-        const emailQ = query(ref(db, 'users'), orderByChild('email'), startAt(raw), endAt(raw + '\uf8ff'), limitToFirst(5));
-        const emailSnap = await get(emailQ);
-        if (emailSnap.exists()) {
-          Object.entries(emailSnap.val()).forEach(([uid, u]) => addUser({ ...u, id: uid }));
-        }
+        // Also search users_private by email (indexed, staff read) — the old
+        // orderByChild('email') on /users had no index.
+        const matches = await findUsersByEmail(db, raw, 5);
+        await Promise.all(matches.map(async ({ uid, email }) => {
+          const userSnap = await get(ref(db, `users/${uid}`));
+          if (userSnap.exists()) addUser({ ...userSnap.val(), id: uid, email });
+        }));
       }
 
       // 3. DisplayName search (prefix match, case variants)

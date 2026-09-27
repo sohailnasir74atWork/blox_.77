@@ -64,6 +64,33 @@ const RESULT_META = {
 // Trade history pages 5 at a time (server-side, RTDB)
 const PAGE_SIZE = 5;
 
+// ── My Fruits select mode ──
+// Catalogue `rarity` values (blox-api data.json): Mythical, Legendary, Rare,
+// Uncommon, Common, Limited, gamepass. Chips go highest tier first; any other
+// rarity follows alphabetically, then "Other" (owned item not in the catalogue).
+const SELECT_ACCENT = '#F59E0B';
+const RARITY_ORDER = ['mythical', 'legendary', 'rare', 'uncommon', 'common', 'limited', 'gamepass'];
+const RARITY_ALIASES = { premium: 'gamepass', 'game pass': 'gamepass' };
+const OTHER_RARITY = 'other';
+const normaliseRarity = (r) => {
+  const key = typeof r === 'string' ? r.trim().toLowerCase() : '';
+  return RARITY_ALIASES[key] || key;
+};
+const rarityLabel = (key) => {
+  if (key === 'gamepass') return 'Game Pass';
+  if (key === OTHER_RARITY) return 'Other';
+  return key.charAt(0).toUpperCase() + key.slice(1);
+};
+const rarityRank = (key) => {
+  const i = RARITY_ORDER.indexOf(key);
+  return i === -1 ? RARITY_ORDER.length : i;
+};
+const compareRarityGroups = (a, b) => {
+  if (a.key === OTHER_RARITY) return 1;
+  if (b.key === OTHER_RARITY) return -1;
+  return rarityRank(a.key) - rarityRank(b.key) || a.key.localeCompare(b.key);
+};
+
 const TradeJournal = ({
   firestoreDB, db, uid, isDarkMode,
 }) => {
@@ -84,6 +111,9 @@ const TradeJournal = ({
   const [showFruitPicker, setShowFruitPicker] = useState(false);
   const [fruitPickerMode, setFruitPickerMode] = useState('owned');
   const [fruitSearchQ, setFruitSearchQ] = useState('');
+  // My Fruits select mode: a Set of indices into ownedFruits (entries have no id)
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIdx, setSelectedIdx] = useState(() => new Set());
   const ownedFruitsRef = useRef(ownedFruits);
   const wishlistFruitsRef = useRef(wishlistFruits);
   useEffect(() => { ownedFruitsRef.current = ownedFruits; }, [ownedFruits]);
@@ -417,6 +447,130 @@ const TradeJournal = ({
     };
   }, [tradeStats, netValue]);
 
+  // ── My Fruits select mode (bulk remove) ──
+  const exitSelectMode = useCallback(() => {
+    setSelectMode(false);
+    setSelectedIdx(prev => (prev.size === 0 ? prev : new Set()));
+  }, []);
+
+  useEffect(() => { exitSelectMode(); }, [tab, exitSelectMode]);
+
+  // Selected indices only mean something for the list they were picked from.
+  // Keyed on the array (not just its length): a re-focus after logging a trade
+  // can swap items without changing the count.
+  useEffect(() => {
+    setSelectedIdx(prev => (prev.size === 0 ? prev : new Set()));
+    if (ownedFruits.length === 0) setSelectMode(false);
+  }, [ownedFruits]);
+
+  // lowercased catalogue name → normalised rarity, for O(1) grouping
+  const rarityByName = useMemo(() => {
+    const m = new Map();
+    parsedData.forEach(d => {
+      const n = String(d?.name || '').toLowerCase().trim();
+      if (n && !m.has(n)) m.set(n, normaliseRarity(d?.rarity));
+    });
+    return m;
+  }, [parsedData]);
+
+  const ownedRarityGroups = useMemo(() => {
+    if (!selectMode) return [];
+    const groups = new Map();
+    ownedFruits.forEach((f, i) => {
+      const key = rarityByName.get(String(f?.name || '').toLowerCase().trim()) || OTHER_RARITY;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(i);
+    });
+    return [...groups.entries()]
+      .map(([key, indices]) => ({ key, label: rarityLabel(key), indices }))
+      .sort(compareRarityGroups);
+  }, [selectMode, ownedFruits, rarityByName]);
+
+  const selectionExtraData = useMemo(() => ({ selectMode, selectedIdx }), [selectMode, selectedIdx]);
+  const allSelected = ownedFruits.length > 0 && selectedIdx.size === ownedFruits.length;
+
+  const toggleSelected = useCallback((index) => {
+    setSelectedIdx(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index); else next.add(index);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIdx(prev => (
+      prev.size === ownedFruits.length ? new Set() : new Set(ownedFruits.map((_, i) => i))
+    ));
+  }, [ownedFruits]);
+
+  // Adds the whole group to the selection, or clears it if it is all selected already.
+  const toggleRarityGroup = useCallback((indices) => {
+    setSelectedIdx(prev => {
+      const next = new Set(prev);
+      const allIn = indices.every(i => next.has(i));
+      indices.forEach(i => { if (allIn) next.delete(i); else next.add(i); });
+      return next;
+    });
+  }, []);
+
+  const removeSelectedFruits = useCallback(() => {
+    const count = selectedIdx.size;
+    if (count === 0) return;
+    Alert.alert(
+      `Remove ${count} ${count === 1 ? 'fruit' : 'fruits'}?`,
+      "They'll be removed from your inventory. Your goals and trade history are not affected.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove', style: 'destructive',
+          onPress: () => {
+            const newOwned = ownedFruits.filter((_, i) => !selectedIdx.has(i));
+            setOwnedFruits(newOwned);
+            saveFruits(newOwned, wishlistFruits);
+            exitSelectMode();
+          },
+        },
+      ],
+    );
+  }, [selectedIdx, ownedFruits, wishlistFruits, saveFruits, exitSelectMode]);
+
+  const selectBtnBg = isDarkMode ? '#1e293b' : '#fefce8'; // same fill as the Add Fruit button
+
+  const renderSelectChip = (key, label, active, onPress) => (
+    <TouchableOpacity
+      key={key}
+      style={[s.selectChip, active ? s.selectChipActive : { backgroundColor: c.bgAlt, borderColor: c.border }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: active }}
+    >
+      <Text style={[s.selectChipText, { color: active ? SELECT_ACCENT : c.text }]}>{label}</Text>
+    </TouchableOpacity>
+  );
+
+  // Transparent tap target over the whole card; replaces the ✕ in select mode.
+  const renderSelectOverlay = (item, index) => {
+    const isSelected = selectedIdx.has(index);
+    return (
+      <TouchableOpacity
+        style={[s.selectOverlay, isSelected && s.selectOverlayActive]}
+        onPress={() => toggleSelected(index)}
+        activeOpacity={0.6}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: isSelected }}
+        accessibilityLabel={item.name}
+      >
+        <Icon
+          name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+          size={20}
+          color={isSelected ? SELECT_ACCENT : c.textMuted}
+          style={s.selectCheck}
+        />
+      </TouchableOpacity>
+    );
+  };
+
   // ═══════════════════════════════════════════════════
   // RENDER: My Fruits Tab
   // ═══════════════════════════════════════════════════
@@ -429,19 +583,49 @@ const TradeJournal = ({
         <Text style={[s.heroSub, { color: c.textSecondary }]}>{ownedFruits.length} fruits collected</Text>
       </View>
       
-      {/* Add Fruit Button */}
-      <View style={{ paddingHorizontal: 16 }}>
+      {/* Add Fruit + Select Buttons */}
+      <View style={s.inventoryActionsRow}>
         <TouchableOpacity
-          style={[s.addFruitBtn, { backgroundColor: isDarkMode ? '#1e293b' : '#fefce8' }]}
+          style={[s.addFruitBtn, s.flex1, { backgroundColor: isDarkMode ? '#1e293b' : '#fefce8' }]}
           onPress={() => { setFruitPickerMode('owned'); setShowFruitPicker(true); }}
         >
           <Text style={[s.addFruitText, { color: '#F59E0B' }]}>+ Add Fruit to Inventory</Text>
         </TouchableOpacity>
+        {ownedFruits.length > 0 && (
+          <TouchableOpacity
+            style={[s.selectBtn, { backgroundColor: selectBtnBg }, selectMode && s.selectBtnActive]}
+            onPress={selectMode ? exitSelectMode : () => setSelectMode(true)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+          >
+            <Icon name={selectMode ? 'checkmark-done' : 'checkbox-outline'} size={16} color={SELECT_ACCENT} />
+            <Text style={[s.addFruitText, { color: SELECT_ACCENT }]}>{selectMode ? 'Done' : 'Select'}</Text>
+          </TouchableOpacity>
+        )}
       </View>
+
+      {/* Select mode: All + one chip per rarity in the inventory */}
+      {selectMode && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={s.chipScroll}
+          contentContainerStyle={s.chipRow}
+        >
+          {renderSelectChip('all', `All (${ownedFruits.length})`, allSelected, toggleSelectAll)}
+          {ownedRarityGroups.map(g => renderSelectChip(
+            `rarity-${g.key}`,
+            `${g.label} (${g.indices.length})`,
+            g.indices.every(i => selectedIdx.has(i)),
+            () => toggleRarityGroup(g.indices),
+          ))}
+        </ScrollView>
+      )}
 
       {/* Fruits grid */}
       <FlatList
         data={ownedFruits}
+        extraData={selectionExtraData}
         numColumns={3}
         keyExtractor={(_, i) => `owned-${i}`}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
@@ -453,15 +637,17 @@ const TradeJournal = ({
           </View>
         }
         renderItem={({ item, index }) => (
-          <View style={[s.fruitCard, { backgroundColor: c.bgAlt, borderColor: c.border }]}>
-            <TouchableOpacity 
-              style={{ position: 'absolute', top: -6, right: -6, backgroundColor: '#EF4444', borderRadius: 12, padding: 2, zIndex: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3, elevation: 3 }}
-              onPress={() => removeFruit(index)}
-              activeOpacity={0.7}
-              hitSlop={{ top: 15, right: 15, bottom: 15, left: 15 }}
-            >
-              <Icon name="close" size={16} color="#FFF" />
-            </TouchableOpacity>
+          <View style={[s.fruitCard, { backgroundColor: c.bgAlt, borderColor: c.border }, selectMode && selectedIdx.has(index) && s.fruitCardSelected]}>
+            {!selectMode && (
+              <TouchableOpacity
+                style={{ position: 'absolute', top: -6, right: -6, backgroundColor: '#EF4444', borderRadius: 12, padding: 2, zIndex: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3, elevation: 3 }}
+                onPress={() => removeFruit(index)}
+                activeOpacity={0.7}
+                hitSlop={{ top: 15, right: 15, bottom: 15, left: 15 }}
+              >
+                <Icon name="close" size={16} color="#FFF" />
+              </TouchableOpacity>
+            )}
 
             <Image
               source={{ uri: getImgUrl(item.name, item.type) }}
@@ -471,11 +657,28 @@ const TradeJournal = ({
             <Text style={[s.fruitName, { color: c.text }]} numberOfLines={1}>{item.name}</Text>
             <Text style={[s.fruitValue, { color: c.textSecondary }]}>{formatValue(lookupFruitValue(item))}</Text>
             {item.type === 'p' && <View style={[s.permBadge, { left: 4, right: undefined }]}><Text style={s.permBadgeText}>P</Text></View>}
+            {selectMode && renderSelectOverlay(item, index)}
           </View>
         )}
       />
 
-
+      {/* Select mode: sticky action bar */}
+      {selectMode && (
+        <View style={[s.selectBar, { backgroundColor: c.bgAlt, borderTopColor: c.border, paddingBottom: Math.max(insets.bottom, 12) }]}>
+          <Text style={[s.selectBarCount, { color: c.text }]}>{selectedIdx.size} selected</Text>
+          <TouchableOpacity
+            style={[s.selectBarRemove, selectedIdx.size === 0 && s.selectBarRemoveDisabled]}
+            onPress={removeSelectedFruits}
+            disabled={selectedIdx.size === 0}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: selectedIdx.size === 0 }}
+          >
+            <FontAwesome name="trash-can" size={13} color="#FFF" />
+            <Text style={s.selectBarRemoveText}>Remove</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 
@@ -794,7 +997,7 @@ const TradeJournal = ({
         <View style={{ flex: 1, justifyContent: 'flex-end' }}>
           {/* Backdrop */}
           <TouchableOpacity
-            style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' }}
+            style={{ ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.5)' }}
             activeOpacity={1}
             onPress={() => {
               setShowFruitPicker(false);
@@ -1013,6 +1216,37 @@ const s = StyleSheet.create({
   tlNotes: { fontSize: 11, fontStyle: 'italic', marginTop: 8 },
   tlDeleteBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-end', marginTop: 8, padding: 4 },
   tlDeleteText: { color: '#EF4444', fontSize: 11, fontWeight: '700' },
+
+  // ── My Fruits: select mode ──
+  inventoryActionsRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16 },
+  flex1: { flex: 1 },
+  selectBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingHorizontal: 16, borderRadius: 12, marginBottom: 14,
+    borderWidth: 1.5, borderColor: 'rgba(245, 158, 11, 0.2)',
+  },
+  selectBtnActive: { borderColor: SELECT_ACCENT, backgroundColor: 'rgba(245, 158, 11, 0.15)' },
+  chipScroll: { flexGrow: 0, flexShrink: 0 },
+  chipRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
+  selectChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
+  selectChipActive: { backgroundColor: 'rgba(245, 158, 11, 0.15)', borderColor: SELECT_ACCENT },
+  selectChipText: { fontSize: 12, fontWeight: '700' },
+  // border 1→2 with padding 8→7 keeps the card the same size
+  fruitCardSelected: { borderWidth: 2, padding: 7, borderColor: SELECT_ACCENT },
+  selectOverlay: { ...StyleSheet.absoluteFillObject, borderRadius: 10, zIndex: 10 },
+  selectOverlayActive: { backgroundColor: 'rgba(245, 158, 11, 0.12)' },
+  selectCheck: { position: 'absolute', top: 3, right: 3 },
+  selectBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1,
+  },
+  selectBarCount: { fontSize: 14, fontWeight: '700' },
+  selectBarRemove: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#EF4444', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10,
+  },
+  selectBarRemoveDisabled: { opacity: 0.4 },
+  selectBarRemoveText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
 });
 
 export default TradeJournal;

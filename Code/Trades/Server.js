@@ -20,7 +20,6 @@ import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
 import { getMyCosmetics } from '../Helper/cosmeticsCache';
 import BannerAdComponent from '../Ads/bannerAds';
 import InterstitialAdManager from '../Ads/IntAd';
-import { mixpanel } from '../AppHelper/MixPenel';
 
 
 const ServerScreen = () => {
@@ -170,9 +169,7 @@ const ServerScreen = () => {
     const handleLinkPress = (url) => {
         // console.log(url)
         const trimmedUrl = url?.trim();
-        mixpanel.track("Server Open");
         const openLink = () => {
-            // mixpanel.track("Server Open");
             Linking.openURL(trimmedUrl).catch(err => {
                 console.warn('Failed to open link:', err);
                 showErrorMessage('Error', 'Failed to open link');

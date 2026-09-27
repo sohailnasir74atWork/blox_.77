@@ -17,7 +17,6 @@ import { useLanguage } from '../Translation/LanguageProvider';
 import { showSuccessMessage, showErrorMessage } from '../Helper/MessageHelper';
 import ShareTradeModal from '../Trades/SharetradeModel';
 import TradeCompletion from '../Engagement/TradeCompletion';
-import { mixpanel } from '../AppHelper/MixPenel';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
 import { addDoc, collection, serverTimestamp, doc, getDoc } from '@react-native-firebase/firestore';
@@ -329,7 +328,6 @@ const HomeScreen = ({ selectedTheme }) => {
         setTimeout(() => {
           setSelectedTrade(newTrade);
           setOpenShareModel(true);
-          mixpanel.track("Start Sharing");
           showSuccessCallback();
         }, 300);
       } else {
@@ -372,7 +370,6 @@ const HomeScreen = ({ selectedTheme }) => {
         };
 
         setLastTradeTime(now);
-        mixpanel.track("Trade Created", { user: user?.id });
 
         const rafKey1 = `createTrade_raf_${Date.now()}_1`;
         const timeoutKey1 = `createTrade_timeout_${Date.now()}_1`;
