@@ -251,7 +251,9 @@
         "alert_welcome_back": "Welcome Back!",
         "alert_account_created": "Your account has been created successfully!",
         "alert_error": "Error",
-        "alert_try_again": "An unexpected error occurred. Please try again later."
+        "alert_try_again": "An unexpected error occurred. Please try again later.",
+        "password_reset_email_sent": "Password reset email sent!",
+        "error_reset_password": "Failed to send password reset email. Please try again."
     },
     "tabs": {
         "calculator": "Calculator",
@@ -349,9 +351,22 @@
         "strike_3": "Strike 3+",
         "strike_3_duration": "(perm)",
         "remove_mod_btn": "Remove Mod",
-        "make_mod": "Make Mod"
+        "make_mod": "Make Mod",
+        "mins_ago_one": "{{count}} min ago",
+        "mins_ago_other": "{{count}} mins ago",
+        "hours_ago_one": "{{count}} hour ago",
+        "hours_ago_other": "{{count}} hours ago",
+        "days_ago_one": "{{count}} day ago",
+        "days_ago_other": "{{count}} days ago",
+        "months_ago_one": "{{count}} month ago",
+        "months_ago_other": "{{count}} months ago",
+        "years_ago_one": "{{count}} year ago",
+        "years_ago_other": "{{count}} years ago"
     },
     "first": {
+        "continue_guest": "Continue as Guest",
+        "try_values": "Try the value calculator",
+        "utility_note": "Compare item values and check trades. This companion app does not grant in-game items.",
         "welcome_title": "Welcome to Fruit Values",
         "welcome_text": "Track fruit values & optimize your trades.",
         "signin_or_guest": "Signin or Continue as Guest",
@@ -387,7 +402,8 @@
         "inbox": "Inbox",
         "youAreBlocked": "You are blocked by an Admin.",
         "inappropriateLanguage": "Your message contains inappropriate language.",
-        "messageTooLong": "Message cannot exceed 100 words.",
+        "messageTooLong": "Message cannot exceed {{max}} characters.",
+        "messageTooLongWords": "Message cannot exceed {{max}} words.",
         "sendingTooQuickly": "You are sending messages too quickly. Please wait a moment.",
         "proUsersOnlyLinks": "Only Pro users can send links."
     },
@@ -434,7 +450,9 @@
             "reward_type_cosmetic": "Cosmetic",
             "permanent": "Permanent",
             "active_for_days": "Active for {{count}} day",
-            "active_for_days_plural": "Active for {{count}} days"
+            "active_for_days_plural": "Active for {{count}} days",
+            "active_for_days_one": "Active for {{count}} day",
+            "active_for_days_other": "Active for {{count}} days"
         },
         "catalog": {
             "whats_inside": "What's Inside",
@@ -486,5 +504,28 @@
         "hot": "Hot",
         "dropping": "Dropping",
         "locked_teaser": "Check which items are going up and which are going down"
+    },
+    "catalog": {
+        "updated": "Catalog downloaded: {{date}}",
+        "cached": "Some values could not be refreshed. Available saved values are shown; they may be out of date.",
+        "unavailable": "Values could not be loaded. Check your connection and try again.",
+        "loading": "Trying again…",
+        "retry": "Retry loading values"
+    },
+    "common": {
+        "load_more": "Load more"
+    },
+    "scammer": {
+        "limit_title": "Limit",
+        "limit_max_images": "Maximum 3 proof images.",
+        "sign_in_title": "Sign In",
+        "sign_in_msg": "Please sign in to report.",
+        "error_title": "Error",
+        "error_username_length": "Username must be 3–30 characters.",
+        "error_scam_date": "Please enter the scam date (e.g. Jan 15, 2025).",
+        "error_description_short": "Please describe what happened (at least 10 characters).",
+        "error_description_long": "Description too long (max 200 characters).",
+        "safety_title": "Safety",
+        "safety_personal_info": "Don't include personal info (emails, phone numbers, social media)."
     }
 }

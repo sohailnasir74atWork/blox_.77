@@ -54,6 +54,7 @@ const AVAILABLE_LANGUAGES = [
   { code: 'id', name: 'Bahasa Indonesia', flag: '🇮🇩' },
   { code: 'ru', name: 'Русский', flag: '🇷🇺' },
   { code: 'ar', name: 'العربية', flag: '🇸🇦' },
+  { code: 'ja', name: '日本語', flag: '🇯🇵' },
 ];
 
 
@@ -334,6 +335,12 @@ const HomeTabScreen = ({ selectedTheme }) => {
             </View>
             {/* Settings */}
             <View style={styles.heroRightGroup}>
+              <TouchableOpacity
+                accessibilityRole="button" accessibilityLabel="Choose language / Выбрать язык"
+                onPress={() => setShowLangPicker(true)}
+                style={{padding: 10, minWidth: 44, minHeight: 44, justifyContent: 'center'}}>
+                <Text style={{fontSize: 22}}>{currentLang.flag}</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => navigation.navigate('Setting')}
                 activeOpacity={0.8}
@@ -774,7 +781,7 @@ const HomeTabScreen = ({ selectedTheme }) => {
       />
 
       {/* Language Picker Modal */}
-      <Modal visible={showLangPicker} animationType="fade" transparent>
+      <Modal visible={showLangPicker} animationType="fade" transparent onRequestClose={() => setShowLangPicker(false)}>
         <TouchableOpacity
           style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 }}
           activeOpacity={1}

@@ -29,7 +29,7 @@
         "pro_subscription": "Langganan Pro",
         "active_plan": "Paket Aktif",
         "free": "Gratis",
-        "paid": "Berbayar",
+        "paid": "Pro",
         "manage": "Kelola",
         "plan_name": "Nama Paket:",
         "other_settings": "PENGATURAN LAINNYA",
@@ -96,7 +96,7 @@
         "select_language": "Pilih Bahasa",
         "plan_name": "Nama Paket:",
         "free": "Gratis",
-        "paid": "Berbayar",
+        "paid": "Pro",
         "manage": "Kelola",
         "trade_description": "Apakah Anda ingin menambahkan deskripsi singkat (opsional)?",
         "trade_description_hint": "Anda dapat menulis nama pengguna seperti @username (Dapat disalin)",
@@ -137,7 +137,7 @@
         "copy_success": "Kode berhasil disalin ke clipboard!"
     },
     "stock": {
-        "description": "Tetap update dengan stok buah terbaru.",
+        "description": "Catatan: Update stock kadang bisa telat karena datanya diperbarui manual. Makasih udah sabar, cek lagi secara berkala buat update terbaru.",
         "search_placeholder": "Cari",
         "normal_stock": "Stok Normal",
         "mirage_stock": "Stok Mirage",
@@ -189,10 +189,10 @@
         "decent_deal": "Kesepakatan Layak",
         "weak_deal": "Kesepakatan Lemah",
         "risky_deal": "Kesepakatan Berisiko",
-        "feature_pro_only_title": "Fitur Tidak Tersedia",
+        "feature_pro_only_title": "Trade Unggulan Tidak Tersedia",
         "feature_pro_only_message": "Hanya pengguna Pro yang dapat menampilkan perdagangan. Tingkatkan ke Pro sekarang!",
         "upgrade": "Tingkatkan",
-        "feature_limit_reached_title": "Batas Fitur Tercapai",
+        "feature_limit_reached_title": "Batas Trade Unggulan Tercapai",
         "feature_limit_reached_message": "Anda telah mencapai batas 2 perdagangan yang ditampilkan.",
         "feature_confirmation_title": "Tampilkan Perdagangan Ini?",
         "feature_confirmation_message": "Apakah Anda yakin ingin menampilkan perdagangan ini? Ini akan meningkatkan visibilitasnya!",
@@ -213,7 +213,8 @@
         "feature_error": "Kesalahan Menampilkan Perdagangan",
         "feature_error_message": "Gagal menampilkan perdagangan. Silakan coba lagi.",
         "purchase_success": "Pembelian Berhasil",
-        "purchase_success_message": "Pengguna sekarang memiliki fitur Pro!"
+        "purchase_success_message": "Pengguna sekarang memiliki fitur Pro!",
+        "saved_guide": "Ketuk filter Tersimpan di bagian atas buat lihat trade yang kamu simpan kapan aja."
     },
     "signin": {
         "title_signin": "Masuk",
@@ -250,14 +251,16 @@
         "alert_welcome_back": "Selamat datang kembali!",
         "alert_account_created": "Akun Anda berhasil dibuat!",
         "alert_error": "Kesalahan",
-        "alert_try_again": "Terjadi kesalahan yang tidak terduga. Silakan coba lagi nanti."
+        "alert_try_again": "Terjadi kesalahan yang tidak terduga. Silakan coba lagi nanti.",
+        "password_reset_email_sent": "Email reset kata sandi sudah dikirim!",
+        "error_reset_password": "Gagal mengirim email reset kata sandi. Coba lagi ya."
     },
     "tabs": {
         "calculator": "Kalkulator",
         "values": "Nilai",
-        "stock": "Saham",
+        "stock": "Stock",
         "chat": "Obrolan",
-        "trade": "Perdagangan",
+        "trade": "Trade",
         "settings": "Pengaturan",
         "header_settings": "Pengaturan"
     },
@@ -341,7 +344,24 @@
         "strike_3": "Peringatan 3+",
         "strike_3_duration": "(permanen)",
         "remove_mod_btn": "Hapus Mod",
-        "make_mod": "Jadikan Mod"
+        "make_mod": "Jadikan Mod",
+        "unblocked": "Blokir dibuka",
+        "pin_message": "Pesan Disematkan",
+        "pin_messages": "Pesan yang Disematkan",
+        "pin_error": "Gagal menyematkan pesan ini. Coba lagi ya.",
+        "unpin_error": "Gagal melepas sematan pesan ini. Coba lagi ya.",
+        "clear_pins_error": "Gagal melepas semua pesan yang disematkan. Coba lagi ya.",
+        "block": "Blokir Pengguna",
+        "mins_ago_one": "{{count}} menit yang lalu",
+        "mins_ago_other": "{{count}} menit yang lalu",
+        "hours_ago_one": "{{count}} jam yang lalu",
+        "hours_ago_other": "{{count}} jam yang lalu",
+        "days_ago_one": "{{count}} hari yang lalu",
+        "days_ago_other": "{{count}} hari yang lalu",
+        "months_ago_one": "{{count}} bulan yang lalu",
+        "months_ago_other": "{{count}} bulan yang lalu",
+        "years_ago_one": "{{count}} tahun yang lalu",
+        "years_ago_other": "{{count}} tahun yang lalu"
     },
     "first": {
         "welcome_title": "Selamat datang di Fruit Values",
@@ -350,16 +370,19 @@
         "guest_user": "Pengguna Tamu",
         "signin": "Masuk",
         "continue": "Lanjutkan",
-        "get_notified_text": "Dapatkan pemberitahuan, buat dan tawar di perdagangan, obrolkan dengan pedagang, dan bergabung dengan diskusi grup."
+        "get_notified_text": "Dapatkan notifikasi, buat dan tawar trade, chat dengan trader lain, dan ikut diskusi grup.",
+        "continue_guest": "Lanjut sebagai Tamu",
+        "try_values": "Coba kalkulator nilai",
+        "utility_note": "Bandingkan nilai item dan cek trade. Aplikasi pendamping ini tidak memberikan item dalam game."
     },
     "offer": {
         "title": "MENDAPATKAN KEUNGGULAN DALAM PERMAINAN",
-        "subtitle": "Akses fitur eksklusif dan berdagang lebih cerdas!",
+        "subtitle": "Akses Fitur Premium Cuma",
         "adsFree": "Pengalaman Tanpa Iklan",
         "unlimitedTrade": "Pembuatan Perdagangan Tanpa Batas",
         "unlimitedChat": "Chat P2P Tanpa Batas (Pesan Langsung)",
         "unlimitedAlerts": "Pemberitahuan & Peringatan Stok Tanpa Batas",
-        "featureListing": "2x Daftar Fitur selama 24 Jam",
+        "featureListing": "2x Listing Unggulan selama 24 Jam",
         "priorityListing": "Listing Prioritas",
         "proTag": "Dapatkan Tag Pro dengan Nama Pengguna Anda",
         "monthly": "Bulanan",
@@ -379,7 +402,8 @@
         "inbox": "Kotak masuk",
         "youAreBlocked": "Anda diblokir oleh Admin.",
         "inappropriateLanguage": "Pesan Anda mengandung bahasa yang tidak pantas.",
-        "messageTooLong": "Pesan tidak boleh melebihi 100 kata.",
+        "messageTooLong": "Pesan tidak boleh melebihi {{max}} karakter.",
+        "messageTooLongWords": "Pesan tidak boleh melebihi {{max}} kata.",
         "sendingTooQuickly": "Anda mengirim pesan terlalu cepat. Harap tunggu sebentar.",
         "proUsersOnlyLinks": "Hanya pengguna Pro yang dapat mengirimkan link."
     },
@@ -410,5 +434,99 @@
         "vote_error": "Gagal mengirim suara.",
         "comment_error": "Gagal memposting komentar.",
         "error": "Kesalahan"
+    },
+    "mystery_fruit": {
+        "screen": {
+            "header_title": "Buah Misteri",
+            "header_sub": "Spin dan menangkan kosmetik!",
+            "hatched_label": "Buah Dibuka",
+            "stars_spent_label": "Bintang Terpakai",
+            "pick_title": "Pilih Buah",
+            "pick_sub": "Tiap buah punya drop rate yang beda!",
+            "watch_ad_loading": "Memuat...",
+            "watch_ad_btn": "🎬 Spin Gratis (Tonton Iklan)",
+            "spinning_text": "Membuka...",
+            "spinning_sub": "Kamu bakal dapat apa, ya?",
+            "reveal_title": "Kamu Dapat Ini!",
+            "open_another": "Buka Lagi",
+            "done_btn": "Selesai"
+        },
+        "alerts": {
+            "locked_label": "Terkunci",
+            "need_more_stars": "Butuh {{count}} ⭐ lagi",
+            "need_more_stars_other": "Butuh {{count}} ⭐ lagi",
+            "buy_prompt_msg": "Buka buah ini seharga {{cost}} ⭐?\nSaldo kamu: {{balance}} ⭐",
+            "nope": "Nggak",
+            "open_it": "Buka!",
+            "oops": "Ups!",
+            "failed_open": "Gagal membuka buah",
+            "failed_hatch": "Gagal membuka buah",
+            "error_title": "Kesalahan",
+            "error_msg": "Terjadi kesalahan"
+        },
+        "rewards": {
+            "text_color_sample": "Contoh Teks",
+            "text_color_rainbow": "Pelangi",
+            "trade_bg_text": "Latar Trade",
+            "trade_bg_sub": "Tampil di belakang trade kamu",
+            "banner_text": "Banner Profil",
+            "chat_bg_text": "Latar Chat",
+            "reward_type_frame": "Bingkai",
+            "reward_type_text_color": "Warna Teks",
+            "reward_type_trade_bg": "Latar Trade",
+            "reward_type_banner": "Banner",
+            "reward_type_chat_bg": "Latar Chat",
+            "reward_type_cosmetic": "Kosmetik",
+            "permanent": "Permanen",
+            "active_for_days": "Aktif selama {{count}} hari",
+            "active_for_days_other": "Aktif selama {{count}} hari",
+            "active_for_days_plural": "Aktif selama {{count}} hari",
+            "active_for_days_one": "Aktif selama {{count}} hari"
+        },
+        "catalog": {
+            "whats_inside": "Hadiah di Dalamnya",
+            "frames_title": "Bingkai",
+            "frames_sub": "Pamer di sekeliling avatar kamu",
+            "text_colors_title": "Warna Teks",
+            "text_colors_sub": "Tampil beda di chat",
+            "trade_bgs_title": "Latar Trade",
+            "trade_bgs_sub": "Kustomisasi postingan trade kamu",
+            "banners_title": "Banner",
+            "banners_sub": "Hiasi profil kamu",
+            "chat_bgs_title": "Latar Chat",
+            "chat_bgs_sub": "Personalisasi chat kamu",
+            "hidden_reward": "??? ({{rarity}})",
+            "hidden_tease": "Buka buah untuk menemukan hadiah tersembunyi!"
+        }
+    },
+    "trending": {
+        "market_overview": "Ringkasan Pasar",
+        "full_analytics": "Analitik Lengkap",
+        "hot": "Lagi Naik",
+        "dropping": "Lagi Turun",
+        "locked_teaser": "Cek item mana yang lagi naik dan mana yang lagi turun"
+    },
+    "catalog": {
+        "updated": "Katalog diunduh: {{date}}",
+        "cached": "Sebagian nilai gagal diperbarui. Nilai tersimpan tetap ditampilkan, tapi mungkin sudah tidak terbaru.",
+        "unavailable": "Nilai gagal dimuat. Cek koneksi kamu lalu coba lagi.",
+        "loading": "Mencoba lagi…",
+        "retry": "Coba muat nilai lagi"
+    },
+    "common": {
+        "load_more": "Muat lagi"
+    },
+    "scammer": {
+        "limit_title": "Batas",
+        "limit_max_images": "Maksimal 3 gambar bukti.",
+        "sign_in_title": "Masuk",
+        "sign_in_msg": "Masuk dulu untuk melapor.",
+        "error_title": "Kesalahan",
+        "error_username_length": "Username harus 3–30 karakter.",
+        "error_scam_date": "Masukkan tanggal penipuan (mis. 15 Jan 2025).",
+        "error_description_short": "Ceritakan apa yang terjadi (minimal 10 karakter).",
+        "error_description_long": "Deskripsi terlalu panjang (maks. 200 karakter).",
+        "safety_title": "Keamanan",
+        "safety_personal_info": "Jangan cantumkan info pribadi (email, nomor HP, media sosial)."
     }
 }

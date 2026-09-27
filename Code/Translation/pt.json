@@ -29,7 +29,7 @@
         "pro_subscription": "Assinatura Pro",
         "active_plan": "Plano Ativo",
         "free": "Gratuito",
-        "paid": "Pago",
+        "paid": "Pro",
         "manage": "Gerenciar",
         "plan_name": "Nome do Plano:",
         "other_settings": "OUTRAS CONFIGURAÇÕES",
@@ -96,7 +96,7 @@
         "select_language": "Selecionar Idioma",
         "plan_name": "Nome do Plano:",
         "free": "Grátis",
-        "paid": "Pago",
+        "paid": "Pro",
         "manage": "Gerenciar",
         "trade_description": "Deseja adicionar uma breve descrição (opcional)?",
         "trade_description_hint": "Você pode escrever um nome de usuário como @username (Pode ser copiado)",
@@ -137,7 +137,7 @@
         "copy_success": "Código copiado para a área de transferência!"
     },
     "stock": {
-        "description": "Fique atualizado sobre o estoque mais recente de frutas.",
+        "description": "Aviso: as atualizações do estoque podem atrasar às vezes, porque os dados são atualizados manualmente. Agradecemos a paciência e recomendamos voltar de vez em quando para ver as novidades.",
         "search_placeholder": "Pesquisar",
         "normal_stock": "Estoque Normal",
         "mirage_stock": "Estoque Mirage",
@@ -189,7 +189,7 @@
         "decent_deal": "Negócio decente",
         "weak_deal": "Negócio fraco",
         "risky_deal": "Negócio arriscado",
-        "feature_pro_only_title": "Recurso de troca não disponível",
+        "feature_pro_only_title": "Destaque de troca indisponível",
         "feature_pro_only_message": "Apenas usuários Pro podem destacar trocas. Faça o upgrade para Pro agora!",
         "upgrade": "Atualizar",
         "feature_limit_reached_title": "Limite de destaque atingido",
@@ -213,7 +213,8 @@
         "feature_error": "Erro ao destacar troca",
         "feature_error_message": "Falha ao destacar a troca. Tente novamente.",
         "purchase_success": "Compra realizada com sucesso",
-        "purchase_success_message": "O usuário agora tem recursos Pro!"
+        "purchase_success_message": "O usuário agora tem recursos Pro!",
+        "saved_guide": "Toque no filtro Salvos no topo para ver suas trocas salvas quando quiser."
     },
     "signin": {
         "title_signin": "Entrar",
@@ -250,14 +251,16 @@
         "alert_welcome_back": "Bem-vindo de volta!",
         "alert_account_created": "Sua conta foi criada com sucesso!",
         "alert_error": "Erro",
-        "alert_try_again": "Ocorreu um erro inesperado. Tente novamente mais tarde."
+        "alert_try_again": "Ocorreu um erro inesperado. Tente novamente mais tarde.",
+        "password_reset_email_sent": "E-mail de redefinição de senha enviado!",
+        "error_reset_password": "Não foi possível enviar o e-mail de redefinição de senha. Tente novamente."
     },
     "tabs": {
         "calculator": "Calculadora",
         "values": "Valores",
-        "stock": "Bolsa",
+        "stock": "Estoque",
         "chat": "Bate-papo",
-        "trade": "Comércio",
+        "trade": "Trocas",
         "settings": "Configurações",
         "header_settings": "Configurações"
     },
@@ -341,7 +344,24 @@
         "strike_3": "Advertência 3+",
         "strike_3_duration": "(perm)",
         "remove_mod_btn": "Remover mod",
-        "make_mod": "Tornar mod"
+        "make_mod": "Tornar mod",
+        "unblocked": "Desbloqueado",
+        "pin_message": "Mensagem fixada",
+        "pin_messages": "Mensagens fixadas",
+        "pin_error": "Não foi possível fixar esta mensagem. Tente novamente.",
+        "unpin_error": "Não foi possível desafixar esta mensagem. Tente novamente.",
+        "clear_pins_error": "Não foi possível limpar as mensagens fixadas. Tente novamente.",
+        "block": "Bloquear usuário",
+        "mins_ago_one": "há {{count}} minuto",
+        "mins_ago_other": "há {{count}} minutos",
+        "hours_ago_one": "há {{count}} hora",
+        "hours_ago_other": "há {{count}} horas",
+        "days_ago_one": "há {{count}} dia",
+        "days_ago_other": "há {{count}} dias",
+        "months_ago_one": "há {{count}} mês",
+        "months_ago_other": "há {{count}} meses",
+        "years_ago_one": "há {{count}} ano",
+        "years_ago_other": "há {{count}} anos"
     },
     "first": {
         "welcome_title": "Bem-vindo ao Fruit Values",
@@ -350,15 +370,18 @@
         "guest_user": "Usuário convidado",
         "signin": "Entrar",
         "continue": "Continuar",
-        "get_notified_text": "Receba notificações, crie e faça ofertas em negociações, converse com traders e participe de discussões em grupo."
+        "get_notified_text": "Receba notificações, crie e faça ofertas em negociações, converse com traders e participe de discussões em grupo.",
+        "continue_guest": "Continuar como convidado",
+        "try_values": "Experimente a calculadora de valores",
+        "utility_note": "Compare valores de itens e confira trocas. Este app complementar não dá itens dentro do jogo."
     },
     "offer": {
-        "title": "FIQUE A FRENTE NO JOGO",
-        "subtitle": "Acesse recursos exclusivos e negocie de forma mais inteligente!",
+        "title": "FIQUE À FRENTE NO JOGO",
+        "subtitle": "Acesse recursos premium por apenas",
         "adsFree": "Experiência sem anúncios",
         "unlimitedTrade": "Criação de negociações ilimitadas",
         "unlimitedChat": "Chat P2P ilimitado (Mensagens Diretas)",
-        "unlimitedAlerts": "Alertas e notificações de ações ilimitadas",
+        "unlimitedAlerts": "Alertas e notificações de estoque ilimitados",
         "priorityListing": "Listagem prioritária",
         "proTag": "Obtenha uma tag Pro com seu nome de usuário",
         "monthly": "Mensal",
@@ -379,7 +402,8 @@
         "inbox": "Caixa de entrada",
         "youAreBlocked": "Você foi bloqueado por um administrador.",
         "inappropriateLanguage": "Sua mensagem contém linguagem inadequada.",
-        "messageTooLong": "A mensagem não pode exceder 100 palavras.",
+        "messageTooLong": "A mensagem não pode exceder {{max}} caracteres.",
+        "messageTooLongWords": "A mensagem não pode exceder {{max}} palavras.",
         "sendingTooQuickly": "Você está enviando mensagens muito rapidamente. Por favor, aguarde um momento.",
         "proUsersOnlyLinks": "Apenas usuários Pro podem enviar links."
     },
@@ -410,5 +434,100 @@
         "vote_error": "Não foi possível enviar o voto.",
         "comment_error": "Não foi possível publicar o comentário.",
         "error": "Erro"
+    },
+    "mystery_fruit": {
+        "screen": {
+            "header_title": "Fruta Misteriosa",
+            "header_sub": "Gire e ganhe cosméticos!",
+            "hatched_label": "Frutas abertas",
+            "stars_spent_label": "Estrelas gastas",
+            "pick_title": "Escolha uma fruta",
+            "pick_sub": "Cada fruta tem chances de drop diferentes!",
+            "watch_ad_loading": "Carregando...",
+            "watch_ad_btn": "🎬 Giro grátis (ver anúncio)",
+            "spinning_text": "Abrindo...",
+            "spinning_sub": "O que será que vem?",
+            "reveal_title": "Você ganhou!",
+            "open_another": "Abrir outra",
+            "done_btn": "Pronto"
+        },
+        "alerts": {
+            "locked_label": "Bloqueada",
+            "need_more_stars": "Faltam {{count}} ⭐",
+            "need_more_stars_one": "Falta {{count}} ⭐",
+            "need_more_stars_other": "Faltam {{count}} ⭐",
+            "buy_prompt_msg": "Abrir esta fruta por {{cost}} ⭐?\nSeu saldo: {{balance}} ⭐",
+            "nope": "Agora não",
+            "open_it": "Abrir!",
+            "oops": "Ops!",
+            "failed_open": "Não foi possível abrir a fruta",
+            "failed_hatch": "Não foi possível abrir a fruta",
+            "error_title": "Erro",
+            "error_msg": "Algo deu errado"
+        },
+        "rewards": {
+            "text_color_sample": "Texto de exemplo",
+            "text_color_rainbow": "Arco-íris",
+            "trade_bg_text": "Fundo de troca",
+            "trade_bg_sub": "Aparece atrás das suas trocas",
+            "banner_text": "Banner do perfil",
+            "chat_bg_text": "Fundo do chat",
+            "reward_type_frame": "Moldura",
+            "reward_type_text_color": "Cor do texto",
+            "reward_type_trade_bg": "Fundo de troca",
+            "reward_type_banner": "Banner",
+            "reward_type_chat_bg": "Fundo do chat",
+            "reward_type_cosmetic": "Cosmético",
+            "permanent": "Permanente",
+            "active_for_days": "Ativo por {{count}} dia",
+            "active_for_days_plural": "Ativo por {{count}} dias",
+            "active_for_days_one": "Ativo por {{count}} dia",
+            "active_for_days_other": "Ativo por {{count}} dias"
+        },
+        "catalog": {
+            "whats_inside": "O que tem dentro",
+            "frames_title": "Molduras",
+            "frames_sub": "Deixe seu avatar mais estiloso",
+            "text_colors_title": "Cores de texto",
+            "text_colors_sub": "Chame atenção no chat",
+            "trade_bgs_title": "Fundos de troca",
+            "trade_bgs_sub": "Personalize seus posts de troca",
+            "banners_title": "Banners",
+            "banners_sub": "Decore seu perfil",
+            "chat_bgs_title": "Fundos de chat",
+            "chat_bgs_sub": "Personalize seus chats",
+            "hidden_reward": "??? ({{rarity}})",
+            "hidden_tease": "Abra frutas para descobrir recompensas secretas!"
+        }
+    },
+    "trending": {
+        "market_overview": "Visão geral do mercado",
+        "full_analytics": "Análise completa",
+        "hot": "Em alta",
+        "dropping": "Em queda",
+        "locked_teaser": "Veja quais itens estão subindo e quais estão caindo"
+    },
+    "catalog": {
+        "updated": "Catálogo baixado: {{date}}",
+        "cached": "Alguns valores não puderam ser atualizados. Mostrando os valores salvos disponíveis, que podem estar desatualizados.",
+        "unavailable": "Não foi possível carregar os valores. Verifique sua conexão e tente novamente.",
+        "loading": "Tentando de novo…",
+        "retry": "Recarregar valores"
+    },
+    "common": {
+        "load_more": "Carregar mais"
+    },
+    "scammer": {
+        "limit_title": "Limite",
+        "limit_max_images": "Máximo de 3 imagens de prova.",
+        "sign_in_title": "Entrar",
+        "sign_in_msg": "Faça login para denunciar.",
+        "error_title": "Erro",
+        "error_username_length": "O nome de usuário deve ter de 3 a 30 caracteres.",
+        "error_scam_date": "Informe a data do golpe (ex.: 15/01/2025).",
+        "error_description_short": "Descreva o que aconteceu (pelo menos 10 caracteres).",
+        "error_description_long": "Descrição muito longa (máx. 200 caracteres).",
+        "safety_title": "Segurança",
+        "safety_personal_info": "Não inclua informações pessoais (e-mails, telefones, redes sociais)."
     }
 }

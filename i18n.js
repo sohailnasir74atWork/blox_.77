@@ -1,3 +1,4 @@
+import {trackGrowthEvent} from './Code/Helper/growthAnalytics';
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import * as RNLocalize from "react-native-localize";
@@ -14,6 +15,7 @@ import fr from "./Code/Translation/fr.json";
 import de from "./Code/Translation/de.json";
 import ru from "./Code/Translation/ru.json";
 import ar from "./Code/Translation/ar.json";
+import ja from "./Code/Translation/ja.json";
 
 // Initialize MMKV storage
 const storage = createMMKV();
@@ -31,6 +33,7 @@ const countryToLanguage = {
   RU: "ru",
   IN: "en",
   AR: "ar",
+  JP: "ja",
 };
 
 // Function to get saved language from MMKV
@@ -45,8 +48,13 @@ export const getDeviceLanguage = () => {
 };
 
 
+const SUPPORTED_LANGUAGES = ['en', 'fil', 'vi', 'pt', 'id', 'es', 'fr', 'de', 'ru', 'ar', 'ja'];
+
 // Determine initial language
-const initialLanguage = getStoredLanguage() || 'en';
+const savedLanguage = getStoredLanguage();
+const deviceLanguage = getDeviceLanguage();
+const initialLanguage = SUPPORTED_LANGUAGES.includes(savedLanguage) ? savedLanguage
+  : SUPPORTED_LANGUAGES.includes(deviceLanguage) ? deviceLanguage : 'en';
 
 // Initialize i18next
 i18n
@@ -64,6 +72,7 @@ i18n
       de: { translation: de },
       ru: { translation: ru },
       ar: { translation: ar },
+      ja: { translation: ja },
     },
     lng: initialLanguage, // Set initial language
     fallbackLng: "en", // Default fallback language
@@ -76,6 +85,7 @@ i18n
 export const setAppLanguage = (languageCode) => {
   i18n.changeLanguage(languageCode);
   storage.set("appLanguage", languageCode);
+  trackGrowthEvent("app_language_selected", {language: languageCode});
 };
 
 export default i18n;
