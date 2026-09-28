@@ -1,0 +1,100 @@
+rules_version = '2';
+
+// Blox Fruit (fruiteblocks) Firestore rules.
+//
+// 2026-09: the review system is locked down; EVERY OTHER collection keeps the
+// original test-mode rule below (open until 2027-03-05) — replacing that needs
+// its own rollout, see the collection inventory in the 2026-09-28 review
+// audit. Firestore allows a request if ANY matching rule allows it, so the
+// catch-all explicitly skips the review collections.
+//
+// Must stay compatible with every app build in the field and the blox-web site:
+//   - reviews + user_ratings_summary are read publicly (web profile pages).
+//   - reviewers rewrite the REVIEWEE's user_ratings_summary after reviewing.
+//   - moderators delete reviews (staff/{uid}, mirrored by functions/staffMirror.js).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdminEmail() {
+      return signedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in ['thesolanalabs@gmail.com', 'sohailnasir74@gmail.com', 'sohailnasir74business@gmail.com'];
+    }
+
+    function isStaff() {
+      return isAdminEmail()
+        || (signedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid)));
+    }
+
+    // A review can only be written by its author, about someone else, under
+    // the id {toUserId}_{fromUserId} — one review per pair, no self-reviews.
+    function isOwnReview(docId) {
+      let d = request.resource.data;
+      return signedIn()
+        && d.fromUserId == request.auth.uid
+        && d.toUserId is string
+        && d.toUserId != request.auth.uid
+        && docId == d.toUserId + '_' + request.auth.uid
+        && d.rating is number
+        && d.rating >= 1 && d.rating <= 5;
+    }
+
+    // reviews/{toUserId}_{fromUserId}  — a review
+    // reviews/{uid}                    — that user's profile doc (bio, ownedPets, wishlistPets)
+    match /reviews/{docId} {
+      allow read: if true;
+      allow create, update: if isOwnReview(docId)
+        || (signedIn() && docId == request.auth.uid && !('fromUserId' in request.resource.data));
+      allow delete: if isStaff();
+    }
+
+    // Client-maintained display summary (profile rating). Anyone signed in may
+    // refresh it — the reviewer recomputes the reviewee's — but only these
+    // fields, within range. Top Rated no longer reads it.
+    match /user_ratings_summary/{uid} {
+      allow read: if true;
+      allow create, update: if signedIn()
+        && request.resource.data.diff(resource == null ? {} : resource.data).affectedKeys()
+             .hasOnly(['count', 'averageRating', 'updatedAt'])
+        && request.resource.data.count is number
+        && request.resource.data.count >= 0
+        && request.resource.data.averageRating is number
+        && request.resource.data.averageRating >= 0
+        && request.resource.data.averageRating <= 5;
+      allow delete: if isStaff();
+    }
+
+    // Written only by Cloud Functions (Admin SDK bypasses rules).
+    match /leaderboard_cache/{docId} {
+      allow read: if docId == 'top50' || isStaff();
+      allow write: if false;
+    }
+    match /review_scores/{reviewId} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+    match /review_verified_summary/{uid} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+    match /staff/{uid} {
+      allow read: if (signedIn() && request.auth.uid == uid) || isStaff();
+      allow write: if false;
+    }
+
+    // ---- Unchanged from the live ruleset (2026-03-05) ----
+    match /designPosts/{doc} {
+      allow read: if request.time < timestamp.date(2027, 3, 5);
+      allow write: if request.time < timestamp.date(2024, 3, 5);
+    }
+    match /{collection}/{document=**} {
+      allow read, write: if request.time < timestamp.date(2027, 3, 5)
+        && !(collection in ['reviews', 'user_ratings_summary', 'leaderboard_cache',
+                            'review_scores', 'review_verified_summary', 'staff']);
+    }
+  }
+}

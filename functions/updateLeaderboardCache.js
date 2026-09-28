@@ -1,262 +1,151 @@
 /**
- * ✅ OPTIMIZED: Scheduled Cloud Function to pre-compute leaderboard top 50
- * 
- * This function runs once daily to:
- * 1. Query all users from user_ratings_summary
- * 2. Filter for users with rating >= 3.7 and at least 1 review
- * 3. Sort by review count (desc) - MOST REVIEWED FIRST (priority #1)
- * 4. Then by rating (desc) for tie-breaking
- * 5. Take top 50 users
- * 6. Store in leaderboard_cache collection for fast client-side reads
- * 
- * Benefits:
- * - Pre-computed: No querying/filtering on every app load
- * - Cost-effective: Runs once per day, app just reads 1 document
- * - Fast: App reads from single cached document (very fast)
- * - Accurate: Shows users with most reviews (who have >= 3.7 rating)
- * 
- * Schedule: Runs daily at 12:00 AM UTC (configured in Firebase Console)
- * 
- * Collection Structure:
- * - Collection: leaderboard_cache
- * - Document ID: top50
- * - Fields:
- *   - users: Array of user objects
- *   - lastUpdated: Timestamp
- *   - version: String (for cache invalidation if needed)
+ * Scheduled Cloud Function: pre-computes the Top Rated leaderboard (top 50).
+ *
+ * Runs daily at 00:00 UTC and writes leaderboard_cache/top50, which the app
+ * reads as a single document (LeaderboardScreen.jsx / LeaderboardModal.jsx).
+ *
+ * Source of truth (2026-09): review_verified_summary, kept by
+ * reviewIntegrity.js. Only reviews that pass the integrity checks count, so
+ * alt accounts, same-phone reviews, self-reviews and deleted-account reviews
+ * no longer move anyone up. Traders with a high share of scam reports from
+ * genuine accounts are held off the list (reviewSignals.isScamHold); a lower
+ * share only puts them on a watch list. Both go to leaderboard_cache/holds
+ * for moderators. A moderator can also set leaderboardHold: true on
+ * review_verified_summary/{uid}.
+ *
+ * Until the backfill has populated review_verified_summary, it falls back to
+ * the old client-maintained user_ratings_summary.
+ *
+ * Ranking: most reviews first, average rating breaks ties; average >= 3.7.
+ * The top50 document keeps its original shape so every app build renders it.
  */
 
 const functions = require("firebase-functions/v1");
 const admin = require('firebase-admin');
+const { isScamHold, isScamWatch } = require('./reviewSignals');
 
-// Initialize Admin SDK (if not already initialized)
 if (!admin.apps.length) {
   admin.initializeApp();
 }
 
 const db = admin.firestore();
-const MIN_RATING_THRESHOLD = 3.7; // Minimum rating to include
-const TOP_USERS_LIMIT = 50; // Number of users to include in leaderboard
+const MIN_RATING_THRESHOLD = 3.7;
+const TOP_USERS_LIMIT = 50;
+const CANDIDATE_LIMIT = 300;          // top verified counts read per run
+const MIN_VERIFIED_DOCS = 1000;       // below this the backfill hasn't run yet
+const DEFAULT_AVATAR = 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png';
 
-/**
- * Scheduled function to update leaderboard cache
- * Configure in Firebase Console to run daily at 12:00 AM UTC
- * Or use: functions.pubsub.schedule('0 0 * * *').timeZone('UTC')
- */
-exports.updateLeaderboardCache = functions.pubsub
+async function loadCandidates() {
+  const verifiedCount = (await db.collection('review_verified_summary').count().get()).data().count;
+  if (verifiedCount >= MIN_VERIFIED_DOCS) {
+    const snap = await db.collection('review_verified_summary')
+      .orderBy('count', 'desc')
+      .limit(CANDIDATE_LIMIT)
+      .get();
+    return {
+      source: 'verified',
+      users: snap.docs.map((d) => ({ userId: d.id, ...d.data() })),
+    };
+  }
+
+  // Legacy path: every user_ratings_summary doc, as before.
+  const snap = await db.collection('user_ratings_summary').get();
+  return {
+    source: 'legacy',
+    users: snap.docs.map((d) => ({ userId: d.id, ...d.data() })),
+  };
+}
+
+async function buildLeaderboard() {
+  const { source, users } = await loadCandidates();
+
+  const holds = [];
+  const watch = [];
+  const eligible = [];
+  for (const u of users) {
+    const ratingCount = u.count || 0;
+    const averageRating = u.averageRating || 0;
+    if (ratingCount <= 0 || averageRating < MIN_RATING_THRESHOLD) continue;
+    if (u.leaderboardHold === true) {
+      holds.push({ userId: u.userId, reason: 'manual', ratingCount, scamReports: u.scamReports || 0 });
+      continue;
+    }
+    if (source === 'verified' && isScamHold(u)) {
+      holds.push({ userId: u.userId, reason: 'scamReports', ratingCount, scamReports: u.scamReports });
+      continue;
+    }
+    if (source === 'verified' && isScamWatch(u)) {
+      watch.push({ userId: u.userId, ratingCount, scamReports: u.scamReports });
+    }
+    eligible.push({
+      userId: u.userId,
+      ratingCount,
+      averageRating,
+      updatedAt: u.updatedAt ? u.updatedAt.toMillis() : Date.now(),
+    });
+  }
+
+  eligible.sort((a, b) =>
+    b.ratingCount !== a.ratingCount ? b.ratingCount - a.ratingCount : b.averageRating - a.averageRating);
+  const topUsers = eligible.slice(0, TOP_USERS_LIMIT);
+
+  const rtdb = admin.database();
+  const withDetails = await Promise.all(topUsers.map(async (user, i) => {
+    let userData = null;
+    try {
+      const [name, avatar] = await Promise.all([
+        rtdb.ref(`users/${user.userId}/displayName`).once('value'),
+        rtdb.ref(`users/${user.userId}/avatar`).once('value'),
+      ]);
+      userData = { displayName: name.val(), avatar: avatar.val() };
+    } catch (error) {
+      console.error(`❌ [Leaderboard] Error fetching details for user ${user.userId}:`, error);
+    }
+    return {
+      userId: user.userId,
+      ratingCount: user.ratingCount,
+      averageRating: user.averageRating,
+      displayName: userData?.displayName || 'Anonymous',
+      avatar: userData?.avatar || DEFAULT_AVATAR,
+      rank: i + 1,
+      updatedAt: user.updatedAt,
+    };
+  }));
+
+  await db.collection('leaderboard_cache').doc('top50').set({
+    users: withDetails,
+    lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+    version: source === 'verified' ? '2.0-verified' : '1.0',
+    minRatingThreshold: MIN_RATING_THRESHOLD,
+    totalUsers: withDetails.length,
+  }, { merge: false });
+
+  await db.collection('leaderboard_cache').doc('holds').set({
+    users: holds.sort((a, b) => b.ratingCount - a.ratingCount).slice(0, 200),
+    watch: watch.sort((a, b) => b.ratingCount - a.ratingCount).slice(0, 200),
+    lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+    source,
+  }, { merge: false });
+
+  console.log(`✅ [Leaderboard] ${source}: ${withDetails.length} ranked, ${holds.length} held, ${watch.length} on watch`);
+  withDetails.slice(0, 3).forEach((u, i) => {
+    console.log(`   ${i + 1}. ${u.displayName} - ${u.ratingCount} reviews, ${u.averageRating.toFixed(2)} rating`);
+  });
+  return { success: true, source, userCount: withDetails.length, held: holds.length };
+}
+
+exports.updateLeaderboardCache = functions
+  .runWith({ memory: '256MB', timeoutSeconds: 120 })
+  .pubsub
   .schedule('0 0 * * *') // Run daily at 12:00 AM UTC
   .timeZone('UTC')
-  .onRun(async (context) => {
-    console.log('🚀 [Leaderboard] Starting daily leaderboard cache update...');
-    
+  .onRun(async () => {
     try {
-      // ✅ Step 1: Fetch all users from user_ratings_summary collection
-      const summaryRef = db.collection('user_ratings_summary');
-      const summarySnapshot = await summaryRef.get();
-      
-      if (summarySnapshot.empty) {
-        console.log('⚠️ [Leaderboard] No users found in user_ratings_summary');
-        return null;
-      }
-      
-      console.log(`📊 [Leaderboard] Processing ${summarySnapshot.size} users...`);
-      
-      // ✅ Step 2: Extract and filter users
-      const allUsers = [];
-      
-      summarySnapshot.docs.forEach((doc) => {
-        const data = doc.data();
-        const userId = doc.id;
-        const ratingCount = data.count || 0;
-        const averageRating = data.averageRating || 0;
-        
-        // Filter: At least 1 review AND rating >= 3.7
-        if (ratingCount > 0 && averageRating >= MIN_RATING_THRESHOLD) {
-          allUsers.push({
-            userId: userId,
-            ratingCount: ratingCount,
-            averageRating: averageRating,
-            updatedAt: data.updatedAt ? data.updatedAt.toMillis() : Date.now(),
-          });
-        }
-      });
-      
-      console.log(`✅ [Leaderboard] Found ${allUsers.length} users with rating >= ${MIN_RATING_THRESHOLD}`);
-      
-      if (allUsers.length === 0) {
-        console.log('⚠️ [Leaderboard] No users meet the criteria (rating >= 3.7)');
-        return null;
-      }
-      
-      // ✅ Step 3: Sort by review count (desc) first, then rating (desc)
-      // Priority #1: NUMBER OF REVIEWS (most reviewed first)
-      // Priority #2: Average rating (descending) - only breaks ties
-      const sortedUsers = allUsers.sort((a, b) => {
-        // Primary sort: Review count (descending) - MOST REVIEWED FIRST
-        if (b.ratingCount !== a.ratingCount) {
-          return b.ratingCount - a.ratingCount;
-        }
-        // Secondary sort: Average rating (descending) - only for tie-breaking
-        return b.averageRating - a.averageRating;
-      });
-      
-      // ✅ Step 4: Take top 50 users
-      const topUsers = sortedUsers.slice(0, TOP_USERS_LIMIT);
-      
-      // ✅ Step 5: Fetch user details (displayName, avatar) from Realtime Database
-      // We need to fetch these from the users node in Realtime Database
-      const database = admin.database();
-      const userDetailsPromises = topUsers.map(async (user) => {
-        try {
-          const userRef = database.ref(`users/${user.userId}`);
-          const userSnapshot = await userRef.once('value');
-          const userData = userSnapshot.val();
-          
-          return {
-            userId: user.userId,
-            ratingCount: user.ratingCount,
-            averageRating: user.averageRating,
-            displayName: userData?.displayName || 'Anonymous',
-            avatar: userData?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
-            rank: topUsers.indexOf(user) + 1, // Assign rank (1-based)
-            updatedAt: user.updatedAt,
-          };
-        } catch (error) {
-          console.error(`❌ [Leaderboard] Error fetching details for user ${user.userId}:`, error);
-          return {
-            userId: user.userId,
-            ratingCount: user.ratingCount,
-            averageRating: user.averageRating,
-            displayName: 'Anonymous',
-            avatar: 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
-            rank: topUsers.indexOf(user) + 1,
-            updatedAt: user.updatedAt,
-          };
-        }
-      });
-      
-      const leaderboardWithDetails = await Promise.all(userDetailsPromises);
-      
-      // ✅ Step 6: Store in leaderboard_cache collection
-      const cacheRef = db.collection('leaderboard_cache').doc('top50');
-      
-      await cacheRef.set({
-        users: leaderboardWithDetails,
-        lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-        version: '1.0',
-        minRatingThreshold: MIN_RATING_THRESHOLD,
-        totalUsers: leaderboardWithDetails.length,
-      }, { merge: false }); // Replace entire document
-      
-      console.log(`✅ [Leaderboard] Successfully updated leaderboard cache with ${leaderboardWithDetails.length} users`);
-      console.log(`📊 [Leaderboard] Top 3 users:`);
-      leaderboardWithDetails.slice(0, 3).forEach((user, index) => {
-        console.log(`   ${index + 1}. ${user.displayName} - ${user.ratingCount} reviews, ${user.averageRating.toFixed(2)} rating`);
-      });
-      
-      return {
-        success: true,
-        userCount: leaderboardWithDetails.length,
-        timestamp: new Date().toISOString(),
-      };
-      
+      return await buildLeaderboard();
     } catch (error) {
       console.error('❌ [Leaderboard] Error updating leaderboard cache:', error);
-      throw error; // Let Firebase retry the function
+      throw error;
     }
   });
 
-/**
- * Manual trigger function (for testing)
- * Call via: https://YOUR_REGION-YOUR_PROJECT.cloudfunctions.net/updateLeaderboardCacheManual
- */
-exports.updateLeaderboardCacheManual = functions.https.onRequest(async (req, res) => {
-  console.log('🚀 [Leaderboard] Manual trigger - Starting leaderboard cache update...');
-  
-  try {
-    // Reuse the same logic as scheduled function
-    const summaryRef = db.collection('user_ratings_summary');
-    const summarySnapshot = await summaryRef.get();
-    
-    if (summarySnapshot.empty) {
-      res.status(200).json({ success: false, message: 'No users found' });
-      return;
-    }
-    
-    const allUsers = [];
-    summarySnapshot.docs.forEach((doc) => {
-      const data = doc.data();
-      const userId = doc.id;
-      const ratingCount = data.count || 0;
-      const averageRating = data.averageRating || 0;
-      
-      if (ratingCount > 0 && averageRating >= MIN_RATING_THRESHOLD) {
-        allUsers.push({
-          userId: userId,
-          ratingCount: ratingCount,
-          averageRating: averageRating,
-          updatedAt: data.updatedAt ? data.updatedAt.toMillis() : Date.now(),
-        });
-      }
-    });
-    
-    const sortedUsers = allUsers.sort((a, b) => {
-      if (b.ratingCount !== a.ratingCount) {
-        return b.ratingCount - a.ratingCount;
-      }
-      return b.averageRating - a.averageRating;
-    });
-    
-    const topUsers = sortedUsers.slice(0, TOP_USERS_LIMIT);
-    
-    const database = admin.database();
-    const userDetailsPromises = topUsers.map(async (user) => {
-      try {
-        const userRef = database.ref(`users/${user.userId}`);
-        const userSnapshot = await userRef.once('value');
-        const userData = userSnapshot.val();
-        
-        return {
-          userId: user.userId,
-          ratingCount: user.ratingCount,
-          averageRating: user.averageRating,
-          displayName: userData?.displayName || 'Anonymous',
-          avatar: userData?.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
-          rank: topUsers.indexOf(user) + 1,
-          updatedAt: user.updatedAt,
-        };
-      } catch (error) {
-        return {
-          userId: user.userId,
-          ratingCount: user.ratingCount,
-          averageRating: user.averageRating,
-          displayName: 'Anonymous',
-          avatar: 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
-          rank: topUsers.indexOf(user) + 1,
-          updatedAt: user.updatedAt,
-        };
-      }
-    });
-    
-    const leaderboardWithDetails = await Promise.all(userDetailsPromises);
-    
-    const cacheRef = db.collection('leaderboard_cache').doc('top50');
-    await cacheRef.set({
-      users: leaderboardWithDetails,
-      lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-      version: '1.0',
-      minRatingThreshold: MIN_RATING_THRESHOLD,
-      totalUsers: leaderboardWithDetails.length,
-    }, { merge: false });
-    
-    res.status(200).json({
-      success: true,
-      userCount: leaderboardWithDetails.length,
-      timestamp: new Date().toISOString(),
-      message: 'Leaderboard cache updated successfully',
-    });
-  } catch (error) {
-    console.error('❌ [Leaderboard] Error in manual trigger:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+exports.buildLeaderboard = buildLeaderboard;
