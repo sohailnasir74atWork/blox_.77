@@ -72,6 +72,7 @@ import { useGlobalState } from '../GlobelStats';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
+import ReviewIntegrityTab from './ReviewIntegrityTab';
 import { launchImageLibrary } from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
 import { safeCompressImage } from '../Helper/safeCompressImage';
@@ -1643,6 +1644,15 @@ const AdminDashboard = () => {
             Statuses
           </Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'reviewIntegrity' && styles.activeTab, { borderColor: isDark ? '#333' : '#E5E5EA' }]}
+          onPress={() => setActiveTab('reviewIntegrity')}
+        >
+          <Text style={[styles.tabText, activeTab === 'reviewIntegrity' && styles.activeTabText, { color: activeTab === 'reviewIntegrity' ? '#007AFF' : (isDark ? '#888' : '#666') }]}>
+            Reviews
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
 
       {activeTab === 'search' && (
@@ -2389,6 +2399,8 @@ const AdminDashboard = () => {
             />
           )}
         </View>
+      ) : activeTab === 'reviewIntegrity' ? (
+        <ReviewIntegrityTab isDark={isDark} currentUser={currentUser} />
       ) : null}
 
       {/* Status profile drawer (admin moderation) */}

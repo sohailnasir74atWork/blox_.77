@@ -77,9 +77,15 @@ service cloud.firestore {
       allow read: if isStaff();
       allow write: if false;
     }
+    // Counts are Cloud-Function-only; staff may only toggle the Top Rated hold
+    // (Admin Dashboard → Reviews).
     match /review_verified_summary/{uid} {
       allow read: if isStaff();
-      allow write: if false;
+      allow update: if isStaff()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['leaderboardHold', 'holdBy', 'holdByName', 'holdAt'])
+        && request.resource.data.leaderboardHold is bool;
+      allow create, delete: if false;
     }
     match /staff/{uid} {
       allow read: if (signedIn() && request.auth.uid == uid) || isStaff();
