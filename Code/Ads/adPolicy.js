@@ -26,6 +26,21 @@ export const NATURAL_BREAK = {
   EXCLUDED_TABS: ['Chat'],
 };
 
+// ── Full-screen ad cadence (one policy for all four apps, 2026-10-04) ──────
+// Balanced for revenue first, experience second: ads sit at natural breaks and
+// on returns, never stacked, and always a few minutes apart.
+// Interstitial: minimum gap between two (effective max(this, POST_SHOW_RELOAD_MS)).
+export const INTERSTITIAL_COOLDOWN_MS = 30 * 1000;
+// Chat: an interstitial after every Nth message the user sends (pre-loaded at N-1).
+export const CHAT_MESSAGES_PER_AD = 10;
+// App-open on a return from background: at most once per this window
+// (and only after APP_OPEN_MIN_BACKGROUND_MS away).
+export const APP_OPEN_MIN_INTERVAL_MS = 5 * 60 * 1000;
+// Launch (cold-start) app-open ad: returning users only, at most once per 4 h,
+// and only if it is ready while the splash is still up.
+export const COLD_START_MIN_GAP_MS = 4 * 60 * 60 * 1000;
+export const COLD_START_BUDGET_MS = 3000;
+
 // Two different full-screen formats are never shown within this gap of each
 // other (interstitial after app-open, rewarded then interstitial…). Each
 // manager already caps itself; this is the cross-format rule they lacked.

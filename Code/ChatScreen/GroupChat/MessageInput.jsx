@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocalState } from '../../LocalGlobelStats';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import InterstitialAdManager from '../../Ads/IntAd';
+import { CHAT_MESSAGES_PER_AD } from '../../Ads/adPolicy';
 import { showMessage } from 'react-native-flash-message';
 import { useGlobalState } from '../../GlobelStats';
 import { validateContent } from '../../Helper/ContentModeration';
@@ -153,12 +154,12 @@ const MessageInput = ({
       const newCount = messageCount + 1;
       setMessageCount(newCount);
 
-      if (!localState?.isPro && newCount % 7 === 0) {
+      if (!localState?.isPro && newCount % CHAT_MESSAGES_PER_AD === 0) {
         InterstitialAdManager.showAd(adCallback);
       } else {
         // One message before the ad message: warm the interstitial so the
         // trigger actually has something to show (lazy-load pipeline).
-        if (!localState?.isPro && newCount % 7 === 6) InterstitialAdManager.prepare();
+        if (!localState?.isPro && newCount % CHAT_MESSAGES_PER_AD === CHAT_MESSAGES_PER_AD - 1) InterstitialAdManager.prepare();
         setIsSending(false);
       }
     } catch (error) {

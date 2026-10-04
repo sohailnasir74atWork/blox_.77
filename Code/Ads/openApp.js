@@ -9,7 +9,15 @@ import {
   markFullScreenAdShown,
   msSinceOtherFullScreenAd,
 } from './adVisibility';
-import { APP_OPEN_MIN_BACKGROUND_MS, CROSS_FORMAT_GAP_MS, POST_SHOW_RELOAD_MS, isNoFillError } from './adPolicy';
+import {
+  APP_OPEN_MIN_BACKGROUND_MS,
+  APP_OPEN_MIN_INTERVAL_MS,
+  COLD_START_MIN_GAP_MS,
+  COLD_START_BUDGET_MS,
+  CROSS_FORMAT_GAP_MS,
+  POST_SHOW_RELOAD_MS,
+  isNoFillError,
+} from './adPolicy';
 
 const adUnitId = getAdUnitId('openapp');
 
@@ -18,7 +26,7 @@ const adUnitId = getAdUnitId('openapp');
 const AD_EXPIRY_MS = 4 * 60 * 60 * 1000;
 // Don't show more than once per this window, so quick app-switches (e.g.
 // flicking to another app for 5s and back) don't spam the user.
-const MIN_INTERVAL_MS = 2 * 60 * 1000;
+const MIN_INTERVAL_MS = APP_OPEN_MIN_INTERVAL_MS;
 
 // ── Cold-start ad (ported from mm2values via adoptme-jan7, 2026-10-01) ──
 // Shown FROM the splash screen, never over a usable Home: the splash is held
@@ -28,8 +36,6 @@ const MIN_INTERVAL_MS = 2 * 60 * 1000;
 // "encouraging accidental clicks" pattern AdMob penalises. Before this, the
 // first ad of every launch showed whenever it finished loading.
 const APP_START_AT = Date.now();          // module load ≈ JS start (App.js imports this at the top)
-const COLD_START_BUDGET_MS = 3000;
-const COLD_START_MIN_GAP_MS = 4 * 60 * 60 * 1000;
 const K_LAST_COLD_AD = 'appOpenLastColdStartAt';
 const K_LAUNCHED_BEFORE = 'appOpenHasLaunchedBefore';
 
@@ -334,27 +340,30 @@ class AppOpenAdManager {
     this._clearShowWatchdog();
     this.showWatchdog = setTimeout(() => {
       this.showWatchdog = null;
-      if (this.isShowing) {
-        setFullScreenAdVisible(false);
-        this.isShowing = false;
-        // Nothing was displayed, so don't burn the 2-minute cap on an
-        // impression the user never saw.
-        this.lastShownAt = 0;
-        if (this.coldStartShowing) { this.coldStartShowing = false; releaseSplash(); }
-        this._createAndLoad();
-      }
+      if (this.isShowing) this._resetFailedShow();
     }, 10000);
     try {
-      this.ad.show();
+      // show() returns a promise; a refused present rejects it rather than
+      // throwing. Only reset if this attempt is still the live one.
+      const shown = this.ad.show();
       this.isLoaded = false;
+      if (shown && typeof shown.catch === 'function') {
+        shown.catch(() => { if (this.isShowing) this._resetFailedShow(); });
+      }
     } catch (_) {
-      this._clearShowWatchdog();
-      setFullScreenAdVisible(false);
-      this.isShowing = false;
-      this.lastShownAt = 0;
-      if (this.coldStartShowing) { this.coldStartShowing = false; releaseSplash(); }
-      this._createAndLoad();
+      this._resetFailedShow();
     }
+  }
+
+  // A present that never reached the screen: nothing was displayed, so don't
+  // burn the interval on an impression the user never saw.
+  static _resetFailedShow() {
+    this._clearShowWatchdog();
+    setFullScreenAdVisible(false);
+    this.isShowing = false;
+    this.lastShownAt = 0;
+    if (this.coldStartShowing) { this.coldStartShowing = false; releaseSplash(); }
+    this._createAndLoad();
   }
 
   static _cleanupAd() {
