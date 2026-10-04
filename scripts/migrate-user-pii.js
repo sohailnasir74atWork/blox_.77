@@ -99,7 +99,7 @@ const stats = {
   withLeaves: 0,
   leaf: Object.fromEntries(LEAVES.map((k) => [k, 0])),
   emailFromAuth: 0,
-  emailFromLeaf: 0,
+  emailFromLeaf: 0, // leaf-only emails (no Auth email) — dropped, not copied
   leafDiffersFromAuth: 0,
   noEmailAnywhere: 0,
   dobMoved: 0,
@@ -155,7 +155,10 @@ async function processPage(page) {
   for (const c of candidates) {
     const leafEmail = EMAIL_LEAVES.map((k) => normalizeEmail(c.u[k])).find(Boolean) || null;
     const authEmail = authEmails.get(c.uid) || null;
-    const email = authEmail || leafEmail;
+    // Firebase Auth only. users/$userId/$other lets any signed-in user write
+    // another user's fields, so a leaf with no Auth account behind it may be a
+    // plant; it is counted and (with a MOVE) removed, never copied.
+    const email = authEmail;
     if (authEmail && leafEmail && authEmail !== leafEmail) stats.leafDiffersFromAuth++;
     if (authEmail) stats.emailFromAuth++;
     else if (leafEmail) stats.emailFromLeaf++;
@@ -186,12 +189,16 @@ async function migrateUsers() {
   let lastKey = START_AFTER;
   let pages = 0;
   for (;;) {
+    // startAt + one extra, dropping the boundary key. The Admin SDK's
+    // startAfter() returns BATCH - 1 records on every page after the first,
+    // which the `page.length < BATCH` check below read as "last page" — the
+    // first real dry run stopped after 999 of ~219k users.
     let q = db.ref('users').orderByKey();
-    if (lastKey) q = q.startAfter(lastKey);
-    const snap = await q.limitToFirst(BATCH).once('value');
+    if (lastKey) q = q.startAt(lastKey);
+    const snap = await q.limitToFirst(lastKey ? BATCH + 1 : BATCH).once('value');
     if (!snap.exists()) break;
     const page = [];
-    snap.forEach((child) => { page.push([child.key, child.val()]); });
+    snap.forEach((child) => { if (child.key !== lastKey) page.push([child.key, child.val()]); });
     if (page.length === 0) break;
     try {
       await processPage(page);
@@ -244,7 +251,7 @@ async function main() {
     console.log(`  records with PII leaves    ${stats.withLeaves}`);
     for (const k of LEAVES) console.log(`    ${k.padEnd(24)} ${stats.leaf[k]}`);
     console.log(`  email from Firebase Auth   ${stats.emailFromAuth}`);
-    console.log(`  email from leaf (no auth)  ${stats.emailFromLeaf}`);
+    console.log(`  leaf-only, no auth (dropped) ${stats.emailFromLeaf}`);
     console.log(`  leaf ≠ auth email          ${stats.leafDiffersFromAuth}`);
     console.log(`  leaf present, no email     ${stats.noEmailAnywhere}`);
     console.log(`  dateOfBirth moved          ${stats.dobMoved}  (kept existing: ${stats.dobKeptExisting}, invalid: ${stats.dobInvalid})`);

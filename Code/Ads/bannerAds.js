@@ -29,6 +29,10 @@ const BannerAdComponent = ({
   // we stop interfering, so we never remount a working banner.
   const [reloadKey, setReloadKey] = useState(0);
   const hasEverLoaded = useRef(false);
+  // The remount re-runs this handler on the next failure with the timer
+  // already cleared, so without this guard the "one" retry became a 30 s loop
+  // for the whole screen visit in no-fill geos.
+  const retriedOnce = useRef(false);
   const retryTimer = useRef(null);
 
   const handleAdLoaded = useCallback(() => {
@@ -39,7 +43,8 @@ const BannerAdComponent = ({
   const handleAdFailedToLoad = useCallback(() => {
     setIsAdLoaded(false);
     // Only nudge the first-ever load; let the SDK own refresh failures.
-    if (hasEverLoaded.current || retryTimer.current) return;
+    if (hasEverLoaded.current || retriedOnce.current || retryTimer.current) return;
+    retriedOnce.current = true;
     retryTimer.current = setTimeout(() => {
       retryTimer.current = null;
       setReloadKey((k) => k + 1);

@@ -17,6 +17,15 @@ import { setLastActivity } from './Supabase/userBackend';
 import { saveOwnEmailOnce } from './Helper/privateProfile';
 import Purchases from 'react-native-purchases';
 import { getAnalytics, logEvent } from '@react-native-firebase/analytics';
+import { createMMKV } from 'react-native-mmkv';
+
+// MMKV mirror of the `proGranted` React state for the ad singletons
+// (Code/Ads/IntAd.js, Code/Ads/openApp.js), which read MMKV rather than React
+// context. Before this mirror, a user whose Pro came from an RTDB purchase
+// (not the RevenueCat `isPro` flag) still got interstitials and app-open ads.
+// Same default-instance pattern as LocalGlobelStats.js.
+let proFlagStorage = null;
+try { proFlagStorage = createMMKV(); } catch (_) {}
 
 // registerForNotifications used to run three times per cold start (login
 // handler, user-id effect, auth listener). Run it once per uid per sign-in;
@@ -183,6 +192,7 @@ export const GlobalStateProvider = ({ children }) => {
     });
 
     setProGranted(isProActive);
+    try { proFlagStorage?.set('proGranted', !!isProActive); } catch (_) {}
   }, [user?.id, user?.purchases]);
   // console.log('user', user)
 
@@ -321,6 +331,9 @@ export const GlobalStateProvider = ({ children }) => {
     if (!loggedInUser) {
       notificationsRegisteredFor.clear();
       lastKnownIsProRef.current = { uid: null, value: undefined };
+      // The ad managers read this flag from MMKV; a signed-out device must not
+      // keep the previous user's granted Pro suppressing ads.
+      try { proFlagStorage?.set('proGranted', false); } catch (_) {}
       resetUserState(); // No longer recreates resetUserState
       setIsAdmin(false);
       setIsModerator(false); // ✅ Reset moderator status

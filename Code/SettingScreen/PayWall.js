@@ -20,7 +20,9 @@ const openAndCheck = async (offering, offeringId, source, showoffer) => {
   }
 
   // ✅ 1) Paywall shown
-
+  // Coming back from the store sheet must not open an App Open ad on someone
+  // who was just buying ad-free.
+  require('../Ads/openApp').default.skipNextForeground();
   await RevenueCatUI.presentPaywall({ offering });
 
   const hasEntitlement = await userHasEntitlement();

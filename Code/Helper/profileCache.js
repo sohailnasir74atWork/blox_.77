@@ -31,7 +31,7 @@ try {
   cache = {
     getString: () => undefined,
     set: () => {},
-    delete: () => {},
+    remove: () => {},
   };
 }
 const TTL = 60 * 60 * 1000; // 60 minutes (was 30; profile data is now Supabase-only, no RTDB ops)
@@ -46,7 +46,7 @@ export const getCachedProfile = (uid) => {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (Date.now() - parsed.t > TTL) {
-      cache.delete(`p_${uid}`);
+      cache.remove(`p_${uid}`);
       return null;
     }
     return parsed.d;

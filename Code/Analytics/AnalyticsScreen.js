@@ -245,8 +245,8 @@ const AnalyticsScreen = ({ navigation }) => {
     try {
       if (isRefresh) {
         setRefreshing(true);
-        analyticsCache.delete('analytics');
-        analyticsCache.delete('analytics_time');
+        analyticsCache.remove('analytics');
+        analyticsCache.remove('analytics_time');
       } else {
         setLoading(true);
       }
@@ -265,8 +265,8 @@ const AnalyticsScreen = ({ navigation }) => {
     try {
       setValueChangesLoading(true);
       if (isRefresh) {
-        analyticsCache.delete('value_changes');
-        analyticsCache.delete('value_changes_time');
+        analyticsCache.remove('value_changes');
+        analyticsCache.remove('value_changes_time');
       }
       const raw = await fetchFromCDN(VALUE_CHANGES_CDN_URL, 'value_changes', CHANGES_CACHE_MS);
       const data = normalizeDiffPayload(raw);

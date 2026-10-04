@@ -18,9 +18,21 @@ import ThemeHeader from '../Design/componenets/ThemeHeader';
 import { useGlobalState } from '../GlobelStats';
 import { checkDailyStreak } from '../ChatScreen/GroupChat/badgeUtils';
 import { syncMyCosmetics } from '../Helper/cosmeticsCache';
+import InterstitialAdManager from '../Ads/IntAd';
+import { NATURAL_BREAK } from '../Ads/adPolicy';
 
-
-
+// Natural-break interstitial: leaving one tab for another is the standard
+// "between screens" moment. The manager applies every cap (Pro, warm-up,
+// per-session ceiling, 3-minute gap since ANY full-screen ad) and never waits
+// for a fill, so the switch itself is never delayed. Pressing the already
+// active tab (scroll-to-top) and entering Chat are not breaks.
+const tabScreenListeners = ({ navigation, route }) => ({
+  tabPress: () => {
+    if (navigation.isFocused()) return;
+    if (NATURAL_BREAK.EXCLUDED_TABS.includes(route.name)) return;
+    InterstitialAdManager.showAtNaturalBreak(`tab:${route.name}`);
+  },
+});
 const Tab = createBottomTabNavigator();
 
 const AnimatedTabIcon = React.memo(({ iconName, color, size, focused }) => {
@@ -160,7 +172,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
   }), [t]);
 
   return (
-    <Tab.Navigator screenOptions={screenOptions}>
+    <Tab.Navigator screenOptions={screenOptions} screenListeners={tabScreenListeners}>
       <Tab.Screen
         name="HomeTab"
         options={{

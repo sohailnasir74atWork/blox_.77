@@ -41,8 +41,7 @@ import { showSuccessMessage, showErrorMessage } from '../Helper/MessageHelper';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
-import NativeAdCard from '../Ads/NativeAdCard';
-import { releaseByPrefix as releaseNativeAds } from '../Ads/NativeAdManager';
+import FeedBannerAd from '../Ads/FeedBannerAd';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import StyledUsernamePreview from '../SettingScreen/Store/StyledName';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
@@ -252,11 +251,11 @@ const TradeList = ({ route }) => {
     setIsProStatus(localState.isPro || proGranted); // ✅ Force update state and trigger re-render
   }, [localState.isPro, proGranted]);
 
-  // Native ads interleaved every TRADE_AD_FREQUENCY trades for non-Pro users
-  // (matches adoptme's Trades screen). Ad rows carry __type:'ad' + a stable
-  // `trade-ad-N` key; NativeAdManager caches one ad per key so FlatList
-  // recycling reuses it. Declared up here (before any conditional return) to
-  // satisfy the rules of hooks.
+  // In-feed ads (FeedBannerAd) interleaved every TRADE_AD_FREQUENCY trades for
+  // non-Pro users (matches adoptme's Trades screen). Ad rows carry __type:'ad'
+  // + a stable `trade-ad-N` key so FlatList recycling keeps each slot's ad.
+  // Declared up here (before any conditional return) to satisfy the rules of
+  // hooks.
   const TRADE_AD_FREQUENCY = 8;
   const tradesWithAds = useMemo(() => {
     const base = isSearchMode ? trades : filteredTrades;
@@ -270,9 +269,6 @@ const TradeList = ({ route }) => {
     }
     return out;
   }, [isSearchMode, trades, filteredTrades, isProStatus]);
-
-  // Free this screen's native ad handles on unmount.
-  useEffect(() => () => { releaseNativeAds('trade-ad-'); }, []);
 
   // ✅ Client-side filtering for non-search scenarios (filters, banned users)
   useEffect(() => {
@@ -1479,7 +1475,7 @@ const TradeList = ({ route }) => {
   // ── Alternate trade card renderer (non-Noman) ──
   const renderTradeAlt = ({ item, index }) => {
     if (item?.__type === 'ad') {
-      return <NativeAdCard adKey={item.id} isDarkMode={isDarkMode} />;
+      return <FeedBannerAd adKey={item.id} isDarkMode={isDarkMode} />;
     }
     const { deal, tradeRatio } = getTradeDeal(item.hasTotal, item.wantsTotal);
     const tradePercentage = Math.abs(((tradeRatio - 1) * 100).toFixed(0));
@@ -1683,7 +1679,7 @@ const TradeList = ({ route }) => {
 
   const renderTrade = ({ item, index }) => {
     if (item?.__type === 'ad') {
-      return <NativeAdCard adKey={item.id} isDarkMode={isDarkMode} />;
+      return <FeedBannerAd adKey={item.id} isDarkMode={isDarkMode} />;
     }
     const { deal, tradeRatio } = getTradeDeal(item.hasTotal, item.wantsTotal);
     const tradePercentage = Math.abs(((tradeRatio - 1) * 100).toFixed(0));

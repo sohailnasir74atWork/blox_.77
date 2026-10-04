@@ -58,13 +58,9 @@
 -keep class com.google.android.gms.auth.** { *; }
 -dontwarn com.google.android.gms.auth.**
 
-# ---- AdMob (RN bridge) + Unity mediation + UMP ----
+# ---- AdMob (RN bridge) + UMP ----
 -keep class io.invertase.googlemobileads.** { *; }
 -dontwarn io.invertase.googlemobileads.**
--keep class com.unity3d.ads.** { *; }
--dontwarn com.unity3d.ads.**
--keep class com.google.ads.mediation.unity.** { *; }
--dontwarn com.google.ads.mediation.unity.**
 -keep class com.google.android.ump.** { *; }
 -dontwarn com.google.android.ump.**
 
@@ -133,3 +129,16 @@
 -dontwarn okhttp3.**
 -keep class okio.** { *; }
 -dontwarn okio.**
+
+# ---- Room / WorkManager / androidx.startup ----
+# WorkManager (pulled in by notifee) starts from an androidx.startup provider
+# and builds its Room database by reflectively loading WorkDatabase_Impl. Room's
+# own consumer rule keeps the class but not its constructor, and AGP 9's R8 no
+# longer keeps the default ctor for a class-only rule, so the first release
+# build after the RN 0.87 / AGP 9 upgrade crashed at launch ("Failed to create
+# an instance of class androidx.work.impl.WorkDatabase.canonicalName") before
+# any JS ran (found 2026-10-01). Same fix as mm2values 1.4.8 and adoptme 1.15.41.
+-keepattributes InnerClasses,EnclosingMethod,Signature,*Annotation*
+-keep class * extends androidx.room.RoomDatabase { <init>(); }
+-keepnames class * extends androidx.room.RoomDatabase
+-keep class * implements androidx.startup.Initializer { <init>(); }

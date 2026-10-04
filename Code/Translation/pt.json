@@ -253,7 +253,8 @@
         "alert_error": "Erro",
         "alert_try_again": "Ocorreu um erro inesperado. Tente novamente mais tarde.",
         "password_reset_email_sent": "E-mail de redefinição de senha enviado!",
-        "error_reset_password": "Não foi possível enviar o e-mail de redefinição de senha. Tente novamente."
+        "error_reset_password": "Não foi possível enviar o e-mail de redefinição de senha. Tente novamente.",
+        "restoring": "Carregando sua conta…"
     },
     "tabs": {
         "calculator": "Calculadora",

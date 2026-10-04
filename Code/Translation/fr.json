@@ -254,7 +254,8 @@
         "alert_error": "Erreur",
         "alert_try_again": "Une erreur inattendue s'est produite. Veuillez réessayer plus tard.",
         "password_reset_email_sent": "E-mail de réinitialisation du mot de passe envoyé !",
-        "error_reset_password": "Impossible d'envoyer l'e-mail de réinitialisation du mot de passe. Veuillez réessayer."
+        "error_reset_password": "Impossible d'envoyer l'e-mail de réinitialisation du mot de passe. Veuillez réessayer.",
+        "restoring": "Chargement de ton compte…"
     },
     "tabs": {
         "calculator": "Calculateur",

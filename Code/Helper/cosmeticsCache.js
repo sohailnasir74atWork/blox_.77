@@ -20,7 +20,7 @@ try {
     getString: () => undefined,
     getNumber: () => undefined,
     set: () => {},
-    delete: () => {},
+    remove: () => {},
   };
 }
 const KEY = 'active';
@@ -135,13 +135,13 @@ export const syncMyCosmetics = async (db, uid, force = false) => {
 // ────────────────────────────────────────────────────────
 export const clearMyCosmetics = () => {
   try {
-    store.delete(KEY);
-    store.delete(SYNC_KEY);
-    store.delete('egg_xp');
-    store.delete('egg_stats');
-    store.delete('egg_inventory');
-    store.delete('username');
-    store.delete('avatar');
+    store.remove(KEY);
+    store.remove(SYNC_KEY);
+    store.remove('egg_xp');
+    store.remove('egg_stats');
+    store.remove('egg_inventory');
+    store.remove('username');
+    store.remove('avatar');
   } catch {}
 };
 

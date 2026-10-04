@@ -22,8 +22,8 @@ try {
 export const npaRequiredFor = (status) =>
   status !== 'OBTAINED' && status !== 'NOT_REQUIRED';
 
-// MMKV-reading form — for singletons / non-React modules (NativeAdPool, ad
-// managers) that can't read localState. consentStatus is persisted by App.js's
+// MMKV-reading form — for singletons / non-React modules (ad managers) that
+// can't read localState. consentStatus is persisted by App.js's
 // saveConsentStatus under the same MMKV key.
 export const npaRequired = () => {
   let status = 'UNKNOWN';

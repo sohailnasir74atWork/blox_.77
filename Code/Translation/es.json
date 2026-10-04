@@ -253,7 +253,8 @@
         "alert_error": "Error",
         "alert_try_again": "Ocurrió un error inesperado. Inténtalo de nuevo más tarde.",
         "password_reset_email_sent": "¡Te enviamos un correo para restablecer tu contraseña!",
-        "error_reset_password": "No se pudo enviar el correo para restablecer la contraseña. Inténtalo de nuevo."
+        "error_reset_password": "No se pudo enviar el correo para restablecer la contraseña. Inténtalo de nuevo.",
+        "restoring": "Cargando tu cuenta…"
     },
     "tabs": {
         "calculator": "Calculadora",

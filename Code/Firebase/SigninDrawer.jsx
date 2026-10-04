@@ -35,6 +35,7 @@ import {
     AppleAuthProvider,
     signOut,
     signInWithPhoneNumber,
+    onAuthStateChanged,
 } from '@react-native-firebase/auth';
 
 
@@ -53,7 +54,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
 
     const { triggerHapticFeedback } = useHaptic();
     const insets = useSafeAreaInsets();
-    const { theme, robloxUsernameRef } = useGlobalState()
+    const { theme, robloxUsernameRef, user } = useGlobalState()
     const [robloxUsernamelocal, setRobloxUsernamelocal] = useState()
     useEffect(() => { robloxUsernameRef.current = robloxUsernamelocal }, [robloxUsernamelocal])
     // useEffect(()=>{setRobloxUsernamelocal()},[robloxUsernamelocal])
@@ -75,6 +76,28 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     // const appdatabase = getDatabase(app);
     const app = getApp();
     const auth = getAuth(app);
+
+    // Opened while Firebase already holds a session whose profile is still
+    // loading (a slow login after the 3 s splash cap): this player IS signed
+    // in, so show "loading your account" instead of the sign-in form, and close
+    // by itself once the profile lands. Decided when the drawer opens only, so
+    // a sign-in that starts inside the drawer is never affected.
+    const [restoring, setRestoring] = useState(false);
+    useEffect(() => {
+        setRestoring(visible && !!auth.currentUser && !user?.id);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [visible]);
+    useEffect(() => {
+        if (restoring && user?.id) {
+            setRestoring(false);
+            onClose?.();
+        }
+    }, [restoring, user?.id, onClose]);
+    useEffect(() => {
+        if (!restoring) return undefined;
+        // The session went away instead (e.g. unverified email): show the form.
+        return onAuthStateChanged(auth, (u) => { if (!u) setRestoring(false); });
+    }, [restoring, auth]);
 
     useEffect(() => {
         robloxUsernameRef.current = robloxUsernamelocal;
@@ -394,6 +417,20 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
 
 
 
+    if (visible && restoring) {
+        return (
+            <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+                <Pressable style={styles.modalOverlay} onPress={onClose} />
+                <View style={[styles.drawer, { backgroundColor: isDarkMode ? '#3B404C' : 'white', paddingBottom: insets.bottom + 16 }]}>
+                    <View style={styles.restoringBox}>
+                        <ActivityIndicator size="large" color={selectedTheme.colors.text} />
+                        <Text style={[styles.text, styles.restoringText, { color: selectedTheme.colors.text }]}>{t('signin.restoring')}</Text>
+                    </View>
+                </View>
+            </Modal>
+        );
+    }
+
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <Pressable style={styles.modalOverlay} onPress={onClose} />
@@ -697,6 +734,14 @@ const styles = StyleSheet.create({
     },
     legalLink: {
         textDecorationLine: 'underline',
+    },
+    restoringBox: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 36,
+    },
+    restoringText: {
+        marginTop: 12,
     },
     modalOverlay: {
         flex: 1,

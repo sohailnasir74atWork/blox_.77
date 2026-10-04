@@ -42,9 +42,7 @@ import { Platform } from 'react-native';
 import { getMyCosmetics } from '../Helper/cosmeticsCache';
 import { getCachedFollowingIds, setCachedFollowingIds } from '../Helper/followingCache';
 import { showMessage } from 'react-native-flash-message';
-// import { nativeAdPool } from '../Ads/NativeAdPool';
-import NativeAdCard from '../Ads/NativeAdCard';
-import { releaseByPrefix as releaseNativeAds } from '../Ads/NativeAdManager';
+import FeedBannerAd from '../Ads/FeedBannerAd';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
 import PostsHeader from './componenets/PostsHeader';
@@ -55,14 +53,10 @@ import { awardBadge, incrementAndCheckBadge, REACTION_BADGE_THRESHOLDS } from '.
 
 const DesignFeedScreen = ({ route }) => {
   const { selectedTheme } = route.params;
-  const { appdatabase, user, theme, firestoreDB, isBabyMod, isTrusted, isGrinder, isRaider } = useGlobalState();
+  const { appdatabase, user, theme, firestoreDB, isBabyMod, isTrusted, isGrinder, isRaider, proGranted } = useGlobalState();
   const { localState } = useLocalState();
   const isDarkMode = theme === 'dark';
   const navigation = useNavigation();
-
-  // Free all cached feed native ads when the screen unmounts so their handles
-  // aren't leaked (NativeAdManager caches one per `ad-N` slot key).
-  useEffect(() => () => { releaseNativeAds('ad-'); }, []);
 
   // Scroll-to-top. The Feed had no such control while Trades and group chat
   // both did — same kind of list, same need.
@@ -641,14 +635,10 @@ const DesignFeedScreen = ({ route }) => {
     if (initialLoading) {
       return <View style={[styles.skeletonPost, isDarkMode && { backgroundColor: '#444' }]} />;
     }
-    // if (item?.__type === 'ad') {
-    //    return <NativeFeedAd mediaHeight={220} />;
-    //  }
     if (item?.__type === 'ad') {
-      // Native ad keyed by the stable interleave id (`ad-N`). NativeAdManager
-      // caches one ad per key, so FlatList recycling reuses it (no reload /
-      // flicker / no-fill) and collapses to zero height until an ad fills.
-      return <NativeAdCard adKey={item.id} isDarkMode={isDarkMode} />;
+      // In-feed ad keyed by the stable interleave id (`ad-N`); the slot
+      // collapses to zero height until an ad fills.
+      return <FeedBannerAd adKey={item.id} isDarkMode={isDarkMode} />;
     }
 
     return (
@@ -689,9 +679,9 @@ const DesignFeedScreen = ({ route }) => {
 
   const dataToRender = initialLoading
     ? skeletonArray
-    // Interleave a native ad every AD_FREQUENCY posts for non-Pro users
+    // Interleave an in-feed ad every AD_FREQUENCY posts for non-Pro users
     // (matches adoptme). Was hardcoded `false`, so no feed ad ever rendered.
-    : interleaveAds(filteredBase, !localState?.isPro);
+    : interleaveAds(filteredBase, !(localState?.isPro || proGranted));
 
   const keyExtractor = (item, index) =>
     // initialLoading ? `skeleton-${index}` : item?.id || `post-${index}`;

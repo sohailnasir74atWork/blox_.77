@@ -46,7 +46,11 @@ export const LocalStateProvider = ({ children }) => {
     prenormalStock: safeParseJSON('prenormalStock', []),
     premirageStock: safeParseJSON('premirageStock', []),
     lastPreviousStockFetch: storage.getString('lastPreviousStockFetch') || null,
-    isAppReady: storage.getBoolean('isAppReady') ?? false,
+    // Per launch, never restored: it gates the boot splash on THIS launch's
+    // login. Read back from storage it was true from the 2nd launch on, so the
+    // splash hid before login and signed-in players saw a signed-out app.
+    // (Still written to storage; openApp.js reads that as "launched before".)
+    isAppReady: false,
     lastActivity: storage.getString('lastActivity') || null,
     // ms-epoch of the last set_last_activity() RPC send — throttles the
     // Supabase heartbeat to ~once/6h across restarts (see GlobelStats).

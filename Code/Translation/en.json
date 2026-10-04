@@ -253,7 +253,8 @@
         "alert_error": "Error",
         "alert_try_again": "An unexpected error occurred. Please try again later.",
         "password_reset_email_sent": "Password reset email sent!",
-        "error_reset_password": "Failed to send password reset email. Please try again."
+        "error_reset_password": "Failed to send password reset email. Please try again.",
+        "restoring": "Loading your account…"
     },
     "tabs": {
         "calculator": "Calculator",

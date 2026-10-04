@@ -24,6 +24,7 @@ import { useGlobalState } from '../GlobelStats';
 import { getStyles } from './settingstyle';
 import { handleGetSuggestions, handleOpenFacebook, handleOpenWebsite, handleRateApp, handleadoptme, handleShareApp, imageOptions, handleBloxFruit, handleMM2, handleRefresh, handleReport, handleOpenPrivacy, handleOpenChild } from './settinghelper';
 import EmailUpdatesRow from './EmailUpdatesRow';
+import { usePrivacyOptionsRequired, showPrivacyOptionsForm } from '../Ads/consentOptions';
 import { logoutUser } from '../Firebase/UserLogics';
 import SignInDrawer from '../Firebase/SigninDrawer';
 import { getAuth } from '@react-native-firebase/auth';
@@ -519,6 +520,7 @@ export default function SettingsScreen({ selectedTheme }) {
   const scrollViewRef = useRef(null); // ✅ Ref for ScrollView to scroll to input
 
   const { t } = useTranslation();
+  const privacyOptionsRequired = usePrivacyOptionsRequired();
   const BASE_ADOPTME_URL = 'https://bloxfruitscalc.com/wp-content/uploads/2024/09';
 
   // ✅ Fixed: 't' → 'tab', added Pressable + haptic for smooth switching
@@ -3064,6 +3066,14 @@ export default function SettingsScreen({ selectedTheme }) {
                 <Icon name="link-outline" size={18} color={'white'} style={{ backgroundColor: 'green', padding: 5, borderRadius: 5 }} />
                 <Text style={styles.optionText}>Privacy Policy</Text>
               </TouchableOpacity>
+              {privacyOptionsRequired && (
+                <TouchableOpacity style={user?.id ? styles.option : styles.optionLast} onPress={() => {
+                  showPrivacyOptionsForm(); triggerHapticFeedback('impactLight');
+                }}>
+                  <Icon name="shield-checkmark-outline" size={18} color={'white'} style={{ backgroundColor: 'green', padding: 5, borderRadius: 5 }} />
+                  <Text style={styles.optionText}>{t('settings.privacy_options', { defaultValue: 'Privacy options' })}</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity style={user?.id ? styles.option : styles.optionLast} onPress={() => {
                 handleOpenChild(); triggerHapticFeedback('impactLight');
               }}>

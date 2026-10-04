@@ -14,6 +14,15 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import SettingsScreen from './Code/SettingScreen/Setting';
 import { useGlobalState } from './Code/GlobelStats';
 import { useLocalState } from './Code/LocalGlobelStats';
+// Imported at the top on purpose: its launch clock is the cold-start ad budget.
+import AppOpenAdManager from './Code/Ads/openApp';
+
+// The splash waits for login (isAppReady) but never longer than this from JS
+// start: most logins are well under it; a slower one lets the app open and
+// the profile fill in behind it (SigninDrawer never asks a signed-in player to
+// sign in meanwhile).
+const SPLASH_LOGIN_CAP_MS = 3000;
+const JS_STARTED_AT = Date.now();
 import { AdsConsent, AdsConsentStatus } from 'react-native-google-mobile-ads';
 import { requestTrackingPermission, getTrackingStatus } from 'react-native-tracking-transparency';
 import AttPrimer from './Code/AppHelper/AttPrimer';
@@ -505,38 +514,56 @@ export default function AppWrapper() {
   const { localState, updateLocalState } = useLocalState();
   const { theme, proGranted } = useGlobalState();
 
+  // Cold-start App Open ad: decided once per launch, shown FROM the splash or
+  // not at all (budget, first-launch and 4 h rules live in Code/Ads/openApp.js,
+  // ported from mm2values). start() registers the AppState listener so the ad
+  // also shows on every genuine background→foreground return (frequency-capped,
+  // Pro-gated via MMKV, de-duped against other full-screen ads).
+  const [splashAdGateOpen, setSplashAdGateOpen] = useState(false);
+  const [splashCapReached, setSplashCapReached] = useState(false);
+  const coldStartPrepared = useRef(false);
   useEffect(() => {
-    if (localState.isAppReady) {
-      requestIdleCallback(() => {
+    if (!coldStartPrepared.current) {
+      coldStartPrepared.current = true;
+      if (localState.showOnBoardingScreen || localState.isPro) {
+        AppOpenAdManager.skipColdStart();
+      } else {
+        AppOpenAdManager.prepareColdStart();
+      }
+      AppOpenAdManager.splashGate.then(() => setSplashAdGateOpen(true));
+      // Belt and braces: whatever the ad SDK does, the splash never stays
+      // more than 6 s.
+      setTimeout(() => setSplashAdGateOpen(true), 6000);
+    }
+    if (localState.showOnBoardingScreen || localState.isPro) return undefined;
+    AppOpenAdManager.start();
+    return undefined;
+  }, [localState.showOnBoardingScreen, localState.isPro]);
+
+  useEffect(() => {
+    const id = setTimeout(() => setSplashCapReached(true),
+      Math.max(0, JS_STARTED_AT + SPLASH_LOGIN_CAP_MS - Date.now()));
+    return () => clearTimeout(id);
+  }, []);
+
+  // Hide the splash once login is done (or the cap passed) AND the cold-start
+  // ad has either opened over it or been skipped. rAF, not
+  // requestIdleCallback: an idle callback can be starved and leave the splash
+  // stuck on screen.
+  useEffect(() => {
+    if ((localState.isAppReady || splashCapReached) && splashAdGateOpen) {
+      const raf = requestAnimationFrame(() => {
         RNBootSplash.hide({ fade: true });
       });
+      return () => cancelAnimationFrame(raf);
     }
-  }, [localState.isAppReady]);
-
-  // App Open ad lifecycle. start() registers the AppState listener so the ad
-  // shows on every genuine background→foreground return (frequency-capped,
-  // Pro-gated via MMKV, de-duped against other full-screen ads), not just once
-  // per app lifetime. start() is idempotent; the manager re-checks isPro at
-  // show time so a mid-session purchase still suppresses the ad.
-  //
-  // Deferred to requestIdleCallback with a lazy require (adoptme pattern) so
-  // loading + initialising the ad manager never competes with first paint.
-  useEffect(() => {
-    if (!localState.showOnBoardingScreen && !localState.isPro) {
-      const id = requestIdleCallback(() => {
-        try {
-          const AppOpenAdManager = require('./Code/Ads/openApp').default;
-          AppOpenAdManager.start();
-        } catch (_) {}
-      });
-      return () => cancelIdleCallback(id);
-    }
-  }, [localState.showOnBoardingScreen, localState.isPro]);
+    return undefined;
+  }, [localState.isAppReady, splashCapReached, splashAdGateOpen]);
 
   // ✅ Tear down the AppState listener + warm ad on unmount.
   useEffect(() => {
     return () => {
-      try { require('./Code/Ads/openApp').default.stop(); } catch (_) {}
+      try { AppOpenAdManager.stop(); } catch (_) {}
     };
   }, []);
 

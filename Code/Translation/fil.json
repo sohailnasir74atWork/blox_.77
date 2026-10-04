@@ -253,7 +253,8 @@
         "alert_error": "Error",
         "alert_try_again": "Nagkaroon ng di-inaasahang error. Pakisubukang muli mamaya.",
         "password_reset_email_sent": "Naipadala na ang password reset email!",
-        "error_reset_password": "Hindi naipadala ang password reset email. Pakisubukang muli."
+        "error_reset_password": "Hindi naipadala ang password reset email. Pakisubukang muli.",
+        "restoring": "Nilo-load ang account mo…"
     },
     "tabs": {
         "calculator": "Kalkulador",

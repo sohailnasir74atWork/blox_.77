@@ -27,6 +27,9 @@ const config = {
   IOsOpenApp: isNoman ? 'ca-app-pub-5740215782746766/1499878996' : '',
   IOsNative: isNoman ? 'ca-app-pub-5740215782746766/8838394066' : '',
   andriodRewarded_int_ios: isNoman ? 'ca-app-pub-5740215782746766/8838394066' : '',
+  // In-feed inline banner units (Code/Ads/FeedBannerAd.jsx); null = fall back to the anchored banner unit until the dedicated AdMob units are filled in.
+  andriodFeedBanner: 'ca-app-pub-5740215782746766/9555186655', // feed_inline_banner
+  IOsFeedBanner: 'ca-app-pub-5740215782746766/2842352924', // feed_inline_banner
 
   apiKey: isNoman ? rev_cat_id : 'goog_hNbzYuzixIbRtuJzgHltVeZzYos',
 

@@ -253,7 +253,8 @@
         "alert_error": "Kesalahan",
         "alert_try_again": "Terjadi kesalahan yang tidak terduga. Silakan coba lagi nanti.",
         "password_reset_email_sent": "Email reset kata sandi sudah dikirim!",
-        "error_reset_password": "Gagal mengirim email reset kata sandi. Coba lagi ya."
+        "error_reset_password": "Gagal mengirim email reset kata sandi. Coba lagi ya.",
+        "restoring": "Memuat akunmu…"
     },
     "tabs": {
         "calculator": "Kalkulator",
