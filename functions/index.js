@@ -17,7 +17,10 @@ exports.mirrorUsersToSupabase = usersMirror.mirrorUsersToSupabase;
 // Round 2 (2026-09): users_private/{uid} email → user_identity_base. Deploy
 // EARLY, together with mirrorUsersToSupabase and supabase/029.
 exports.mirrorUsersPrivateToSupabase = usersMirror.mirrorUsersPrivateToSupabase;
-exports.mirrorChatMetaToSupabase = require('./mirrorChatMetaToSupabase').mirrorChatMetaToSupabase;
+// Retired 2026-10-05: mirrorChatMetaToSupabase. The app writes chat_meta_data
+// to Supabase via send_private_chat_meta, and the website moved to Supabase too;
+// only pre-2026-05 builds still wrote RTDB chat_meta_data, and mirroring those
+// created ghost inbox rows and overwrote unread_count / muted.
 const roleClaim = require('./setSupabaseRoleClaim');
 exports.setSupabaseRoleClaim = roleClaim.setSupabaseRoleClaim;
 exports.ensureRoleClaim = roleClaim.ensureRoleClaim;

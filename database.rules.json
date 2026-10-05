@@ -165,15 +165,15 @@
     },
     "chat_raid": {
       ".read": true,
-      ".write": true
+      ".write": false
     },
     "chat_help": {
       ".read": true,
-      ".write": true
+      ".write": false
     },
     "chat_playing": {
       ".read": true,
-      ".write": true
+      ".write": false
     },
     "reviews": {
       ".read": true,
@@ -206,7 +206,7 @@
     },
     "group_messages": {
       ".read": true,
-      ".write": true
+      ".write": false
     },
     "single_offer_wall": {
       ".read": true,
@@ -376,7 +376,7 @@
     },
     "chat_es": {
       ".read": true,
-      ".write": true
+      ".write": false
     },
     "chat_pt": {
       ".indexOn": [
@@ -384,7 +384,7 @@
         "timestamp"
       ],
       ".read": true,
-      ".write": true
+      ".write": false
     },
     "chat_fr": {
       ".indexOn": [
@@ -392,7 +392,7 @@
         "timestamp"
       ],
       ".read": true,
-      ".write": true
+      ".write": false
     },
     "chat_de": {
       ".indexOn": [
@@ -400,7 +400,7 @@
         "timestamp"
       ],
       ".read": true,
-      ".write": true
+      ".write": false
     },
     "chat_tr": {
       ".indexOn": [
@@ -408,7 +408,7 @@
         "timestamp"
       ],
       ".read": true,
-      ".write": true
+      ".write": false
     },
     "chat_ar": {
       ".indexOn": [
@@ -416,7 +416,7 @@
         "timestamp"
       ],
       ".read": true,
-      ".write": true
+      ".write": false
     },
     "chat_ph": {
       ".indexOn": [
@@ -424,7 +424,7 @@
         "timestamp"
       ],
       ".read": true,
-      ".write": true
+      ".write": false
     },
     "chat_ja": {
       ".indexOn": [
@@ -432,7 +432,7 @@
         "timestamp"
       ],
       ".read": true,
-      ".write": true
+      ".write": false
     },
     "chat_id": {
       ".indexOn": [
@@ -440,7 +440,7 @@
         "timestamp"
       ],
       ".read": true,
-      ".write": true
+      ".write": false
     },
     "chat_ko": {
       ".indexOn": [
@@ -448,7 +448,7 @@
         "timestamp"
       ],
       ".read": true,
-      ".write": true
+      ".write": false
     },
     "chat_ru": {
       ".indexOn": [
@@ -456,7 +456,7 @@
         "timestamp"
       ],
       ".read": true,
-      ".write": true
+      ".write": false
     },
     "bannedUsers": {
       ".read": true,
@@ -551,12 +551,15 @@
     },
     "private_messages": {
       ".read": true,
-      ".write": true,
       "$chatKey": {
         "messages": {
+          ".write": false,
           "$msgId": {
             ".validate": "!newData.hasChild('senderId') || (newData.child('origin').val() === 'trade' ? root.child('users').child($chatKey.replace(newData.child('senderId').val(), '').replace('_', '')).child('chatOffTrade').val() !== true : root.child('users').child($chatKey.replace(newData.child('senderId').val(), '').replace('_', '')).child('chatOffGeneral').val() !== true)"
           }
+        },
+        "$other": {
+          ".write": true
         }
       }
     },
@@ -570,98 +573,98 @@
     "chat_raid_upgrade": {
       ".read": "auth != null",
       "$message_id": {
-        ".write": "auth != null",
+        ".write": false,
         ".validate": "newData.hasChildren(['senderId', 'timestamp'])"
       }
     },
     "chat_help_upgrade": {
       ".read": "auth != null",
       "$message_id": {
-        ".write": "auth != null",
+        ".write": false,
         ".validate": "newData.hasChildren(['senderId', 'timestamp'])"
       }
     },
     "chat_playing_upgrade": {
       ".read": "auth != null",
       "$message_id": {
-        ".write": "auth != null",
+        ".write": false,
         ".validate": "newData.hasChildren(['senderId', 'timestamp'])"
       }
     },
     "chat_es_upgrade": {
       ".read": "auth != null",
       "$message_id": {
-        ".write": "auth != null",
+        ".write": false,
         ".validate": "newData.hasChildren(['senderId', 'timestamp'])"
       }
     },
     "chat_ar_upgrade": {
       ".read": "auth != null",
       "$message_id": {
-        ".write": "auth != null",
+        ".write": false,
         ".validate": "newData.hasChildren(['senderId', 'timestamp'])"
       }
     },
     "chat_pt_upgrade": {
       ".read": "auth != null",
       "$message_id": {
-        ".write": "auth != null",
+        ".write": false,
         ".validate": "newData.hasChildren(['senderId', 'timestamp'])"
       }
     },
     "chat_fr_upgrade": {
       ".read": "auth != null",
       "$message_id": {
-        ".write": "auth != null",
+        ".write": false,
         ".validate": "newData.hasChildren(['senderId', 'timestamp'])"
       }
     },
     "chat_de_upgrade": {
       ".read": "auth != null",
       "$message_id": {
-        ".write": "auth != null",
+        ".write": false,
         ".validate": "newData.hasChildren(['senderId', 'timestamp'])"
       }
     },
     "chat_tr_upgrade": {
       ".read": "auth != null",
       "$message_id": {
-        ".write": "auth != null",
+        ".write": false,
         ".validate": "newData.hasChildren(['senderId', 'timestamp'])"
       }
     },
     "chat_ru_upgrade": {
       ".read": "auth != null",
       "$message_id": {
-        ".write": "auth != null",
+        ".write": false,
         ".validate": "newData.hasChildren(['senderId', 'timestamp'])"
       }
     },
     "chat_id_upgrade": {
       ".read": "auth != null",
       "$message_id": {
-        ".write": "auth != null",
+        ".write": false,
         ".validate": "newData.hasChildren(['senderId', 'timestamp'])"
       }
     },
     "chat_ja_upgrade": {
       ".read": "auth != null",
       "$message_id": {
-        ".write": "auth != null",
+        ".write": false,
         ".validate": "newData.hasChildren(['senderId', 'timestamp'])"
       }
     },
     "chat_ko_upgrade": {
       ".read": "auth != null",
       "$message_id": {
-        ".write": "auth != null",
+        ".write": false,
         ".validate": "newData.hasChildren(['senderId', 'timestamp'])"
       }
     },
     "chat_ph_upgrade": {
       ".read": "auth != null",
       "$message_id": {
-        ".write": "auth != null",
+        ".write": false,
         ".validate": "newData.hasChildren(['senderId', 'timestamp'])"
       }
     },
