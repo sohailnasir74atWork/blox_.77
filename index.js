@@ -1,5 +1,5 @@
 import React, { lazy, Suspense } from 'react';
-import { AppRegistry, Platform, StatusBar, Text } from 'react-native';
+import { AppRegistry, Platform, StatusBar, Text, FlatList } from 'react-native';
 import { getCrashlytics, recordError, log as crashlyticsLog } from '@react-native-firebase/crashlytics';
 import AppWrapper from './App';
 import { name as appName } from './app.json';
@@ -11,6 +11,16 @@ import { getMessaging, setBackgroundMessageHandler } from '@react-native-firebas
 import { createMMKV } from 'react-native-mmkv';
 import FlashMessage from 'react-native-flash-message';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+// Android FlatLists default removeClippedSubviews to TRUE (RN's
+// removeClippedSubviewsOrDefault). On Fabric that detaches off-screen rows
+// natively, and when the window resizes — returning from a full-screen ad is
+// the common case — the re-clip races mounting. Crashlytics 4.0.12 (Sep 28 –
+// Oct 5) had ~75 users on exactly those stacks: "Unable to find viewState",
+// "getChildDrawingOrder() returned invalid index", "ScrollView … parameter must
+// be a descendant". Adopt Me sets it false list by list (45 call sites); this
+// makes false the default for all 56 lists here. An explicit prop still wins.
+FlatList.defaultProps = { ...(FlatList.defaultProps || {}), removeClippedSubviews: false };
 
 // 🚀 Lazy load Notification Handler for better startup performance
 const NotificationHandler = lazy(() => import('./Code/Firebase/FrontendNotificationHandling'));

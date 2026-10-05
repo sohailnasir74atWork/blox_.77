@@ -1,4 +1,4 @@
-import { AppState } from 'react-native';
+import { AppState, Keyboard } from 'react-native';
 import { AppOpenAd, AdEventType } from 'react-native-google-mobile-ads';
 import getAdUnitId from './ads';
 import { ensureAdsInitialized } from './init';
@@ -345,6 +345,10 @@ class AppOpenAdManager {
     try {
       // show() returns a promise; a refused present rejects it rather than
       // throwing. Only reset if this attempt is still the live one.
+      // Drop keyboard focus first: a focused TextInput that list clipping
+      // detaches while the ad covers the app crashed ScrollView.onSizeChanged
+      // on return ("parameter must be a descendant of this view").
+      Keyboard.dismiss();
       const shown = this.ad.show();
       this.isLoaded = false;
       if (shown && typeof shown.catch === 'function') {

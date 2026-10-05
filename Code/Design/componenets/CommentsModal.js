@@ -6,6 +6,7 @@ import {
   TextInput,
   TouchableOpacity,
   FlatList,
+  ActivityIndicator,
   StyleSheet,
   Image,
   Alert,
@@ -18,7 +19,8 @@ import {
   query,
   orderBy,
   limit,
-  onSnapshot,
+  startAfter,
+  getDocs,
   addDoc,
   updateDoc,
   serverTimestamp,
@@ -36,9 +38,14 @@ import RoleBadges from './RoleBadges';
 
 dayjs.extend(relativeTime);
 
+const COMMENTS_PAGE_SIZE = 15;
+
 const CommentModal = ({ visible, onClose, postId }) => {
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const lastDocRef = useRef(null);
   const inputRef = useRef(null);
   const { user, theme, firestoreDB, strikeInfo, isAdmin, isUserBlocked } = useGlobalState();
   const { localState } = useLocalState();
@@ -46,26 +53,40 @@ const CommentModal = ({ visible, onClose, postId }) => {
   const insets = useSafeAreaInsets();
   const isDarkMode = theme === 'dark';
 
-  // Load comments — only while the modal is actually open. CommentModal is
-  // rendered by every PostCard in the feed, so subscribing regardless of
-  // `visible` opened one live listener per mounted card (unbounded reads that
-  // grew as the user scrolled, for a modal usually never opened). Gate on
-  // `visible` and bound the query so at most one bounded listener exists.
+  // Load comments only while the modal is open (CommentModal is mounted by
+  // every PostCard). One page of COMMENTS_PAGE_SIZE per read instead of a live
+  // listener on 100 — same as Adopt Me; the user's own new comment is added
+  // locally, and "load more" pages on scroll.
+  const fetchPage = useCallback(async (more) => {
+    if (!postId || !firestoreDB) return;
+    if (more && (!lastDocRef.current || loadingMore)) return;
+    if (more) setLoadingMore(true);
+    try {
+      const commentsRef = collection(firestoreDB, 'designPosts_upgrade', postId, 'comments');
+      const q = more
+        ? query(commentsRef, orderBy('createdAt', 'desc'), startAfter(lastDocRef.current), limit(COMMENTS_PAGE_SIZE))
+        : query(commentsRef, orderBy('createdAt', 'desc'), limit(COMMENTS_PAGE_SIZE));
+      const snapshot = await getDocs(q);
+      const page = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      lastDocRef.current = snapshot.docs[snapshot.docs.length - 1] || lastDocRef.current;
+      setHasMore(snapshot.docs.length === COMMENTS_PAGE_SIZE);
+      setComments(prev => {
+        if (!more) return page;
+        const seen = new Set(prev.map(c => c.id));
+        return [...prev, ...page.filter(c => !seen.has(c.id))];
+      });
+    } catch (err) {
+      console.warn('[Comments] fetch error:', err?.message);
+    } finally {
+      if (more) setLoadingMore(false);
+    }
+  }, [postId, firestoreDB, loadingMore]);
+
   useEffect(() => {
     if (!visible || !postId || !firestoreDB) return;
-
-    const commentsRef = collection(firestoreDB, 'designPosts_upgrade', postId, 'comments');
-    const q = query(commentsRef, orderBy('createdAt', 'desc'), limit(100));
-
-    const unsubscribe = onSnapshot(q, snapshot => {
-      const commentsData = snapshot.docs.map(d => ({
-        id: d.id,
-        ...d.data(),
-      }));
-      setComments(commentsData);
-    });
-
-    return () => unsubscribe();
+    lastDocRef.current = null;
+    fetchPage(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, postId, firestoreDB]);
 
   const handleChatNavigation = useCallback((comment) => {
@@ -147,7 +168,9 @@ const CommentModal = ({ visible, onClose, postId }) => {
       const commentsRef = collection(firestoreDB, 'designPosts_upgrade', postId, 'comments');
       const postRef = doc(firestoreDB, 'designPosts_upgrade', postId);
 
-      await addDoc(commentsRef, comment);
+      const added = await addDoc(commentsRef, comment);
+      // No live listener any more: show the new comment straight away.
+      setComments(prev => [{ ...comment, id: added.id, createdAt: { seconds: Math.floor(Date.now() / 1000) } }, ...prev]);
       await updateDoc(postRef, {
         commentCount: increment(1),
       });
@@ -237,6 +260,9 @@ const CommentModal = ({ visible, onClose, postId }) => {
             contentContainerStyle={styles.listContent}
             ListEmptyComponent={ListEmptyComponent}
             showsVerticalScrollIndicator={false}
+            onEndReached={() => { if (hasMore) fetchPage(true); }}
+            onEndReachedThreshold={0.4}
+            ListFooterComponent={loadingMore ? <ActivityIndicator style={{ marginVertical: 12 }} /> : null}
           />
 
           {/* Input Row */}

@@ -162,7 +162,9 @@ const DesignFeedScreen = ({ route }) => {
     }
   };
 
-  const deleteUsersLatestPosts = async (userId, n = 15) => {
+  // Stable callbacks (useCallback) so memo(PostCard) can actually skip
+  // re-rendering cards when the screen re-renders — same as Adopt Me.
+  const deleteUsersLatestPosts = useCallback(async (userId, n = 15) => {
     if (!userId) throw new Error('userId is required');
 
     const q = query(
@@ -185,7 +187,7 @@ const DesignFeedScreen = ({ route }) => {
 
     await batch.commit();
     return ids;
-  };
+  }, [firestoreDB]);
   // useEffect(() => {
   //   nativeAdPool.fillIfNeeded();
   //   return () => nativeAdPool.destroyAll();
@@ -224,7 +226,7 @@ const DesignFeedScreen = ({ route }) => {
 
 
   const skeletonArray = useMemo(() => Array.from({ length: 5 }), []);
-  const handleDeletePost = async (postId) => {
+  const handleDeletePost = useCallback(async (postId) => {
     try {
       await deleteDoc(doc(firestoreDB, 'designPosts_upgrade', postId));
       setPosts(prev => prev.filter(p => p.id !== postId));
@@ -232,7 +234,7 @@ const DesignFeedScreen = ({ route }) => {
     } catch (err) {
       showMessage({ message: 'Failed to delete post', type: 'danger' });
     }
-  };
+  }, [firestoreDB]);
 
 
 
@@ -636,7 +638,7 @@ const DesignFeedScreen = ({ route }) => {
     }
   };
 
-  const renderItem = ({ item, index }) => {
+  const renderItem = useCallback(({ item, index }) => {
     if (initialLoading) {
       return <View style={[styles.skeletonPost, isDarkMode && { backgroundColor: '#444' }]} />;
     }
@@ -658,7 +660,7 @@ const DesignFeedScreen = ({ route }) => {
 
       />
     );
-  };
+  }, [initialLoading, isDarkMode, user?.id, handleReaction, localState, appdatabase, handleDeletePost, deleteUsersLatestPosts]);
 
   // const dataToRender = initialLoading
   //   ? skeletonArray
@@ -688,13 +690,13 @@ const DesignFeedScreen = ({ route }) => {
     // (matches adoptme). Was hardcoded `false`, so no feed ad ever rendered.
     : interleaveAds(filteredBase, !(localState?.isPro || proGranted));
 
-  const keyExtractor = (item, index) =>
+  const keyExtractor = useCallback((item, index) =>
     // initialLoading ? `skeleton-${index}` : item?.id || `post-${index}`;
     initialLoading
       ? `skeleton-${index}`
       : item?.__type === 'ad'
         ? item.id
-        : `${item?.id}_${index}}` || `post-${index}`;
+        : `${item?.id}_${index}}` || `post-${index}`, [initialLoading]);
 
   return (
     <View style={[styles.container, isDarkMode && styles.darkContainer]}>

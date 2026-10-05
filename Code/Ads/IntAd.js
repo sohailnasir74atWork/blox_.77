@@ -1,3 +1,4 @@
+import { Keyboard } from 'react-native';
 // InterstitialAdManager.js - single warm instance, Pro-gated, bounded retries
 import {
   InterstitialAd,
@@ -424,6 +425,10 @@ class InterstitialAdManager {
       // show() returns a promise; a refused present rejects it rather than
       // throwing, and an unhandled rejection would otherwise leave the
       // watchdog to notice 5s later.
+      // Drop keyboard focus first: a focused TextInput that list clipping
+      // detaches while the ad covers the app crashed ScrollView.onSizeChanged
+      // on return ("parameter must be a descendant of this view").
+      Keyboard.dismiss();
       const shown = ad.show();
       if (shown && typeof shown.catch === 'function') {
         shown.catch(() => finish(false));

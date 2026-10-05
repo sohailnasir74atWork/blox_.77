@@ -159,6 +159,21 @@ All of these are backward compatible: no stored data format or query index chang
 - `BannerAdComponent` ignores `collapsible` now, so the call sites are unchanged.
 - In-feed ads (`FeedBannerAd`, inline adaptive, up to 250 dp, between trades and posts) are unchanged.
 
+**Round 3 (2026-10-05, later):**
+- **Crash fixes (ad-return cluster, ~125 users a week):**
+  - `index.js` defaults `FlatList.removeClippedSubviews` to false. Android defaulted it to true, and the "Unable to find viewState", "getChildDrawingOrder invalid index" and "ScrollView parameter must be a descendant" stacks are that clipping racing a window resize when the app comes back from an ad. Adopt Me turns it off per list.
+  - Every full-screen ad (interstitial, app-open, rewarded) calls `Keyboard.dismiss()` first.
+  - Launch freezes in SoLoader: no safe app-side fix. `MainApplication` is already minimal and Adopt Me has the same pattern.
+- **Mod-action audit log:**
+  - `supabase/031_mod_actions.sql`, tested on PGlite. A NULL-returning staff check that would have let any user read the log was found and fixed; Adopt Me's live function already has that fix.
+  - Rows are written by the Cloud Functions (deployed): syncEmailBan, modSanction (incl. unban and linked alts), device evasion, and sign-up re-bans.
+  - New Admin Dashboard **Mod Log** tab (`ModLogTab.js`, `Code/Supabase/modLogBackend.js`): Recent / Moderators views, 7d / 30d, action filter.
+- **Admin Dashboard banned list:** now includes uid-only bans (phone or deleted accounts, alts). Search matches a pasted uid.
+- **Comments:** paged 15 at a time with load more, instead of a live listener on 100. The user's own new comment is added locally.
+- **Feed:** `renderItem`, `keyExtractor` and the delete handlers are `useCallback`; PostCard styles are memoised.
+- **Mystery game prompt:** opens the paywall.
+- **Supabase 030 and 031 are NOT applied.** The permission system blocked database writes from this session, so the owner runs them in the SQL editor. The Supabase backfill also needs the owner.
+
 **Build note:** the first local release build after this needs `cd android && ./gradlew clean`. Without it, stale generated PNG badges next to the new WebPs fail `packageReleaseResources` with "Duplicate resources".
 
 **Pre-existing bug, not fixed:** the Mystery Fruit game's "Go to Store" (`HomeTabScreen.jsx:618`) navigates to a `Store` route that is commented out in `App.js`, so it does nothing. It should probably open the paywall.

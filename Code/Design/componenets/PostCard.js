@@ -140,7 +140,7 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
     onReaction(item, emoji);
   }, [item, onReaction]);
 
-  const s = getStyles(isDark);
+  const s = useMemo(() => getStyles(isDark), [isDark]);
   const formattedTime = item.createdAt ? dayjs(item.createdAt.toDate()).fromNow() : 'Anonymous';
   const hasNoImages = !Array.isArray(item.imageUrl) || item.imageUrl.length === 0;
 

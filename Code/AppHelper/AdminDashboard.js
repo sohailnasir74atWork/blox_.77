@@ -74,6 +74,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
 import ReviewIntegrityTab from './ReviewIntegrityTab';
+import ModLogTab from './ModLogTab';
 import { launchImageLibrary } from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
 import { safeCompressImage } from '../Helper/safeCompressImage';
@@ -319,9 +320,15 @@ const AdminDashboard = () => {
     setLoadingBanned(true);
     try {
       const bannedRef = ref(db, 'banned_users_by_email');
-      const snapshot = await get(bannedRef);
+      // Server-side uid bans (functions/banEnforcement.js). Most mirror an
+      // email record above; the rest — phone sign-ins, deleted accounts,
+      // alts caught on a banned device — exist ONLY here.
+      const [snapshot, uidSnap] = await Promise.all([
+        get(bannedRef),
+        get(ref(db, 'banned_uids')).catch(() => null),
+      ]);
 
-      if (!snapshot.exists()) {
+      if (!snapshot.exists() && !uidSnap?.exists()) {
         setAllBannedUsers([]);
         setBanSummary({ total: 0, byMod: {} });
         return;
@@ -369,6 +376,42 @@ const AdminDashboard = () => {
         if (looksLikeUserId(rawBannedBy)) {
           idsToResolve.add(rawBannedBy);
         }
+      });
+
+      // uid-only bans: not tied to an email record, still active, not a mute.
+      const listedIds = new Set(list.map((u) => u.id).filter(Boolean));
+      const uidOnly = [];
+      uidSnap?.forEach?.((child) => {
+        const uid = child.key;
+        const entry = child.val() || {};
+        if (entry.emailKey || listedIds.has(uid)) return;
+        if ((entry.strikeCount || 0) < 1) return;
+        const until = entry.bannedUntil;
+        if (until !== 'permanent' && typeof until === 'number' && until < now) return;
+        uidOnly.push({ uid, entry });
+      });
+      const uidNames = await Promise.all(uidOnly.map(({ uid }) =>
+        get(ref(db, `users/${uid}/displayName`)).then((s2) => s2.val()).catch(() => null)
+      ));
+      uidOnly.forEach(({ uid, entry }, i) => {
+        const by = entry.bannedByUid || (entry.linkedFrom ? 'Auto (linked account)' : 'Server');
+        list.push({
+          isBanned: true,
+          email: null,
+          encodedEmail: null,
+          reason: entry.reason ?? '—',
+          strikeCount: entry.strikeCount || 0,
+          bannedUntil: entry.bannedUntil ?? null,
+          displayName: uidNames[i] || 'Deleted / no-email account',
+          avatar: null,
+          bannedBy: by,
+          bannedAt: entry.bannedAt ?? null,
+          id: uid,
+          uidOnly: true,
+        });
+        total++;
+        byModId[by] = (byModId[by] || 0) + 1;
+        if (looksLikeUserId(by)) idsToResolve.add(by);
       });
 
       // Sort by most recent first
@@ -443,7 +486,8 @@ const AdminDashboard = () => {
       list = list.filter((u) => {
         const name = (u.displayName || '').toLowerCase();
         const email = (u.email || '').toLowerCase();
-        return name.includes(q) || email.includes(q);
+        // A pasted uid finds uid-only bans (deleted / phone accounts) too.
+        return name.includes(q) || email.includes(q) || (u.id || '').toLowerCase() === q;
       });
     }
 
@@ -1583,7 +1627,7 @@ const AdminDashboard = () => {
         banInfo = cachedBan;
       } else {
         // Also check in bannedUsers list as fallback
-        const foundBan = allBannedUsers.find((b) => b.email === item.email);
+        const foundBan = allBannedUsers.find((b) => (item.email && b.email === item.email) || (item.id && b.id === item.id));
         if (foundBan) {
           isBanned = true;
           banInfo = foundBan;
@@ -1699,6 +1743,15 @@ const AdminDashboard = () => {
         >
           <Text style={[styles.tabText, activeTab === 'reviewIntegrity' && styles.activeTabText, { color: activeTab === 'reviewIntegrity' ? '#007AFF' : (isDark ? '#888' : '#666') }]}>
             Reviews
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'modLog' && styles.activeTab, { borderColor: isDark ? '#333' : '#E5E5EA' }]}
+          onPress={() => setActiveTab('modLog')}
+        >
+          <Text style={[styles.tabText, activeTab === 'modLog' && styles.activeTabText, { color: activeTab === 'modLog' ? '#007AFF' : (isDark ? '#888' : '#666') }]}>
+            Mod Log
           </Text>
         </TouchableOpacity>
       </ScrollView>
@@ -1830,7 +1883,7 @@ const AdminDashboard = () => {
           ) : (
             <FlatList
               data={filteredBannedUsers}
-              keyExtractor={(item) => item.encodedEmail}
+              keyExtractor={(item) => item.encodedEmail || `uid-${item.id}`}
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? '#FFF' : '#000'} />}
               contentContainerStyle={styles.listContent}
               renderItem={renderItem}
@@ -2449,6 +2502,8 @@ const AdminDashboard = () => {
         </View>
       ) : activeTab === 'reviewIntegrity' ? (
         <ReviewIntegrityTab isDark={isDark} currentUser={currentUser} />
+      ) : activeTab === 'modLog' ? (
+        <ModLogTab isDark={isDark} />
       ) : null}
 
       {/* Status profile drawer (admin moderation) */}

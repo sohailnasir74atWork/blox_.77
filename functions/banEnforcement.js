@@ -185,6 +185,58 @@ async function mirrorToSupabase(uid, ban) {
   }
 }
 
+// ── Audit log (supabase/031_mod_actions.sql) ──
+// Best-effort and never throws: a failed log row must not fail a ban.
+const ROLE_NAME = { [RANK.admin]: 'admin', [RANK.seniorMod]: 'senior_mod', [RANK.moderator]: 'moderator', [RANK.babyMod]: 'baby_mod' };
+
+async function actorInfo(uid) {
+  if (!uid) return { actor_uid: null, actor_name: null, actor_role: 'system' };
+  try {
+    const [rank, nameSnap] = await Promise.all([
+      getAuthUser(uid).then((u) => readRank(uid, u)),
+      db().ref(`users/${uid}/displayName`).get(),
+    ]);
+    return { actor_uid: uid, actor_name: nameSnap.val() || null, actor_role: ROLE_NAME[rank] || null };
+  } catch (_) {
+    return { actor_uid: uid, actor_name: null, actor_role: null };
+  }
+}
+
+async function logModAction(row) {
+  try {
+    const supabase = getSupabaseAdmin();
+    const { error } = await supabase.from('mod_actions').insert(row);
+    if (error) throw error;
+  } catch (e) {
+    console.warn('[banEnforcement] mod_actions log failed:', e?.message || e);
+  }
+}
+
+// Row fields describing a ban/mute payload.
+function banRowFields(ban, isMute) {
+  const permanent = ban.bannedUntil === 'permanent';
+  const until = typeof ban.bannedUntil === 'number' ? ban.bannedUntil : null;
+  return {
+    action: isMute ? 'mute' : 'strike',
+    reason: ban.reason || null,
+    strike_count: isMute ? null : (ban.strikeCount || null),
+    duration_minutes: isMute && until ? Math.max(1, Math.round((until - (ban.bannedAt || Date.now())) / 60000)) : null,
+    banned_until_ms: until,
+    is_permanent: permanent,
+  };
+}
+
+async function recentlyLoggedUnban(uid) {
+  try {
+    const since = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    const { data } = await getSupabaseAdmin().from('mod_actions').select('id')
+      .eq('target_uid', uid).eq('action', 'unban').gte('created_at', since).limit(1);
+    return Array.isArray(data) && data.length > 0;
+  } catch (_) {
+    return false;
+  }
+}
+
 // --------------------------------------------------------------------
 // Core
 // --------------------------------------------------------------------
@@ -444,6 +496,12 @@ async function handleModSanction(req, res) {
   }
 
   if (action === 'unban') {
+    // Logged before the email record goes, so syncEmailBan sees it and skips
+    // its own (actor-less) unban row.
+    await logModAction({
+      target_uid: targetUid, target_email: identity.email, target_name: (await db().ref(`users/${targetUid}/displayName`).get()).val() || null,
+      action: 'unban', ...(await actorInfo(caller.uid)), source: 'uid',
+    });
     if (identity.email) await db().ref(`banned_users_by_email/${encodeEmailKey(identity.email)}`).remove();
     const out = await liftBan(targetUid);
     return res.json({ ok: true, ...summary, ...out });
@@ -501,6 +559,14 @@ async function handleModSanction(req, res) {
   }
 
   const out = await applyBan(targetUid, ban, identity);
+  const actor = await actorInfo(caller.uid);
+  if (!identity.email) {
+    await logModAction({
+      target_uid: targetUid, target_email: null,
+      target_name: (await db().ref(`users/${targetUid}/displayName`).get()).val() || null,
+      ...banRowFields(ban, action === 'mute'), ...actor, source: 'uid',
+    });
+  }
 
   let linkedBanned = 0;
   if (body.includeLinked === true) {
@@ -515,7 +581,14 @@ async function handleModSanction(req, res) {
         linkedFrom: targetUid,
         reason: `${reason} (linked account)`,
       }, alt);
-      if (r.applied) linkedBanned += 1;
+      if (r.applied) {
+        linkedBanned += 1;
+        await logModAction({
+          target_uid: altUid, target_email: alt.email,
+          target_name: (await db().ref(`users/${altUid}/displayName`).get()).val() || null,
+          ...banRowFields(ban, action === 'mute'), reason: `${reason} (linked account)`, ...actor, source: 'linked',
+        });
+      }
     }
   }
 
@@ -550,6 +623,12 @@ exports.syncEmailBan = functions
         if (!uid) return null;
         const cur = (await db().ref(`banned_uids/${uid}/emailKey`).get()).val();
         if (cur === emailKey) await liftBan(uid);
+        if (!(await recentlyLoggedUnban(uid))) {
+          await logModAction({
+            target_uid: uid, target_email: decodeEmailKey(emailKey), target_name: before.displayName || null,
+            action: 'unban', actor_uid: null, actor_name: null, actor_role: null, source: 'app',
+          });
+        }
         return null;
       }
 
@@ -575,6 +654,12 @@ exports.syncEmailBan = functions
       // The rules let any staff member write this node; the server holds the
       // line on hierarchy before it escalates (Auth disable, device bans).
       const ban = banFromEmailRecord(emailKey, after);
+      // Mutes keep the previous strikeCount; they are told apart by reason.
+      const isMute = !after.strikeCount || /^Muted for/i.test(after.reason || '');
+      await logModAction({
+        target_uid: uid, target_email: decodeEmailKey(emailKey), target_name: after.displayName || null,
+        ...banRowFields(ban, isMute), ...(await actorInfo(ban.bannedByUid)), source: 'app',
+      });
       if (ban.bannedByUid) {
         const bannerRank = await readRank(ban.bannedByUid, await getAuthUser(ban.bannedByUid));
         const identity = await resolveIdentity(uid);
@@ -627,6 +712,12 @@ async function onDeviceSeen(uid, fp, removed) {
     source: 'device',
     linkedFrom: dev.userId,
   }, identity);
+  await logModAction({
+    target_uid: uid, target_email: identity.email,
+    target_name: (await db().ref(`users/${uid}/displayName`).get()).val() || null,
+    ...banRowFields({ ...dev, reason: `Ban evasion: same device as ${dev.userId}`, bannedAt: now }, false),
+    actor_uid: null, actor_name: null, actor_role: 'system', source: 'device',
+  });
   console.log(`[banEnforcement] ${uid} banned: device ${fp} belongs to banned ${dev.userId}`);
 }
 
@@ -697,7 +788,13 @@ exports.banCheckOnSignup = functions
       ]);
       const rec = recSnap.val();
       if (rec && isActive(rec.bannedUntil)) {
-        await applyBan(user.uid, { ...banFromEmailRecord(key, rec), linkedFrom: rec.userId !== user.uid ? rec.userId || null : null });
+        const ban = { ...banFromEmailRecord(key, rec), linkedFrom: rec.userId !== user.uid ? rec.userId || null : null };
+        await applyBan(user.uid, ban);
+        await logModAction({
+          target_uid: user.uid, target_email: email, target_name: null,
+          ...banRowFields({ ...ban, reason: `Re-registered banned email${ban.reason ? `: ${ban.reason}` : ''}` }, false),
+          actor_uid: null, actor_name: null, actor_role: 'system', source: 'email',
+        });
         return null;
       }
       const h = hashSnap.val();
@@ -710,6 +807,11 @@ exports.banCheckOnSignup = functions
           bannedByUid: null,
           source: 'email_hash',
           linkedFrom: h.userId || null,
+        });
+        await logModAction({
+          target_uid: user.uid, target_email: email, target_name: null,
+          ...banRowFields({ bannedUntil: h.bannedUntil, strikeCount: 0, reason: `Ban evasion: re-registered email of ${h.userId}` }, false),
+          actor_uid: null, actor_name: null, actor_role: 'system', source: 'email_hash',
         });
       }
     } catch (e) {
