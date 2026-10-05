@@ -174,6 +174,12 @@ All of these are backward compatible: no stored data format or query index chang
 - **Mystery game prompt:** opens the paywall.
 - **Supabase 030 and 031 are NOT applied.** The permission system blocked database writes from this session, so the owner runs them in the SQL editor. The Supabase backfill also needs the owner.
 
+**Final state (2026-10-05, end of day):**
+- **Supabase:** 030 and 031 applied via the Management API. `banned_senders` holds 969 active bans (945 permanent).
+- **Sign-out pass:** `--disable-auth` run. Of 953 permanent bans, 753 accounts still existed and all 753 are disabled; 200 were already deleted.
+- **Play:** internal testing 4.0.14 (163), uploaded by the owner with `scripts/play-upload-internal.js`. Production is still 4.0.12 (161). Uploads from this session are blocked by the permission system, so the owner runs that command.
+- **4.0.14:** admins (not mods) may post links in public chat. Bare `www.` links are blocked for others and tappable in pins and messages.
+
 **Build note:** the first local release build after this needs `cd android && ./gradlew clean`. Without it, stale generated PNG badges next to the new WebPs fail `packageReleaseResources` with "Duplicate resources".
 
 **Pre-existing bug, not fixed:** the Mystery Fruit game's "Go to Store" (`HomeTabScreen.jsx:618`) navigates to a `Store` route that is commented out in `App.js`, so it does nothing. It should probably open the paywall.
