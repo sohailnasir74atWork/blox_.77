@@ -987,7 +987,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     const MOD_MAX_CHARACTERS = 2000;
     const isStaffSender = isAdmin || isSeniorMod || isModerator;
     const MESSAGE_COOLDOWN = 10 * 1000; // ms
-    const LINK_REGEX = /(https?:\/\/[^\s]+)/i; // no "g" flag
+    const LINK_REGEX = /((?:https?:\/\/|www\.)[^\s]+)/i; // no "g" flag
     if (!user?.id || !currentUserEmail) {
       showMessage({
         message: 'You are not loggedin',
@@ -1093,9 +1093,9 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       }
     }
 
-    // Link check - disallow links for all users
+    // Link check: only admins (not mods) may post links in public chat.
     const containsLink = trimmedInput ? LINK_REGEX.test(trimmedInput) : false;
-    if (containsLink) {
+    if (containsLink && !isAdmin) {
       showMessage({ message: t('home.alert.error'), description: 'Links are not allowed in messages.', type: 'danger' });
       return false;
     }

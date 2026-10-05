@@ -19,7 +19,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ChatRulesModal from './ChatRuleModel';
 import OnlineUsersList from './OnlineUsersList';
 
-const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+// http(s):// and bare www. links
+const URL_REGEX = /((?:https?:\/\/|www\.)[^\s]+)/g;
 
 const ChatHeaderContent = ({
   selectedTheme,
@@ -47,13 +48,14 @@ const ChatHeaderContent = ({
 
     const parts = message.split(URL_REGEX);
     return parts.map((part, index) => {
-      if (part && (part.startsWith('http://') || part.startsWith('https://'))) {
+      if (part && (part.startsWith('http://') || part.startsWith('https://') || part.startsWith('www.'))) {
+        const url = part.startsWith('www.') ? `https://${part}` : part;
         return (
           <Text
             key={index}
             style={[styles.pinnedText, { textDecorationLine: 'underline', color: '#6C63FF' }]}
             onPress={() => {
-              Linking.openURL(part).catch((error) => {
+              Linking.openURL(url).catch((error) => {
                 console.error('Failed to open URL:', error);
               });
             }}

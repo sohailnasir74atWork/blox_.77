@@ -3,7 +3,8 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { Linking } from 'react-native';
 
 // ✅ Pre-compile regex patterns for better performance
-const URL_REGEX = /^https?:\/\/\S+$/;
+// http(s):// and bare www. links
+const URL_REGEX = /^(?:https?:\/\/|www\.)\S+$/;
 const MENTION_REGEX = /^@\w+/;
 
 export const parseMessageText = (text) => {
@@ -25,7 +26,7 @@ export const parseMessageText = (text) => {
           key={`link-${index}`}
           style={{ color: '#1E90FF', textDecorationLine: 'underline' }}
           onPress={() =>
-            Linking.openURL(part).catch(() =>
+            Linking.openURL(part.startsWith('www.') ? `https://${part}` : part).catch(() =>
               Alert.alert('Error', 'Unable to open the link.')
             )
           }
