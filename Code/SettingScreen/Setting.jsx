@@ -73,6 +73,27 @@ import {
 import PetModal from '../ChatScreen/PrivateChat/PetsModel';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+
+// Glossy row tiles from scripts/app-icons/make-icons.mjs (same 28 pt box the
+// padded font icons used).
+const SETTINGS_IMAGES = {
+  haptic: require('../../assets/settings-icons/haptic.png'),
+  notifications: require('../../assets/settings-icons/notifications.png'),
+  theme: require('../../assets/settings-icons/theme.png'),
+  pro: require('../../assets/settings-icons/pro.png'),
+  share: require('../../assets/settings-icons/share.png'),
+  contact: require('../../assets/settings-icons/contact.png'),
+  report: require('../../assets/settings-icons/report.png'),
+  rate: require('../../assets/settings-icons/rate.png'),
+  community: require('../../assets/settings-icons/community.png'),
+  website: require('../../assets/settings-icons/website.png'),
+  privacy: require('../../assets/settings-icons/privacy.png'),
+  privacyOptions: require('../../assets/settings-icons/privacyOptions.png'),
+  childSafety: require('../../assets/settings-icons/childSafety.png'),
+  logout: require('../../assets/settings-icons/logout.png'),
+};
+const SETTINGS_IMAGE = { width: 28, height: 28 };
+
 const BUNNY_STORAGE_HOST = 'storage.bunnycdn.com';
 const BUNNY_STORAGE_ZONE = 'post-gag';
 const BUNNY_ACCESS_KEY = '1b7e1a85-dff7-4a98-ba701fc7f9b9-6542-46e2';
@@ -2902,7 +2923,7 @@ export default function SettingsScreen({ selectedTheme }) {
               }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
                   <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Icon name="radio-outline" size={18} color={'white'} style={{ backgroundColor: '#B76E79', padding: 5, borderRadius: 5 }} />
+                    <Image source={SETTINGS_IMAGES.haptic} style={SETTINGS_IMAGE} />
                     <Text style={styles.optionText}>{t('settings.haptic_feedback')}</Text></TouchableOpacity>
                   <Switch value={localState.isHaptic} onValueChange={handleToggle} />
                 </View>
@@ -2913,7 +2934,7 @@ export default function SettingsScreen({ selectedTheme }) {
               }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
                   <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Icon name="notifications" size={18} color={'white'} style={{ backgroundColor: config.colors.hasBlockGreen, padding: 5, borderRadius: 5 }} />
+                    <Image source={SETTINGS_IMAGES.notifications} style={SETTINGS_IMAGE} />
                     <Text style={styles.optionText}>{t('settings.chat_notifications')}</Text></TouchableOpacity>
                   <Switch
                     value={isPermissionGranted}
@@ -2928,7 +2949,7 @@ export default function SettingsScreen({ selectedTheme }) {
               }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
                   <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Icon name="contrast-outline" size={18} color={'white'} style={{ backgroundColor: '#4A90E2', padding: 5, borderRadius: 5 }} />
+                    <Image source={SETTINGS_IMAGES.theme} style={SETTINGS_IMAGE} />
                     <Text style={styles.optionText}>{t('settings.theme')}</Text></TouchableOpacity>
                   <View style={styles.containertheme}>
                     {themes.map((theme, index) => (
@@ -2991,7 +3012,7 @@ export default function SettingsScreen({ selectedTheme }) {
               <TouchableOpacity style={[styles.optionLast]} onPress={() => {
                 setShowofferWall(true);
               }}>
-                <Icon name="prism-outline" size={18} color={'white'} style={{ backgroundColor: config.colors.hasBlockGreen, padding: 5, borderRadius: 5 }} />
+                <Image source={SETTINGS_IMAGES.pro} style={SETTINGS_IMAGE} />
                 <Text style={[styles.optionText, { color: 'black' }]}>
                   {t('settings.active_plan')} : {localState.isPro ? t('settings.paid') : t('settings.free')}
                 </Text>
@@ -3022,7 +3043,7 @@ export default function SettingsScreen({ selectedTheme }) {
               <TouchableOpacity style={styles.option} onPress={() => {
                 handleShareApp(); triggerHapticFeedback('impactLight');
               }}>
-                <Icon name="share-social-outline" size={18} color={'white'} style={{ backgroundColor: '#B76E79', padding: 5, borderRadius: 5 }} />
+                <Image source={SETTINGS_IMAGES.share} style={SETTINGS_IMAGE} />
                 <Text style={styles.optionText}>{t('settings.share_app')}</Text>
               </TouchableOpacity>
               {/* <TouchableOpacity style={styles.option} onPress={() => {
@@ -3034,54 +3055,54 @@ export default function SettingsScreen({ selectedTheme }) {
               <TouchableOpacity style={styles.option} onPress={() => {
                 handleGetSuggestions(user); triggerHapticFeedback('impactLight');
               }}>
-                <Icon name="mail-outline" size={18} color={'white'} style={{ backgroundColor: '#566D5D', padding: 5, borderRadius: 5 }} />
+                <Image source={SETTINGS_IMAGES.contact} style={SETTINGS_IMAGE} />
                 <Text style={styles.optionText}>Contact Us</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.option} onPress={() => {
                 handleReport(user); triggerHapticFeedback('impactLight');
               }}>
-                <Icon name="warning" size={18} color={'pink'} style={{ backgroundColor: '#566D5D', padding: 5, borderRadius: 5 }} />
+                <Image source={SETTINGS_IMAGES.report} style={SETTINGS_IMAGE} />
                 <Text style={styles.optionText}>Report Abusive Content</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.option} onPress={() => { handleRateApp(); triggerHapticFeedback('impactLight'); }
               }>
-                <Icon name="star-outline" size={18} color={'white'} style={{ backgroundColor: '#A2B38B', padding: 5, borderRadius: 5 }} />
+                <Image source={SETTINGS_IMAGES.rate} style={SETTINGS_IMAGE} />
                 <Text style={styles.optionText}>{t('settings.rate_us')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.option} onPress={() => {
                 handleOpenFacebook(); triggerHapticFeedback('impactLight');
               }}>
-                <Icon name="logo-facebook" size={18} color={'white'} style={{ backgroundColor: '#566D5D', padding: 5, borderRadius: 5 }} />
+                <Image source={SETTINGS_IMAGES.community} style={SETTINGS_IMAGE} />
                 <Text style={styles.optionText}>{t('settings.visit_facebook_group')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={user?.id ? styles.option : styles.optionLast} onPress={() => {
                 handleOpenWebsite(); triggerHapticFeedback('impactLight');
               }}>
-                <Icon name="link-outline" size={18} color={'white'} style={{ backgroundColor: '#4B4453', padding: 5, borderRadius: 5 }} />
+                <Image source={SETTINGS_IMAGES.website} style={SETTINGS_IMAGE} />
                 <Text style={styles.optionText}>{t('settings.visit_website')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={user?.id ? styles.option : styles.optionLast} onPress={() => {
                 handleOpenPrivacy(); triggerHapticFeedback('impactLight');
               }}>
-                <Icon name="link-outline" size={18} color={'white'} style={{ backgroundColor: 'green', padding: 5, borderRadius: 5 }} />
+                <Image source={SETTINGS_IMAGES.privacy} style={SETTINGS_IMAGE} />
                 <Text style={styles.optionText}>Privacy Policy</Text>
               </TouchableOpacity>
               {privacyOptionsRequired && (
                 <TouchableOpacity style={user?.id ? styles.option : styles.optionLast} onPress={() => {
                   showPrivacyOptionsForm(); triggerHapticFeedback('impactLight');
                 }}>
-                  <Icon name="shield-checkmark-outline" size={18} color={'white'} style={{ backgroundColor: 'green', padding: 5, borderRadius: 5 }} />
+                  <Image source={SETTINGS_IMAGES.privacyOptions} style={SETTINGS_IMAGE} />
                   <Text style={styles.optionText}>{t('settings.privacy_options', { defaultValue: 'Privacy options' })}</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity style={user?.id ? styles.option : styles.optionLast} onPress={() => {
                 handleOpenChild(); triggerHapticFeedback('impactLight');
               }}>
-                <Icon name="link-outline" size={18} color={'white'} style={{ backgroundColor: 'blue', padding: 5, borderRadius: 5 }} />
+                <Image source={SETTINGS_IMAGES.childSafety} style={SETTINGS_IMAGE} />
                 <Text style={styles.optionText}>Child Safety Standards</Text>
               </TouchableOpacity>
               {user?.id && <TouchableOpacity style={styles.option} onPress={handleLogout} >
-                <Icon name="person-outline" size={18} color={'white'} style={{ backgroundColor: '#4B4453', padding: 5, borderRadius: 5 }} />
+                <Image source={SETTINGS_IMAGES.logout} style={SETTINGS_IMAGE} />
                 <Text style={styles.optionTextLogout}>{t('settings.logout')}</Text>
               </TouchableOpacity>}
               {user?.id && <TouchableOpacity style={styles.optionDelete} onPress={handleDeleteUser} >

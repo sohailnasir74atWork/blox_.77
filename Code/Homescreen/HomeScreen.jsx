@@ -9,7 +9,6 @@ import config from '../Helper/Environment';
 import ConditionalKeyboardWrapper from '../Helper/keyboardAvoidingContainer';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { getDatabase, ref, get, update } from '@react-native-firebase/database';
-import { useFocusEffect } from '@react-navigation/native';
 import { useLocalState } from '../LocalGlobelStats';
 import SignInDrawer from '../Firebase/SigninDrawer';
 import { useTranslation } from 'react-i18next';
@@ -34,6 +33,13 @@ const HomeScreen = ({ selectedTheme }) => {
   const [selectedSection, setSelectedSection] = useState(null);
   const [pickerTab, setPickerTab] = useState('all'); // 'all' | 'mine' — item picker source
   const [searchText, setSearchText] = useState('');
+  // Filtering waits for a pause in typing; clearing applies at once.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    if (!searchText) { setDebouncedSearch(''); return undefined; }
+    const id = setTimeout(() => setDebouncedSearch(searchText), 250);
+    return () => clearTimeout(id);
+  }, [searchText]);
   const [hasTotal, setHasTotal] = useState({ price: 0, value: 0 });
   const [wantsTotal, setWantsTotal] = useState({ price: 0, value: 0 });
   const [showTradeCompletion, setShowTradeCompletion] = useState(false);
@@ -463,6 +469,29 @@ const HomeScreen = ({ selectedTheme }) => {
     return transformedData;
   };
 
+  // localState.data is the catalogue as a JSON string (~33 KB). Parse it once
+  // per change and index it by lowercase name — the picker used to parse it
+  // again for every cell on every render.
+  const parsedCatalog = useMemo(() => {
+    if (!localState.data) return null;
+    if (typeof localState.data !== 'string') return localState.data;
+    try {
+      return JSON.parse(localState.data);
+    } catch (error) {
+      console.error("Error parsing data:", error);
+      return null;
+    }
+  }, [localState.data]);
+
+  const catalogByName = useMemo(() => {
+    const map = new Map();
+    const list = Array.isArray(parsedCatalog) ? parsedCatalog : Object.values(parsedCatalog || {});
+    for (const entry of list) {
+      if (entry?.name) map.set(String(entry.name).toLowerCase(), entry);
+    }
+    return map;
+  }, [parsedCatalog]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -470,11 +499,7 @@ const HomeScreen = ({ selectedTheme }) => {
       if (!localState.data) return;
 
       try {
-        let parsedData = localState.data;
-
-        if (typeof localState.data === 'string') {
-          parsedData = JSON.parse(localState.data);
-        }
+        const parsedData = parsedCatalog;
 
         if (parsedData && typeof parsedData === 'object' && Object.keys(parsedData).length > 0) {
           const formattedData = adjustedData(Object.values(parsedData));
@@ -499,7 +524,7 @@ const HomeScreen = ({ selectedTheme }) => {
     return () => {
       isMounted = false;
     };
-  }, [localState.data]);
+  }, [localState.data, parsedCatalog]);
 
   const openDrawer = (section) => {
     triggerHapticFeedback('impactLight');
@@ -561,32 +586,12 @@ const HomeScreen = ({ selectedTheme }) => {
       return;
     }
 
-    // Parse localState.data if it's a string
-    let parsedData = localState.data;
-    if (typeof localState.data === 'string') {
-      try {
-        parsedData = JSON.parse(localState.data);
-      } catch (error) {
-        console.error('Error parsing localState.data:', error);
-        setDemandData({});
-        return;
-      }
-    }
-
-    // Convert parsedData to array if it's an object
-    const dataArray = Array.isArray(parsedData) ? parsedData : Object.values(parsedData || {});
-
     const demandMap = {};
 
     allItems.forEach((item) => {
       if (!item?.Name) return;
 
-      // Find the original item from data by matching name
-      const originalItem = dataArray.find(
-        (dataItem) =>
-          dataItem?.name &&
-          dataItem.name.toLowerCase() === item.Name.toLowerCase()
-      );
+      const originalItem = catalogByName.get(item.Name.toLowerCase());
 
       if (originalItem) {
         // Get demand from original item
@@ -604,18 +609,13 @@ const HomeScreen = ({ selectedTheme }) => {
     });
 
     setDemandData(demandMap);
-  }, [hasItems, wantsItems, localState.data]);
+  }, [hasItems, wantsItems, localState.data, catalogByName]);
 
-  // ✅ Fetch demand when items change or screen is focused
+  // ✅ Recompute demand when items or the catalogue change. (A focus effect
+  // used to run it again on every focus — the deps already cover changes.)
   useEffect(() => {
     fetchDemandForItems();
   }, [fetchDemandForItems]);
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchDemandForItems();
-    }, [fetchDemandForItems])
-  );
 
   // ✅ Calculate aggregate demand as average (not sum) - keeps it in "X/10" format
   const aggregateDemand = useMemo(() => {
@@ -733,9 +733,10 @@ const HomeScreen = ({ selectedTheme }) => {
   };
 
 
-  const filteredData = fruitRecords.filter((item) =>
-    item.Name.toLowerCase().includes(searchText.toLowerCase())
-  );
+  const filteredData = useMemo(() => {
+    const q = debouncedSearch.toLowerCase();
+    return q ? fruitRecords.filter((item) => item.Name.toLowerCase().includes(q)) : fruitRecords;
+  }, [fruitRecords, debouncedSearch]);
 
   // ── "My Items" picker tab ──
   // Re-price the user's saved inventory (localState.ownedFruits, shape
@@ -766,9 +767,10 @@ const HomeScreen = ({ selectedTheme }) => {
       .filter((it) => it && it.Name);
   }, [localState.ownedFruits, fruitRecords]);
 
-  const filteredOwnedData = ownedPickerItems.filter((item) =>
-    item.Name.toLowerCase().includes(searchText.toLowerCase())
-  );
+  const filteredOwnedData = useMemo(() => {
+    const q = debouncedSearch.toLowerCase();
+    return q ? ownedPickerItems.filter((item) => item.Name.toLowerCase().includes(q)) : ownedPickerItems;
+  }, [ownedPickerItems, debouncedSearch]);
 
   // Open the picker on the "My Items" tab when the user has an inventory,
   // otherwise fall back to "All".
@@ -798,29 +800,11 @@ const HomeScreen = ({ selectedTheme }) => {
 
   // ── Shared item-picker renderers (used by both layout variants) ──
   const getDemandString = (item) => {
-    let demandString = '0/10';
-    if (localState.data) {
-      try {
-        let parsedData = localState.data;
-        if (typeof localState.data === 'string') {
-          parsedData = JSON.parse(localState.data);
-        }
-        const dataArray = Array.isArray(parsedData) ? parsedData : Object.values(parsedData || {});
-        const originalItem = dataArray.find(
-          (dataItem) =>
-            dataItem?.name &&
-            dataItem.name.toLowerCase() === item.Name.toLowerCase()
-        );
-        if (originalItem) {
-          demandString = item.Type === 'p'
-            ? (originalItem.permDemand || '0/10')
-            : (originalItem.demand || '0/10');
-        }
-      } catch (error) {
-        // Silently fail, use default
-      }
-    }
-    return demandString;
+    const originalItem = item?.Name ? catalogByName.get(item.Name.toLowerCase()) : null;
+    if (!originalItem) return '0/10';
+    return item.Type === 'p'
+      ? (originalItem.permDemand || '0/10')
+      : (originalItem.demand || '0/10');
   };
 
   const renderPickerCell = (item, variant) => {
@@ -889,8 +873,8 @@ const HomeScreen = ({ selectedTheme }) => {
     <>
       {renderPickerTabs()}
       <FlatList
-        onScroll={() => Keyboard.dismiss()}
-        onTouchStart={() => Keyboard.dismiss()}
+        onScrollBeginDrag={Keyboard.dismiss}
+        onTouchStart={Keyboard.dismiss}
         keyboardShouldPersistTaps="handled"
         data={pickerTab === 'mine' ? filteredOwnedData : filteredData}
         keyExtractor={(item, index) => `${item.Name}-${item.Type}-${index}`}

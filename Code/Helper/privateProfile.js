@@ -10,7 +10,8 @@
 //     record, which is what moderation needs,
 //   - nobody else can read it.
 // Bans stay keyed by email (banned_users_by_email/{encoded}); only the place
-// staff look the email up changed. Supabase mirrors this node into
+// staff look the email up changed. The device fingerprint lives here too
+// (deviceId) — on users/{uid} anyone could read it and copy a victim's. Supabase mirrors this node into
 // user_identity_base and masks it for non-staff (supabase/029).
 //
 // Legacy: until scripts/migrate-user-pii.js has run, most emails are still on
@@ -28,6 +29,7 @@ try {
 } catch (_) {}
 
 const savedKey = (uid) => `email:${uid}`;
+const deviceKey = (uid) => `device:${uid}`;
 
 // 'a(dot)b@x,com' / 'A.B@X.COM' → 'a.b@x.com'. RTDB keys can't hold '.', so the
 // ban list encodes it as '(dot)' and the website stored ','; users_private
@@ -111,6 +113,23 @@ export const saveOwnEmailOnce = async (db, uid, authEmail, { force = false } = {
   try {
     await saveOwnPrivateProfile(db, uid, { email });
     try { storage?.set(savedKey(uid), email); } catch (_) {}
+    return true;
+  } catch (_) {
+    return false;
+  }
+};
+
+// Sign-in hook: record this device's fingerprint on users_private/{uid}. The
+// server indexes it (functions/banEnforcement.js) to find alt accounts and to
+// carry bans across them. Once per install per account; never throws.
+export const saveOwnDeviceIdOnce = async (db, uid, deviceId) => {
+  if (!db || !uid || typeof deviceId !== 'string' || !deviceId) return false;
+  try {
+    if (storage?.getString(deviceKey(uid)) === deviceId) return true;
+  } catch (_) {}
+  try {
+    await update(ref(db, `users_private/${uid}`), { deviceId });
+    try { storage?.set(deviceKey(uid), deviceId); } catch (_) {}
     return true;
   } catch (_) {
     return false;

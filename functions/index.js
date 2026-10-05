@@ -73,3 +73,12 @@ exports.expireFeaturedTrades = require('./expireFeaturedTrades').expireFeaturedT
 // Group → privatizeUserPII-email, -decodedEmail, -postEmail. Deploy at CUTOVER:
 //   firebase deploy --only functions:privatizeUserPII --project fruiteblocks
 exports.privatizeUserPII = require('./privatizeUserPII').privatizeUserPII;
+// Server-side ban enforcement: ban by uid, device index, ban evasion,
+// deleted-account tombstones, Supabase sender bans. See banEnforcement.js.
+const bans = require('./banEnforcement');
+exports.modSanction = bans.modSanction;
+exports.syncEmailBan = bans.syncEmailBan;
+exports.indexDeviceAccount = bans.indexDeviceAccount;
+exports.indexLegacyDeviceAccount = bans.indexLegacyDeviceAccount;
+exports.banCheckOnSignup = bans.banCheckOnSignup;
+exports.tombstoneDeletedAccount = bans.tombstoneDeletedAccount;

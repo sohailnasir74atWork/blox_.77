@@ -14,11 +14,9 @@
 		183698FB2E30F9D800F44101 /* StoreKitTestCertificate.cer in Resources */ = {isa = PBXBuildFile; fileRef = 183698FA2E30F9D800F44101 /* StoreKitTestCertificate.cer */; };
 		187146CE2D5CB1B5003890D6 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 187146CD2D5CB1B5003890D6 /* GoogleService-Info.plist */; };
 		3CB3B02363450A64CDC9063D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
-		3DD773292011487396EB3CB0 /* Lato-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7C9634A738C64C4B9FFE6234 /* Lato-Regular.ttf */; };
 		56F857E2D0424B5587F79BC7 /* Colors.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 67352802B153454498C63C76 /* Colors.xcassets */; };
 		5C7C8FBEAF374C9EB6612D28 /* BootSplash.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 949F58CEACFD42A38F36032E /* BootSplash.storyboard */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
-		AE30EFB988CB49C7A0CA6153 /* Lato-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7F5A461FA3FD426E82335FB7 /* Lato-Bold.ttf */; };
 		FAAE37C2A8447F8ACCE2E07F /* Pods_bloxfruitevalues.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 54B080BD993F5B9719276A42 /* Pods_bloxfruitevalues.framework */; };
 /* End PBXBuildFile section */
 
@@ -37,8 +35,6 @@
 		54B080BD993F5B9719276A42 /* Pods_bloxfruitevalues.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_bloxfruitevalues.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		57EF4E73A3062E105568EAC7 /* Pods-bloxfruitevalues.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-bloxfruitevalues.debug.xcconfig"; path = "Target Support Files/Pods-bloxfruitevalues/Pods-bloxfruitevalues.debug.xcconfig"; sourceTree = "<group>"; };
 		67352802B153454498C63C76 /* Colors.xcassets */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = folder.assetcatalog; name = Colors.xcassets; path = bloxfruitevalues/Colors.xcassets; sourceTree = "<group>"; };
-		7C9634A738C64C4B9FFE6234 /* Lato-Regular.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = "Lato-Regular.ttf"; path = "../assets/fonts/Lato-Regular.ttf"; sourceTree = "<group>"; };
-		7F5A461FA3FD426E82335FB7 /* Lato-Bold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = "Lato-Bold.ttf"; path = "../assets/fonts/Lato-Bold.ttf"; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = bloxfruitevalues/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		949F58CEACFD42A38F36032E /* BootSplash.storyboard */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = BootSplash.storyboard; path = bloxfruitevalues/BootSplash.storyboard; sourceTree = "<group>"; };
 		AC9990661ECB8CA4572B6D82 /* Pods-bloxfruitevalues.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-bloxfruitevalues.release.xcconfig"; path = "Target Support Files/Pods-bloxfruitevalues/Pods-bloxfruitevalues.release.xcconfig"; sourceTree = "<group>"; };
@@ -120,8 +116,6 @@
 		89ABF74D09F84FF4971CF774 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				7F5A461FA3FD426E82335FB7 /* Lato-Bold.ttf */,
-				7C9634A738C64C4B9FFE6234 /* Lato-Regular.ttf */,
 			);
 			name = Resources;
 			sourceTree = "<group>";
@@ -201,10 +195,8 @@
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3CB3B02363450A64CDC9063D /* PrivacyInfo.xcprivacy in Resources */,
-				AE30EFB988CB49C7A0CA6153 /* Lato-Bold.ttf in Resources */,
 				183231FB2D66329F00278B1F /* testing.storekit in Resources */,
 				183698FB2E30F9D800F44101 /* StoreKitTestCertificate.cer in Resources */,
-				3DD773292011487396EB3CB0 /* Lato-Regular.ttf in Resources */,
 				187146CE2D5CB1B5003890D6 /* GoogleService-Info.plist in Resources */,
 				5C7C8FBEAF374C9EB6612D28 /* BootSplash.storyboard in Resources */,
 				56F857E2D0424B5587F79BC7 /* Colors.xcassets in Resources */,

@@ -40,8 +40,12 @@ const toMillis = (v) => (v && typeof v.toMillis === 'function' ? v.toMillis() : 
 
 async function getDeviceId(uid) {
   try {
-    const snap = await admin.database().ref(`users/${uid}/deviceId`).once('value');
-    const v = snap.val();
+    // users_private since the ban-enforcement change; users/{uid} for old builds.
+    const [priv, legacy] = await Promise.all([
+      admin.database().ref(`users_private/${uid}/deviceId`).once('value'),
+      admin.database().ref(`users/${uid}/deviceId`).once('value'),
+    ]);
+    const v = priv.val() || legacy.val();
     return typeof v === 'string' && v ? v : null;
   } catch (_) {
     return null;

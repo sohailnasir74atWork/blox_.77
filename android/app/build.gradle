@@ -8,7 +8,21 @@ apply plugin: "com.facebook.react"
 // method firebaseCrashlytics() ... on BuildType$AgpDecorated_Decorated".
 apply plugin: 'com.google.gms.google-services'
 apply plugin: 'com.google.firebase.crashlytics'
+// Ship only the icon fonts the app renders (react-native-vector-icons copies
+// all 19 by default). FontAwesome6 needs Regular AND Solid: icons without the
+// `solid` prop that Regular lacks fall back to Solid. Importing another family
+// (e.g. MaterialIcons) means adding its .ttf here, or it renders as blanks.
+project.ext.vectoricons = [
+    iconFontNames: [ "Ionicons.ttf", "FontAwesome.ttf", "FontAwesome6_Regular.ttf", "FontAwesome6_Solid.ttf" ]
+]
 apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")
+// fonts.gradle copies into build/intermediates without clearing it first, so
+// fonts dropped from iconFontNames would keep shipping from earlier builds.
+afterEvaluate {
+    tasks.findByName("copyReactNativeVectorIconFonts")?.doFirst {
+        delete "$buildDir/intermediates/ReactNativeVectorIcons/fonts"
+    }
+}
 
 react { autolinkLibrariesWithApp() }
 
@@ -90,6 +104,15 @@ android {
 
 // ---- Fix the WorkManager version clash ----
 
+
+// ── Drop RevenueCat's Amazon Appstore module ─────────────────────────────────
+// The app is only sold on Google Play and the App Store (the RevenueCat
+// project has no Amazon app, and nothing sets useAmazon), so the Amazon IAP
+// SDK it pulls in (~400 com.amazon.* classes) is dead weight. Same exclusion as
+// adoptme-jan7. If the app ever ships to the Amazon Appstore, delete this block.
+configurations.configureEach {
+    exclude group: 'com.revenuecat.purchases', module: 'purchases-store-amazon'
+}
 
 dependencies {
   implementation("com.facebook.react:react-android")

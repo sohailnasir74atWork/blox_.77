@@ -118,15 +118,20 @@ const callerRolesFromBanner = (bannerInfo) => ({
 const database = getDatabase();
 const usersRef = ref(database, 'users'); // Base reference to the "users" node
 
-// Looks up the deviceId stamped on a user record by GlobelStats on auth.
-// Returns null if the user has no deviceId yet (older client / never signed in
-// since the device-ban feature shipped).
+// Looks up the deviceId GlobelStats stamps on auth: users_private/{uid}
+// (staff-readable) on current builds, users/{uid} on older ones until the
+// server moves it. Returns null if the user has no deviceId yet. The server
+// (functions/banEnforcement.js) also bans every device in its own index, so
+// this client-side mirror is a fast path, not the only one.
 const getUserDeviceId = async (userId) => {
   if (!userId) return null;
   try {
     const db = getDatabase();
-    const snap = await get(ref(db, `users/${userId}/deviceId`));
-    const v = snap.val();
+    const [privSnap, legacySnap] = await Promise.all([
+      get(ref(db, `users_private/${userId}/deviceId`)).catch(() => null),
+      get(ref(db, `users/${userId}/deviceId`)).catch(() => null),
+    ]);
+    const v = privSnap?.val() || legacySnap?.val();
     return typeof v === 'string' && v.length > 0 ? v : null;
   } catch (_) {
     return null;

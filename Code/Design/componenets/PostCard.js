@@ -17,6 +17,9 @@ import { banUserwithEmail as banUserwithEmailUtils } from '../../ChatScreen/util
 import { isUserOnline } from '../../ChatScreen/utils';
 import RoleBadges from './RoleBadges';
 import FramedAvatar from '../../ChatScreen/GroupChat/FramedAvatar';
+import { canSaveToGallery, saveImagesToGallery } from '../../Helper/saveImageToGallery';
+import { showErrorMessage, showSuccessMessage } from '../../Helper/MessageHelper';
+import { trackGrowthEvent } from '../../Helper/growthAnalytics';
 
 const REACTION_EMOJIS = ['❤️', '🔥', '😍', '💀', '🎯'];
 
@@ -141,6 +144,27 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
   const formattedTime = item.createdAt ? dayjs(item.createdAt.toDate()).fromNow() : 'Anonymous';
   const hasNoImages = !Array.isArray(item.imageUrl) || item.imageUrl.length === 0;
 
+  const [savingImages, setSavingImages] = useState(false);
+  const handleSaveImages = useCallback(async () => {
+    if (hasNoImages || savingImages) return;
+    setSavingImages(true);
+    try {
+      if (!(await canSaveToGallery())) {
+        showErrorMessage('Error', 'Allow storage access to save images.');
+        return;
+      }
+      const saved = await saveImagesToGallery(item.imageUrl);
+      if (saved > 0) {
+        trackGrowthEvent('feed_image_save', { source: 'post_menu', count: saved });
+        showSuccessMessage('Saved', saved > 1 ? `${saved} images saved to your gallery.` : 'Image saved to your gallery.');
+      } else {
+        showErrorMessage('Error', 'Could not save the image. Try again.');
+      }
+    } finally {
+      setSavingImages(false);
+    }
+  }, [hasNoImages, savingImages, item.imageUrl]);
+
   return (
     <View style={s.card}>
 
@@ -188,6 +212,16 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
             </View>
           </MenuTrigger>
           <MenuOptions customStyles={{ optionsContainer: { borderRadius: 14, overflow: 'hidden', backgroundColor: isDark ? '#1e293b' : '#fff', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12, elevation: 8, minWidth: 160 } }}>
+            {!hasNoImages && (
+              <MenuOption onSelect={handleSaveImages} disabled={savingImages}>
+                <View style={[s.menuItem, { borderBottomWidth: 1, borderBottomColor: isDark ? '#334155' : '#f1f5f9' }]}>
+                  <FontAwesome6 name="download" size={12} color={config.colors.primary} solid />
+                  <Text style={[s.menuItemText, { color: isDark ? '#e2e8f0' : '#0f172a' }]}>
+                    {item.imageUrl.length > 1 ? 'Save all images' : 'Save image'}
+                  </Text>
+                </View>
+              </MenuOption>
+            )}
             <MenuOption onSelect={() => setShowReportModal(true)}>
               <View style={s.menuItem}>
                 <FontAwesome6 name="flag" size={12} color="#F59E0B" solid />

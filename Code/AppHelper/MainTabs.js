@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useEffect } from 'react';
-import { TouchableOpacity, View, Text } from 'react-native';
+import { TouchableOpacity, View, Text, Image } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import HomeScreen from '../Homescreen/HomeScreen';
 import HomeTabScreen from '../HomeTab/HomeTabScreen';
@@ -35,7 +35,30 @@ const tabScreenListeners = ({ navigation, route }) => ({
 });
 const Tab = createBottomTabNavigator();
 
-const AnimatedTabIcon = React.memo(({ iconName, color, size, focused }) => {
+// Glossy tab images from scripts/app-icons/make-icons.mjs: colour when
+// selected, soft grey otherwise. Routes without an image keep the font icon.
+const TAB_IMAGES = {
+  HomeTab: [require('../../assets/tab-icons/home.png'), require('../../assets/tab-icons/home-off.png')],
+  Calculator: [require('../../assets/tab-icons/calculator.png'), require('../../assets/tab-icons/calculator-off.png')],
+  Stock: [require('../../assets/tab-icons/stock.png'), require('../../assets/tab-icons/stock-off.png')],
+  Trade: [require('../../assets/tab-icons/trade.png'), require('../../assets/tab-icons/trade-off.png')],
+  Designs: [require('../../assets/tab-icons/feed.png'), require('../../assets/tab-icons/feed-off.png')],
+  Chat: [require('../../assets/tab-icons/chat.png'), require('../../assets/tab-icons/chat-off.png')],
+};
+const TAB_IMAGE_STYLE = { width: 24, height: 24 };
+const TAB_IMAGE_STYLE_FOCUSED = { width: 24, height: 24, transform: [{ scale: 1.08 }] };
+
+const AnimatedTabIcon = React.memo(({ routeName, iconName, color, size, focused }) => {
+  const images = TAB_IMAGES[routeName];
+  if (images) {
+    return (
+      <Image
+        source={focused ? images[0] : images[1]}
+        style={focused ? TAB_IMAGE_STYLE_FOCUSED : TAB_IMAGE_STYLE}
+        resizeMode="contain"
+      />
+    );
+  }
   return (
     <FontAwesome
       name={iconName}
@@ -118,6 +141,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
     tabBarIcon: ({ focused, color, size }) => (
       <AnimatedTabIcon
         focused={focused}
+        routeName={route.name}
         iconName={getTabIcon(route.name)}
         color={focused ? config.colors.secondary : selectedTheme.colors.text}
         size={14}

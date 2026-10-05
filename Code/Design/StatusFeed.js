@@ -43,7 +43,6 @@ import SwipeableBottomDrawer from '../Helper/SwipeableBottomDrawer';
 import { useLocalState } from '../LocalGlobelStats';
 import { useGlobalState } from '../GlobelStats';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
-import { checkBanStatus } from '../ChatScreen/utils';
 import { clearFollowingCache } from '../Helper/followingCache';
 
 
@@ -240,7 +239,7 @@ const deserializeStatus = (s) => ({
 const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignIn }) => {
   const { t } = useTranslation();
   const navigation = useNavigation();
-  const { isAdmin, currentUserEmail } = useGlobalState();
+  const { isAdmin, currentUserEmail, isUserBlocked, strikeInfo, deviceBanInfo } = useGlobalState();
   const isAdminOrMod = isAdmin || !!user?.isModerator;
   const insets = useSafeAreaInsets();
   const [statuses, setStatuses] = useState(() => {
@@ -622,9 +621,18 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
       Alert.alert('Missing Email', 'Could not detect your account email. Please re-login.');
       return;
     }
-    const banStatus = await checkBanStatus(currentUserEmail);
-    if (banStatus.isBanned) {
-      Alert.alert('Banned', banStatus.message);
+    // Global ban gate: email, device and uid bans.
+    if (isUserBlocked) {
+      const info = strikeInfo || deviceBanInfo;
+      const until = info?.bannedUntil;
+      Alert.alert(
+        'Banned',
+        until === 'permanent'
+          ? 'You are permanently banned from posting.'
+          : typeof until === 'number'
+            ? `You are banned from posting for ${Math.max(1, Math.ceil((until - Date.now()) / 60000))} more minute(s).`
+            : 'You are banned from posting right now.'
+      );
       return;
     }
 
@@ -737,7 +745,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
         }, 400);
       });
     }
-  }, [user, firestoreDB, appdatabase, caption, selectedImage, uploadToBunny, localState.isPro, isPollMode, pollOptions, selectedThemeId, currentUserEmail]);
+  }, [user, firestoreDB, appdatabase, caption, selectedImage, uploadToBunny, localState.isPro, isPollMode, pollOptions, selectedThemeId, currentUserEmail, isUserBlocked, strikeInfo, deviceBanInfo]);
 
   // ── Delete status ──
   const handleDeleteStatus = useCallback(async (statusId) => {

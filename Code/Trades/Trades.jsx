@@ -30,7 +30,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { useGlobalState } from '../GlobelStats';
 import config from '../Helper/Environment';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import ReportTradePopup from './ReportTradePopUp';
 import SignInDrawer from '../Firebase/SigninDrawer';
 import { useLocalState } from '../LocalGlobelStats';
@@ -51,7 +51,6 @@ import { saveTrade, unsaveTrade, fetchSavedTradeRefs } from './tradeHelpers';
 import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
 import { getCachedProfile, warmProfileCache } from '../Helper/profileCache';
 import { getCachedFollowingIds, setCachedFollowingIds } from '../Helper/followingCache';
-import { ref as dbRef, onValue } from '@react-native-firebase/database';
 import {
   collection,
   deleteDoc,
@@ -84,6 +83,23 @@ const iconMap = {
 };
 
 
+
+// The main feed and search only show trades from the last 7 days, like
+// Adopt Me: old trades are dead, and the bound caps how deep paging reads.
+// Served by the existing (isFeatured, [status,] timestamp DESC) and
+// (has|wantsItemNames, timestamp DESC) indexes. Featured trades and
+// "My trades" are not age-limited.
+const TRADE_FEED_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const feedCutoff = () => Timestamp.fromMillis(Date.now() - TRADE_FEED_MAX_AGE_MS);
+
+// Header filter images (scripts/app-icons/make-icons.mjs): [active, inactive].
+const TRADE_HEADER_IMAGES = {
+  mytrades: [require('../../assets/trade-icons/mytrades.png'), require('../../assets/trade-icons/mytrades-off.png')],
+  following: [require('../../assets/trade-icons/following.png'), require('../../assets/trade-icons/following-off.png')],
+  saved: [require('../../assets/trade-icons/saved.png'), require('../../assets/trade-icons/saved-off.png')],
+  notifier: [require('../../assets/trade-icons/notifier.png')],
+};
+const TRADE_HEADER_IMAGE = { width: 16, height: 16 };
 
 const TradeList = ({ route }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -197,12 +213,12 @@ const TradeList = ({ route }) => {
               paddingHorizontal: 8,
               paddingVertical: 4,
               borderRadius: 12,
-              backgroundColor: isMyTradesActive ? primary : 'transparent',
+              backgroundColor: isMyTradesActive ? primary + '26' : 'transparent',
               borderWidth: 1,
               borderColor: isMyTradesActive ? primary : headerTint + '55',
             }}
           >
-            <Icon name={isMyTradesActive ? 'person' : 'person-outline'} size={14} color={isMyTradesActive ? '#fff' : headerTint} />
+            <Image source={isMyTradesActive ? TRADE_HEADER_IMAGES.mytrades[0] : TRADE_HEADER_IMAGES.mytrades[1]} style={TRADE_HEADER_IMAGE} resizeMode="contain" />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -214,12 +230,12 @@ const TradeList = ({ route }) => {
               paddingHorizontal: 8,
               paddingVertical: 4,
               borderRadius: 12,
-              backgroundColor: isFollowingActive ? '#8b5cf6' : 'transparent',
+              backgroundColor: isFollowingActive ? '#8b5cf626' : 'transparent',
               borderWidth: 1,
               borderColor: isFollowingActive ? '#8b5cf6' : headerTint + '55',
             }}
           >
-            <Icon name={isFollowingActive ? 'people' : 'people-outline'} size={14} color={isFollowingActive ? '#fff' : headerTint} />
+            <Image source={isFollowingActive ? TRADE_HEADER_IMAGES.following[0] : TRADE_HEADER_IMAGES.following[1]} style={TRADE_HEADER_IMAGE} resizeMode="contain" />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -231,16 +247,16 @@ const TradeList = ({ route }) => {
               paddingHorizontal: 8,
               paddingVertical: 4,
               borderRadius: 12,
-              backgroundColor: isSavedActive ? '#F59E0B' : 'transparent',
+              backgroundColor: isSavedActive ? '#F59E0B26' : 'transparent',
               borderWidth: 1,
               borderColor: isSavedActive ? '#F59E0B' : headerTint + '55',
             }}
           >
-            <Icon name={isSavedActive ? 'bookmark' : 'bookmark-outline'} size={14} color={isSavedActive ? '#fff' : headerTint} />
+            <Image source={isSavedActive ? TRADE_HEADER_IMAGES.saved[0] : TRADE_HEADER_IMAGES.saved[1]} style={TRADE_HEADER_IMAGE} resizeMode="contain" />
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => navigation.navigate('Trade Notifier')} activeOpacity={0.8} style={{ padding: 4 }}>
-            <Icon name="notifications-outline" size={22} color={headerTint} />
+            <Image source={TRADE_HEADER_IMAGES.notifier[0]} style={{ width: 22, height: 22 }} resizeMode="contain" />
           </TouchableOpacity>
         </View>
       ),
@@ -358,15 +374,19 @@ const TradeList = ({ route }) => {
     })();
   }, [user?.id, firestoreDB]);
 
-  // Real-time listener for saved/accepted trade refs — stays in sync across screens
-  useEffect(() => {
-    if (!user?.id || !appdatabase) return;
-    const savedRef = dbRef(appdatabase, `savedTrades/${user.id}`);
-    const unsubscribe = onValue(savedRef, (snapshot) => {
-      setSavedTradeRefs(snapshot.exists() ? snapshot.val() : {});
-    });
-    return () => unsubscribe();
-  }, [user?.id, appdatabase]);
+  // Saved/accepted trade refs: one read per focus instead of a listener held
+  // open for the life of the screen. Taps here update the state immediately;
+  // the focus read picks up changes made on other screens.
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.id || !appdatabase) return undefined;
+      let alive = true;
+      fetchSavedTradeRefs(appdatabase, user.id)
+        .then((refs) => { if (alive) setSavedTradeRefs(refs || {}); })
+        .catch(() => {});
+      return () => { alive = false; };
+    }, [user?.id, appdatabase])
+  );
 
   const getTradeDeal = (hasTotal, wantsTotal) => {
     if (hasTotal.value <= 0) {
@@ -675,8 +695,8 @@ const TradeList = ({ route }) => {
       // ✅ Build query for more normal trades
       let normalQuery = query(
         collection(firestoreDB, 'trades_new_upgrade'),
-        where('isFeatured', '!=', true), // ✅ Match initial query structure
-        orderBy('isFeatured'), // ✅ Required: first orderBy must match inequality field
+        where('isFeatured', '==', false),
+        where('timestamp', '>', feedCutoff()),
         orderBy('timestamp', 'desc'), // ✅ Then order by timestamp
         startAfter(lastDoc),
         limit(PAGE_SIZE)
@@ -686,9 +706,9 @@ const TradeList = ({ route }) => {
       if (statusValues && statusValues.length > 0) {
         normalQuery = query(
           collection(firestoreDB, 'trades_new_upgrade'),
-          where('isFeatured', '!=', true),
+          where('isFeatured', '==', false),
+          where('timestamp', '>', feedCutoff()),
           where('status', 'in', statusValues),
-          orderBy('isFeatured'),
           orderBy('timestamp', 'desc'),
           startAfter(lastDoc),
           limit(PAGE_SIZE)
@@ -840,16 +860,32 @@ const TradeList = ({ route }) => {
 
 
 
+  // Logged-out users get the sign-in drawer instead of more pages — once per
+  // visit, so reaching the end again doesn't keep popping it up.
+  const signinPromptedRef = useRef(false);
+  const promptSigninForMore = () => {
+    if (signinPromptedRef.current) return;
+    signinPromptedRef.current = true;
+    setIsSigninDrawerVisible(true);
+  };
+
   const handleEndReached = () => {
     if (loading || isSearching) return; // ✅ Prevents unnecessary calls
     // ✅ Handle search pagination
     if (isSearchMode && searchHasMore) {
       if (!searchLastDoc) return;
+      if (!user?.id) { promptSigninForMore(); return; }
       handleSearchTrades(true); // Load more search results
+      return;
+    }
+    // ✅ Following feed pages with its own cursor
+    if (isFollowingActive) {
+      if (hasMore && !loadingMore) fetchFollowingTrades(true);
       return;
     }
     // ✅ Normal pagination
     if (!hasMore || !lastDoc || loadingMore) return;
+    if (!user?.id) { promptSigninForMore(); return; }
     fetchMoreTrades();
   };
 
@@ -890,6 +926,7 @@ const TradeList = ({ route }) => {
             ? query(
               collection(firestoreDB, 'trades_new_upgrade'),
               where('hasItemNames', 'array-contains', searchTermLower),
+              where('timestamp', '>', feedCutoff()),
               orderBy('timestamp', 'desc'),
               startAfter(lastDocSnapshot),
               limit(SEARCH_PAGE_SIZE)
@@ -897,6 +934,7 @@ const TradeList = ({ route }) => {
             : query(
               collection(firestoreDB, 'trades_new_upgrade'),
               where('hasItemNames', 'array-contains', searchTermLower),
+              where('timestamp', '>', feedCutoff()),
               orderBy('timestamp', 'desc'),
               limit(SEARCH_PAGE_SIZE)
             );
@@ -924,6 +962,7 @@ const TradeList = ({ route }) => {
             ? query(
               collection(firestoreDB, 'trades_new_upgrade'),
               where('wantsItemNames', 'array-contains', searchTermLower),
+              where('timestamp', '>', feedCutoff()),
               orderBy('timestamp', 'desc'),
               startAfter(lastDocSnapshot),
               limit(SEARCH_PAGE_SIZE)
@@ -931,6 +970,7 @@ const TradeList = ({ route }) => {
             : query(
               collection(firestoreDB, 'trades_new_upgrade'),
               where('wantsItemNames', 'array-contains', searchTermLower),
+              where('timestamp', '>', feedCutoff()),
               orderBy('timestamp', 'desc'),
               limit(SEARCH_PAGE_SIZE)
             );
@@ -1014,8 +1054,8 @@ const TradeList = ({ route }) => {
       // ✅ Build query for normal trades
       let normalQuery = query(
         collection(firestoreDB, 'trades_new_upgrade'),
-        where('isFeatured', '!=', true),
-        orderBy('isFeatured'), // ✅ Required: first orderBy must match inequality field
+        where('isFeatured', '==', false),
+        where('timestamp', '>', feedCutoff()),
         orderBy('timestamp', 'desc'), // ✅ Then order by timestamp
         limit(PAGE_SIZE)
       );
@@ -1024,9 +1064,9 @@ const TradeList = ({ route }) => {
       if (statusValues && statusValues.length > 0) {
         normalQuery = query(
           collection(firestoreDB, 'trades_new_upgrade'),
-          where('isFeatured', '!=', true),
+          where('isFeatured', '==', false),
+          where('timestamp', '>', feedCutoff()),
           where('status', 'in', statusValues),
-          orderBy('isFeatured'),
           orderBy('timestamp', 'desc'),
           limit(PAGE_SIZE)
         );
@@ -1170,14 +1210,17 @@ const TradeList = ({ route }) => {
     }
   }, [user?.id, appdatabase, firestoreDB]);
 
-  // ✅ Fetch trades from followed users (for "Following" filter)
-  const fetchFollowingTrades = useCallback(async () => {
+  // ✅ Fetch trades from followed users (for "Following" filter), 20 per page
+  const FOLLOWING_PAGE_SIZE = 20;
+  const followingLastDocRef = useRef(null);
+  const fetchFollowingTrades = useCallback(async (loadMore = false) => {
     if (!user?.id || followingIds.length === 0) {
       setTrades([]);
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (loadMore && !followingLastDocRef.current) return;
+    if (loadMore) setLoadingMore(true); else setLoading(true);
     try {
       const TRADE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
       const sevenDaysAgo = Timestamp.fromMillis(Date.now() - TRADE_MAX_AGE_MS);
@@ -1187,16 +1230,25 @@ const TradeList = ({ route }) => {
         where('userId', 'in', chunk),
         where('timestamp', '>', sevenDaysAgo),
         orderBy('timestamp', 'desc'),
-        limit(50)
+        ...(loadMore ? [startAfter(followingLastDocRef.current)] : []),
+        limit(FOLLOWING_PAGE_SIZE)
       );
       const snap = await getDocs(followQuery);
       const followTrades = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setTrades(followTrades);
-      setHasMore(false);
+      followingLastDocRef.current = snap.docs.length ? snap.docs[snap.docs.length - 1] : null;
+      if (loadMore) {
+        setTrades((prev) => {
+          const seen = new Set(prev.map((t) => t.id));
+          return [...prev, ...followTrades.filter((t) => !seen.has(t.id))];
+        });
+      } else {
+        setTrades(followTrades);
+      }
+      setHasMore(snap.docs.length === FOLLOWING_PAGE_SIZE);
     } catch (e) {
       console.warn('[Trades] fetchFollowingTrades error:', e?.message);
     } finally {
-      setLoading(false);
+      if (loadMore) setLoadingMore(false); else setLoading(false);
     }
   }, [user?.id, followingIds, firestoreDB]);
 
@@ -1356,7 +1408,9 @@ const TradeList = ({ route }) => {
       return;
     }
     setSelectedTrade(item)
-
+    // Open first; the online dot fills in when the presence read returns.
+    setIsOnline(false);
+    setIsDrawerVisible(true)
     try {
       const online = await isUserOnline(item?.userId);
       setIsOnline(online);
@@ -1364,7 +1418,6 @@ const TradeList = ({ route }) => {
       console.error('Error checking online status:', error);
       setIsOnline(false);
     }
-    setIsDrawerVisible(true)
   }
 
   const renderTextWithUsername = (description) => {
@@ -2120,7 +2173,7 @@ const TradeList = ({ route }) => {
         initialNumToRender={10} // ✅ FIX: Reduced to prevent text view overload on low-end devices
         maxToRenderPerBatch={8} // ✅ FIX: Smaller batches to reduce per-frame view creation pressure
         updateCellsBatchingPeriod={100} // ✅ FIX: Spread rendering across more frames
-        windowSize={7} // ✅ FIX: Balanced window size
+        windowSize={5} // fewer heavy trade rows mounted off-screen (Adopt Me uses 5)
         refreshing={refreshing} // Add Pull-to-Refresh
         onRefresh={handleRefresh} // Attach Refresh Handler
         onScroll={({ nativeEvent }) => {

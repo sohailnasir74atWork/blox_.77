@@ -23,7 +23,6 @@ import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import { showMessage } from 'react-native-flash-message';
 import RNFS from 'react-native-fs';
 import { validateContent } from '../../Helper/ContentModeration';
-import { checkBanStatus } from '../../ChatScreen/utils';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -63,7 +62,7 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
   const [imageUris, setImageUris] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedTags, setSelectedTags] = useState(['Discussion']);
-  const { currentUserEmail, appdatabase } = useGlobalState();
+  const { currentUserEmail, appdatabase, isUserBlocked, strikeInfo, deviceBanInfo } = useGlobalState();
   const { theme } = useGlobalState();
   const isDark = theme === 'dark';
   const { localState } = useLocalState()
@@ -245,10 +244,18 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
       return;
     }
 
-    // 🔒 Check Ban Status
-    const banStatus = await checkBanStatus(currentUserEmail);
-    if (banStatus.isBanned) {
-      Alert.alert('Banned', banStatus.message);
+    // 🔒 Global ban gate: email, device and uid bans (server-time checked in GlobelStats)
+    if (isUserBlocked) {
+      const info = strikeInfo || deviceBanInfo;
+      const until = info?.bannedUntil;
+      Alert.alert(
+        'Banned',
+        until === 'permanent'
+          ? 'You are permanently banned from posting.'
+          : typeof until === 'number'
+            ? `You are banned from posting for ${Math.max(1, Math.ceil((until - Date.now()) / 60000))} more minute(s).`
+            : 'You are banned from posting right now.'
+      );
       return;
     }
 
@@ -336,7 +343,7 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
       }, 500);
     });
 
-  }, [loading, user?.id, desc, imageUris, selectedTags, uploadToBunny, onUpload, onClose, localState.isPro, currentUserEmail, lastPostTime]);
+  }, [loading, user?.id, desc, imageUris, selectedTags, uploadToBunny, onUpload, onClose, localState.isPro, currentUserEmail, lastPostTime, isUserBlocked, strikeInfo, deviceBanInfo]);
 
 
   const insets = useSafeAreaInsets();

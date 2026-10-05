@@ -398,7 +398,10 @@ async function deleteAllForUser(uid, supabase) {
 async function mirrorPrivate(uid, before, after, supabase) {
   const email = asString(after?.email);
   const dateOfBirth = asString(after?.dateOfBirth);
-  if (before && email === asString(before.email) && dateOfBirth === asString(before.dateOfBirth)) return;
+  // Compare against an empty record when there was none: a first write that
+  // carries only deviceId (phone accounts, legacy users) must not null the
+  // mirrored email.
+  if (email === asString(before?.email) && dateOfBirth === asString(before?.dateOfBirth)) return;
 
   const cols = { email, decoded_email: email, updated_at: nowIso() };
   if (dateOfBirth || before?.dateOfBirth) cols.date_of_birth = dateOfBirth;

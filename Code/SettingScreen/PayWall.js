@@ -1,85 +1,61 @@
 // PayWall.js
+// Store plumbing for the custom paywall in OfferWall.jsx. It used to hand off
+// to react-native-purchases-ui (RevenueCatUI.presentPaywall); that library
+// pulled Jetpack Compose + RevenueCatUI into the Android build and crashed on
+// some devices loading its downloaded paywall font. The products, offerings
+// ('default' and 'paywallrc') and the 'pro' entitlement are unchanged.
 import Purchases from 'react-native-purchases';
-import RevenueCatUI from 'react-native-purchases-ui';
 
 const ENTITLEMENT_ID = 'pro';
 
-const userHasEntitlement = async () => {
-  try {
-    const customerInfo = await Purchases.getCustomerInfo();
-    return !!customerInfo.entitlements.active?.[ENTITLEMENT_ID];
-  } catch (e) {
-    return false;
-  }
+export const OFFERING_MAIN = 'default';
+export const OFFERING_DISCOUNT = 'paywallrc';
+
+export const hasProEntitlement = (customerInfo) => {
+  const active = customerInfo?.entitlements?.active || {};
+  return Object.keys(active).some((k) => k.toLowerCase() === ENTITLEMENT_ID);
 };
 
-const openAndCheck = async (offering, offeringId, source, showoffer) => {
-  if (!offering) {
-    console.warn('Offering not found:', offeringId);
-    return false;
-  }
+let cachedOfferings = null;
 
-  // ✅ 1) Paywall shown
-  // Coming back from the store sheet must not open an App Open ad on someone
-  // who was just buying ad-free.
-  require('../Ads/openApp').default.skipNextForeground();
-  await RevenueCatUI.presentPaywall({ offering });
-
-  const hasEntitlement = await userHasEntitlement();
-
-  // ✅ 2) Purchase success OR dismissed
-  if (hasEntitlement) {
-  } else {
-  }
-
-  return hasEntitlement;
-};
-
-// ✅ added: forceSecondOnly
-export const handleOpenPaywall = async (source, showoffer, forceSecondOnly = false) => {
+// { default: Offering|null, paywallrc: Offering|null }. Cached after the first
+// success; the SDK caches too, so a repeat open costs no network.
+export const getPaywallOfferings = async () => {
   try {
     const offerings = await Purchases.getOfferings();
-    const all = offerings.all || {};
-
-    const simpleOffering = all['default'];
-    const secondOffering = all['paywallrc'];
-
-    // ✅ Firebase flag ON: only show 2nd wall
-    if (forceSecondOnly) {
-      if (secondOffering) {
-        await openAndCheck(secondOffering, 'paywallrc', source, false);
-      } else if (simpleOffering) {
-        // fallback safety
-        await openAndCheck(simpleOffering, 'default', source, false);
-      }
-      return;
-    }
-
-    // ✅ your original logic untouched
-    if (showoffer) {
-      const boughtOnFirst = await openAndCheck(
-        simpleOffering,
-        'default',
-        source,
-        showoffer
-      );
-
-      if (!boughtOnFirst && secondOffering) {
-        await openAndCheck(
-          secondOffering,
-          'paywallrc',
-          source,
-          showoffer
-        );
-      }
-    } else {
-      const offering = simpleOffering || secondOffering;
-      const offeringId = secondOffering ? 'paywallrc' : 'default';
-
-      await openAndCheck(offering, offeringId, source, showoffer);
-    }
+    cachedOfferings = offerings?.all || cachedOfferings;
   } catch (e) {
-    // console.log('Error showing paywall', e);
+    // fall back to whatever loaded last time
+  }
+  const all = cachedOfferings || {};
+  return {
+    [OFFERING_MAIN]: all[OFFERING_MAIN] || null,
+    [OFFERING_DISCOUNT]: all[OFFERING_DISCOUNT] || null,
+  };
+};
 
+// Warm the cache on app start so the wall opens with prices already loaded.
+export const preloadOfferings = () => { getPaywallOfferings().catch(() => {}); };
+
+// → { pro: boolean, cancelled: boolean, error?: string }
+export const purchasePaywallPackage = async (pkg) => {
+  try {
+    // Coming back from the store sheet must not open an App Open ad on someone
+    // who was just buying ad-free.
+    require('../Ads/openApp').default.skipNextForeground();
+    const { customerInfo } = await Purchases.purchasePackage(pkg);
+    return { pro: hasProEntitlement(customerInfo), cancelled: false };
+  } catch (e) {
+    return { pro: false, cancelled: !!e?.userCancelled, error: e?.message };
+  }
+};
+
+// → { pro: boolean, error?: string }
+export const restorePaywallPurchases = async () => {
+  try {
+    const customerInfo = await Purchases.restorePurchases();
+    return { pro: hasProEntitlement(customerInfo) };
+  } catch (e) {
+    return { pro: false, error: e?.message };
   }
 };

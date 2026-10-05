@@ -57,9 +57,10 @@ import { getRoblox, getRoles, getCosmetics } from '../../Supabase/userBackend';
 import { SUPABASE_USERS_ENABLED } from '../../Supabase/featureFlags';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { banUserwithEmail, unbanUserWithEmail, setUserStrike, checkBanStatus, makeSeniorMod, removeSeniorMod, makeModerator, removeModerator, muteUser, makeBabyMod, removeBabyMod, canModerate } from '../utils'; // ✅ Import moderator utils
+import { banUserwithEmail, unbanUserWithEmail, setUserStrike, checkBanStatus, makeSeniorMod, removeSeniorMod, makeModerator, removeModerator, muteUser, makeBabyMod, removeBabyMod, canModerate, handleDeleteLast300Messages } from '../utils'; // ✅ Import moderator utils
 import { getAuth } from '@react-native-firebase/auth';
 import { getUserEmail } from '../../Helper/privateProfile';
+import { callModSanction, sanctionErrorText, describeSanctionResult } from '../../Helper/modSanction';
 
 // Initialize dayjs plugins
 dayjs.extend(relativeTime);
@@ -376,9 +377,16 @@ const ProfileBottomDrawer = ({
       // Records stop carrying an email after round 2 — resolve it from
       // users_private (staff-readable) when the row has none.
       const email = selectedUser?.email || (selectedUserId ? await getUserEmail(appdatabase, selectedUserId) : null);
-      if (!email || !alive) return;
-      const status = await checkBanStatus(email);
-      if (alive) setIsBanned(!!status?.isBanned);
+      if (!alive) return;
+      if (email) {
+        const status = await checkBanStatus(email);
+        if (status?.isBanned) { if (alive) setIsBanned(true); return; }
+      }
+      // Server-side uid ban (accounts with no email, deleted accounts, alts).
+      if (!selectedUserId) return;
+      const uidBan = (await get(ref(appdatabase, `banned_uids/${selectedUserId}`)).catch(() => null))?.val();
+      const until = uidBan?.bannedUntil;
+      if (alive) setIsBanned(until === 'permanent' || (typeof until === 'number' && until > Date.now()));
     })().catch(() => {});
     return () => { alive = false; };
   }, [canSeeUnban, selectedUser?.email, selectedUserId, appdatabase]);
@@ -532,11 +540,9 @@ const ProfileBottomDrawer = ({
   };
 
   const handleSetStrike = async (strikeCount) => {
+    // No email (deleted account, phone sign-in) → confirmAdminAction bans by
+    // uid through the server instead of stopping here.
     const targetEmail = await getTargetEmail();
-    if (!targetEmail) {
-      Alert.alert(t('chat.error'), t('chat.email_not_found'));
-      return;
-    }
     // Strict hierarchy: caller rank must exceed target rank. utils.js
     // re-checks against fresh RTDB roles; this is the UX-friendly early
     // bail so we don't open the reason modal for a guaranteed-no-op.
@@ -577,11 +583,6 @@ const ProfileBottomDrawer = ({
       targetEmail = selectedUser.email;
     }
 
-    if (!targetEmail) {
-      Alert.alert(t('chat.error'), t('chat.email_not_found_unban'));
-      return;
-    }
-
     Alert.alert(
       t('chat.unban_user'),
       t('chat.unban_confirm', { name: userName }),
@@ -590,12 +591,75 @@ const ProfileBottomDrawer = ({
         {
           text: t('chat.unban'),
           onPress: async () => {
-            const success = await unbanUserWithEmail(targetEmail, true);
-            if (success) setIsBanned(false);
+            // Server lifts the uid ban, its devices and any linked alts.
+            const r = await callModSanction('unban', selectedUserId);
+            if (targetEmail) {
+              const success = await unbanUserWithEmail(targetEmail, true);
+              if (success) setIsBanned(false);
+            } else if (r.ok) {
+              setIsBanned(false);
+              Alert.alert('User Unbanned', 'Ban has been lifted.');
+            } else {
+              Alert.alert(t('chat.error'), sanctionErrorText(r.error));
+            }
           }
         }
       ]
     );
+  };
+
+  // Other accounts seen on the same device(s) — server index, staff only.
+  const handleShowLinkedAccounts = async () => {
+    const r = await callModSanction('linked', selectedUserId);
+    if (!r.ok) {
+      Alert.alert(t('chat.error'), sanctionErrorText(r.error));
+      return;
+    }
+    const linked = r.linked || [];
+    const header = `${r.devices} device(s) on record${r.accountDeleted ? ' · account deleted' : ''}.`;
+    if (linked.length === 0) {
+      Alert.alert('Linked Accounts', `${header}\nNo other accounts found on these devices.`);
+      return;
+    }
+    const lines = linked.map((a) =>
+      `• ${a.displayName || 'Unknown'}${a.exists ? '' : ' (deleted)'}${a.banned ? ' [banned]' : ''}\n  ${a.uid}`
+    );
+    const more = r.linkedTotal > linked.length ? `\n…and ${r.linkedTotal - linked.length} more` : '';
+    const buttons = [
+      { text: 'Copy IDs', onPress: () => copyToClipboard(linked.map((a) => a.uid).join('\n')) },
+    ];
+    if (canSeeUnban) {
+      buttons.push({
+        text: 'Perm-ban all',
+        style: 'destructive',
+        onPress: () => Alert.alert(
+          'Permanently ban all?',
+          `Strike 3 on ${userName} and every linked account you outrank.`,
+          [
+            { text: t('chat.cancel'), style: 'cancel' },
+            {
+              text: 'Ban all',
+              style: 'destructive',
+              onPress: async () => {
+                const b = await callModSanction('strike', selectedUserId, {
+                  strikeCount: 3,
+                  includeLinked: true,
+                  reason: 'Ban evasion (linked accounts)',
+                });
+                if (!b.ok) {
+                  Alert.alert(t('chat.error'), sanctionErrorText(b.error));
+                  return;
+                }
+                setIsBanned(true);
+                Alert.alert('Banned', describeSanctionResult(b));
+              },
+            },
+          ]
+        ),
+      });
+    }
+    buttons.push({ text: t('chat.cancel'), style: 'cancel' });
+    Alert.alert('Linked Accounts', `${header}\n\n${lines.join('\n')}${more}`, buttons);
   };
 
   const handlePromoteModerator = () => {
@@ -837,11 +901,8 @@ const ProfileBottomDrawer = ({
   };
 
   const handleMuteUser = async (minutes) => {
-    const targetEmail = await getTargetEmail();
-    if (!targetEmail) {
-      Alert.alert(t('chat.error'), t('chat.email_not_found'));
-      return;
-    }
+    const targetEmail = await getTargetEmail(); // null → server by uid
+
     const callerRoles = { isAdmin, isSeniorMod: isGlobalSenior, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod };
     const targetRoles = {
       isAdmin: !!mergedUser?.isAdmin,
@@ -887,13 +948,28 @@ const ProfileBottomDrawer = ({
       isBabyMod: !!mergedUser?.isBabyMod,
     };
     const actionEmail = reasonActionType.email;
+    const finalReason = adminReason.trim() !== '' ? adminReason.trim() : undefined;
+
     if (!actionEmail) {
-      Alert.alert(t('chat.error'), t('chat.email_not_found'));
+      const { type, value } = reasonActionType;
       setReasonActionType(null);
+      const r = await callModSanction(type, selectedUserId, {
+        ...(type === 'strike' ? { strikeCount: value } : { minutes: value }),
+        reason: finalReason,
+      });
+      if (!r.ok) {
+        Alert.alert(t('chat.error'), sanctionErrorText(r.error));
+        return;
+      }
+      setIsBanned(true);
+      // Same as setUserStrike: a strike also clears his recent messages.
+      if (type === 'strike') handleDeleteLast300Messages(selectedUserId, false).catch(() => {});
+      Alert.alert(
+        type === 'strike' ? 'Strike Applied' : 'User Muted',
+        `Banned by user ID. ${describeSanctionResult(r)}`
+      );
       return;
     }
-
-    const finalReason = adminReason.trim() !== '' ? adminReason.trim() : undefined;
 
     if (reasonActionType.type === 'strike') {
       const strikeCount = reasonActionType.value;
@@ -916,10 +992,11 @@ const ProfileBottomDrawer = ({
 
     const fetchBadgesAndXP = async () => {
       try {
-        const [badgesSnap, xp, createdSnap] = await Promise.all([
+        const [badgesSnap, xp, createdSnap, nameSnap] = await Promise.all([
           get(ref(appdatabase, `users/${selectedUserId}/badges`)),
           getUserXP(appdatabase, selectedUserId),
           get(ref(appdatabase, `users/${selectedUserId}/createdAt`)),
+          get(ref(appdatabase, `users/${selectedUserId}/displayName`)),
         ]);
 
         if (!isMounted) return;
@@ -939,8 +1016,9 @@ const ProfileBottomDrawer = ({
             setUserCreatedAtMs(ts);
             setCreatedAtText(formatCreatedAt(ts));
           }
-        } else if (selectedUserId) {
-          // ✅ User has no createdAt — write it once
+        } else if (selectedUserId && nameSnap?.exists()) {
+          // ✅ User has no createdAt — write it once. Only for a live record:
+          // writing it for a deleted account recreated a ghost users/{uid}.
           const now = Date.now();
           set(ref(appdatabase, `users/${selectedUserId}/createdAt`), now).catch(() => {});
           setUserCreatedAtMs(now);
@@ -3005,11 +3083,14 @@ const ProfileBottomDrawer = ({
                         <View style={{ height: 1, backgroundColor: modBorder, marginBottom: 12 }} />
                       )}
 
-                      {/* ── Section: Unban ── */}
-                      {!isJMDOnly && isBanned && (
+                      {/* ── Section: Unban / linked accounts ── */}
+                      {!isJMDOnly && (
                         <View style={{ marginBottom: 12 }}>
                           <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                            <Chip label={t('chat.unban_user_btn') || 'Unban'} color="#10b981" onPress={handleUnbanUser} />
+                            {isBanned && (
+                              <Chip label={t('chat.unban_user_btn') || 'Unban'} color="#10b981" onPress={handleUnbanUser} />
+                            )}
+                            <Chip label="Linked accounts" color="#0ea5e9" onPress={handleShowLinkedAccounts} />
                           </View>
                         </View>
                       )}

@@ -14,7 +14,7 @@ import { generateOnePieceUsername } from './Helper/RendomNamegen';
 import { getDeviceFingerprint } from './Helper/deviceFingerprint';
 import { getServerTime } from './Helper/serverTime';
 import { setLastActivity } from './Supabase/userBackend';
-import { saveOwnEmailOnce } from './Helper/privateProfile';
+import { saveOwnEmailOnce, saveOwnDeviceIdOnce } from './Helper/privateProfile';
 import Purchases from 'react-native-purchases';
 import { getAnalytics, logEvent } from '@react-native-firebase/analytics';
 import { createMMKV } from 'react-native-mmkv';
@@ -122,8 +122,14 @@ export const GlobalStateProvider = ({ children }) => {
   const [stockNotifierPurchase, setStockNotifierPurchase] = useState(false);
   const [_isEmailBanned, setIsEmailBanned] = useState(false);
   const [_isDeviceBanned, setIsDeviceBanned] = useState(false);
-  const isUserBlocked = _isEmailBanned || _isDeviceBanned;
-  const [strikeInfo, setStrikeInfo] = useState(null);
+  // banned_uids/{uid}: server-written uid ban (functions/banEnforcement.js).
+  // Covers accounts with no email (phone sign-in), deleted-and-recreated
+  // accounts, and alts caught on a banned device.
+  const [_isUidBanned, setIsUidBanned] = useState(false);
+  const [uidBanInfo, setUidBanInfo] = useState(null);
+  const isUserBlocked = _isEmailBanned || _isDeviceBanned || _isUidBanned;
+  const [_emailStrikeInfo, setStrikeInfo] = useState(null);
+  const strikeInfo = _emailStrikeInfo || uidBanInfo;
   // Full payload from `banned_devices/{fp}` when this device is flagged.
   // Carries the email + userId of the ORIGINAL banned account, which the
   // ban-card UI uses to show "your associated account is banned" copy.
@@ -447,12 +453,11 @@ export const GlobalStateProvider = ({ children }) => {
         value: typeof userData?.isPro === 'boolean' ? userData.isPro : undefined,
       };
 
-      // Stamp this user's record with the current device fingerprint so the
-      // ban flow can mirror an entry into banned_devices when the email is
-      // banned. Best-effort: on failure we just don't gain device-side ban.
-      // Skipped when users/{uid}.deviceId (read above) already holds this value.
+      // Record this device's fingerprint on users_private/{uid} (owner + staff
+      // only). The server indexes it to link alt accounts and carry bans to
+      // every device an account uses. Best-effort: sign-in never waits on it.
       getDeviceFingerprint().then((fp) => {
-        if (fp && userData?.deviceId !== fp) update(userRef, { deviceId: fp }).catch(() => {});
+        if (fp) saveOwnDeviceIdOnce(appdatabase, userId, fp).catch(() => {});
       }).catch(() => {});
 
       // 🔥 Refresh and update FCM token
@@ -921,6 +926,74 @@ export const GlobalStateProvider = ({ children }) => {
     };
   }, [appdatabase, user?.id]);
 
+  // Uid-side ban listener (banned_uids/{uid}). Same server-time pattern as the
+  // email and device listeners above.
+  useEffect(() => {
+    if (!appdatabase || !user?.id) {
+      setIsUidBanned(false);
+      setUidBanInfo(null);
+      return;
+    }
+
+    let cancelled = false;
+    let currentBan = null;
+    let expiryTimer = null;
+
+    const evaluate = async () => {
+      if (cancelled) return;
+      const data = currentBan;
+      if (expiryTimer) { clearTimeout(expiryTimer); expiryTimer = null; }
+
+      if (!data) {
+        setIsUidBanned(false);
+        setUidBanInfo(null);
+        return;
+      }
+      const { bannedUntil } = data;
+      if (bannedUntil === 'permanent') {
+        setIsUidBanned(true);
+        setUidBanInfo(data);
+        return;
+      }
+      if (typeof bannedUntil !== 'number') {
+        setIsUidBanned(false);
+        setUidBanInfo(null);
+        return;
+      }
+      const serverNow = (await getServerTime(appdatabase, user.id)).getTime();
+      if (cancelled) return;
+      const remaining = bannedUntil - serverNow;
+      if (remaining <= 0) {
+        setIsUidBanned(false);
+        setUidBanInfo(null);
+        return;
+      }
+      setIsUidBanned(true);
+      setUidBanInfo(data);
+      const wait = Math.min(remaining, 24 * 60 * 60 * 1000);
+      expiryTimer = setTimeout(evaluate, wait);
+    };
+
+    const unsubscribe = onValue(
+      ref(appdatabase, `banned_uids/${user.id}`),
+      (snapshot) => {
+        currentBan = snapshot.val() || null;
+        evaluate();
+      },
+      () => {} // rules not deployed yet → treat as not banned
+    );
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') evaluate();
+    });
+
+    return () => {
+      cancelled = true;
+      if (expiryTimer) clearTimeout(expiryTimer);
+      appStateSub.remove();
+      unsubscribe();
+    };
+  }, [user?.id]); // appdatabase is module-level
+
   // ✅ Set up online status tracking using separate presence node (RTDB-only, optimized for scale)
   // ✅ Foreground-only presence (ACTIVE = online, background/inactive = offline)
   // ✅ Uses presence/{uid} instead of users/{uid}/online for better scalability
@@ -936,7 +1009,10 @@ export const GlobalStateProvider = ({ children }) => {
     let armedOnDisconnect = false;
 
     const setLocalOnline = (val) => {
-      setUser((prev) => (prev?.id ? { ...prev, online: val } : prev));
+      // Only a real change makes a new object: a new `user` re-renders every
+      // consumer of the global context, and this fires on each
+      // .info/connected flap and AppState change.
+      setUser((prev) => (prev?.id && prev.online !== val ? { ...prev, online: val } : prev));
     };
 
     const forceOffline = async () => {

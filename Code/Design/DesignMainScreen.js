@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Text,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import {
@@ -53,7 +54,7 @@ import { awardBadge, incrementAndCheckBadge, REACTION_BADGE_THRESHOLDS } from '.
 
 const DesignFeedScreen = ({ route }) => {
   const { selectedTheme } = route.params;
-  const { appdatabase, user, theme, firestoreDB, isBabyMod, isTrusted, isGrinder, isRaider, proGranted } = useGlobalState();
+  const { appdatabase, user, theme, firestoreDB, isBabyMod, isTrusted, isGrinder, isRaider, proGranted, isUserBlocked } = useGlobalState();
   const { localState } = useLocalState();
   const isDarkMode = theme === 'dark';
   const navigation = useNavigation();
@@ -469,6 +470,10 @@ const DesignFeedScreen = ({ route }) => {
   const handleReaction = useCallback(async (post, emoji) => {
     const userId = user?.id;
     if (!userId) return;
+    if (isUserBlocked) {
+      Alert.alert('Banned', 'You cannot react to posts while banned.');
+      return;
+    }
 
     const postRef = doc(firestoreDB, 'designPosts_upgrade', post.id);
     const currentReaction = post.reactions?.[userId];
@@ -522,7 +527,7 @@ const DesignFeedScreen = ({ route }) => {
         type: 'danger',
       });
     }
-  }, [user?.id, firestoreDB]);
+  }, [user?.id, firestoreDB, isUserBlocked]);
 
   const handleUploadPost = async (desc, imageUrls, selectedTags) => {
     // ✅ Prevent multiple submissions - check if already submitting

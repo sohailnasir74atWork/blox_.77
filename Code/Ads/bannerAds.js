@@ -1,24 +1,21 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { View, useWindowDimensions } from 'react-native';
+import { View } from 'react-native';
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 import getAdUnitId from './ads';
 import { npaRequiredFor } from './consent';
 import { useLocalState } from '../LocalGlobelStats';
 
+// Bottom banners are the standard fixed 320x50 BANNER (owner decision,
+// 2026-10-05): no anchored-adaptive height and no collapsible overlay, which
+// opened over half the screen. `collapsible` is still accepted so existing
+// call sites don't change, but it no longer does anything.
 const BannerAdComponent = ({
   adType = 'banner',
   visible = true,
-  collapsible = false,
 }) => {
   const [isAdLoaded, setIsAdLoaded] = useState(false);
   const { localState } = useLocalState();
   const unitId = getAdUnitId(adType);
-
-  // Adaptive banners default to full device width, which puts the ad flush
-  // against both screen edges. Request the ad 20dp narrower (10dp inset per
-  // side); the SDK then auto-picks the right height for that width.
-  const { width: screenWidth } = useWindowDimensions();
-  const adWidth = Math.floor(screenWidth) - 20;
 
   // No-fill retry: a banner's FIRST load can fail (no fill / transient
   // network). The <BannerAd> won't re-request on its own until something
@@ -63,20 +60,11 @@ const BannerAdComponent = ({
   // render (which would otherwise force a fresh ad request).
   //
   // NPA decided from the persisted UMP consent status (never hardcoded).
-  //
-  // Collapsible banners: reintroduced 2026-07-20 (owner decision) as an
-  // OPT-IN per screen via the `collapsible` prop. The 2026-07 "accidental
-  // clicks" policy enforcement on MM2 traced to a banner inside its arrow
-  // game, not to collapsible expansion. Keep the prop OFF on screens whose
-  // interactive content sits directly above the banner (chat input bars,
-  // feed composers) — the expanded first impression overlays that area,
-  // which is why adoptme-jan7 removed the always-on version on 2026-07-09.
   const requestOptions = useMemo(
     () => ({
       requestNonPersonalizedAdsOnly: npaRequiredFor(localState?.consentStatus),
-      ...(collapsible ? { networkExtras: { collapsible: 'bottom' } } : {}),
     }),
-    [localState?.consentStatus, collapsible],
+    [localState?.consentStatus],
   );
 
   if (!visible) return null;
@@ -97,8 +85,7 @@ const BannerAdComponent = ({
       <BannerAd
         key={reloadKey}
         unitId={unitId}
-        size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-        width={adWidth}
+        size={BannerAdSize.BANNER}
         requestOptions={requestOptions}
         onAdLoaded={handleAdLoaded}
         onAdFailedToLoad={handleAdFailedToLoad}

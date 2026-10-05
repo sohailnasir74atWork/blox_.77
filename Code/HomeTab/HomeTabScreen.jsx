@@ -28,6 +28,7 @@ import { getCachedAvatar } from '../Helper/cosmeticsCache';
 import { getActiveCosmetics } from '../Engagement/shopUtils';
 import GameLeaderboard from '../Engagement/GameLeaderboard';
 import BannerAdComponent from '../Ads/bannerAds';
+import SubscriptionScreen from '../SettingScreen/OfferWall';
 
 
 const { width } = Dimensions.get('window');
@@ -68,7 +69,8 @@ const ownedFruitsFocusCache = new Map(); // uid -> { ts, ownedFruits }
 const cosmeticsFocusCache = new Map();   // uid -> { ts, cosmetics }
 
 const HomeTabScreen = ({ selectedTheme }) => {
-  const { theme, user, appdatabase, firestoreDB, strikeInfo, deviceBanInfo, isUserBlocked, proGranted } = useGlobalState();
+  const { theme, user, appdatabase, firestoreDB, strikeInfo, deviceBanInfo, isUserBlocked, proGranted, single_offer_wall } = useGlobalState();
+  const [showOfferWall, setShowOfferWall] = useState(false);
   const { localState, updateLocalState } = useLocalState();
   const { t, i18n } = useTranslation();
   const navigation = useNavigation();
@@ -266,12 +268,12 @@ const HomeTabScreen = ({ selectedTheme }) => {
 
   // Quick Action Items
   const quickActions = useMemo(() => [
-    { key: 'values', icon: 'lemon', label: t('home_tab.action_values', { defaultValue: 'Values' }), color: '#2563EB', onPress: () => navigation.navigate('FruitValuesStack') },
-    { key: 'leaderboard', icon: 'medal', label: t('home_tab.action_leaderboard', { defaultValue: 'Leaderboard' }), color: '#F59E0B', onPress: () => navigation.navigate('LeaderboardStack') },
-    { key: 'stars', icon: 'star', label: t('home_tab.action_stars', { defaultValue: 'Stars' }), color: '#FB923C', onPress: () => requireSignIn(() => navigation.navigate('BadgesScreen'), t('home_tab.signin_claim_stars', { defaultValue: 'Sign in to claim stars' })), hasBadge: canClaimStar },
-    { key: 'cosmetics', icon: 'shirt', label: t('home_tab.action_cosmetics', { defaultValue: 'My Cosmetics' }), color: '#EC4899', onPress: () => requireSignIn(() => navigation.navigate('CosmeticsScreen'), t('home_tab.signin_cosmetics', { defaultValue: 'Sign in to access cosmetics' })) },
-    { key: 'following', icon: 'heart', label: t('home_tab.action_friends', { defaultValue: 'Friends' }), color: '#A855F7', onPress: () => requireSignIn(() => navigation.navigate('SocialDashboardScreen'), t('home_tab.signin_friends', { defaultValue: 'Sign in to see friends' })) },
-    { key: 'mods', icon: 'shield-halved', label: t('home_tab.action_mods', { defaultValue: 'Mods' }), color: '#0EA5E9', onPress: () => navigation.navigate('ModsScreen') },
+    { key: 'values', icon: 'lemon', image: require('../../assets/home-actions/values.png'), label: t('home_tab.action_values', { defaultValue: 'Values' }), color: '#2563EB', onPress: () => navigation.navigate('FruitValuesStack') },
+    { key: 'leaderboard', icon: 'medal', image: require('../../assets/home-actions/leaderboard.png'), label: t('home_tab.action_leaderboard', { defaultValue: 'Leaderboard' }), color: '#F59E0B', onPress: () => navigation.navigate('LeaderboardStack') },
+    { key: 'stars', icon: 'star', image: require('../../assets/home-actions/stars.png'), label: t('home_tab.action_stars', { defaultValue: 'Stars' }), color: '#FB923C', onPress: () => requireSignIn(() => navigation.navigate('BadgesScreen'), t('home_tab.signin_claim_stars', { defaultValue: 'Sign in to claim stars' })), hasBadge: canClaimStar },
+    { key: 'cosmetics', icon: 'shirt', image: require('../../assets/home-actions/cosmetics.png'), label: t('home_tab.action_cosmetics', { defaultValue: 'My Cosmetics' }), color: '#EC4899', onPress: () => requireSignIn(() => navigation.navigate('CosmeticsScreen'), t('home_tab.signin_cosmetics', { defaultValue: 'Sign in to access cosmetics' })) },
+    { key: 'following', icon: 'heart', image: require('../../assets/home-actions/friends.png'), label: t('home_tab.action_friends', { defaultValue: 'Friends' }), color: '#A855F7', onPress: () => requireSignIn(() => navigation.navigate('SocialDashboardScreen'), t('home_tab.signin_friends', { defaultValue: 'Sign in to see friends' })) },
+    { key: 'mods', icon: 'shield-halved', image: require('../../assets/home-actions/mods.png'), label: t('home_tab.action_mods', { defaultValue: 'Mods' }), color: '#0EA5E9', onPress: () => navigation.navigate('ModsScreen') },
   ], [t, i18n.language, navigation, canClaimStar, user?.id]);
 
   // XP computed values
@@ -556,7 +558,9 @@ const HomeTabScreen = ({ selectedTheme }) => {
               >
                 <View style={{ position: 'relative' }}>
                   <View style={[styles.quickActionIcon, { backgroundColor: action.color + '14' }]}>
-                    <FontAwesome name={action.icon} size={18} color={action.color} solid />
+                    {action.image
+                      ? <Image source={action.image} style={styles.quickActionImage} resizeMode="contain" />
+                      : <FontAwesome name={action.icon} size={18} color={action.color} solid />}
                   </View>
                   {action.hasBadge && (
                     <Animated.View style={[styles.starBadge, { transform: [{ scale: starPulse }] }]} />
@@ -598,18 +602,18 @@ const HomeTabScreen = ({ selectedTheme }) => {
                 onPress={() => requireSignIn(() => setShowGameLeaderboard(true), 'Sign in to see ranks')}
                 activeOpacity={0.7}
               >
-                <Text style={{ fontSize: 14 }}>🏆</Text>
+                <Image source={require('../../assets/home-actions/leaderboard.png')} style={{ width: 16, height: 16 }} resizeMode="contain" />
                 <Text style={{ fontSize: 12, fontWeight: '800', color: selectedTheme.colors.text }}>Ranks</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.gamesGrid}>
               {[
-                { id: 'mystery', emoji: '🍋', label: 'Mystery',  color: '#16A34A', screen: 'MysteryEggScreen', tag: 'HOT' },
-                { id: 'crash',   emoji: '🚀', label: 'Crash',    color: '#F59E0B', screen: 'FruitCrashScreen' },
-                { id: 'spot',    emoji: '🍎', label: 'Smash',    color: '#B91C1C', screen: 'GameScreen', gameId: 'spot' },
-                { id: 'safe',    emoji: '🔐', label: 'Chest',    color: '#D97706', screen: 'GameScreen', gameId: 'safe' },
-                { id: 'draw',    emoji: '⚡', label: 'Slash',    color: '#DC2626', screen: 'GameScreen', gameId: 'draw' },
-                { id: 'memory',  emoji: '🃏', label: 'Memory',   color: '#6366F1', screen: 'GameScreen', gameId: 'memory' },
+                { id: 'mystery', image: require('../../assets/game-icons/mystery.png'), emoji: '🍋', label: 'Mystery',  color: '#16A34A', screen: 'MysteryEggScreen', tag: 'HOT' },
+                { id: 'crash',   image: require('../../assets/game-icons/crash.png'), emoji: '🚀', label: 'Crash',    color: '#F59E0B', screen: 'FruitCrashScreen' },
+                { id: 'spot',    image: require('../../assets/game-icons/smash.png'), emoji: '🍎', label: 'Smash',    color: '#B91C1C', screen: 'GameScreen', gameId: 'spot' },
+                { id: 'safe',    image: require('../../assets/game-icons/chest.png'), emoji: '🔐', label: 'Chest',    color: '#D97706', screen: 'GameScreen', gameId: 'safe' },
+                { id: 'draw',    image: require('../../assets/game-icons/slash.png'), emoji: '⚡', label: 'Slash',    color: '#DC2626', screen: 'GameScreen', gameId: 'draw' },
+                { id: 'memory',  image: require('../../assets/game-icons/memory.png'), emoji: '🃏', label: 'Memory',   color: '#6366F1', screen: 'GameScreen', gameId: 'memory' },
               ].map((game) => (
                 <TouchableOpacity
                   key={game.id}
@@ -618,7 +622,8 @@ const HomeTabScreen = ({ selectedTheme }) => {
                     if (game.premium && !localState?.isPro) {
                       Alert.alert('Pro Feature', 'Mystery Fruit unlocks cosmetics! Upgrade to Pro to play.', [
                         { text: 'Cancel', style: 'cancel' },
-                        { text: 'Go to Store', onPress: () => navigation.navigate('Store') },
+                        // The 'Store' route is commented out in App.js; open the paywall.
+                        { text: 'Get Pro', onPress: () => setShowOfferWall(true) },
                       ]);
                       return;
                     }
@@ -631,13 +636,16 @@ const HomeTabScreen = ({ selectedTheme }) => {
                       <Text style={styles.gameTagText}>{game.tag}</Text>
                     </View>
                   )}
-                  <Text style={styles.gameEmoji}>{game.emoji}</Text>
+                  {game.image
+                    ? <Image source={game.image} style={styles.gameImage} resizeMode="contain" />
+                    : <Text style={styles.gameEmoji}>{game.emoji}</Text>}
                   <Text style={styles.gameTileLabel}>{game.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           </View>
           <GameLeaderboard visible={showGameLeaderboard} onClose={() => setShowGameLeaderboard(false)} />
+          <SubscriptionScreen visible={showOfferWall} onClose={() => setShowOfferWall(false)} track='HomeGames' oneWallOnly={single_offer_wall} />
 
           {/* SHARE BUTTON */}
           <View style={styles.section}>
@@ -843,6 +851,7 @@ const styles = StyleSheet.create({
     marginBottom: TILE_MARGIN * 2,
   },
   gameEmoji: { fontSize: 24, marginBottom: 4 },
+  gameImage: { width: 32, height: 32, marginBottom: 4 },
   gameTileLabel: { color: '#fff', fontSize: 9, fontWeight: '800', textAlign: 'center', paddingHorizontal: 2 },
   gameTag: {
     position: 'absolute', top: 3, right: 3,
@@ -996,6 +1005,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  quickActionImage: {
+    width: 32,
+    height: 32,
   },
   starBadge: {
     position: 'absolute',

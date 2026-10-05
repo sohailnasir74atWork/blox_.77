@@ -68,6 +68,7 @@ import {
 
 import { unbanUserWithEmail, banUserwithEmail, setUserStrike, muteUser } from '../ChatScreen/utils';
 import { getUserEmail, findUsersByEmail, normalizeEmail } from '../Helper/privateProfile';
+import { callModSanction, sanctionErrorText, describeSanctionResult } from '../Helper/modSanction';
 import { useGlobalState } from '../GlobelStats';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
@@ -707,11 +708,51 @@ const AdminDashboard = () => {
     return email ? { ...userItem, email } : userItem;
   };
 
+  // No email on file (deleted account, phone sign-in): ban by uid through
+  // the server, which resolves devices and enforces the same hierarchy.
+  const sanctionByUid = (userItem, action, opts, label) => new Promise((resolve) => {
+    if (!userItem?.id) {
+      Alert.alert('Error', 'User has no ID.');
+      resolve(false);
+      return;
+    }
+    Alert.alert(
+      'No email on file',
+      `${userItem.displayName || userItem.id} has no email (deleted account or phone sign-in). ${label} by user ID instead?`,
+      [
+        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+        {
+          text: label,
+          style: 'destructive',
+          onPress: async () => {
+            const r = await callModSanction(action, userItem.id, opts);
+            if (!r.ok) {
+              Alert.alert('Error', sanctionErrorText(r.error));
+              resolve(false);
+              return;
+            }
+            Alert.alert('Done', describeSanctionResult(r));
+            setSelectedUser(null);
+            fetchAllBanned();
+            resolve(true);
+          },
+        },
+      ]
+    );
+  });
+
   // ─────────────────────────────────────────────
   // Actions
   const handleUnban = async (userItem) => {
     const email = userItem.email || decodeEmail(userItem.encodedEmail);
-    if (!email) return;
+    if (!email) {
+      // uid-only ban (no email on file) — lifted by the server.
+      if (!userItem.id) return;
+      const r = await callModSanction('unban', userItem.id);
+      if (!r.ok) Alert.alert('Error', sanctionErrorText(r.error));
+      else { Alert.alert('User Unbanned', 'Ban has been lifted.'); setSelectedUser(null); fetchAllBanned(); }
+      return;
+    }
     if (isSelf(email)) {
       Alert.alert('Permission Denied', 'You cannot unban yourself.');
       return;
@@ -719,6 +760,8 @@ const AdminDashboard = () => {
 
     try {
       const success = await unbanUserWithEmail(email);
+      // The server lifts the uid ban, its devices and linked alts.
+      if (success && userItem.id) callModSanction('unban', userItem.id).catch(() => {});
       if (success) {
         setSelectedUser(null);
         fetchAllBanned();
@@ -740,7 +783,12 @@ const AdminDashboard = () => {
   const handleBan = async (item) => {
     const userItem = await withEmail(item);
     if (!userItem.email) {
-      Alert.alert('Error', 'User has no email associated.');
+      // Escalate like banUserwithEmail: next strike after the current uid ban.
+      const cur = userItem.id
+        ? (await get(ref(db, `banned_uids/${userItem.id}/strikeCount`)).catch(() => null))?.val()
+        : 0;
+      const strikeCount = Math.min(3, (typeof cur === 'number' ? cur : 0) + 1);
+      await sanctionByUid(userItem, 'strike', { strikeCount }, `Strike ${strikeCount}`);
       return;
     }
     if (isSelf(userItem.email)) {
@@ -792,7 +840,7 @@ const AdminDashboard = () => {
   const handleSetStrike = async (item, strikeCount) => {
     const userItem = await withEmail(item);
     if (!userItem.email) {
-      Alert.alert('Error', 'User has no email associated.');
+      await sanctionByUid(userItem, 'strike', { strikeCount }, `Strike ${strikeCount}`);
       return;
     }
     if (isSelf(userItem.email)) {
@@ -843,7 +891,7 @@ const AdminDashboard = () => {
   const handleMuteUser = async (item, minutes) => {
     const userItem = await withEmail(item);
     if (!userItem.email) {
-      Alert.alert('Error', 'User has no email associated.');
+      await sanctionByUid(userItem, 'mute', { minutes }, `Mute ${minutes}m`);
       return;
     }
     if (isSelf(userItem.email)) {
