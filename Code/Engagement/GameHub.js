@@ -2,6 +2,7 @@
  * GameHub.js
  * Central navigation screen for all mini games.
  * 4 active games: Fruit Smash, Crack the Chest, Fruit Slash, Memory Match
+ * Daily limit per game: 1 free round + 3 more after a rewarded ad (GameScreen).
  */
 
 import React, { useState } from 'react';
@@ -16,6 +17,7 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../GlobelStats';
 import config from '../Helper/Environment';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getThemeColors } from '../Helper/themeColors';
 import GameLeaderboard from './GameLeaderboard';
 
@@ -30,13 +32,14 @@ const GameHub = ({ navigation }) => {
   const { theme } = useGlobalState();
   const isDarkMode = theme === 'dark';
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const c = getThemeColors(isDarkMode);
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: c.bg }}
-      contentContainerStyle={styles.scrollContent}
+      contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 20 }]}
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>
@@ -51,7 +54,7 @@ const GameHub = ({ navigation }) => {
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14 }}>
         <View>
           <Text style={[styles.sectionTitle, { color: c.text }]}>Mini Games 🎯</Text>
-          <Text style={[styles.sectionSub, { color: c.textSecondary, marginBottom: 0 }]}>Unlimited plays — beat your best!</Text>
+          <Text style={[styles.sectionSub, { color: c.textSecondary, marginBottom: 0 }]}>1 free round a day — beat your best!</Text>
         </View>
         <TouchableOpacity
           style={[styles.lbBtn, { backgroundColor: isDarkMode ? config.colors.surfaceDark : '#fff', borderColor: '#F59E0B' }]}
@@ -75,7 +78,7 @@ const GameHub = ({ navigation }) => {
             <Text style={styles.gameName}>{game.name}</Text>
             <Text style={styles.gameInfo}>{game.desc}</Text>
             <View style={styles.gameTag}>
-              <Text style={styles.gameTagText}>Unlimited</Text>
+              <Text style={styles.gameTagText}>Daily</Text>
             </View>
           </TouchableOpacity>
         ))}

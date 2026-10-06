@@ -1,9 +1,13 @@
 /**
  * MemoryMatch.js — Card matching memory game with difficulty levels
  * Blox Fruit themed — Polished, Kid-Friendly, Consistent UI
+ *
+ * Board state lives in refs (mirrored to state for rendering) so two taps in
+ * the same frame can't both read the pre-tap board — that used to drop the
+ * first card and leave it stuck face-up.
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,25 +18,26 @@ import {
   Platform,
   Vibration,
   ScrollView,
+  AppState,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { getThemeColors } from '../Helper/themeColors';
 import { useGlobalState } from '../GlobelStats';
 import config from '../Helper/Environment';
 import { useHaptic } from '../Helper/HepticFeedBack';
-import { doc, getDoc, setDoc } from '@react-native-firebase/firestore';
-import { ref, get } from '@react-native-firebase/database';
-import { updateLeaderboardCacheRealtime } from './updateLeaderboardCache';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { loadGameStats, saveGameStats, submitLeaderboardScore } from './gameScores';
+import GameRoundActions from './GameRoundActions';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_MARGIN = 6;
 const FLIP_BACK_DELAY = 800;
+const RANKED_DIFFICULTY = 'medium'; // the only difficulty on the leaderboard
 
 const DIFFICULTIES = {
-  easy:   { cols: 3, rows: 2, pairs: 3, label: 'Easy',   emoji: '😊', color: '#10B981', desc: '3x2 grid . 3 pairs' },
-  medium: { cols: 4, rows: 3, pairs: 6, label: 'Medium', emoji: '🧠', color: '#F59E0B', desc: '4x3 grid . 6 pairs' },
-  hard:   { cols: 4, rows: 4, pairs: 8, label: 'Hard',   emoji: '🔥', color: '#EF4444', desc: '4x4 grid . 8 pairs' },
+  easy:   { cols: 3, rows: 2, pairs: 3, label: 'Easy',   emoji: '😊', color: '#10B981', desc: '3×2 grid · 3 pairs' },
+  medium: { cols: 4, rows: 3, pairs: 6, label: 'Medium', emoji: '🧠', color: '#F59E0B', desc: '4×3 grid · 6 pairs' },
+  hard:   { cols: 4, rows: 4, pairs: 8, label: 'Hard',   emoji: '🔥', color: '#EF4444', desc: '4×4 grid · 8 pairs' },
 };
 
 // Blox Fruit themed emoji pool
@@ -59,249 +64,290 @@ const generateDeck = (pairCount) => {
   }));
 };
 
-const MemoryMatch = ({ onClose, roundInfo, onRoundComplete, onWatchAd }) => {
-  const visible = true;
+const formatTime = (s) => {
+  const mins = Math.floor(s / 60);
+  const secs = s % 60;
+  return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+};
+
+const getStars = (m, d) => {
+  const thresholds = { easy: [4, 6, 8], medium: [8, 12, 16], hard: [10, 15, 20] };
+  const t = thresholds[d] || thresholds.medium;
+  if (m <= t[0]) return { stars: 3, label: 'Perfect! 🌟', emoji: '🌟', color: '#F59E0B' };
+  if (m <= t[1]) return { stars: 2, label: 'Great Memory!', emoji: '⭐', color: '#10B981' };
+  if (m <= t[2]) return { stars: 2, label: 'Good Job!', emoji: '👏', color: '#3B82F6' };
+  return { stars: 1, label: 'Keep Practicing!', emoji: '🧠', color: '#8B5CF6' };
+};
+
+const makeAnims = (n) => Array(n).fill(null).map(() => new Animated.Value(0));
+
+const MemoryMatch = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading }) => {
   const insets = useSafeAreaInsets();
   const { firestoreDB, appdatabase, user, theme } = useGlobalState();
   const { triggerHapticFeedback } = useHaptic();
   const isDarkMode = theme === 'dark';
   const uid = user?.id;
 
-  const [phase, setPhase] = useState('loading');
+  const [phase, setPhase] = useState('loading'); // loading | rules | playing | complete
   const [difficulty, setDifficulty] = useState('medium');
   const [bestMoves, setBestMoves] = useState({});
   const [bestTime, setBestTime] = useState({});
   const [cards, setCards] = useState([]);
-  const [flippedIds, setFlippedIds] = useState([]);
   const [matchedPairs, setMatchedPairs] = useState(0);
   const [moves, setMoves] = useState(0);
   const [timer, setTimer] = useState(0);
-  const [isChecking, setIsChecking] = useState(false);
+  const [result, setResult] = useState({ newBestMoves: false, newBestTime: false });
 
   const timerRef = useRef(null);
-  const flipAnims = useRef([]);
+  const flipAnims = useRef(makeAnims(DIFFICULTIES.medium.cols * DIFFICULTIES.medium.rows));
   const startTimeRef = useRef(0);
+  const pausedAtRef = useRef(0);
+  const cardsRef = useRef([]);
+  const flippedRef = useRef([]);
+  const checkingRef = useRef(false);
+  const matchedRef = useRef(0);
+  const movesRef = useRef(0);
+  const bestMovesRef = useRef({});
+  const bestTimeRef = useRef({});
+  const statsLoadedRef = useRef(false);
+  const timersRef = useRef([]);
+  const mountedRef = useRef(true);
+  const phaseRef = useRef('loading');
+  phaseRef.current = phase;
 
   const c = getThemeColors(isDarkMode);
+  const surface = isDarkMode ? config.colors.surfaceDark : '#fff';
+  const border = isDarkMode ? '#334155' : '#e2e8f0';
   const diff = DIFFICULTIES[difficulty];
-  const totalCards = diff.cols * diff.rows;
   const cardSize = (SCREEN_WIDTH - 48 - CARD_MARGIN * diff.cols * 2) / diff.cols;
 
   useEffect(() => {
-    flipAnims.current = Array(totalCards).fill(null).map(() => new Animated.Value(0));
-  }, [totalCards]);
-
-  useEffect(() => {
-    if (!visible || !firestoreDB || !uid) return;
+    let cancelled = false;
     (async () => {
-      try {
-        const snap = await getDoc(doc(firestoreDB, 'games', uid));
-        const data = snap.exists() ? snap.data() : {};
-        setBestMoves({
-          easy:   data.memoryBestMoves_easy || 0,
-          medium: data.memoryBestMoves_medium || 0,
-          hard:   data.memoryBestMoves_hard || 0,
-        });
-        setBestTime({
-          easy:   data.memoryBestTime_easy || 0,
-          medium: data.memoryBestTime_medium || 0,
-          hard:   data.memoryBestTime_hard || 0,
-        });
-        setPhase('rules');
-      } catch {
-        setPhase('rules');
-      }
+      const data = uid ? await loadGameStats(firestoreDB, uid) : null;
+      if (cancelled) return;
+      statsLoadedRef.current = !!data;
+      bestMovesRef.current = {
+        easy:   data?.memoryBestMoves_easy || 0,
+        medium: data?.memoryBestMoves_medium || 0,
+        hard:   data?.memoryBestMoves_hard || 0,
+      };
+      bestTimeRef.current = {
+        easy:   data?.memoryBestTime_easy || 0,
+        medium: data?.memoryBestTime_medium || 0,
+        hard:   data?.memoryBestTime_hard || 0,
+      };
+      setBestMoves(bestMovesRef.current);
+      setBestTime(bestTimeRef.current);
+      setPhase('rules');
     })();
-  }, [visible, firestoreDB, uid]);
+    return () => { cancelled = true; };
+  }, [firestoreDB, uid]);
+
+  const later = (fn, ms) => {
+    const t = setTimeout(() => {
+      timersRef.current = timersRef.current.filter(x => x !== t);
+      if (mountedRef.current) fn();
+    }, ms);
+    timersRef.current.push(t);
+  };
+
+  const stopTimer = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = null;
+  };
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+    stopTimer();
+    timersRef.current.forEach(t => clearTimeout(t));
+    timersRef.current = [];
+  }, []);
 
   useEffect(() => {
     if (phase === 'playing') {
       startTimeRef.current = Date.now();
+      pausedAtRef.current = 0;
       timerRef.current = setInterval(() => {
+        if (pausedAtRef.current) return;
         setTimer(Math.floor((Date.now() - startTimeRef.current) / 1000));
       }, 1000);
     } else {
-      if (timerRef.current) clearInterval(timerRef.current);
+      stopTimer();
     }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    return stopTimer;
   }, [phase]);
 
-  const startGame = useCallback(() => {
-    const deck = generateDeck(diff.pairs);
-    setCards(deck);
-    setFlippedIds([]);
+  // The clock doesn't run while the app is in the background.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (phaseRef.current !== 'playing') return;
+      if (state !== 'active') {
+        if (!pausedAtRef.current) pausedAtRef.current = Date.now();
+      } else if (pausedAtRef.current) {
+        startTimeRef.current += Date.now() - pausedAtRef.current;
+        pausedAtRef.current = 0;
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  const commitCards = (next) => {
+    cardsRef.current = next;
+    setCards(next);
+  };
+
+  const startGame = () => {
+    onRoundStart?.();
+    stopTimer();
+    timersRef.current.forEach(t => clearTimeout(t));
+    timersRef.current = [];
+    flipAnims.current = makeAnims(diff.cols * diff.rows);
+    commitCards(generateDeck(diff.pairs));
+    flippedRef.current = [];
+    checkingRef.current = false;
+    matchedRef.current = 0;
+    movesRef.current = 0;
     setMatchedPairs(0);
     setMoves(0);
     setTimer(0);
-    setIsChecking(false);
-    flipAnims.current = Array(diff.cols * diff.rows).fill(null).map(() => new Animated.Value(0));
+    setResult({ newBestMoves: false, newBestTime: false });
     setPhase('playing');
     triggerHapticFeedback('impactHeavy');
-  }, [diff, triggerHapticFeedback]);
+  };
 
-  const flipCard = useCallback((cardId) => {
-    if (isChecking) return;
-    const card = cards[cardId];
+  const completeGame = (finalMoves, finalTime) => {
+    setPhase('complete');
+    const d = difficulty;
+    const oldMoves = bestMovesRef.current[d] || 0;
+    const oldTime = bestTimeRef.current[d] || 0;
+    const newBestMoves = oldMoves === 0 || finalMoves < oldMoves;
+    const newBestTime = oldTime === 0 || finalTime < oldTime;
+    const bm = newBestMoves ? finalMoves : oldMoves;
+    const bt = newBestTime ? finalTime : oldTime;
+    bestMovesRef.current = { ...bestMovesRef.current, [d]: bm };
+    bestTimeRef.current = { ...bestTimeRef.current, [d]: bt };
+    setBestMoves(bestMovesRef.current);
+    setBestTime(bestTimeRef.current);
+    // "New best" only means something when there was a best to beat.
+    setResult({ newBestMoves: newBestMoves && oldMoves > 0, newBestTime: newBestTime && oldTime > 0, firstClear: oldMoves === 0 });
+
+    if (!statsLoadedRef.current) return;
+    saveGameStats(firestoreDB, uid, {
+      lastMemoryAt: new Date(),
+      [`memoryBestMoves_${d}`]: bm,
+      [`memoryBestTime_${d}`]: bt,
+      [`memoryLastMoves_${d}`]: finalMoves,
+      [`memoryLastTime_${d}`]: finalTime,
+    });
+    if (d === RANKED_DIFFICULTY && newBestMoves) {
+      submitLeaderboardScore({ firestoreDB, appdatabase, uid, user, gameKey: 'memory', score: bm });
+    }
+  };
+
+  const flipCard = (cardId) => {
+    if (checkingRef.current) return;
+    const board = cardsRef.current;
+    const card = board[cardId];
     if (!card || card.flipped || card.matched) return;
-    if (flippedIds.length >= 2) return;
+    if (flippedRef.current.length >= 2) return;
 
     triggerHapticFeedback('impactLight');
-
     Animated.spring(flipAnims.current[cardId], {
       toValue: 1, tension: 250, friction: 8, useNativeDriver: true,
     }).start();
 
-    const newCards = [...cards];
-    newCards[cardId] = { ...newCards[cardId], flipped: true };
-    setCards(newCards);
+    const flippedBoard = [...board];
+    flippedBoard[cardId] = { ...card, flipped: true };
+    commitCards(flippedBoard);
 
-    const newFlipped = [...flippedIds, cardId];
-    setFlippedIds(newFlipped);
+    const pair = [...flippedRef.current, cardId];
+    flippedRef.current = pair;
+    if (pair.length < 2) return;
 
-    if (newFlipped.length === 2) {
-      setMoves(prev => prev + 1);
-      setIsChecking(true);
+    movesRef.current += 1;
+    setMoves(movesRef.current);
+    checkingRef.current = true;
+    const [first, second] = pair;
+    const totalPairs = diff.pairs;
 
-      const [first, second] = newFlipped;
-      if (newCards[first].emoji === newCards[second].emoji) {
-        setTimeout(() => {
-          triggerHapticFeedback('notificationSuccess');
-          if (Platform.OS === 'android') Vibration.vibrate([0, 40, 20, 40]);
+    if (flippedBoard[first].emoji === flippedBoard[second].emoji) {
+      later(() => {
+        triggerHapticFeedback('notificationSuccess');
+        if (Platform.OS === 'android') Vibration.vibrate([0, 40, 20, 40]);
 
-          const matched = [...newCards];
-          matched[first] = { ...matched[first], matched: true };
-          matched[second] = { ...matched[second], matched: true };
-          setCards(matched);
-          setFlippedIds([]);
-          setIsChecking(false);
+        const matched = [...cardsRef.current];
+        matched[first] = { ...matched[first], matched: true };
+        matched[second] = { ...matched[second], matched: true };
+        commitCards(matched);
+        flippedRef.current = [];
+        checkingRef.current = false;
+        matchedRef.current += 1;
+        setMatchedPairs(matchedRef.current);
 
-          const newPairs = matchedPairs + 1;
-          setMatchedPairs(newPairs);
+        if (matchedRef.current >= totalPairs) {
+          checkingRef.current = true; // board is done — ignore stray taps
+          stopTimer();
+          const finalTime = Math.max(1, Math.floor((Date.now() - startTimeRef.current) / 1000));
+          setTimer(finalTime);
+          const finalMoves = movesRef.current;
+          later(() => {
+            triggerHapticFeedback('impactHeavy');
+            completeGame(finalMoves, finalTime);
+          }, 500);
+        }
+      }, 300);
+    } else {
+      later(() => {
+        triggerHapticFeedback('impactMedium');
+        Animated.parallel([
+          Animated.timing(flipAnims.current[first], { toValue: 0, duration: 200, useNativeDriver: true }),
+          Animated.timing(flipAnims.current[second], { toValue: 0, duration: 200, useNativeDriver: true }),
+        ]).start();
 
-          if (newPairs >= diff.pairs) {
-            if (timerRef.current) clearInterval(timerRef.current);
-            const finalTime = Math.floor((Date.now() - startTimeRef.current) / 1000);
-            setTimer(finalTime);
-            setTimeout(() => {
-              triggerHapticFeedback('notificationSuccess');
-              setTimeout(() => triggerHapticFeedback('impactHeavy'), 200);
-              completeGame(moves + 1, finalTime);
-            }, 500);
-          }
-        }, 300);
-      } else {
-        setTimeout(() => {
-          triggerHapticFeedback('impactMedium');
-          Animated.parallel([
-            Animated.timing(flipAnims.current[first], { toValue: 0, duration: 200, useNativeDriver: true }),
-            Animated.timing(flipAnims.current[second], { toValue: 0, duration: 200, useNativeDriver: true }),
-          ]).start();
-
-          const reset = [...newCards];
-          reset[first] = { ...reset[first], flipped: false };
-          reset[second] = { ...reset[second], flipped: false };
-          setCards(reset);
-          setFlippedIds([]);
-          setIsChecking(false);
-        }, FLIP_BACK_DELAY);
-      }
+        const reset = [...cardsRef.current];
+        reset[first] = { ...reset[first], flipped: false };
+        reset[second] = { ...reset[second], flipped: false };
+        commitCards(reset);
+        flippedRef.current = [];
+        checkingRef.current = false;
+      }, FLIP_BACK_DELAY);
     }
-  }, [cards, flippedIds, isChecking, matchedPairs, moves, diff, triggerHapticFeedback]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const completeGame = useCallback(async (finalMoves, finalTime) => {
-    setPhase('complete');
-    if (onRoundComplete) onRoundComplete();
-    try {
-      const curBestMoves = bestMoves[difficulty] || 0;
-      const curBestTime = bestTime[difficulty] || 0;
-      const newBM = curBestMoves > 0 ? Math.min(finalMoves, curBestMoves) : finalMoves;
-      const newBT = curBestTime > 0 ? Math.min(finalTime, curBestTime) : finalTime;
-      setBestMoves(prev => ({ ...prev, [difficulty]: newBM }));
-      setBestTime(prev => ({ ...prev, [difficulty]: newBT }));
-
-      await setDoc(doc(firestoreDB, 'games', uid), {
-        lastMemoryAt: new Date(),
-        [`memoryBestMoves_${difficulty}`]: newBM,
-        [`memoryBestTime_${difficulty}`]: newBT,
-        [`memoryLastMoves_${difficulty}`]: finalMoves,
-        [`memoryLastTime_${difficulty}`]: finalTime,
-      }, { merge: true });
-
-      // Leaderboard dual-write (medium difficulty only)
-      if (difficulty === 'medium' && newBM > 0) {
-        let username = 'Unknown';
-        let avatar = null;
-        try {
-          const [nameSnap, avatarSnap] = await Promise.all([
-            get(ref(appdatabase, `users/${uid}/displayName`)),
-            get(ref(appdatabase, `users/${uid}/avatar`)),
-          ]);
-          username = nameSnap.exists() ? nameSnap.val() : (user?.displayName || 'Unknown');
-          avatar = avatarSnap.exists() ? avatarSnap.val() : null;
-        } catch (_) {}
-        await setDoc(doc(firestoreDB, 'game_scores', 'memory', 'scores', uid), {
-          score: newBM,
-          username,
-          avatar,
-          updatedAt: new Date(),
-        }, { merge: true });
-
-        await updateLeaderboardCacheRealtime(firestoreDB, 'memory', uid, newBM, username, avatar);
-      }
-    } catch (err) {
-      console.warn('[MemoryMatch] save error:', err?.message);
-    }
-  }, [bestMoves, bestTime, difficulty, firestoreDB, appdatabase, uid, user]);
-
-  useEffect(() => {
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, []);
-
-  const formatTime = (s) => {
-    const mins = Math.floor(s / 60);
-    const secs = s % 60;
-    return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
-  };
-
-  const getStars = (m, d) => {
-    const thresholds = { easy: [4, 6, 8], medium: [8, 12, 16], hard: [10, 15, 20] };
-    const t = thresholds[d] || thresholds.medium;
-    if (m <= t[0]) return { stars: 3, label: 'Perfect! 🌟', emoji: '🌟', color: '#F59E0B' };
-    if (m <= t[1]) return { stars: 2, label: 'Great Memory!', emoji: '⭐', color: '#10B981' };
-    if (m <= t[2]) return { stars: 2, label: 'Good Job!', emoji: '👏', color: '#3B82F6' };
-    return { stars: 1, label: 'Keep Practicing!', emoji: '🧠', color: '#8B5CF6' };
   };
 
   const renderCard = (card, index) => {
     const isFlipped = card.flipped || card.matched;
-    const flipRotate = flipAnims.current[index]?.interpolate({
-      inputRange: [0, 1], outputRange: ['0deg', '180deg'],
-    }) || '0deg';
-    const backRotate = flipAnims.current[index]?.interpolate({
-      inputRange: [0, 1], outputRange: ['180deg', '360deg'],
-    }) || '180deg';
+    const anim = flipAnims.current[index] || new Animated.Value(isFlipped ? 1 : 0);
+    const backRotate = anim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
+    const frontRotate = anim.interpolate({ inputRange: [0, 1], outputRange: ['180deg', '360deg'] });
+    // Opacity cross-fade at the halfway point: backfaceVisibility alone isn't
+    // reliable on Android, where the back face could show through mirrored.
+    const backOpacity = anim.interpolate({ inputRange: [0, 0.49, 0.51, 1], outputRange: [1, 1, 0, 0], extrapolate: 'clamp' });
+    const frontOpacity = anim.interpolate({ inputRange: [0, 0.49, 0.51, 1], outputRange: [0, 0, 1, 1], extrapolate: 'clamp' });
 
     return (
       <TouchableOpacity
         key={card.id}
         style={[styles.card, { width: cardSize, height: cardSize, margin: CARD_MARGIN }]}
         onPress={() => flipCard(card.id)}
-        activeOpacity={0.7}
-        disabled={isFlipped || isChecking}
+        activeOpacity={0.8}
+        disabled={isFlipped}
       >
         <Animated.View style={[styles.cardFace, styles.cardBack, {
-          backgroundColor: card.matched ? '#10B981' : (isDarkMode ? '#3B82F6' : '#6366F1'),
-          transform: [{ rotateY: flipRotate }],
+          backgroundColor: isDarkMode ? '#3B82F6' : '#6366F1',
+          opacity: backOpacity,
+          transform: [{ perspective: 800 }, { rotateY: backRotate }],
           width: cardSize - 4, height: cardSize - 4,
         }]}>
           <Text style={[styles.cardBackText, { fontSize: cardSize > 70 ? 24 : 18 }]}>?</Text>
         </Animated.View>
 
         <Animated.View style={[styles.cardFace, styles.cardFront, {
-          backgroundColor: card.matched ? (isDarkMode ? '#065F46' : '#D1FAE5') : (isDarkMode ? config.colors.surfaceDark : '#fff'),
-          transform: [{ rotateY: backRotate }],
+          backgroundColor: card.matched ? (isDarkMode ? '#065F46' : '#D1FAE5') : surface,
+          opacity: frontOpacity,
+          transform: [{ perspective: 800 }, { rotateY: frontRotate }],
           width: cardSize - 4, height: cardSize - 4,
-          borderColor: card.matched ? '#10B981' : (isDarkMode ? '#334155' : '#e2e8f0'),
+          borderColor: card.matched ? '#10B981' : border,
         }]}>
           <Text style={{ fontSize: cardSize > 70 ? 28 : 22 }}>{card.emoji}</Text>
         </Animated.View>
@@ -312,10 +358,10 @@ const MemoryMatch = ({ onClose, roundInfo, onRoundComplete, onWatchAd }) => {
   const rating = getStars(moves, difficulty);
   const curBest = bestMoves[difficulty] || 0;
 
-  const innerContent = (
-    <>
+  return (
+    <View style={[styles.screen, { backgroundColor: isDarkMode ? config.colors.backgroundDark : '#f8fafc', paddingBottom: Math.max(insets.bottom, 16) }]}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity onPress={() => { if (timerRef.current) clearInterval(timerRef.current); onClose(); }} style={styles.backBtn}>
+        <TouchableOpacity onPress={onClose} style={styles.backBtn} hitSlop={8}>
           <Icon name="chevron-back" size={24} color={c.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: c.text }]}>🃏 Memory Match</Text>
@@ -351,7 +397,7 @@ const MemoryMatch = ({ onClose, roundInfo, onRoundComplete, onWatchAd }) => {
               <Text style={styles.ruleEmoji}>🔍</Text>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.ruleTitle, { color: c.text }]}>Find the Match</Text>
-                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>Flip 2 cards — if they match, they stay! If not, they flip back.</Text>
+                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>Flip 2 cards — if they match, they stay! Fewer moves = more stars.</Text>
               </View>
             </View>
           </View>
@@ -360,13 +406,14 @@ const MemoryMatch = ({ onClose, roundInfo, onRoundComplete, onWatchAd }) => {
 
           {Object.entries(DIFFICULTIES).map(([key, d]) => {
             const best = bestMoves[key];
+            const selected = difficulty === key;
             return (
               <TouchableOpacity
                 key={key}
                 style={[styles.diffCard, {
-                  backgroundColor: isDarkMode ? config.colors.surfaceDark : '#fff',
-                  borderColor: difficulty === key ? d.color : (isDarkMode ? '#334155' : '#e2e8f0'),
-                  borderWidth: difficulty === key ? 2 : 1,
+                  backgroundColor: surface,
+                  borderColor: selected ? d.color : border,
+                  borderWidth: selected ? 2 : 1,
                 }]}
                 onPress={() => { setDifficulty(key); triggerHapticFeedback('impactLight'); }}
                 activeOpacity={0.7}
@@ -375,29 +422,41 @@ const MemoryMatch = ({ onClose, roundInfo, onRoundComplete, onWatchAd }) => {
                   <Text style={{ fontSize: 28 }}>{d.emoji}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.diffLabel, { color: d.color }]}>{d.label}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={[styles.diffLabel, { color: d.color }]}>{d.label}</Text>
+                    {key === RANKED_DIFFICULTY && (
+                      <View style={styles.rankedTag}><Text style={styles.rankedTagText}>🏆 Ranked</Text></View>
+                    )}
+                  </View>
                   <Text style={[styles.diffDesc, { color: c.textSecondary }]}>{d.desc}</Text>
                   {best > 0 && (
-                    <Text style={[styles.diffBest, { color: c.textSecondary }]}>🏆 Best: {best} moves</Text>
+                    <Text style={[styles.diffBest, { color: c.textSecondary }]}>🏆 Best: {best} moves · {formatTime(bestTime[key] || 0)}</Text>
                   )}
                 </View>
-                <View style={[styles.diffRadio, { borderColor: d.color, backgroundColor: difficulty === key ? d.color : 'transparent' }]}>
-                  {difficulty === key && <Text style={{ color: '#fff', fontSize: 12, fontWeight: '900' }}>✓</Text>}
+                <View style={[styles.diffRadio, { borderColor: d.color, backgroundColor: selected ? d.color : 'transparent' }]}>
+                  {selected && <Text style={{ color: '#fff', fontSize: 12, fontWeight: '900' }}>✓</Text>}
                 </View>
               </TouchableOpacity>
             );
           })}
 
-          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: diff.color, marginTop: 16 }]} onPress={startGame}>
-            <Icon name="play" size={22} color="#fff" />
-            <Text style={styles.actionBtnText}>LET'S GO! 🎮</Text>
-          </TouchableOpacity>
+          <GameRoundActions
+            roundInfo={roundInfo}
+            onPlay={startGame}
+            onWatchAd={onWatchAd}
+            adLoading={adLoading}
+            color={diff.color}
+            playLabel="LET'S GO! 🎮"
+            playIcon="play"
+            textColor={c.textSecondary}
+            style={{ marginTop: 16 }}
+          />
         </ScrollView>
       )}
 
       {phase === 'playing' && (
-        <View style={{ flex: 1, alignItems: 'center' }}>
-          <View style={[styles.hud, { backgroundColor: isDarkMode ? config.colors.surfaceDark : '#fff', borderColor: isDarkMode ? '#334155' : '#e2e8f0' }]}>
+        <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 16 }}>
+          <View style={[styles.hud, { backgroundColor: surface, borderColor: border }]}>
             <View style={styles.hudItem}>
               <Text style={[styles.hudLabel, { color: c.textSecondary }]}>Pairs</Text>
               <Text style={[styles.hudVal, { color: '#10B981' }]}>{matchedPairs}/{diff.pairs}</Text>
@@ -413,7 +472,7 @@ const MemoryMatch = ({ onClose, roundInfo, onRoundComplete, onWatchAd }) => {
           </View>
 
           <View style={[styles.diffBadge, { backgroundColor: diff.color, marginBottom: 12 }]}>
-            <Text style={styles.diffBadgeText}>{diff.label}</Text>
+            <Text style={styles.diffBadgeText}>{diff.label}{curBest > 0 ? ` · Best ${curBest} moves` : ''}</Text>
           </View>
 
           <View style={styles.gridContainer}>
@@ -428,73 +487,64 @@ const MemoryMatch = ({ onClose, roundInfo, onRoundComplete, onWatchAd }) => {
         <ScrollView contentContainerStyle={styles.centerContent} showsVerticalScrollIndicator={false}>
           <Text style={{ fontSize: 80 }}>{rating.emoji}</Text>
           <Text style={[styles.bigTitle, { color: rating.color }]}>{rating.label}</Text>
+          <Text style={styles.starsRow}>
+            {'★'.repeat(rating.stars)}<Text style={{ color: isDarkMode ? '#334155' : '#e2e8f0' }}>{'★'.repeat(3 - rating.stars)}</Text>
+          </Text>
 
-          <View style={[styles.statsCard, { backgroundColor: isDarkMode ? config.colors.surfaceDark : '#fff', borderColor: isDarkMode ? '#334155' : '#e2e8f0' }]}>
+          <View style={[styles.statsCard, { backgroundColor: surface, borderColor: border }]}>
             <View style={styles.statRow}>
               <Text style={[styles.statLabel, { color: c.textSecondary }]}>Moves</Text>
-              <Text style={[styles.statVal, { color: '#F59E0B' }]}>{moves}</Text>
+              <Text style={[styles.statVal, { color: '#F59E0B' }]}>{moves}{result.newBestMoves ? ' 🎉' : ''}</Text>
             </View>
             <View style={styles.statRow}>
               <Text style={[styles.statLabel, { color: c.textSecondary }]}>Time</Text>
-              <Text style={[styles.statVal, { color: c.text }]}>{formatTime(timer)}</Text>
+              <Text style={[styles.statVal, { color: c.text }]}>{formatTime(timer)}{result.newBestTime ? ' 🎉' : ''}</Text>
             </View>
             <View style={[styles.statRow, { borderBottomWidth: 0 }]}>
-              <Text style={[styles.statLabel, { color: c.textSecondary }]}>Pairs</Text>
-              <Text style={[styles.statVal, { color: '#10B981' }]}>{diff.pairs}/{diff.pairs}</Text>
+              <Text style={[styles.statLabel, { color: c.textSecondary }]}>Difficulty</Text>
+              <Text style={[styles.statVal, { color: diff.color }]}>{diff.label}</Text>
             </View>
           </View>
 
-          {curBest > 0 && (
-            <Text style={[styles.bestScoreLabel, { color: diff.color }]}>
-              {moves <= curBest && moves > 0 ? '🎉 NEW BEST! 🎉' : `🏆 Best: ${curBest} moves`}
-            </Text>
-          )}
-
-          {roundInfo?.maxedOut ? (
-            <Text style={{ color: '#94a3b8', fontSize: 14, fontWeight: '600', textAlign: 'center', marginTop: 24 }}>
-              Come back tomorrow for more rounds!
-            </Text>
-          ) : roundInfo?.needsUnlock ? (
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#F59E0B', marginTop: 24, width: '100%', justifyContent: 'center' }]} onPress={onWatchAd}>
-              <Icon name="play-circle" size={22} color="#fff" />
-              <Text style={styles.actionBtnText}>Unlock 3 More Rounds — Watch Ad</Text>
-            </TouchableOpacity>
-          ) : roundInfo?.roundsLeft > 0 ? (
-            <>
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: diff.color, marginTop: 24, width: '100%', justifyContent: 'center' }]} onPress={startGame}>
-                <Icon name="refresh" size={22} color="#fff" />
-                <Text style={styles.actionBtnText}>Play Again ({roundInfo.roundsLeft} left)</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#6366F1', marginTop: 10, width: '100%', justifyContent: 'center' }]} onPress={() => setPhase('rules')}>
-                <Icon name="options-outline" size={22} color="#fff" />
-                <Text style={styles.actionBtnText}>Change Difficulty</Text>
-              </TouchableOpacity>
-            </>
+          {result.newBestMoves ? (
+            <Text style={[styles.bestScoreLabel, { color: diff.color }]}>🎉 NEW BEST! 🎉</Text>
+          ) : curBest > 0 && !result.firstClear ? (
+            <Text style={[styles.bestScoreLabel, { color: diff.color }]}>🏆 Best: {curBest} moves</Text>
           ) : null}
-          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#64748b', marginTop: 10, width: '100%', justifyContent: 'center' }]} onPress={onClose}>
+
+          <GameRoundActions
+            roundInfo={roundInfo}
+            onPlay={startGame}
+            onWatchAd={onWatchAd}
+            adLoading={adLoading}
+            color={diff.color}
+            playLabel="Play Again"
+            textColor={c.textSecondary}
+          />
+          {!roundInfo?.maxedOut && (
+            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#6366F1', marginTop: 10, width: '100%', justifyContent: 'center' }]} onPress={() => setPhase('rules')}>
+              <Icon name="options-outline" size={22} color="#fff" />
+              <Text style={styles.actionBtnText}>Change Difficulty</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={[styles.actionBtn, styles.doneBtn]} onPress={onClose}>
             <Text style={styles.actionBtnText}>Done</Text>
           </TouchableOpacity>
         </ScrollView>
       )}
-    </>
-  );
-
-  return (
-    <View style={[styles.screen, { backgroundColor: isDarkMode ? config.colors.backgroundDark : '#f8fafc' }]}>
-      {innerContent}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, paddingTop: 8, paddingBottom: 36 },
+  screen: { flex: 1, paddingTop: 8 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 4 },
   title: { fontSize: 20, fontWeight: '800', flex: 1, textAlign: 'center' },
   backBtn: { padding: 8, width: 40 },
 
-  centerContent: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 20, paddingHorizontal: 16 },
+  centerContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 20, paddingHorizontal: 16 },
   rulesContent: { paddingVertical: 10, paddingHorizontal: 20 },
-  bigTitle: { fontSize: 28, fontWeight: '900', marginTop: 8 },
+  bigTitle: { fontSize: 28, fontWeight: '900', marginTop: 8, textAlign: 'center' },
   subText: { fontSize: 14, marginTop: 4 },
 
   ruleCard: { borderRadius: 16, padding: 16, marginBottom: 10 },
@@ -505,8 +555,10 @@ const styles = StyleSheet.create({
 
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 16, paddingHorizontal: 32, borderRadius: 100, alignSelf: 'center' },
   actionBtnText: { color: '#fff', fontSize: 18, fontWeight: '800' },
+  doneBtn: { backgroundColor: '#64748b', marginTop: 10, width: '100%', justifyContent: 'center' },
 
   bestScoreLabel: { fontSize: 16, fontWeight: '800', textAlign: 'center', marginTop: 16 },
+  starsRow: { fontSize: 32, color: '#F59E0B', marginTop: 6, letterSpacing: 4 },
 
   diffCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, marginBottom: 10, width: '100%' },
   diffLeft: { marginRight: 16 },
@@ -514,6 +566,8 @@ const styles = StyleSheet.create({
   diffDesc: { fontSize: 12, marginTop: 4 },
   diffBest: { fontSize: 11, marginTop: 4, fontWeight: '700' },
   diffRadio: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  rankedTag: { backgroundColor: 'rgba(245,158,11,0.15)', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
+  rankedTagText: { color: '#D97706', fontSize: 10, fontWeight: '800' },
 
   diffBadge: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 12 },
   diffBadgeText: { color: '#fff', fontSize: 12, fontWeight: '900', textTransform: 'uppercase' },

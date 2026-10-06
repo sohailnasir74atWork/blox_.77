@@ -2,6 +2,14 @@
  * QuickDraw.js — "Fruit Slash" reaction time game
  * How fast can you slash the fruit? 3 rounds!
  * Blox Fruit themed — Polished, Kid-Friendly, Consistent UI
+ *
+ * Timing notes:
+ *   - Taps register on touch-DOWN (onPressIn). onPress waits for the finger
+ *     to lift, which added 50–150 ms to every reaction time.
+ *   - Under ANTICIPATION_MS no human is reacting to the signal, they guessed —
+ *     that counts as a false start, same as tapping during WAIT.
+ *   - Leaving the app mid-round restarts that round; a signal that fired
+ *     while the app was hidden can't be reacted to.
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -9,26 +17,29 @@ import {
   View,
   Text,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   Animated,
-  Dimensions,
   Platform,
   Vibration,
   ScrollView,
+  AppState,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { getThemeColors } from '../Helper/themeColors';
 import { useGlobalState } from '../GlobelStats';
 import config from '../Helper/Environment';
 import { useHaptic } from '../Helper/HepticFeedBack';
-import { doc, getDoc, setDoc } from '@react-native-firebase/firestore';
-import { ref, get } from '@react-native-firebase/database';
-import { updateLeaderboardCacheRealtime } from './updateLeaderboardCache';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { loadGameStats, saveGameStats, submitLeaderboardScore } from './gameScores';
+import GameRoundActions from './GameRoundActions';
 
 const TOTAL_ROUNDS = 3;
 const MIN_WAIT = 1500;
 const MAX_WAIT = 4000;
+const ANTICIPATION_MS = 100;
+const PENALTY_MS = 999;
+const ACCENT = '#DC2626';
 
 const getRank = (avgMs) => {
   if (avgMs <= 200) return { label: 'Lightning! ⚡', emoji: '⚡', color: '#F59E0B', tier: 4 };
@@ -38,58 +49,87 @@ const getRank = (avgMs) => {
   return { label: 'Keep Practicing', emoji: '🐢', color: '#6B7280', tier: 0 };
 };
 
-const QuickDraw = ({ onClose, roundInfo, onRoundComplete, onWatchAd }) => {
-  const visible = true;
+const isPenalty = (t) => t >= PENALTY_MS;
+
+// Average INCLUDES false-start penalties — that's what "+999ms penalty" promises.
+const summarize = (times) => {
+  const valid = times.filter(t => !isPenalty(t));
+  return {
+    avg: times.length > 0 ? Math.round(times.reduce((a, b) => a + b, 0) / times.length) : PENALTY_MS,
+    best: valid.length > 0 ? Math.min(...valid) : PENALTY_MS,
+    early: times.length - valid.length,
+  };
+};
+
+const QuickDraw = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading }) => {
   const insets = useSafeAreaInsets();
   const { firestoreDB, appdatabase, user, theme } = useGlobalState();
   const { triggerHapticFeedback } = useHaptic();
   const isDarkMode = theme === 'dark';
   const uid = user?.id;
 
-  const [phase, setPhase] = useState('loading');
+  const [phase, setPhase] = useState('loading'); // loading | rules | waiting | draw | early | roundResult | gameResult
   const [bestTime, setBestTime] = useState(0);
   const [currentRound, setCurrentRound] = useState(0);
   const [roundTimes, setRoundTimes] = useState([]);
   const [currentTime, setCurrentTime] = useState(0);
-  const [tappedEarly, setTappedEarly] = useState(false);
+  const [earlyReason, setEarlyReason] = useState('wait'); // wait | guess
+  const [isNewBest, setIsNewBest] = useState(false);
 
   const drawTimeRef = useRef(0);
   const waitTimerRef = useRef(null);
+  const phaseRef = useRef('loading');
+  const roundTimesRef = useRef([]);
+  const currentRoundRef = useRef(0);
+  const bestTimeRef = useRef(0);
+  const statsLoadedRef = useRef(false);
   const flashAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const countAnim = useRef(new Animated.Value(0)).current;
 
   const c = getThemeColors(isDarkMode);
+  const surface = isDarkMode ? config.colors.surfaceDark : '#fff';
+  const border = isDarkMode ? '#334155' : '#e2e8f0';
+
+  const goPhase = (p) => {
+    phaseRef.current = p;
+    setPhase(p);
+  };
 
   useEffect(() => {
-    if (!visible || !firestoreDB || !uid) return;
+    let cancelled = false;
     (async () => {
-      try {
-        const snap = await getDoc(doc(firestoreDB, 'games', uid));
-        const data = snap.exists() ? snap.data() : {};
-        setBestTime(data.drawBestTime || 0);
-        setPhase('rules');
-        setRoundTimes([]);
-        setCurrentRound(0);
-      } catch {
-        setPhase('rules');
-      }
+      const data = uid ? await loadGameStats(firestoreDB, uid) : null;
+      if (cancelled) return;
+      statsLoadedRef.current = !!data;
+      const best = data?.drawBestTime || 0;
+      bestTimeRef.current = best > 0 && !isPenalty(best) ? best : 0;
+      setBestTime(bestTimeRef.current);
+      goPhase('rules');
     })();
-  }, [visible, firestoreDB, uid]);
+    return () => { cancelled = true; };
+  }, [firestoreDB, uid]);
+
+  const clearWait = () => {
+    if (waitTimerRef.current) clearTimeout(waitTimerRef.current);
+    waitTimerRef.current = null;
+  };
+
+  useEffect(() => clearWait, []);
 
   const startRound = useCallback(() => {
-    setTappedEarly(false);
+    clearWait();
     setCurrentTime(0);
-    setPhase('waiting');
+    goPhase('waiting');
     flashAnim.setValue(0);
     scaleAnim.setValue(0.8);
     triggerHapticFeedback('impactLight');
 
     const waitTime = MIN_WAIT + Math.random() * (MAX_WAIT - MIN_WAIT);
-
     waitTimerRef.current = setTimeout(() => {
+      waitTimerRef.current = null;
       drawTimeRef.current = Date.now();
-      setPhase('draw');
+      goPhase('draw');
       triggerHapticFeedback('impactHeavy');
       if (Platform.OS === 'android') Vibration.vibrate(100);
 
@@ -100,101 +140,111 @@ const QuickDraw = ({ onClose, roundInfo, onRoundComplete, onWatchAd }) => {
     }, waitTime);
   }, [triggerHapticFeedback, flashAnim, scaleAnim]);
 
-  const handleTap = useCallback(() => {
-    if (phase === 'waiting') {
-      clearTimeout(waitTimerRef.current);
-      setTappedEarly(true);
-      setPhase('early');
-      triggerHapticFeedback('notificationError');
-      if (Platform.OS === 'android') Vibration.vibrate([0, 80, 40, 80]);
+  // Leaving the app during WAIT or SLASH replays that round from the start.
+  const startRoundRef = useRef(startRound);
+  startRoundRef.current = startRound;
+  const wasAwayRef = useRef(false);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      const live = phaseRef.current === 'waiting' || phaseRef.current === 'draw';
+      if (state !== 'active') {
+        if (live) { clearWait(); wasAwayRef.current = true; }
+      } else if (wasAwayRef.current) {
+        wasAwayRef.current = false;
+        startRoundRef.current();
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
-      const newTimes = [...roundTimes, 999];
-      setRoundTimes(newTimes);
-      setCurrentTime(999);
-    } else if (phase === 'draw') {
+  const recordTime = (ms) => {
+    const next = [...roundTimesRef.current, ms];
+    roundTimesRef.current = next;
+    setRoundTimes(next);
+    setCurrentTime(ms);
+  };
+
+  const falseStart = (reason) => {
+    clearWait();
+    setEarlyReason(reason);
+    goPhase('early');
+    recordTime(PENALTY_MS);
+    triggerHapticFeedback('notificationError');
+    if (Platform.OS === 'android') Vibration.vibrate([0, 80, 40, 80]);
+  };
+
+  const handleTap = () => {
+    const p = phaseRef.current; // ref, not state — two taps can land in one frame
+    if (p === 'waiting') {
+      falseStart('wait');
+    } else if (p === 'draw') {
       const reactionTime = Date.now() - drawTimeRef.current;
-      setCurrentTime(reactionTime);
-      setPhase('roundResult');
+      if (reactionTime < ANTICIPATION_MS) {
+        falseStart('guess');
+        return;
+      }
+      goPhase('roundResult');
+      recordTime(reactionTime);
       triggerHapticFeedback('notificationSuccess');
-
-      const newTimes = [...roundTimes, reactionTime];
-      setRoundTimes(newTimes);
 
       countAnim.setValue(0);
       Animated.spring(countAnim, {
         toValue: 1, tension: 200, friction: 8, useNativeDriver: true,
       }).start();
     }
-  }, [phase, roundTimes, triggerHapticFeedback, countAnim]);
+  };
 
-  const nextRound = useCallback(() => {
-    const next = currentRound + 1;
+  const finishGame = () => {
+    goPhase('gameResult');
+
+    const times = roundTimesRef.current;
+    const { avg, best } = summarize(times);
+    const oldBest = bestTimeRef.current;
+    const improved = !isPenalty(best) && (oldBest === 0 || best < oldBest);
+    setIsNewBest(improved);
+    if (improved) {
+      bestTimeRef.current = best;
+      setBestTime(best);
+      triggerHapticFeedback('notificationSuccess');
+    }
+
+    if (!statsLoadedRef.current) return;
+    saveGameStats(firestoreDB, uid, {
+      lastDrawAt: new Date(),
+      drawLastAvg: avg,
+      // Never store the 999 penalty as a "best time".
+      ...(bestTimeRef.current > 0 ? { drawBestTime: bestTimeRef.current } : {}),
+    });
+    if (improved) {
+      submitLeaderboardScore({ firestoreDB, appdatabase, uid, user, gameKey: 'draw', score: best });
+    }
+  };
+
+  const nextRound = () => {
+    const next = currentRoundRef.current + 1;
     if (next >= TOTAL_ROUNDS) {
       finishGame();
     } else {
+      currentRoundRef.current = next;
       setCurrentRound(next);
       startRound();
     }
-  }, [currentRound, startRound]);
+  };
 
-  const startGame = useCallback(() => {
+  const startGame = () => {
+    onRoundStart?.();
+    roundTimesRef.current = [];
+    currentRoundRef.current = 0;
     setRoundTimes([]);
     setCurrentRound(0);
     setCurrentTime(0);
-    setTappedEarly(false);
+    setIsNewBest(false);
     triggerHapticFeedback('impactHeavy');
     startRound();
-  }, [startRound, triggerHapticFeedback]);
-
-  const finishGame = useCallback(async () => {
-    setPhase('gameResult');
-    if (onRoundComplete) onRoundComplete();
-
-    const validTimes = roundTimes.filter(t => t < 999);
-    const avgTime = validTimes.length > 0 ? Math.round(validTimes.reduce((a, b) => a + b, 0) / validTimes.length) : 999;
-    const bestRound = validTimes.length > 0 ? Math.min(...validTimes) : 999;
-
-    try {
-      const newBest = (bestTime > 0 && bestTime !== 999) ? Math.min(bestRound, bestTime) : bestRound;
-      setBestTime(newBest);
-
-      await setDoc(doc(firestoreDB, 'games', uid), {
-        lastDrawAt: new Date(),
-        drawBestTime: newBest,
-        drawLastAvg: avgTime,
-      }, { merge: true });
-
-      if (newBest > 0 && newBest < 999) {
-        let username = 'Unknown';
-        let avatar = null;
-        try {
-          const [nameSnap, avatarSnap] = await Promise.all([
-            get(ref(appdatabase, `users/${uid}/displayName`)),
-            get(ref(appdatabase, `users/${uid}/avatar`)),
-          ]);
-          username = nameSnap.exists() ? nameSnap.val() : (user?.displayName || 'Unknown');
-          avatar = avatarSnap.exists() ? avatarSnap.val() : null;
-        } catch (_) {}
-        await setDoc(doc(firestoreDB, 'game_scores', 'draw', 'scores', uid), {
-          score: newBest,
-          username,
-          avatar,
-          updatedAt: new Date(),
-        }, { merge: true });
-
-        await updateLeaderboardCacheRealtime(firestoreDB, 'draw', uid, newBest, username, avatar);
-      }
-    } catch (err) {
-      console.warn('[FruitSlash] save error:', err?.message);
-    }
-  }, [roundTimes, bestTime, firestoreDB, appdatabase, uid, user]);
-
-  useEffect(() => {
-    return () => { if (waitTimerRef.current) clearTimeout(waitTimerRef.current); };
-  }, []);
+  };
 
   const getTimeColor = (ms) => {
-    if (ms >= 999) return '#EF4444';
+    if (isPenalty(ms)) return '#EF4444';
     if (ms <= 200) return '#F59E0B';
     if (ms <= 300) return '#10B981';
     if (ms <= 450) return '#3B82F6';
@@ -204,24 +254,22 @@ const QuickDraw = ({ onClose, roundInfo, onRoundComplete, onWatchAd }) => {
   const renderDots = () => (
     <View style={styles.dotsRow}>
       {Array.from({ length: TOTAL_ROUNDS }).map((_, i) => {
-        let bg = isDarkMode ? '#334155' : '#e2e8f0';
-        if (i < roundTimes.length) bg = roundTimes[i] >= 999 ? '#EF4444' : '#10B981';
+        let bg = phase === 'waiting' || phase === 'draw' ? 'rgba(255,255,255,0.25)' : (isDarkMode ? '#334155' : '#e2e8f0');
+        if (i < roundTimes.length) bg = isPenalty(roundTimes[i]) ? '#EF4444' : '#10B981';
         else if (i === currentRound) bg = '#F59E0B';
         return <View key={i} style={[styles.dot, { backgroundColor: bg }]} />;
       })}
     </View>
   );
 
-  const validTimes = roundTimes.filter(t => t < 999);
-  const avgTime = validTimes.length > 0 ? Math.round(validTimes.reduce((a, b) => a + b, 0) / validTimes.length) : 999;
-  const bestRound = validTimes.length > 0 ? Math.min(...validTimes) : 999;
+  const { avg: avgTime, best: bestRound, early: earlyCount } = summarize(roundTimes);
   const rank = getRank(avgTime);
-  const earlyCount = roundTimes.filter(t => t >= 999).length;
+  const isLastRound = currentRound + 1 >= TOTAL_ROUNDS;
 
-  const innerContent = (
-    <>
+  return (
+    <View style={[styles.screen, { backgroundColor: isDarkMode ? config.colors.backgroundDark : '#f8fafc', paddingBottom: Math.max(insets.bottom, 16) }]}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity onPress={() => { if (waitTimerRef.current) clearTimeout(waitTimerRef.current); onClose(); }} style={styles.backBtn}>
+        <TouchableOpacity onPress={onClose} style={styles.backBtn} hitSlop={8}>
           <Icon name="chevron-back" size={24} color={c.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: c.text }]}>⚡ Fruit Slash</Text>
@@ -267,7 +315,7 @@ const QuickDraw = ({ onClose, roundInfo, onRoundComplete, onWatchAd }) => {
               <Text style={styles.ruleEmoji}>🚫</Text>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.ruleTitle, { color: c.text }]}>Don't Slash Early!</Text>
-                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>Tap too soon and you get a penalty for that round.</Text>
+                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>Tapping before the signal (or guessing it) adds a 999ms penalty to your average.</Text>
               </View>
             </View>
           </View>
@@ -277,59 +325,68 @@ const QuickDraw = ({ onClose, roundInfo, onRoundComplete, onWatchAd }) => {
               <Text style={styles.ruleEmoji}>🏆</Text>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.ruleTitle, { color: c.text }]}>3 Rounds!</Text>
-                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>Best average time wins. Under 200ms = LIGHTNING! ⚡</Text>
+                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>Your fastest slash goes on the leaderboard. Under 200ms = LIGHTNING! ⚡</Text>
               </View>
             </View>
           </View>
 
-          {bestTime > 0 && bestTime < 999 && (
+          {bestTime > 0 && (
             <Text style={[styles.bestScoreLabel, { color: '#F59E0B' }]}>
               ⚡ Best Time: {bestTime}ms
             </Text>
           )}
 
-          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#DC2626', marginTop: 16 }]} onPress={startGame}>
-            <Icon name="play" size={22} color="#fff" />
-            <Text style={styles.actionBtnText}>LET'S GO! 🎮</Text>
-          </TouchableOpacity>
+          <GameRoundActions
+            roundInfo={roundInfo}
+            onPlay={startGame}
+            onWatchAd={onWatchAd}
+            adLoading={adLoading}
+            color={ACCENT}
+            playLabel="LET'S GO! 🎮"
+            playIcon="play"
+            textColor={c.textSecondary}
+            style={{ marginTop: 16 }}
+          />
         </ScrollView>
       )}
 
       {phase === 'waiting' && (
-        <TouchableOpacity style={[styles.fullZone, { backgroundColor: '#7F1D1D' }]} onPress={handleTap} activeOpacity={1}>
+        <Pressable style={[styles.fullZone, { backgroundColor: '#7F1D1D' }]} onPressIn={handleTap}>
           {renderDots()}
           <Text style={styles.waitTitle}>WAIT...</Text>
           <Text style={styles.waitSub}>Don't tap yet! 🤫</Text>
           <View style={styles.waitPulse}><Text style={{ fontSize: 56 }}>🎯</Text></View>
           <Text style={styles.roundInfo}>Round {currentRound + 1}/{TOTAL_ROUNDS}</Text>
-        </TouchableOpacity>
+        </Pressable>
       )}
 
       {phase === 'draw' && (
         <Animated.View style={{ flex: 1, opacity: flashAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }}>
-          <TouchableOpacity style={[styles.fullZone, { backgroundColor: '#15803D' }]} onPress={handleTap} activeOpacity={1}>
+          <Pressable style={[styles.fullZone, { backgroundColor: '#15803D' }]} onPressIn={handleTap}>
             {renderDots()}
             <Animated.Text style={[styles.drawTitle, { transform: [{ scale: scaleAnim }] }]}>SLASH! 🗡️</Animated.Text>
             <Text style={styles.drawSub}>TAP NOW!</Text>
-          </TouchableOpacity>
+          </Pressable>
         </Animated.View>
       )}
 
       {phase === 'early' && (
-        <View style={[styles.fullZone, { backgroundColor: isDarkMode ? config.colors.surfaceDark : '#fff' }]}>
+        <View style={[styles.fullZone, { backgroundColor: surface }]}>
           {renderDots()}
           <Text style={{ fontSize: 64 }}>🚫</Text>
           <Text style={styles.earlyTitle}>TOO EARLY!</Text>
-          <Text style={styles.earlySub}>You slashed before the signal! 😤</Text>
-          <Text style={styles.penaltyText}>+999ms penalty</Text>
+          <Text style={styles.earlySub}>
+            {earlyReason === 'guess' ? 'Faster than humanly possible — that was a guess! 😜' : 'You slashed before the signal! 😤'}
+          </Text>
+          <Text style={styles.penaltyText}>+{PENALTY_MS}ms penalty</Text>
           <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#F59E0B', marginTop: 32 }]} onPress={nextRound}>
-            <Text style={styles.actionBtnText}>{currentRound + 1 >= TOTAL_ROUNDS ? 'See Results 🏆' : 'Next Round →'}</Text>
+            <Text style={styles.actionBtnText}>{isLastRound ? 'See Results 🏆' : 'Next Round →'}</Text>
           </TouchableOpacity>
         </View>
       )}
 
       {phase === 'roundResult' && (
-        <View style={[styles.fullZone, { backgroundColor: isDarkMode ? config.colors.backgroundDark : '#f0fdf4' }]}>
+        <View style={[styles.fullZone, { backgroundColor: isDarkMode ? config.colors.surfaceDark : '#f0fdf4' }]}>
           {renderDots()}
           <Text style={{ fontSize: 64 }}>{currentTime <= 200 ? '⚡' : currentTime <= 300 ? '🎯' : currentTime <= 450 ? '🗡️' : '🍊'}</Text>
           <Animated.Text style={[styles.timeDisplay, { color: getTimeColor(currentTime), transform: [{ scale: countAnim }] }]}>
@@ -339,7 +396,7 @@ const QuickDraw = ({ onClose, roundInfo, onRoundComplete, onWatchAd }) => {
             {currentTime <= 200 ? 'INCREDIBLE! ⚡' : currentTime <= 300 ? 'Super fast! 🎯' : currentTime <= 450 ? 'Nice reflexes! 🗡️' : currentTime <= 600 ? 'Not bad! 🍊' : 'A bit slow... 🐢'}
           </Text>
           <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#10B981', marginTop: 32 }]} onPress={nextRound}>
-            <Text style={styles.actionBtnText}>{currentRound + 1 >= TOTAL_ROUNDS ? 'See Results 🏆' : `Next Round →`}</Text>
+            <Text style={styles.actionBtnText}>{isLastRound ? 'See Results 🏆' : 'Next Round →'}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -349,14 +406,14 @@ const QuickDraw = ({ onClose, roundInfo, onRoundComplete, onWatchAd }) => {
           <Text style={{ fontSize: 80 }}>{rank.emoji}</Text>
           <Text style={[styles.bigTitle, { color: rank.color }]}>{rank.label}</Text>
 
-          <View style={[styles.statsCard, { backgroundColor: isDarkMode ? config.colors.surfaceDark : '#fff', borderColor: isDarkMode ? '#334155' : '#e2e8f0' }]}>
+          <View style={[styles.statsCard, { backgroundColor: surface, borderColor: border }]}>
             <View style={styles.statRow}>
               <Text style={[styles.statLabel, { color: c.textSecondary }]}>Average</Text>
               <Text style={[styles.statVal, { color: getTimeColor(avgTime) }]}>{avgTime}ms</Text>
             </View>
             <View style={styles.statRow}>
               <Text style={[styles.statLabel, { color: c.textSecondary }]}>Best Round</Text>
-              <Text style={[styles.statVal, { color: getTimeColor(bestRound) }]}>{bestRound < 999 ? `${bestRound}ms` : '—'}</Text>
+              <Text style={[styles.statVal, { color: getTimeColor(bestRound) }]}>{!isPenalty(bestRound) ? `${bestRound}ms` : '—'}</Text>
             </View>
             <View style={[styles.statRow, { borderBottomWidth: 0 }]}>
               <Text style={[styles.statLabel, { color: c.textSecondary }]}>Early Slashes</Text>
@@ -366,57 +423,45 @@ const QuickDraw = ({ onClose, roundInfo, onRoundComplete, onWatchAd }) => {
 
           <View style={styles.roundTimesRow}>
             {roundTimes.map((t, i) => (
-              <View key={i} style={[styles.roundChip, { backgroundColor: t >= 999 ? '#EF4444' : getTimeColor(t) }]}>
-                <Text style={styles.roundChipText}>{t >= 999 ? 'EARLY' : `${t}ms`}</Text>
+              <View key={i} style={[styles.roundChip, { backgroundColor: getTimeColor(t) }]}>
+                <Text style={styles.roundChipText}>{isPenalty(t) ? 'EARLY' : `${t}ms`}</Text>
               </View>
             ))}
           </View>
 
-          {bestTime > 0 && bestTime < 999 && (
-            <Text style={[styles.bestScoreLabel, { color: '#F59E0B', marginTop: 16 }]}>
-              {bestRound <= bestTime ? '🎉 New Best Time!' : `⚡ All-time Best: ${bestTime}ms`}
-            </Text>
-          )}
-
-          {roundInfo?.maxedOut ? (
-            <Text style={{ color: '#94a3b8', fontSize: 14, fontWeight: '600', textAlign: 'center', marginTop: 24 }}>
-              Come back tomorrow for more rounds!
-            </Text>
-          ) : roundInfo?.needsUnlock ? (
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#F59E0B', marginTop: 24, width: '100%', justifyContent: 'center' }]} onPress={onWatchAd}>
-              <Icon name="play-circle" size={22} color="#fff" />
-              <Text style={styles.actionBtnText}>Unlock 3 More Rounds — Watch Ad</Text>
-            </TouchableOpacity>
-          ) : roundInfo?.roundsLeft > 0 ? (
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#DC2626', marginTop: 24, width: '100%', justifyContent: 'center' }]} onPress={startGame}>
-              <Icon name="refresh" size={22} color="#fff" />
-              <Text style={styles.actionBtnText}>Play Again ({roundInfo.roundsLeft} left)</Text>
-            </TouchableOpacity>
+          {isNewBest ? (
+            <Text style={[styles.bestScoreLabel, { color: '#F59E0B', marginTop: 16 }]}>🎉 New Best Time: {bestTime}ms!</Text>
+          ) : bestTime > 0 ? (
+            <Text style={[styles.bestScoreLabel, { color: '#F59E0B', marginTop: 16 }]}>⚡ All-time Best: {bestTime}ms</Text>
           ) : null}
-          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#64748b', marginTop: 10, width: '100%', justifyContent: 'center' }]} onPress={onClose}>
+
+          <GameRoundActions
+            roundInfo={roundInfo}
+            onPlay={startGame}
+            onWatchAd={onWatchAd}
+            adLoading={adLoading}
+            color={ACCENT}
+            playLabel="Play Again"
+            textColor={c.textSecondary}
+          />
+          <TouchableOpacity style={[styles.actionBtn, styles.doneBtn]} onPress={onClose}>
             <Text style={styles.actionBtnText}>Done</Text>
           </TouchableOpacity>
         </ScrollView>
       )}
-    </>
-  );
-
-  return (
-    <View style={[styles.screen, { backgroundColor: isDarkMode ? config.colors.backgroundDark : '#f8fafc' }]}>
-      {innerContent}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, paddingTop: 8, paddingBottom: 36 },
+  screen: { flex: 1, paddingTop: 8 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 4 },
   title: { fontSize: 20, fontWeight: '800', flex: 1, textAlign: 'center' },
   backBtn: { padding: 8, width: 40 },
 
-  centerContent: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 20, paddingHorizontal: 16 },
+  centerContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 20, paddingHorizontal: 16 },
   rulesContent: { paddingVertical: 10, paddingHorizontal: 20 },
-  bigTitle: { fontSize: 28, fontWeight: '900', marginTop: 8 },
+  bigTitle: { fontSize: 28, fontWeight: '900', marginTop: 8, textAlign: 'center' },
   subText: { fontSize: 14, marginTop: 4 },
 
   ruleCard: { borderRadius: 16, padding: 16, marginBottom: 10 },
@@ -427,6 +472,7 @@ const styles = StyleSheet.create({
 
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 16, paddingHorizontal: 32, borderRadius: 100, alignSelf: 'center' },
   actionBtnText: { color: '#fff', fontSize: 18, fontWeight: '800' },
+  doneBtn: { backgroundColor: '#64748b', marginTop: 10, width: '100%', justifyContent: 'center' },
 
   bestScoreLabel: { fontSize: 16, fontWeight: '800', textAlign: 'center', marginTop: 10 },
 
@@ -441,7 +487,7 @@ const styles = StyleSheet.create({
   drawSub: { fontSize: 28, color: '#BBF7D0', fontWeight: '900', marginTop: 12 },
 
   earlyTitle: { fontSize: 36, fontWeight: '900', color: '#EF4444', marginTop: 16 },
-  earlySub: { fontSize: 18, color: '#94a3b8', fontWeight: '700', marginTop: 8 },
+  earlySub: { fontSize: 18, color: '#94a3b8', fontWeight: '700', marginTop: 8, textAlign: 'center' },
   penaltyText: { fontSize: 22, color: '#EF4444', fontWeight: '900', marginTop: 12 },
 
   timeDisplay: { fontSize: 72, fontWeight: '900', marginTop: 12 },

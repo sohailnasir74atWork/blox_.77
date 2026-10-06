@@ -50,6 +50,7 @@ const config = {
       wantBlockRed: '#FF3B30', // Vivid warning red
       backgroundLight: '#f2f2f7',
       backgroundDark: '#0f172a',
+      surfaceDark: '#1e293b', // cards/HUDs on the dark background
       white: 'white',
       black: 'black'
     }
@@ -60,6 +61,7 @@ const config = {
       wantBlockRed: '#F72585', // Hot magenta pink
       backgroundLight: '#F0F4F8',
       backgroundDark: '#0f172a',
+      surfaceDark: '#1e293b', // cards/HUDs on the dark background
       white: 'white',
       black: 'black'
     },
