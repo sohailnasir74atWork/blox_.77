@@ -13,7 +13,7 @@ import {
 } from '@react-native-firebase/database';
 import { showSuccessMessage, showErrorMessage, showWarningMessage } from '../Helper/MessageHelper';
 import config from '../Helper/Environment';
-import { useGlobalState } from '../GlobelStats';
+import { useGlobalState, modGateText } from '../GlobelStats';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import { useLocalState } from '../LocalGlobelStats';
 import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
@@ -23,7 +23,7 @@ import InterstitialAdManager from '../Ads/IntAd';
 
 
 const ServerScreen = () => {
-    const { user, appdatabase, theme, proGranted } = useGlobalState();
+    const { user, appdatabase, theme, proGranted, getModGate } = useGlobalState();
     const [userServers, setUserServers] = useState([]);
     const [adminServer, setAdminServer] = useState([]);
     const [link, setLink] = useState('');
@@ -76,6 +76,14 @@ const ServerScreen = () => {
     const handleSubmit = () => {
         if (!user?.id) {
             showErrorMessage('Login required', 'Login required to submit a server link');
+            return;
+        }
+
+        // Banned users can't post server links (a mute is chat-only).
+        const modGate = getModGate('content');
+        if (modGate) {
+            const { title, message: body } = modGateText(modGate, 'server');
+            showErrorMessage(title, body);
             return;
         }
 
@@ -155,6 +163,12 @@ const ServerScreen = () => {
     const handleVote = (serverId, type) => {
         if (!user?.id) {
             showWarningMessage('Warning', 'Login required to vote');
+            return;
+        }
+        const modGate = getModGate('action');
+        if (modGate) {
+            const { title, message: body } = modGateText(modGate, 'vote');
+            showErrorMessage(title, body);
             return;
         } else {
             const votePath = type === 'like' ? 'likes' : 'dislikes';

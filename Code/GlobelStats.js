@@ -12,7 +12,10 @@ import { useColorScheme, AppState } from 'react-native';
 import { clearUserCache } from './Helper/UserDataCache';
 import { generateOnePieceUsername } from './Helper/RendomNamegen';
 import { getDeviceFingerprint } from './Helper/deviceFingerprint';
-import { getServerTime } from './Helper/serverTime';
+import { getServerTime, warmServerTime, serverNowMs } from './Helper/serverTime';
+import { encodeEmailKey, isMuteRecord } from './Helper/banKeys';
+import * as chatBackend from './Supabase/chatBackend';
+import i18n from 'i18next';
 import { setLastActivity } from './Supabase/userBackend';
 import { saveOwnEmailOnce, saveOwnDeviceIdOnce } from './Helper/privateProfile';
 import Purchases from 'react-native-purchases';
@@ -58,6 +61,206 @@ const logStartupTiming = (name, params) => {
   try {
     logEvent(getAnalytics(), name, params);
   } catch (_) {}
+};
+
+// ── Ban / mute state helpers ─────────────────────────────────────────────
+// Three RTDB sources can restrict the signed-in user: banned_users_by_email
+// (by encodeEmailKey), banned_uids/{uid} and banned_devices/{fingerprint}.
+// Email and uid records are either bans or mutes (isMuteRecord); device
+// records are always bans. A mute is chat-only, a ban blocks everything
+// (MODERATION_CONTRACT §4).
+const DAY_MS = 24 * 60 * 60 * 1000;
+// How long content creation waits for the ban listeners on a fresh sign-in
+// before falling back to the last-known (cached) state.
+const BAN_CHECK_TIMEOUT_MS = 5000;
+const BAN_CACHE_KEY = 'modState.lastKnown';
+
+const recordUntilMs = (rec) => {
+  if (rec?.bannedUntil === 'permanent') return Infinity;
+  return typeof rec?.bannedUntil === 'number' ? rec.bannedUntil : 0;
+};
+// Permanent beats timed; among timed records the latest expiry wins.
+const pickRecord = (records) =>
+  records.reduce((best, r) => (r && (!best || recordUntilMs(r) > recordUntilMs(best)) ? r : best), null);
+const isRecordLive = (rec) => !!rec && recordUntilMs(rec) > serverNowMs();
+
+// Subscribes to one ban record and reports `{ record, active }` each time the
+// record changes or its expiry passes. `active` is decided against
+// authoritative server time (getServerTime probe), and a setTimeout
+// (monotonic, immune to wall-clock changes) re-evaluates when a timed record
+// expires; AppState 'active' re-probes so a clock changed while backgrounded
+// is caught. A read error reports "no record" (rules not deployed / offline).
+const watchBanRecord = (db, path, getProbeUid, onState) => {
+  let cancelled = false;
+  let current = null;
+  let expiryTimer = null;
+
+  const evaluate = async () => {
+    if (cancelled) return;
+    if (expiryTimer) { clearTimeout(expiryTimer); expiryTimer = null; }
+    const rec = current;
+    if (!rec || (rec.bannedUntil !== 'permanent' && typeof rec.bannedUntil !== 'number')) {
+      onState({ record: null, active: false });
+      return;
+    }
+    if (rec.bannedUntil === 'permanent') {
+      onState({ record: rec, active: true });
+      return;
+    }
+    let serverNow;
+    try {
+      serverNow = (await getServerTime(db, getProbeUid())).getTime();
+    } catch (_) {
+      serverNow = serverNowMs();
+    }
+    if (cancelled || current !== rec) return;
+    const remaining = rec.bannedUntil - serverNow;
+    if (remaining <= 0) {
+      onState({ record: null, active: false });
+      return;
+    }
+    onState({ record: rec, active: true });
+    // Cap the timer at ~24h so long bans don't sit on a stale offset.
+    expiryTimer = setTimeout(evaluate, Math.min(remaining, DAY_MS));
+  };
+
+  const unsubscribe = onValue(
+    ref(db, path),
+    (snapshot) => {
+      current = snapshot.val() || null;
+      evaluate();
+    },
+    () => {
+      current = null;
+      evaluate();
+    }
+  );
+  const appStateSub = AppState.addEventListener('change', (state) => {
+    if (state === 'active') evaluate();
+  });
+
+  return () => {
+    cancelled = true;
+    if (expiryTimer) clearTimeout(expiryTimer);
+    appStateSub.remove();
+    unsubscribe();
+  };
+};
+
+const tr = (key, defaultValue, opts) => {
+  try {
+    return i18n.t(key, { defaultValue, ...opts });
+  } catch (_) {
+    return defaultValue;
+  }
+};
+
+// "2d 3h" / "1h 5m" / "12m" until `untilMs`, on the server clock. Never
+// shows less than 1m: the gate already decided the record is active.
+export const formatBanTimeLeft = (untilMs) => {
+  const remaining = Math.max(60000, (Number(untilMs) || 0) - serverNowMs());
+  const totalMinutes = Math.ceil(remaining / 60000);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+};
+
+const MOD_ACTION_TEXT = {
+  chat: ['moderation.action_chat', 'send messages'],
+  post: ['moderation.action_post', 'post'],
+  comment: ['moderation.action_comment', 'comment'],
+  trade: ['moderation.action_trade', 'create trades'],
+  feature: ['moderation.action_feature', 'feature trades'],
+  report: ['moderation.action_report', 'make reports'],
+  profile: ['moderation.action_profile', 'edit your profile'],
+  review: ['moderation.action_review', 'write reviews'],
+  vote: ['moderation.action_vote', 'vote in polls'],
+  react: ['moderation.action_react', 'react to posts'],
+  follow: ['moderation.action_follow', 'follow people'],
+  group: ['moderation.action_group', 'manage groups'],
+  server: ['moderation.action_server', 'share servers'],
+};
+
+// Title + body for a gate returned by getModGate(). `action` is a
+// MOD_ACTION_TEXT key describing what the user tried to do.
+export const modGateText = (gate, action) => {
+  if (!gate) return null;
+  if (gate.kind === 'checking') {
+    return {
+      title: tr('moderation.checking_title', 'One moment'),
+      message: tr('moderation.checking_body', 'Checking your account status. Please try again in a few seconds.'),
+    };
+  }
+  const [actionKey, actionDefault] = MOD_ACTION_TEXT[action] || ['moderation.action_generic', 'do this'];
+  const actionText = tr(actionKey, actionDefault);
+  const info = gate.info || {};
+  const permanent = info.bannedUntil === 'permanent';
+  const time = typeof info.bannedUntil === 'number' ? formatBanTimeLeft(info.bannedUntil) : null;
+  if (gate.kind === 'muted') {
+    return {
+      title: tr('moderation.muted_title', 'Muted'),
+      message: time
+        ? tr('moderation.muted_body', 'You are muted in chat for {{time}} more.', { time })
+        : tr('moderation.muted_body_generic', 'You are muted in chat.'),
+    };
+  }
+  let title;
+  if (permanent) title = tr('moderation.banned_perm_title', 'Permanently banned');
+  else if (info.strikeCount) title = tr('moderation.banned_strike_title', 'Strike {{n}}', { n: info.strikeCount });
+  else title = tr('moderation.banned_title', 'Banned');
+  let message;
+  if (permanent) {
+    message = tr('moderation.banned_perm_body', 'Your account is permanently banned, so you can\'t {{action}}.', { action: actionText });
+  } else if (time) {
+    message = tr('moderation.banned_body', 'You are banned for {{time}} more, so you can\'t {{action}} until then.', { time, action: actionText });
+  } else {
+    message = tr('moderation.banned_body_generic', 'You are banned, so you can\'t {{action}} right now.', { action: actionText });
+  }
+  return { title, message };
+};
+
+// Machine-readable reason for a rejected Supabase chat write
+// ('SENDER_BANNED' | 'LINKS_NOT_ALLOWED' | 'NOT_ALLOWED' | null). Prefers the
+// backend's chatErrorCode() when present; falls back to the error text.
+export const chatSendErrorCode = (error) => {
+  try {
+    if (typeof chatBackend.chatErrorCode === 'function') {
+      const code = chatBackend.chatErrorCode(error);
+      if (code) return code;
+    }
+  } catch (_) {}
+  const msg = String(error?.message || error?.details || '');
+  if (/SENDER_BANNED/.test(msg)) return 'SENDER_BANNED';
+  if (/LINKS_NOT_ALLOWED/.test(msg)) return 'LINKS_NOT_ALLOWED';
+  if (/NOT_ALLOWED/.test(msg)) return 'NOT_ALLOWED';
+  if (error?.code === '23514') return 'NOT_ALLOWED';
+  return null;
+};
+
+// User-facing text for a chatSendErrorCode() result; null for other errors.
+export const chatSendErrorText = (code) => {
+  if (code === 'SENDER_BANNED') {
+    return {
+      title: tr('moderation.send_blocked_title', 'Message not sent'),
+      message: tr('moderation.send_banned_body', 'You are banned or muted, so your messages can\'t be sent right now.'),
+    };
+  }
+  if (code === 'LINKS_NOT_ALLOWED') {
+    return {
+      title: tr('moderation.send_blocked_title', 'Message not sent'),
+      message: tr('moderation.send_links_body', 'Links are not allowed in messages.'),
+    };
+  }
+  if (code === 'NOT_ALLOWED') {
+    return {
+      title: tr('moderation.send_blocked_title', 'Message not sent'),
+      message: tr('moderation.send_not_allowed_body', 'This message isn\'t allowed here.'),
+    };
+  }
+  return null;
 };
 
 const app = getApps();
@@ -120,20 +323,20 @@ export const GlobalStateProvider = ({ children }) => {
   const [catalogStatus, setCatalogStatus] = useState('ready');
   const [proTagBought, setProTagBought] = useState(false);
   const [stockNotifierPurchase, setStockNotifierPurchase] = useState(false);
-  const [_isEmailBanned, setIsEmailBanned] = useState(false);
-  const [_isDeviceBanned, setIsDeviceBanned] = useState(false);
+  // Ban listener results. Each is tagged with the identity it was read for
+  // (email key / uid) so a sign-out or account switch can never show one
+  // user's ban state to the next; a result for another identity counts as
+  // "not resolved yet".
+  // banned_users_by_email/{encodeEmailKey(email)}
+  const [emailBanState, setEmailBanState] = useState({ key: null, record: null, active: false });
   // banned_uids/{uid}: server-written uid ban (functions/banEnforcement.js).
   // Covers accounts with no email (phone sign-in), deleted-and-recreated
   // accounts, and alts caught on a banned device.
-  const [_isUidBanned, setIsUidBanned] = useState(false);
-  const [uidBanInfo, setUidBanInfo] = useState(null);
-  const isUserBlocked = _isEmailBanned || _isDeviceBanned || _isUidBanned;
-  const [_emailStrikeInfo, setStrikeInfo] = useState(null);
-  const strikeInfo = _emailStrikeInfo || uidBanInfo;
-  // Full payload from `banned_devices/{fp}` when this device is flagged.
-  // Carries the email + userId of the ORIGINAL banned account, which the
-  // ban-card UI uses to show "your associated account is banned" copy.
-  const [deviceBanInfo, setDeviceBanInfo] = useState(null);
+  const [uidBanState, setUidBanState] = useState({ uid: null, record: null, active: false });
+  // banned_devices/{fp}: always a ban. The payload carries the email + userId
+  // of the ORIGINAL banned account, which the ban card uses to show "your
+  // associated account is banned" copy.
+  const [deviceBanState, setDeviceBanState] = useState({ resolved: false, record: null, active: false });
 
   // const [robloxUsername, setRobloxUsername] = useState('');
   const robloxUsernameRef = useRef('');
@@ -332,6 +535,28 @@ export const GlobalStateProvider = ({ children }) => {
     });
   }, []); // No dependencies, so it never re-creates
 
+  // Uid whose data is loaded into this provider (null when signed out). Used
+  // to spot an account switch that arrives without a null auth callback.
+  const loadedUidRef = useRef(null);
+
+  // Drop everything tied to the previous account: identity, email (which
+  // drives the email-ban listener) and every role flag. Ban listener state is
+  // keyed by identity, so it stops applying as soon as user/email change.
+  const clearSignedInState = useCallback(() => {
+    loadedUidRef.current = null;
+    resetUserState();
+    setCurrentuserEmail('');
+    setIsAdmin(false);
+    setIsSeniorMod(false);
+    setIsModerator(false);
+    setIsBabyMod(false);
+    setIsTrusted(false);
+    setIsGrinder(false);
+    setIsRaider(false);
+    setEmailBanState({ key: null, record: null, active: false });
+    setUidBanState({ uid: null, record: null, active: false });
+  }, [resetUserState]);
+
   // ✅ Memoize handleUserLogin
   const handleUserLogin = useCallback(async (loggedInUser) => {
     if (!loggedInUser) {
@@ -340,9 +565,7 @@ export const GlobalStateProvider = ({ children }) => {
       // The ad managers read this flag from MMKV; a signed-out device must not
       // keep the previous user's granted Pro suppressing ads.
       try { proFlagStorage?.set('proGranted', false); } catch (_) {}
-      resetUserState(); // No longer recreates resetUserState
-      setIsAdmin(false);
-      setIsModerator(false); // ✅ Reset moderator status
+      clearSignedInState();
       // ✅ Clear user data cache on logout
       clearUserCache();
       return;
@@ -360,6 +583,12 @@ export const GlobalStateProvider = ({ children }) => {
     }
     try {
       const userId = loggedInUser.uid;
+      // Account switch without a sign-out in between: clear A's identity,
+      // email and roles before B's data loads so B never inherits them.
+      if (loadedUidRef.current && loadedUidRef.current !== userId) {
+        clearSignedInState();
+      }
+      loadedUidRef.current = userId;
       const userRef = ref(appdatabase, `users/${userId}`);
 
       // console.log(snapshot, userId, 'userData', userRef)
@@ -466,7 +695,7 @@ export const GlobalStateProvider = ({ children }) => {
     } catch (error) {
       console.error("❌ Auth state change error:", error);
     }
-  }, [appdatabase, resetUserState]); // ✅ Uses memoized resetUserState
+  }, [appdatabase, clearSignedInState]); // ✅ Uses memoized clearSignedInState
 
   useEffect(() => {
     if (!user?.id) return;
@@ -772,227 +1001,168 @@ export const GlobalStateProvider = ({ children }) => {
     return fetchStockData(true);
   }, [fetchStockData]);
 
-  // ✅ Check if user is blocked by email (centralized - used everywhere)
-  // Server-time-validated: comparing `bannedUntil` against `Date.now()` lets
-  // a banned user roll their device clock backward to bypass the gate. We
-  // probe authoritative server time via getServerTime() and schedule a
-  // setTimeout (monotonic, immune to wall-clock changes) to auto-clear when
-  // the ban actually expires. AppState 'active' triggers a re-probe so a
-  // user who changes the clock while backgrounded still gets re-evaluated.
+  // Probe uid for the server-time checks below. Read through a ref so the
+  // listeners don't resubscribe (and drop back to "unresolved") whenever the
+  // signed-in user object changes. Never an email: RTDB keys can't hold '.'.
+  // null when signed out: the probe needs an own-uid path the rules allow, so
+  // getServerTime skips it and uses .info/serverTimeOffset instead.
+  const probeUidRef = useRef(null);
+  probeUidRef.current = user?.id || null;
+  const getProbeUid = useCallback(() => probeUidRef.current, []);
+
+  // Warm the authoritative server-time offset early (and again whenever the
+  // app returns to foreground — the user may have changed the clock while
+  // backgrounded). Ban countdowns read the cached offset synchronously via
+  // serverNowMs(); the ban listeners only probe when a timed record exists,
+  // so without this the offset could stay cold. Ported from adoptme-jan7.
   useEffect(() => {
-    if (!currentUserEmail || !appdatabase) {
-      setIsEmailBanned(false);
-      setStrikeInfo(null);
-      return;
-    }
-
-    const encodedEmail = currentUserEmail.replace(/\./g, '(dot)');
-    const banRef = ref(appdatabase, `banned_users_by_email/${encodedEmail}`);
-
-    let currentBan = null;
-    let expiryTimer = null;
-    let cancelled = false;
-
-    const evaluate = async () => {
-      if (cancelled) return;
-      const banData = currentBan;
-      if (expiryTimer) { clearTimeout(expiryTimer); expiryTimer = null; }
-
-      if (!banData) {
-        setIsEmailBanned(false);
-        return;
-      }
-      const { bannedUntil } = banData;
-      if (bannedUntil === 'permanent') {
-        setIsEmailBanned(true);
-        return;
-      }
-      if (typeof bannedUntil !== 'number') {
-        setIsEmailBanned(false);
-        return;
-      }
-
-      const probeUid = user?.id || currentUserEmail;
-      const serverNow = (await getServerTime(appdatabase, probeUid)).getTime();
-      if (cancelled) return;
-      const remaining = bannedUntil - serverNow;
-      if (remaining <= 0) {
-        setIsEmailBanned(false);
-        return;
-      }
-      setIsEmailBanned(true);
-      // Cap the timer at ~24h so long bans don't sit on a stale offset.
-      const wait = Math.min(remaining, 24 * 60 * 60 * 1000);
-      expiryTimer = setTimeout(evaluate, wait);
-    };
-
-    const unsubscribe = onValue(banRef, (snapshot) => {
-      const banData = snapshot.val();
-      currentBan = banData || null;
-      setStrikeInfo(currentBan);
-      evaluate();
+    if (!appdatabase) return;
+    const probeUid = user?.id || null;
+    warmServerTime(appdatabase, probeUid);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') warmServerTime(appdatabase, probeUid);
     });
+    return () => sub.remove();
+  }, [user?.id]); // appdatabase is module-level
 
-    const appStateSub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') evaluate();
+  // Email-side ban/mute listener (banned_users_by_email/{encodeEmailKey}).
+  const emailKey = currentUserEmail ? encodeEmailKey(currentUserEmail) : '';
+  useEffect(() => {
+    if (!emailKey || !appdatabase) return;
+    return watchBanRecord(appdatabase, `banned_users_by_email/${emailKey}`, getProbeUid, ({ record, active }) => {
+      setEmailBanState({ key: emailKey, record, active });
     });
+  }, [emailKey, getProbeUid]); // appdatabase is module-level
 
-    return () => {
-      cancelled = true;
-      if (expiryTimer) clearTimeout(expiryTimer);
-      appStateSub.remove();
-      unsubscribe();
-    };
-  }, [currentUserEmail, appdatabase, user?.id]);
-
-  // Device-side ban listener. Mirrors the email check above so a banned user
-  // can't escape by re-registering with a fresh email on the same device.
-  // banned_devices entries are written by banUserwithEmail / setUserStrike
-  // when a user is banned, and removed by unbanUserWithEmail.
-  // Server-time-validated for the same reason as the email listener above —
-  // see that effect for the full rationale.
+  // Device-side ban listener. Closes the "ban the email, sign up with a fresh
+  // one on the same device" bypass. banned_devices entries are written by the
+  // server when a user is banned and removed on unban. Always a ban.
   useEffect(() => {
     if (!appdatabase) {
-      setIsDeviceBanned(false);
+      setDeviceBanState({ resolved: true, record: null, active: false });
       return;
     }
-
-    let unsub = null;
     let cancelled = false;
-    let currentBan = null;
-    let expiryTimer = null;
-    let appStateSub = null;
-
-    const evaluate = async () => {
-      if (cancelled) return;
-      const data = currentBan;
-      if (expiryTimer) { clearTimeout(expiryTimer); expiryTimer = null; }
-
-      if (!data) {
-        setIsDeviceBanned(false);
-        setDeviceBanInfo(null);
-        return;
-      }
-      const { bannedUntil } = data;
-      if (bannedUntil === 'permanent') {
-        setIsDeviceBanned(true);
-        setDeviceBanInfo(data);
-        return;
-      }
-      if (typeof bannedUntil !== 'number') {
-        setIsDeviceBanned(false);
-        setDeviceBanInfo(null);
-        return;
-      }
-      const probeUid = user?.id || data?.userId || 'anon';
-      const serverNow = (await getServerTime(appdatabase, probeUid)).getTime();
-      if (cancelled) return;
-      const remaining = bannedUntil - serverNow;
-      if (remaining <= 0) {
-        setIsDeviceBanned(false);
-        setDeviceBanInfo(null);
-        return;
-      }
-      setIsDeviceBanned(true);
-      setDeviceBanInfo(data);
-      const wait = Math.min(remaining, 24 * 60 * 60 * 1000);
-      expiryTimer = setTimeout(evaluate, wait);
-    };
-
+    let stop = null;
     getDeviceFingerprint().then((fp) => {
-      if (cancelled || !fp) {
-        setIsDeviceBanned(false);
-        setDeviceBanInfo(null);
+      if (cancelled) return;
+      if (!fp) {
+        setDeviceBanState({ resolved: true, record: null, active: false });
         return;
       }
-      const deviceBanRef = ref(appdatabase, `banned_devices/${fp}`);
-      unsub = onValue(deviceBanRef, (snapshot) => {
-        currentBan = snapshot.val() || null;
-        evaluate();
-      });
-      appStateSub = AppState.addEventListener('change', (state) => {
-        if (state === 'active') evaluate();
+      stop = watchBanRecord(appdatabase, `banned_devices/${fp}`, getProbeUid, ({ record, active }) => {
+        setDeviceBanState({ resolved: true, record, active });
       });
     }).catch(() => {
-      setIsDeviceBanned(false);
-      setDeviceBanInfo(null);
+      if (!cancelled) setDeviceBanState({ resolved: true, record: null, active: false });
     });
-
     return () => {
       cancelled = true;
-      if (expiryTimer) clearTimeout(expiryTimer);
-      if (appStateSub) appStateSub.remove();
-      if (unsub) unsub();
+      if (stop) stop();
     };
-  }, [appdatabase, user?.id]);
+  }, [getProbeUid]); // appdatabase is module-level
 
-  // Uid-side ban listener (banned_uids/{uid}). Same server-time pattern as the
-  // email and device listeners above.
+  // Uid-side ban/mute listener (banned_uids/{uid}). Applies to every account,
+  // including phone-only accounts that have no email record.
   useEffect(() => {
-    if (!appdatabase || !user?.id) {
-      setIsUidBanned(false);
-      setUidBanInfo(null);
-      return;
-    }
-
-    let cancelled = false;
-    let currentBan = null;
-    let expiryTimer = null;
-
-    const evaluate = async () => {
-      if (cancelled) return;
-      const data = currentBan;
-      if (expiryTimer) { clearTimeout(expiryTimer); expiryTimer = null; }
-
-      if (!data) {
-        setIsUidBanned(false);
-        setUidBanInfo(null);
-        return;
-      }
-      const { bannedUntil } = data;
-      if (bannedUntil === 'permanent') {
-        setIsUidBanned(true);
-        setUidBanInfo(data);
-        return;
-      }
-      if (typeof bannedUntil !== 'number') {
-        setIsUidBanned(false);
-        setUidBanInfo(null);
-        return;
-      }
-      const serverNow = (await getServerTime(appdatabase, user.id)).getTime();
-      if (cancelled) return;
-      const remaining = bannedUntil - serverNow;
-      if (remaining <= 0) {
-        setIsUidBanned(false);
-        setUidBanInfo(null);
-        return;
-      }
-      setIsUidBanned(true);
-      setUidBanInfo(data);
-      const wait = Math.min(remaining, 24 * 60 * 60 * 1000);
-      expiryTimer = setTimeout(evaluate, wait);
-    };
-
-    const unsubscribe = onValue(
-      ref(appdatabase, `banned_uids/${user.id}`),
-      (snapshot) => {
-        currentBan = snapshot.val() || null;
-        evaluate();
-      },
-      () => {} // rules not deployed yet → treat as not banned
-    );
-    const appStateSub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') evaluate();
+    if (!appdatabase || !user?.id) return;
+    const uid = user.id;
+    return watchBanRecord(appdatabase, `banned_uids/${uid}`, getProbeUid, ({ record, active }) => {
+      setUidBanState({ uid, record, active });
     });
+  }, [user?.id, getProbeUid]); // appdatabase is module-level
 
-    return () => {
-      cancelled = true;
-      if (expiryTimer) clearTimeout(expiryTimer);
-      appStateSub.remove();
-      unsubscribe();
-    };
-  }, [user?.id]); // appdatabase is module-level
+  // ── Derived ban / mute state ─────────────────────────────────────────────
+  const emailResult = emailKey && emailBanState.key === emailKey ? emailBanState : null;
+  const uidResult = user?.id && uidBanState.uid === user.id ? uidBanState : null;
+  const banListenersResolved =
+    (!emailKey || !!emailResult) && (!user?.id || !!uidResult) && deviceBanState.resolved;
+
+  const emailRecord = emailResult?.active ? emailResult.record : null;
+  const uidRecord = uidResult?.active ? uidResult.record : null;
+  const deviceRecord = deviceBanState.active ? deviceBanState.record : null;
+
+  const liveBan = useMemo(() => {
+    const bans = [];
+    if (emailRecord && !isMuteRecord(emailRecord)) bans.push({ ...emailRecord, source: 'email' });
+    if (uidRecord && !isMuteRecord(uidRecord)) bans.push({ ...uidRecord, source: 'uid' });
+    if (deviceRecord) bans.push({ ...deviceRecord, source: 'device' });
+    return pickRecord(bans);
+  }, [emailRecord, uidRecord, deviceRecord]);
+  const liveMute = useMemo(() => {
+    const mutes = [];
+    if (emailRecord && isMuteRecord(emailRecord)) mutes.push({ ...emailRecord, source: 'email' });
+    if (uidRecord && isMuteRecord(uidRecord)) mutes.push({ ...uidRecord, source: 'uid' });
+    return pickRecord(mutes);
+  }, [emailRecord, uidRecord]);
+
+  // Last-known state for this uid (MMKV). Used only until the listeners have
+  // resolved, so a banned user who opens the app offline / on a slow network
+  // stays blocked instead of getting a fail-open window.
+  const cachedModState = useMemo(() => {
+    if (!user?.id) return null;
+    try {
+      const raw = proFlagStorage?.getString(BAN_CACHE_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (!parsed || parsed.uid !== user.id) return null;
+      return {
+        ban: isRecordLive(parsed.ban) ? parsed.ban : null,
+        mute: isRecordLive(parsed.mute) ? parsed.mute : null,
+      };
+    } catch (_) {
+      return null;
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || !banListenersResolved) return;
+    try {
+      proFlagStorage?.set(BAN_CACHE_KEY, JSON.stringify({ uid: user.id, ban: liveBan, mute: liveMute }));
+    } catch (_) {}
+  }, [user?.id, banListenersResolved, liveBan, liveMute]);
+
+  // Content creation waits (briefly) for the listeners on a fresh sign-in;
+  // after BAN_CHECK_TIMEOUT_MS it proceeds on the cached state instead of
+  // blocking forever when offline. Reading is never gated.
+  const banIdentity = `${user?.id || ''}|${emailKey}`;
+  const [banCheckTimedOutFor, setBanCheckTimedOutFor] = useState(null);
+  useEffect(() => {
+    if (!user?.id || banListenersResolved) return;
+    const timer = setTimeout(() => setBanCheckTimedOutFor(banIdentity), BAN_CHECK_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [banIdentity, banListenersResolved, user?.id]);
+  const banCheckPending = !!user?.id && !banListenersResolved && banCheckTimedOutFor !== banIdentity;
+
+  // Public values. strikeInfo = the active ban record that restricts longest
+  // (permanent first, then latest bannedUntil) across email, uid and device;
+  // muteInfo = the same for mutes. Expired records never surface here.
+  const strikeInfo = banListenersResolved
+    ? liveBan
+    : (pickRecord([liveBan, cachedModState?.ban]) || null);
+  const muteInfo = banListenersResolved
+    ? liveMute
+    : (pickRecord([liveMute, cachedModState?.mute]) || null);
+  const isUserBlocked = !!strikeInfo;
+  const isUserMuted = !!muteInfo;
+  const deviceBanInfo = deviceRecord;
+
+  // Single gate for every write surface. scope:
+  //   'chat'    → ban OR mute, waits for the ban check (public/DM/group chat)
+  //   'content' → ban only, waits for the ban check (trades, posts, comments…)
+  //   'action'  → ban only, never waits (votes, reactions, follows)
+  // Returns null when allowed, else { kind: 'banned'|'muted'|'checking', info }.
+  // Admins are exempt. Stable identity (reads a ref), so callers' callbacks
+  // can't go stale on it.
+  const modGateStateRef = useRef({});
+  modGateStateRef.current = { isAdmin, strikeInfo, muteInfo, banCheckPending };
+  const getModGate = useCallback((scope = 'content') => {
+    const s = modGateStateRef.current;
+    if (s.isAdmin) return null;
+    if (s.strikeInfo) return { kind: 'banned', info: s.strikeInfo };
+    if (scope === 'chat' && s.muteInfo) return { kind: 'muted', info: s.muteInfo };
+    if (scope !== 'action' && s.banCheckPending) return { kind: 'checking', info: null };
+    return null;
+  }, []);
 
   // ✅ Set up online status tracking using separate presence node (RTDB-only, optimized for scale)
   // ✅ Foreground-only presence (ACTIVE = online, background/inactive = offline)
@@ -1211,12 +1381,16 @@ export const GlobalStateProvider = ({ children }) => {
       isInActiveGame,
       setIsInActiveGame, // ✅ Set game state
       tradingServerLink, // ✅ Trading server link
-      strikeInfo, // ✅ User ban/strike information (centralized)
+      strikeInfo, // ✅ Active ban record (email / uid / device; permanent, then latest expiry) or null
+      muteInfo, // ✅ Active chat mute record or null
       deviceBanInfo, // ✅ Device-side ban payload (carries originating email/userId)
-      isUserBlocked, // ✅ Boolean flag if user is currently blocked
+      isUserBlocked, // ✅ Banned right now (blocks everything)
+      isUserMuted, // ✅ Muted right now (blocks chat only)
+      banCheckPending, // ✅ Ban listeners not resolved yet for this sign-in (≤5s)
+      getModGate, // ✅ getModGate('chat' | 'content' | 'action') → null | { kind, info }
 
     }),
-    [user, onlineMembersCount, theme, fetchStockData, loading, catalogStatus, robloxUsernameRef, api, freeTranslation, proTagBought, stockNotifierPurchase, proGranted, currentUserEmail, single_offer_wall, auth, isInActiveGame, setIsInActiveGame, tradingServerLink, strikeInfo, deviceBanInfo, isUserBlocked, isAdmin, isSeniorMod, isModerator, isBabyMod, isTrusted, isGrinder, isRaider, updateLocalStateAndDatabase, reload]
+    [user, onlineMembersCount, theme, fetchStockData, loading, catalogStatus, robloxUsernameRef, api, freeTranslation, proTagBought, stockNotifierPurchase, proGranted, currentUserEmail, single_offer_wall, auth, isInActiveGame, setIsInActiveGame, tradingServerLink, strikeInfo, muteInfo, deviceBanInfo, isUserBlocked, isUserMuted, banCheckPending, getModGate, isAdmin, isSeniorMod, isModerator, isBabyMod, isTrusted, isGrinder, isRaider, updateLocalStateAndDatabase, reload]
   );
 
   return (

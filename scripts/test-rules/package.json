@@ -1,0 +1,14 @@
+{
+  "name": "blox-fruit-rules-tests",
+  "private": true,
+  "description": "Firestore + RTDB security-rules tests (emulators, demo project only). Run ./test.sh",
+  "scripts": {
+    "build-rtdb": "node build-database-rules.js",
+    "check-rtdb": "node build-database-rules.js --check",
+    "test": "./test.sh"
+  },
+  "dependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.0.0"
+  }
+}

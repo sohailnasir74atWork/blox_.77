@@ -9,17 +9,18 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { useGlobalState } from "../GlobelStats";
+import { useGlobalState, modGateText } from "../GlobelStats";
 import config from "../Helper/Environment";
 import { ref, push } from "@react-native-firebase/database";
 import { doc, getDoc, updateDoc } from "@react-native-firebase/firestore";
+import { submitUserReport } from "../Helper/userReports";
 
 const ReportTradePopup = ({ visible, trade, onClose }) => {
   const [selectedReason, setSelectedReason] = useState("Inappropriate");
   const [customReason, setCustomReason] = useState("");
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { theme, user, appdatabase, strikeInfo, isAdmin, firestoreDB, isUserBlocked } = useGlobalState();
+  const { theme, user, appdatabase, firestoreDB, getModGate } = useGlobalState();
   const isDarkMode = theme === "dark";
 
   const handleSubmit = async () => {
@@ -28,32 +29,17 @@ const ReportTradePopup = ({ visible, trade, onClose }) => {
       return;
     }
 
-    // Block banned users from reporting (admins are exempt). Defer expiry
-    // to the server-time-validated `isUserBlocked` flag so a clock-rolled
-    // device can't slip past — strikeInfo is used only for the message.
-    if (isUserBlocked && !isAdmin) {
-      const { strikeCount, bannedUntil } = strikeInfo || {};
+    // Block banned users from reporting (admins exempt). Reports aren't
+    // chat, so a mute doesn't apply. Decision uses server-time-validated state.
+    const modGate = getModGate('content');
+    if (modGate) {
+      const { title, message } = modGateText(modGate, 'report');
+      Alert.alert(title, message);
+      return;
+    }
 
-      if (bannedUntil === 'permanent') {
-        Alert.alert("⛔ Permanently Banned", "You are permanently banned from making reports.");
-        return;
-      }
-
-      if (typeof bannedUntil === 'number') {
-        const remaining = Math.max(0, bannedUntil - Date.now());
-        const totalMinutes = Math.ceil(remaining / 60000);
-        const hours = Math.floor(totalMinutes / 60);
-        const minutes = totalMinutes % 60;
-        const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-
-        Alert.alert(
-          `⚠️ Strike ${strikeCount ?? ''}`.trim(),
-          `You are banned from making reports for ${timeLeftText} more minute(s).`
-        );
-        return;
-      }
-
-      Alert.alert("⛔ Banned", "You are currently banned from making reports.");
+    if (!user?.id) {
+      Alert.alert("Error", "Please sign in to report a trade.");
       return;
     }
 
@@ -65,26 +51,42 @@ const ReportTradePopup = ({ visible, trade, onClose }) => {
     setLoading(true);
 
     try {
-      // Bump the trade's report counter for admin review. Auto-ban on
-      // threshold was removed — bans are now manual (admin/mod only).
-      const tradeRef = doc(firestoreDB, "trades_new_upgrade", trade.id);
-      const tradeSnap = await getDoc(tradeRef);
-
-      if (tradeSnap.exists()) {
-        const currentReports = Number(tradeSnap.data().reportCount || 0);
-        await updateDoc(tradeRef, { reportCount: currentReports + 1 });
+      // The report itself goes to Firestore user_reports, which the Admin
+      // Dashboard reads. If that write is refused (user_reports rules not
+      // deployed yet) fall back to the legacy RTDB tradeReports node, which
+      // the dashboard keeps reading for old builds.
+      try {
+        await submitUserReport(firestoreDB, {
+          type: 'trade',
+          targetId: trade.id,
+          targetUid: trade.userId || null,
+          reporterUid: user.id,
+          reason: showCustomInput ? 'Other' : selectedReason,
+          text: showCustomInput ? customReason : '',
+        });
+      } catch (reportErr) {
+        console.warn("user_reports write failed, using tradeReports:", reportErr?.message || reportErr);
+        await push(ref(appdatabase, "tradeReports"), {
+          tradeId: trade.id,
+          reportedBy: user.id,
+          reason: showCustomInput ? customReason : selectedReason,
+          timestamp: Date.now(),
+        });
       }
 
-      // Log the report details to RTDB (Legacy/Admin Logs)
-      const reportsRef = ref(appdatabase, "tradeReports");
-      const reportData = {
-        tradeId: trade.id,
-        reportedBy: user?.id,
-        reason: showCustomInput ? customReason : selectedReason,
-        timestamp: Date.now(),
-      };
-
-      await push(reportsRef, reportData);
+      // Bump the trade's report counter for admin review (best-effort — the
+      // report above already landed). Auto-ban on threshold was removed —
+      // bans are now manual (admin/mod only).
+      try {
+        const tradeRef = doc(firestoreDB, "trades_new_upgrade", trade.id);
+        const tradeSnap = await getDoc(tradeRef);
+        if (tradeSnap.exists()) {
+          const currentReports = Number(tradeSnap.data().reportCount || 0);
+          await updateDoc(tradeRef, { reportCount: currentReports + 1 });
+        }
+      } catch (countErr) {
+        console.warn("Trade reportCount bump failed:", countErr?.message || countErr);
+      }
 
       setLoading(false);
       Alert.alert(

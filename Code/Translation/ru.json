@@ -372,7 +372,19 @@
         "years_ago_one": "{{count}} год назад",
         "years_ago_few": "{{count}} года назад",
         "years_ago_many": "{{count}} лет назад",
-        "years_ago_other": "{{count}} года назад"
+        "years_ago_other": "{{count}} года назад",
+        "delete_message_title": "Удалить сообщение?",
+        "delete_message_body": "Это сообщение будет удалено для всех.",
+        "message_deleted": "Сообщение удалено",
+        "delete_failed": "Не удалось удалить сообщение. Попробуйте ещё раз.",
+        "delete_all_title": "Удалить все недавние сообщения?",
+        "delete_all_body": "Недавние сообщения этого пользователя в этой комнате будут удалены для всех.",
+        "delete_all_done": "Удалено сообщений: {{count}}",
+        "delete_all_done_one": "Удалено сообщений: {{count}}",
+        "delete_all_done_few": "Удалено сообщений: {{count}}",
+        "delete_all_done_many": "Удалено сообщений: {{count}}",
+        "delete_all_done_other": "Удалено сообщений: {{count}}",
+        "delete_failed_all": "Не удалось удалить сообщения. Попробуйте ещё раз."
     },
     "first": {
         "continue_guest": "Продолжить без входа",
@@ -534,7 +546,9 @@
         "locked_teaser": "Смотри, какие предметы дорожают, а какие дешевеют"
     },
     "common": {
-        "load_more": "Загрузить ещё"
+        "load_more": "Загрузить ещё",
+        "cancel": "Отмена",
+        "delete": "Удалить"
     },
     "scammer": {
         "limit_title": "Лимит",
@@ -548,5 +562,70 @@
         "error_description_long": "Описание слишком длинное (максимум 200 символов).",
         "safety_title": "Безопасность",
         "safety_personal_info": "Не указывай личные данные (почту, номер телефона, соцсети)."
+    },
+    "trade_advice": {
+        "show_tips": "💡 Показать советы",
+        "feed": {
+            "tone_good": "Выгодная сделка для вас",
+            "tone_popular": "Популярный выбор",
+            "tone_close": "Может вам подойти",
+            "value_win": "Вы получите примерно на {{pct}}% больше ценности",
+            "value_fair": "Ценности примерно равны",
+            "get_rising": "{{name}} недавно вырос на {{pct}}%, хорошее приобретение",
+            "demand_chip": "🔥 Спрос {{score}}/10",
+            "asked_for_one": "Игроки просили {{name}} в {{count}} обмене за последние 24 ч",
+            "asked_for_few": "Игроки просили {{name}} в {{count}} обменах за последние 24 ч",
+            "asked_for_many": "Игроки просили {{name}} в {{count}} обменах за последние 24 ч",
+            "asked_for_other": "Игроки просили {{name}} в {{count}} обменах за последние 24 ч",
+            "steady_demand": "Трейдеры постоянно ищут {{name}}"
+        },
+        "insights": {
+            "giving_wanted": "Ваши фрукты очень востребованы, их быстро обменяют!",
+            "getting_wanted": "Вы получаете очень популярные фрукты!",
+            "getting_rising": "Вы получаете фрукты, которые растут в цене!",
+            "giving_rising": "Ваши фрукты растут в цене!"
+        }
+    },
+    "moderation": {
+        "action_chat": "отправлять сообщения",
+        "action_post": "публиковать",
+        "action_comment": "комментировать",
+        "action_trade": "создавать обмены",
+        "action_feature": "продвигать обмены",
+        "action_report": "отправлять жалобы",
+        "action_profile": "редактировать профиль",
+        "action_review": "писать отзывы",
+        "action_vote": "голосовать в опросах",
+        "action_react": "реагировать на посты",
+        "action_follow": "подписываться на людей",
+        "action_group": "управлять группами",
+        "action_server": "делиться серверами",
+        "action_generic": "сделать это",
+        "checking_title": "Минутку",
+        "checking_body": "Проверяем статус аккаунта. Попробуйте ещё раз через несколько секунд.",
+        "muted_title": "Мут",
+        "muted_body": "У вас мут в чате ещё на {{time}}.",
+        "muted_body_generic": "У вас мут в чате.",
+        "banned_perm_title": "Бан навсегда",
+        "banned_strike_title": "Предупреждение {{n}}",
+        "banned_title": "Бан",
+        "banned_perm_body": "Ваш аккаунт заблокирован навсегда, поэтому вы не можете {{action}}.",
+        "banned_body": "Вы заблокированы ещё на {{time}} и до тех пор не можете {{action}}.",
+        "banned_body_generic": "Вы заблокированы и сейчас не можете {{action}}.",
+        "send_blocked_title": "Сообщение не отправлено",
+        "send_banned_body": "Вы заблокированы или в муте, поэтому сейчас нельзя отправлять сообщения.",
+        "send_links_body": "Ссылки в сообщениях запрещены.",
+        "send_not_allowed_body": "Это сообщение здесь не разрешено."
+    },
+    "home_tab": {
+        "mute_title": "Мут в чате",
+        "ban_strike": "Предупреждение {{count}}",
+        "ban_strike_one": "Предупреждение {{count}}",
+        "ban_strike_few": "Предупреждение {{count}}",
+        "ban_strike_many": "Предупреждение {{count}}",
+        "ban_strike_other": "Предупреждение {{count}}",
+        "mute_permanent": "Мут до снятия модератором",
+        "ban_permanent_label": "Навсегда",
+        "mute_for": "Мут на {{time}}"
     }
 }

@@ -16,6 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
 import ChatRulesModal from './ChatRuleModel';
+import { logModAction } from '../../Helper/modSanction';
 
 // Regular expression to detect URLs in the message
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
@@ -63,19 +64,13 @@ const AdminHeader = ({
     new Map(pinnedMessages.map((msg) => [msg.firebaseKey, msg])).values()
   );
 
-  const unbanUserWithEmailPost = async (email) => {
-    const encodeEmail = (email) => email.replace(/\./g, '(dot)');
-    try {
-      const db = getDatabase();
-      // ✅ Use unified database path
-      const banRef = ref(db, `banned_users_by_email/${encodeEmail(email)}`);
-      await set(banRef, null); // Clear the ban entry
+  // (A direct-write unban helper used to live here. Bans are lifted only
+  // through the server now — see liftSanction in ../utils.)
 
-      Alert.alert('User Unbanned', 'Ban has been lifted.');
-    } catch (err) {
-      console.error('Unban error:', err);
-      Alert.alert('Error', 'Could not unban user.');
-    }
+  // Unpin goes to the audit log like pin (MessagesList).
+  const handleUnpin = (msg) => {
+    onUnpinMessage(msg.firebaseKey);
+    logModAction('unpin', msg?.senderId || null, { pinId: msg?.firebaseKey || null });
   };
 
   return (
@@ -184,7 +179,7 @@ const AdminHeader = ({
                 <View key={msg.firebaseKey} style={styles.singlePinnedMessageModal}>
                   {renderMessageWithLinks(msg.text)}
                   {isAdmin && (
-                    <TouchableOpacity onPress={() => onUnpinMessage(msg.firebaseKey)} style={{ backgroundColor: config.colors.primary, marginVertical: 3 }}>
+                    <TouchableOpacity onPress={() => handleUnpin(msg)} style={{ backgroundColor: config.colors.primary, marginVertical: 3 }}>
                       <Text style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 5, color: 'white' }}>Delete</Text>
                     </TouchableOpacity>
                   )}

@@ -12,7 +12,9 @@ import {
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import config from '../../Helper/Environment';
-import { useGlobalState } from '../../GlobelStats';
+import { useGlobalState, modGateText, chatSendErrorCode, chatSendErrorText } from '../../GlobelStats';
+import ChatRestrictedBar from '../ChatRestrictedBar';
+import { logModAction } from '../../Helper/modSanction';
 import SignInDrawer from '../../Firebase/SigninDrawer';
 import ChatHeaderContent from './ChatHeaderContent';
 import MessagesList from './MessagesList';
@@ -49,8 +51,11 @@ import {
   clearPinnedForRoom as sbClearPinnedForRoom,
   softDeleteMessage as sbSoftDeleteMessage,
   softDeleteMessageByRtdbKey as sbSoftDeleteMessageByRtdbKey,
+  loadReactionsFor as sbLoadReactionsFor,
+  toggleReaction as sbToggleReaction,
+  supabaseMessageId,
 } from '../../Supabase/chatBackend';
-import { SUPABASE_PUBLIC_CHAT_ENABLED } from '../../Supabase/featureFlags';
+import { SUPABASE_PUBLIC_CHAT_ENABLED, CHAT_REACTIONS_ENABLED } from '../../Supabase/featureFlags';
 // getMyCosmetics no longer needed — cosmetics resolved from profileCache on render
 
 leoProfanity.add(['hell', 'shit']);
@@ -79,7 +84,7 @@ const CHANNELS = [
 const bannerAdUnitId = getAdUnitId('banner');
 const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatFocused,
   setModalVisibleChatinfo, unreadMessagesCount, unreadcount, setunreadcount, onlineUsersVisible, setOnlineUsersVisible }) => {
-  const { user, theme, onlineMembersCount, appdatabase, setUser, isAdmin, isSeniorMod, isModerator, proTagBought, currentUserEmail, proGranted, strikeInfo, isBabyMod, isTrusted, isGrinder, isRaider, isUserBlocked } = useGlobalState();
+  const { user, theme, onlineMembersCount, appdatabase, setUser, isAdmin, isSeniorMod, isModerator, proTagBought, currentUserEmail, proGranted, isBabyMod, isTrusted, isGrinder, isRaider, isUserBlocked, isUserMuted, getModGate } = useGlobalState();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [replyTo, setReplyTo] = useState(null);
@@ -285,6 +290,24 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     };
   }, []);
 
+  // Merge reactions for a freshly loaded page into state. Runs after the
+  // page is already on screen so it never delays the chat appearing; a
+  // failure (e.g. table not migrated yet) just leaves the pills off.
+  const hydrateReactions = useCallback(async (list) => {
+    if (!CHAT_REACTIONS_ENABLED || !Array.isArray(list) || list.length === 0) return;
+    const ids = list.map((m) => supabaseMessageId(m)).filter(Boolean);
+    if (ids.length === 0) return;
+    try {
+      const map = await sbLoadReactionsFor(ids);
+      setMessages((prev) => prev.map((m) => {
+        const sbId = supabaseMessageId(m);
+        return sbId && ids.includes(sbId) ? { ...m, reactions: map[sbId] || {} } : m;
+      }));
+    } catch (e) {
+      console.warn('[reactions] load failed:', e?.message || e);
+    }
+  }, []);
+
 
 
   const loadMessages = useCallback(
@@ -453,6 +476,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
               if (cancelled) return;
               setMessages(parsed);
               setLastLoadedKey(parsed[parsed.length - 1]?.id || null);
+              hydrateReactions(parsed);
               return;
             }
             // Empty Supabase result → fall through to RTDB so the
@@ -492,7 +516,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
     load();
     return () => { cancelled = true; };
-  }, [activeChannel.path, appdatabase, bannedUsers, validateMessage]);
+  }, [activeChannel.path, appdatabase, bannedUsers, validateMessage, hydrateReactions]);
 
   // const bannedUserIds = bannedUsers.map((user) => user.id); // Extract IDs from bannedUsers
 
@@ -636,6 +660,9 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
             const saved = await sbSendMessage(item.path, item.payload);
             if (!cancelled && saved) ingest(saved);
           } catch (e) {
+            // A server rejection (banned / muted / links, 23514) is permanent:
+            // drop it rather than replaying it on every reconnect.
+            if (chatSendErrorCode(e)) continue;
             // Still failing — keep for the next reconnect, but cap attempts so
             // a poison send (e.g. RLS reject) can't loop on every reconnect.
             if ((item.attempts || 0) < 3) {
@@ -815,6 +842,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
             return fresh.length ? [...prev, ...fresh] : prev;
           });
           setLastLoadedKey(parsed[parsed.length - 1]?.id || null);
+          hydrateReactions(parsed);
           return;
         } catch (e) {
           // Fall through to RTDB on network blip / auth race.
@@ -824,7 +852,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
     // ── RTDB fallback (original code) ────────────────────────────────
     await loadMessages(false);
-  }, [user?.id, signinMessage, loading, lastLoadedKey, loadMessages, t, messages, activeChannel.path, bannedUsers, validateMessage, appdatabase]);
+  }, [user?.id, signinMessage, loading, lastLoadedKey, loadMessages, t, messages, activeChannel.path, bannedUsers, validateMessage, appdatabase, hydrateReactions]);
 
 
 
@@ -870,16 +898,22 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
       const rows = await loadMessagesFromSupabase(activeChannel.path, { limit: INITIAL_PAGE_SIZE });
       const parsed = rows
-        .map((m) => validateMessage({
-          id: m.rtdbKey || m.id,
-          senderId: m.senderId,
-          text: m.text,
-          gif: m.gif,
-          fruits: m.fruits,
-          replyTo: m.replyTo,
-          OS: m.OS,
-          timestamp: m.timestamp,
-        }))
+        .map((m) => {
+          const v = validateMessage({
+            id: m.rtdbKey || m.id,
+            senderId: m.senderId,
+            text: m.text,
+            gif: m.gif,
+            fruits: m.fruits,
+            replyTo: m.replyTo,
+            OS: m.OS,
+            timestamp: m.timestamp,
+          });
+          // Same as the initial load: without _sbId, load-more after a
+          // refresh fell back to the timestamp-only cursor.
+          if (v) v._sbId = m.id;
+          return v;
+        })
         .filter(Boolean)
         .filter(msg => msg?.senderId && !bannedIds.includes(msg.senderId));
 
@@ -887,6 +921,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       if (senderIds.length > 0) await warmProfileCache(appdatabase, senderIds);
       setMessages(parsed);
       setLastLoadedKey(parsed.length > 0 ? parsed[parsed.length - 1]?.id || null : null);
+      hydrateReactions(parsed);
     } catch (e) {
       console.error('[handleRefresh] Supabase refresh failed:', e?.message || e);
     } finally {
@@ -937,12 +972,19 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   }, [activeChannel?.path, isFocused]);
 
   const handlePinMessage = async (message) => {
-    if (!message?.id) {
-      console.warn('handlePinMessage: message.id missing');
+    // pinned_messages.message_id is the Supabase uuid; the UI id is the legacy
+    // RTDB key for migrated rows, which the insert would reject.
+    const sbId = supabaseMessageId(message);
+    if (!sbId) {
+      Alert.alert(t('home.alert.error'), t('chat.pin_error'));
+      return;
+    }
+    if (pinnedMessages.some((p) => p.id === sbId)) {
+      showMessage({ message: t('chat.already_pinned', { defaultValue: 'This message is already pinned' }), type: 'info' });
       return;
     }
     try {
-      await sbPinMessage(activeChannel.path, message.id, user?.id ?? null);
+      await sbPinMessage(activeChannel.path, sbId, user?.id ?? null);
       // realtime sub triggers fetchPinned; no manual state update needed
     } catch (error) {
       console.error('Error pinning message:', error);
@@ -950,11 +992,42 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     }
   };
 
+  // Toggle the current user's reaction (ported from adoptme-jan7). Optimistic;
+  // rolled back if the write fails so the pill never lies about what saved.
+  const handleReaction = useCallback(async (message, emoji) => {
+    const sbId = supabaseMessageId(message);
+    if (!CHAT_REACTIONS_ENABLED || !sbId || !user?.id || !emoji) return;
+    triggerHapticFeedback('impactLight');
+
+    const apply = (reactionsFor) => (m) => {
+      if (supabaseMessageId(m) !== sbId) return m;
+      return { ...m, reactions: reactionsFor(m.reactions || {}) };
+    };
+    let before = null;
+    setMessages((prev) => prev.map(apply((r) => {
+      before = r;
+      const next = { ...r };
+      if (next[user.id] === emoji) delete next[user.id];
+      else next[user.id] = emoji;
+      return next;
+    })));
+
+    try {
+      await sbToggleReaction(sbId, user.id, emoji);
+    } catch (error) {
+      console.warn('[reactions] toggle failed:', error?.message || error);
+      if (before) setMessages((prev) => prev.map(apply(() => before)));
+      showMessage({ message: t('chat.reaction_failed', { defaultValue: "Couldn't save your reaction. Try again." }), type: 'warning' });
+    }
+  }, [user?.id, triggerHapticFeedback, t]);
+
   const unpinSingleMessage = async (pinId) => {
     if (!pinId) return;
     try {
+      const pinned = pinnedMessages.find((msg) => msg.firebaseKey === pinId);
       await sbUnpinMessage(pinId);
       setPinnedMessages((prev) => prev.filter((msg) => msg.firebaseKey !== pinId));
+      logModAction('unpin', pinned?.senderId || null, { room: activeChannel.path, pinId });
     } catch (error) {
       console.error('Error unpinning message:', error);
       Alert.alert(t('home.alert.error'), t('chat.unpin_error'));
@@ -964,6 +1037,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
   const clearAllPinnedMessages = async () => {
     try {
       await sbClearPinnedForRoom(activeChannel.path);
+      logModAction('unpin', null, { room: activeChannel.path, all: true, count: pinnedMessages.length });
       setPinnedMessages([]);
     } catch (error) {
       console.error('Error clearing pinned messages:', error);
@@ -998,39 +1072,19 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
     }
 
-    // Block banned users from sending (admins exempt). Defer expiry to
-    // server-time-validated `isUserBlocked` so a clock-rolled device
-    // can't slip past — strikeInfo is used only for the message text.
-    if (isUserBlocked && !isAdmin) {
-      const { strikeCount, bannedUntil } = strikeInfo || {};
-
-      if (bannedUntil === 'permanent') {
-        showMessage({
-          message: '⛔ Permanently Banned',
-          description: 'You are permanently banned from sending messages.',
-          type: 'danger',
-        });
-        return false;
-      }
-
-      if (typeof bannedUntil === 'number') {
-        const remaining = Math.max(0, bannedUntil - Date.now());
-        const totalMinutes = Math.ceil(remaining / 60000);
-        const hours = Math.floor(totalMinutes / 60);
-        const minutes = totalMinutes % 60;
-        const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-
-        showMessage({
-          message: `⚠️ Strike ${strikeCount ?? ''}`.trim(),
-          description: `You are banned from chatting for ${timeLeftText} more minute(s).`,
-          type: 'warning',
-          duration: 5000,
-
-        });
-        return false;
-      }
-
-      showMessage({ message: '⛔ Banned', description: 'You are currently banned from sending messages.', type: 'danger' });
+    // Block banned / muted users from sending (admins exempt), and wait for
+    // the ban check on a fresh sign-in. The decision uses server-time-
+    // validated state from GlobelStats; the text uses its server-clock
+    // countdown.
+    const modGate = getModGate('chat');
+    if (modGate) {
+      const { title, message } = modGateText(modGate, 'chat');
+      showMessage({
+        message: modGate.kind === 'checking' ? title : `⛔ ${title}`,
+        description: message,
+        type: modGate.kind === 'checking' ? 'info' : 'danger',
+        duration: 5000,
+      });
       return false;
     }
     // Use the argument, not external state
@@ -1135,6 +1189,15 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       return true;
     } catch (error) {
       console.error('Error sending message:', error);
+      // The server rejected this sender / message (SENDER_BANNED,
+      // LINKS_NOT_ALLOWED, NOT_ALLOWED — errcode 23514). That is permanent,
+      // so don't queue it (a rejected head would never drain); keep the input
+      // so the user can edit it.
+      const rejected = chatSendErrorText(chatSendErrorCode(error));
+      if (rejected) {
+        showMessage({ message: rejected.title, description: rejected.message, type: 'danger', duration: 5000 });
+        return false;
+      }
       // §4.1 offline send queue: keep the message and replay it (idempotent on
       // clientMsgId) when the realtime channel next reconnects, instead of
       // dropping it. Set the dup-guard + clear input so a manual re-send can't
@@ -1152,6 +1215,80 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       });
       return true;
     }
+  };
+
+  // Banned / muted users see why (and for how long) instead of an input.
+  const chatInputGate = (isUserBlocked || isUserMuted) ? getModGate('chat') : null;
+
+  // Staff delete of one message: confirm, soft-delete, report back, audit-log.
+  const confirmDeleteMessage = (messageId) => {
+    if (!messageId) return;
+    const target = messages.find((m) => m?.id === messageId);
+    Alert.alert(
+      t('chat.delete_message_title', { defaultValue: 'Delete message?' }),
+      t('chat.delete_message_body', { defaultValue: 'This message will be removed for everyone.' }),
+      [
+        { text: t('common.cancel', { defaultValue: 'Cancel' }), style: 'cancel' },
+        {
+          text: t('common.delete', { defaultValue: 'Delete' }),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // UI ids are either Supabase UUIDs (new direct writes)
+              // or legacy RTDB push keys (mirror-CF rows where the
+              // dedup logic preferred rtdb_key). Detect by format
+              // and route to the right soft-delete helper.
+              const isUuid =
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(messageId);
+              if (isUuid) {
+                await sbSoftDeleteMessage(messageId, user?.id ?? null);
+              } else {
+                await sbSoftDeleteMessageByRtdbKey(activeChannel.path, messageId, user?.id ?? null);
+              }
+              setMessages((prev) => prev.filter((m) => m?.id !== messageId));
+              if (target?.senderId !== user?.id) {
+                logModAction('message_delete', target?.senderId || null, { room: activeChannel.path, messageId });
+              }
+              showMessage({ message: t('chat.message_deleted', { defaultValue: 'Message deleted' }), type: 'success', duration: 2000 });
+            } catch (e) {
+              console.error('softDelete failed:', e?.message || e);
+              showMessage({ message: t('home.alert.error'), description: t('chat.delete_failed', { defaultValue: 'Could not delete the message. Please try again.' }), type: 'danger' });
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Staff "Delete All" (last 60 messages by one sender): confirm, report the
+  // count, audit-log.
+  const confirmDeleteAllMessages = (senderId) => {
+    if (!senderId) return;
+    Alert.alert(
+      t('chat.delete_all_title', { defaultValue: 'Delete all recent messages?' }),
+      t('chat.delete_all_body', { defaultValue: "This removes this user's recent messages in this room for everyone." }),
+      [
+        { text: t('common.cancel', { defaultValue: 'Cancel' }), style: 'cancel' },
+        {
+          text: t('common.delete', { defaultValue: 'Delete' }),
+          style: 'destructive',
+          onPress: async () => {
+            const result = await handleDeleteLast300Messages(senderId, false, activeChannel.path);
+            if (result?.success) {
+              setMessages((prev) => prev.filter((m) => m?.senderId !== senderId));
+              logModAction('delete_all', senderId, { room: activeChannel.path, count: result.count || 0 });
+              showMessage({
+                message: t('chat.delete_all_done', { defaultValue: `${result.count || 0} messages deleted`, count: result.count || 0 }),
+                type: 'success',
+                duration: 2500,
+              });
+            } else {
+              showMessage({ message: t('home.alert.error'), description: t('chat.delete_failed_all', { defaultValue: 'Could not delete the messages. Please try again.' }), type: 'danger' });
+            }
+          },
+        },
+      ]
+    );
   };
 
   // console.log(user.flage)
@@ -1224,31 +1361,13 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                 flatListRef={flatListRef}
                 isDarkMode={theme === 'dark'}
                 onPinMessage={handlePinMessage}
-                onDeleteMessage={async (messageId) => {
-                  if (!messageId) return;
-                  try {
-                    // UI ids are either Supabase UUIDs (new direct writes)
-                    // or legacy RTDB push keys (mirror-CF rows where the
-                    // dedup logic preferred rtdb_key). Detect by format
-                    // and route to the right soft-delete helper.
-                    const isUuid =
-                      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(messageId);
-                    if (isUuid) {
-                      await sbSoftDeleteMessage(messageId, user?.id ?? null);
-                    } else {
-                      await sbSoftDeleteMessageByRtdbKey(activeChannel.path, messageId, user?.id ?? null);
-                    }
-                    setMessages((prev) => prev.filter((m) => m?.id !== messageId));
-                  } catch (e) {
-                    console.error('softDelete failed:', e?.message || e);
-                  }
-                }}
+                onDeleteMessage={confirmDeleteMessage}
                 // isAdmin={isAdmin}
                 refreshing={refreshing}
                 onRefresh={handleRefresh}
                 handleLoadMore={handleLoadMore}
                 onReply={(message) => { setReplyTo(message); triggerHapticFeedback('impactLight'); }} // Pass selected message to MessageInput
-                onDeleteAllMessage={(senderId) => handleDeleteLast300Messages(senderId, false, activeChannel.path)}
+                onDeleteAllMessage={confirmDeleteAllMessages}
                 banUser={banUser}
                 // makeadmin={makeAdmin}
                 // onReport={onReport}
@@ -1263,6 +1382,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                 isAdmin={isAdmin}
                 toggleDrawer={openProfileDrawer}
                 chatPath={activeChannel.path}
+                onReaction={handleReaction}
               />
             )}
 
@@ -1285,7 +1405,9 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                 </Text>
               </TouchableOpacity>
             )}
-            {user.id ? (
+            {user.id && chatInputGate ? (
+              <ChatRestrictedBar gate={chatInputGate} isDarkMode={theme === 'dark'} />
+            ) : user.id ? (
               <MessageInput
                 input={input}
                 setInput={setInput}

@@ -41,7 +41,7 @@ import { addXP, XP_ACTIONS } from '../Engagement/xpUtils';
 import InterstitialAdManager from '../Ads/IntAd';
 import SwipeableBottomDrawer from '../Helper/SwipeableBottomDrawer';
 import { useLocalState } from '../LocalGlobelStats';
-import { useGlobalState } from '../GlobelStats';
+import { useGlobalState, modGateText } from '../GlobelStats';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
 import { clearFollowingCache } from '../Helper/followingCache';
 
@@ -239,7 +239,7 @@ const deserializeStatus = (s) => ({
 const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignIn }) => {
   const { t } = useTranslation();
   const navigation = useNavigation();
-  const { isAdmin, currentUserEmail, isUserBlocked, strikeInfo, deviceBanInfo } = useGlobalState();
+  const { isAdmin, currentUserEmail, getModGate } = useGlobalState();
   const isAdminOrMod = isAdmin || !!user?.isModerator;
   const insets = useSafeAreaInsets();
   const [statuses, setStatuses] = useState(() => {
@@ -621,18 +621,12 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
       Alert.alert('Missing Email', 'Could not detect your account email. Please re-login.');
       return;
     }
-    // Global ban gate: email, device and uid bans.
-    if (isUserBlocked) {
-      const info = strikeInfo || deviceBanInfo;
-      const until = info?.bannedUntil;
-      Alert.alert(
-        'Banned',
-        until === 'permanent'
-          ? 'You are permanently banned from posting.'
-          : typeof until === 'number'
-            ? `You are banned from posting for ${Math.max(1, Math.ceil((until - Date.now()) / 60000))} more minute(s).`
-            : 'You are banned from posting right now.'
-      );
+    // Global ban gate: email, device and uid bans (server-time checked in
+    // GlobelStats). Waits for the ban check on a fresh sign-in.
+    const modGate = getModGate('content');
+    if (modGate) {
+      const { title, message } = modGateText(modGate, 'post');
+      Alert.alert(title, message);
       return;
     }
 
@@ -745,7 +739,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
         }, 400);
       });
     }
-  }, [user, firestoreDB, appdatabase, caption, selectedImage, uploadToBunny, localState.isPro, isPollMode, pollOptions, selectedThemeId, currentUserEmail, isUserBlocked, strikeInfo, deviceBanInfo]);
+  }, [user, firestoreDB, appdatabase, caption, selectedImage, uploadToBunny, localState.isPro, isPollMode, pollOptions, selectedThemeId, currentUserEmail, getModGate]);
 
   // ── Delete status ──
   const handleDeleteStatus = useCallback(async (statusId) => {
@@ -831,6 +825,13 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
       return;
     }
     if (!firestoreDB) return;
+    // Banned users can't react (a mute is chat-only).
+    const modGate = getModGate('action');
+    if (modGate) {
+      const { title, message } = modGateText(modGate, 'react');
+      Alert.alert(title, message);
+      return;
+    }
     try {
       await updateDoc(doc(firestoreDB, 'statuses', statusId), {
         [`reactions.${user.id}`]: emoji,
@@ -848,7 +849,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
     } catch (err) {
       console.warn('[StatusFeed] reaction error:', err?.message);
     }
-  }, [user?.id, firestoreDB]);
+  }, [user?.id, firestoreDB, getModGate]);
 
   // ── Follow / Unfollow toggle ──
   const handleFollowToggle = useCallback(async (targetUserId) => {
@@ -859,6 +860,15 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
       return;
     }
     if (!firestoreDB || !targetUserId || user.id === targetUserId) return;
+    // Banned users can't follow people (unfollowing is always allowed).
+    if (!followingIds.includes(targetUserId)) {
+      const modGate = getModGate('action');
+      if (modGate) {
+        const { title, message } = modGateText(modGate, 'follow');
+        Alert.alert(title, message);
+        return;
+      }
+    }
 
     setFollowLoading(true);
     const isCurrentlyFollowing = followingIds.includes(targetUserId);
@@ -899,7 +909,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
       console.warn('[StatusFeed] follow toggle error:', err?.message);
     }
     setFollowLoading(false);
-  }, [user?.id, firestoreDB, followingIds]);
+  }, [user?.id, firestoreDB, followingIds, getModGate]);
 
   const textColor = isDarkMode ? '#e2e8f0' : '#1e293b';
   const subtextColor = isDarkMode ? '#94a3b8' : '#64748b';
@@ -913,6 +923,13 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
       return;
     }
     if (!firestoreDB) return;
+    // Banned users can't vote (a mute is chat-only).
+    const modGate = getModGate('action');
+    if (modGate) {
+      const { title, message } = modGateText(modGate, 'vote');
+      Alert.alert(title, message);
+      return;
+    }
     try {
       const updates = {};
       updates[`pollVotes.${optionIndex}`] = arrayUnion(user.id);
@@ -937,7 +954,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
     } catch (err) {
       console.warn('[StatusFeed] poll vote error:', err?.message);
     }
-  }, [user?.id, firestoreDB]);
+  }, [user?.id, firestoreDB, getModGate]);
 
   // ── Story auto-play controls ──
   const startStoryTimer = useCallback((index, total) => {

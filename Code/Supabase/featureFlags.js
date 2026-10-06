@@ -22,3 +22,8 @@ export const SUPABASE_PUBLIC_CHAT_ENABLED = SUPABASE_READS_ENABLED;
 export const SUPABASE_CHAT_META_ENABLED = SUPABASE_READS_ENABLED;
 export const SUPABASE_GROUP_META_ENABLED = SUPABASE_READS_ENABLED;
 export const SUPABASE_USERS_ENABLED = SUPABASE_READS_ENABLED;
+
+// Public-chat emoji reactions. Needs supabase/035_message_reactions.sql
+// applied — without the table every reaction fails to save (the UI reverts
+// the optimistic emoji). Flip to false to hide the reaction row entirely.
+export const CHAT_REACTIONS_ENABLED = true;

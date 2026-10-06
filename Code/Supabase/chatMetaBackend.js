@@ -170,6 +170,10 @@ export async function upsertChatMetaSenderSide({
   if (error) throw error;
 }
 
+// DEPRECATED — not called anywhere; sendPrivateChatMeta() replaced it.
+// supabase/034 makes direct chat_meta_data writes owner-only, so the upsert
+// below is rejected by RLS (it writes the PARTNER's row). Kept for reference.
+//
 // Write the receiver's (owner=receiver, partner=sender) row when sending
 // a private message. unread_count is incremented atomically via an
 // rpc-free read-modify-write fallback: we upsert the row first (so it

@@ -363,7 +363,18 @@
         "months_ago_one": "il y a {{count}} mois",
         "months_ago_other": "il y a {{count}} mois",
         "years_ago_one": "il y a {{count}} an",
-        "years_ago_other": "il y a {{count}} ans"
+        "years_ago_other": "il y a {{count}} ans",
+        "delete_message_title": "Supprimer le message ?",
+        "delete_message_body": "Ce message sera supprimé pour tout le monde.",
+        "message_deleted": "Message supprimé",
+        "delete_failed": "Impossible de supprimer le message. Réessaie.",
+        "delete_all_title": "Supprimer tous les messages récents ?",
+        "delete_all_body": "Cela supprime pour tout le monde les messages récents de cet utilisateur dans ce salon.",
+        "delete_all_done": "{{count}} messages supprimés",
+        "delete_all_done_one": "{{count}} messages supprimés",
+        "delete_all_done_many": "{{count}} messages supprimés",
+        "delete_all_done_other": "{{count}} messages supprimés",
+        "delete_failed_all": "Impossible de supprimer les messages. Réessaie."
     },
     "first": {
         "welcome_title": "Bienvenue sur Fruit Values",
@@ -517,7 +528,9 @@
         "retry": "Recharger les valeurs"
     },
     "common": {
-        "load_more": "Charger plus"
+        "load_more": "Charger plus",
+        "cancel": "Annuler",
+        "delete": "Supprimer"
     },
     "scammer": {
         "limit_title": "Limite",
@@ -531,5 +544,68 @@
         "error_description_long": "Description trop longue (200 caractères max).",
         "safety_title": "Sécurité",
         "safety_personal_info": "N'ajoutez pas d'infos personnelles (e-mails, numéros de téléphone, réseaux sociaux)."
+    },
+    "trade_advice": {
+        "show_tips": "💡 Afficher les conseils",
+        "feed": {
+            "tone_good": "Bonne affaire pour toi",
+            "tone_popular": "Choix populaire",
+            "tone_close": "Ça pourrait te convenir",
+            "value_win": "Tu obtiendrais environ {{pct}} % de valeur en plus",
+            "value_fair": "Les valeurs sont à peu près égales",
+            "get_rising": "{{name}} a pris {{pct}} % récemment, bonne prise",
+            "demand_chip": "🔥 Demande {{score}}/10",
+            "asked_for_one": "Des joueurs ont demandé {{name}} dans {{count}} échange ces dernières 24 h",
+            "asked_for_many": "Des joueurs ont demandé {{name}} dans {{count}} échanges ces dernières 24 h",
+            "asked_for_other": "Des joueurs ont demandé {{name}} dans {{count}} échanges ces dernières 24 h",
+            "steady_demand": "Les traders demandent souvent {{name}}"
+        },
+        "insights": {
+            "giving_wanted": "Tes fruits sont très demandés, ils partiront vite !",
+            "getting_wanted": "Tu reçois des fruits très populaires !",
+            "getting_rising": "Tu reçois des fruits dont la valeur monte !",
+            "giving_rising": "Tes fruits prennent de la valeur !"
+        }
+    },
+    "moderation": {
+        "action_chat": "envoyer des messages",
+        "action_post": "publier",
+        "action_comment": "commenter",
+        "action_trade": "créer des échanges",
+        "action_feature": "mettre des échanges en avant",
+        "action_report": "faire des signalements",
+        "action_profile": "modifier ton profil",
+        "action_review": "écrire des avis",
+        "action_vote": "voter aux sondages",
+        "action_react": "réagir aux publications",
+        "action_follow": "suivre des personnes",
+        "action_group": "gérer des groupes",
+        "action_server": "partager des serveurs",
+        "action_generic": "faire ça",
+        "checking_title": "Un instant",
+        "checking_body": "Vérification du statut de ton compte. Réessaie dans quelques secondes.",
+        "muted_title": "Muet",
+        "muted_body": "Tu es en sourdine dans le chat pour encore {{time}}.",
+        "muted_body_generic": "Tu es en sourdine dans le chat.",
+        "banned_perm_title": "Banni définitivement",
+        "banned_strike_title": "Avertissement {{n}}",
+        "banned_title": "Banni",
+        "banned_perm_body": "Ton compte est banni définitivement, tu ne peux donc pas {{action}}.",
+        "banned_body": "Tu es banni pour encore {{time}}, tu ne peux donc pas {{action}} d'ici là.",
+        "banned_body_generic": "Tu es banni, tu ne peux donc pas {{action}} pour le moment.",
+        "send_blocked_title": "Message non envoyé",
+        "send_banned_body": "Tu es banni ou en sourdine, tes messages ne peuvent donc pas être envoyés pour le moment.",
+        "send_links_body": "Les liens ne sont pas autorisés dans les messages.",
+        "send_not_allowed_body": "Ce message n'est pas autorisé ici."
+    },
+    "home_tab": {
+        "mute_title": "En sourdine dans le chat",
+        "ban_strike": "Avertissement {{count}}",
+        "ban_strike_one": "Avertissement {{count}}",
+        "ban_strike_many": "Avertissement {{count}}",
+        "ban_strike_other": "Avertissement {{count}}",
+        "mute_permanent": "En sourdine jusqu'à ce qu'un modérateur la lève",
+        "ban_permanent_label": "Permanent",
+        "mute_for": "En sourdine pour {{time}}"
     }
 }

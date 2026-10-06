@@ -362,7 +362,16 @@
         "months_ago_one": "{{count}} tháng trước",
         "months_ago_other": "{{count}} tháng trước",
         "years_ago_one": "{{count}} năm trước",
-        "years_ago_other": "{{count}} năm trước"
+        "years_ago_other": "{{count}} năm trước",
+        "delete_message_title": "Xóa tin nhắn?",
+        "delete_message_body": "Tin nhắn này sẽ bị xóa với mọi người.",
+        "message_deleted": "Đã xóa tin nhắn",
+        "delete_failed": "Không thể xóa tin nhắn. Vui lòng thử lại.",
+        "delete_all_title": "Xóa tất cả tin nhắn gần đây?",
+        "delete_all_body": "Thao tác này xóa các tin nhắn gần đây của người dùng này trong phòng với mọi người.",
+        "delete_all_done": "Đã xóa {{count}} tin nhắn",
+        "delete_all_done_other": "Đã xóa {{count}} tin nhắn",
+        "delete_failed_all": "Không thể xóa các tin nhắn. Vui lòng thử lại."
     },
     "first": {
         "welcome_title": "Chào mừng đến với Fruit Values",
@@ -515,7 +524,9 @@
         "retry": "Tải lại giá trị"
     },
     "common": {
-        "load_more": "Tải thêm"
+        "load_more": "Tải thêm",
+        "cancel": "Hủy",
+        "delete": "Xóa"
     },
     "scammer": {
         "limit_title": "Giới hạn",
@@ -529,5 +540,64 @@
         "error_description_long": "Mô tả quá dài (tối đa 200 ký tự).",
         "safety_title": "An toàn",
         "safety_personal_info": "Đừng ghi thông tin cá nhân (email, số điện thoại, mạng xã hội)."
+    },
+    "trade_advice": {
+        "show_tips": "💡 Hiện mẹo",
+        "feed": {
+            "tone_good": "Giao dịch có lợi cho bạn",
+            "tone_popular": "Lựa chọn phổ biến",
+            "tone_close": "Có thể hợp với bạn",
+            "value_win": "Bạn sẽ nhận thêm khoảng {{pct}}% giá trị",
+            "value_fair": "Giá trị gần như ngang nhau",
+            "get_rising": "{{name}} vừa tăng {{pct}}%, đáng để lấy",
+            "demand_chip": "🔥 Nhu cầu {{score}}/10",
+            "asked_for_other": "Người chơi đã hỏi mua {{name}} trong {{count}} giao dịch 24 giờ qua",
+            "steady_demand": "Các trader liên tục tìm {{name}}"
+        },
+        "insights": {
+            "giving_wanted": "Trái của bạn đang rất được săn đón, sẽ trade nhanh thôi!",
+            "getting_wanted": "Bạn đang nhận những trái rất phổ biến!",
+            "getting_rising": "Bạn đang nhận những trái đang tăng giá!",
+            "giving_rising": "Trái của bạn đang tăng giá!"
+        }
+    },
+    "moderation": {
+        "action_chat": "gửi tin nhắn",
+        "action_post": "đăng bài",
+        "action_comment": "bình luận",
+        "action_trade": "tạo giao dịch",
+        "action_feature": "nổi bật giao dịch",
+        "action_report": "báo cáo",
+        "action_profile": "sửa hồ sơ",
+        "action_review": "viết đánh giá",
+        "action_vote": "bình chọn",
+        "action_react": "bày tỏ cảm xúc với bài đăng",
+        "action_follow": "theo dõi người khác",
+        "action_group": "quản lý nhóm",
+        "action_server": "chia sẻ server",
+        "action_generic": "làm việc này",
+        "checking_title": "Chờ một chút",
+        "checking_body": "Đang kiểm tra trạng thái tài khoản. Vui lòng thử lại sau vài giây.",
+        "muted_title": "Bị cấm chat",
+        "muted_body": "Bạn bị cấm chat thêm {{time}}.",
+        "muted_body_generic": "Bạn đang bị cấm chat.",
+        "banned_perm_title": "Bị cấm vĩnh viễn",
+        "banned_strike_title": "Cảnh cáo {{n}}",
+        "banned_title": "Bị cấm",
+        "banned_perm_body": "Tài khoản của bạn bị cấm vĩnh viễn nên bạn không thể {{action}}.",
+        "banned_body": "Bạn bị cấm thêm {{time}} nên không thể {{action}} cho đến lúc đó.",
+        "banned_body_generic": "Bạn đang bị cấm nên không thể {{action}} lúc này.",
+        "send_blocked_title": "Chưa gửi tin nhắn",
+        "send_banned_body": "Bạn đang bị cấm hoặc cấm chat nên tin nhắn không thể gửi lúc này.",
+        "send_links_body": "Không được gửi liên kết trong tin nhắn.",
+        "send_not_allowed_body": "Tin nhắn này không được phép ở đây."
+    },
+    "home_tab": {
+        "mute_title": "Bị cấm chat",
+        "ban_strike": "Cảnh cáo {{count}}",
+        "ban_strike_other": "Cảnh cáo {{count}}",
+        "mute_permanent": "Bị cấm chat cho đến khi điều hành viên gỡ",
+        "ban_permanent_label": "Vĩnh viễn",
+        "mute_for": "Bị cấm chat {{time}}"
     }
 }

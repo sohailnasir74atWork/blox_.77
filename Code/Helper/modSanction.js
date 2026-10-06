@@ -1,14 +1,70 @@
 // Server-side moderation by UID (functions/banEnforcement.js → modSanction).
 //
-// The email-keyed ban helpers in ChatScreen/utils.js stop at "email not
-// found" for deleted accounts and phone sign-ins. This calls the server,
-// which resolves email, devices and linked accounts itself, so a ban always
-// lands. It enforces the same hierarchy as utils.js (caller must strictly
-// outrank the target, never self).
+// Every sanction (strike, mute, ban) and every lift (unban, unmute) goes
+// through the server, which resolves email, devices and linked accounts
+// itself, so a ban always lands — also for deleted accounts and phone
+// sign-ins. It enforces the staff hierarchy (caller must strictly outrank the
+// target, never self, staff immunity, JMD limits, original-banner rank on
+// lifts); the app only mirrors those rules to hide buttons that would fail.
 import { getAuth, getIdToken } from '@react-native-firebase/auth';
+import RNFS from 'react-native-fs';
+import { safeCompressImage } from './safeCompressImage';
 
 const MOD_SANCTION_URL =
   'https://us-central1-fruiteblocks.cloudfunctions.net/modSanction';
+// Evidence screenshots go through the server (functions/modEvidenceUpload.js),
+// which holds the storage key; the app never sees it.
+const MOD_EVIDENCE_URL =
+  'https://us-central1-fruiteblocks.cloudfunctions.net/modEvidenceUpload';
+
+export const EVIDENCE_MAX = 3;
+
+// ── Strike ladder ───────────────────────────────────────────────────────
+// ONE copy for the app. Must match STRIKE_DURATION_MS in
+// functions/banEnforcement.js (the server picks the actual expiry).
+const HOUR_MS = 60 * 60 * 1000;
+export const STRIKE_LADDER = {
+  1: { durationMs: 3 * HOUR_MS, label: '3 hours', short: '3h' },
+  2: { durationMs: 3 * 24 * HOUR_MS, label: '3 days', short: '3d' },
+  3: { durationMs: null, label: 'permanent', short: 'Perm' }, // null = permanent
+};
+export const MAX_STRIKE = 3;
+
+/** Next strike level after `current` (0 when there is none), capped at 3. */
+export const nextStrikeCount = (current) =>
+  Math.min(MAX_STRIKE, Math.max(0, Number(current) || 0) + 1);
+
+/** `bannedUntil` value for a strike level: a ms timestamp or 'permanent'. */
+export const strikeBannedUntil = (strikeCount, now = Date.now()) => {
+  const step = STRIKE_LADDER[strikeCount] || STRIKE_LADDER[MAX_STRIKE];
+  return step.durationMs == null ? 'permanent' : now + step.durationMs;
+};
+
+export const strikeDurationLabel = (strikeCount) =>
+  (STRIKE_LADDER[strikeCount] || STRIKE_LADDER[MAX_STRIKE]).label;
+
+// Junior Mods may only mute, and only for up to two hours (server: rank_limit).
+export const JMD_MAX_MUTE_MINUTES = 120;
+
+// One-tap reasons in the reason prompt (staff-only UI, English like the rest
+// of the mod tools). "Other" means "type your own".
+export const MOD_QUICK_REASONS = [
+  'Scamming',
+  'Spam',
+  'Harassment',
+  'Inappropriate content',
+  'Links',
+  'Ban evasion',
+  'Other',
+];
+export const MOD_REASON_MAX = 500;
+
+export const formatMuteMinutes = (m) => {
+  const n = Number(m) || 0;
+  if (n >= 1440 && n % 1440 === 0) return n === 1440 ? '1 day' : `${n / 1440} days`;
+  if (n >= 60 && n % 60 === 0) return `${n / 60}h`;
+  return `${n}m`;
+};
 
 // Server error codes → short English messages (staff-only UI).
 const ERROR_TEXT = {
@@ -16,24 +72,59 @@ const ERROR_TEXT = {
   not_staff: 'Only staff can do this.',
   self_target: 'You cannot do this to yourself.',
   outranked: 'You cannot act on this user.',
+  staff_immune: 'Staff members can only be sanctioned by an admin.',
+  rank_limit: 'Your rank does not allow this action (Junior Mods can only mute for up to 2 hours).',
+  banner_outranks: 'This was placed by a higher-ranked staff member. Ask them or an admin to lift it.',
   stricter_ban_active: 'A stricter ban is already active on this user.',
+  bad_action: 'This action is not supported by the server yet.',
   bad_target: 'Invalid user ID.',
   bad_strike: 'Invalid strike level.',
   bad_minutes: 'Invalid mute duration.',
+  bad_reason: 'Please give a reason (up to 500 characters).',
+  bad_evidence: 'Screenshots could not be attached (up to 3 image links).',
+  bad_log: 'Could not write the audit log entry.',
+  not_muted: 'This user is not muted.',
+  not_banned: 'This user is not banned.',
   internal: 'Server error. Try again.',
 };
 
 export const sanctionErrorText = (code) => ERROR_TEXT[code] || 'Something went wrong.';
 
 /**
- * @param {'strike'|'mute'|'unban'|'linked'} action
- * @param {string} targetUid
- * @param {{strikeCount?: number, minutes?: number, reason?: string, includeLinked?: boolean}} [opts]
+ * Call the modSanction function. Never throws.
+ *
+ * Actions:
+ *   'strike'  { strikeCount: 1|2|3, reason, evidence?, includeLinked?, linkedUids? }
+ *   'mute'    { minutes, reason, evidence? }
+ *   'unban'   { reason? }   lifts a ban or a mute (server removes the email
+ *                           record, the uid ban, device bans and Supabase)
+ *   'unmute'  { reason? }   lifts a mute only
+ *   'linked'  {}            other accounts on the same device(s):
+ *                           linked: [{ uid, displayName, isStaff, banned, … }]
+ *   'log'     { logAction, details }  audit row (use logModAction below)
+ *
+ * `reason` ≤ 500 chars (required by the server for strike/mute),
+ * `evidence` ≤ 3 https image URLs (see AppHelper/modEvidenceUpload.js),
+ * `linkedUids` limits includeLinked to the accounts the mod ticked.
+ *
+ * @param {'strike'|'mute'|'unban'|'unmute'|'linked'|'log'} action
+ * @param {string|null} targetUid
+ * @param {{strikeCount?: number, minutes?: number, reason?: string, evidence?: string[],
+ *   includeLinked?: boolean, linkedUids?: string[], logAction?: string, details?: object}} [opts]
  * @returns {Promise<{ok: boolean, error?: string, [k: string]: any}>} never throws
  */
 export async function callModSanction(action, targetUid, opts = {}) {
   const user = getAuth().currentUser;
   if (!user) return { ok: false, error: 'unauthenticated' };
+  const body = { action, targetUid, ...opts };
+  if (typeof body.reason === 'string') {
+    body.reason = body.reason.trim().slice(0, MOD_REASON_MAX);
+    if (!body.reason) delete body.reason;
+  }
+  if (Array.isArray(body.evidence)) {
+    body.evidence = body.evidence.filter((u) => typeof u === 'string' && /^https:\/\//.test(u)).slice(0, 3);
+    if (body.evidence.length === 0) delete body.evidence;
+  }
   try {
     const token = await getIdToken(user);
     const res = await fetch(MOD_SANCTION_URL, {
@@ -42,12 +133,12 @@ export async function callModSanction(action, targetUid, opts = {}) {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ action, targetUid, ...opts }),
+      body: JSON.stringify(body),
     });
-    let body = null;
-    try { body = await res.json(); } catch (_) {}
-    if (!res.ok) return { ok: false, error: body?.error || 'internal', ...body };
-    return { ok: true, ...body };
+    let resBody = null;
+    try { resBody = await res.json(); } catch (_) {}
+    if (!res.ok) return { ok: false, error: resBody?.error || 'internal', ...resBody };
+    return { ok: true, ...resBody };
   } catch (e) {
     console.warn('[modSanction] failed:', e?.message);
     return { ok: false, error: 'internal' };
@@ -58,8 +149,65 @@ export async function callModSanction(action, targetUid, opts = {}) {
 export const describeSanctionResult = (r) => {
   const parts = [];
   if (r.accountDeleted || r.accountExists === false) parts.push('Account is deleted.');
-  if (!r.hasEmail) parts.push('No email on file.');
-  parts.push(r.devices > 0 ? `${r.devices} device(s) banned.` : 'No device on record.');
+  if (r.hasEmail === false) parts.push('No email on file.');
+  if (typeof r.devices === 'number') {
+    parts.push(r.devices > 0 ? `${r.devices} device(s) on record.` : 'No device on record.');
+  }
   if (r.linkedBanned > 0) parts.push(`${r.linkedBanned} linked account(s) banned.`);
   return parts.join(' ');
 };
+
+/**
+ * Audit-log a staff action that isn't a sanction (message delete, pin, role
+ * change…). The server checks the caller is staff and writes mod_actions.
+ * Fire-and-forget: never throws, never blocks the action itself.
+ * @param {'message_delete'|'delete_all'|'pin'|'unpin'|'role_change'|'review_delete'|'profile_delete'} logAction
+ * @param {string|null} targetUid
+ * @param {object} [details] small JSON (ids, role names, room) — no message bodies
+ */
+export function logModAction(logAction, targetUid, details = {}) {
+  return callModSanction('log', targetUid || null, { logAction, details })
+    .catch(() => ({ ok: false, error: 'internal' }));
+}
+
+const EVIDENCE_ERROR_TEXT = {
+  unauthenticated: 'Please sign in again.',
+  not_staff: 'Only staff can upload evidence.',
+  bad_image: 'That file is not a supported image.',
+  too_large: 'That image is too large.',
+  rate_limited: 'Too many uploads. Try again later.',
+};
+export const evidenceErrorText = (code) => EVIDENCE_ERROR_TEXT[code] || 'Could not upload the screenshot. Try again.';
+
+/**
+ * Upload one evidence screenshot (local file URI from the image picker).
+ * Compressed to JPEG first so it stays well under the server's 1.5 MB cap.
+ * @returns {Promise<{ok: true, url: string} | {ok: false, error: string}>} never throws
+ */
+export async function uploadEvidence(localUri) {
+  const user = getAuth().currentUser;
+  if (!user) return { ok: false, error: 'unauthenticated' };
+  try {
+    const { uri } = await safeCompressImage(localUri, {
+      compressionMethod: 'manual', maxWidth: 1280, quality: 0.7, output: 'jpg',
+    });
+    const data = await RNFS.readFile(uri.replace('file://', ''), 'base64');
+    const token = await getIdToken(user);
+    const res = await fetch(MOD_EVIDENCE_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      // If compression fell back to the original, say what it really is.
+      body: JSON.stringify({
+        data,
+        contentType: /\.png$/i.test(uri) ? 'image/png' : /\.webp$/i.test(uri) ? 'image/webp' : 'image/jpeg',
+      }),
+    });
+    let body = null;
+    try { body = await res.json(); } catch (_) {}
+    if (!res.ok || !body?.url) return { ok: false, error: body?.error || 'internal' };
+    return { ok: true, url: body.url };
+  } catch (e) {
+    console.warn('[modSanction] evidence upload failed:', e?.message);
+    return { ok: false, error: 'internal' };
+  }
+}

@@ -11,7 +11,8 @@ import { useFocusEffect, useIsFocused, useRoute } from '@react-navigation/native
 import { getStyles } from '../Style';
 import PrivateMessageInput from './PrivateMessageInput';
 import PrivateMessageList from './PrivateMessageList';
-import { useGlobalState } from '../../GlobelStats';
+import { useGlobalState, modGateText, chatSendErrorCode, chatSendErrorText } from '../../GlobelStats';
+import ChatRestrictedBar from '../ChatRestrictedBar';
 import { chatTypeForRoute, fetchChatAvailability, resolveChatBlock } from '../chatAvailability';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
@@ -43,6 +44,7 @@ import {
 } from '../../Supabase/chatMetaBackend';
 import {
   loadPrivateMessages as sbLoadPrivateMessages,
+  loadPrivateMessagesSince as sbLoadPrivateMessagesSince,
   subscribeToPrivateMessages as sbSubscribeToPrivateMessages,
   sendPrivateMessage as sbSendPrivateMessage,
   softDeleteAllInChat as sbSoftDeleteAllInChat,
@@ -56,11 +58,69 @@ const PAGE_SIZE = 10;
 // scroll.
 const MAX_LIVE = 150;
 
+const sortTs = (m) => m?.serverTime || m?.timestamp || 0;
+const newestFirst = (a, b) => sortTs(b) - sortTs(a);
+
+// Last messages seen per chat, in memory for this app session. Reopening a
+// chat paints these instantly while the fresh page loads behind them, instead
+// of a full-screen spinner on every visit. Keyed by chatKey (both UIDs), so a
+// different signed-in account can never read another account's entries.
+// (Ported from adoptme-jan7.)
+const CACHE_MAX_CHATS = 20;
+const CACHE_PER_CHAT = 50;
+const messageCache = new Map(); // chatKey -> messages, newest first
+
+const writeCachedMessages = (key, msgs) => {
+  if (!key || !Array.isArray(msgs)) return;
+  // Unsent placeholders aren't history; a reopen would show them forever.
+  const real = msgs.filter((m) => m && !m._optimistic);
+  messageCache.delete(key); // re-insert = most recently used
+  if (real.length === 0) return; // emptied chat: nothing to repaint
+  messageCache.set(key, real.slice(0, CACHE_PER_CHAT));
+  if (messageCache.size > CACHE_MAX_CHATS) {
+    messageCache.delete(messageCache.keys().next().value);
+  }
+};
+
+// Supabase cursor for a message. Prefers the raw microsecond created_at; the
+// ms `timestamp` fallback only covers optimistic rows.
+const cursorOf = (m) => (m
+  ? { createdAt: m.createdAt || new Date(m.timestamp).toISOString(), id: m.id }
+  : null);
+
+// Merge incoming rows into a newest-first list: an optimistic placeholder
+// with the same clientMsgId is promoted to the real row, rows already present
+// (by id or clientMsgId) are skipped, and the live list is capped.
+const mergeIncoming = (prev, incoming) => {
+  let list = Array.isArray(prev) ? prev : [];
+  let changed = false;
+  incoming.forEach((msg) => {
+    if (!msg) return;
+    if (msg.clientMsgId) {
+      const optIdx = list.findIndex((m) => m?._optimistic && m?.clientMsgId === msg.clientMsgId);
+      if (optIdx !== -1) {
+        list = [...list];
+        list[optIdx] = { ...list[optIdx], ...msg, _optimistic: false };
+        changed = true;
+        return;
+      }
+    }
+    const exists = list.some((m) => String(m?.id) === String(msg.id)
+      || (msg.clientMsgId && m?.clientMsgId === msg.clientMsgId));
+    if (exists) return;
+    list = [msg, ...list];
+    changed = true;
+  });
+  if (!changed) return prev;
+  const sorted = list.sort(newestFirst);
+  return sorted.length > MAX_LIVE ? sorted.slice(0, MAX_LIVE) : sorted;
+};
+
 const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVisible }) => {
   const { selectedUser: initialSelectedUser, selectedTheme, item } = route.params || {};
   const [currentSelectedUser, setCurrentSelectedUser] = useState(initialSelectedUser);
 
-  const { user, theme, appdatabase, updateLocalStateAndDatabase, firestoreDB, currentUserEmail, strikeInfo, isAdmin, isUserBlocked } = useGlobalState();
+  const { user, theme, appdatabase, updateLocalStateAndDatabase, firestoreDB, currentUserEmail, isAdmin, isUserBlocked, isUserMuted, getModGate } = useGlobalState();
 
 
   const [trade, setTrade] = useState(null)
@@ -70,6 +130,15 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
   const lastLoadedKeyRef = useRef(null);
   const [lastLoadedKey, setLastLoadedKey] = useState(null);
   const previousChatKeyRef = useRef(null);
+  // Mirrors `messages` for callbacks that must read the latest list without
+  // re-subscribing (realtime gap-fill).
+  const messagesRef = useRef([]);
+  // True once the fresh first page has landed. Until then a realtime
+  // SUBSCRIBED needs no gap-fill — the in-flight first page covers it.
+  const initialLoadDoneRef = useRef(false);
+  // Pagination guard as a ref: onEndReached can fire twice before a state
+  // update re-renders.
+  const paginatingRef = useRef(false);
   const [replyTo, setReplyTo] = useState(null);
   const [input, setInput] = useState('');
   const [isAdVisible, setIsAdVisible] = useState(true);
@@ -173,9 +242,21 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
   }, [selectedUserId, myUserId, firestoreDB]);
 
 
+  // Mounted on first open only: mounted hidden, the drawer fetched the
+  // partner's full profile on every chat open, competing with the message
+  // load for the same connection slots.
+  const [drawerMounted, setDrawerMounted] = useState(false);
+  useEffect(() => {
+    if (isDrawerVisible) setDrawerMounted(true);
+  }, [isDrawerVisible]);
+
   const closeProfileDrawer = () => {
     setIsDrawerVisible(false);
   };
+
+  // Banned / muted users see why (and for how long) instead of an input,
+  // like adoptme-jan7's isMeBanned state.
+  const chatInputGate = (isUserBlocked || isUserMuted) ? getModGate('chat') : null;
 
   const isBanned = useMemo(() => {
     if (!selectedUserId) return false;
@@ -271,11 +352,13 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
   useActiveChatLifecycle({ userId: user?.id, chatId: chatKey });
 
   const handleRating = useCallback(async () => {
-    // Block banned users from submitting reviews. Defer expiry to the
-    // server-time-validated `isUserBlocked` flag so a clock-rolled device
-    // can't slip past.
-    if (isUserBlocked && !isAdmin) {
-      showErrorMessage(t("home.alert.error"), "You are banned and cannot submit reviews.");
+    // Block banned users from submitting reviews (reviews are content, so a
+    // mute doesn't apply). getModGate reads live, server-time-validated state
+    // and is stable, so this callback can't act on a stale ban flag.
+    const modGate = getModGate('content');
+    if (modGate) {
+      const { title, message } = modGateText(modGate, 'review');
+      showErrorMessage(title, message);
       return;
     }
 
@@ -390,7 +473,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       showErrorMessage("Error", "Error submitting rating. Try again!");
       setStartRating(false);
     }
-  }, [rating, selectedUserId, myUserId, appdatabase, firestoreDB, reviewText, user?.id, user?.displayName, updateUserPoints, strikeInfo, isAdmin, t]);
+  }, [rating, selectedUserId, myUserId, appdatabase, firestoreDB, reviewText, user?.id, user?.displayName, updateUserPoints, getModGate, t]);
 
 
 
@@ -401,41 +484,78 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       if (!chatKey) return;
 
       if (reset) {
-        setLoading(true);
-        setMessages([]);
-        // Cursor is { createdAt: ISO, id: uuid } — see privateMessagesBackend.
-        lastLoadedKeyRef.current = null;
+        initialLoadDoneRef.current = false;
+        const cached = messageCache.get(chatKey);
+        if (cached?.length) {
+          // Paint the last-seen messages now; the fresh page merges in below.
+          setMessages(cached);
+          setLoading(false);
+          lastLoadedKeyRef.current = cursorOf(cached[cached.length - 1]);
+        } else {
+          setLoading(true);
+          setMessages([]);
+          // Cursor is { createdAt: ISO, id: uuid } — see privateMessagesBackend.
+          lastLoadedKeyRef.current = null;
+        }
+      } else {
+        if (paginatingRef.current) return;
+        paginatingRef.current = true;
       }
       try {
-        const before = !reset && lastLoadedKeyRef.current
-          ? lastLoadedKeyRef.current
-          : null;
+        const before = reset ? null : lastLoadedKeyRef.current;
 
         const rows = await sbLoadPrivateMessages(chatKey, { limit: PAGE_SIZE, before });
-        if (!Array.isArray(rows) || rows.length === 0) return;
+        if (!Array.isArray(rows) || rows.length === 0) {
+          // End of history: stop paginating (a stale cursor re-sent this
+          // same empty request on every scroll to the top).
+          lastLoadedKeyRef.current = null;
+          // An empty fresh page means the chat has no messages now; drop
+          // anything painted from the cache (keep unsent placeholders).
+          if (reset) setMessages(prev => (Array.isArray(prev) ? prev.filter(m => m?._optimistic) : []));
+          return;
+        }
+
+        if (reset) {
+          // The fresh newest page wins. Rows already on screen survive only
+          // if they sit outside its time range: older ones (cached history
+          // the user may be scrolled into) and newer ones (realtime inserts
+          // or unsent placeholders that landed while this request was in
+          // flight). A row inside the range but missing from it was deleted.
+          const newestFresh = sortTs(rows[0]);
+          const oldestFresh = sortTs(rows[rows.length - 1]);
+          const freshIds = new Set(rows.map(m => String(m?.id)));
+          const freshClientIds = new Set(rows.map(m => m?.clientMsgId).filter(Boolean));
+          setMessages(prev => {
+            const keep = (Array.isArray(prev) ? prev : []).filter(m => m
+              && !freshIds.has(String(m.id))
+              && !(m.clientMsgId && freshClientIds.has(m.clientMsgId))
+              && (sortTs(m) < oldestFresh || sortTs(m) > newestFresh));
+            const merged = [...rows, ...keep].sort(newestFirst);
+            lastLoadedKeyRef.current = cursorOf(merged.filter(m => !m._optimistic).pop());
+            return merged;
+          });
+          return;
+        }
 
         setMessages(prev => {
           if (!Array.isArray(prev)) return rows;
-          if (reset) return rows;
           const existingIds = new Set(prev.map(m => String(m?.id)));
           const onlyNew = rows.filter(m => !existingIds.has(String(m?.id)));
-          const combined = [...prev, ...onlyNew];
-          return combined.sort((a, b) => (b?.serverTime || b?.timestamp || 0) - (a?.serverTime || a?.timestamp || 0));
+          return [...prev, ...onlyNew].sort(newestFirst);
         });
 
         // Advance the cursor — oldest row of this page (rows are
         // newest-first, so the last element is the oldest).
-        const oldest = rows[rows.length - 1];
-        if (oldest) {
-          lastLoadedKeyRef.current = {
-            createdAt: new Date(oldest.timestamp).toISOString(),
-            id: oldest.id,
-          };
-        }
+        lastLoadedKeyRef.current = cursorOf(rows[rows.length - 1]);
       } catch (error) {
         console.error('Error loading messages:', error);
       } finally {
-        if (reset) setLoading(false);
+        if (reset) {
+          setLoading(false);
+          initialLoadDoneRef.current = true;
+        } else {
+          paginatingRef.current = false;
+        }
       }
     },
     [chatKey]
@@ -457,7 +577,15 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     }
   }, [chatKey, loadMessages]);
 
+  // Keep the session cache and the gap-fill ref in step with what's on screen.
+  useEffect(() => {
+    messagesRef.current = messages;
+    writeCachedMessages(chatKey, messages);
+  }, [chatKey, messages]);
+
   const handleLoadMore = useCallback(() => {
+    // No cursor = first page still loading, or end of history reached.
+    if (paginatingRef.current || !lastLoadedKeyRef.current) return;
     loadMessages(false);
   }, [loadMessages]);
 
@@ -551,32 +679,13 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       showErrorMessage(t("home.alert.error"), "You must be logged in to send messages.");
       return;
     }
-    // Block banned users from sending (admins exempt). Defer expiry to
-    // server-time-validated `isUserBlocked` so a clock-rolled device
-    // can't slip past — strikeInfo is used only for the message text.
-    if (isUserBlocked && !isAdmin) {
-      const { bannedUntil } = strikeInfo || {};
-
-      if (bannedUntil === 'permanent') {
-        showErrorMessage(t("home.alert.error"), "You are permanently banned from sending messages.");
-        return;
-      }
-
-      if (typeof bannedUntil === 'number') {
-        const remaining = Math.max(0, bannedUntil - Date.now());
-        const totalMinutes = Math.ceil(remaining / 60000);
-        const hours = Math.floor(totalMinutes / 60);
-        const minutes = totalMinutes % 60;
-        const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-
-        showErrorMessage(
-          t("home.alert.error"),
-          `You are banned from chatting for ${timeLeftText} more minute(s).`
-        );
-        return;
-      }
-
-      showErrorMessage(t("home.alert.error"), "You are currently banned from sending messages.");
+    // Block banned / muted users from sending (admins exempt), and wait for
+    // the ban check on a fresh sign-in. getModGate is stable and reads live,
+    // server-time-validated state, so this callback can't go stale on it.
+    const modGate = getModGate('chat');
+    if (modGate) {
+      const { title, message } = modGateText(modGate, 'chat');
+      showErrorMessage(title, message);
       return;
     }
 
@@ -697,9 +806,19 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       setReplyTo(null);
     } catch (error) {
       console.error("Error sending message:", error);
+      // Server rejected the sender / message (SENDER_BANNED,
+      // LINKS_NOT_ALLOWED, NOT_ALLOWED — errcode 23514): say why, drop the
+      // optimistic bubble (it never landed) and give the text back.
+      const rejected = chatSendErrorText(chatSendErrorCode(error));
+      if (rejected) {
+        setMessages(prev => (Array.isArray(prev) ? prev.filter(m => m?.id !== clientMsgId) : prev));
+        if (trimmedText) setInput(trimmedText);
+        showErrorMessage(rejected.title, rejected.message);
+        return;
+      }
       Alert.alert("Error", "Could not send your message. Please try again.");
     }
-  }, [myUserId, selectedUserId, appdatabase, currentSelectedUser, user, t, currentUserEmail, strikeInfo, isAdmin, chatBlockedBy, chatType]);
+  }, [myUserId, selectedUserId, appdatabase, currentSelectedUser, user, t, currentUserEmail, getModGate, chatBlockedBy, chatType]);
 
   useFocusEffect(
     useCallback(() => {
@@ -804,28 +923,9 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
         }
       }
 
-      setMessages(prev => {
-        if (!Array.isArray(prev)) return [msg];
-
-        // Optimistic-placeholder swap: same clientMsgId → replace with
-        // the real row (real id, real timestamp).
-        if (msg.clientMsgId) {
-          const optIdx = prev.findIndex(
-            (m) => m?._optimistic && m?.clientMsgId === msg.clientMsgId,
-          );
-          if (optIdx !== -1) {
-            const updated = [...prev];
-            updated[optIdx] = { ...updated[optIdx], ...msg, _optimistic: false };
-            return updated.sort((a, b) => (b?.serverTime || b?.timestamp || 0) - (a?.serverTime || a?.timestamp || 0));
-          }
-        }
-
-        // Plain dedup by id (handles both our own non-optimistic
-        // self-INSERT echo and double-fire scenarios).
-        if (prev.some((m) => String(m?.id) === String(msg.id))) return prev;
-        const next = [msg, ...prev].sort((a, b) => (b?.serverTime || b?.timestamp || 0) - (a?.serverTime || a?.timestamp || 0));
-        return next.length > MAX_LIVE ? next.slice(0, MAX_LIVE) : next;
-      });
+      // Promotes a matching optimistic placeholder, dedups by id /
+      // clientMsgId, keeps newest-first and caps at MAX_LIVE.
+      setMessages(prev => mergeIncoming(prev, [msg]));
     };
 
     const handleUpdate = (msg) => {
@@ -843,13 +943,38 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       setMessages(prev => prev.filter(m => m?.id !== id));
     };
 
+    // Realtime never replays what it missed. Every SUBSCRIBED — re-focus
+    // after the image viewer or profile, or the rejoin after the socket was
+    // dropped in the background — fetches only the rows newer than the
+    // newest on screen. Before this, a message that arrived in that gap
+    // stayed invisible until the chat was closed and reopened.
+    let active = true;
+    let gapFillInFlight = false;
+    const gapFill = () => {
+      // Before the first page lands there's nothing to fill: that request
+      // already covers everything up to now.
+      if (!active || gapFillInFlight || !initialLoadDoneRef.current) return;
+      const newest = (messagesRef.current || []).find(m => m && !m._optimistic);
+      gapFillInFlight = true;
+      sbLoadPrivateMessagesSince(chatKey, cursorOf(newest), { limit: 50 })
+        .then((rows) => {
+          if (active && rows.length > 0) setMessages(prev => mergeIncoming(prev, rows));
+        })
+        .catch((e) => console.warn('[PrivateChat] gap-fill failed:', e?.message))
+        .finally(() => { gapFillInFlight = false; });
+    };
+
     const unsubscribe = sbSubscribeToPrivateMessages(chatKey, {
       onInsert: handleInsert,
       onUpdate: handleUpdate,
       onDelete: handleDelete,
+      onStatus: (status) => {
+        if (status === 'SUBSCRIBED') gapFill();
+      },
     });
 
     return () => {
+      active = false;
       if (typeof unsubscribe === 'function') unsubscribe();
     };
   }, [chatKey, isFocused]);
@@ -968,20 +1093,24 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
               </View>
             )}
 
-            <PrivateMessageInput
-              onSend={sendMessage}
-              isBanned={isBanned || isChatUnavailable}
-              bannedUsers={bannedUsers}
-              replyTo={replyTo}
-              onCancelReply={() => setReplyTo(null)}
-              input={input}
-              setInput={setInput}
-              selectedTheme={selectedTheme}
-              petModalVisible={petModalVisible}
-              setPetModalVisible={setPetModalVisible}
-              selectedFruits={selectedFruits}
-              setSelectedFruits={setSelectedFruits}
-            />
+            {chatInputGate ? (
+              <ChatRestrictedBar gate={chatInputGate} isDarkMode={theme === 'dark'} />
+            ) : (
+              <PrivateMessageInput
+                onSend={sendMessage}
+                isBanned={isBanned || isChatUnavailable}
+                bannedUsers={bannedUsers}
+                replyTo={replyTo}
+                onCancelReply={() => setReplyTo(null)}
+                input={input}
+                setInput={setInput}
+                selectedTheme={selectedTheme}
+                petModalVisible={petModalVisible}
+                setPetModalVisible={setPetModalVisible}
+                selectedFruits={selectedFruits}
+                setSelectedFruits={setSelectedFruits}
+              />
+            )}
             <PetModal
               fromChat={true}
               visible={petModalVisible}
@@ -1077,7 +1206,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
         </View>
       )}
 
-      <ProfileBottomDrawer
+      {(drawerMounted || isDrawerVisible) && <ProfileBottomDrawer
         isVisible={isDrawerVisible}
         toggleModal={closeProfileDrawer}
         startChat={() => { }}
@@ -1085,7 +1214,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
         isOnline={isOnline}
         bannedUsers={bannedUsers}
         fromPvtChat={true}
-      />
+      />}
     </>
   );
 };

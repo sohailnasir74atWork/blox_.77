@@ -363,7 +363,16 @@
     "hours_ago_one": "{{count}}時間前",
     "days_ago_one": "{{count}}日前",
     "months_ago_one": "{{count}}か月前",
-    "years_ago_one": "{{count}}年前"
+    "years_ago_one": "{{count}}年前",
+    "delete_message_title": "メッセージを削除しますか？",
+    "delete_message_body": "このメッセージは全員から削除されます。",
+    "message_deleted": "メッセージを削除しました",
+    "delete_failed": "メッセージを削除できませんでした。もう一度お試しください。",
+    "delete_all_title": "最近のメッセージをすべて削除しますか？",
+    "delete_all_body": "このルームでのこのユーザーの最近のメッセージを全員から削除します。",
+    "delete_all_done": "{{count}}件のメッセージを削除しました",
+    "delete_all_done_other": "{{count}}件のメッセージを削除しました",
+    "delete_failed_all": "メッセージを削除できませんでした。もう一度お試しください。"
   },
   "first": {
     "continue_guest": "ゲストとして続ける",
@@ -516,7 +525,9 @@
     "retry": "値段を再読み込み"
   },
   "common": {
-    "load_more": "もっと見る"
+    "load_more": "もっと見る",
+    "cancel": "キャンセル",
+    "delete": "削除"
   },
   "scammer": {
     "limit_title": "上限",
@@ -530,5 +541,64 @@
     "error_description_long": "説明が長すぎます（200文字まで）。",
     "safety_title": "安全のために",
     "safety_personal_info": "個人情報（メールアドレス、電話番号、SNSなど）は書かないでください。"
+  },
+  "trade_advice": {
+    "show_tips": "💡 ヒントを表示",
+    "feed": {
+      "tone_good": "あなたにお得なトレード",
+      "tone_popular": "人気のアイテム",
+      "tone_close": "検討の価値あり",
+      "value_win": "約{{pct}}%多くの価値を得られます",
+      "value_fair": "価値はほぼ同じです",
+      "get_rising": "{{name}}は最近{{pct}}%上昇、良い買い物です",
+      "demand_chip": "🔥 需要 {{score}}/10",
+      "asked_for_other": "過去24時間で{{count}}件のトレードが{{name}}を求めました",
+      "steady_demand": "{{name}}はトレーダーに求められ続けています"
+    },
+    "insights": {
+      "giving_wanted": "あなたのフルーツは需要が高く、すぐにトレードできます！",
+      "getting_wanted": "とても人気のフルーツを手に入れられます！",
+      "getting_rising": "価値が上がっているフルーツを手に入れられます！",
+      "giving_rising": "あなたのフルーツの価値が上がっています！"
+    }
+  },
+  "moderation": {
+    "action_chat": "メッセージを送信",
+    "action_post": "投稿",
+    "action_comment": "コメント",
+    "action_trade": "トレードを作成",
+    "action_feature": "トレードを注目に設定",
+    "action_report": "通報",
+    "action_profile": "プロフィールを編集",
+    "action_review": "レビューを書く",
+    "action_vote": "投票",
+    "action_react": "投稿にリアクション",
+    "action_follow": "フォロー",
+    "action_group": "グループを管理",
+    "action_server": "サーバーを共有",
+    "action_generic": "この操作",
+    "checking_title": "少々お待ちください",
+    "checking_body": "アカウントの状態を確認しています。数秒後にもう一度お試しください。",
+    "muted_title": "ミュート中",
+    "muted_body": "チャットはあと{{time}}ミュートされています。",
+    "muted_body_generic": "チャットでミュートされています。",
+    "banned_perm_title": "永久BAN",
+    "banned_strike_title": "警告 {{n}}",
+    "banned_title": "BAN中",
+    "banned_perm_body": "アカウントが永久BANされているため、{{action}}できません。",
+    "banned_body": "あと{{time}}BANされているため、それまで{{action}}できません。",
+    "banned_body_generic": "BAN中のため、今は{{action}}できません。",
+    "send_blocked_title": "メッセージは送信されませんでした",
+    "send_banned_body": "BANまたはミュート中のため、今はメッセージを送信できません。",
+    "send_links_body": "メッセージにリンクは使用できません。",
+    "send_not_allowed_body": "このメッセージはここでは許可されていません。"
+  },
+  "home_tab": {
+    "mute_title": "チャットでミュート中",
+    "ban_strike": "警告 {{count}}",
+    "ban_strike_other": "警告 {{count}}",
+    "mute_permanent": "モデレーターが解除するまでミュート",
+    "ban_permanent_label": "永久",
+    "mute_for": "{{time}}ミュート"
   }
 }

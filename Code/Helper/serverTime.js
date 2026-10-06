@@ -71,6 +71,9 @@ export const getServerTime = async (db, uid, forceProbe = false) => {
   try {
     const snap = await get(ref(db, '.info/serverTimeOffset'));
     const offset = snap.val() || 0;
+    // Better than nothing for the sync helpers when no probe has worked
+    // (signed out); a real probe still wins once one succeeds.
+    if (!_lastProbeAt) _probeOffset = offset;
     return new Date(Date.now() + offset);
   } catch {}
 
@@ -82,6 +85,24 @@ export const getServerTime = async (db, uid, forceProbe = false) => {
  * Use for UI display (countdowns). NOT for anti-cheat validation.
  */
 export const getServerTimeQuick = () => new Date(Date.now() + _probeOffset);
+
+/** Sync ms-epoch server-time estimate (cached offset). See getServerTimeQuick. */
+export const serverNowMs = () => Date.now() + _probeOffset;
+
+/** True once at least one successful probe has populated the offset. */
+export const isServerTimeWarm = () => _lastProbeAt > 0;
+
+/**
+ * Warm the cached offset with a real probe. Call once early (app start /
+ * sign-in / foreground) so the synchronous getServerTimeQuick()/serverNowMs()
+ * helpers are accurate for sync call sites (ban countdowns) that can't await.
+ * Best-effort — swallows errors. Ported from adoptme-jan7.
+ */
+export const warmServerTime = async (db, uid) => {
+  try {
+    await getServerTime(db, uid, true);
+  } catch {}
+};
 
 /** Format a Date as "YYYY-MM-DD" in UTC */
 export const formatServerDate = (d) =>

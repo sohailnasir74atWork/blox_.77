@@ -16,7 +16,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getStyles } from '../Style';
 import GroupMessageInput from './GroupMessageInput';
 import GroupMessageList from './GroupMessageList';
-import { useGlobalState } from '../../GlobelStats';
+import { useGlobalState, modGateText, chatSendErrorCode, chatSendErrorText } from '../../GlobelStats';
+import ChatRestrictedBar from '../ChatRestrictedBar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useActiveChatLifecycle } from '../utils';
 import { get, ref, update } from '@react-native-firebase/database';
@@ -53,7 +54,7 @@ const GroupChatScreen = () => {
   const navigation = useNavigation();
   const { groupId } = route.params || {};
 
-  const { user, theme, appdatabase, firestoreDB, currentUserEmail, strikeInfo, isAdmin, isUserBlocked } = useGlobalState();
+  const { user, theme, appdatabase, firestoreDB, currentUserEmail, isAdmin, isUserBlocked, isUserMuted, getModGate } = useGlobalState();
   // Declared up here with the other context hooks because `localState` is read
   // during render further down (the sendMessage dep array) and inside effects
   // that run before its old declaration site near the bottom of the file.
@@ -726,32 +727,13 @@ const GroupChatScreen = () => {
         return;
       }
 
-      // Block banned users from sending (admins exempt). Defer expiry to
-      // server-time-validated `isUserBlocked` so a clock-rolled device
-      // can't slip past — strikeInfo is used only for the message text.
-      if (isUserBlocked && !isAdmin) {
-        const { bannedUntil } = strikeInfo || {};
-
-        if (bannedUntil === 'permanent') {
-          showErrorMessage(t('home.alert.error'), 'You are permanently banned from sending messages.');
-          return;
-        }
-
-        if (typeof bannedUntil === 'number') {
-          const remaining = Math.max(0, bannedUntil - Date.now());
-          const totalMinutes = Math.ceil(remaining / 60000);
-          const hours = Math.floor(totalMinutes / 60);
-          const minutes = totalMinutes % 60;
-          const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-
-          showErrorMessage(
-            t('home.alert.error'),
-            `You are banned from chatting for ${timeLeftText} more minute(s).`
-          );
-          return;
-        }
-
-        showErrorMessage(t('home.alert.error'), 'You are currently banned from sending messages.');
+      // Block banned / muted users from sending (admins exempt), and wait
+      // for the ban check on a fresh sign-in. getModGate is stable and reads
+      // live, server-time-validated state, so this callback can't go stale.
+      const modGate = getModGate('chat');
+      if (modGate) {
+        const { title, message } = modGateText(modGate, 'chat');
+        showErrorMessage(title, message);
         return;
       }
 
@@ -832,7 +814,11 @@ const GroupChatScreen = () => {
         );
 
         if (!result.success) {
-          showErrorMessage('Error', result.error || 'Failed to send message');
+          // Server rejected the sender / message (SENDER_BANNED,
+          // LINKS_NOT_ALLOWED, NOT_ALLOWED): say why instead of a generic error.
+          const rejected = chatSendErrorText(chatSendErrorCode({ message: result.error }));
+          if (rejected) showErrorMessage(rejected.title, rejected.message);
+          else showErrorMessage('Error', result.error || 'Failed to send message');
         } else {
           // Clear reply after successful send
           setReplyTo(null);
@@ -840,10 +826,12 @@ const GroupChatScreen = () => {
         }
       } catch (error) {
         console.error('Error sending message:', error);
-        Alert.alert('Error', 'Could not send your message. Please try again.');
+        const rejected = chatSendErrorText(chatSendErrorCode(error));
+        if (rejected) showErrorMessage(rejected.title, rejected.message);
+        else Alert.alert('Error', 'Could not send your message. Please try again.');
       }
     },
-    [user, groupId, appdatabase, firestoreDB, groupData, t, localState?.isPro, currentUserEmail, strikeInfo, isAdmin]
+    [user, groupId, appdatabase, firestoreDB, groupData, t, localState?.isPro, currentUserEmail, getModGate, isAdmin]
   );
 
   // Handle remove member (admin action)
@@ -1250,16 +1238,21 @@ const GroupChatScreen = () => {
               />
             )}
 
-            <GroupMessageInput
-              onSend={(text, image, fruits) => sendMessage(text, image, fruits, replyTo)}
-              isBanned={false}
-              petModalVisible={petModalVisible}
-              setPetModalVisible={setPetModalVisible}
-              selectedFruits={selectedFruits}
-              setSelectedFruits={setSelectedFruits}
-              replyTo={replyTo}
-              onCancelReply={handleCancelReply}
-            />
+            {/* Banned / muted users see why (and for how long) instead of an input. */}
+            {(isUserBlocked || isUserMuted) && getModGate('chat') ? (
+              <ChatRestrictedBar gate={getModGate('chat')} isDarkMode={isDarkMode} />
+            ) : (
+              <GroupMessageInput
+                onSend={(text, image, fruits) => sendMessage(text, image, fruits, replyTo)}
+                isBanned={false}
+                petModalVisible={petModalVisible}
+                setPetModalVisible={setPetModalVisible}
+                selectedFruits={selectedFruits}
+                setSelectedFruits={setSelectedFruits}
+                replyTo={replyTo}
+                onCancelReply={handleCancelReply}
+              />
+            )}
           </View>
         </ConditionalKeyboardWrapper>
 

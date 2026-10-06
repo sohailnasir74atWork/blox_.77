@@ -26,7 +26,7 @@ import {
   serverTimestamp,
   increment,
 } from '@react-native-firebase/firestore';
-import { useGlobalState } from '../../GlobelStats';
+import { useGlobalState, modGateText } from '../../GlobelStats';
 import { useLocalState } from '../../LocalGlobelStats';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -47,7 +47,7 @@ const CommentModal = ({ visible, onClose, postId }) => {
   const [loadingMore, setLoadingMore] = useState(false);
   const lastDocRef = useRef(null);
   const inputRef = useRef(null);
-  const { user, theme, firestoreDB, strikeInfo, isAdmin, isUserBlocked } = useGlobalState();
+  const { user, theme, firestoreDB, getModGate } = useGlobalState();
   const { localState } = useLocalState();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -117,35 +117,13 @@ const CommentModal = ({ visible, onClose, postId }) => {
     const text = commentText.trim();
     if (!text || !firestoreDB || !user?.id) return;
 
-    // Block banned users from commenting (admins are exempt). Defer the
-    // expiry decision to the server-time-validated `isUserBlocked` flag from
-    // GlobelStats so a clock-rolled device can't slip past — strikeInfo is
-    // used only to compose the message text for an already-blocked user.
-    if (isUserBlocked && !isAdmin) {
-      const { strikeCount, bannedUntil } = strikeInfo || {};
-
-      if (bannedUntil === 'permanent') {
-        Alert.alert('⛔ Permanently Banned', 'You are permanently banned from commenting.');
-        return;
-      }
-
-      if (typeof bannedUntil === 'number') {
-        // Display countdown using device clock (cosmetic only). The block
-        // decision above already used authoritative server time.
-        const remaining = Math.max(0, bannedUntil - Date.now());
-        const totalMinutes = Math.ceil(remaining / 60000);
-        const hours = Math.floor(totalMinutes / 60);
-        const minutes = totalMinutes % 60;
-        const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-
-        Alert.alert(
-          `⚠️ Strike ${strikeCount ?? ''}`.trim(),
-          `You are banned from commenting for ${timeLeftText} more minute(s).`
-        );
-        return;
-      }
-
-      Alert.alert('⛔ Banned', 'You are currently banned from commenting.');
+    // Block banned users from commenting (admins exempt; comments are
+    // content, so a mute doesn't apply). getModGate is stable and reads live,
+    // server-time-validated state, so this callback can't act on a stale flag.
+    const modGate = getModGate('content');
+    if (modGate) {
+      const { title, message } = modGateText(modGate, 'comment');
+      Alert.alert(title, message);
       return;
     }
 
@@ -181,7 +159,7 @@ const CommentModal = ({ visible, onClose, postId }) => {
       console.error('Add Comment Error:', error);
       Alert.alert('Error', 'Failed to post comment. Please try again.');
     }
-  }, [commentText, user, postId, firestoreDB]);
+  }, [commentText, user, postId, firestoreDB, getModGate]);
 
   const renderItem = useCallback(({ item }) => (
     <TouchableOpacity

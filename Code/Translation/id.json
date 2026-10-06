@@ -362,7 +362,16 @@
         "months_ago_one": "{{count}} bulan yang lalu",
         "months_ago_other": "{{count}} bulan yang lalu",
         "years_ago_one": "{{count}} tahun yang lalu",
-        "years_ago_other": "{{count}} tahun yang lalu"
+        "years_ago_other": "{{count}} tahun yang lalu",
+        "delete_message_title": "Hapus pesan?",
+        "delete_message_body": "Pesan ini akan dihapus untuk semua orang.",
+        "message_deleted": "Pesan dihapus",
+        "delete_failed": "Tidak dapat menghapus pesan. Coba lagi.",
+        "delete_all_title": "Hapus semua pesan terbaru?",
+        "delete_all_body": "Ini menghapus pesan terbaru pengguna ini di ruangan ini untuk semua orang.",
+        "delete_all_done": "{{count}} pesan dihapus",
+        "delete_all_done_other": "{{count}} pesan dihapus",
+        "delete_failed_all": "Tidak dapat menghapus pesan. Coba lagi."
     },
     "first": {
         "welcome_title": "Selamat datang di Fruit Values",
@@ -515,7 +524,9 @@
         "retry": "Coba muat nilai lagi"
     },
     "common": {
-        "load_more": "Muat lagi"
+        "load_more": "Muat lagi",
+        "cancel": "Batal",
+        "delete": "Hapus"
     },
     "scammer": {
         "limit_title": "Batas",
@@ -529,5 +540,64 @@
         "error_description_long": "Deskripsi terlalu panjang (maks. 200 karakter).",
         "safety_title": "Keamanan",
         "safety_personal_info": "Jangan cantumkan info pribadi (email, nomor HP, media sosial)."
+    },
+    "trade_advice": {
+        "show_tips": "💡 Tampilkan tips",
+        "feed": {
+            "tone_good": "Kesepakatan bagus untukmu",
+            "tone_popular": "Pilihan populer",
+            "tone_close": "Bisa cocok untukmu",
+            "value_win": "Kamu dapat sekitar {{pct}}% nilai lebih banyak",
+            "value_fair": "Nilainya hampir sama",
+            "get_rising": "{{name}} naik {{pct}}% belakangan ini, pilihan bagus",
+            "demand_chip": "🔥 Permintaan {{score}}/10",
+            "asked_for_other": "Pemain meminta {{name}} di {{count}} trade dalam 24 jam terakhir",
+            "steady_demand": "Trader terus mencari {{name}}"
+        },
+        "insights": {
+            "giving_wanted": "Buahmu sangat dicari, pasti cepat laku!",
+            "getting_wanted": "Kamu mendapatkan buah yang sangat populer!",
+            "getting_rising": "Kamu mendapatkan buah yang nilainya sedang naik!",
+            "giving_rising": "Nilai buahmu sedang naik!"
+        }
+    },
+    "moderation": {
+        "action_chat": "mengirim pesan",
+        "action_post": "memposting",
+        "action_comment": "berkomentar",
+        "action_trade": "membuat trade",
+        "action_feature": "menyorot trade",
+        "action_report": "membuat laporan",
+        "action_profile": "mengedit profilmu",
+        "action_review": "menulis ulasan",
+        "action_vote": "memilih di polling",
+        "action_react": "bereaksi pada postingan",
+        "action_follow": "mengikuti orang",
+        "action_group": "mengelola grup",
+        "action_server": "membagikan server",
+        "action_generic": "melakukan ini",
+        "checking_title": "Sebentar",
+        "checking_body": "Memeriksa status akunmu. Coba lagi dalam beberapa detik.",
+        "muted_title": "Dibisukan",
+        "muted_body": "Kamu dibisukan di chat selama {{time}} lagi.",
+        "muted_body_generic": "Kamu dibisukan di chat.",
+        "banned_perm_title": "Diblokir permanen",
+        "banned_strike_title": "Peringatan {{n}}",
+        "banned_title": "Diblokir",
+        "banned_perm_body": "Akunmu diblokir permanen, jadi kamu tidak bisa {{action}}.",
+        "banned_body": "Kamu diblokir selama {{time}} lagi, jadi tidak bisa {{action}} sampai saat itu.",
+        "banned_body_generic": "Kamu diblokir, jadi tidak bisa {{action}} sekarang.",
+        "send_blocked_title": "Pesan tidak terkirim",
+        "send_banned_body": "Kamu diblokir atau dibisukan, jadi pesanmu tidak bisa dikirim sekarang.",
+        "send_links_body": "Tautan tidak diizinkan dalam pesan.",
+        "send_not_allowed_body": "Pesan ini tidak diizinkan di sini."
+    },
+    "home_tab": {
+        "mute_title": "Dibisukan di Chat",
+        "ban_strike": "Peringatan {{count}}",
+        "ban_strike_other": "Peringatan {{count}}",
+        "mute_permanent": "Dibisukan sampai moderator mencabutnya",
+        "ban_permanent_label": "Permanen",
+        "mute_for": "Dibisukan selama {{time}}"
     }
 }

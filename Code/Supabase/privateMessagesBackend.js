@@ -17,6 +17,7 @@
 
 import { supabase } from './client';
 import { uuidv4 } from './uuid';
+import { reportChatMessage } from './messageReports';
 
 const PAGE_SIZE_DEFAULT = 15;
 
@@ -55,6 +56,10 @@ export function fromPrivateMessageRow(row) {
     deleted: !!row.deleted,
     timestamp: ts,           // ms epoch — UI sort key
     serverTime: ts,          // mirrors RTDB serverTime (resolved server-side)
+    // Raw Postgres timestamp (microsecond precision). Pagination cursors use
+    // this instead of `timestamp`, which is truncated to ms and would make a
+    // `lt`/`gt` cursor skip or repeat rows that share a millisecond.
+    createdAt: row.created_at ?? null,
   };
 }
 
@@ -120,6 +125,34 @@ export async function loadPrivateMessages(chatId, { limit = PAGE_SIZE_DEFAULT, b
   const { data, error } = await q;
   if (error) {
     console.warn('[privateMessagesBackend] loadPrivateMessages error:', error.message);
+    return [];
+  }
+  return (data || []).map(fromPrivateMessageRow);
+}
+
+// Rows newer than `since` ({ createdAt: ISO, id }), newest-first. Used to
+// gap-fill after a realtime (re)subscribe: realtime never replays what it
+// missed while the channel was down or the screen was blurred.
+export async function loadPrivateMessagesSince(chatId, since = null, { limit = 200 } = {}) {
+  if (!chatId) return [];
+  let q = supabase
+    .from('private_messages')
+    .select(PRIVATE_MSG_COLS)
+    .eq('chat_id', chatId)
+    .eq('deleted', false)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(limit);
+
+  if (since?.createdAt) {
+    q = q.or(
+      `created_at.gt.${since.createdAt},and(created_at.eq.${since.createdAt},id.gt.${since.id})`,
+    );
+  }
+
+  const { data, error } = await q;
+  if (error) {
+    console.warn('[privateMessagesBackend] loadPrivateMessagesSince error:', error.message);
     return [];
   }
   return (data || []).map(fromPrivateMessageRow);
@@ -257,43 +290,12 @@ export async function softDeletePrivateMessage(messageId, deletedBy = null) {
   if (error) throw error;
 }
 
-// Report a private message. Increments report_count (best effort); when the
-// count crosses REPORT_THRESHOLD the message is soft-deleted and the caller
-// escalates the ban. Returns { action } so callers can branch their UI.
-const REPORT_THRESHOLD = 10;
-export async function reportPrivateMessage(messageId, reporterId = null) {
+// Report a private message through the report_message rpc (supabase/034).
+// Only the two participants can report; one report per reporter; the server
+// soft-deletes at the threshold. Returns { action: 'reported' | 'deleted', count }.
+export async function reportPrivateMessage(messageId, reporterId = null, reason = null) {
   if (!messageId) throw new Error('reportPrivateMessage: messageId required');
-
-  const { data: existing, error: selectErr } = await supabase
-    .from('private_messages')
-    .select('report_count')
-    .eq('id', messageId)
-    .maybeSingle();
-  if (selectErr) throw selectErr;
-  if (!existing) throw new Error('Message not found');
-
-  const nextCount = (existing.report_count ?? 0) + 1;
-
-  if (nextCount >= REPORT_THRESHOLD) {
-    const { error } = await supabase
-      .from('private_messages')
-      .update({
-        report_count: nextCount,
-        deleted: true,
-        deleted_at: new Date().toISOString(),
-        deleted_by: reporterId,
-      })
-      .eq('id', messageId);
-    if (error) throw error;
-    return { action: 'deleted' };
-  }
-
-  const { error } = await supabase
-    .from('private_messages')
-    .update({ report_count: nextCount })
-    .eq('id', messageId);
-  if (error) throw error;
-  return { action: 'reported' };
+  return reportChatMessage('private_messages', messageId, { reporterId, reason });
 }
 
 // Soft-delete every non-deleted message in a chat. Two round-trips

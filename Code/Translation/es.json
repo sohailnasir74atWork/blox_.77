@@ -362,7 +362,18 @@
         "months_ago_one": "hace {{count}} mes",
         "months_ago_other": "hace {{count}} meses",
         "years_ago_one": "hace {{count}} año",
-        "years_ago_other": "hace {{count}} años"
+        "years_ago_other": "hace {{count}} años",
+        "delete_message_title": "¿Eliminar mensaje?",
+        "delete_message_body": "Este mensaje se eliminará para todos.",
+        "message_deleted": "Mensaje eliminado",
+        "delete_failed": "No se pudo eliminar el mensaje. Inténtalo de nuevo.",
+        "delete_all_title": "¿Eliminar todos los mensajes recientes?",
+        "delete_all_body": "Esto elimina para todos los mensajes recientes de este usuario en esta sala.",
+        "delete_all_done": "{{count}} mensajes eliminados",
+        "delete_all_done_one": "{{count}} mensajes eliminados",
+        "delete_all_done_many": "{{count}} mensajes eliminados",
+        "delete_all_done_other": "{{count}} mensajes eliminados",
+        "delete_failed_all": "No se pudieron eliminar los mensajes. Inténtalo de nuevo."
     },
     "first": {
         "welcome_title": "Bienvenido a Fruit Values",
@@ -516,7 +527,9 @@
         "retry": "Volver a cargar los valores"
     },
     "common": {
-        "load_more": "Cargar más"
+        "load_more": "Cargar más",
+        "cancel": "Cancelar",
+        "delete": "Eliminar"
     },
     "scammer": {
         "limit_title": "Límite",
@@ -530,5 +543,68 @@
         "error_description_long": "La descripción es demasiado larga (máximo 200 caracteres).",
         "safety_title": "Seguridad",
         "safety_personal_info": "No incluyas datos personales (correos, números de teléfono, redes sociales)."
+    },
+    "trade_advice": {
+        "show_tips": "💡 Mostrar consejos",
+        "feed": {
+            "tone_good": "Buen trato para ti",
+            "tone_popular": "Elección popular",
+            "tone_close": "Podría servirte",
+            "value_win": "Recibirías alrededor de un {{pct}}% más de valor",
+            "value_fair": "Los valores están casi iguales",
+            "get_rising": "{{name}} subió un {{pct}}% hace poco, buena adquisición",
+            "demand_chip": "🔥 Demanda {{score}}/10",
+            "asked_for_one": "Los jugadores pidieron {{name}} en {{count}} trade en las últimas 24 h",
+            "asked_for_many": "Los jugadores pidieron {{name}} en {{count}} trades en las últimas 24 h",
+            "asked_for_other": "Los jugadores pidieron {{name}} en {{count}} trades en las últimas 24 h",
+            "steady_demand": "Los traders siguen pidiendo {{name}}"
+        },
+        "insights": {
+            "giving_wanted": "Tus frutas tienen mucha demanda, ¡se intercambiarán rápido!",
+            "getting_wanted": "¡Recibes frutas muy populares!",
+            "getting_rising": "¡Recibes frutas que están subiendo de valor!",
+            "giving_rising": "¡Tus frutas están subiendo de valor!"
+        }
+    },
+    "moderation": {
+        "action_chat": "enviar mensajes",
+        "action_post": "publicar",
+        "action_comment": "comentar",
+        "action_trade": "crear trades",
+        "action_feature": "destacar trades",
+        "action_report": "hacer reportes",
+        "action_profile": "editar tu perfil",
+        "action_review": "escribir reseñas",
+        "action_vote": "votar en encuestas",
+        "action_react": "reaccionar a publicaciones",
+        "action_follow": "seguir a personas",
+        "action_group": "gestionar grupos",
+        "action_server": "compartir servidores",
+        "action_generic": "hacer esto",
+        "checking_title": "Un momento",
+        "checking_body": "Comprobando el estado de tu cuenta. Inténtalo de nuevo en unos segundos.",
+        "muted_title": "Silenciado",
+        "muted_body": "Estás silenciado en el chat durante {{time}} más.",
+        "muted_body_generic": "Estás silenciado en el chat.",
+        "banned_perm_title": "Baneado permanentemente",
+        "banned_strike_title": "Advertencia {{n}}",
+        "banned_title": "Baneado",
+        "banned_perm_body": "Tu cuenta está baneada permanentemente, así que no puedes {{action}}.",
+        "banned_body": "Estás baneado durante {{time}} más, así que no puedes {{action}} hasta entonces.",
+        "banned_body_generic": "Estás baneado, así que no puedes {{action}} ahora mismo.",
+        "send_blocked_title": "Mensaje no enviado",
+        "send_banned_body": "Estás baneado o silenciado, así que tus mensajes no se pueden enviar ahora mismo.",
+        "send_links_body": "No se permiten enlaces en los mensajes.",
+        "send_not_allowed_body": "Este mensaje no está permitido aquí."
+    },
+    "home_tab": {
+        "mute_title": "Silenciado en el chat",
+        "ban_strike": "Advertencia {{count}}",
+        "ban_strike_one": "Advertencia {{count}}",
+        "ban_strike_many": "Advertencia {{count}}",
+        "ban_strike_other": "Advertencia {{count}}",
+        "mute_permanent": "Silenciado hasta que un moderador lo quite",
+        "ban_permanent_label": "Permanente",
+        "mute_for": "Silenciado durante {{time}}"
     }
 }

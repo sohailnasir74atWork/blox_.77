@@ -1,0 +1,7 @@
+{
+  "rules": {
+    ".read": true,
+    ".write": true,
+    "banned_uids": { ".indexOn": ["linkedFrom", "emailKey"] }
+  }
+}

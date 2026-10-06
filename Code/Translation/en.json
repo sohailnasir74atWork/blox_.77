@@ -362,7 +362,17 @@
         "months_ago_one": "{{count}} month ago",
         "months_ago_other": "{{count}} months ago",
         "years_ago_one": "{{count}} year ago",
-        "years_ago_other": "{{count}} years ago"
+        "years_ago_other": "{{count}} years ago",
+        "delete_message_title": "Delete message?",
+        "delete_message_body": "This message will be removed for everyone.",
+        "message_deleted": "Message deleted",
+        "delete_failed": "Could not delete the message. Please try again.",
+        "delete_all_title": "Delete all recent messages?",
+        "delete_all_body": "This removes this user's recent messages in this room for everyone.",
+        "delete_all_done": "{{count}} messages deleted",
+        "delete_all_done_one": "{{count}} messages deleted",
+        "delete_all_done_other": "{{count}} messages deleted",
+        "delete_failed_all": "Could not delete the messages. Please try again."
     },
     "first": {
         "continue_guest": "Continue as Guest",
@@ -514,7 +524,9 @@
         "retry": "Retry loading values"
     },
     "common": {
-        "load_more": "Load more"
+        "load_more": "Load more",
+        "cancel": "Cancel",
+        "delete": "Delete"
     },
     "scammer": {
         "limit_title": "Limit",
@@ -528,5 +540,66 @@
         "error_description_long": "Description too long (max 200 characters).",
         "safety_title": "Safety",
         "safety_personal_info": "Don't include personal info (emails, phone numbers, social media)."
+    },
+    "trade_advice": {
+        "show_tips": "💡 Show tips",
+        "feed": {
+            "tone_good": "Good deal for you",
+            "tone_popular": "Popular pick",
+            "tone_close": "Could work for you",
+            "value_win": "You'd get about {{pct}}% more value",
+            "value_fair": "Values are about even",
+            "get_rising": "{{name}} is up {{pct}}% lately, nice pickup",
+            "demand_chip": "🔥 Demand {{score}}/10",
+            "asked_for_one": "Players asked for {{name}} in {{count}} trade in the last 24h",
+            "asked_for_other": "Players asked for {{name}} in {{count}} trades in the last 24h",
+            "steady_demand": "Traders keep asking for {{name}}"
+        },
+        "insights": {
+            "giving_wanted": "Your fruits are in high demand, they'll trade fast!",
+            "getting_wanted": "You're getting very popular fruits!",
+            "getting_rising": "You're getting fruits that are rising in value!",
+            "giving_rising": "Your fruits are going up in value!"
+        }
+    },
+    "moderation": {
+        "action_chat": "send messages",
+        "action_post": "post",
+        "action_comment": "comment",
+        "action_trade": "create trades",
+        "action_feature": "feature trades",
+        "action_report": "make reports",
+        "action_profile": "edit your profile",
+        "action_review": "write reviews",
+        "action_vote": "vote in polls",
+        "action_react": "react to posts",
+        "action_follow": "follow people",
+        "action_group": "manage groups",
+        "action_server": "share servers",
+        "action_generic": "do this",
+        "checking_title": "One moment",
+        "checking_body": "Checking your account status. Please try again in a few seconds.",
+        "muted_title": "Muted",
+        "muted_body": "You are muted in chat for {{time}} more.",
+        "muted_body_generic": "You are muted in chat.",
+        "banned_perm_title": "Permanently banned",
+        "banned_strike_title": "Strike {{n}}",
+        "banned_title": "Banned",
+        "banned_perm_body": "Your account is permanently banned, so you can't {{action}}.",
+        "banned_body": "You are banned for {{time}} more, so you can't {{action}} until then.",
+        "banned_body_generic": "You are banned, so you can't {{action}} right now.",
+        "send_blocked_title": "Message not sent",
+        "send_banned_body": "You are banned or muted, so your messages can't be sent right now.",
+        "send_links_body": "Links are not allowed in messages.",
+        "send_not_allowed_body": "This message isn't allowed here."
+    },
+    "home_tab": {
+        "mute_title": "Muted in Chat",
+        "ban_strike": "Strike {{count}}",
+        "ban_strike_one": "Strike {{count}}",
+        "ban_strike_other": "Strike {{count}}",
+        "mute_permanent": "Muted until a moderator lifts it",
+        "ban_permanent_label": "Permanent",
+        "mute_for": "Muted for {{time}}"
     }
 }

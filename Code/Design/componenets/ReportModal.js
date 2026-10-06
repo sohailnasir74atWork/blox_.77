@@ -6,13 +6,14 @@ import {
 import { showMessage } from 'react-native-flash-message';
 import { doc, collection, runTransaction } from '@react-native-firebase/firestore';
 import { useLocalState } from '../../LocalGlobelStats';
-import { useGlobalState } from '../../GlobelStats';
+import { useGlobalState, modGateText } from '../../GlobelStats';
+import { submitUserReport } from '../../Helper/userReports';
 
 const ReportModal = ({ visible, onClose, item }) => {
   const [reportText, setReportText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { updateLocalState, localState } = useLocalState()
-  const { strikeInfo, isAdmin, user, firestoreDB } = useGlobalState();
+  const { user, firestoreDB, getModGate } = useGlobalState();
 
   // const handleBanToggle = async () => {
   //   const action = isBlock ? t("chat.unblock") : t("chat.block");
@@ -69,6 +70,17 @@ const ReportModal = ({ visible, onClose, item }) => {
       showMessage({ message: 'Please enter a reason.', type: 'warning' });
       return;
     }
+    if (!user?.id) {
+      showMessage({ message: 'Please sign in to report a post.', type: 'warning' });
+      return;
+    }
+    // Banned users can't file reports (admins exempt; a mute is chat-only).
+    const modGate = getModGate('content');
+    if (modGate) {
+      const { title, message } = modGateText(modGate, 'report');
+      showMessage({ message: title, description: message, type: 'danger', duration: 5000 });
+      return;
+    }
 
     setSubmitting(true);
     const postRef = doc(firestoreDB, 'designPosts_upgrade', item.id);
@@ -117,8 +129,24 @@ const ReportModal = ({ visible, onClose, item }) => {
       // (admin/mod only). The transaction still flips `banned: true` on the
       // post so the feed hides it; only the user-account ban is gone.
 
+      // Send the report (with the reporter's text) to user_reports so staff
+      // see it in the Admin Dashboard. Best-effort: the count above already
+      // landed, and the post is hidden for this user either way.
+      try {
+        await submitUserReport(firestoreDB, {
+          type: 'post',
+          targetId: item.id,
+          targetUid: txResult.userId || item.userId || null,
+          reporterUid: user.id,
+          reason: reportText,
+          text: reportText,
+        });
+      } catch (reportErr) {
+        console.warn('user_reports write failed:', reportErr?.message || reportErr);
+      }
+
       // local state/UI updates
-      await updateLocalState('bannedUsers', [...localState.bannedUsers, item.userId]);
+      await updateLocalState('bannedUsers', [...(localState.bannedUsers || []), item.userId]);
       setReportText('');
       onClose();
     } catch (e) {

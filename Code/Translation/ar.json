@@ -382,7 +382,21 @@
         "years_ago_two": "منذ سنتين",
         "years_ago_few": "منذ {{count}} سنوات",
         "years_ago_many": "منذ {{count}} سنة",
-        "years_ago_other": "منذ {{count}} سنة"
+        "years_ago_other": "منذ {{count}} سنة",
+        "delete_message_title": "حذف الرسالة؟",
+        "delete_message_body": "ستُحذف هذه الرسالة لدى الجميع.",
+        "message_deleted": "تم حذف الرسالة",
+        "delete_failed": "تعذر حذف الرسالة. حاول مرة أخرى.",
+        "delete_all_title": "حذف كل الرسائل الأخيرة؟",
+        "delete_all_body": "سيؤدي هذا إلى حذف رسائل هذا المستخدم الأخيرة في هذه الغرفة لدى الجميع.",
+        "delete_all_done": "تم حذف {{count}} رسالة",
+        "delete_all_done_zero": "تم حذف {{count}} رسالة",
+        "delete_all_done_one": "تم حذف {{count}} رسالة",
+        "delete_all_done_two": "تم حذف {{count}} رسالة",
+        "delete_all_done_few": "تم حذف {{count}} رسالة",
+        "delete_all_done_many": "تم حذف {{count}} رسالة",
+        "delete_all_done_other": "تم حذف {{count}} رسالة",
+        "delete_failed_all": "تعذر حذف الرسائل. حاول مرة أخرى."
     },
     "first": {
         "welcome_title": "مرحبًا بك في قيم الفواكه",
@@ -544,7 +558,9 @@
         "retry": "إعادة تحميل القيم"
     },
     "common": {
-        "load_more": "تحميل المزيد"
+        "load_more": "تحميل المزيد",
+        "cancel": "إلغاء",
+        "delete": "حذف"
     },
     "scammer": {
         "limit_title": "الحد الأقصى",
@@ -558,5 +574,74 @@
         "error_description_long": "الوصف طويل جدًا (200 حرف كحد أقصى).",
         "safety_title": "الأمان",
         "safety_personal_info": "لا تكتب أي معلومات شخصية (البريد الإلكتروني، أرقام الهاتف، حسابات التواصل الاجتماعي)."
+    },
+    "trade_advice": {
+        "show_tips": "💡 عرض النصائح",
+        "feed": {
+            "tone_good": "صفقة جيدة لك",
+            "tone_popular": "اختيار شائع",
+            "tone_close": "قد تناسبك",
+            "value_win": "ستحصل على قيمة أكثر بنحو {{pct}}%",
+            "value_fair": "القيم متقاربة تقريبًا",
+            "get_rising": "ارتفعت قيمة {{name}} بنسبة {{pct}}% مؤخرًا، اختيار موفق",
+            "demand_chip": "🔥 الطلب {{score}}/10",
+            "asked_for_zero": "طلب اللاعبون {{name}} في {{count}} صفقة خلال آخر 24 ساعة",
+            "asked_for_one": "طلب اللاعبون {{name}} في {{count}} صفقة خلال آخر 24 ساعة",
+            "asked_for_two": "طلب اللاعبون {{name}} في {{count}} صفقة خلال آخر 24 ساعة",
+            "asked_for_few": "طلب اللاعبون {{name}} في {{count}} صفقة خلال آخر 24 ساعة",
+            "asked_for_many": "طلب اللاعبون {{name}} في {{count}} صفقة خلال آخر 24 ساعة",
+            "asked_for_other": "طلب اللاعبون {{name}} في {{count}} صفقة خلال آخر 24 ساعة",
+            "steady_demand": "يواصل المتداولون طلب {{name}}"
+        },
+        "insights": {
+            "giving_wanted": "فواكهك عليها طلب كبير، ستُتداول بسرعة!",
+            "getting_wanted": "ستحصل على فواكه شائعة جدًا!",
+            "getting_rising": "ستحصل على فواكه ترتفع قيمتها!",
+            "giving_rising": "قيمة فواكهك في ارتفاع!"
+        }
+    },
+    "moderation": {
+        "action_chat": "إرسال الرسائل",
+        "action_post": "النشر",
+        "action_comment": "التعليق",
+        "action_trade": "إنشاء صفقات",
+        "action_feature": "تمييز الصفقات",
+        "action_report": "تقديم البلاغات",
+        "action_profile": "تعديل ملفك الشخصي",
+        "action_review": "كتابة التقييمات",
+        "action_vote": "التصويت في الاستطلاعات",
+        "action_react": "التفاعل مع المنشورات",
+        "action_follow": "متابعة الآخرين",
+        "action_group": "إدارة المجموعات",
+        "action_server": "مشاركة الخوادم",
+        "action_generic": "القيام بذلك",
+        "checking_title": "لحظة من فضلك",
+        "checking_body": "جارٍ التحقق من حالة حسابك. حاول مرة أخرى بعد بضع ثوانٍ.",
+        "muted_title": "مكتوم",
+        "muted_body": "أنت مكتوم في الدردشة لمدة {{time}} أخرى.",
+        "muted_body_generic": "أنت مكتوم في الدردشة.",
+        "banned_perm_title": "محظور نهائيًا",
+        "banned_strike_title": "إنذار {{n}}",
+        "banned_title": "محظور",
+        "banned_perm_body": "حسابك محظور نهائيًا، لذا لا يمكنك {{action}}.",
+        "banned_body": "أنت محظور لمدة {{time}} أخرى، لذا لا يمكنك {{action}} حتى ذلك الحين.",
+        "banned_body_generic": "أنت محظور، لذا لا يمكنك {{action}} الآن.",
+        "send_blocked_title": "لم تُرسل الرسالة",
+        "send_banned_body": "أنت محظور أو مكتوم، لذا لا يمكن إرسال رسائلك الآن.",
+        "send_links_body": "الروابط غير مسموح بها في الرسائل.",
+        "send_not_allowed_body": "هذه الرسالة غير مسموح بها هنا."
+    },
+    "home_tab": {
+        "mute_title": "مكتوم في الدردشة",
+        "ban_strike": "إنذار {{count}}",
+        "ban_strike_zero": "إنذار {{count}}",
+        "ban_strike_one": "إنذار {{count}}",
+        "ban_strike_two": "إنذار {{count}}",
+        "ban_strike_few": "إنذار {{count}}",
+        "ban_strike_many": "إنذار {{count}}",
+        "ban_strike_other": "إنذار {{count}}",
+        "mute_permanent": "مكتوم حتى يرفعه أحد المشرفين",
+        "ban_permanent_label": "دائم",
+        "mute_for": "مكتوم لمدة {{time}}"
     }
 }

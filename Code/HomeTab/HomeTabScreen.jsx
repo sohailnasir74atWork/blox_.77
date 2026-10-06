@@ -69,7 +69,7 @@ const ownedFruitsFocusCache = new Map(); // uid -> { ts, ownedFruits }
 const cosmeticsFocusCache = new Map();   // uid -> { ts, cosmetics }
 
 const HomeTabScreen = ({ selectedTheme }) => {
-  const { theme, user, appdatabase, firestoreDB, strikeInfo, deviceBanInfo, isUserBlocked, proGranted, single_offer_wall } = useGlobalState();
+  const { theme, user, appdatabase, firestoreDB, strikeInfo, muteInfo, isUserBlocked, isUserMuted, proGranted, single_offer_wall } = useGlobalState();
   const [showOfferWall, setShowOfferWall] = useState(false);
   const { localState, updateLocalState } = useLocalState();
   const { t, i18n } = useTranslation();
@@ -217,8 +217,9 @@ const HomeTabScreen = ({ selectedTheme }) => {
   //   2) Tick a state variable so the inline countdown re-renders against
   //      the now-fresh offset.
   const [serverTimeTick, setServerTimeTick] = useState(0);
+  const showModCard = isUserBlocked || isUserMuted;
   useEffect(() => {
-    if (!isUserBlocked || !appdatabase) return;
+    if (!showModCard || !appdatabase) return;
 
     let cancelled = false;
     const probeUid = user?.id || 'anon';
@@ -241,7 +242,7 @@ const HomeTabScreen = ({ selectedTheme }) => {
       clearInterval(interval);
       sub.remove();
     };
-  }, [isUserBlocked, appdatabase, user?.id]);
+  }, [showModCard, appdatabase, user?.id]);
 
   // Parse fruit data for value lookup
   const parsedData = useMemo(() => {
@@ -412,21 +413,21 @@ const HomeTabScreen = ({ selectedTheme }) => {
         {/* Page content with background */}
         <View style={{ backgroundColor: selectedTheme.colors.background }}>
 
-          {/* ═══ BAN STATUS CARD ═══
-              Three cases handled:
-                1. Direct ban (this email is in banned_users_by_email)
-                   → strikeInfo populated. Existing copy.
-                2. Associated-device ban (a different account on this device
-                   was banned, so this device is locked too)
-                   → only deviceBanInfo populated. Surfaces the originating
-                     email so the user understands why a fresh email didn't
-                     restore access.
-                3. Both — direct ban wins (it's the primary signal).
+          {/* ═══ BAN / MUTE STATUS CARD ═══
+              strikeInfo is the active ban that restricts longest across the
+              email, uid and device records (GlobelStats). Cases:
+                1. Direct ban (email or uid record) → Strike N / Permanent.
+                2. Associated-device ban (the device record came from another
+                   account) → surfaces the originating email so the user
+                   understands why a fresh email didn't restore access.
+                3. Mute only (chat-only restriction) → "Muted for Xm".
+              A ban always wins over a mute.
           */}
-          {isUserBlocked && (strikeInfo || deviceBanInfo) && (() => {
-            const info = strikeInfo || deviceBanInfo;
-            const isAssociatedBan = !strikeInfo && !!deviceBanInfo;
-            const associatedEmail = deviceBanInfo?.email || null;
+          {showModCard && (strikeInfo || muteInfo) && (() => {
+            const isMute = !strikeInfo;
+            const info = strikeInfo || muteInfo;
+            const isAssociatedBan = !isMute && info.source === 'device' && info.userId !== user?.id;
+            const associatedEmail = isAssociatedBan ? (info.email || null) : null;
             const isPermanent = info.bannedUntil === 'permanent';
             return (
               <View style={{
@@ -452,11 +453,13 @@ const HomeTabScreen = ({ selectedTheme }) => {
                     backgroundColor: isDarkMode ? 'rgba(239,68,68,0.25)' : '#FEE2E2',
                     alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <Ionicons name={isAssociatedBan ? 'phone-portrait' : 'ban'} size={18} color="#EF4444" />
+                    <Ionicons name={isMute ? 'volume-mute' : (isAssociatedBan ? 'phone-portrait' : 'ban')} size={18} color="#EF4444" />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 14, fontWeight: '700', color: '#EF4444' }}>
-                      {isAssociatedBan
+                      {isMute
+                        ? t('home_tab.mute_title', { defaultValue: 'Muted in Chat' })
+                        : isAssociatedBan
                         ? (isPermanent
                             ? t('home_tab.ban_associated_permanent', { defaultValue: 'Device Permanently Restricted' })
                             : t('home_tab.ban_associated_temporary', { defaultValue: 'Device Temporarily Restricted' }))
@@ -465,16 +468,23 @@ const HomeTabScreen = ({ selectedTheme }) => {
                             : t('home_tab.ban_temporary', { defaultValue: 'Account Temporarily Restricted' }))}
                     </Text>
                     <Text style={{ fontSize: 11, color: isDarkMode ? '#f87171' : '#DC2626', marginTop: 2 }}>
-                      {t('home_tab.ban_strike', { defaultValue: `Strike ${info.strikeCount || 1}`, count: info.strikeCount || 1 })}
-                      {' • '}
+                      {!isMute && !isPermanent && (
+                        <>
+                          {t('home_tab.ban_strike', { defaultValue: `Strike ${info.strikeCount || 1}`, count: info.strikeCount || 1 })}
+                          {' • '}
+                        </>
+                      )}
                       {isPermanent
-                        ? t('home_tab.ban_permanent_label', { defaultValue: 'Permanent' })
+                        ? (isMute
+                            ? t('home_tab.mute_permanent', { defaultValue: 'Muted until a moderator lifts it' })
+                            : t('home_tab.ban_permanent_label', { defaultValue: 'Permanent' }))
                         : (() => {
                             // Cosmetic countdown — use the cached server-time
                             // estimate so a rolled device clock doesn't make
                             // the timer disagree with the (server-validated)
-                            // ban gate. The actual expiry decision lives in
-                            // GlobelStats and uses an authoritative probe.
+                            // gate. The actual expiry decision lives in
+                            // GlobelStats and uses an authoritative probe, and
+                            // only ACTIVE records reach this card.
                             //
                             // serverTimeTick is read here so the IIFE re-runs
                             // when the periodic probe in this component
@@ -482,16 +492,20 @@ const HomeTabScreen = ({ selectedTheme }) => {
                             void serverTimeTick;
                             const diff = (info.bannedUntil || 0) - getServerTimeQuick().getTime();
                             if (diff <= 0) {
-                              // Gate says blocked but cached offset says
-                              // expired — almost certainly a stale probe (e.g.
-                              // user rolled the clock and the next refresh
-                              // hasn't landed yet). Don't lie with "Expired"
-                              // when the gate is still up; the next tick
-                              // will replace this with a real countdown.
+                              // Gate says restricted but the cached offset says
+                              // expired — a stale probe that the next tick
+                              // corrects (GlobelStats drops the card itself
+                              // when the record really expires).
                               return t('home_tab.ban_verifying', { defaultValue: 'Verifying…' });
                             }
-                            const hrs = Math.floor(diff / (1000 * 60 * 60));
-                            const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                            // Round up to whole minutes so the last minute never reads "0m".
+                            const totalMins = Math.ceil(diff / (1000 * 60));
+                            const hrs = Math.floor(totalMins / 60);
+                            const mins = totalMins % 60;
+                            if (isMute) {
+                              const time = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+                              return t('home_tab.mute_for', { defaultValue: `Muted for ${time}`, time });
+                            }
                             if (hrs > 24) return t('home_tab.ban_time_days', { defaultValue: `${Math.floor(hrs / 24)}d ${hrs % 24}h remaining`, days: Math.floor(hrs / 24), hours: hrs % 24 });
                             if (hrs > 0) return t('home_tab.ban_time_hours', { defaultValue: `${hrs}h ${mins}m remaining`, hours: hrs, minutes: mins });
                             return t('home_tab.ban_time_minutes', { defaultValue: `${mins}m remaining`, minutes: mins });

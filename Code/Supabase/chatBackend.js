@@ -20,6 +20,7 @@
 
 import { supabase } from './client';
 import { uuidv4 } from './uuid';
+import { reportChatMessage } from './messageReports';
 import { getAuth, getIdToken } from '@react-native-firebase/auth';
 
 // -----------------------------------------------------------------
@@ -58,7 +59,10 @@ export async function resetRealtimeAndAuth() {
     try { supabase.realtime.setAuth(freshToken); }
     catch (e) { console.warn('[realtime] setAuth failed:', e?.message); }
   }
-  try { supabase.realtime.disconnect(); } catch {}
+  // Await the close: connect() returns early while the socket is still
+  // closing, and phoenix does not auto-reconnect after a clean close — so the
+  // un-awaited version left the shared socket (every chat channel) down.
+  try { await supabase.realtime.disconnect(); } catch {}
   try { supabase.realtime.connect(); }
   catch (e) { console.warn('[realtime] reconnect failed:', e?.message); }
 }
@@ -197,7 +201,9 @@ export async function loadPinnedMessages(roomId) {
   // Flatten the joined message into the UI shape.
   return (data || []).map((row) => {
     const msg = fromMessageRow(row.messages);
-    if (!msg) return null;
+    // A soft-deleted message stays pinned in the table; don't show it
+    // (adoptme-jan7 getPinnedMessages filters the same way).
+    if (!msg || msg.deleted) return null;
     return {
       ...msg,
       pinnedAt: row.pinned_at ? new Date(row.pinned_at).getTime() : 0,
@@ -380,44 +386,17 @@ export async function softDeleteMessageByRtdbKey(roomId, rtdbKey, deletedBy = nu
   if (error) throw error;
 }
 
-// Report a public-chat message. Increments report_count atomically (best
-// effort — read-modify-write); when the count crosses REPORT_THRESHOLD the
-// message is soft-deleted and the caller escalates the ban.
-const REPORT_THRESHOLD = 10;
-export async function reportPublicMessage(messageId, reporterId = null) {
+// Report a public-chat message through the report_message rpc (supabase/034):
+// one report per reporter per message; the server counts and soft-deletes the
+// message at the threshold. `reason` is stored for the Admin Dashboard.
+// Returns { action: 'reported' | 'deleted', count }.
+export async function reportPublicMessage(messageId, reporterId = null, reason = null) {
   if (!messageId) throw new Error('reportPublicMessage: messageId required');
-
-  const { data: existing, error: selectErr } = await supabase
-    .from('messages')
-    .select('report_count')
-    .eq('id', messageId)
-    .maybeSingle();
-  if (selectErr) throw selectErr;
-  if (!existing) throw new Error('Message not found');
-
-  const nextCount = (existing.report_count ?? 0) + 1;
-
-  if (nextCount >= REPORT_THRESHOLD) {
-    const { error } = await supabase
-      .from('messages')
-      .update({
-        report_count: nextCount,
-        deleted: true,
-        deleted_at: new Date().toISOString(),
-        deleted_by: reporterId,
-      })
-      .eq('id', messageId);
-    if (error) throw error;
-    return { action: 'deleted' };
-  }
-
-  const { error } = await supabase
-    .from('messages')
-    .update({ report_count: nextCount })
-    .eq('id', messageId);
-  if (error) throw error;
-  return { action: 'reported' };
+  return reportChatMessage('messages', messageId, { reporterId, reason });
 }
+
+// Moderation helpers for the UI / Admin Dashboard (see messageReports.js).
+export { chatErrorCode, fetchMessageReports } from './messageReports';
 
 // Soft-delete the last N non-deleted messages from a sender in a room.
 // Two round-trips because PostgREST doesn't expose UPDATE..ORDER BY..LIMIT;
@@ -448,6 +427,74 @@ export async function softDeleteMessagesBySender(roomId, senderId, {
     .in('id', ids);
   if (updateErr) throw updateErr;
   return { count: ids.length };
+}
+
+// =====================================================================
+// Reactions (public chat) — table from supabase/035_message_reactions.sql
+// =====================================================================
+// One row per (message_id, user_id). The UI keeps the
+// `msg.reactions = { [userId]: emoji }` map, same as adoptme-jan7.
+//
+// No realtime: message_reactions has no room_id, so a channel couldn't
+// scope its broadcasts. Own reactions are optimistic (Trader.jsx
+// handleReaction); everyone else's arrive with load / load-more / refresh.
+// =====================================================================
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// The Supabase uuid behind a UI message. The UI `id` is the legacy RTDB key
+// for migrated rows, so prefer the carried `_sbId`; RTDB-fallback rows have
+// no uuid at all and return null (they can't be reacted to or pinned).
+export function supabaseMessageId(message) {
+  if (!message) return null;
+  if (message._sbId) return message._sbId;
+  return UUID_RE.test(String(message.id || '')) ? message.id : null;
+}
+
+// Fetch reactions for a set of message uuids → { [messageId]: { [userId]: emoji } }.
+export async function loadReactionsFor(messageIds) {
+  const ids = (messageIds || []).filter((id) => UUID_RE.test(String(id || '')));
+  if (!ids.length) return {};
+  const { data, error } = await supabase
+    .from('message_reactions')
+    .select('message_id, user_id, emoji')
+    .in('message_id', ids);
+  if (error) throw error;
+  const out = {};
+  for (const r of data || []) {
+    if (!out[r.message_id]) out[r.message_id] = {};
+    out[r.message_id][r.user_id] = r.emoji;
+  }
+  return out;
+}
+
+// Toggle a user's reaction: none → set, same emoji → clear, other → replace.
+// Returns the new emoji, or null when cleared.
+export async function toggleReaction(messageId, userId, emoji) {
+  if (!messageId || !userId || !emoji) throw new Error('toggleReaction: messageId, userId, emoji required');
+  const { data: existing, error: readErr } = await supabase
+    .from('message_reactions')
+    .select('emoji')
+    .eq('message_id', messageId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (readErr) throw readErr;
+
+  if (existing?.emoji === emoji) {
+    const { error } = await supabase
+      .from('message_reactions')
+      .delete()
+      .eq('message_id', messageId)
+      .eq('user_id', userId);
+    if (error) throw error;
+    return null;
+  }
+
+  const { error } = await supabase
+    .from('message_reactions')
+    .upsert({ message_id: messageId, user_id: userId, emoji });
+  if (error) throw error;
+  return emoji;
 }
 
 // =====================================================================

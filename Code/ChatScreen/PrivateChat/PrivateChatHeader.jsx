@@ -19,6 +19,18 @@ import { getCachedProfile } from '../../Helper/profileCache';
 import { getRoblox, getRoles, getCosmetics } from '../../Supabase/userBackend';
 import { SUPABASE_USERS_ENABLED } from '../../Supabase/featureFlags';
 
+// Partner roles / Pro / Roblox link and active cosmetics, per uid, for this
+// app session. These change rarely; 10 minutes keeps a change visible within
+// one sitting. Reopening a DM no longer re-reads them in front of the message
+// load. (Ported from adoptme-jan7.)
+const HEADER_CACHE_TTL_MS = 10 * 60 * 1000;
+const headerUserCache = new Map(); // uid -> { data, at }
+const headerCosmeticsCache = new Map(); // uid -> { data, at }
+const freshHit = (cache, uid) => {
+  const hit = cache.get(uid);
+  return hit && Date.now() - hit.at < HEADER_CACHE_TTL_MS ? hit : null;
+};
+
 const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers, isDrawerVisible, setIsDrawerVisible }) => {
   const { updateLocalState } = useLocalState();
   const { t } = useTranslation();
@@ -53,7 +65,16 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
 
     let isMounted = true;
 
+    const cachedUser = freshHit(headerUserCache, selectedUserId);
+    const cachedCosmetics = freshHit(headerCosmeticsCache, selectedUserId);
+    if (cachedUser) setUserData(cachedUser.data);
+    if (cachedCosmetics) setActiveCosmetics(cachedCosmetics.data);
+    if (cachedUser && cachedCosmetics) {
+      return () => { isMounted = false; };
+    }
+
     const fetchUserData = async () => {
+      if (cachedUser) return;
       try {
         // Try Supabase first for the migrated fields (roblox, roles, isPro).
         // lastGameWinAt + profileFrame still live on RTDB this phase.
@@ -70,7 +91,7 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
           // If all three are null (user not yet mirrored), fall through to RTDB.
           if (roblox || roles || cosmetics) {
             if (!isMounted) return;
-            setUserData({
+            setAndCacheUserData({
               robloxUsername: roblox?.robloxUsername ?? null,
               robloxUserId: roblox?.robloxUserId ?? null,
               robloxUsernameVerified: !!roblox?.robloxUsernameVerified,
@@ -107,7 +128,7 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
 
         if (!isMounted) return;
 
-        setUserData({
+        setAndCacheUserData({
           robloxUsername: robloxUsernameSnap?.exists() ? robloxUsernameSnap.val() : null,
           robloxUserId: robloxUserIdSnap?.exists() ? robloxUserIdSnap.val() : null,
           robloxUsernameVerified: robloxUsernameVerifiedSnap?.exists() ? robloxUsernameVerifiedSnap.val() : false,
@@ -127,12 +148,20 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
       }
     };
 
+    // Defined before the call below (const in the effect body).
+    function setAndCacheUserData(data) {
+      headerUserCache.set(selectedUserId, { data, at: Date.now() });
+      setUserData(data);
+    }
+
     fetchUserData();
 
     // Fetch active cosmetics (full frame object with borderColors etc.)
     const fetchCosmetics = async () => {
+      if (cachedCosmetics) return;
       try {
         const cosmetics = await getActiveCosmetics(appdatabase, selectedUserId);
+        headerCosmeticsCache.set(selectedUserId, { data: cosmetics, at: Date.now() });
         if (isMounted) setActiveCosmetics(cosmetics);
       } catch { /* graceful fallback */ }
     };

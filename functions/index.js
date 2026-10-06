@@ -80,8 +80,13 @@ exports.privatizeUserPII = require('./privatizeUserPII').privatizeUserPII;
 // deleted-account tombstones, Supabase sender bans. See banEnforcement.js.
 const bans = require('./banEnforcement');
 exports.modSanction = bans.modSanction;
+// Staff evidence screenshots → Bunny, key held server-side. See modEvidenceUpload.js.
+exports.modEvidenceUpload = require('./modEvidenceUpload').modEvidenceUpload;
 exports.syncEmailBan = bans.syncEmailBan;
 exports.indexDeviceAccount = bans.indexDeviceAccount;
 exports.indexLegacyDeviceAccount = bans.indexLegacyDeviceAccount;
 exports.banCheckOnSignup = bans.banCheckOnSignup;
 exports.tombstoneDeletedAccount = bans.tombstoneDeletedAccount;
+// 6-hourly safety net: Supabase banned_senders + Firestore banned_uids follow
+// RTDB banned_uids (the per-ban mirror writes are best-effort).
+exports.reconcileBanMirrors = bans.reconcileBanMirrors;

@@ -1,6 +1,6 @@
 import React, { useMemo, useCallback, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, Modal, ScrollView, ActivityIndicator } from 'react-native';
-import { useGlobalState } from '../../GlobelStats';
+import { useGlobalState, modGateText } from '../../GlobelStats';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { getFirestore, collection, addDoc, Timestamp, query as firestoreQuery, where, getDocs, limit as firestoreLimit } from '@react-native-firebase/firestore';
 
@@ -20,7 +20,7 @@ export default function ScamSafetyBox({
   userId,
   selectedUser,
 }) {
-  const { theme, user: currentUser, isAdmin, isModerator } = useGlobalState();
+  const { theme, user: currentUser, isAdmin, isModerator, getModGate } = useGlobalState();
   const isDarkMode = theme === 'dark';
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
 
@@ -46,13 +46,27 @@ export default function ScamSafetyBox({
       Alert.alert('Info', 'Admins and moderators cannot report chats.');
       return;
     }
+    // Banned users can't file reports (a mute is chat-only and doesn't apply).
+    const modGate = getModGate('content');
+    if (modGate) {
+      const { title, message } = modGateText(modGate, 'report');
+      Alert.alert(title, message);
+      return;
+    }
     setSelectedReason(null);
     setShowReportModal(true);
-  }, [otherUserId, userId, isAdmin, isModerator]);
+  }, [otherUserId, userId, isAdmin, isModerator, getModGate]);
 
   const handleSubmitReport = useCallback(async () => {
     if (!selectedReason) {
       Alert.alert('Error', 'Please select a reason.');
+      return;
+    }
+    const modGate = getModGate('content');
+    if (modGate) {
+      const { title, message } = modGateText(modGate, 'report');
+      Alert.alert(title, message);
+      setShowReportModal(false);
       return;
     }
 
@@ -101,7 +115,7 @@ export default function ScamSafetyBox({
     } finally {
       setSubmitting(false);
     }
-  }, [selectedReason, chatKey, userId, currentUser, otherUserId, otherUserName]);
+  }, [selectedReason, chatKey, userId, currentUser, otherUserId, otherUserName, getModGate]);
 
   return (
     <View style={styles.container}>

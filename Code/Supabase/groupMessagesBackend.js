@@ -21,6 +21,7 @@
 
 import { supabase } from './client';
 import { uuidv4 } from './uuid';
+import { reportChatMessage } from './messageReports';
 
 const PAGE_SIZE_DEFAULT = 25;
 
@@ -313,41 +314,9 @@ export async function softDeleteAllInGroup(groupId, deletedBy = null) {
   return { count: ids.length };
 }
 
-// Report a group message. Increments report_count (best effort); when the
-// count crosses REPORT_THRESHOLD the message is soft-deleted and the caller
-// escalates the ban.
-const REPORT_THRESHOLD = 10;
-export async function reportGroupMessage(messageId, reporterId = null) {
+// Report a group message through the report_message rpc (supabase/034).
+// Returns { action: 'reported' | 'deleted', count }.
+export async function reportGroupMessage(messageId, reporterId = null, reason = null) {
   if (!messageId) throw new Error('reportGroupMessage: messageId required');
-
-  const { data: existing, error: selectErr } = await supabase
-    .from('group_messages')
-    .select('report_count')
-    .eq('id', messageId)
-    .maybeSingle();
-  if (selectErr) throw selectErr;
-  if (!existing) throw new Error('Message not found');
-
-  const nextCount = (existing.report_count ?? 0) + 1;
-
-  if (nextCount >= REPORT_THRESHOLD) {
-    const { error } = await supabase
-      .from('group_messages')
-      .update({
-        report_count: nextCount,
-        deleted: true,
-        deleted_at: new Date().toISOString(),
-        deleted_by: reporterId,
-      })
-      .eq('id', messageId);
-    if (error) throw error;
-    return { action: 'deleted' };
-  }
-
-  const { error } = await supabase
-    .from('group_messages')
-    .update({ report_count: nextCount })
-    .eq('id', messageId);
-  if (error) throw error;
-  return { action: 'reported' };
+  return reportChatMessage('group_messages', messageId, { reporterId, reason });
 }

@@ -14,7 +14,7 @@ import {
   ScrollView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { useGlobalState } from '../../GlobelStats';
+import { useGlobalState, modGateText } from '../../GlobelStats';
 import { createGroup, updateGroupName, updateGroupDescription, updateGroupAvatar } from '../utils/groupUtils';
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
 import { useHaptic } from '../../Helper/HepticFeedBack';
@@ -70,7 +70,7 @@ const base64ToBytes = (base64) => {
 const MAX_GROUP_MEMBERS = 100;
 
 const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = null, editGroupName = null, editGroupDescription = null, editGroupAvatar = null, isAdmin = false, onGroupUpdated = null }) => {
-  const { theme, user, firestoreDB, appdatabase, strikeInfo, isAdmin: isAppAdmin, isUserBlocked } = useGlobalState();
+  const { theme, user, firestoreDB, appdatabase, getModGate } = useGlobalState();
   const isEditMode = !!editGroupId;
   const { triggerHapticFeedback } = useHaptic();
   const navigation = useNavigation();
@@ -214,6 +214,15 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
       return;
     }
 
+    // Groups are a chat surface: banned AND muted users can't create or edit
+    // them (admins exempt; waits for the ban check on a fresh sign-in).
+    const modGate = getModGate('chat');
+    if (modGate) {
+      const { title, message } = modGateText(modGate, 'group');
+      showErrorMessage(title, message);
+      return;
+    }
+
     // Validate group name (required for both create and edit)
     if (!groupName.trim()) {
       showErrorMessage('Error', 'Group name is required');
@@ -231,34 +240,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
 
   // Handle create group
   const handleCreateGroup = async () => {
-    // Block banned users from creating groups (admins exempt). Defer expiry
-    // to server-time-validated `isUserBlocked` so a clock-rolled device
-    // can't slip past — strikeInfo is used only for the message text.
-    if (isUserBlocked && !isAppAdmin) {
-      const { bannedUntil } = strikeInfo || {};
-
-      if (bannedUntil === 'permanent') {
-        showErrorMessage('Error', 'You are permanently banned from creating groups.');
-        return;
-      }
-
-      if (typeof bannedUntil === 'number') {
-        const remaining = Math.max(0, bannedUntil - Date.now());
-        const totalMinutes = Math.ceil(remaining / 60000);
-        const hours = Math.floor(totalMinutes / 60);
-        const minutes = totalMinutes % 60;
-        const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-
-        showErrorMessage(
-          'Error',
-          `You are banned from creating groups for ${timeLeftText} more minute(s).`
-        );
-        return;
-      }
-
-      showErrorMessage('Error', 'You are currently banned from creating groups.');
-      return;
-    }
+    // Ban / mute gate lives in handleSubmit (covers create and edit).
     // Validate description (required for create)
     if (!groupDescription.trim()) {
       showErrorMessage('Error', 'Group description is required');

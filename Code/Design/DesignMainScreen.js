@@ -30,7 +30,7 @@ import {
 } from '@react-native-firebase/firestore';
 import { ref as dbRef, get } from '@react-native-firebase/database';
 
-import { useGlobalState } from '../GlobelStats';
+import { useGlobalState, modGateText } from '../GlobelStats';
 import { useLocalState } from '../LocalGlobelStats';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -54,7 +54,7 @@ import { awardBadge, incrementAndCheckBadge, REACTION_BADGE_THRESHOLDS } from '.
 
 const DesignFeedScreen = ({ route }) => {
   const { selectedTheme } = route.params;
-  const { appdatabase, user, theme, firestoreDB, isBabyMod, isTrusted, isGrinder, isRaider, proGranted, isUserBlocked } = useGlobalState();
+  const { appdatabase, user, theme, firestoreDB, isBabyMod, isTrusted, isGrinder, isRaider, proGranted, getModGate } = useGlobalState();
   const { localState } = useLocalState();
   const isDarkMode = theme === 'dark';
   const navigation = useNavigation();
@@ -472,8 +472,11 @@ const DesignFeedScreen = ({ route }) => {
   const handleReaction = useCallback(async (post, emoji) => {
     const userId = user?.id;
     if (!userId) return;
-    if (isUserBlocked) {
-      Alert.alert('Banned', 'You cannot react to posts while banned.');
+    // Banned users can't react (a mute is chat-only).
+    const modGate = getModGate('action');
+    if (modGate) {
+      const { title, message } = modGateText(modGate, 'react');
+      Alert.alert(title, message);
       return;
     }
 
@@ -529,7 +532,7 @@ const DesignFeedScreen = ({ route }) => {
         type: 'danger',
       });
     }
-  }, [user?.id, firestoreDB, isUserBlocked]);
+  }, [user?.id, firestoreDB, getModGate]);
 
   const handleUploadPost = async (desc, imageUrls, selectedTags) => {
     // ✅ Prevent multiple submissions - check if already submitting
@@ -538,6 +541,14 @@ const DesignFeedScreen = ({ route }) => {
     }
 
     if (!user?.id) return;
+
+    // Second line of defence behind UploadModal's gate: banned users can't post.
+    const modGate = getModGate('content');
+    if (modGate) {
+      const { title, message } = modGateText(modGate, 'post');
+      Alert.alert(title, message);
+      return;
+    }
 
     // ✅ Set submitting state IMMEDIATELY to prevent duplicate submissions
     setIsSubmittingPost(true);

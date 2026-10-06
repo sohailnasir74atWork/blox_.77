@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, FlatList, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import ViewShot from 'react-native-view-shot';
-import { useGlobalState } from '../GlobelStats';
+import { useGlobalState, modGateText } from '../GlobelStats';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import config from '../Helper/Environment';
 import ConditionalKeyboardWrapper from '../Helper/keyboardAvoidingContainer';
@@ -20,9 +20,11 @@ import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
 import { addDoc, collection, serverTimestamp, doc, getDoc } from '@react-native-firebase/firestore';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
+import { fetchAnalyticsData, getHotStatus } from '../Helper/analyticsDataHelper';
+import { tradeHighlight, TONE_STYLE } from '../Helper/tradeAdvice';
 
 const HomeScreen = ({ selectedTheme }) => {
-  const { theme, user, proGranted, proTagBought, firestoreDB, single_offer_wall, currentUserEmail, appdatabase, strikeInfo, isAdmin, reload, isUserBlocked } = useGlobalState();
+  const { theme, user, proGranted, proTagBought, firestoreDB, single_offer_wall, currentUserEmail, appdatabase, reload, getModGate } = useGlobalState();
   const tradesCollection = collection(firestoreDB, 'trades_new_upgrade');
   const MAX_ITEMS_PER_SIDE = 4;
   const initialItems = [null, null, null, null];
@@ -57,6 +59,17 @@ const HomeScreen = ({ selectedTheme }) => {
   const [type, setType] = useState(null);
   const [showofferwall, setShowofferwall] = useState(false);
   const [demandData, setDemandData] = useState({}); // { itemKey: { buy: count, sale: count } }
+  // Live trade demand + value moves (analytics CDN files) for the guide line
+  // and the "+X%" slot badges. The catalogue demand above stays as it is.
+  const [analyticsMaps, setAnalyticsMaps] = useState({ demandMap: {}, marketMap: {}, hotMap: {}, dropMap: {} });
+  const [showTips, setShowTips] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    fetchAnalyticsData()
+      .then((maps) => { if (alive && maps) setAnalyticsMaps(maps); })
+      .catch((e) => console.warn('[HomeScreen] Analytics data load failed:', e?.message));
+    return () => { alive = false; };
+  }, []);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdatedTime, setLastUpdatedTime] = useState(new Date());
   const { t } = useTranslation();
@@ -192,37 +205,13 @@ const HomeScreen = ({ selectedTheme }) => {
         return;
       }
 
-      // Block banned users from creating trades (admins exempt). Defer expiry
-      // to the server-time-validated `isUserBlocked` flag so a clock-rolled
-      // device can't slip past — strikeInfo is used only for the message.
-      if (isUserBlocked && !isAdmin) {
-        const { bannedUntil } = strikeInfo || {};
-
-        if (bannedUntil === 'permanent') {
-          showErrorMessage(
-            t("home.alert.error"),
-            "You are permanently banned from creating trades."
-          );
-          setIsSubmitting(false);
-          return;
-        }
-
-        if (typeof bannedUntil === 'number') {
-          const remaining = Math.max(0, bannedUntil - Date.now());
-          const totalMinutes = Math.ceil(remaining / 60000);
-          const hours = Math.floor(totalMinutes / 60);
-          const minutes = totalMinutes % 60;
-          const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-
-          showErrorMessage(
-            t("home.alert.error"),
-            `You are banned from creating trades for ${timeLeftText} more minute(s).`
-          );
-          setIsSubmitting(false);
-          return;
-        }
-
-        showErrorMessage(t("home.alert.error"), "You are currently banned from creating trades.");
+      // Block banned users from creating trades (admins exempt), and wait
+      // for the ban check on a fresh sign-in. The decision uses server-time-
+      // validated state from GlobelStats (uid bans cover phone accounts too).
+      const modGate = getModGate('content');
+      if (modGate) {
+        const { title, message } = modGateText(modGate, 'trade');
+        showErrorMessage(title, message);
         setIsSubmitting(false);
         return;
       }
@@ -798,6 +787,94 @@ const HomeScreen = ({ selectedTheme }) => {
   const lastFilledIndexHas = hasItems.reduce((lastIndex, item, index) => (item ? index : lastIndex), -1);
   const lastFilledIndexWant = wantsItems.reduce((lastIndex, item, index) => (item ? index : lastIndex), -1);
 
+  // ── Smart tips while one side is still empty (both sides get the guide) ──
+  const tradeTips = useMemo(() => {
+    const myItems = hasItems.filter(Boolean);
+    const theirItems = wantsItems.filter(Boolean);
+    if (myItems.length > 0 && theirItems.length > 0) return [];
+    const { demandMap, hotMap } = analyticsMaps;
+    const key = (i) => `${String(i.Name || '').toLowerCase().trim()}_${i.Type === 'p' ? 'p' : 'n'}`;
+    const wanted = (items) => items.some((i) => (demandMap[key(i)]?.score || 0) >= 8);
+    const rising = (items) => items.some((i) => hotMap[key(i)]);
+    const tips = [];
+    // A popular fruit on your side is good news for trading it, not a warning.
+    if (wanted(myItems)) tips.push({ emoji: '⭐', text: t('trade_advice.insights.giving_wanted') });
+    else if (wanted(theirItems)) tips.push({ emoji: '🤩', text: t('trade_advice.insights.getting_wanted') });
+    if (rising(theirItems)) tips.push({ emoji: '🚀', text: t('trade_advice.insights.getting_rising') });
+    else if (rising(myItems)) tips.push({ emoji: '📈', text: t('trade_advice.insights.giving_rising') });
+    return tips;
+  }, [hasItems, wantsItems, analyticsMaps, t]);
+
+  // Guide line: what is good about what ME gets (ME gives hasItems, gets wantsItems).
+  const highlight = useMemo(() => tradeHighlight({
+    give: hasItems,
+    receive: wantsItems,
+    giveTotal: hasTotal.value,
+    getTotal: wantsTotal.value,
+    maps: analyticsMaps,
+  }), [hasItems, wantsItems, hasTotal.value, wantsTotal.value, analyticsMaps]);
+
+  const renderTradeGuide = () => {
+    if (!highlight && tradeTips.length === 0) return null;
+    if (!showTips) {
+      return (
+        <TouchableOpacity onPress={() => setShowTips(true)} style={styles.guideShowTips}>
+          <Text style={styles.guideShowTipsText}>{t('trade_advice.show_tips')}</Text>
+        </TouchableOpacity>
+      );
+    }
+    if (highlight) {
+      const ts = TONE_STYLE[highlight.tone];
+      const { reason, extra, demand } = highlight;
+      return (
+        <View style={styles.guideWrap}>
+          <TouchableOpacity
+            onPress={() => setShowTips(false)}
+            activeOpacity={0.7}
+            style={[styles.guidePill, { backgroundColor: ts.color + '18' }]}
+          >
+            <Icon name={ts.icon} size={14} color={ts.color} />
+            <Text style={[styles.guidePillText, { color: ts.color }]}>
+              {t(`trade_advice.feed.tone_${highlight.tone}`)}
+              {demand != null ? ` · ${t('trade_advice.feed.demand_chip', { score: demand })}` : ''}
+            </Text>
+            <Icon name="close-circle" size={14} color={ts.color + '60'} />
+          </TouchableOpacity>
+          {reason && <Text style={styles.guideReason}>{t(`trade_advice.feed.${reason.key}`, reason.params)}</Text>}
+          {extra && <Text style={styles.guideReason}>{t(`trade_advice.feed.${extra.key}`, extra.params)}</Text>}
+        </View>
+      );
+    }
+    return (
+      <View style={styles.guideWrap}>
+        <TouchableOpacity
+          onPress={() => setShowTips(false)}
+          activeOpacity={0.7}
+          style={[styles.guidePill, { backgroundColor: '#10B98118' }]}
+        >
+          <Text style={[styles.guidePillText, { color: '#10B981' }]}>
+            {tradeTips[0].emoji} {tradeTips[0].text}
+          </Text>
+          <Icon name="close-circle" size={14} color={'#10B98160'} />
+        </TouchableOpacity>
+        {tradeTips.slice(1).map((tip) => (
+          <Text key={tip.text} style={styles.guideReason}>{tip.emoji} {tip.text}</Text>
+        ))}
+      </View>
+    );
+  };
+
+  // "+X%" when the fruit's value went up in the latest value update.
+  const renderHotPill = (item, style) => {
+    const hot = getHotStatus(item.Name, item.Type, analyticsMaps.hotMap);
+    if (!hot) return null;
+    return (
+      <View style={[styles.hotPill, style]}>
+        <Text style={styles.hotPillText}>+{hot.pct}%</Text>
+      </View>
+    );
+  };
+
   // ── Shared item-picker renderers (used by both layout variants) ──
   const getDemandString = (item) => {
     const originalItem = item?.Name ? catalogByName.get(item.Name.toLowerCase()) : null;
@@ -946,6 +1023,8 @@ const HomeScreen = ({ selectedTheme }) => {
                   </View>
                 </View>
 
+                {renderTradeGuide()}
+
                 {/* ME Section */}
                 <View style={styles.altSectionHeader}>
                   <View style={styles.altSectionDot} />
@@ -977,6 +1056,7 @@ const HomeScreen = ({ selectedTheme }) => {
                               </View>
                             ) : null;
                           })()}
+                          {renderHotPill(item, styles.hotPillAlt)}
                           <Image
                             source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
                             style={styles.altItemImage}
@@ -1045,6 +1125,7 @@ const HomeScreen = ({ selectedTheme }) => {
                               </View>
                             ) : null;
                           })()}
+                          {renderHotPill(item, styles.hotPillAlt)}
                           <Image
                             source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
                             style={styles.altItemImage}
@@ -1253,6 +1334,8 @@ const HomeScreen = ({ selectedTheme }) => {
 
               </View>
 
+              {renderTradeGuide()}
+
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <View style={styles.itemRow}>
                   {hasItems?.map((item, index) => {
@@ -1281,6 +1364,7 @@ const HomeScreen = ({ selectedTheme }) => {
                                 <Text style={styles.demandBadgeText}>{demandString}</Text>
                               ) : null;
                             })()}
+                            {renderHotPill(item, styles.hotPillCell)}
                             <Image
                               source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
                               style={[styles.itemImageOverlay]}
@@ -1337,6 +1421,7 @@ const HomeScreen = ({ selectedTheme }) => {
                                 <Text style={styles.demandBadgeText}>{demandString}</Text>
                               ) : null;
                             })()}
+                            {renderHotPill(item, styles.hotPillCell)}
                             <Image
                               source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
                               style={[styles.itemImageOverlay]}
@@ -1900,6 +1985,25 @@ const getStyles = (isDarkMode) =>
       fontSize: 12,
       fontWeight: 'bold',
     },
+    guideWrap: { alignItems: 'center', marginTop: 2, marginBottom: 8, paddingHorizontal: 8 },
+    guidePill: {
+      flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1,
+      paddingLeft: 12, paddingRight: 8, paddingVertical: 6, borderRadius: 20,
+    },
+    guidePillText: { fontSize: 11, fontWeight: '800', flexShrink: 1 },
+    guideReason: {
+      fontSize: 10, fontWeight: '700', marginTop: 3, textAlign: 'center',
+      color: isDarkMode ? '#94a3b8' : '#64748b',
+    },
+    guideShowTips: { alignItems: 'center', marginBottom: 6 },
+    guideShowTipsText: { fontSize: 10, fontWeight: '600', color: isDarkMode ? '#64748b' : '#94a3b8' },
+    hotPill: {
+      position: 'absolute', zIndex: 10,
+      backgroundColor: '#10B981', borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1,
+    },
+    hotPillCell: { top: 3, right: 3 },
+    hotPillAlt: { top: -4, left: -4 },
+    hotPillText: { color: 'white', fontSize: 8, fontWeight: 'bold' },
     demandBadgeText: {
       position: 'absolute',
       top: 2,

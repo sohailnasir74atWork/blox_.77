@@ -11,6 +11,34 @@
 //     unreadCount, muted, joinedAt, lastReadAt }
 
 import { supabase } from './client';
+import { getAuth } from '@react-native-firebase/auth';
+
+// supabase/034: direct group_meta_data writes are limited to the caller's OWN
+// rows. Rows of other members go through upsert_group_meta_members (caller
+// must already have a row for the group, or be staff). Until 034 is applied
+// the rpc is missing and we fall back to the old direct upsert.
+const currentUid = () => getAuth().currentUser?.uid ?? null;
+const rpcMissing = (error) => {
+  const code = error?.code || '';
+  if (code === 'PGRST202' || code === '42883') return true;
+  return (error?.message || '').toLowerCase().includes('could not find the function');
+};
+
+async function upsertMembersViaRpc({
+  groupId, memberIds, groupName = null, groupAvatar = null, memberCount = null,
+  createdBy = null, joinedAtMs = null,
+}) {
+  const { error } = await supabase.rpc('upsert_group_meta_members', {
+    p_group_id: groupId,
+    p_member_ids: memberIds,
+    p_group_name: groupName,
+    p_group_avatar: groupAvatar,
+    p_member_count: memberCount,
+    p_created_by: createdBy,
+    p_joined_at_ms: joinedAtMs,
+  });
+  return error || null;
+}
 
 // Explicit column list for hot reads — avoids select('*') egress on the
 // group-list table. Must list exactly the columns fromGroupMetaRow() reads.
@@ -113,6 +141,24 @@ export async function upsertGroupMetaRow({
 }) {
   if (!userId || !groupId) throw new Error('upsertGroupMetaRow: userId + groupId required');
 
+  // Another member's row (approveJoinRequest): server-side rpc. It creates the
+  // row with unread 0 / not muted and never overwrites their unread / mute.
+  const me = currentUid();
+  if (me && userId !== me) {
+    const rpcErr = await upsertMembersViaRpc({
+      groupId,
+      memberIds: [userId],
+      groupName,
+      groupAvatar,
+      memberCount,
+      createdBy,
+      joinedAtMs,
+    });
+    if (!rpcErr) return;
+    if (!rpcMissing(rpcErr)) throw rpcErr;
+    // 034 not applied yet: fall through to the direct upsert below.
+  }
+
   const row = {
     user_id: userId,
     group_id: groupId,
@@ -199,7 +245,8 @@ export async function deleteGroupMetaForUser(userId, groupId) {
 
 // Update group identity (groupName / groupAvatar / memberCount) across
 // every member's row. Used when an admin renames a group or changes its
-// avatar. Sends one bulk upsert.
+// avatar. One upsert_group_meta_members rpc call (034); members without a
+// row get one, existing rows keep their unread / mute state.
 export async function updateGroupIdentityForMembers({
   groupId,
   memberIds,
@@ -208,6 +255,12 @@ export async function updateGroupIdentityForMembers({
   memberCount = null,
 }) {
   if (!groupId || !Array.isArray(memberIds) || memberIds.length === 0) return;
+
+  const rpcErr = await upsertMembersViaRpc({ groupId, memberIds, groupName, groupAvatar, memberCount });
+  if (!rpcErr) return;
+  if (!rpcMissing(rpcErr)) throw rpcErr;
+
+  // 034 not applied yet: old direct bulk upsert.
   const updatedAt = new Date().toISOString();
   const rows = memberIds.map((mid) => {
     const r = { user_id: mid, group_id: groupId, updated_at: updatedAt };

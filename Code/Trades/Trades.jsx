@@ -28,7 +28,7 @@ import { bannerAware, ABOVE_BANNER, FLOATING_BUTTON_ICON_SIZE, FLOATING_BUTTON_R
 import RewardedAdManager from '../Ads/RewardedAdManager';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { useGlobalState } from '../GlobelStats';
+import { useGlobalState, modGateText } from '../GlobelStats';
 import config from '../Helper/Environment';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import ReportTradePopup from './ReportTradePopUp';
@@ -48,6 +48,8 @@ import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
 import { isUserOnline } from '../ChatScreen/utils';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { saveTrade, unsaveTrade, fetchSavedTradeRefs } from './tradeHelpers';
+import { fetchAnalyticsData } from '../Helper/analyticsDataHelper';
+import { tradeHighlight, TONE_STYLE } from '../Helper/tradeAdvice';
 import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
 import { getCachedProfile, warmProfileCache } from '../Helper/profileCache';
 import { getCachedFollowingIds, setCachedFollowingIds } from '../Helper/followingCache';
@@ -111,8 +113,15 @@ const TradeList = ({ route }) => {
   const [searchHasMore, setSearchHasMore] = useState(true); // ✅ More results available for search
   const SEARCH_PAGE_SIZE = 5; // ✅ Fetch 5 items at a time for search
   const { selectedTheme } = route.params
-  const { user, analytics, single_offer_wall, proGranted, strikeInfo, isAdmin, appdatabase, isUserBlocked } = useGlobalState()
+  const { user, analytics, single_offer_wall, proGranted, appdatabase, getModGate } = useGlobalState()
   const [trades, setTrades] = useState([]);
+  // Demand / value-move maps for the "If you accept" line (CDN files, cached).
+  const [analyticsMaps, setAnalyticsMaps] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    fetchAnalyticsData().then((m) => { if (alive) setAnalyticsMaps(m); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
   const [filteredTrades, setFilteredTrades] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -493,6 +502,14 @@ const TradeList = ({ route }) => {
   const handleFreeBoostTrade = useCallback(async (item) => {
     if (!user?.id || !firestoreDB) return;
 
+    // Banned users can't feature trades (a mute is chat-only).
+    const modGate = getModGate('content');
+    if (modGate) {
+      const { title, message } = modGateText(modGate, 'feature');
+      showErrorMessage(title, message);
+      return;
+    }
+
     let alreadyBoosted;
     try {
       alreadyBoosted = await countBoostsInWindow();
@@ -558,7 +575,7 @@ const TradeList = ({ route }) => {
         },
       ]
     );
-  }, [user?.id, firestoreDB, countBoostsInWindow, applyFeaturedToTrade, t]);
+  }, [user?.id, firestoreDB, countBoostsInWindow, applyFeaturedToTrade, t, getModGate]);
 
   // Warm the rewarded ad so the first FREE BOOST tap doesn't sit on a cold
   // load. Non-Pro only: Pro members never see the button, so preloading for
@@ -569,6 +586,14 @@ const TradeList = ({ route }) => {
   }, [isProStatus]);
 
   const handleMakeFeatureTrade = async (item) => {
+    // Banned users can't feature trades (a mute is chat-only).
+    const modGate = getModGate('content');
+    if (modGate) {
+      const { title, message } = modGateText(modGate, 'feature');
+      showErrorMessage(title, message);
+      return;
+    }
+
     if (!isProStatus && !isFeaturedPurchase) {
       Alert.alert(
         t("trade.feature_pro_only_title"),
@@ -806,35 +831,12 @@ const TradeList = ({ route }) => {
 
 
     const callbackfunction = () => {
-      // Block banned users from messaging (admins exempt). Defer expiry to
-      // server-time-validated `isUserBlocked` so a clock-rolled device can't
-      // slip past — strikeInfo is used only for the message text.
-      if (isUserBlocked && !isAdmin) {
-        const { bannedUntil } = strikeInfo || {};
-
-        if (bannedUntil === 'permanent') {
-          showErrorMessage(
-            t("home.alert.error"),
-            "You are permanently banned from using this feature."
-          );
-          return;
-        }
-
-        if (typeof bannedUntil === 'number') {
-          const remaining = Math.max(0, bannedUntil - Date.now());
-          const totalMinutes = Math.ceil(remaining / 60000);
-          const hours = Math.floor(totalMinutes / 60);
-          const minutes = totalMinutes % 60;
-          const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-
-          showErrorMessage(
-            t("home.alert.error"),
-            `You are banned from using this feature for ${timeLeftText} more minute(s).`
-          );
-          return;
-        }
-
-        showErrorMessage(t("home.alert.error"), "You are currently banned from using this feature.");
+      // Block banned / muted users from starting a trade DM (admins exempt).
+      // Decision uses server-time-validated state from GlobelStats.
+      const modGate = getModGate('chat');
+      if (modGate) {
+        const { title, message } = modGateText(modGate, 'chat');
+        showErrorMessage(title, message);
         return;
       }
 
@@ -1525,6 +1527,43 @@ const TradeList = ({ route }) => {
     return Object.values(grouped);
   };
 
+  // If you accept: the viewer gives the poster's wants and gets the poster's
+  // has. Says what is good about what they'd get (demand, rising value); the
+  // totals above already show the gap.
+  const renderTradeAdvice = (item) => {
+    if (!analyticsMaps || item.userId === user?.id) return null;
+    const highlight = tradeHighlight({
+      give: item.wantsItems || [],
+      receive: item.hasItems || [],
+      giveTotal: item.wantsTotal?.value,
+      getTotal: item.hasTotal?.value,
+      maps: analyticsMaps,
+    });
+    if (!highlight) return null;
+    const ts = TONE_STYLE[highlight.tone];
+    const { reason, demand } = highlight;
+    return (
+      <View style={[styles.adviceRow, { backgroundColor: ts.color + '14' }]}>
+        <View style={styles.adviceHead}>
+          <Icon name={ts.icon} size={12} color={ts.color} />
+          <Text style={[styles.adviceVerdict, { color: ts.color }]} numberOfLines={1}>
+            {t(`trade_advice.feed.tone_${highlight.tone}`)}
+          </Text>
+          {demand != null && (
+            <Text style={[styles.adviceDemand, { color: ts.color, borderColor: ts.color + '55' }]}>
+              {t('trade_advice.feed.demand_chip', { score: demand })}
+            </Text>
+          )}
+        </View>
+        {reason && (
+          <Text style={styles.adviceReason} numberOfLines={2}>
+            {t(`trade_advice.feed.${reason.key}`, reason.params)}
+          </Text>
+        )}
+      </View>
+    );
+  };
+
   // ── Alternate trade card renderer (non-Noman) ──
   const renderTradeAlt = ({ item, index }) => {
     if (item?.__type === 'ad') {
@@ -1666,6 +1705,8 @@ const TradeList = ({ route }) => {
             )}
           </View>
         </View>
+
+        {renderTradeAdvice(item)}
 
         {item.description && <Text style={styles.description}>{renderTextWithUsername(item.description)}</Text>}
         {item.userId === user.id && (
@@ -1966,6 +2007,8 @@ const TradeList = ({ route }) => {
           </Text>}
         </View>
 
+        {renderTradeAdvice(item)}
+
         {/* Description */}
         {item.description && <Text style={styles.description}>{renderTextWithUsername(item.description)}
         </Text>}
@@ -2156,6 +2199,7 @@ const TradeList = ({ route }) => {
         ref={flatListRef}
         data={tradesWithAds}
         renderItem={config.isNoman ? renderTrade : renderTradeAlt}
+        extraData={analyticsMaps}
         keyExtractor={(item, index) => {
           // ✅ FIX: Featured trades already have 'featured-' prefix in their id
           // Use the id directly, or add index for uniqueness
@@ -2424,6 +2468,37 @@ const getStyles = (isDarkMode) =>
     actionButtons: {
       flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
       borderColor: 'lightgrey', marginTop: 10, paddingTop: 10
+    },
+    adviceRow: {
+      marginTop: 6,
+      borderRadius: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 5,
+    },
+    adviceHead: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    adviceVerdict: {
+      fontSize: 11,
+      fontWeight: '800',
+      flexShrink: 1,
+    },
+    adviceDemand: {
+      marginLeft: 'auto',
+      fontSize: 10,
+      fontWeight: '800',
+      borderWidth: 1,
+      borderRadius: 8,
+      paddingHorizontal: 6,
+      paddingVertical: 1,
+    },
+    adviceReason: {
+      fontSize: 10,
+      fontWeight: '600',
+      color: isDarkMode ? '#94a3b8' : '#64748b',
+      marginTop: 1,
     },
     description: {
       color: isDarkMode ? 'lightgrey' : "grey",

@@ -1,37 +1,176 @@
 rules_version = '2';
 
-// Blox Fruit (fruiteblocks) Firestore rules.
+// Blox Fruit (fruiteblocks) Firestore rules — replaces the test-mode
+// catch-all (2026-10-06).
 //
-// 2026-09: the review system is locked down; EVERY OTHER collection keeps the
-// original test-mode rule below (open until 2027-03-05) — replacing that needs
-// its own rollout, see the collection inventory in the 2026-09-28 review
-// audit. Firestore allows a request if ANY matching rule allows it, so the
-// catch-all explicitly skips the review collections.
+// Backward compatible by design: every read and write an installed app build
+// (current code and the old builds still in the field, back to 2025) or the
+// blox-web site makes is still allowed. What changes: signed-out users can no
+// longer write anything, users only write as themselves, other players only
+// touch the counters / per-user map entries the app actually lets them touch,
+// moderation needs real staff status, and banned accounts can't create or
+// edit content. Collections with no match below are denied (Firestore default).
 //
-// Must stay compatible with every app build in the field and the blox-web site:
-//   - reviews + user_ratings_summary are read publicly (web profile pages).
-//   - reviewers rewrite the REVIEWEE's user_ratings_summary after reviewing.
-//   - moderators delete reviews (staff/{uid}, mirrored by functions/staffMirror.js).
+// The collection-by-collection inventory (who writes which fields, which
+// queries run) is in scripts/test-rules/INVENTORY.md; the emulator tests that
+// replay every flow are in scripts/test-rules/.
+//
+// Staff  = verified owner email, or staff/{uid} (functions/staffMirror.js
+//          mirrors RTDB users/{uid}/{admin,isAdmin,isSeniorMod,isModerator,isBabyMod}).
+// Banned = banned_uids/{uid} (functions mirror of active BANS, not mutes):
+//          permanent == true, or until > now.
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function signedIn() {
-      return request.auth != null;
-    }
+    // ── helpers ──
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
 
     function isAdminEmail() {
       return signedIn()
-        && request.auth.token.email_verified == true
-        && request.auth.token.email in ['thesolanalabs@gmail.com', 'sohailnasir74@gmail.com', 'sohailnasir74business@gmail.com'];
+        && request.auth.token.get('email_verified', false) == true
+        && request.auth.token.get('email', '') in ['thesolanalabs@gmail.com', 'sohailnasir74@gmail.com', 'sohailnasir74business@gmail.com'];
     }
-
     function isStaff() {
       return isAdminEmail()
         || (signedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid)));
     }
+    function isAdmin() {
+      return isAdminEmail()
+        || (signedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid))
+            && get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.get('roles', []).hasAny(['admin', 'isAdmin']));
+    }
 
-    // A review can only be written by its author, about someone else, under
-    // the id {toUserId}_{fromUserId} — one review per pair, no self-reviews.
+    function isBanned() {
+      let path = /databases/$(database)/documents/banned_uids/$(request.auth.uid);
+      return exists(path) && (
+        get(path).data.get('permanent', false) == true
+        || (get(path).data.get('until', null) is timestamp && get(path).data.until > request.time)
+      );
+    }
+    // Signed in and not under an active ban.
+    function active() { return signedIn() && !isBanned(); }
+
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+    // A per-user map (reactions.{uid}, likes.{uid}): only the writer's own entry changes.
+    function ownEntryOnly(field) {
+      return !(field in changed())
+        || request.resource.data.get(field, {}).diff(resource.data.get(field, {})).affectedKeys().hasOnly([me()]);
+    }
+    function ownerIs(field) { return signedIn() && resource.data.get(field, null) == me(); }
+    function createsAs(field) { return signedIn() && request.resource.data.get(field, null) == me(); }
+    // Owner edits must not hand the doc to someone else.
+    function keepsOwner(field) { return request.resource.data.get(field, null) == resource.data.get(field, null); }
+    // A counter that moved up by exactly one.
+    function bumpedByOne(field) {
+      return !(field in changed())
+        || request.resource.data.get(field, 0) == resource.data.get(field, 0) + 1;
+    }
+    // An array the writer only added themselves to (arrayUnion(me)).
+    function addedOnlyMe(field) {
+      return !(field in changed())
+        || (request.resource.data.get(field, []).toSet().difference(resource.data.get(field, []).toSet()).hasOnly([me()])
+            && resource.data.get(field, []).toSet().difference(request.resource.data.get(field, []).toSet()).size() == 0);
+    }
+    // A list that differs from the old one only by the writer's own uid.
+    function listOnlyMe(before, after) {
+      return after.toSet().difference(before.toSet()).hasOnly([me()])
+        && before.toSet().difference(after.toSet()).hasOnly([me()]);
+    }
+
+    // ── Trades ──
+    match /trades_new_upgrade/{tradeId} {
+      allow read: if true;                      // feed, search, website SSR (signed out)
+      allow create: if createsAs('userId') && !isBanned();
+      allow update: if (ownerIs('userId') && keepsOwner('userId') && !isBanned())
+        // ReportTradePopUp: anyone signed in bumps reportCount by one.
+        || (active() && changed().hasOnly(['reportCount']) && bumpedByOne('reportCount'))
+        || isStaff();
+      allow delete: if ownerIs('userId') || isStaff();
+    }
+    // Legacy trade collection (builds before 2026-05).
+    match /trades_new/{tradeId} {
+      allow read: if true;
+      allow create: if createsAs('userId') && !isBanned();
+      allow update: if (ownerIs('userId') && keepsOwner('userId') && !isBanned())
+        || (active() && changed().hasOnly(['reportCount']) && bumpedByOne('reportCount'))
+        || isStaff();
+      allow delete: if ownerIs('userId') || isStaff();
+    }
+
+    // ── Feed posts (designPosts_upgrade; designPosts = builds before 2026-05) ──
+    function postUpdateByOthers() {
+      return active()
+        && changed().hasOnly(['reactions', 'likes', 'commentCount', 'reportCount', 'report', 'banned'])
+        && ownEntryOnly('reactions') && ownEntryOnly('likes')
+        && bumpedByOne('commentCount') && bumpedByOne('reportCount')
+        && (!('report' in changed()) || request.resource.data.report == true)
+        && (!('banned' in changed()) || request.resource.data.banned == true);
+    }
+    match /designPosts_upgrade/{postId} {
+      allow read: if true;
+      allow create: if createsAs('userId') && !isBanned();
+      allow update: if (ownerIs('userId') && keepsOwner('userId') && !isBanned())
+        || postUpdateByOthers()
+        || isStaff();
+      allow delete: if ownerIs('userId') || isStaff();
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if createsAs('userId') && !isBanned();
+        allow update: if (ownerIs('userId') && keepsOwner('userId') && !isBanned()) || isStaff();
+        allow delete: if ownerIs('userId') || isStaff()
+          || (signedIn() && get(/databases/$(database)/documents/designPosts_upgrade/$(postId)).data.get('userId', null) == me());
+      }
+    }
+    match /designPosts/{postId} {
+      allow read: if true;
+      allow create: if createsAs('userId') && !isBanned();
+      allow update: if (ownerIs('userId') && keepsOwner('userId') && !isBanned())
+        || postUpdateByOthers()
+        || isStaff();
+      allow delete: if ownerIs('userId') || isStaff();
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if createsAs('userId') && !isBanned();
+        allow update: if (ownerIs('userId') && keepsOwner('userId') && !isBanned()) || isStaff();
+        allow delete: if ownerIs('userId') || isStaff();
+      }
+    }
+
+    // ── Statuses (stories) ──
+    // Others may: add themselves to viewedBy, set/remove their own reaction,
+    // add/move their own poll vote (options 0–5).
+    function pollVoteOnly() {
+      let before = resource.data.get('pollVotes', {});
+      let after = request.resource.data.get('pollVotes', {});
+      let keys = after.diff(before).affectedKeys();
+      return !('pollVotes' in changed()) || (
+        keys.hasOnly(['0', '1', '2', '3', '4', '5'])
+        && (!('0' in keys) || listOnlyMe(before.get('0', []), after.get('0', [])))
+        && (!('1' in keys) || listOnlyMe(before.get('1', []), after.get('1', [])))
+        && (!('2' in keys) || listOnlyMe(before.get('2', []), after.get('2', [])))
+        && (!('3' in keys) || listOnlyMe(before.get('3', []), after.get('3', [])))
+        && (!('4' in keys) || listOnlyMe(before.get('4', []), after.get('4', [])))
+        && (!('5' in keys) || listOnlyMe(before.get('5', []), after.get('5', [])))
+      );
+    }
+    match /statuses/{statusId} {
+      allow read: if true;
+      allow create: if createsAs('userId') && !isBanned();
+      allow update: if (ownerIs('userId') && keepsOwner('userId') && !isBanned())
+        // Viewing is not an action a ban blocks.
+        || (signedIn() && changed().hasOnly(['viewedBy']) && addedOnlyMe('viewedBy'))
+        || (active() && changed().hasOnly(['viewedBy', 'reactions', 'pollVotes'])
+            && addedOnlyMe('viewedBy') && ownEntryOnly('reactions') && pollVoteOnly())
+        || isStaff();
+      allow delete: if ownerIs('userId') || isStaff();
+    }
+
+    // ── Profiles ──
+    // reviews/{toUserId}_{fromUserId} — a review (one per pair, no self-review)
+    // reviews/{uid}                    — that user's profile doc (bio, ownedPets, wishlistPets)
     function isOwnReview(docId) {
       let d = request.resource.data;
       return signedIn()
@@ -42,33 +181,50 @@ service cloud.firestore {
         && d.rating is number
         && d.rating >= 1 && d.rating <= 5;
     }
-
-    // reviews/{toUserId}_{fromUserId}  — a review
-    // reviews/{uid}                    — that user's profile doc (bio, ownedPets, wishlistPets)
     match /reviews/{docId} {
-      allow read: if true;
-      allow create, update: if isOwnReview(docId)
-        || (signedIn() && docId == request.auth.uid && !('fromUserId' in request.resource.data));
+      allow read: if true;                      // web profile pages (signed out)
+      allow create, update: if !isBanned() && (isOwnReview(docId)
+        || (signedIn() && docId == request.auth.uid && !('fromUserId' in request.resource.data)));
       allow delete: if isStaff();
     }
 
-    // Client-maintained display summary (profile rating). Anyone signed in may
-    // refresh it — the reviewer recomputes the reviewee's — but only these
-    // fields, within range. Top Rated no longer reads it.
-    match /user_ratings_summary/{uid} {
-      allow read: if true;
-      allow create, update: if signedIn()
-        && request.resource.data.diff(resource == null ? {} : resource.data).affectedKeys()
-             .hasOnly(['count', 'averageRating', 'updatedAt'])
-        && request.resource.data.count is number
+    // Display summary (profile rating). The reviewer recomputes the REVIEWEE's
+    // summary right after writing their review (app + website), so a writer
+    // must hold a review of that user; staff fix it after deleting reviews.
+    // The average itself can't be verified here (see INVENTORY.md).
+    function summaryShapeOK() {
+      return request.resource.data.count is number
         && request.resource.data.count >= 0
         && request.resource.data.averageRating is number
         && request.resource.data.averageRating >= 0
         && request.resource.data.averageRating <= 5;
+    }
+    function hasReviewed(uid) {
+      return exists(/databases/$(database)/documents/reviews/$(uid + '_' + request.auth.uid));
+    }
+    match /user_ratings_summary/{uid} {
+      allow read: if true;
+      allow create: if isStaff() || (active()
+        && request.resource.data.keys().hasOnly(['count', 'averageRating', 'updatedAt'])
+        && summaryShapeOK() && hasReviewed(uid));
+      allow update: if isStaff() || (active()
+        && changed().hasOnly(['count', 'averageRating', 'updatedAt'])
+        && summaryShapeOK() && hasReviewed(uid)
+        && (request.resource.data.count == resource.data.get('count', 0)
+            || request.resource.data.count == resource.data.get('count', 0) + 1));
       allow delete: if isStaff();
     }
 
-    // Written only by Cloud Functions (Admin SDK bypasses rules).
+    // user_profiles/{uid}: owned fruits / trade journal profile (TradeJournal,
+    // TradeCompletion). Opened by uid from other players' profiles.
+    match /user_profiles/{uid} {
+      allow get: if true;
+      allow list: if isStaff();
+      allow create, update: if signedIn() && me() == uid && !isBanned();
+      allow delete: if (signedIn() && me() == uid) || isStaff();
+    }
+
+    // ── Server-written (Cloud Functions / Admin SDK bypass rules) ──
     match /leaderboard_cache/{docId} {
       allow read: if docId == 'top50' || isStaff();
       allow write: if false;
@@ -82,8 +238,7 @@ service cloud.firestore {
     match /review_verified_summary/{uid} {
       allow read: if isStaff();
       allow update: if isStaff()
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['leaderboardHold', 'holdBy', 'holdByName', 'holdAt'])
+        && changed().hasOnly(['leaderboardHold', 'holdBy', 'holdByName', 'holdAt'])
         && request.resource.data.leaderboardHold is bool;
       allow create, delete: if false;
     }
@@ -91,16 +246,195 @@ service cloud.firestore {
       allow read: if (signedIn() && request.auth.uid == uid) || isStaff();
       allow write: if false;
     }
-
-    // ---- Unchanged from the live ruleset (2026-03-05) ----
-    match /designPosts/{doc} {
-      allow read: if request.time < timestamp.date(2027, 3, 5);
-      allow write: if request.time < timestamp.date(2024, 3, 5);
+    // Firestore mirror of active bans (functions write it; contract §5).
+    match /banned_uids/{uid} {
+      allow read: if (signedIn() && request.auth.uid == uid) || isStaff();
+      allow write: if false;
     }
-    match /{collection}/{document=**} {
-      allow read, write: if request.time < timestamp.date(2027, 3, 5)
-        && !(collection in ['reviews', 'user_ratings_summary', 'leaderboard_cache',
-                            'review_scores', 'review_verified_summary', 'staff']);
+
+    // ── Social ──
+    match /following/{id} {
+      allow read: if true;                      // follower counts, Following feeds
+      allow create: if createsAs('followerId') && !isBanned()
+        && request.resource.data.get('followingId', null) is string
+        && request.resource.data.followingId != me();
+      allow update: if false;
+      allow delete: if ownerIs('followerId') || isStaff();
+    }
+
+    // Trade pings (tradeHelpers.pingTrader): fromUid = sender, toUid = trader.
+    match /notifications/{id} {
+      allow read: if signedIn() && (resource.data.get('toUid', null) == me()
+        || resource.data.get('fromUid', null) == me() || isStaff());
+      allow create: if createsAs('fromUid') && !isBanned();
+      allow update: if ownerIs('toUid') && changed().hasOnly(['read']);
+      allow delete: if ownerIs('toUid') || ownerIs('fromUid') || isStaff();
+    }
+
+    // Activity log written by the website and builds before 2026-05; those
+    // builds listed friends' docs and deleted the ones they had seen.
+    match /user_activity/{id} {
+      allow read: if signedIn();
+      allow create: if createsAs('userId') && !isBanned();
+      allow update: if ownerIs('userId') && keepsOwner('userId');
+      allow delete: if signedIn();
+    }
+
+    // ── Groups (membership here; group chat itself is Supabase) ──
+    function groupAdmin() {
+      return signedIn() && (resource.data.get('createdBy', null) == me()
+        || resource.data.get('members', {}).get(me(), {}).get('role', '') == 'admin');
+    }
+    // Joining (accepting an invite) or leaving changes only your own membership.
+    function ownMembershipOnly() {
+      let before = resource.data.get('memberIds', []).toSet();
+      let after = request.resource.data.get('memberIds', []).toSet();
+      return changed().hasOnly(['memberIds', 'members', 'memberCount', 'updatedAt'])
+        && after.difference(before).union(before.difference(after)).hasOnly([me()])
+        && ownEntryOnly('members');
+    }
+    function groupGone(groupId) {
+      return !exists(/databases/$(database)/documents/groups/$(groupId));
+    }
+    function isGroupCreator(groupId) {
+      return exists(/databases/$(database)/documents/groups/$(groupId))
+        && get(/databases/$(database)/documents/groups/$(groupId)).data.get('createdBy', null) == me();
+    }
+    match /groups/{groupId} {
+      allow read: if true;
+      allow create: if createsAs('createdBy') && !isBanned()
+        && me() in request.resource.data.get('memberIds', [me()]);
+      allow update: if groupAdmin() || isStaff()
+        || (signedIn() && ownMembershipOnly()
+            // joining needs an unbanned account; leaving never does
+            && (request.resource.data.get('memberIds', []).size() < resource.data.get('memberIds', []).size() || !isBanned()));
+      allow delete: if groupAdmin() || isStaff()
+        || (signedIn() && resource.data.get('memberIds', []) == [me()]);
+    }
+    match /group_invitations/{id} {
+      // Creators check pending invites of other users before inviting.
+      allow read: if signedIn();
+      allow create: if createsAs('invitedBy') && !isBanned();
+      allow update: if isStaff() || ownerIs('invitedBy')
+        || (ownerIs('invitedUserId') && changed().hasOnly(['status', 'updatedAt', 'respondedAt']));
+      // Deleting a group sweeps every invite for it (after the group doc is gone).
+      allow delete: if ownerIs('invitedBy') || ownerIs('invitedUserId') || isStaff()
+        || (signedIn() && (groupGone(resource.data.get('groupId', '')) || isGroupCreator(resource.data.get('groupId', ''))));
+    }
+    match /group_join_requests/{id} {
+      allow read: if signedIn();
+      allow create: if createsAs('requesterId') && !isBanned();
+      allow update: if isStaff() || ownerIs('creatorId') || ownerIs('requesterId')
+        || (signedIn() && isGroupCreator(resource.data.get('groupId', ''))
+            && changed().hasOnly(['status', 'approvedAt', 'rejectedAt', 'rejectionReason', 'updatedAt']));
+      allow delete: if ownerIs('requesterId') || ownerIs('creatorId') || isStaff()
+        || (signedIn() && (groupGone(resource.data.get('groupId', '')) || isGroupCreator(resource.data.get('groupId', ''))));
+    }
+
+    // ── Reports ──
+    // DM reports (Scamwarning.js). The reporter's duplicate check queries
+    // their own pending reports.
+    match /chat_reports/{id} {
+      allow read: if isStaff() || (signedIn() && resource.data.get('reportedBy', null) == me());
+      allow create: if createsAs('reportedBy') && !isBanned()
+        && request.resource.data.get('status', 'pending') == 'pending'
+        && request.resource.data.get('chatKey', '') is string
+        && me() in request.resource.data.get('chatKey', '').split('_');
+      allow update: if isStaff();
+      allow delete: if isStaff();
+    }
+    // Trade / feed-post / status / scam-db / user reports (contract §9).
+    match /user_reports/{id} {
+      allow read: if isStaff() || (signedIn() && resource.data.get('reporterUid', null) == me());
+      allow create: if createsAs('reporterUid') && !isBanned()
+        && request.resource.data.keys().hasAll(['type', 'targetId', 'reporterUid', 'reason', 'createdAt', 'status'])
+        && request.resource.data.keys().hasOnly(['type', 'targetId', 'targetUid', 'reporterUid', 'reason', 'text', 'createdAt', 'status'])
+        && request.resource.data.type in ['trade', 'post', 'status', 'scam', 'user']
+        && request.resource.data.targetId is string && request.resource.data.targetId.size() <= 200
+        && (request.resource.data.get('targetUid', null) == null
+            || (request.resource.data.targetUid is string && request.resource.data.targetUid.size() <= 128))
+        && request.resource.data.reason is string && request.resource.data.reason.size() <= 200
+        && (request.resource.data.get('text', null) == null
+            || (request.resource.data.text is string && request.resource.data.text.size() <= 1000))
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.status == 'open';
+      allow update: if isStaff() && changed().hasOnly(['status', 'reviewedBy', 'reviewedAt']);
+      allow delete: if isAdmin();
+    }
+
+    // ── Scammer database (app + website) ──
+    match /scammerSummaries/{id} {
+      allow read: if true;
+      allow create: if active()
+        && request.resource.data.get('status', '') == 'unverified'
+        && request.resource.data.get('reportCount', 0) == 1;
+      allow update: if isStaff() || (active()
+        && changed().hasOnly(['reportCount', 'updatedAt'])
+        && request.resource.data.reportCount == resource.data.get('reportCount', 1) + 1);
+      allow delete: if isStaff();
+    }
+    match /scammerDetails/{id} {
+      allow read: if true;
+      allow create: if createsAs('reporterUid') && !isBanned();
+      allow update, delete: if isStaff();
+    }
+    // Per-user report rate limit, set by the reporter's own transaction.
+    // It may only move forward and can't be deleted, so it can't be reset.
+    match /userRateLimits/{uid} {
+      allow read: if signedIn() && me() == uid;
+      allow create: if signedIn() && me() == uid
+        && request.resource.data.keys().hasOnly(['lastReportAt'])
+        && request.resource.data.lastReportAt is timestamp;
+      allow update: if signedIn() && me() == uid
+        && request.resource.data.keys().hasOnly(['lastReportAt'])
+        && request.resource.data.lastReportAt is timestamp
+        && (!(resource.data.get('lastReportAt', null) is timestamp)
+            || request.resource.data.lastReportAt >= resource.data.lastReportAt);
+      allow delete: if false;
+    }
+
+    // Only the admin "Delete Profile (ALL DATA)" sweep touches this (nothing writes it).
+    match /cosmetics_inventory/{id} {
+      allow read, delete: if isStaff();
+    }
+
+    // ── Mini games ──
+    // games/{uid}: each player's daily game state. The leaderboard's last-resort
+    // fallback lists this collection ordered by best score.
+    match /games/{uid} {
+      allow read: if true;
+      allow write: if signedIn() && me() == uid;
+    }
+    match /game_scores/{gameId}/scores/{uid} {
+      allow read: if true;
+      allow create, update: if signedIn() && me() == uid
+        && request.resource.data.keys().hasOnly(['score', 'username', 'avatar', 'updatedAt'])
+        && request.resource.data.get('score', 0) is number;
+      allow delete: if (signedIn() && me() == uid) || isStaff();
+    }
+    // Top-20 cache every player rewrites after a score (updateLeaderboardCache.js).
+    match /game_leaderboard_cache/{gameId} {
+      allow read: if true;
+      allow write: if signedIn()
+        && request.resource.data.keys().hasOnly(['users', 'gameId', 'lastUpdated', 'userCount'])
+        && request.resource.data.get('users', []) is list
+        && request.resource.data.get('users', []).size() <= 20
+        && request.resource.data.get('gameId', gameId) == gameId;
+    }
+    match /game_stats/{uid} {
+      allow read: if true;
+      allow create, update: if signedIn() && me() == uid;
+      allow delete: if (signedIn() && me() == uid) || isStaff();
+    }
+    // Fruit guessing game rooms + per-user invites.
+    match /fruitGuessingGame_rooms/{roomId} {
+      allow read, update, delete: if signedIn();
+      allow create: if createsAs('hostId');
+    }
+    match /fruitGuessingGame_userInvites/{inviteeUid}/invites/{roomId} {
+      allow read, update, delete: if signedIn()
+        && (me() == inviteeUid || resource == null || resource.data.get('fromUserId', null) == me());
+      allow create: if createsAs('fromUserId');
     }
   }
 }

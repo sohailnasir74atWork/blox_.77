@@ -362,7 +362,17 @@
         "pin_error": "Nachricht konnte nicht angeheftet werden. Bitte versuchen Sie es erneut.",
         "unpin_error": "Nachricht konnte nicht losgelöst werden. Bitte versuchen Sie es erneut.",
         "clear_pins_error": "Angeheftete Nachrichten konnten nicht entfernt werden. Bitte versuchen Sie es erneut.",
-        "block": "Nutzer blockieren"
+        "block": "Nutzer blockieren",
+        "delete_message_title": "Nachricht löschen?",
+        "delete_message_body": "Diese Nachricht wird für alle entfernt.",
+        "message_deleted": "Nachricht gelöscht",
+        "delete_failed": "Die Nachricht konnte nicht gelöscht werden. Bitte versuche es erneut.",
+        "delete_all_title": "Alle neuen Nachrichten löschen?",
+        "delete_all_body": "Damit werden die neuen Nachrichten dieses Nutzers in diesem Raum für alle entfernt.",
+        "delete_all_done": "{{count}} Nachrichten gelöscht",
+        "delete_all_done_one": "{{count}} Nachrichten gelöscht",
+        "delete_all_done_other": "{{count}} Nachrichten gelöscht",
+        "delete_failed_all": "Die Nachrichten konnten nicht gelöscht werden. Bitte versuche es erneut."
     },
     "first": {
         "welcome_title": "Willkommen bei Fruit Values",
@@ -516,7 +526,9 @@
         "retry": "Werte neu laden"
     },
     "common": {
-        "load_more": "Mehr laden"
+        "load_more": "Mehr laden",
+        "cancel": "Abbrechen",
+        "delete": "Löschen"
     },
     "scammer": {
         "limit_title": "Limit",
@@ -530,5 +542,66 @@
         "error_description_long": "Beschreibung zu lang (max. 200 Zeichen).",
         "safety_title": "Sicherheit",
         "safety_personal_info": "Geben Sie keine persönlichen Daten an (E-Mails, Telefonnummern, Social Media)."
+    },
+    "trade_advice": {
+        "show_tips": "💡 Tipps anzeigen",
+        "feed": {
+            "tone_good": "Guter Deal für dich",
+            "tone_popular": "Beliebte Wahl",
+            "tone_close": "Könnte für dich passen",
+            "value_win": "Du bekommst etwa {{pct}}% mehr Wert",
+            "value_fair": "Die Werte sind etwa gleich",
+            "get_rising": "{{name}} ist zuletzt um {{pct}}% gestiegen, guter Fang",
+            "demand_chip": "🔥 Nachfrage {{score}}/10",
+            "asked_for_one": "Spieler wollten {{name}} in {{count}} Trade in den letzten 24 Std.",
+            "asked_for_other": "Spieler wollten {{name}} in {{count}} Trades in den letzten 24 Std.",
+            "steady_demand": "Trader fragen ständig nach {{name}}"
+        },
+        "insights": {
+            "giving_wanted": "Deine Früchte sind sehr gefragt, sie gehen schnell weg!",
+            "getting_wanted": "Du bekommst sehr beliebte Früchte!",
+            "getting_rising": "Du bekommst Früchte, deren Wert steigt!",
+            "giving_rising": "Deine Früchte steigen im Wert!"
+        }
+    },
+    "moderation": {
+        "action_chat": "Nachrichten senden",
+        "action_post": "posten",
+        "action_comment": "kommentieren",
+        "action_trade": "Trades erstellen",
+        "action_feature": "Trades hervorheben",
+        "action_report": "Meldungen senden",
+        "action_profile": "dein Profil bearbeiten",
+        "action_review": "Bewertungen schreiben",
+        "action_vote": "bei Umfragen abstimmen",
+        "action_react": "auf Beiträge reagieren",
+        "action_follow": "Leuten folgen",
+        "action_group": "Gruppen verwalten",
+        "action_server": "Server teilen",
+        "action_generic": "das tun",
+        "checking_title": "Einen Moment",
+        "checking_body": "Dein Kontostatus wird geprüft. Bitte versuche es in ein paar Sekunden erneut.",
+        "muted_title": "Stummgeschaltet",
+        "muted_body": "Du bist im Chat noch {{time}} stummgeschaltet.",
+        "muted_body_generic": "Du bist im Chat stummgeschaltet.",
+        "banned_perm_title": "Dauerhaft gesperrt",
+        "banned_strike_title": "Verwarnung {{n}}",
+        "banned_title": "Gesperrt",
+        "banned_perm_body": "Dein Konto ist dauerhaft gesperrt, daher kannst du nicht {{action}}.",
+        "banned_body": "Du bist noch {{time}} gesperrt und kannst bis dahin nicht {{action}}.",
+        "banned_body_generic": "Du bist gesperrt und kannst gerade nicht {{action}}.",
+        "send_blocked_title": "Nachricht nicht gesendet",
+        "send_banned_body": "Du bist gesperrt oder stummgeschaltet, daher können deine Nachrichten gerade nicht gesendet werden.",
+        "send_links_body": "Links sind in Nachrichten nicht erlaubt.",
+        "send_not_allowed_body": "Diese Nachricht ist hier nicht erlaubt."
+    },
+    "home_tab": {
+        "mute_title": "Im Chat stummgeschaltet",
+        "ban_strike": "Verwarnung {{count}}",
+        "ban_strike_one": "Verwarnung {{count}}",
+        "ban_strike_other": "Verwarnung {{count}}",
+        "mute_permanent": "Stummgeschaltet, bis ein Moderator es aufhebt",
+        "ban_permanent_label": "Dauerhaft",
+        "mute_for": "Stummgeschaltet für {{time}}"
     }
 }

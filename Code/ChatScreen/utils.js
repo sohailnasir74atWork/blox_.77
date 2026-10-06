@@ -6,32 +6,67 @@ import { useFocusEffect } from '@react-navigation/native';
 import { softDeleteMessagesBySender } from '../Supabase/chatBackend';
 import { getServerTime } from '../Helper/serverTime';
 import { getDeviceFingerprint } from '../Helper/deviceFingerprint';
+import { encodeEmailKey, isMuteRecord, normalizeEmail } from '../Helper/banKeys';
+import {
+  callModSanction,
+  logModAction,
+  sanctionErrorText,
+  nextStrikeCount,
+  strikeBannedUntil,
+  strikeDurationLabel,
+  JMD_MAX_MUTE_MINUTES,
+} from '../Helper/modSanction';
 
 // Returns true if the caller is trying to ban/mute/unban their own account.
 // All moderation actions go through utils.js, so guarding here closes every
 // entry point (AdminDashboard, BottomDrawer, ReportPopUp, etc.) at once.
-const isSelfTargeting = (targetEmail) => {
-  if (!targetEmail) return false;
-  const callerEmail = getAuth()?.currentUser?.email;
-  if (!callerEmail) return false;
-  return callerEmail.toLowerCase().trim() === targetEmail.toLowerCase().trim();
+const isSelfTargeting = (targetEmail, targetUid = null) => {
+  const me = getAuth()?.currentUser;
+  if (!me) return false;
+  if (targetUid && me.uid === targetUid) return true;
+  if (!targetEmail || !me.email) return false;
+  return normalizeEmail(me.email) === normalizeEmail(targetEmail);
 };
 
 // ─── Staff hierarchy ────────────────────────────────────────────────
 // Strict ladder: a staffer can only act on someone STRICTLY below them.
-// Mods can't ban Mods. Admins can't ban Admins. JMDs can only act on
-// regular users. Promote/demote rules: only Admins can manage Senior
+// Owner (verified owner email) > Admin > Senior Mod > Mod > JMD > user.
+// Mods can't ban Mods. Admins can't ban Admins or owners. JMDs can only act
+// on regular users. Promote/demote rules: only Admins can manage Senior
 // Mods; Admins and Senior Mods can manage Mods; Admins, Senior Mods and
 // Mods can manage JMDs.
 //
+// The server (functions/banEnforcement.js readRank) is the source of truth;
+// this copy only decides which buttons to show.
+//
 // Senior Mod (isSeniorMod) sits ONE step below Admin — it outranks every
-// Mod/JMD, so canModerate lets a Senior Mod ban/mute/strike them and
-// canManageMod lets a Senior Mod appoint or remove Mods and JMDs.
-export const STAFF_RANK = { admin: 4, seniorMod: 3, moderator: 2, babyMod: 1, user: 0 };
+// Mod/JMD, so canModerate lets a Senior Mod act on them and canManageMod
+// lets a Senior Mod appoint or remove Mods and JMDs.
+export const STAFF_RANK = { owner: 5, admin: 4, seniorMod: 3, moderator: 2, babyMod: 1, user: 0 };
+
+// Mirrors OWNER_EMAILS in functions/banEnforcement.js and database.rules.json.
+export const OWNER_EMAILS = new Set([
+  'thesolanalabs@gmail.com',
+  'sohailnasir74business@gmail.com',
+  'sohailnasir74@gmail.com',
+]);
+
+export const isOwnerEmail = (email) => {
+  const e = normalizeEmail(email);
+  return !!e && OWNER_EMAILS.has(e);
+};
+
+// The signed-in user counts as owner only with a VERIFIED owner email — the
+// same test the server and the rules apply.
+export const isCurrentUserOwner = () => {
+  const me = getAuth()?.currentUser;
+  return !!(me && me.emailVerified && isOwnerEmail(me.email));
+};
 
 export const getStaffRank = (roles) => {
   if (!roles) return STAFF_RANK.user;
-  if (roles.isAdmin) return STAFF_RANK.admin;
+  if (roles.isOwner) return STAFF_RANK.owner;
+  if (roles.isAdmin || roles.admin) return STAFF_RANK.admin;
   if (roles.isSeniorMod) return STAFF_RANK.seniorMod;
   if (roles.isModerator) return STAFF_RANK.moderator;
   if (roles.isBabyMod) return STAFF_RANK.babyMod;
@@ -41,13 +76,60 @@ export const getStaffRank = (roles) => {
 export const canModerate = (caller, target) =>
   getStaffRank(caller) > getStaffRank(target);
 
+/** JMD and above. */
+export const isStaffRoles = (roles) => getStaffRank(roles) >= STAFF_RANK.babyMod;
+
+// Staff immunity: a staff target (JMD and up) can only be sanctioned by an
+// admin or owner, on top of the strict-rank rule.
+export const canSanction = (caller, target) =>
+  canModerate(caller, target) &&
+  (!isStaffRoles(target) || getStaffRank(caller) >= STAFF_RANK.admin);
+
+/**
+ * What the caller may do to the target — mirrors the server's checks so the UI
+ * only offers actions it will accept (contract §2).
+ *   JMD:   mute ≤ 2 h and unmute only.
+ *   Mod+:  strike / ban / mute, unban, linked accounts.
+ * Lifting also needs rank ≥ the original banner's (admins always may), which
+ * needs the record — see canLiftSanction.
+ */
+export const getModPermissions = (caller, target) => {
+  const rank = getStaffRank(caller);
+  const outranks = canModerate(caller, target);
+  const sanction = canSanction(caller, target);
+  const isJmd = rank === STAFF_RANK.babyMod;
+  return {
+    isStaff: rank >= STAFF_RANK.babyMod,
+    isJmd,
+    outranks,
+    canMute: sanction,
+    maxMuteMinutes: isJmd ? JMD_MAX_MUTE_MINUTES : null,
+    canStrike: sanction && !isJmd,
+    canUnmute: outranks,
+    canUnban: outranks && !isJmd,
+    canSeeLinked: outranks && rank >= STAFF_RANK.moderator,
+  };
+};
+
+/**
+ * Can the caller lift this record? `type` is 'ban' | 'mute', `bannerRoles`
+ * the roles of whoever placed it (null when unknown — the server decides).
+ */
+export const canLiftSanction = (caller, target, type, bannerRoles = null) => {
+  const perms = getModPermissions(caller, target);
+  if (type === 'mute' ? !perms.canUnmute : !perms.canUnban) return false;
+  const rank = getStaffRank(caller);
+  if (rank >= STAFF_RANK.admin || !bannerRoles) return true;
+  return rank >= getStaffRank(bannerRoles);
+};
+
 // Only Admins can appoint/remove Senior Mods.
-export const canManageSeniorMod = (caller) => !!caller?.isAdmin;
+export const canManageSeniorMod = (caller) => !!(caller?.isAdmin || caller?.isOwner);
 // Admins AND Senior Mods can appoint/remove Mods.
-export const canManageMod = (caller) => !!(caller?.isAdmin || caller?.isSeniorMod);
+export const canManageMod = (caller) => !!(caller?.isAdmin || caller?.isOwner || caller?.isSeniorMod);
 // Admins, Senior Mods AND Mods can appoint/remove JMDs.
 export const canManageBabyMod = (caller) =>
-  !!(caller?.isAdmin || caller?.isSeniorMod || caller?.isModerator);
+  !!(caller?.isAdmin || caller?.isOwner || caller?.isSeniorMod || caller?.isModerator);
 
 // Look up target's role flags from RTDB so utility-level checks don't
 // rely on every caller populating userInfo. Tolerant of the legacy
@@ -78,13 +160,25 @@ const fetchTargetRoles = async (userId) => {
   }
 };
 
+/**
+ * Fresh role flags for any user (RTDB), plus isOwner when their email is
+ * known and on the owner list. Resolves null when nothing could be read.
+ */
+export const fetchUserRoles = async (userId, email = null) => {
+  const roles = await fetchTargetRoles(userId);
+  if (!roles && !email) return null;
+  return { ...(roles || {}), isOwner: isOwnerEmail(email) };
+};
+
 // Resolve the most authoritative target-role view: prefer a fresh RTDB
 // read (so a stale userInfo can't mask a recent promotion), fall back to
-// whatever the caller passed.
-const resolveTargetRoles = async (userId, fallback = {}) => {
+// whatever the caller passed. An owner email always ranks as owner.
+const resolveTargetRoles = async (userId, fallback = {}, email = null) => {
   const fetched = await fetchTargetRoles(userId);
-  if (fetched) return fetched;
+  const isOwner = isOwnerEmail(email || fallback?.email);
+  if (fetched) return { ...fetched, isOwner };
   return {
+    isOwner,
     isAdmin: !!fallback?.isAdmin,
     isSeniorMod: !!fallback?.isSeniorMod,
     isModerator: !!fallback?.isModerator,
@@ -102,16 +196,44 @@ const resolveTargetRoles = async (userId, fallback = {}) => {
 // be passed in to fake a low-ranked target.
 const outranksTarget = async (userId, callerRoles, fallbackRoles = {}) => {
   const targetRoles = await resolveTargetRoles(userId, fallbackRoles);
-  return canModerate(callerRoles, targetRoles);
+  return canModerate(withOwnerFlag(callerRoles), targetRoles);
 };
+
+/** Fresh-RTDB version of canModerate for a target uid (message deletes etc.). */
+export const outranksUser = (userId, callerRoles, fallbackRoles = {}) =>
+  outranksTarget(userId, callerRoles, fallbackRoles);
+
+// Callers pass their role flags from useGlobalState, which has no owner flag;
+// add it from the auth session.
+const withOwnerFlag = (roles = {}) => ({ ...roles, isOwner: !!roles?.isOwner || isCurrentUserOwner() });
 
 // Pull caller role flags off a bannerInfo blob. Callers are expected to
 // stamp these on bannerInfo from useGlobalState.
-const callerRolesFromBanner = (bannerInfo) => ({
+const callerRolesFromBanner = (bannerInfo) => withOwnerFlag({
   isAdmin: !!bannerInfo?.isAdmin,
   isSeniorMod: !!bannerInfo?.isSeniorMod,
   isModerator: !!bannerInfo?.isModerator,
   isBabyMod: !!bannerInfo?.isBabyMod,
+});
+
+const roleLabel = (roles) => {
+  const rank = getStaffRank(roles);
+  if (rank === STAFF_RANK.owner) return 'Owner';
+  if (rank === STAFF_RANK.admin) return 'Admin';
+  if (rank === STAFF_RANK.seniorMod) return 'Senior Mod';
+  if (rank === STAFF_RANK.moderator) return 'Moderator';
+  if (rank === STAFF_RANK.babyMod) return 'JMD';
+  return 'Staff';
+};
+
+// The `bannedBy` object every email-keyed ban/mute record carries. The RTDB
+// rules require bannedBy.uid === auth.uid, so it is always the signed-in
+// user's own uid, never a value passed in.
+const bannedByFor = (bannerInfo = {}) => ({
+  uid: getAuth()?.currentUser?.uid || null,
+  displayName: bannerInfo?.displayName || 'Staff',
+  avatar: bannerInfo?.avatar || null,
+  role: roleLabel(callerRolesFromBanner(bannerInfo)),
 });
 
 // Initialize the database reference
@@ -196,8 +318,7 @@ const mirrorBanToDevice = async (email, userId, banPayload) => {
     // clear all of them. Keep the legacy `deviceId` field set to the primary
     // (stamped if available — more stable than current FP) for older clients.
     const primary = stampedDeviceId || currentDeviceId;
-    const encodeEmail = (em) => em.replace(/\./g, '(dot)');
-    await update(ref(db, `banned_users_by_email/${encodeEmail(email)}`), {
+    await update(ref(db, `banned_users_by_email/${encodeEmailKey(email)}`), {
       deviceId: primary,
       deviceIds: targets,
     });
@@ -679,354 +800,316 @@ export const handleDeleteLast300Messages = async (senderId, showAlert = false, c
   }
 };
 
-export const banUserwithEmail = async (email, isAdmin = false, senderId = null, userInfo = {}, bannerInfo = {}, showConfirm = false, showAlert = false) => {
-  // ✅ Safety check: handle undefined/null email
-  if (!email || typeof email !== 'string' || email.trim().length === 0) {
-    console.error('❌ Invalid email for banUserwithEmail');
-    if (showConfirm || showAlert) Alert.alert('Error', 'Invalid email address.');
-    return false;
+// ─── Sanctions ─────────────────────────────────────────────────────────
+// Every strike / mute / ban goes to the server by uid (Helper/modSanction.js),
+// which writes the email record, the uid ban, device bans and Supabase, and
+// enforces the hierarchy (staff immunity, JMD limits). The email-keyed write
+// below is only for legacy rows that carry an email but no uid at all; it uses
+// the record shape the rules require (contract §3) and the server's
+// syncEmailBan carries it to everything else.
+
+/**
+ * The target's current strike count — ONE counter for every escalation:
+ * banned_uids/{uid}.strikeCount, written by the server for every sanction.
+ * The email record is only read for legacy records the server never saw.
+ */
+export const getCurrentStrikeCount = async (userId, email = null) => {
+  const db = getDatabase();
+  if (userId) {
+    const v = (await get(ref(db, `banned_uids/${userId}/strikeCount`)).catch(() => null))?.val();
+    if (typeof v === 'number') return v;
+  }
+  if (email) {
+    const v = (await get(ref(db, `banned_users_by_email/${encodeEmailKey(email)}/strikeCount`)).catch(() => null))?.val();
+    if (typeof v === 'number') return v;
+  }
+  return 0;
+};
+
+/**
+ * Mute or ban, for every record shape in the wild. New records say `type`.
+ * Older ones don't, and a custom mute reason defeats the "Muted for" prefix
+ * test (isMuteRecord), so also: old app mutes wrote `bannedBy` as a plain
+ * string (+ `bannerAvatar`) while strikes always wrote an object, and the
+ * old server wrote mutes with strikeCount 0 (bans are always ≥ 1).
+ */
+export const isMuteRecordCompat = isMuteRecord; // one rule: Helper/banKeys.js
+
+const isActiveUntil = (until, now = Date.now()) =>
+  until === 'permanent' || (typeof until === 'number' && until > now);
+
+const bannerUidOf = (by) => {
+  if (by && typeof by === 'object') return by.uid || null;
+  return typeof by === 'string' && /^[A-Za-z0-9]{10,128}$/.test(by) ? by : null;
+};
+
+/**
+ * The target's current sanction, for the mod tools: the server's uid record
+ * first, then the email record.
+ * @returns {Promise<{active: boolean, type: 'ban'|'mute'|null, strikeCount: number,
+ *   bannedUntil: any, reason: string|null, bannedByUid: string|null, bannedByName: string|null}>}
+ */
+export const getSanctionStatus = async (userId, email = null) => {
+  const db = getDatabase();
+  const [uidRec, emailRec] = await Promise.all([
+    userId ? get(ref(db, `banned_uids/${userId}`)).then((s) => s.val()).catch(() => null) : null,
+    email ? get(ref(db, `banned_users_by_email/${encodeEmailKey(email)}`)).then((s) => s.val()).catch(() => null) : null,
+  ]);
+  const activeRec = [uidRec, emailRec].find((r) => r && isActiveUntil(r.bannedUntil)) || null;
+  const anyRec = activeRec || uidRec || emailRec;
+  // Same single counter as getCurrentStrikeCount.
+  const strikeCount = typeof uidRec?.strikeCount === 'number' ? uidRec.strikeCount : (emailRec?.strikeCount || 0);
+  if (!activeRec) {
+    return { active: false, type: null, strikeCount, bannedUntil: null, reason: anyRec?.reason || null, bannedByUid: null, bannedByName: null };
+  }
+  const by = activeRec.bannedBy;
+  return {
+    active: true,
+    type: isMuteRecordCompat(activeRec) ? 'mute' : 'ban',
+    strikeCount,
+    bannedUntil: activeRec.bannedUntil,
+    reason: activeRec.reason || null,
+    bannedByUid: activeRec.bannedByUid || bannerUidOf(by),
+    bannedByName: (by && typeof by === 'object' ? by.displayName : null) || null,
+  };
+};
+
+// Legacy email-only write (no uid known). Same no-downgrade rule as the
+// server; mutes keep the existing strikeCount.
+const writeEmailSanction = async ({ action, email, strikeCount, minutes, reason, userInfo = {}, bannerInfo = {} }) => {
+  const db = getDatabase();
+  const banRef = ref(db, `banned_users_by_email/${encodeEmailKey(email)}`);
+  const existing = (await get(banRef).catch(() => null))?.val() || null;
+  const now = Date.now();
+  const bannedUntil = action === 'mute' ? now + minutes * 60 * 1000 : strikeBannedUntil(strikeCount, now);
+  if (existing && isActiveUntil(existing.bannedUntil)) {
+    const cur = existing.bannedUntil;
+    const stricter = cur === 'permanent' || (bannedUntil !== 'permanent' && typeof cur === 'number' && cur > bannedUntil);
+    if (stricter) return { ok: false, error: 'stricter_ban_active' };
+  }
+  const payload = {
+    type: action === 'mute' ? 'mute' : 'ban',
+    strikeCount: action === 'mute' ? (existing?.strikeCount || 0) : strikeCount,
+    bannedUntil,
+    reason: reason || (action === 'mute' ? `Muted for ${minutes} min` : `Strike ${strikeCount}`),
+    email: normalizeEmail(email),
+    displayName: userInfo?.displayName || existing?.displayName || 'Unknown',
+    avatar: userInfo?.avatar || existing?.avatar || null,
+    userId: null,
+    bannedAt: now,
+    bannedBy: bannedByFor(bannerInfo),
+  };
+  try {
+    await set(banRef, payload);
+  } catch (e) {
+    console.warn('[writeEmailSanction] failed:', e?.message);
+    return { ok: false, error: 'internal' };
+  }
+  if (action !== 'mute') mirrorBanToDevice(payload.email, null, payload).catch(() => {});
+  return { ok: true, strikeCount: payload.strikeCount, bannedUntil, viaEmail: true };
+};
+
+/**
+ * Strike or mute one user. Never throws, never alerts — callers own the UI.
+ * With a uid it always goes through the server (which also handles accounts
+ * with no email); `email` alone only for legacy rows.
+ *
+ * @param {{action: 'strike'|'mute', targetUid?: string|null, email?: string|null,
+ *   strikeCount?: number, minutes?: number, reason?: string, evidence?: string[],
+ *   includeLinked?: boolean, linkedUids?: string[], userInfo?: object,
+ *   bannerInfo?: object, deleteMessages?: boolean}} p
+ * @returns {Promise<{ok: boolean, error?: string, [k: string]: any}>}
+ */
+export const applySanction = async ({
+  action, targetUid = null, email = null, strikeCount, minutes, reason, evidence,
+  includeLinked = false, linkedUids, userInfo = {}, bannerInfo = {}, deleteMessages = true,
+}) => {
+  if (action !== 'strike' && action !== 'mute') return { ok: false, error: 'bad_action' };
+  if (isSelfTargeting(email, targetUid)) return { ok: false, error: 'self_target' };
+  if (action === 'strike' && ![1, 2, 3].includes(strikeCount)) return { ok: false, error: 'bad_strike' };
+  if (action === 'mute' && !(Number(minutes) >= 1)) return { ok: false, error: 'bad_minutes' };
+  const finalReason = (reason || '').trim() ||
+    (action === 'mute' ? `Muted for ${minutes} min` : `Strike ${strikeCount}`);
+
+  let r;
+  if (targetUid) {
+    const opts = { reason: finalReason };
+    if (Array.isArray(evidence) && evidence.length) opts.evidence = evidence;
+    if (action === 'strike') {
+      opts.strikeCount = strikeCount;
+      if (includeLinked) {
+        opts.includeLinked = true;
+        if (Array.isArray(linkedUids)) opts.linkedUids = linkedUids;
+      }
+    } else {
+      opts.minutes = Math.floor(Number(minutes));
+    }
+    r = await callModSanction(action, targetUid, opts);
+  } else if (email) {
+    // No uid: the client is the only gate before the server's sync, so check
+    // what can be checked (owner emails can never be banned from the app).
+    const targetRoles = { isOwner: isOwnerEmail(email) };
+    if (!canSanction(callerRolesFromBanner(bannerInfo), targetRoles)) return { ok: false, error: 'outranked' };
+    if (getStaffRank(callerRolesFromBanner(bannerInfo)) === STAFF_RANK.babyMod &&
+      (action !== 'mute' || minutes > JMD_MAX_MUTE_MINUTES)) {
+      return { ok: false, error: 'rank_limit' };
+    }
+    r = await writeEmailSanction({ action, email, strikeCount, minutes: Math.floor(Number(minutes)), reason: finalReason, userInfo, bannerInfo });
+  } else {
+    return { ok: false, error: 'bad_target' };
   }
 
-  const encodeEmail = (em) => em.replace(/\./g, '(dot)');
-  const database = getDatabase();
-  const banRef = ref(database, `banned_users_by_email/${encodeEmail(email)}`);
+  // A strike also clears the user's recent public-chat messages.
+  if (r.ok && action === 'strike' && deleteMessages && targetUid) {
+    handleDeleteLast300Messages(targetUid, false).catch(() => {});
+  }
+  return r;
+};
 
-  // ✅ Self-target guard: prevents the "self-ban → reset" trick.
-  if (isSelfTargeting(email)) {
+/**
+ * Lift a ban ('unban') or a mute ('unmute') — server only. The server
+ * removes the email record, the uid ban, device bans and the Supabase row,
+ * and checks the original banner's rank. No direct-write fallback: when the
+ * function refuses, the caller shows sanctionErrorText(r.error).
+ */
+export const liftSanction = async ({ action = 'unban', targetUid, reason }) => {
+  if (!targetUid) return { ok: false, error: 'bad_target' };
+  if (isSelfTargeting(null, targetUid)) return { ok: false, error: 'self_target' };
+  const r = await callModSanction(action === 'unmute' ? 'unmute' : 'unban', targetUid, { reason });
+  // Older deployed functions only know 'unban', which lifts a mute too.
+  if (!r.ok && action === 'unmute' && r.error === 'bad_action') {
+    return callModSanction('unban', targetUid, { reason });
+  }
+  return r;
+};
+
+const confirmAsync = (title, message, okText) => new Promise((resolve) => {
+  Alert.alert(title, message, [
+    { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+    { text: okText, style: 'destructive', onPress: () => resolve(true) },
+  ], { cancelable: true, onDismiss: () => resolve(false) });
+});
+
+/**
+ * "Ban" = the next strike on the ladder (server counter). Kept for older call
+ * sites (PostCard); new UI uses applySanction with a reason prompt.
+ * @param {object} [extra] { reason, evidence }
+ */
+export const banUserwithEmail = async (email, isAdmin = false, senderId = null, userInfo = {}, bannerInfo = {}, showConfirm = false, showAlert = false, extra = {}) => {
+  const targetUid = senderId || userInfo?.id || null;
+  if (!targetUid && (!email || typeof email !== 'string' || !email.trim())) {
+    if (showConfirm || showAlert) Alert.alert('Error', 'This user has no ID or email.');
+    return false;
+  }
+  if (isSelfTargeting(email, targetUid)) {
     if (showConfirm || showAlert) Alert.alert('Permission Denied', 'You cannot ban yourself.');
     return false;
   }
 
-  // ✅ Hierarchy check — strict rank: caller rank must STRICTLY exceed
-  // target rank (Admin > Mod > JMD > User). Source of truth lives here
-  // so every entry point (AdminDashboard, BottomDrawer, PostCard) is
-  // gated even if a UI-level guard is missed or bypassed. Legacy callers
-  // pass only the `isAdmin` boolean; newer callers also stamp full role
-  // flags onto bannerInfo — we union both so neither path silently
-  // regresses below the actual caller's rank.
-  const callerRoles = {
-    isAdmin: !!(isAdmin || bannerInfo?.isAdmin),
-    isSeniorMod: !!bannerInfo?.isSeniorMod,
-    isModerator: !!bannerInfo?.isModerator,
-    isBabyMod: !!bannerInfo?.isBabyMod,
-  };
-  const targetRoles = await resolveTargetRoles(senderId || userInfo?.id, userInfo);
-  if (!canModerate(callerRoles, targetRoles)) {
-    console.warn("Staff hierarchy: caller rank does not exceed target rank.");
-    if (showConfirm || showAlert) Alert.alert("Permission Denied", "You cannot ban this user.");
+  // UX pre-check only (the server re-checks everything): strict rank plus
+  // staff immunity. Legacy callers pass only the `isAdmin` boolean; newer
+  // ones stamp full role flags on bannerInfo — union both.
+  const callerRoles = callerRolesFromBanner({ ...bannerInfo, isAdmin: !!(isAdmin || bannerInfo?.isAdmin) });
+  const targetRoles = await resolveTargetRoles(targetUid, userInfo, email);
+  if (!canSanction(callerRoles, targetRoles) || getStaffRank(callerRoles) === STAFF_RANK.babyMod) {
+    if (showConfirm || showAlert) Alert.alert('Permission Denied', 'You cannot ban this user.');
     return false;
   }
 
-  const executeBan = async () => {
-    try {
-      const snap = await get(banRef);
-
-      let strikeCount = 1;
-      let bannedUntil = Date.now() + 24 * 60 * 60 * 1000; // 24 hours (First Strike)
-      let banDuration = '24 hours';
-
-      if (snap.exists()) {
-        const data = snap.val();
-        if (data && typeof data === 'object') {
-          const currentStrikeCount = data.strikeCount || 0;
-          strikeCount = currentStrikeCount + 1;
-
-          if (strikeCount === 2) {
-            bannedUntil = Date.now() + 3 * 24 * 60 * 60 * 1000; // 3 days (Second Strike)
-            banDuration = '3 days';
-          } else if (strikeCount >= 3) {
-            bannedUntil = "permanent"; // Permanent (Third Strike)
-            banDuration = 'permanent';
-          }
-        }
-      }
-
-      // Save complete ban info
-      const banPayload = {
-        strikeCount,
-        bannedUntil,
-        reason: `Strike ${strikeCount}`,
-        email: email,
-        displayName: userInfo?.displayName || 'Unknown',
-        avatar: userInfo?.avatar || null,
-        userId: userInfo?.id || senderId || null, // Ensure ID is saved
-        bannedAt: Date.now(),
-        bannedBy: {
-          uid: bannerInfo?.id || null,
-          displayName: bannerInfo?.displayName || 'System',
-          avatar: bannerInfo?.avatar || null,
-          role: isAdmin ? 'Admin' : 'Moderator'
-        }
-      };
-      await set(banRef, banPayload);
-
-      // Mirror onto banned_devices so the same device can't bypass with a
-      // new email. Best-effort — if the user has no deviceId on file the
-      // email ban still applies as before.
-      mirrorBanToDevice(email, banPayload.userId, banPayload).catch(() => {});
-
-      // Log mod action for scoring
-      // Delete messages if senderId provided
-      let deletedCount = 0;
-      if (senderId) {
-        const deleteResult = await handleDeleteLast300Messages(senderId, false);
-        deletedCount = deleteResult?.count || 0;
-      }
-
-      if (showAlert) {
-        Alert.alert(
-          'User Banned',
-          `Strike ${strikeCount} applied (${banDuration}).\nUser: ${userInfo?.displayName || email}${deletedCount > 0 ? `\n${deletedCount} messages deleted.` : ''}`
-        );
-      }
-      return true;
-    } catch (err) {
-      console.error('Ban error:', err);
-      if (showAlert) Alert.alert('Error', 'Could not ban user.');
-      return false;
-    }
-  };
-
+  const strikeCount = nextStrikeCount(await getCurrentStrikeCount(targetUid, email));
+  const name = userInfo?.displayName || email || 'this user';
   if (showConfirm) {
-    return new Promise((resolve) => {
-      Alert.alert(
-        'Confirm Ban',
-        `Are you sure you want to ban ${userInfo?.displayName || email}?`,
-        [
-          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-          { text: 'Ban User', style: 'destructive', onPress: async () => resolve(await executeBan()) }
-        ]
-      );
-    });
+    const ok = await confirmAsync('Confirm Ban', `Apply Strike ${strikeCount} (${strikeDurationLabel(strikeCount)}) to ${name}?`, 'Ban User');
+    if (!ok) return false;
   }
-
-  return await executeBan();
+  const r = await applySanction({
+    action: 'strike', targetUid, email, strikeCount,
+    reason: extra?.reason, evidence: extra?.evidence,
+    userInfo, bannerInfo: { ...bannerInfo, isAdmin: !!(isAdmin || bannerInfo?.isAdmin) },
+  });
+  if (!r.ok) {
+    if (showConfirm || showAlert) Alert.alert('Error', sanctionErrorText(r.error));
+    return false;
+  }
+  if (showAlert) Alert.alert('User Banned', `Strike ${strikeCount} applied (${strikeDurationLabel(strikeCount)}).\nUser: ${name}`);
+  return true;
 };
 
 /**
- * Set a specific strike level (1, 2, or 3) on a user - used by AdminDashboard
- * Strike 1: 3 hours | Strike 2: 3 days | Strike 3+: Permanent
- * @param {string} email - User email
+ * Set a specific strike level (1, 2, or 3) on a user.
+ * Strike 1: 3 hours | Strike 2: 3 days | Strike 3: permanent (STRIKE_LADDER).
+ * @param {string} email - User email (only needed when there is no userId)
  * @param {number} strikeCount - 1, 2, or 3
- * @param {string} userId - User ID (for fetching displayName/avatar)
+ * @param {string} userId - target uid (preferred: goes through the server)
  * @param {boolean} showAlert - Show success/error alert
- * @param {object} bannerInfo - Optional { id, displayName, avatar } of admin applying strike
- * @param {object} userInfo - Optional { displayName, avatar } of user being banned - prevents name becoming "Unknown"
+ * @param {object} bannerInfo - caller { displayName, avatar, isAdmin, isSeniorMod, isModerator, isBabyMod }
+ * @param {object} userInfo - target { displayName, avatar, role flags }
+ * @param {boolean} showConfirm
+ * @param {string} customReason
+ * @param {object} [extra] { evidence }
  */
-export const setUserStrike = async (email, strikeCount, userId = null, showAlert = true, bannerInfo = {}, userInfo = {}, showConfirm = true, customReason = null) => {
-  if (!email || typeof email !== 'string' || email.trim().length === 0) {
-    if (showAlert) Alert.alert('Error', 'User has no email associated.');
+export const setUserStrike = async (email, strikeCount, userId = null, showAlert = true, bannerInfo = {}, userInfo = {}, showConfirm = true, customReason = null, extra = {}) => {
+  if (!userId && (!email || typeof email !== 'string' || !email.trim())) {
+    if (showAlert) Alert.alert('Error', 'This user has no ID or email.');
     return false;
   }
   if (![1, 2, 3].includes(strikeCount)) {
     if (showAlert) Alert.alert('Error', 'Invalid strike count. Use 1, 2, or 3.');
     return false;
   }
-
-  // ✅ Self-target guard: prevents the "self-strike → reset" trick.
-  if (isSelfTargeting(email)) {
+  if (isSelfTargeting(email, userId)) {
     if (showAlert) Alert.alert('Permission Denied', 'You cannot strike yourself.');
     return false;
   }
-
-  // ✅ Hierarchy check — caller rank must strictly exceed target rank.
-  // bannerInfo carries caller's role flags (isAdmin/isModerator/isBabyMod);
-  // target roles are pulled fresh from RTDB so a stale userInfo can't
-  // mask a promotion that happened mid-session.
   const callerRoles = callerRolesFromBanner(bannerInfo);
-  const targetRoles = await resolveTargetRoles(userId, userInfo);
-  if (!canModerate(callerRoles, targetRoles)) {
-    console.warn("Staff hierarchy: caller rank does not exceed target rank.");
-    if (showAlert || showConfirm) {
-      Alert.alert('Permission Denied', 'You cannot strike this user.');
-    }
+  const targetRoles = await resolveTargetRoles(userId, userInfo, email);
+  if (!canSanction(callerRoles, targetRoles) || getStaffRank(callerRoles) === STAFF_RANK.babyMod) {
+    if (showAlert || showConfirm) Alert.alert('Permission Denied', 'You cannot strike this user.');
     return false;
   }
-
-  const encodeEmail = (em) => em.replace(/\./g, '(dot)');
-  const database = getDatabase();
-  const banRef = ref(database, `banned_users_by_email/${encodeEmail(email)}`);
-
-  const executeStrike = async () => {
-    try {
-      let bannedUntil;
-      let banDuration;
-      if (strikeCount === 1) {
-        bannedUntil = Date.now() + 3 * 60 * 60 * 1000; // 3 hours
-        banDuration = '3 hours';
-      } else if (strikeCount === 2) {
-        bannedUntil = Date.now() + 3 * 24 * 60 * 60 * 1000; // 3 days
-        banDuration = '3 days';
-      } else {
-        bannedUntil = 'permanent';
-        banDuration = 'permanent';
-      }
-
-      // ✅ No-downgrade guard: refuse to overwrite a stricter existing ban
-      // with a softer one (the core of the JMD self-ban trick).
-      try {
-        const existingSnap = await get(banRef);
-        if (existingSnap.exists()) {
-          const existing = existingSnap.val() || {};
-          const existingStrike = existing.strikeCount || 0;
-          const existingUntil = existing.bannedUntil;
-          const isExistingActive =
-            existingUntil === 'permanent' ||
-            (typeof existingUntil === 'number' && existingUntil > Date.now());
-          if (
-            isExistingActive &&
-            (existingUntil === 'permanent' ||
-              (typeof existingUntil === 'number' && existingUntil > bannedUntil) ||
-              existingStrike > strikeCount)
-          ) {
-            if (showAlert) Alert.alert('Action Blocked', 'A stricter ban is already active on this user.');
-            return false;
-          }
-        }
-      } catch (_) { /* fall through — write attempt below */ }
-
-      // Get user displayName & avatar
-      let displayName = userInfo?.displayName || userInfo?.userName || null;
-      let avatar = userInfo?.avatar || null;
-      if (!displayName || displayName === 'Unknown') {
-        try {
-          const snap = await get(banRef);
-          if (snap.exists() && snap.val()?.displayName) {
-            displayName = snap.val().displayName;
-            avatar = avatar || snap.val().avatar;
-          }
-        } catch (_) { /* ignore */ }
-      }
-      if (!displayName && userId) {
-        // Leaf reads, not the whole users/{uid} record (which carried the
-        // target's email and every other field just to get a name).
-        try {
-          const [nameSnap, legacyNameSnap, avatarSnap] = await Promise.all([
-            get(ref(database, `users/${userId}/displayName`)),
-            get(ref(database, `users/${userId}/userName`)),
-            avatar ? null : get(ref(database, `users/${userId}/avatar`)),
-          ]);
-          displayName = (nameSnap.exists() && nameSnap.val()) || (legacyNameSnap.exists() && legacyNameSnap.val()) || null;
-          avatar = avatar || (avatarSnap?.exists() ? avatarSnap.val() : null);
-        } catch (_) { /* ignore */ }
-      }
-      displayName = displayName || 'Unknown';
-
-      const banPayload = {
-        strikeCount,
-        bannedUntil,
-        reason: customReason || `Strike ${strikeCount}`,
-        email,
-        displayName,
-        avatar,
-        userId: userId || null,
-        bannedAt: Date.now(),
-        bannedBy: {
-          uid: bannerInfo?.id || null,
-          displayName: bannerInfo?.displayName || 'Admin',
-          avatar: bannerInfo?.avatar || null,
-          role: 'Admin'
-        }
-      };
-      await set(banRef, banPayload);
-
-      // Mirror onto banned_devices for cross-email enforcement.
-      mirrorBanToDevice(email, userId, banPayload).catch(() => {});
-
-      // Delete messages if userId provided
-      if (userId) {
-        handleDeleteLast300Messages(userId, false).catch(() => { });
-      }
-
-      if (showAlert) {
-        Alert.alert(
-          'Strike Applied',
-          `Strike ${strikeCount} applied (${banDuration}).\nUser: ${displayName}`
-        );
-      }
-      return true;
-    } catch (err) {
-      console.error('setUserStrike error:', err);
-      if (showAlert) Alert.alert('Error', 'Could not apply strike.');
-      return false;
-    }
-  };
-
+  const userName = userInfo?.displayName || userInfo?.userName || email || 'this user';
   if (showConfirm) {
-    const durationText = strikeCount === 1 ? '3 hours' : strikeCount === 2 ? '3 days' : 'permanently';
-    const userName = userInfo?.displayName || userInfo?.userName || email || 'this user';
-
-    return new Promise((resolve) => {
-      Alert.alert(
-        'Confirm Strike',
-        `Are you sure you want to apply Strike ${strikeCount} to ${userName}? This will ban them ${durationText}.`,
-        [
-          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-          { text: 'Apply Strike', style: 'destructive', onPress: async () => resolve(await executeStrike()) }
-        ]
-      );
-    });
+    const ok = await confirmAsync('Confirm Strike', `Apply Strike ${strikeCount} to ${userName}? This bans them for ${strikeDurationLabel(strikeCount)}.`, 'Apply Strike');
+    if (!ok) return false;
   }
-
-  return await executeStrike();
+  const r = await applySanction({
+    action: 'strike', targetUid: userId, email, strikeCount,
+    reason: customReason, evidence: extra?.evidence, userInfo, bannerInfo,
+  });
+  if (!r.ok) {
+    if (showAlert) Alert.alert('Error', sanctionErrorText(r.error));
+    return false;
+  }
+  if (showAlert) Alert.alert('Strike Applied', `Strike ${strikeCount} applied (${strikeDurationLabel(strikeCount)}).\nUser: ${userName}`);
+  return true;
 };
 
-export const unbanUserWithEmail = async (email, showAlert = true) => {
-  // ✅ Safety check
-  if (!email || typeof email !== 'string' || email.trim().length === 0) {
-    console.error('❌ Invalid email for unbanUserWithEmail');
-    if (showAlert) Alert.alert('Error', 'Invalid email address.');
+/**
+ * Lift a ban by email (older call sites). Goes through the server by uid —
+ * `extra.uid`, or the userId on the email record. No direct delete.
+ * @param {object} [extra] { uid, reason, action: 'unban'|'unmute' }
+ */
+export const unbanUserWithEmail = async (email, showAlert = true, extra = {}) => {
+  let uid = extra?.uid || null;
+  if (!uid && email) {
+    const v = (await get(ref(getDatabase(), `banned_users_by_email/${encodeEmailKey(email)}/userId`)).catch(() => null))?.val();
+    uid = typeof v === 'string' && v ? v : null;
+  }
+  if (!uid) {
+    if (showAlert) Alert.alert('Error', 'This ban record has no user ID, so the server cannot lift it.');
     return false;
   }
-
-  // ✅ Self-target guard: a banned admin/mod must not be able to unban
-  // themselves through the dashboard or any other entry point.
-  if (isSelfTargeting(email)) {
+  if (isSelfTargeting(email, uid)) {
     if (showAlert) Alert.alert('Permission Denied', 'You cannot unban yourself.');
     return false;
   }
-
-  const encodeEmail = (em) => em.replace(/\./g, '(dot)');
-  try {
-    const db = getDatabase();
-    const banRef = ref(db, `banned_users_by_email/${encodeEmail(email)}`);
-
-    // Read first so we can clear every mirrored banned_devices entry.
-    // mirrorBanToDevice may write multiple device ids when the stamped
-    // one and the current device fp differ (self-ban edge case), so we
-    // honour the `deviceIds` array if present and fall back to the
-    // legacy `deviceId` scalar for older entries.
-    const mirroredIds = new Set();
-    try {
-      const snap = await get(banRef);
-      const v = snap.val();
-      if (Array.isArray(v?.deviceIds)) {
-        for (const id of v.deviceIds) {
-          if (typeof id === 'string' && id.length > 0) mirroredIds.add(id);
-        }
-      }
-      if (typeof v?.deviceId === 'string' && v.deviceId.length > 0) {
-        mirroredIds.add(v.deviceId);
-      }
-    } catch (_) { /* ignore */ }
-
-    await set(banRef, null);
-
-    if (mirroredIds.size > 0) {
-      Promise.all(
-        Array.from(mirroredIds).map((id) =>
-          set(ref(db, `banned_devices/${id}`), null).catch(() => {})
-        )
-      ).catch(() => {});
-    }
-
-    if (showAlert) Alert.alert('User Unbanned', 'Ban has been lifted.');
-    return true;
-  } catch (err) {
-    console.error('Unban error:', err);
-    if (showAlert) Alert.alert('Error', 'Could not unban user.');
+  const r = await liftSanction({ action: extra?.action || 'unban', targetUid: uid, reason: extra?.reason });
+  if (!r.ok) {
+    if (showAlert) Alert.alert('Error', sanctionErrorText(r.error));
     return false;
   }
+  if (showAlert) Alert.alert('User Unbanned', 'Ban has been lifted.');
+  return true;
 };
 
 /**
@@ -1050,8 +1133,7 @@ export const useBanStatus = (email) => {
       }
 
       const db = getDatabase();
-      const encodeEmail = (em) => (em || '').toLowerCase().trim().replace(/\./g, '(dot)');
-      const banRef = ref(db, `banned_users_by_email/${encodeEmail(email)}`);
+      const banRef = ref(db, `banned_users_by_email/${encodeEmailKey(email)}`);
 
       let currentBan = null;
       let expiryTimer = null;
@@ -1077,7 +1159,7 @@ export const useBanStatus = (email) => {
           setBanDetails(null);
           return;
         }
-        const probeUid = getAuth()?.currentUser?.uid || encodeEmail(email);
+        const probeUid = getAuth()?.currentUser?.uid || encodeEmailKey(email);
         const serverNow = (await getServerTime(db, probeUid)).getTime();
         if (cancelled) return;
         const remaining = data.bannedUntil - serverNow;
@@ -1110,10 +1192,9 @@ export const useBanStatus = (email) => {
 export const checkBanStatus = async (email) => {
   if (!email) return { isBanned: false };
 
-  const encodeEmail = (email) => email.replace(/\./g, '(dot)');
   try {
     const db = getDatabase();
-    const banRef = ref(db, `banned_users_by_email/${encodeEmail(email)}`);
+    const banRef = ref(db, `banned_users_by_email/${encodeEmailKey(email)}`);
     const snap = await get(banRef);
 
     if (snap.exists()) {
@@ -1127,7 +1208,7 @@ export const checkBanStatus = async (email) => {
       if (typeof bannedUntil === 'number') {
         // Compare against authoritative server time, not Date.now() — a
         // tampered device clock would otherwise let a banned user slip past.
-        const probeUid = getAuth()?.currentUser?.uid || encodeEmail(email);
+        const probeUid = getAuth()?.currentUser?.uid || encodeEmailKey(email);
         const serverNow = (await getServerTime(db, probeUid)).getTime();
         if (serverNow < bannedUntil) {
           // Display countdown in device-clock terms (cosmetic). The gate
@@ -1166,6 +1247,7 @@ export const makeSeniorMod = async (userId, callerRoles = {}) => {
     const db = getDatabase();
     const userRef = ref(db, `users/${userId}`);
     await update(userRef, { isSeniorMod: true, rolesUpdatedAt: Date.now() });
+    logModAction('role_change', userId, { role: 'isSeniorMod', value: true });
     Alert.alert('Success', 'User is now a Senior Mod.');
     return true;
   } catch (error) {
@@ -1193,6 +1275,7 @@ export const removeSeniorMod = async (userId, callerRoles = {}) => {
     const db = getDatabase();
     const userRef = ref(db, `users/${userId}`);
     await update(userRef, { isSeniorMod: false, rolesUpdatedAt: Date.now() });
+    logModAction('role_change', userId, { role: 'isSeniorMod', value: false });
     Alert.alert('Success', 'Senior Mod privileges removed.');
     return true;
   } catch (error) {
@@ -1222,6 +1305,7 @@ export const makeModerator = async (userId, callerRoles = {}) => {
     // rolesUpdatedAt forces the Supabase mirror to run even if the flag value
     // is unchanged (see functions/mirrorUsersToSupabase.js ROLES_KEYS).
     await update(userRef, { isModerator: true, rolesUpdatedAt: Date.now() });
+    logModAction('role_change', userId, { role: 'isModerator', value: true });
     Alert.alert('Success', 'User is now a moderator.');
     return true;
   } catch (error) {
@@ -1251,6 +1335,7 @@ export const removeModerator = async (userId, callerRoles = {}) => {
     // The stamp makes a repeat removal a real write so a stale Supabase copy
     // of the role gets re-mirrored instead of living forever.
     await update(userRef, { isModerator: false, rolesUpdatedAt: Date.now() });
+    logModAction('role_change', userId, { role: 'isModerator', value: false });
     Alert.alert('Success', 'Moderator privileges removed.');
     return true;
   } catch (error) {
@@ -1277,6 +1362,7 @@ export const makeBabyMod = async (userId, callerRoles = {}) => {
   try {
     const db = getDatabase();
     await update(ref(db, `users/${userId}`), { isBabyMod: true, rolesUpdatedAt: Date.now() });
+    logModAction('role_change', userId, { role: 'isBabyMod', value: true });
     return true;
   } catch (error) {
     console.error('Error promoting JMD:', error);
@@ -1305,6 +1391,7 @@ export const removeBabyMod = async (userId, callerRoles = {}) => {
   try {
     const db = getDatabase();
     await update(ref(db, `users/${userId}`), { isBabyMod: null, rolesUpdatedAt: Date.now() });
+    logModAction('role_change', userId, { role: 'isBabyMod', value: false });
     return true;
   } catch (error) {
     console.error('Error removing JMD:', error);
@@ -1409,88 +1496,47 @@ export const useOtherLastRead = (chatKey, otherUserId) => {
   return lastRead;
 };
 
-// ✅ Mute user for X minutes
-export const muteUser = async (email, minutes, userInfo = null, bannerInfo = null, showAlert = true, customReason = null) => {
-  if (!email || typeof email !== 'string' || email.trim().length === 0) {
-    console.error('❌ Invalid email for muteUser');
-    if (showAlert) Alert.alert('Error', 'Invalid email address.');
+// ✅ Mute user for X minutes (chat only; keeps the strike count). Kept for
+// older call sites; goes through the server by uid like applySanction.
+// @param {object} [extra] { evidence }
+export const muteUser = async (email, minutes, userInfo = null, bannerInfo = null, showAlert = true, customReason = null, extra = {}) => {
+  const targetUid = userInfo?.id || null;
+  if (!targetUid && (!email || typeof email !== 'string' || !email.trim())) {
+    if (showAlert) Alert.alert('Error', 'This user has no ID or email.');
     return false;
   }
-
   if (!minutes || minutes < 1) {
     if (showAlert) Alert.alert('Error', 'Mute duration must be at least 1 minute.');
     return false;
   }
-
   // ✅ Self-target guard: blocks the JMD "self-mute → reset" trick.
-  if (isSelfTargeting(email)) {
+  if (isSelfTargeting(email, targetUid)) {
     if (showAlert) Alert.alert('Permission Denied', 'You cannot mute yourself.');
     return false;
   }
-
-  // ✅ Hierarchy check — caller rank must strictly exceed target rank.
-  // Mute used to be the unguarded backdoor (banUserwithEmail had a check,
-  // muteUser did not), so it was the cleanest path for Mod-on-Mod hits.
+  // UX pre-check (the server re-checks): strict rank, staff immunity, JMD ≤ 2 h.
   const callerRoles = callerRolesFromBanner(bannerInfo);
-  const targetRoles = await resolveTargetRoles(userInfo?.id, userInfo);
-  if (!canModerate(callerRoles, targetRoles)) {
-    console.warn("Staff hierarchy: caller rank does not exceed target rank.");
+  const targetRoles = await resolveTargetRoles(targetUid, userInfo || {}, email);
+  const perms = getModPermissions(callerRoles, targetRoles);
+  if (!perms.canMute) {
     if (showAlert) Alert.alert('Permission Denied', 'You cannot mute this user.');
     return false;
   }
-
-  try {
-    const db = getDatabase();
-    const encodeEmail = (em) => (em || '').toLowerCase().trim().replace(/\./g, '(dot)');
-    const banRef = ref(db, `banned_users_by_email/${encodeEmail(email)}`);
-    const snap = await get(banRef);
-
-    // Preserve existing strikeCount if user was previously banned
-    const existingStrikeCount = snap.exists() ? (snap.val()?.strikeCount || 0) : 0;
-
-    // ✅ No-downgrade guard: a short mute must not overwrite a longer/stricter
-    // existing ban. This is the actual mechanism behind the self-ban trick:
-    // muteUser used to clobber a Strike-2 (3-day) ban with a 5-min entry.
-    if (snap.exists()) {
-      const existing = snap.val() || {};
-      const existingUntil = existing.bannedUntil;
-      const newBannedUntil = Date.now() + minutes * 60 * 1000;
-      const isExistingActive =
-        existingUntil === 'permanent' ||
-        (typeof existingUntil === 'number' && existingUntil > Date.now());
-      if (
-        isExistingActive &&
-        (existingUntil === 'permanent' ||
-          (typeof existingUntil === 'number' && existingUntil > newBannedUntil))
-      ) {
-        if (showAlert) Alert.alert('Action Blocked', 'A longer ban is already active on this user.');
-        return false;
-      }
-    }
-
-    const muteData = {
-      strikeCount: existingStrikeCount,
-      bannedUntil: Date.now() + minutes * 60 * 1000,
-      reason: customReason || `Muted for ${minutes} min`,
-      bannedAt: Date.now(),
-      userId: userInfo?.id || null,
-      displayName: userInfo?.displayName || 'Unknown User',
-      avatar: userInfo?.avatar || null,
-      email: email,
-      bannedBy: bannerInfo?.id || bannerInfo?.displayName || 'Admin',
-      bannerAvatar: bannerInfo?.avatar || null,
-    };
-
-    await set(banRef, muteData);
-
-    if (showAlert) {
-      Alert.alert('User Muted', `Muted for ${minutes} minute${minutes !== 1 ? 's' : ''}.`);
-    }
-
-    return true;
-  } catch (err) {
-    console.error('Mute error:', err);
-    if (showAlert) Alert.alert('Error', 'Could not mute user.');
+  if (perms.maxMuteMinutes && minutes > perms.maxMuteMinutes) {
+    if (showAlert) Alert.alert('Permission Denied', sanctionErrorText('rank_limit'));
     return false;
   }
+  const r = await applySanction({
+    action: 'mute', targetUid, email, minutes,
+    reason: customReason, evidence: extra?.evidence,
+    userInfo: userInfo || {}, bannerInfo: bannerInfo || {},
+  });
+  if (!r.ok) {
+    if (showAlert) Alert.alert('Error', sanctionErrorText(r.error));
+    return false;
+  }
+  if (showAlert) {
+    Alert.alert('User Muted', `Muted for ${minutes} minute${minutes !== 1 ? 's' : ''}.`);
+  }
+  return true;
 };

@@ -16,7 +16,8 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useGlobalState } from '../../GlobelStats';
+import { useGlobalState, modGateText } from '../../GlobelStats';
+import { encodeEmailKey } from '../../Helper/banKeys';
 import { ref, get, query, orderByValue, equalTo, limitToFirst, startAfter, orderByChild, startAt, endAt } from '@react-native-firebase/database';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -51,7 +52,7 @@ const OnlineUsersList = ({
   // mode: 'view' = just view online users and start chats
   // mode: 'select' = select users for group creation/addition
   // mode: 'gameInvite' = select users to invite to game
-  const { theme, user, appdatabase, firestoreDB, isAdmin, isSeniorMod, isModerator, isBabyMod } = useGlobalState();
+  const { theme, user, appdatabase, firestoreDB, isAdmin, isSeniorMod, isModerator, isBabyMod, getModGate } = useGlobalState();
   // Search by email is staff-only: emails live in users_private (round 2),
   // which only staff can read.
   const canSearchByEmail = !!(isAdmin || isSeniorMod || isModerator || isBabyMod);
@@ -429,7 +430,7 @@ const OnlineUsersList = ({
         } catch (err) { /* ignore */ }
       } else if (isEmailSearch) {
         const email = raw.toLowerCase().trim();
-        const encodedEmail = email.replace(/\./g, '(dot)');
+        const encodedEmail = encodeEmailKey(email);
         try {
           const directSnap = await get(ref(appdatabase, `users/${encodedEmail}`));
           if (directSnap.exists()) {
@@ -539,6 +540,15 @@ const OnlineUsersList = ({
       return;
     }
 
+    // Groups are a chat surface: banned and muted users can't invite people
+    // or start a group (admins exempt).
+    const modGate = getModGate('chat');
+    if (modGate) {
+      const { title, message } = modGateText(modGate, 'group');
+      showErrorMessage(title, message);
+      return;
+    }
+
     triggerHapticFeedback('impactMedium');
 
     // If user has existing group, add members to it
@@ -588,7 +598,7 @@ const OnlineUsersList = ({
       // Create new group
       setShowCreateGroupModal(true);
     }
-  }, [selectedUserIds, userGroup, user, appdatabase, firestoreDB, allOnlineUsers, searchResults, triggerHapticFeedback]);
+  }, [selectedUserIds, userGroup, user, appdatabase, firestoreDB, allOnlineUsers, searchResults, triggerHapticFeedback, getModGate]);
 
   // ✅ Handle group created (navigate to group chat)
   const handleGroupCreated = useCallback((groupId) => {

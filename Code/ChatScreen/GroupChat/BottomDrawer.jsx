@@ -11,8 +11,6 @@ import {
   Alert,
   Linking,
   Platform,
-  TextInput,
-  KeyboardAvoidingView,
 } from 'react-native';
 import { useGlobalState } from '../../GlobelStats';
 import { getThemeColors } from '../../Helper/themeColors';
@@ -57,10 +55,18 @@ import { getRoblox, getRoles, getCosmetics } from '../../Supabase/userBackend';
 import { SUPABASE_USERS_ENABLED } from '../../Supabase/featureFlags';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { banUserwithEmail, unbanUserWithEmail, setUserStrike, checkBanStatus, makeSeniorMod, removeSeniorMod, makeModerator, removeModerator, muteUser, makeBabyMod, removeBabyMod, canModerate, handleDeleteLast300Messages } from '../utils'; // ✅ Import moderator utils
-import { getAuth } from '@react-native-firebase/auth';
+import {
+  makeSeniorMod, removeSeniorMod, makeModerator, removeModerator, makeBabyMod, removeBabyMod, canModerate,
+  applySanction, liftSanction, getSanctionStatus, getModPermissions, canLiftSanction, fetchUserRoles,
+  isCurrentUserOwner, isOwnerEmail,
+} from '../utils'; // ✅ Import moderator utils
 import { getUserEmail } from '../../Helper/privateProfile';
-import { callModSanction, sanctionErrorText, describeSanctionResult } from '../../Helper/modSanction';
+import {
+  callModSanction, sanctionErrorText, describeSanctionResult, logModAction,
+  STRIKE_LADDER, strikeDurationLabel, formatMuteMinutes,
+} from '../../Helper/modSanction';
+import ModActionModal from '../../AppHelper/ModActionModal';
+import ModHistoryList from '../../AppHelper/ModHistoryList';
 
 // Initialize dayjs plugins
 dayjs.extend(relativeTime);
@@ -213,10 +219,11 @@ const ProfileBottomDrawer = ({
   const [loadingPets, setLoadingPets] = useState(false);
   const [showModTools, setShowModTools] = useState(false);
 
-  // ✅ Admin Reason Modal States
-  const [showReasonModal, setShowReasonModal] = useState(false);
-  const [reasonActionType, setReasonActionType] = useState(null);
-  const [adminReason, setAdminReason] = useState('');
+  // ✅ Moderation prompt (reason + linked accounts). Holds everything about
+  // the target at open time: the drawer closes first and the parent may
+  // clear selectedUser, so nothing is re-read from props at confirm time.
+  const [modAction, setModAction] = useState(null);
+  const [showModHistory, setShowModHistory] = useState(false);
 
   // 💼 trades list (from Firestore /trades_new_upgrade where userId == selectedUserId)
   const [trades, setTrades] = useState([]);
@@ -229,8 +236,10 @@ const ProfileBottomDrawer = ({
 
   // ✅ State for fetched user data (roblox username, verified status, etc.)
   const [userData, setUserData] = useState(null);
-  // ✅ State for ban status (fetched dynamically)
-  const [isBanned, setIsBanned] = useState(false);
+  // ✅ Target's current sanction (staff only, fetched when Mod Tools open)
+  const [sanction, setSanction] = useState(null);
+  const [bannerRoles, setBannerRoles] = useState(null);
+  const [sanctionTick, setSanctionTick] = useState(0); // bump to refetch
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
 
@@ -367,29 +376,29 @@ const ProfileBottomDrawer = ({
     };
   }, [selectedUserId, selectedUser?.robloxUsername, selectedUser?.robloxUserId, selectedUser?.flage, selectedUser?.isPro, selectedUser?.lastGameWinAt, appdatabase]);
 
-  // ✅ Fetch ban status — staff only. It only drives the Unban chip in the
-  // staff tools, and another user's email is staff-only data (round 2).
-  const canSeeUnban = !!(isAdmin || isGlobalSenior || isGlobalModerator);
+  // ✅ Current sanction — staff only, and only once Mod Tools are opened
+  // (another user's email and ban records are staff-only data). Reads the
+  // server's uid record and the email record (getSanctionStatus), plus the
+  // original banner's roles so we only offer a lift the server will accept.
+  const isStaffViewer = !!(isAdmin || isGlobalSenior || isGlobalModerator || isGlobalBabyMod);
   useEffect(() => {
-    if (!canSeeUnban) return undefined;
+    if (!isStaffViewer || !showModTools || !selectedUserId || selectedUserId === user?.id) return undefined;
     let alive = true;
+    setSanction(null);
     (async () => {
       // Records stop carrying an email after round 2 — resolve it from
       // users_private (staff-readable) when the row has none.
-      const email = selectedUser?.email || (selectedUserId ? await getUserEmail(appdatabase, selectedUserId) : null);
+      const email = selectedUser?.email || await getUserEmail(appdatabase, selectedUserId);
+      const status = await getSanctionStatus(selectedUserId, email);
       if (!alive) return;
-      if (email) {
-        const status = await checkBanStatus(email);
-        if (status?.isBanned) { if (alive) setIsBanned(true); return; }
-      }
-      // Server-side uid ban (accounts with no email, deleted accounts, alts).
-      if (!selectedUserId) return;
-      const uidBan = (await get(ref(appdatabase, `banned_uids/${selectedUserId}`)).catch(() => null))?.val();
-      const until = uidBan?.bannedUntil;
-      if (alive) setIsBanned(until === 'permanent' || (typeof until === 'number' && until > Date.now()));
-    })().catch(() => {});
+      setSanction({ ...status, email: email || null });
+      const roles = status.active && status.bannedByUid ? await fetchUserRoles(status.bannedByUid) : null;
+      if (alive) setBannerRoles(roles);
+    })().catch(() => {
+      if (alive) setSanction({ active: false, type: null, strikeCount: 0, email: null, failed: true });
+    });
     return () => { alive = false; };
-  }, [canSeeUnban, selectedUser?.email, selectedUserId, appdatabase]);
+  }, [isStaffViewer, showModTools, selectedUser?.email, selectedUserId, appdatabase, user?.id, sanctionTick]);
 
   // ✅ Merge selectedUser with fetched userData
   const mergedUser = useMemo(() => {
@@ -528,138 +537,152 @@ const ProfileBottomDrawer = ({
   }, []);
 
   // ─────────────────────────────────────────────
-  // Ban / Unban Logic (Admin)
-  const getTargetEmail = async () => {
-    let targetEmail = null;
-    const authUser = getAuth().currentUser;
-    if (authUser && authUser.uid === selectedUserId) targetEmail = authUser.email;
-    // Staff-only read of users_private/{uid}/email (legacy users/{uid}/email
-    // until the PII migration runs) — no longer the whole users/{uid} record.
-    if (!targetEmail) targetEmail = await getUserEmail(appdatabase, selectedUserId);
-    return targetEmail || selectedUser?.email || null;
+  // Moderation (staff). Every sanction and lift goes to the server by uid
+  // (utils.applySanction / liftSanction → Helper/modSanction). The checks
+  // below only decide which buttons to show; the server re-checks all of
+  // them (contract §2): strict rank, staff immunity (staff targets: admin /
+  // owner only), JMD = mute ≤ 2 h + unmute, lifts need the banner's rank.
+  const callerRoles = useMemo(() => ({
+    isAdmin: !!isAdmin,
+    isSeniorMod: !!isGlobalSenior,
+    isModerator: !!isGlobalModerator,
+    isBabyMod: !!isGlobalBabyMod,
+    isOwner: isCurrentUserOwner(),
+  }), [isAdmin, isGlobalSenior, isGlobalModerator, isGlobalBabyMod]);
+  const targetRoles = useMemo(() => ({
+    isAdmin: !!mergedUser?.isAdmin,
+    isSeniorMod: !!mergedUser?.isSeniorMod,
+    isModerator: !!mergedUser?.isModerator,
+    isBabyMod: !!mergedUser?.isBabyMod,
+    isOwner: isOwnerEmail(sanction?.email),
+  }), [mergedUser?.isAdmin, mergedUser?.isSeniorMod, mergedUser?.isModerator, mergedUser?.isBabyMod, sanction?.email]);
+  const modPerms = useMemo(() => getModPermissions(callerRoles, targetRoles), [callerRoles, targetRoles]);
+  const canLiftCurrent = !!(sanction?.active && canLiftSanction(callerRoles, targetRoles, sanction.type, bannerRoles));
+
+  // Close the drawer, then open the reason prompt with a snapshot of the target.
+  const openModAction = (action) => {
+    setModAction({
+      ...action,
+      targetUid: selectedUserId,
+      targetName: userName || 'this user',
+      email: sanction?.email || selectedUser?.email || null,
+      userInfo: {
+        id: selectedUserId,
+        displayName: mergedUser?.displayName || mergedUser?.sender || userName,
+        avatar: mergedUser?.avatar,
+        ...targetRoles,
+      },
+    });
+    toggleModal(); // close profile drawer
   };
 
-  const handleSetStrike = async (strikeCount) => {
-    // No email (deleted account, phone sign-in) → confirmAdminAction bans by
-    // uid through the server instead of stopping here.
-    const targetEmail = await getTargetEmail();
-    // Strict hierarchy: caller rank must exceed target rank. utils.js
-    // re-checks against fresh RTDB roles; this is the UX-friendly early
-    // bail so we don't open the reason modal for a guaranteed-no-op.
-    const callerRoles = { isAdmin, isSeniorMod: isGlobalSenior, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod };
-    const targetRoles = {
-      isAdmin: !!mergedUser?.isAdmin,
-      isSeniorMod: !!mergedUser?.isSeniorMod,
-      isModerator: !!mergedUser?.isModerator,
-      isBabyMod: !!mergedUser?.isBabyMod,
-    };
-    if (!canModerate(callerRoles, targetRoles)) {
+  const handleSetStrike = (strikeCount) => {
+    if (!modPerms.canStrike) {
       Alert.alert(t('chat.permission_denied'), t('chat.mod_cannot_ban'));
       return;
     }
-    // Open reason modal instead of executing immediately
-    setReasonActionType({ type: 'strike', value: strikeCount, email: targetEmail });
-    setAdminReason('');
-    toggleModal(); // close profile drawer
-    setShowReasonModal(true); // open reason modal
+    openModAction({ kind: 'strike', value: strikeCount });
   };
 
-  const handleUnbanUser = async () => {
-    let targetEmail = null;
-
-    // 1️⃣ Try Auth (if unbanning self)
-    const currentUser = getAuth().currentUser;
-    if (currentUser && currentUser.uid === selectedUserId) {
-      targetEmail = currentUser.email;
+  const handleMuteUser = (minutes) => {
+    if (!modPerms.canMute || (modPerms.maxMuteMinutes && minutes > modPerms.maxMuteMinutes)) {
+      Alert.alert(t('chat.permission_denied'), t('chat.mod_cannot_ban'));
+      return;
     }
-
-    // 2️⃣ Try users_private (staff-only; legacy users/{uid}/email fallback)
-    if (!targetEmail) {
-      targetEmail = await getUserEmail(appdatabase, selectedUserId);
-    }
-
-    // 3️⃣ Fallback to prop
-    if (!targetEmail && selectedUser?.email) {
-      targetEmail = selectedUser.email;
-    }
-
-    Alert.alert(
-      t('chat.unban_user'),
-      t('chat.unban_confirm', { name: userName }),
-      [
-        { text: t('chat.cancel'), style: "cancel" },
-        {
-          text: t('chat.unban'),
-          onPress: async () => {
-            // Server lifts the uid ban, its devices and any linked alts.
-            const r = await callModSanction('unban', selectedUserId);
-            if (targetEmail) {
-              const success = await unbanUserWithEmail(targetEmail, true);
-              if (success) setIsBanned(false);
-            } else if (r.ok) {
-              setIsBanned(false);
-              Alert.alert('User Unbanned', 'Ban has been lifted.');
-            } else {
-              Alert.alert(t('chat.error'), sanctionErrorText(r.error));
-            }
-          }
-        }
-      ]
-    );
+    openModAction({ kind: 'mute', value: minutes });
   };
 
-  // Other accounts seen on the same device(s) — server index, staff only.
+  // Unban or unmute, whichever is active — through the server only.
+  const handleLiftSanction = () => {
+    if (!canLiftCurrent) return;
+    openModAction({ kind: sanction?.type === 'mute' ? 'unmute' : 'unban' });
+  };
+
+  // Other accounts seen on the same device(s) — server index, Mod and up.
+  const [loadingLinked, setLoadingLinked] = useState(false);
   const handleShowLinkedAccounts = async () => {
+    if (loadingLinked) return;
+    setLoadingLinked(true);
     const r = await callModSanction('linked', selectedUserId);
+    setLoadingLinked(false);
     if (!r.ok) {
       Alert.alert(t('chat.error'), sanctionErrorText(r.error));
       return;
     }
-    const linked = r.linked || [];
-    const header = `${r.devices} device(s) on record${r.accountDeleted ? ' · account deleted' : ''}.`;
+    const linked = Array.isArray(r.linked) ? r.linked : [];
+    const header = `${r.devices ?? 0} device(s) on record${r.accountDeleted ? ' · account deleted' : ''}.`;
     if (linked.length === 0) {
       Alert.alert('Linked Accounts', `${header}\nNo other accounts found on these devices.`);
       return;
     }
-    const lines = linked.map((a) =>
-      `• ${a.displayName || 'Unknown'}${a.exists ? '' : ' (deleted)'}${a.banned ? ' [banned]' : ''}\n  ${a.uid}`
-    );
-    const more = r.linkedTotal > linked.length ? `\n…and ${r.linkedTotal - linked.length} more` : '';
-    const buttons = [
-      { text: 'Copy IDs', onPress: () => copyToClipboard(linked.map((a) => a.uid).join('\n')) },
-    ];
-    if (canSeeUnban) {
-      buttons.push({
-        text: 'Perm-ban all',
-        style: 'destructive',
-        onPress: () => Alert.alert(
-          'Permanently ban all?',
-          `Strike 3 on ${userName} and every linked account you outrank.`,
-          [
-            { text: t('chat.cancel'), style: 'cancel' },
-            {
-              text: 'Ban all',
-              style: 'destructive',
-              onPress: async () => {
-                const b = await callModSanction('strike', selectedUserId, {
-                  strikeCount: 3,
-                  includeLinked: true,
-                  reason: 'Ban evasion (linked accounts)',
-                });
-                if (!b.ok) {
-                  Alert.alert(t('chat.error'), sanctionErrorText(b.error));
-                  return;
-                }
-                setIsBanned(true);
-                Alert.alert('Banned', describeSanctionResult(b));
-              },
-            },
-          ]
-        ),
+    const more = r.linkedTotal > linked.length ? ` Showing ${linked.length} of ${r.linkedTotal}.` : '';
+    // Older deployed functions don't describe isStaff and ignore linkedUids
+    // (they ban every linked account the caller outranks) — say so instead
+    // of offering checkboxes that would do nothing.
+    const selectable = linked.every((acc) => typeof acc?.isStaff === 'boolean');
+    openModAction({ kind: 'linked', linked, selectable, header: `${header}${more}` });
+  };
+
+  const confirmModAction = async ({ reason, linkedUids, evidence }) => {
+    const a = modAction;
+    if (!a?.targetUid) return true;
+    const bannerInfo = {
+      id: user?.id,
+      displayName: user?.userName || user?.displayName || 'Staff',
+      avatar: user?.avatar,
+      ...callerRoles,
+    };
+    let r;
+    if (a.kind === 'unban' || a.kind === 'unmute') {
+      r = await liftSanction({ action: a.kind, targetUid: a.targetUid, reason });
+    } else if (a.kind === 'linked') {
+      r = await applySanction({
+        action: 'strike', targetUid: a.targetUid, strikeCount: 3, reason,
+        includeLinked: true, linkedUids: a.selectable ? linkedUids : undefined,
+        evidence, userInfo: a.userInfo, bannerInfo,
+      });
+    } else {
+      r = await applySanction({
+        action: a.kind, targetUid: a.targetUid, email: a.email,
+        strikeCount: a.kind === 'strike' ? a.value : undefined,
+        minutes: a.kind === 'mute' ? a.value : undefined,
+        reason, evidence, userInfo: a.userInfo, bannerInfo,
       });
     }
-    buttons.push({ text: t('chat.cancel'), style: 'cancel' });
-    Alert.alert('Linked Accounts', `${header}\n\n${lines.join('\n')}${more}`, buttons);
+    if (!r.ok) {
+      Alert.alert(t('chat.error'), sanctionErrorText(r.error));
+      return false; // keep the prompt open
+    }
+    setSanctionTick((n) => n + 1);
+    const detail = describeSanctionResult(r);
+    if (a.kind === 'unban') Alert.alert('User Unbanned', 'Ban has been lifted.');
+    else if (a.kind === 'unmute') Alert.alert('User Unmuted', 'Mute has been lifted.');
+    else if (a.kind === 'mute') Alert.alert('User Muted', `Muted for ${formatMuteMinutes(a.value)}.`);
+    else if (a.kind === 'linked') Alert.alert('Banned', `${a.targetName} permanently banned. ${detail}`.trim());
+    else Alert.alert('Strike Applied', `Strike ${a.value} applied (${strikeDurationLabel(a.value)}). ${detail}`.trim());
+    return true;
+  };
+
+  const modActionTitle = (a) => {
+    if (!a) return '';
+    if (a.kind === 'strike') return `Strike ${a.value} (${strikeDurationLabel(a.value)}) — ${a.targetName}`;
+    if (a.kind === 'mute') return `Mute ${a.targetName} for ${formatMuteMinutes(a.value)}`;
+    if (a.kind === 'unban') return `Unban ${a.targetName}`;
+    if (a.kind === 'unmute') return `Unmute ${a.targetName}`;
+    if (a.kind === 'linked') return 'Linked accounts';
+    return '';
+  };
+
+  const modActionSubtitle = (a) => {
+    if (!a) return '';
+    if (a.kind === 'linked') {
+      return a.selectable === false
+        ? `${a.header}\nStrike 3 (permanent) on ${a.targetName} and every linked account you outrank.`
+        : `${a.header}\nStrike 3 (permanent) on ${a.targetName} and the accounts you tick. Staff accounts are never included.`;
+    }
+    if (a.kind === 'strike') return a.value === 3 ? 'Permanent ban: chat, trades, posts and everything else.' : 'Blocks the whole app for the duration and clears their recent public messages.';
+    if (a.kind === 'mute') return 'Chat only — they can still trade and post. Their strike count is kept.';
+    return 'Removes it everywhere (email, account, devices, chat).';
   };
 
   const handlePromoteModerator = () => {
@@ -784,6 +807,7 @@ const ProfileBottomDrawer = ({
               // One atomic write: flag + rolesUpdatedAt stamp so the Supabase
               // mirror always runs, even when the flag value is unchanged.
               await update(ref(appdatabase, `users/${selectedUserId}`), { isTrusted: true, rolesUpdatedAt: Date.now() });
+              logModAction('role_change', selectedUserId, { role: 'isTrusted', value: true });
               setUserData(prev => ({ ...prev, isTrusted: true }));
               Alert.alert('Success', 'User is now Trusted.');
             } catch (error) {
@@ -805,6 +829,7 @@ const ProfileBottomDrawer = ({
           text: 'Remove', style: 'destructive', onPress: async () => {
             try {
               await update(ref(appdatabase, `users/${selectedUserId}`), { isTrusted: null, rolesUpdatedAt: Date.now() });
+              logModAction('role_change', selectedUserId, { role: 'isTrusted', value: false });
               setUserData(prev => ({ ...prev, isTrusted: false }));
               Alert.alert('Success', 'Trusted status removed.');
             } catch (error) {
@@ -826,6 +851,7 @@ const ProfileBottomDrawer = ({
           text: 'Assign', onPress: async () => {
             try {
               await update(ref(appdatabase, `users/${selectedUserId}`), { isGrinder: true, rolesUpdatedAt: Date.now() });
+              logModAction('role_change', selectedUserId, { role: 'isGrinder', value: true });
               setUserData(prev => ({ ...prev, isGrinder: true }));
               Alert.alert('Success', 'User is now Grinder.');
             } catch (error) {
@@ -847,6 +873,7 @@ const ProfileBottomDrawer = ({
           text: 'Remove', style: 'destructive', onPress: async () => {
             try {
               await update(ref(appdatabase, `users/${selectedUserId}`), { isGrinder: null, rolesUpdatedAt: Date.now() });
+              logModAction('role_change', selectedUserId, { role: 'isGrinder', value: false });
               setUserData(prev => ({ ...prev, isGrinder: false }));
               Alert.alert('Success', 'Grinder status removed.');
             } catch (error) {
@@ -868,6 +895,7 @@ const ProfileBottomDrawer = ({
           text: 'Assign', onPress: async () => {
             try {
               await update(ref(appdatabase, `users/${selectedUserId}`), { isRaider: true, rolesUpdatedAt: Date.now() });
+              logModAction('role_change', selectedUserId, { role: 'isRaider', value: true });
               setUserData(prev => ({ ...prev, isRaider: true }));
               Alert.alert('Success', 'User is now Raider.');
             } catch (error) {
@@ -889,6 +917,7 @@ const ProfileBottomDrawer = ({
           text: 'Remove', style: 'destructive', onPress: async () => {
             try {
               await update(ref(appdatabase, `users/${selectedUserId}`), { isRaider: null, rolesUpdatedAt: Date.now() });
+              logModAction('role_change', selectedUserId, { role: 'isRaider', value: false });
               setUserData(prev => ({ ...prev, isRaider: false }));
               Alert.alert('Success', 'Raider status removed.');
             } catch (error) {
@@ -898,91 +927,6 @@ const ProfileBottomDrawer = ({
         }
       ]
     );
-  };
-
-  const handleMuteUser = async (minutes) => {
-    const targetEmail = await getTargetEmail(); // null → server by uid
-
-    const callerRoles = { isAdmin, isSeniorMod: isGlobalSenior, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod };
-    const targetRoles = {
-      isAdmin: !!mergedUser?.isAdmin,
-      isSeniorMod: !!mergedUser?.isSeniorMod,
-      isModerator: !!mergedUser?.isModerator,
-      isBabyMod: !!mergedUser?.isBabyMod,
-    };
-    if (!canModerate(callerRoles, targetRoles)) {
-      Alert.alert(t('chat.permission_denied'), t('chat.mod_cannot_ban'));
-      return;
-    }
-    // Open reason modal instead of executing immediately
-    setReasonActionType({ type: 'mute', value: minutes, email: targetEmail });
-    setAdminReason('');
-    toggleModal(); // close profile drawer
-    setShowReasonModal(true); // open reason modal
-  };
-
-  // ✅ Confirm admin action from reason modal
-  const confirmAdminAction = async () => {
-    if (!reasonActionType) return;
-    setShowReasonModal(false);
-
-    const bannerInfo = {
-      id: user?.id,
-      displayName: user?.userName || user?.displayName || 'Admin',
-      avatar: user?.avatar,
-      // Caller role flags — utils.js gates strike/mute against these.
-      isAdmin: !!isAdmin,
-      isSeniorMod: !!isGlobalSenior,
-      isModerator: !!isGlobalModerator,
-      isBabyMod: !!isGlobalBabyMod,
-    };
-    const userInfo = {
-      id: selectedUserId,
-      displayName: mergedUser?.displayName || mergedUser?.sender || userName,
-      avatar: mergedUser?.avatar,
-      // Target role flags as a fallback; utils.js will still re-fetch
-      // from RTDB so a stale mergedUser can't bypass the gate.
-      isAdmin: !!mergedUser?.isAdmin,
-      isSeniorMod: !!mergedUser?.isSeniorMod,
-      isModerator: !!mergedUser?.isModerator,
-      isBabyMod: !!mergedUser?.isBabyMod,
-    };
-    const actionEmail = reasonActionType.email;
-    const finalReason = adminReason.trim() !== '' ? adminReason.trim() : undefined;
-
-    if (!actionEmail) {
-      const { type, value } = reasonActionType;
-      setReasonActionType(null);
-      const r = await callModSanction(type, selectedUserId, {
-        ...(type === 'strike' ? { strikeCount: value } : { minutes: value }),
-        reason: finalReason,
-      });
-      if (!r.ok) {
-        Alert.alert(t('chat.error'), sanctionErrorText(r.error));
-        return;
-      }
-      setIsBanned(true);
-      // Same as setUserStrike: a strike also clears his recent messages.
-      if (type === 'strike') handleDeleteLast300Messages(selectedUserId, false).catch(() => {});
-      Alert.alert(
-        type === 'strike' ? 'Strike Applied' : 'User Muted',
-        `Banned by user ID. ${describeSanctionResult(r)}`
-      );
-      return;
-    }
-
-    if (reasonActionType.type === 'strike') {
-      const strikeCount = reasonActionType.value;
-      const isStaff = isAdmin || isGlobalSenior || isGlobalModerator;
-      const success = await setUserStrike(actionEmail, strikeCount, selectedUserId, isStaff, bannerInfo, userInfo, isStaff, finalReason);
-      if (success) setIsBanned(true);
-    } else if (reasonActionType.type === 'mute') {
-      const minutes = reasonActionType.value;
-      const success = await muteUser(actionEmail, minutes, userInfo, bannerInfo, true, finalReason);
-      if (success) setIsBanned(true);
-    }
-
-    setReasonActionType(null);
   };
 
   // ✅ Fetch badges, XP, and cosmetics
@@ -1176,6 +1120,7 @@ const ProfileBottomDrawer = ({
       await deleteQueryDocs('group_join_requests', 'userId', uid);
 
       setDeletingUser(false);
+      logModAction('profile_delete', uid, { name: targetName || null, warnings: errors.length });
 
       if (errors.length > 0) {
         console.warn('[DeleteUser] Partial errors:', errors);
@@ -1712,6 +1657,11 @@ const ProfileBottomDrawer = ({
               }
 
               setReviews(prev => prev.filter(r => r.id !== review.id));
+              logModAction('review_delete', selectedUserId, {
+                reviewId: review.id,
+                reviewerUid: review.fromUserId || null,
+                rating: ratingToRemove,
+              });
             } catch (err) {
               console.warn('Delete review error:', err);
               Alert.alert('Error', 'Could not delete review.');
@@ -3044,55 +2994,114 @@ const ProfileBottomDrawer = ({
                       {/* Role Badge */}
                       <Text style={{
                         fontSize: 10, fontWeight: '700', color: dimColor,
-                        textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12,
+                        textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8,
                       }}>
-                        {isAdmin ? 'Admin Tools' : isGlobalSenior ? 'Senior Mod Tools' : isGlobalModerator ? 'Moderator Tools' : 'Junior Mod Tools'}
+                        {callerRoles.isOwner ? 'Owner Tools' : isAdmin ? 'Admin Tools' : isGlobalSenior ? 'Senior Mod Tools' : isGlobalModerator ? 'Moderator Tools' : 'Junior Mod Tools'}
                       </Text>
 
-                      {/* ── Section: Mute ── */}
-                      <View style={{ marginBottom: 12 }}>
-                        <Text style={{ fontSize: 10, color: dimColor, fontWeight: '600', marginBottom: 6 }}>
-                          Mute{isJMDOnly ? ' (max 2h)' : ''}
-                        </Text>
-                        <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                          {(isJMDOnly ? [5, 10, 20, 30, 60, 120] : [5, 10, 20, 30, 60, 1440]).map(m => (
-                            <Chip
-                              key={m}
-                              label={m >= 1440 ? '1 day' : m >= 60 ? `${m / 60}h` : `${m}m`}
-                              color="#7c3aed"
-                              onPress={() => handleMuteUser(m)}
-                            />
-                          ))}
-                        </View>
+                      {/* ── Current sanction ── */}
+                      <View style={{ marginBottom: 12, padding: 8, borderRadius: 8, backgroundColor: isDarkMode ? '#0f172a' : '#ffffff', borderWidth: 1, borderColor: modBorder }}>
+                        {!sanction ? (
+                          <ActivityIndicator size="small" />
+                        ) : (
+                          <>
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: sanction.active ? (sanction.type === 'mute' ? '#7c3aed' : '#dc2626') : '#10b981' }}>
+                              {sanction.active
+                                ? `${sanction.type === 'mute' ? 'Muted' : 'Banned'} ${sanction.bannedUntil === 'permanent' ? 'permanently' : `until ${dayjs(sanction.bannedUntil).format('MMM D, HH:mm')}`}`
+                                : 'No active sanction'}
+                            </Text>
+                            <Text style={{ fontSize: 10, color: dimColor, marginTop: 2 }}>
+                              Strikes: {sanction.strikeCount || 0}/3
+                              {sanction.active && sanction.reason ? ` · ${sanction.reason}` : ''}
+                              {sanction.active && sanction.bannedByName ? ` · by ${sanction.bannedByName}` : ''}
+                            </Text>
+                          </>
+                        )}
                       </View>
 
-                      {/* ── Section: Strikes (Admin & Mod only) ── */}
-                      {!isJMDOnly && (
+                      {!modPerms.outranks ? (
+                        <Text style={{ fontSize: 11, color: dimColor, marginBottom: 12 }}>
+                          You can't moderate this user (same or higher rank).
+                        </Text>
+                      ) : !modPerms.canMute ? (
+                        <Text style={{ fontSize: 11, color: dimColor, marginBottom: 12 }}>
+                          Staff members can only be sanctioned by an admin.
+                        </Text>
+                      ) : null}
+
+                      {/* ── Section: Mute ── */}
+                      {modPerms.canMute && (
                         <View style={{ marginBottom: 12 }}>
-                          <Text style={{ fontSize: 10, color: dimColor, fontWeight: '600', marginBottom: 6 }}>Strikes</Text>
+                          <Text style={{ fontSize: 10, color: dimColor, fontWeight: '600', marginBottom: 6 }}>
+                            Mute{modPerms.maxMuteMinutes ? ` (max ${formatMuteMinutes(modPerms.maxMuteMinutes)})` : ''}
+                          </Text>
                           <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                            <Chip label={`${t('chat.strike_1')} (3h)`} color="#f97316" onPress={() => handleSetStrike(1)} />
-                            <Chip label={`${t('chat.strike_2')} (3d)`} color="#ef4444" onPress={() => handleSetStrike(2)} />
-                            <Chip label={`${t('chat.strike_3')} (Perm)`} color="#dc2626" onPress={() => handleSetStrike(3)} />
+                            {[5, 10, 20, 30, 60, 120, 1440]
+                              .filter((m) => !modPerms.maxMuteMinutes || m <= modPerms.maxMuteMinutes)
+                              .map(m => (
+                                <Chip
+                                  key={m}
+                                  label={formatMuteMinutes(m)}
+                                  color="#7c3aed"
+                                  onPress={() => handleMuteUser(m)}
+                                />
+                              ))}
                           </View>
                         </View>
                       )}
+
+                      {/* ── Section: Strikes (Mod and up, never JMD) ── */}
+                      {modPerms.canStrike && (
+                        <View style={{ marginBottom: 12 }}>
+                          <Text style={{ fontSize: 10, color: dimColor, fontWeight: '600', marginBottom: 6 }}>Strikes</Text>
+                          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                            {[1, 2, 3].map((n) => (
+                              <Chip
+                                key={n}
+                                label={`${t(`chat.strike_${n}`)} (${STRIKE_LADDER[n].short})`}
+                                color={n === 1 ? '#f97316' : n === 2 ? '#ef4444' : '#dc2626'}
+                                onPress={() => handleSetStrike(n)}
+                              />
+                            ))}
+                          </View>
+                        </View>
+                      )}
+
+                      {/* ── Section: Unban / Unmute / linked accounts ── */}
+                      {(canLiftCurrent || modPerms.canSeeLinked) && (
+                        <View style={{ marginBottom: 12 }}>
+                          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                            {canLiftCurrent && (
+                              <Chip
+                                label={sanction?.type === 'mute' ? 'Unmute' : (t('chat.unban_user_btn') || 'Unban')}
+                                color="#10b981"
+                                onPress={handleLiftSanction}
+                              />
+                            )}
+                            {modPerms.canSeeLinked && (
+                              <Chip label={loadingLinked ? 'Loading…' : 'Linked accounts'} color="#0ea5e9" onPress={handleShowLinkedAccounts} />
+                            )}
+                          </View>
+                        </View>
+                      )}
+
+                      {/* ── Section: Moderation history (audit log) ── */}
+                      <View style={{ marginBottom: 12 }}>
+                        <Chip
+                          label={showModHistory ? 'Hide history' : 'Moderation history'}
+                          color="#64748b"
+                          onPress={() => setShowModHistory((v) => !v)}
+                        />
+                        {showModHistory && (
+                          <View style={{ marginTop: 8 }}>
+                            <ModHistoryList uid={selectedUserId} email={sanction?.email || null} isDark={isDarkMode} title={null} pageSize={5} />
+                          </View>
+                        )}
+                      </View>
 
                       {/* ── Divider ── */}
                       {!isJMDOnly && (
                         <View style={{ height: 1, backgroundColor: modBorder, marginBottom: 12 }} />
-                      )}
-
-                      {/* ── Section: Unban / linked accounts ── */}
-                      {!isJMDOnly && (
-                        <View style={{ marginBottom: 12 }}>
-                          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                            {isBanned && (
-                              <Chip label={t('chat.unban_user_btn') || 'Unban'} color="#10b981" onPress={handleUnbanUser} />
-                            )}
-                            <Chip label="Linked accounts" color="#0ea5e9" onPress={handleShowLinkedAccounts} />
-                          </View>
-                        </View>
                       )}
 
                       {/* ── Section: Role Management (Admin & Mod only, not JMD) ── */}
@@ -3186,55 +3195,28 @@ const ProfileBottomDrawer = ({
       </View>
     </Modal>
 
-    {/* ═══ Admin Reason Modal - standalone, shown after profile drawer closes ═══ */}
-    <Modal visible={showReasonModal} transparent animationType="fade" onRequestClose={() => setShowReasonModal(false)}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <Pressable onPress={() => setShowReasonModal(false)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 }}>
-          <Pressable onPress={(e) => e.stopPropagation()} style={{ width: '100%', backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: isDarkMode ? '#334155' : '#e2e8f0' }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 10 }}>
-              {reasonActionType?.type === 'strike' && `Apply Strike ${reasonActionType.value}`}
-              {reasonActionType?.type === 'mute' && `Mute User for ${reasonActionType.value >= 1440 ? '1 day' : reasonActionType.value >= 60 ? `${reasonActionType.value / 60}h` : `${reasonActionType.value}m`}`}
-            </Text>
-            <Text style={{ fontSize: 12, color: isDarkMode ? '#94a3b8' : '#64748b', marginBottom: 15 }}>
-              Please provide a reason for this action (optional). This will be visible in the Admin Dashboard.
-            </Text>
-            <TextInput
-              style={{
-                backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc',
-                color: c.text,
-                borderRadius: 10,
-                padding: 12,
-                minHeight: 80,
-                borderWidth: 1,
-                borderColor: isDarkMode ? '#334155' : '#e2e8f0',
-                textAlignVertical: 'top',
-                fontSize: 14,
-              }}
-              placeholder="e.g. Scammer, inappropriate language, spamming..."
-              placeholderTextColor={isDarkMode ? '#475569' : '#94a3b8'}
-              multiline
-              value={adminReason}
-              onChangeText={setAdminReason}
-              autoFocus
-            />
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
-              <TouchableOpacity
-                onPress={() => { setShowReasonModal(false); setReasonActionType(null); }}
-                style={{ paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: isDarkMode ? '#334155' : '#e2e8f0' }}
-              >
-                <Text style={{ color: c.text, fontWeight: '600' }}>{t('chat.cancel') || 'Cancel'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={confirmAdminAction}
-                style={{ paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#ef4444' }}
-              >
-                <Text style={{ color: '#fff', fontWeight: '600' }}>Confirm</Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </Pressable>
-      </KeyboardAvoidingView>
-    </Modal>
+    {/* ═══ Moderation prompt — standalone, shown after the profile drawer closes ═══ */}
+    <ModActionModal
+      visible={!!modAction}
+      isDark={isDarkMode}
+      title={modActionTitle(modAction)}
+      subtitle={modActionSubtitle(modAction)}
+      confirmLabel={
+        modAction?.kind === 'unban' ? 'Unban'
+          : modAction?.kind === 'unmute' ? 'Unmute'
+            : modAction?.kind === 'linked' ? 'Perm-ban'
+              : 'Confirm'
+      }
+      confirmColor={modAction?.kind === 'unban' || modAction?.kind === 'unmute' ? '#10b981' : '#ef4444'}
+      initialReason={modAction?.kind === 'linked' ? 'Ban evasion' : ''}
+      linkedAccounts={modAction?.kind === 'linked' ? modAction.linked : null}
+      linkedSelectable={modAction?.kind === 'linked' ? modAction.selectable !== false : true}
+      secondaryLabel={modAction?.kind === 'linked' ? 'Copy IDs' : null}
+      onSecondary={modAction?.kind === 'linked' ? () => copyToClipboard(modAction.linked.map((a) => a.uid).join('\n')) : null}
+      allowEvidence={['strike', 'mute', 'linked'].includes(modAction?.kind)}
+      onCancel={() => setModAction(null)}
+      onConfirm={confirmModAction}
+    />
     </>
   );
 };

@@ -123,11 +123,6 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
               <Text style={[styles.text, {color: isDarkMode ? '#ccc' : '#666'}]}>
                 {t('first.utility_note')}
               </Text>
-              <TouchableOpacity accessibilityRole="button" onPress={handleGuest} style={{padding: 14}}>
-                <Text style={{color: isDarkMode ? '#93c5fd' : '#1d4ed8', textAlign: 'center', fontWeight: '700'}}>
-                  {t('first.try_values')}
-                </Text>
-              </TouchableOpacity>
             </View>
           </View>
         );

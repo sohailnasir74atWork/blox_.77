@@ -15,7 +15,7 @@ import {
 import { launchImageLibrary } from 'react-native-image-picker';
 import { safeCompressImage } from '../../Helper/safeCompressImage';
 import config from '../../Helper/Environment';
-import { useGlobalState } from '../../GlobelStats';
+import { useGlobalState, modGateText } from '../../GlobelStats';
 import { useLocalState } from '../../LocalGlobelStats';
 import InterstitialAdManager from '../../Ads/IntAd';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
@@ -62,7 +62,7 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
   const [imageUris, setImageUris] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedTags, setSelectedTags] = useState(['Discussion']);
-  const { currentUserEmail, appdatabase, isUserBlocked, strikeInfo, deviceBanInfo } = useGlobalState();
+  const { currentUserEmail, appdatabase, getModGate } = useGlobalState();
   const { theme } = useGlobalState();
   const isDark = theme === 'dark';
   const { localState } = useLocalState()
@@ -244,18 +244,13 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
       return;
     }
 
-    // 🔒 Global ban gate: email, device and uid bans (server-time checked in GlobelStats)
-    if (isUserBlocked) {
-      const info = strikeInfo || deviceBanInfo;
-      const until = info?.bannedUntil;
-      Alert.alert(
-        'Banned',
-        until === 'permanent'
-          ? 'You are permanently banned from posting.'
-          : typeof until === 'number'
-            ? `You are banned from posting for ${Math.max(1, Math.ceil((until - Date.now()) / 60000))} more minute(s).`
-            : 'You are banned from posting right now.'
-      );
+    // 🔒 Global ban gate: email, device and uid bans (server-time checked in
+    // GlobelStats). Waits for the ban check on a fresh sign-in; a mute is
+    // chat-only and doesn't apply.
+    const modGate = getModGate('content');
+    if (modGate) {
+      const { title, message } = modGateText(modGate, 'post');
+      Alert.alert(title, message);
       return;
     }
 
@@ -343,7 +338,7 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
       }, 500);
     });
 
-  }, [loading, user?.id, desc, imageUris, selectedTags, uploadToBunny, onUpload, onClose, localState.isPro, currentUserEmail, lastPostTime, isUserBlocked, strikeInfo, deviceBanInfo]);
+  }, [loading, user?.id, desc, imageUris, selectedTags, uploadToBunny, onUpload, onClose, localState.isPro, currentUserEmail, lastPostTime, getModGate]);
 
 
   const insets = useSafeAreaInsets();

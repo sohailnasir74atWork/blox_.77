@@ -9,7 +9,7 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { useGlobalState } from "../GlobelStats";
+import { useGlobalState, modGateText } from "../GlobelStats";
 import config from "../Helper/Environment";
 import { useTranslation } from "react-i18next";
 import { reportPrivateMessage } from "../Supabase/privateMessagesBackend";
@@ -20,7 +20,7 @@ const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false,
   const [customReason, setCustomReason] = useState("");
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { theme, user, strikeInfo, isAdmin, isUserBlocked } = useGlobalState();
+  const { theme, user, getModGate } = useGlobalState();
   const isDarkMode = theme === "dark";
   const { t } = useTranslation();
 
@@ -30,31 +30,12 @@ const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false,
       return;
     }
 
-    // Block banned users (admins exempt). Defer expiry to server-time-
-    // validated `isUserBlocked` so a clock-rolled device can't slip past.
-    if (isUserBlocked && !isAdmin) {
-      const { strikeCount, bannedUntil } = strikeInfo || {};
-
-      if (bannedUntil === 'permanent') {
-        Alert.alert("⛔ Permanently Banned", "You are permanently banned from making reports.");
-        return;
-      }
-
-      if (typeof bannedUntil === 'number') {
-        const remaining = Math.max(0, bannedUntil - Date.now());
-        const totalMinutes = Math.ceil(remaining / 60000);
-        const hours = Math.floor(totalMinutes / 60);
-        const minutes = totalMinutes % 60;
-        const timeLeftText = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-
-        Alert.alert(
-          `⚠️ Strike ${strikeCount ?? ''}`.trim(),
-          `You are banned from making reports for ${timeLeftText} more minute(s).`
-        );
-        return;
-      }
-
-      Alert.alert("⛔ Banned", "You are currently banned from making reports.");
+    // Block banned users (admins exempt). Reports aren't chat, so a mute
+    // doesn't apply. Decision uses server-time-validated state.
+    const modGate = getModGate('content');
+    if (modGate) {
+      const { title, message: body } = modGateText(modGate, 'report');
+      Alert.alert(title, body);
       return;
     }
 
@@ -67,9 +48,17 @@ const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false,
       const messageId = message?.id;
       if (!messageId) throw new Error('Invalid message ID');
 
+      // Send the picked reason (or the typed one) with the report so
+      // moderators see why it was flagged (report_message RPC p_reason).
+      const reason = (showCustomInput ? customReason : selectedReason).trim().slice(0, 200) || null;
+      if (showCustomInput && !reason) {
+        Alert.alert("Error", "Please describe the problem.");
+        return;
+      }
+
       await (isPrivateChat
-        ? reportPrivateMessage(messageId, user?.id ?? null)
-        : reportPublicMessage(messageId, user?.id ?? null));
+        ? reportPrivateMessage(messageId, user?.id ?? null, reason)
+        : reportPublicMessage(messageId, user?.id ?? null, reason));
 
       Alert.alert(t('chat.report_submitted'), t('chat.report_submitted_message'));
       onClose(true);

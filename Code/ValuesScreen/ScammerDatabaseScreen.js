@@ -55,7 +55,8 @@ import {
 import { launchImageLibrary } from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
 import { safeCompressImage } from '../Helper/safeCompressImage';
-import { useGlobalState } from '../GlobelStats';
+import { useGlobalState, modGateText } from '../GlobelStats';
+import { submitUserReport } from '../Helper/userReports';
 import { useLocalState } from '../LocalGlobelStats';
 import InterstitialAdManager from '../Ads/IntAd';
 import dayjs from 'dayjs';
@@ -128,7 +129,7 @@ const FILTERS = ['All', 'Verified', 'Unverified'];
 //  COMPONENT
 // ════════════════════════════════════════════════════════
 const ScammerDatabaseScreen = () => {
-    const { theme, user, isAdmin } = useGlobalState();
+    const { theme, user, isAdmin, getModGate } = useGlobalState();
     const { localState } = useLocalState();
     const isDark = theme === 'dark';
     const isMod = isAdmin || user?.isModerator || user?.isMod;
@@ -353,6 +354,13 @@ const ScammerDatabaseScreen = () => {
     // ════════════════════════════════════════
     const submitReport = useCallback(async () => {
         if (!user?.id) { Alert.alert(t('scammer.sign_in_title'), t('scammer.sign_in_msg')); return; }
+        // Banned users can't file scam reports (admins exempt; a mute is chat-only).
+        const modGate = getModGate('content');
+        if (modGate) {
+            const { title, message } = modGateText(modGate, 'report');
+            Alert.alert(title, message);
+            return;
+        }
 
         const username = reportUsername.trim();
         if (!username || username.length < 3 || username.length > 30) {
@@ -417,6 +425,10 @@ const ScammerDatabaseScreen = () => {
                     setUploadingImages(false);
                 }
 
+                // Fixed outside the transaction so a retried transaction and
+                // the user_reports entry below agree on the id.
+                const reportId = `${username.toLowerCase()}_${Date.now()}`;
+
                 // Transaction: rate limit check + create report
                 await runTransaction(db, async (tx) => {
                     const rateLimitRef = doc(db, 'userRateLimits', user.id);
@@ -433,7 +445,6 @@ const ScammerDatabaseScreen = () => {
                         }
                     }
 
-                    const reportId = `${username.toLowerCase()}_${Date.now()}`;
                     const summaryRef = doc(db, 'scammerSummaries', reportId);
                     const detailRef = doc(db, 'scammerDetails', reportId);
 
@@ -477,6 +488,18 @@ const ScammerDatabaseScreen = () => {
                     tx.set(rateLimitRef, { lastReportAt: Timestamp.now() }, { merge: true });
                 });
 
+                // Also list it in user_reports so it shows in the Admin
+                // Dashboard's report queue. Best-effort: the scam database
+                // entry above is the primary record.
+                submitUserReport(db, {
+                    type: 'scam',
+                    targetId: reportId,
+                    targetUid: null,
+                    reporterUid: user.id,
+                    reason: reportScamType,
+                    text: `${username}: ${whatText}`,
+                }).catch((reportErr) => console.warn('[Scammer] user_reports write failed:', reportErr?.message || reportErr));
+
                 Alert.alert('Report Submitted', 'Your report has been submitted for review. Thank you!');
                 // Reset form
                 setReportUsername('');
@@ -519,7 +542,7 @@ const ScammerDatabaseScreen = () => {
                 }
             }, 500);
         });
-    }, [db, user, reportUsername, reportScamType, reportWhat, reportScamDate, reportImages, uploadToBunny, handleRefresh, localState.isPro]);
+    }, [db, user, reportUsername, reportScamType, reportWhat, reportScamDate, reportImages, uploadToBunny, handleRefresh, localState.isPro, getModGate]);
 
     // ════════════════════════════════════════
     //  APPROVE / REJECT (mod/admin)

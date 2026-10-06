@@ -362,7 +362,17 @@
         "months_ago_one": "{{count}} buwan na ang nakalipas",
         "months_ago_other": "{{count}} buwan na ang nakalipas",
         "years_ago_one": "{{count}} taon na ang nakalipas",
-        "years_ago_other": "{{count}} taon na ang nakalipas"
+        "years_ago_other": "{{count}} taon na ang nakalipas",
+        "delete_message_title": "Burahin ang mensahe?",
+        "delete_message_body": "Mabubura ang mensaheng ito para sa lahat.",
+        "message_deleted": "Nabura ang mensahe",
+        "delete_failed": "Hindi mabura ang mensahe. Subukan ulit.",
+        "delete_all_title": "Burahin lahat ng bagong mensahe?",
+        "delete_all_body": "Buburahin nito para sa lahat ang mga bagong mensahe ng user na ito sa room na ito.",
+        "delete_all_done": "{{count}} mensahe ang nabura",
+        "delete_all_done_one": "{{count}} mensahe ang nabura",
+        "delete_all_done_other": "{{count}} mensahe ang nabura",
+        "delete_failed_all": "Hindi mabura ang mga mensahe. Subukan ulit."
     },
     "first": {
         "welcome_title": "Maligayang pagdating sa Fruit Values",
@@ -516,7 +526,9 @@
         "retry": "I-load muli ang mga value"
     },
     "common": {
-        "load_more": "Mag-load pa"
+        "load_more": "Mag-load pa",
+        "cancel": "Kanselahin",
+        "delete": "Burahin"
     },
     "scammer": {
         "limit_title": "Limit",
@@ -530,5 +542,66 @@
         "error_description_long": "Masyadong mahaba ang description (max 200 characters).",
         "safety_title": "Kaligtasan",
         "safety_personal_info": "Huwag maglagay ng personal info (email, phone number, social media)."
+    },
+    "trade_advice": {
+        "show_tips": "💡 Ipakita ang tips",
+        "feed": {
+            "tone_good": "Magandang deal para sa iyo",
+            "tone_popular": "Sikat na pili",
+            "tone_close": "Puwedeng gumana para sa iyo",
+            "value_win": "Makakakuha ka ng mga {{pct}}% na mas mataas na value",
+            "value_fair": "Halos pantay ang values",
+            "get_rising": "Tumaas ng {{pct}}% ang {{name}} kamakailan, magandang kuha",
+            "demand_chip": "🔥 Demand {{score}}/10",
+            "asked_for_one": "Hinanap ng mga player ang {{name}} sa {{count}} trade sa nakaraang 24h",
+            "asked_for_other": "Hinanap ng mga player ang {{name}} sa {{count}} na trade sa nakaraang 24h",
+            "steady_demand": "Patuloy na hinahanap ng mga trader ang {{name}}"
+        },
+        "insights": {
+            "giving_wanted": "Mataas ang demand sa mga fruit mo, mabilis silang mate-trade!",
+            "getting_wanted": "Sikat na sikat ang mga fruit na makukuha mo!",
+            "getting_rising": "Tumataas ang value ng mga fruit na makukuha mo!",
+            "giving_rising": "Tumataas ang value ng mga fruit mo!"
+        }
+    },
+    "moderation": {
+        "action_chat": "magpadala ng mensahe",
+        "action_post": "mag-post",
+        "action_comment": "mag-comment",
+        "action_trade": "gumawa ng trade",
+        "action_feature": "i-feature ang trade",
+        "action_report": "mag-report",
+        "action_profile": "i-edit ang profile mo",
+        "action_review": "magsulat ng review",
+        "action_vote": "bumoto sa poll",
+        "action_react": "mag-react sa post",
+        "action_follow": "mag-follow ng iba",
+        "action_group": "mag-manage ng group",
+        "action_server": "mag-share ng server",
+        "action_generic": "gawin ito",
+        "checking_title": "Sandali lang",
+        "checking_body": "Tinitingnan ang status ng account mo. Subukan ulit pagkalipas ng ilang segundo.",
+        "muted_title": "Naka-mute",
+        "muted_body": "Naka-mute ka sa chat nang {{time}} pa.",
+        "muted_body_generic": "Naka-mute ka sa chat.",
+        "banned_perm_title": "Permanenteng banned",
+        "banned_strike_title": "Strike {{n}}",
+        "banned_title": "Banned",
+        "banned_perm_body": "Permanenteng banned ang account mo, kaya hindi ka maaaring {{action}}.",
+        "banned_body": "Banned ka nang {{time}} pa, kaya hindi ka maaaring {{action}} hanggang doon.",
+        "banned_body_generic": "Banned ka, kaya hindi ka maaaring {{action}} ngayon.",
+        "send_blocked_title": "Hindi naipadala ang mensahe",
+        "send_banned_body": "Banned o naka-mute ka, kaya hindi maipadala ang mga mensahe mo ngayon.",
+        "send_links_body": "Bawal ang mga link sa mensahe.",
+        "send_not_allowed_body": "Hindi pinapayagan ang mensaheng ito rito."
+    },
+    "home_tab": {
+        "mute_title": "Naka-mute sa Chat",
+        "ban_strike": "Strike {{count}}",
+        "ban_strike_one": "Strike {{count}}",
+        "ban_strike_other": "Strike {{count}}",
+        "mute_permanent": "Naka-mute hanggang alisin ng moderator",
+        "ban_permanent_label": "Permanente",
+        "mute_for": "Naka-mute nang {{time}}"
     }
 }

@@ -29,6 +29,9 @@ const mapAction = (r) => ({
   actorName: r.actor_name,
   actorRole: r.actor_role,
   source: r.source,
+  // supabase/033: screenshot URLs (≤ 3) and free-form details for log actions.
+  evidence: Array.isArray(r.evidence) ? r.evidence : [],
+  details: r.details ?? null,
   createdAt: r.created_at ? Date.parse(r.created_at) : null,
   _cursorCreated: r.created_at,
   _cursorId: r.id,

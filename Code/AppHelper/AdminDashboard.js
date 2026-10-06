@@ -66,15 +66,42 @@ import {
   updateDoc,
 } from '@react-native-firebase/firestore';
 
-import { unbanUserWithEmail, banUserwithEmail, setUserStrike, muteUser } from '../ChatScreen/utils';
+import {
+  applySanction,
+  liftSanction,
+  getCurrentStrikeCount,
+  getSanctionStatus,
+  getModPermissions,
+  canLiftSanction,
+  fetchUserRoles,
+  outranksUser,
+  isCurrentUserOwner,
+  isOwnerEmail,
+  isMuteRecordCompat,
+  getStaffRank,
+  STAFF_RANK,
+} from '../ChatScreen/utils';
 import { getUserEmail, findUsersByEmail, normalizeEmail } from '../Helper/privateProfile';
-import { callModSanction, sanctionErrorText, describeSanctionResult } from '../Helper/modSanction';
+import {
+  sanctionErrorText,
+  describeSanctionResult,
+  logModAction,
+  nextStrikeCount,
+  strikeDurationLabel,
+  formatMuteMinutes,
+  STRIKE_LADDER,
+} from '../Helper/modSanction';
+import { encodeEmailKey } from '../Helper/banKeys';
 import { useGlobalState } from '../GlobelStats';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
 import ReviewIntegrityTab from './ReviewIntegrityTab';
 import ModLogTab from './ModLogTab';
+import ReportsTab from './ReportsTab';
+import StaffAccessTab from './StaffAccessTab';
+import ModActionModal from './ModActionModal';
+import ModHistoryList from './ModHistoryList';
 import { launchImageLibrary } from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
 import { safeCompressImage } from '../Helper/safeCompressImage';
@@ -178,28 +205,6 @@ const AdminDashboard = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
 
-  // ✅ Banned admins/mods must not be able to operate the dashboard at all.
-  // The button is also hidden upstream — this is the inside-the-room defense
-  // in case anything (deep link, stale stack) lands them here.
-  if (isUserBlocked) {
-    return (
-      <View style={{ flex: 1, backgroundColor: isDark ? '#0f172a' : '#f8fafc', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-        <Text style={{ fontSize: 16, fontWeight: '700', color: isDark ? '#f1f5f9' : '#0f172a', marginBottom: 8, textAlign: 'center' }}>
-          Dashboard Locked
-        </Text>
-        <Text style={{ fontSize: 13, color: isDark ? '#94a3b8' : '#64748b', textAlign: 'center', marginBottom: 16 }}>
-          Your account is currently restricted. Contact a senior admin to lift the restriction — you cannot moderate while banned.
-        </Text>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 8, backgroundColor: '#3b82f6' }}
-        >
-          <Text style={{ color: '#fff', fontWeight: '600' }}>Go Back</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
   // Normalized caller email used by every handler to refuse self-targeting.
   const callerEmailLc = (currentUserEmail || currentUser?.email || '').toLowerCase().trim();
   const isSelf = (e) => !!e && callerEmailLc && e.toLowerCase().trim() === callerEmailLc;
@@ -298,10 +303,10 @@ const AdminDashboard = () => {
   const [loadingBanned, setLoadingBanned] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [bannedSearchQuery, setBannedSearchQuery] = useState('');
-  const [strikeFilter, setStrikeFilter] = useState('all'); // 'all' | '1' | '2' | '3+'
+  const [strikeFilter, setStrikeFilter] = useState('all'); // 'all' | '1' | '2' | '3+' | 'mute'
 
   // Ban Summary Stats (computed from allBannedUsers)
-  const [banSummary, setBanSummary] = useState(null); // { total, byMod: { modName: count } }
+  const [banSummary, setBanSummary] = useState(null); // { total, muted, byMod: { modName: count } }
   const [summaryExpanded, setSummaryExpanded] = useState(false);
 
   // ─────────────────────────────────────────────
@@ -330,13 +335,14 @@ const AdminDashboard = () => {
 
       if (!snapshot.exists() && !uidSnap?.exists()) {
         setAllBannedUsers([]);
-        setBanSummary({ total: 0, byMod: {} });
+        setBanSummary({ total: 0, muted: 0, byMod: {} });
         return;
       }
 
       const list = [];
       const now = Date.now();
       let total = 0;
+      let muted = 0;
       const byModId = {};
       const idsToResolve = new Set();
 
@@ -345,20 +351,22 @@ const AdminDashboard = () => {
         if (BAD_KEYS.has(encodedEmail)) return;
         const entry = child.val();
         const sc = entry?.strikeCount || 0;
+        // Mutes are listed too (Mute filter); a mute keeps the strike count,
+        // so `type` (or the legacy reason prefix) decides, not strikeCount.
+        const type = isMuteRecordCompat(entry) ? 'mute' : 'ban';
 
-        // Skip 0-strike entries (expired mutes)
-        if (sc < 1) return;
-
-        // Skip expired non-permanent bans
+        // Skip records that are not active
         const until = entry?.bannedUntil;
-        if (until !== 'permanent' && typeof until === 'number' && until < now) return;
+        if (until !== 'permanent' && !(typeof until === 'number' && until > now)) return;
+        if (type === 'ban' && sc < 1) return;
 
         const rawBannedBy = typeof entry?.bannedBy === 'string'
           ? entry.bannedBy
-          : entry?.bannedBy?.displayName || 'Unknown';
+          : entry?.bannedBy?.displayName || entry?.bannedBy?.uid || 'Unknown';
 
         list.push({
           isBanned: true,
+          type,
           email: decodeEmail(encodedEmail),
           encodedEmail,
           reason: entry?.reason ?? '—',
@@ -371,32 +379,35 @@ const AdminDashboard = () => {
           id: entry?.userId || null,
         });
 
-        total++;
+        if (type === 'mute') muted++;
+        else total++;
         byModId[rawBannedBy] = (byModId[rawBannedBy] || 0) + 1;
         if (looksLikeUserId(rawBannedBy)) {
           idsToResolve.add(rawBannedBy);
         }
       });
 
-      // uid-only bans: not tied to an email record, still active, not a mute.
+      // uid-only bans and mutes: not tied to an email record, still active.
       const listedIds = new Set(list.map((u) => u.id).filter(Boolean));
       const uidOnly = [];
       uidSnap?.forEach?.((child) => {
         const uid = child.key;
         const entry = child.val() || {};
         if (entry.emailKey || listedIds.has(uid)) return;
-        if ((entry.strikeCount || 0) < 1) return;
+        const type = isMuteRecordCompat(entry) ? 'mute' : 'ban';
+        if (type === 'ban' && (entry.strikeCount || 0) < 1) return;
         const until = entry.bannedUntil;
-        if (until !== 'permanent' && typeof until === 'number' && until < now) return;
-        uidOnly.push({ uid, entry });
+        if (until !== 'permanent' && !(typeof until === 'number' && until > now)) return;
+        uidOnly.push({ uid, entry, type });
       });
       const uidNames = await Promise.all(uidOnly.map(({ uid }) =>
         get(ref(db, `users/${uid}/displayName`)).then((s2) => s2.val()).catch(() => null)
       ));
-      uidOnly.forEach(({ uid, entry }, i) => {
+      uidOnly.forEach(({ uid, entry, type }, i) => {
         const by = entry.bannedByUid || (entry.linkedFrom ? 'Auto (linked account)' : 'Server');
         list.push({
           isBanned: true,
+          type,
           email: null,
           encodedEmail: null,
           reason: entry.reason ?? '—',
@@ -409,7 +420,8 @@ const AdminDashboard = () => {
           id: uid,
           uidOnly: true,
         });
-        total++;
+        if (type === 'mute') muted++;
+        else total++;
         byModId[by] = (byModId[by] || 0) + 1;
         if (looksLikeUserId(by)) idsToResolve.add(by);
       });
@@ -446,7 +458,7 @@ const AdminDashboard = () => {
       }
 
       setAllBannedUsers(list);
-      setBanSummary({ total, byMod });
+      setBanSummary({ total, muted, byMod });
     } catch (err) {
       console.error('Fetch banned error:', err);
     } finally {
@@ -471,13 +483,15 @@ const AdminDashboard = () => {
   const filteredBannedUsers = useMemo(() => {
     let list = allBannedUsers;
 
-    // Apply strike filter
-    if (strikeFilter === '1') {
-      list = list.filter((u) => u.strikeCount === 1);
+    // Apply strike / mute filter (strike filters show bans only)
+    if (strikeFilter === 'mute') {
+      list = list.filter((u) => u.type === 'mute');
+    } else if (strikeFilter === '1') {
+      list = list.filter((u) => u.type !== 'mute' && u.strikeCount === 1);
     } else if (strikeFilter === '2') {
-      list = list.filter((u) => u.strikeCount === 2);
+      list = list.filter((u) => u.type !== 'mute' && u.strikeCount === 2);
     } else if (strikeFilter === '3+') {
-      list = list.filter((u) => u.strikeCount >= 3);
+      list = list.filter((u) => u.type !== 'mute' && u.strikeCount >= 3);
     }
 
     // Apply search (name + email)
@@ -513,9 +527,6 @@ const AdminDashboard = () => {
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [hasMoreReviews, setHasMoreReviews] = useState(true);
   const [lastReviewKey, setLastReviewKey] = useState(null);
-
-  // Strike History
-  const [strikeHistory, setStrikeHistory] = useState([]);
 
   // Mute
   const [customMuteMinutes, setCustomMuteMinutes] = useState('');
@@ -577,7 +588,7 @@ const AdminDashboard = () => {
             displayName: u.displayName || u.userName || 'Unknown',
             email: u.email, avatar: getAvatarSafe(u),
             robloxUsername: u.robloxUsername,
-            isAdmin: u.admin || false, isSeniorMod: u.isSeniorMod || false, isModerator: u.isModerator || false,
+            isAdmin: u.admin || u.isAdmin || false, isSeniorMod: u.isSeniorMod || false, isModerator: u.isModerator || false, isBabyMod: u.isBabyMod || false,
           });
         }
       } else if (isEmailSearch) {
@@ -597,7 +608,7 @@ const AdminDashboard = () => {
             displayName: u.displayName || u.userName || 'Unknown',
             email: u.email, avatar: getAvatarSafe(u),
             robloxUsername: u.robloxUsername,
-            isAdmin: u.admin || false, isSeniorMod: u.isSeniorMod || false, isModerator: u.isModerator || false,
+            isAdmin: u.admin || u.isAdmin || false, isSeniorMod: u.isSeniorMod || false, isModerator: u.isModerator || false, isBabyMod: u.isBabyMod || false,
           });
         }
 
@@ -619,7 +630,7 @@ const AdminDashboard = () => {
               displayName: u.displayName || u.userName || 'Unknown',
               email: matchEmail, avatar: getAvatarSafe(u),
               robloxUsername: u.robloxUsername,
-              isAdmin: u.admin || false, isSeniorMod: u.isSeniorMod || false, isModerator: u.isModerator || false,
+              isAdmin: u.admin || u.isAdmin || false, isSeniorMod: u.isSeniorMod || false, isModerator: u.isModerator || false, isBabyMod: u.isBabyMod || false,
             });
           });
         }
@@ -656,7 +667,7 @@ const AdminDashboard = () => {
                   displayName: u.displayName || u.userName || 'Unknown',
                   email: u.email, avatar: getAvatarSafe(u),
                   robloxUsername: u.robloxUsername,
-                  isAdmin: u.admin || false, isSeniorMod: u.isSeniorMod || false, isModerator: u.isModerator || false,
+                  isAdmin: u.admin || u.isAdmin || false, isSeniorMod: u.isSeniorMod || false, isModerator: u.isModerator || false, isBabyMod: u.isBabyMod || false,
                 });
               });
             }
@@ -686,7 +697,7 @@ const AdminDashboard = () => {
                     displayName: u.displayName || u.userName || 'Unknown',
                     email: u.email, avatar: getAvatarSafe(u),
                     robloxUsername: u.robloxUsername,
-                    isAdmin: u.admin || false, isSeniorMod: u.isSeniorMod || false, isModerator: u.isModerator || false,
+                    isAdmin: u.admin || u.isAdmin || false, isSeniorMod: u.isSeniorMod || false, isModerator: u.isModerator || false, isBabyMod: u.isBabyMod || false,
                   });
                 }
               });
@@ -717,26 +728,26 @@ const AdminDashboard = () => {
     }
   };
 
-  // ✅ Check if a user is banned directly from Firebase
+  // ✅ Active ban/mute for a search row (email record). Expired records are
+  // ignored; `type` tells a mute from a ban.
   const checkUserBanStatus = useCallback(async (email) => {
     if (!email || !db) return null;
 
     try {
-      const encodeEmail = (em) => em.replace(/\./g, '(dot)');
-      const encodedEmail = encodeEmail(email);
-      const banRef = ref(db, `banned_users_by_email/${encodedEmail}`);
-      const snapshot = await get(banRef);
-
-      if (snapshot.exists()) {
-        const banData = snapshot.val();
-        return {
-          isBanned: true,
-          ...banData,
-          email,
-          encodedEmail,
-        };
-      }
-      return null;
+      const encodedEmail = encodeEmailKey(email);
+      const snapshot = await get(ref(db, `banned_users_by_email/${encodedEmail}`));
+      if (!snapshot.exists()) return null;
+      const banData = snapshot.val() || {};
+      const until = banData.bannedUntil;
+      const active = until === 'permanent' || (typeof until === 'number' && until > Date.now());
+      if (!active) return null;
+      return {
+        ...banData,
+        isBanned: true,
+        type: isMuteRecordCompat(banData) ? 'mute' : 'ban',
+        email,
+        encodedEmail,
+      };
     } catch (err) {
       console.error('Error checking ban status:', err);
       return null;
@@ -745,239 +756,173 @@ const AdminDashboard = () => {
 
   // Rows from name/ID search, the chat viewer or a status post may not carry
   // an email (it lives in users_private since round 2). Resolve it from there
-  // before a ban/strike/mute, since bans are keyed by email.
+  // so the owner check and legacy email-only rows still work.
   const withEmail = async (userItem) => {
     if (!userItem || userItem.email || !userItem.id) return userItem;
     const email = await getUserEmail(db, userItem.id);
     return email ? { ...userItem, email } : userItem;
   };
 
-  // No email on file (deleted account, phone sign-in): ban by uid through
-  // the server, which resolves devices and enforces the same hierarchy.
-  const sanctionByUid = (userItem, action, opts, label) => new Promise((resolve) => {
-    if (!userItem?.id) {
-      Alert.alert('Error', 'User has no ID.');
-      resolve(false);
-      return;
-    }
-    Alert.alert(
-      'No email on file',
-      `${userItem.displayName || userItem.id} has no email (deleted account or phone sign-in). ${label} by user ID instead?`,
-      [
-        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-        {
-          text: label,
-          style: 'destructive',
-          onPress: async () => {
-            const r = await callModSanction(action, userItem.id, opts);
-            if (!r.ok) {
-              Alert.alert('Error', sanctionErrorText(r.error));
-              resolve(false);
-              return;
-            }
-            Alert.alert('Done', describeSanctionResult(r));
-            setSelectedUser(null);
-            fetchAllBanned();
-            resolve(true);
-          },
-        },
-      ]
-    );
-  });
-
   // ─────────────────────────────────────────────
-  // Actions
-  const handleUnban = async (userItem) => {
-    const email = userItem.email || decodeEmail(userItem.encodedEmail);
-    if (!email) {
-      // uid-only ban (no email on file) — lifted by the server.
-      if (!userItem.id) return;
-      const r = await callModSanction('unban', userItem.id);
-      if (!r.ok) Alert.alert('Error', sanctionErrorText(r.error));
-      else { Alert.alert('User Unbanned', 'Ban has been lifted.'); setSelectedUser(null); fetchAllBanned(); }
-      return;
-    }
-    if (isSelf(email)) {
-      Alert.alert('Permission Denied', 'You cannot unban yourself.');
-      return;
-    }
+  // Moderation. Every action opens the reason prompt (ModActionModal) and
+  // then goes to the server by uid (utils.applySanction / liftSanction). The
+  // permission checks only hide buttons the server would refuse
+  // (contract §2): strict rank, staff immunity, JMD = mute ≤ 2 h + unmute,
+  // lifts need the original banner's rank.
+  const callerRoles = useMemo(() => ({
+    isAdmin: !!isAdmin,
+    isSeniorMod: !!isSeniorMod,
+    isModerator: !!isModerator,
+    isBabyMod: !!isBabyMod,
+    isOwner: isCurrentUserOwner(),
+  }), [isAdmin, isSeniorMod, isModerator, isBabyMod]);
+  const canManageStaffAccess = getStaffRank(callerRoles) >= STAFF_RANK.admin;
 
+  const [selectedRoles, setSelectedRoles] = useState(null);
+  const [selectedSanction, setSelectedSanction] = useState(null);
+  const [selectedBannerRoles, setSelectedBannerRoles] = useState(null);
+  const [modAction, setModAction] = useState(null); // { kind, value, userItem }
+  const selectedIdRef = React.useRef(null);
+
+  // Fresh roles + current sanction for the user in the detail sheet.
+  const loadSelectedModeration = useCallback(async (userItem, email) => {
+    const key = userItem?.id || email || null;
+    selectedIdRef.current = key;
+    setSelectedRoles(null);
+    setSelectedSanction(null);
+    setSelectedBannerRoles(null);
+    if (!key) return;
     try {
-      const success = await unbanUserWithEmail(email);
-      // The server lifts the uid ban, its devices and linked alts.
-      if (success && userItem.id) callModSanction('unban', userItem.id).catch(() => {});
-      if (success) {
-        setSelectedUser(null);
-        fetchAllBanned();
-        if (activeTab === 'search') {
-          setSearchResults((prev) => prev.map((u) => (u.email === email ? { ...u, isBanned: false } : u)));
-          // ✅ Clear cached ban status for this user
-          setUserBanStatus((prev) => {
-            const updated = { ...prev };
-            delete updated[email];
-            return updated;
-          });
-        }
-      }
+      const [roles, status] = await Promise.all([
+        userItem?.id ? fetchUserRoles(userItem.id, email) : Promise.resolve(null),
+        getSanctionStatus(userItem?.id || null, email || null),
+      ]);
+      const bannerRoles = status.active && status.bannedByUid ? await fetchUserRoles(status.bannedByUid) : null;
+      if (selectedIdRef.current !== key) return;
+      setSelectedRoles(roles || {
+        isAdmin: !!userItem?.isAdmin,
+        isSeniorMod: !!userItem?.isSeniorMod,
+        isModerator: !!userItem?.isModerator,
+        isBabyMod: !!userItem?.isBabyMod,
+        isOwner: isOwnerEmail(email),
+      });
+      setSelectedSanction(status);
+      setSelectedBannerRoles(bannerRoles);
     } catch (err) {
-      Alert.alert('Error', 'Could not unban user.');
+      console.warn('[AdminDashboard] load moderation status failed:', err?.message);
+      if (selectedIdRef.current === key) {
+        setSelectedRoles({ isOwner: isOwnerEmail(email) });
+        setSelectedSanction({ active: false, type: null, strikeCount: 0 });
+      }
     }
+  }, []);
+
+  const selectedPerms = useMemo(
+    () => getModPermissions(callerRoles, selectedRoles || {}),
+    [callerRoles, selectedRoles]
+  );
+  const canLiftSelected = !!(
+    selectedSanction?.active &&
+    canLiftSanction(callerRoles, selectedRoles || {}, selectedSanction.type, selectedBannerRoles)
+  );
+
+  const isSelfItem = (u) => !!u && ((u.id && u.id === currentUser?.id) || isSelf(u.email));
+
+  const openModAction = async (item, action) => {
+    const userItem = await withEmail(item);
+    if (!userItem?.id && !userItem?.email) {
+      Alert.alert('Error', 'This user has no ID or email.');
+      return;
+    }
+    if (isSelfItem(userItem)) {
+      Alert.alert('Permission Denied', 'You cannot moderate yourself.');
+      return;
+    }
+    setModAction({ ...action, userItem });
   };
 
+  // Ban = the next strike on the ladder, read from the one server counter.
   const handleBan = async (item) => {
     const userItem = await withEmail(item);
-    if (!userItem.email) {
-      // Escalate like banUserwithEmail: next strike after the current uid ban.
-      const cur = userItem.id
-        ? (await get(ref(db, `banned_uids/${userItem.id}/strikeCount`)).catch(() => null))?.val()
-        : 0;
-      const strikeCount = Math.min(3, (typeof cur === 'number' ? cur : 0) + 1);
-      await sanctionByUid(userItem, 'strike', { strikeCount }, `Strike ${strikeCount}`);
+    const strikeCount = nextStrikeCount(await getCurrentStrikeCount(userItem?.id, userItem?.email));
+    await openModAction(userItem, { kind: 'strike', value: strikeCount });
+  };
+
+  const handleSetStrike = (item, strikeCount) => openModAction(item, { kind: 'strike', value: strikeCount });
+
+  const handleMuteUser = (item, minutes) => {
+    if (selectedPerms.maxMuteMinutes && minutes > selectedPerms.maxMuteMinutes) {
+      Alert.alert('Permission Denied', sanctionErrorText('rank_limit'));
       return;
     }
-    if (isSelf(userItem.email)) {
-      Alert.alert('Permission Denied', 'You cannot ban yourself.');
-      return;
-    }
+    openModAction(item, { kind: 'mute', value: minutes });
+  };
 
-    const userInfo = {
-      id: userItem.id,
-      displayName: userItem.displayName,
-      avatar: userItem.avatar,
-      email: userItem.email,
-      // Target role flags from search results so the hierarchy gate inside
-      // banUserwithEmail can reject Mod→Mod and peer-Admin→Admin attempts.
-      isAdmin: !!userItem.isAdmin,
-      isSeniorMod: !!userItem.isSeniorMod,
-      isModerator: !!userItem.isModerator,
-      isBabyMod: !!userItem.isBabyMod,
-    };
+  // Unban or unmute (whichever is active) — server only, no direct delete.
+  const handleUnban = (item) => {
+    const type = selectedSanction?.type || item?.type || 'ban';
+    openModAction(item, { kind: type === 'mute' ? 'unmute' : 'unban' });
+  };
 
-    const bannerInfo = {
-      id: currentUser?.id,
-      displayName: currentUser?.userName || 'Admin',
-      avatar: currentUser?.avatar,
-      isAdmin: !!isAdmin,
-      isSeniorMod: !!isSeniorMod,
-      isModerator: !!isModerator,
-      isBabyMod: !!isBabyMod,
-    };
-
-    const isStaff = isAdmin || isSeniorMod || isModerator;
-    const success = await banUserwithEmail(userItem.email, isAdmin, userItem.id, userInfo, bannerInfo, isStaff, isStaff);
-    if (success) {
-      setSelectedUser(null);
-      fetchAllBanned();
-      setSearchResults((prev) => prev.map((u) => (u.email === userItem.email ? { ...u, isBanned: true } : u)));
-      // ✅ Refresh cached ban status for this user
-      checkUserBanStatus(userItem.email).then((banData) => {
-        if (banData) {
-          setUserBanStatus((prev) => ({
-            ...prev,
-            [userItem.email]: banData,
-          }));
-        }
+  const confirmModAction = async ({ reason, evidence }) => {
+    const a = modAction;
+    if (!a?.userItem) return true;
+    const u = a.userItem;
+    let r;
+    if (a.kind === 'unban' || a.kind === 'unmute') {
+      if (!u.id) {
+        Alert.alert('Error', 'This record has no user ID, so the server cannot lift it.');
+        return false;
+      }
+      r = await liftSanction({ action: a.kind, targetUid: u.id, reason });
+    } else {
+      r = await applySanction({
+        action: a.kind,
+        targetUid: u.id || null,
+        email: u.email || null,
+        strikeCount: a.kind === 'strike' ? a.value : undefined,
+        minutes: a.kind === 'mute' ? a.value : undefined,
+        reason,
+        evidence,
+        userInfo: { id: u.id, displayName: u.displayName, avatar: u.avatar, ...(selectedRoles || {}) },
+        bannerInfo: {
+          id: currentUser?.id,
+          displayName: currentUser?.userName || currentUser?.displayName || 'Staff',
+          avatar: currentUser?.avatar,
+          ...callerRoles,
+        },
       });
     }
+    if (!r.ok) {
+      Alert.alert('Error', sanctionErrorText(r.error));
+      return false; // keep the prompt open
+    }
+    const detail = describeSanctionResult(r);
+    if (a.kind === 'unban') Alert.alert('User Unbanned', 'Ban has been lifted.');
+    else if (a.kind === 'unmute') Alert.alert('User Unmuted', 'Mute has been lifted.');
+    else if (a.kind === 'mute') Alert.alert('User Muted', `Muted for ${formatMuteMinutes(a.value)}.`);
+    else Alert.alert('Strike Applied', `Strike ${a.value} applied (${strikeDurationLabel(a.value)}). ${detail}`.trim());
+
+    // Refresh the sheet, the banned list and the search row's cached status.
+    loadSelectedModeration(u, u.email);
+    fetchAllBanned();
+    if (u.email) {
+      setUserBanStatus((prev) => {
+        const next = { ...prev };
+        delete next[u.email];
+        return next;
+      });
+    }
+    return true;
   };
 
-  const handleSetStrike = async (item, strikeCount) => {
-    const userItem = await withEmail(item);
-    if (!userItem.email) {
-      await sanctionByUid(userItem, 'strike', { strikeCount }, `Strike ${strikeCount}`);
-      return;
-    }
-    if (isSelf(userItem.email)) {
-      Alert.alert('Permission Denied', 'You cannot strike yourself.');
-      return;
-    }
-
-    const bannerInfo = {
-      id: currentUser?.id,
-      displayName: currentUser?.userName || currentUser?.displayName || 'Admin',
-      avatar: currentUser?.avatar,
-      isAdmin: !!isAdmin,
-      isSeniorMod: !!isSeniorMod,
-      isModerator: !!isModerator,
-      isBabyMod: !!isBabyMod,
-    };
-    const userInfo = {
-      id: userItem.id,
-      displayName: userItem.displayName || userItem.sender,
-      avatar: userItem.avatar,
-      isAdmin: !!userItem.isAdmin,
-      isSeniorMod: !!userItem.isSeniorMod,
-      isModerator: !!userItem.isModerator,
-      isBabyMod: !!userItem.isBabyMod,
-    };
-
-    // Both Admins and Moderators should see confirmation and success alerts
-    const isStaff = isAdmin || isSeniorMod || isModerator;
-    const success = await setUserStrike(userItem.email, strikeCount, userItem.id, isStaff, bannerInfo, userInfo, isStaff);
-    if (success) {
-      setSelectedUser(null);
-      fetchAllBanned();
-      if (activeTab === 'search') {
-        setSearchResults((prev) => prev.map((u) => (u.email === userItem.email ? { ...u, isBanned: true } : u)));
-        // ✅ Refresh cached ban status for this user
-        checkUserBanStatus(userItem.email).then((banData) => {
-          if (banData) {
-            setUserBanStatus((prev) => ({
-              ...prev,
-              [userItem.email]: banData,
-            }));
-          }
-        });
-      }
-    }
-  };
-
-  const handleMuteUser = async (item, minutes) => {
-    const userItem = await withEmail(item);
-    if (!userItem.email) {
-      await sanctionByUid(userItem, 'mute', { minutes }, `Mute ${minutes}m`);
-      return;
-    }
-    if (isSelf(userItem.email)) {
-      Alert.alert('Permission Denied', 'You cannot mute yourself.');
-      return;
-    }
-
-    const bannerInfo = {
-      id: currentUser?.id,
-      displayName: currentUser?.userName || currentUser?.displayName || 'Admin',
-      avatar: currentUser?.avatar,
-      isAdmin: !!isAdmin,
-      isSeniorMod: !!isSeniorMod,
-      isModerator: !!isModerator,
-      isBabyMod: !!isBabyMod,
-    };
-    const userInfo = {
-      id: userItem.id,
-      displayName: userItem.displayName,
-      avatar: userItem.avatar,
-      isAdmin: !!userItem.isAdmin,
-      isSeniorMod: !!userItem.isSeniorMod,
-      isModerator: !!userItem.isModerator,
-      isBabyMod: !!userItem.isBabyMod,
-    };
-
-    const success = await muteUser(userItem.email, minutes, userInfo, bannerInfo, true);
-    if (success) {
-      setSelectedUser(null);
-      fetchAllBanned();
-      if (activeTab === 'search') {
-        setSearchResults((prev) => prev.map((u) => (u.email === userItem.email ? { ...u, isBanned: true } : u)));
-        checkUserBanStatus(userItem.email).then((banData) => {
-          if (banData) {
-            setUserBanStatus((prev) => ({
-              ...prev,
-              [userItem.email]: banData,
-            }));
-          }
-        });
-      }
-    }
+  const modActionTitle = (a) => {
+    if (!a) return '';
+    const name = a.userItem?.displayName || a.userItem?.email || 'this user';
+    if (a.kind === 'strike') return `Strike ${a.value} (${strikeDurationLabel(a.value)}) — ${name}`;
+    if (a.kind === 'mute') return `Mute ${name} for ${formatMuteMinutes(a.value)}`;
+    if (a.kind === 'unmute') return `Unmute ${name}`;
+    return `Unban ${name}`;
   };
 
   // ─────────────────────────────────────────────
@@ -1013,6 +958,12 @@ const AdminDashboard = () => {
       const userRef = ref(db, `users/${userId}`);
       const userSnap = await get(userRef);
       const userData = userSnap.exists() ? userSnap.val() : null;
+      // Rows opened from the Reports tab carry only a uid — fill in the name.
+      if (userData) {
+        setSelectedUser((prev) => (prev && prev.id === userId && !prev.displayName
+          ? { ...prev, displayName: userData.displayName || userData.userName || 'Unknown', avatar: prev.avatar || userData.avatar }
+          : prev));
+      }
 
       // Firestore: summary
       const firestoreDB = getFirestore();
@@ -1106,70 +1057,17 @@ const AdminDashboard = () => {
   }, [hasMoreReviews, lastReviewKey]);
 
   // ─────────────────────────────────────────────
-  // Fetch Strike History
-  const fetchStrikeHistory = useCallback(async (email) => {
-    if (!email) return;
-    try {
-      const encodedEmail = email.replace(/\./g, '(dot)');
-      const bannedRef = ref(db, `banned_users_by_email/${encodedEmail}`);
-      const snapshot = await get(bannedRef);
-
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        if (data.strikeCount) {
-          // Resolve bannedBy: could be a user ID (new) or display name (old)
-          let appliedByName = null;
-          const rawBannedBy = typeof data.bannedBy === 'string' ? data.bannedBy : data.bannedBy?.displayName || null;
-
-          if (rawBannedBy && looksLikeUserId(rawBannedBy)) {
-            try {
-              const modSnap = await get(ref(db, `users/${rawBannedBy}/displayName`));
-              appliedByName = modSnap.exists() ? modSnap.val() : rawBannedBy;
-            } catch {
-              appliedByName = rawBannedBy;
-            }
-          } else {
-            appliedByName = rawBannedBy;
-          }
-
-          setStrikeHistory([{
-            id: 'current',
-            strikeCount: data.strikeCount,
-            reason: data.reason || '—',
-            timestamp: data.bannedAt || null,
-            appliedBy: appliedByName,
-            bannedUntil: data.bannedUntil || null,
-          }]);
-        } else {
-          setStrikeHistory([]);
-        }
-      } else {
-        setStrikeHistory([]);
-      }
-    } catch {
-      setStrikeHistory([]);
-    }
-  }, [db]);
-
-  // ─────────────────────────────────────────────
   // Delete a Review (Admin can delete any, Mod cannot delete mod/admin reviews)
   const handleDeleteReview = useCallback(async (review) => {
     if (!review?.id || !selectedUser?.id) return;
 
-    // If current user is a mod (not admin), check if the reviewer is also a mod/admin
-    if (!isAdmin && isModerator && review.fromUserId) {
-      try {
-        const reviewerRef = ref(db, `users/${review.fromUserId}`);
-        const reviewerSnap = await get(reviewerRef);
-        if (reviewerSnap.exists()) {
-          const reviewerData = reviewerSnap.val();
-          if (reviewerData?.isModerator || reviewerData?.admin) {
-            Alert.alert('Restricted', 'Moderators cannot delete reviews from other moderators or admins.');
-            return;
-          }
-        }
-      } catch (err) {
-        console.error('Error checking reviewer status:', err);
+    // Staff may only delete a review left by someone STRICTLY below them
+    // (same ladder as every other moderation action, fresh RTDB roles).
+    if (review.fromUserId && review.fromUserId !== currentUser?.id) {
+      const allowed = await outranksUser(review.fromUserId, callerRoles);
+      if (!allowed) {
+        Alert.alert('Restricted', 'You cannot delete reviews left by staff at or above your rank.');
+        return;
       }
     }
 
@@ -1216,6 +1114,11 @@ const AdminDashboard = () => {
 
               // Remove from local state
               setReviews((prev) => prev.filter((r) => r.id !== review.id));
+              logModAction('review_delete', selectedUser.id, {
+                reviewId: review.id,
+                reviewerUid: review.fromUserId || null,
+                rating: ratingToRemove,
+              });
 
               // Refresh user details to update displayed rating
               fetchUserDetails(selectedUser.id);
@@ -1229,13 +1132,12 @@ const AdminDashboard = () => {
         },
       ]
     );
-  }, [selectedUser, fetchUserDetails, isAdmin, isModerator, db]);
+  }, [selectedUser, fetchUserDetails, callerRoles, currentUser?.id]);
 
   const handleSelectUser = useCallback(async (userItem) => {
     setSelectedUser(userItem);
     setUserDetails(null);
     setReviews([]);
-    setStrikeHistory([]);
     setHasMoreReviews(true);
     setLastReviewKey(null);
 
@@ -1244,16 +1146,14 @@ const AdminDashboard = () => {
       fetchReviews(userItem.id, true);
     }
     // No email on the row → look it up in users_private (staff read) so the
-    // details header and strike history still show.
+    // details header, owner check and moderation history still work.
     let email = userItem.email;
     if (!email && userItem.id) {
       email = await getUserEmail(db, userItem.id);
       if (email) setSelectedUser((prev) => (prev && prev.id === userItem.id ? { ...prev, email } : prev));
     }
-    if (email) {
-      fetchStrikeHistory(email);
-    }
-  }, [db, fetchUserDetails, fetchReviews, fetchStrikeHistory]);
+    loadSelectedModeration(userItem, email || null);
+  }, [db, fetchUserDetails, fetchReviews, loadSelectedModeration]);
 
   // ─────────────────────────────────────────────
   // Chat Viewer — search users by displayName, email, or user ID
@@ -1301,7 +1201,7 @@ const AdminDashboard = () => {
 
       // 2. Email search — look up in banned_users_by_email or scan users/email field
       if (isEmailSearch) {
-        const encoded = raw.replace(/\./g, '(dot)');
+        const encoded = encodeEmailKey(raw);
         // Try banned_users_by_email for userId
         const banSnap = await get(ref(db, `banned_users_by_email/${encoded}/userId`));
         if (banSnap.exists()) {
@@ -1411,8 +1311,10 @@ const AdminDashboard = () => {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'chatViewer' && !isAdmin && isModerator) fetchChatReports();
-  }, [activeTab, isAdmin, isModerator, fetchChatReports]);
+    // Every non-admin staff member (Senior Mods too) gets the reported-chat
+    // list here; admins reach the same reports from the Reports tab.
+    if (activeTab === 'chatViewer' && !isAdmin) fetchChatReports();
+  }, [activeTab, isAdmin, fetchChatReports]);
 
   // Load chat from a report (mod clicks a reported chat)
   const loadChatFromReport = useCallback(async (report) => {
@@ -1642,13 +1544,12 @@ const AdminDashboard = () => {
 
     // ✅ If in search tab and not yet checked, check ban status
     if (activeTab === 'search' && item.email && !userBanStatus.hasOwnProperty(item.email) && !isBanned) {
+      // Cache "not banned" too (false), or every render re-reads the record.
       checkUserBanStatus(item.email).then((banData) => {
-        if (banData) {
-          setUserBanStatus((prev) => ({
-            ...prev,
-            [item.email]: banData,
-          }));
-        }
+        setUserBanStatus((prev) => ({
+          ...prev,
+          [item.email]: banData || false,
+        }));
       });
     }
 
@@ -1673,7 +1574,11 @@ const AdminDashboard = () => {
 
         <View style={styles.actionContainer}>
           {isBanned ? (
-            <View style={styles.bannedBadge}><Text style={styles.bannedText}>BANNED</Text></View>
+            <View style={[styles.bannedBadge, merged.type === 'mute' && { backgroundColor: '#7C3AED' }]}>
+              <Text style={styles.bannedText}>
+                {merged.type === 'mute' ? 'MUTED' : `BANNED${merged.strikeCount ? ` · S${merged.strikeCount}` : ''}`}
+              </Text>
+            </View>
           ) : (
             <View style={styles.activeBadge}><Text style={styles.activeText}>ACTIVE</Text></View>
           )}
@@ -1682,6 +1587,30 @@ const AdminDashboard = () => {
       </TouchableOpacity>
     );
   };
+
+  // ✅ Banned admins/mods must not be able to operate the dashboard at all.
+  // The button is also hidden upstream — this is the inside-the-room defense
+  // in case anything (deep link, stale stack) lands them here. It sits after
+  // every hook: returning before them changed the hook count between renders
+  // (crash when isUserBlocked flipped while the dashboard was open).
+  if (isUserBlocked) {
+    return (
+      <View style={{ flex: 1, backgroundColor: isDark ? '#0f172a' : '#f8fafc', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <Text style={{ fontSize: 16, fontWeight: '700', color: isDark ? '#f1f5f9' : '#0f172a', marginBottom: 8, textAlign: 'center' }}>
+          Dashboard Locked
+        </Text>
+        <Text style={{ fontSize: 13, color: isDark ? '#94a3b8' : '#64748b', textAlign: 'center', marginBottom: 16 }}>
+          Your account is currently restricted. Contact a senior admin to lift the restriction — you cannot moderate while banned.
+        </Text>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 8, backgroundColor: '#3b82f6' }}
+        >
+          <Text style={{ color: '#fff', fontWeight: '600' }}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#000' : '#F2F2F7', paddingTop: insets.top }]}>
@@ -1698,6 +1627,15 @@ const AdminDashboard = () => {
         >
           <Text style={[styles.tabText, activeTab === 'banned' && styles.activeTabText, { color: activeTab === 'banned' ? '#007AFF' : (isDark ? '#888' : '#666') }]}>
             Banned List
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'reports' && styles.activeTab, { borderColor: isDark ? '#333' : '#E5E5EA' }]}
+          onPress={() => setActiveTab('reports')}
+        >
+          <Text style={[styles.tabText, activeTab === 'reports' && styles.activeTabText, { color: activeTab === 'reports' ? '#007AFF' : (isDark ? '#888' : '#666') }]}>
+            Reports
           </Text>
         </TouchableOpacity>
 
@@ -1754,6 +1692,17 @@ const AdminDashboard = () => {
             Mod Log
           </Text>
         </TouchableOpacity>
+
+        {canManageStaffAccess && (
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'staffAccess' && styles.activeTab, { borderColor: isDark ? '#333' : '#E5E5EA' }]}
+            onPress={() => setActiveTab('staffAccess')}
+          >
+            <Text style={[styles.tabText, activeTab === 'staffAccess' && styles.activeTabText, { color: activeTab === 'staffAccess' ? '#007AFF' : (isDark ? '#888' : '#666') }]}>
+              Staff Access
+            </Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       {activeTab === 'search' && (
@@ -1797,7 +1746,7 @@ const AdminDashboard = () => {
                       {banSummary.total}
                     </Text>
                     <Text style={{ fontSize: 11, color: isDark ? '#888' : '#666', fontWeight: '500' }}>
-                      Total Banned Users
+                      Total Banned Users{banSummary.muted ? ` · ${banSummary.muted} muted` : ''}
                     </Text>
                   </View>
                 </View>
@@ -1848,13 +1797,14 @@ const AdminDashboard = () => {
             </View>
           </View>
 
-          {/* Strike Filter Pills */}
-          <View style={{ flexDirection: 'row', paddingHorizontal: 16, marginBottom: 10, gap: 8 }}>
+          {/* Strike / Mute Filter Pills */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0 }} contentContainerStyle={{ flexDirection: 'row', paddingHorizontal: 16, marginBottom: 10, gap: 8 }}>
             {[
               { key: 'all', label: 'All' },
               { key: '1', label: 'Strike 1' },
               { key: '2', label: 'Strike 2' },
               { key: '3+', label: 'Permanent' },
+              { key: 'mute', label: 'Muted' },
             ].map((f) => {
               const isActive = strikeFilter === f.key;
               return (
@@ -1876,7 +1826,7 @@ const AdminDashboard = () => {
                 </TouchableOpacity>
               );
             })}
-          </View>
+          </ScrollView>
 
           {loadingBanned && !refreshing && allBannedUsers.length === 0 ? (
             <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 40 }} />
@@ -1926,8 +1876,8 @@ const AdminDashboard = () => {
       ) : activeTab === 'chatViewer' ? (
         <View style={{ flex: 1 }}>
 
-          {/* ── ADMIN: Free search (unchanged) ── */}
-          {isAdmin ? (
+          {/* ── ADMIN: Free search (unless viewing a report from the Reports tab) ── */}
+          {isAdmin && !selectedReport ? (
             <>
               <ScrollView style={{ maxHeight: 320 }} keyboardShouldPersistTaps="handled" nestedScrollEnabled contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 10 }}>
                 {/* Person 1 */}
@@ -2504,6 +2454,15 @@ const AdminDashboard = () => {
         <ReviewIntegrityTab isDark={isDark} currentUser={currentUser} />
       ) : activeTab === 'modLog' ? (
         <ModLogTab isDark={isDark} />
+      ) : activeTab === 'reports' ? (
+        <ReportsTab
+          isDark={isDark}
+          onViewUser={(u) => setStatusProfileUser(u)}
+          onSanctionUser={(u) => handleSelectUser(u)}
+          onViewChat={(report) => { setActiveTab('chatViewer'); loadChatFromReport(report); }}
+        />
+      ) : activeTab === 'staffAccess' && canManageStaffAccess ? (
+        <StaffAccessTab isDark={isDark} />
       ) : null}
 
       {/* Status profile drawer (admin moderation) */}
@@ -2563,35 +2522,68 @@ const AdminDashboard = () => {
                   </View>
                 )}
 
-                {selectedUser.isBanned && (
-                  <View style={[styles.infoBadge, { backgroundColor: '#FF3B3015', marginTop: 8 }]}>
-                    <Text style={{ color: '#FF3B30', fontWeight: 'bold' }}>
-                      {selectedUser.strikeCount} Strike(s) • {selectedUser.reason}
+                {/* Current sanction (server uid record, then email record) */}
+                {!selectedSanction ? (
+                  <ActivityIndicator size="small" color="#007AFF" style={{ marginTop: 8 }} />
+                ) : (
+                  <View style={[styles.infoBadge, {
+                    marginTop: 8,
+                    backgroundColor: selectedSanction.active
+                      ? (selectedSanction.type === 'mute' ? '#7C3AED15' : '#FF3B3015')
+                      : '#34C75915',
+                  }]}>
+                    <Text style={{
+                      fontWeight: 'bold', textAlign: 'center',
+                      color: selectedSanction.active ? (selectedSanction.type === 'mute' ? '#7C3AED' : '#FF3B30') : '#34C759',
+                    }}>
+                      {selectedSanction.active
+                        ? `${selectedSanction.type === 'mute' ? 'Muted' : 'Banned'} ${selectedSanction.bannedUntil === 'permanent' ? 'permanently' : `until ${new Date(selectedSanction.bannedUntil).toLocaleString()}`}`
+                        : 'No active sanction'}
+                      {` • ${selectedSanction.strikeCount || 0}/3 strikes`}
                     </Text>
+                    {selectedSanction.active && !!selectedSanction.reason && (
+                      <Text style={{ color: isDark ? '#CCC' : '#333', fontSize: 12, textAlign: 'center', marginTop: 2 }}>
+                        {selectedSanction.reason}{selectedSanction.bannedByName ? ` — ${selectedSanction.bannedByName}` : ''}
+                      </Text>
+                    )}
                   </View>
                 )}
               </View>
 
-              {/* Unban / Ban Actions */}
-              <View style={{ marginTop: 20, marginBottom: 16 }}>
-                {selectedUser.isBanned ? (
-                  <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: '#34C759' }]}
-                    onPress={() => handleUnban(selectedUser)}
-                  >
-                    <Ionicons name="checkmark-circle-outline" size={20} color="#FFF" style={{ marginRight: 8 }} />
-                    <Text style={styles.buttonText}>Unban User</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: '#FF3B30' }]}
-                    onPress={() => handleBan(selectedUser)}
-                  >
-                    <Ionicons name="ban-outline" size={20} color="#FFF" style={{ marginRight: 8 }} />
-                    <Text style={styles.buttonText}>Ban User</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+              {/* Unban / Unmute / Ban Actions — only what the server will accept */}
+              {selectedRoles && !isSelfItem(selectedUser) && (
+                <View style={{ marginTop: 20, marginBottom: 16 }}>
+                  {!selectedPerms.outranks ? (
+                    <Text style={{ color: isDark ? '#888' : '#666', textAlign: 'center' }}>
+                      You can't moderate this user (same or higher rank).
+                    </Text>
+                  ) : !selectedPerms.canMute ? (
+                    <Text style={{ color: isDark ? '#888' : '#666', textAlign: 'center', marginBottom: 12 }}>
+                      Staff members can only be sanctioned by an admin.
+                    </Text>
+                  ) : null}
+                  {canLiftSelected && (
+                    <TouchableOpacity
+                      style={[styles.actionButton, { backgroundColor: '#34C759' }]}
+                      onPress={() => handleUnban(selectedUser)}
+                    >
+                      <Ionicons name="checkmark-circle-outline" size={20} color="#FFF" style={{ marginRight: 8 }} />
+                      <Text style={styles.buttonText}>{selectedSanction?.type === 'mute' ? 'Unmute User' : 'Unban User'}</Text>
+                    </TouchableOpacity>
+                  )}
+                  {selectedPerms.canStrike && !(selectedSanction?.active && selectedSanction.type === 'ban') && (
+                    <TouchableOpacity
+                      style={[styles.actionButton, { backgroundColor: '#FF3B30' }]}
+                      onPress={() => handleBan(selectedUser)}
+                    >
+                      <Ionicons name="ban-outline" size={20} color="#FFF" style={{ marginRight: 8 }} />
+                      <Text style={styles.buttonText}>
+                        Ban User (Strike {nextStrikeCount(selectedSanction?.strikeCount)})
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
 
               {/* Stats */}
               {loadingDetails ? (
@@ -2679,40 +2671,22 @@ const AdminDashboard = () => {
                 )}
               </View>
 
-              {/* Strike History */}
-              {strikeHistory.length > 0 && (
-                <View style={styles.sectionContainer}>
-                  <Text style={[styles.sectionTitle, { color: isDark ? '#FFF' : '#000' }]}>Strike History</Text>
-                  {strikeHistory.map((strike) => (
-                    <View key={strike.id} style={[styles.strikeCard, { backgroundColor: isDark ? '#2C1C1E' : '#FFF5F5' }]}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <View style={[
-                          styles.strikeBadge,
-                          {
-                            backgroundColor:
-                              strike.strikeCount >= 3 ? '#FF3B30' :
-                                strike.strikeCount === 2 ? '#FF6B00' :
-                                  '#FF9500'
-                          }
-                        ]}>
-                          <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 11 }}>Strike {strike.strikeCount}</Text>
-                        </View>
-                        <Text style={{ color: isDark ? '#666' : '#999', marginLeft: 'auto', fontSize: 11 }}>
-                          {strike.timestamp ? new Date(strike.timestamp).toLocaleDateString() : ''}
-                        </Text>
-                      </View>
+              {/* Moderation history (audit log: strikes, mutes, lifts, deletes…) */}
+              <View style={styles.sectionContainer}>
+                <ModHistoryList
+                  uid={selectedUser.id || null}
+                  email={selectedUser.email || null}
+                  isDark={isDark}
+                  title="Moderation History"
+                />
+              </View>
 
-                      {strike.reason && <Text style={{ color: isDark ? '#CCC' : '#333', marginTop: 6 }}>{strike.reason}</Text>}
-                      {strike.appliedBy && <Text style={{ color: isDark ? '#888' : '#666', fontSize: 11, marginTop: 4 }}>By: {strike.appliedBy}</Text>}
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              {/* Mute Buttons */}
+              {/* Mute Buttons — each opens the reason prompt (which is also the
+                  confirm step and blocks double taps) */}
+              {selectedRoles && !isSelfItem(selectedUser) && selectedPerms.canMute && (
               <View style={{ marginTop: 16 }}>
                 <Text style={{ color: isDark ? '#888' : '#666', fontSize: 12, marginBottom: 8, textAlign: 'center' }}>
-                  Mute User (temporary silence, no strike)
+                  Mute User (chat only, keeps strikes{selectedPerms.maxMuteMinutes ? `, max ${formatMuteMinutes(selectedPerms.maxMuteMinutes)}` : ''})
                 </Text>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
                   <TouchableOpacity style={[styles.strikeButton, { backgroundColor: '#5856D6' }]} onPress={() => handleMuteUser(selectedUser, 5)}>
@@ -2753,31 +2727,49 @@ const AdminDashboard = () => {
                   </TouchableOpacity>
                 )}
               </View>
+              )}
 
-              {/* Strike Buttons */}
+              {/* Strike Buttons (Mod and up) */}
+              {selectedRoles && !isSelfItem(selectedUser) && selectedPerms.canStrike && (
               <View style={{ marginTop: 16 }}>
                 <Text style={{ color: isDark ? '#888' : '#666', fontSize: 12, marginBottom: 8, textAlign: 'center' }}>
                   Apply Strike (choose severity)
                 </Text>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <TouchableOpacity style={[styles.strikeButton, { backgroundColor: '#FF9500' }]} onPress={() => handleSetStrike(selectedUser, 1)}>
-                    <Text style={styles.buttonText}>Strike 1</Text>
-                    <Text style={{ color: '#fff', fontSize: 10 }}>3 hours</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.strikeButton, { backgroundColor: '#FF6B00' }]} onPress={() => handleSetStrike(selectedUser, 2)}>
-                    <Text style={styles.buttonText}>Strike 2</Text>
-                    <Text style={{ color: '#fff', fontSize: 10 }}>3 days</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.strikeButton, { backgroundColor: '#FF3B30' }]} onPress={() => handleSetStrike(selectedUser, 3)}>
-                    <Text style={styles.buttonText}>Strike 3+</Text>
-                    <Text style={{ color: '#fff', fontSize: 10 }}>Permanent</Text>
-                  </TouchableOpacity>
+                  {[1, 2, 3].map((n) => (
+                    <TouchableOpacity
+                      key={n}
+                      style={[styles.strikeButton, { backgroundColor: n === 1 ? '#FF9500' : n === 2 ? '#FF6B00' : '#FF3B30' }]}
+                      onPress={() => handleSetStrike(selectedUser, n)}
+                    >
+                      <Text style={styles.buttonText}>Strike {n}</Text>
+                      <Text style={{ color: '#fff', fontSize: 10 }}>{STRIKE_LADDER[n].label}</Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
               </View>
+              )}
 
               <View style={{ height: 40 }} />
             </ScrollView>
           )}
+
+          {/* Reason prompt for every action (nested in this sheet's Modal) */}
+          <ModActionModal
+            visible={!!modAction}
+            isDark={isDark}
+            title={modActionTitle(modAction)}
+            subtitle={
+              modAction?.kind === 'mute' ? 'Chat only — they can still trade and post. Their strike count is kept.'
+                : modAction?.kind === 'strike' ? (modAction.value === 3 ? 'Permanent ban: chat, trades, posts and everything else.' : 'Blocks the whole app for the duration and clears their recent public messages.')
+                  : 'Removes it everywhere (email, account, devices, chat).'
+            }
+            confirmLabel={modAction?.kind === 'unban' ? 'Unban' : modAction?.kind === 'unmute' ? 'Unmute' : 'Confirm'}
+            confirmColor={modAction?.kind === 'unban' || modAction?.kind === 'unmute' ? '#34C759' : '#FF3B30'}
+            allowEvidence={['strike', 'mute', 'linked'].includes(modAction?.kind)}
+            onCancel={() => setModAction(null)}
+            onConfirm={confirmModAction}
+          />
         </View>
       </Modal>
     </View>

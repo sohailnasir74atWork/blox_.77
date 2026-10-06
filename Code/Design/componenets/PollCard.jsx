@@ -22,6 +22,7 @@ import {
     fetchPollComments,
     postPollComment,
 } from '../../Supabase/pollsBackend';
+import { useGlobalState, modGateText } from '../../GlobelStats';
 
 dayjs.extend(relativeTime);
 
@@ -31,6 +32,9 @@ const COMMENTS_PAGE_SIZE = 2;
 const PollCard = ({ poll, user, isDarkMode, onRequireSignIn }) => {
     const navigation = useNavigation();
     const { t } = useTranslation();
+    // Stable gate (reads live, server-time-validated ban state) — like
+    // adoptme-jan7's PollCard isMeBanned check, without stale closures.
+    const { getModGate } = useGlobalState();
     const [expanded, setExpanded] = useState(false);
     const [voted, setVoted] = useState(false);
     const [selectedOption, setSelectedOption] = useState(null);
@@ -100,6 +104,13 @@ const PollCard = ({ poll, user, isDarkMode, onRequireSignIn }) => {
         }
         if (!poll?.id) return;
         if (voted && selectedOption === index) return;
+        // Banned users can't vote (admins exempt; a mute is chat-only).
+        const modGate = getModGate('action');
+        if (modGate) {
+            const { title, message } = modGateText(modGate, 'vote');
+            Alert.alert(title, message);
+            return;
+        }
 
         setVoting(true);
         try {
@@ -127,7 +138,7 @@ const PollCard = ({ poll, user, isDarkMode, onRequireSignIn }) => {
         } finally {
             setVoting(false);
         }
-    }, [voted, voting, user, poll, options, selectedOption, animateBars, onRequireSignIn, t]);
+    }, [voted, voting, user, poll, options, selectedOption, animateBars, onRequireSignIn, t, getModGate]);
 
     // ─────────── Comments (paginated: 2 at a time) ───────────
     // Cursor is the last-seen comment (created_at + id) so pagination
@@ -182,6 +193,14 @@ const PollCard = ({ poll, user, isDarkMode, onRequireSignIn }) => {
             return;
         }
         if (!poll?.id) return;
+        // Comments are content: banned users can't post them (a mute is
+        // chat-only). Waits for the ban check on a fresh sign-in.
+        const modGate = getModGate('content');
+        if (modGate) {
+            const { title, message } = modGateText(modGate, 'comment');
+            Alert.alert(title, message);
+            return;
+        }
 
         setPosting(true);
         Keyboard.dismiss();
@@ -205,7 +224,7 @@ const PollCard = ({ poll, user, isDarkMode, onRequireSignIn }) => {
         } finally {
             setPosting(false);
         }
-    }, [commentText, user, poll, replyingTo, posting, onRequireSignIn, t]);
+    }, [commentText, user, poll, replyingTo, posting, onRequireSignIn, t, getModGate]);
 
     // ─────────── Chat with commenter ───────────
     const handleChatWithUser = useCallback((comment) => {

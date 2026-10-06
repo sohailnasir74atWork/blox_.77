@@ -1,11 +1,10 @@
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import {
   FlatList,
   View,
   Text,
   TouchableOpacity,
   RefreshControl,
-  Vibration,
   Image,
   Alert,
   Keyboard,
@@ -14,8 +13,10 @@ import {
 } from 'react-native';
 import { getStyles } from './../Style';
 import { bannerAware, ABOVE_CHAT_INPUT_AND_BANNER, FLOATING_BUTTON_ICON_SIZE } from '../../Helper/floatingButtonLayout';
-import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
 import ReportPopup from './../ReportPopUp';
+import MessageActionDrawer from './MessageActionDrawer';
+import { supabaseMessageId } from '../../Supabase/chatBackend';
+import { CHAT_REACTIONS_ENABLED } from '../../Supabase/featureFlags';
 import { parseMessageText } from '../ChatHelper';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -28,7 +29,8 @@ import axios from 'axios';
 import { useLocalState } from '../../LocalGlobelStats';
 import { getDeviceLanguage } from '../../../i18n';
 import StyledUsernamePreview from '../../SettingScreen/Store/StyledName';
-import { banUserwithEmail, unbanUserWithEmail } from '../utils';
+import { outranksUser, isCurrentUserOwner } from '../utils';
+import { logModAction } from '../../Helper/modSanction';
 import RoleBadges from '../../Design/componenets/RoleBadges';
 import { resolveProfile, seedFromMessage, warmProfileCache, getCachedProfile } from '../../Helper/profileCache';
 import { getSafeTextColor, RainbowText, isMultiColorText, getMultiColorPalette } from '../../Helper/contrastHelper';
@@ -82,10 +84,12 @@ const MessagesList = ({
   chatPath,
   setMessages,
   pendingCount = 0,
+  onReaction, // (message, emoji) — toggles the current user's reaction
 }) => {
   const styles = getStyles(isDarkMode);
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [showReportPopup, setShowReportPopup] = useState(false);
+  const [actionDrawerVisible, setActionDrawerVisible] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState(null); // 👈 NEW
   const [profileCacheVersion, setProfileCacheVersion] = useState(0);
   const { triggerHapticFeedback } = useHaptic();
@@ -93,10 +97,41 @@ const MessagesList = ({
   // const [isAtBottom, setIsAtBottom] = useState(true);
   const { t } = useTranslation();
   // const { language, changeLanguage } = useLanguage();
-  const { isAdmin, isSeniorMod, isModerator, api, freeTranslation, proGranted, appdatabase } = useGlobalState()
+  const { isAdmin, isSeniorMod, isModerator, isBabyMod, api, freeTranslation, proGranted, appdatabase } = useGlobalState()
   // Senior Mod is a separate flag from isModerator — a Sr Mod who was never
   // also flagged as a plain Mod had no pin/delete menu at all.
   const isStaff = isAdmin || isSeniorMod || isModerator
+
+  // Staff message actions. Deleting someone else's message needs the same
+  // strict rank as any other moderation (a mod can't remove a message from
+  // someone who outranks them), checked against fresh RTDB roles, and is
+  // written to the audit log. Delete-all is logged by its owner (Trader.jsx).
+  // Kept in a ref so the memoised renderItem always calls the latest version.
+  const staffActionsRef = useRef(null);
+  const staffCallerRoles = { isAdmin, isSeniorMod, isModerator, isBabyMod, isOwner: isCurrentUserOwner() };
+  const mayActOnSender = async (item) => {
+    if (!item?.senderId || item.senderId === user?.id) return true;
+    const ok = await outranksUser(item.senderId, staffCallerRoles, resolveProfile(item));
+    if (!ok) Alert.alert('Not allowed', 'You cannot remove messages from staff at or above your rank.');
+    return ok;
+  };
+  staffActionsRef.current = {
+    pin: async (item) => {
+      await onPinMessage?.(item);
+      logModAction('pin', item?.senderId || null, { messageId: item?.id || null, room: chatPath || null });
+    },
+    remove: async (item) => {
+      if (!(await mayActOnSender(item))) return;
+      await onDeleteMessage?.(item.id);
+      if (item.senderId && item.senderId !== user?.id) {
+        logModAction('message_delete', item.senderId, { messageId: item.id, room: chatPath || null });
+      }
+    },
+    removeAll: async (item) => {
+      if (!(await mayActOnSender(item))) return;
+      await onDeleteAllMessage?.(item?.senderId);
+    },
+  };
   const { canTranslate, incrementTranslationCount, getRemainingTranslationTries, localState } = useLocalState();
   const deviceLanguage = useMemo(() => getDeviceLanguage(), []);
 
@@ -230,11 +265,21 @@ const MessagesList = ({
   };
 
 
+  // Long-press opens the action sheet (reactions, copy, reply, translate,
+  // report, staff actions) — same flow as adoptme-jan7.
   const handleLongPress = (item) => {
-    if (!user?.id) return;
-    Vibration.vibrate(20); // Vibrate for feedback
+    if (!user?.id || !item) return;
+    triggerHapticFeedback('impactMedium');
     setSelectedMessage(item);
+    setActionDrawerVisible(true);
   };
+
+  // Reactions need the message's Supabase uuid (RTDB-fallback rows have none).
+  const canReact = (item) => CHAT_REACTIONS_ENABLED && !!onReaction && !!user?.id && !!supabaseMessageId(item);
+
+  // renderMessage is memoised; it reads the latest handlers through this ref.
+  const rowActionsRef = useRef(null);
+  rowActionsRef.current = { handleLongPress, onReaction, canReact };
 
   const handleReport = (message) => {
     triggerHapticFeedback('impactLight');
@@ -435,11 +480,11 @@ const MessagesList = ({
 
 
 
-            <Menu>
-              <MenuTrigger
-                onLongPress={() => handleLongPress(item)}
-                customStyles={{ triggerTouchable: { activeOpacity: 1 } }}
-              >
+            <TouchableOpacity
+              activeOpacity={0.85}
+              delayLongPress={300}
+              onLongPress={() => rowActionsRef.current?.handleLongPress(item)}
+            >
                 <View style={[
                   item.senderId === user?.id ? styles.myMessageText : styles.otherMessageText,
                   isAdmin && item.strikeCount === 1 ? { backgroundColor: 'pink' }
@@ -607,28 +652,37 @@ const MessagesList = ({
                   )}
 
                 </View>
-              </MenuTrigger>
-              <MenuOptions customStyles={{
-                optionsContainer: styles.menuoptions,
-                optionWrapper: styles.menuOption,
-                optionText: styles.menuOptionText,
-              }}>
-                <MenuOption onSelect={() => handleCopy(item)}>
-                  <Text style={styles.menuOptionText}>Copy</Text>
-                </MenuOption>
-                {user.id && (
-                  <MenuOption onSelect={() => onReply(item)}>
-                    <Text style={styles.menuOptionText}>{t("chat.reply")}</Text>
-                  </MenuOption>
-                )}
-                <MenuOption onSelect={() => handleTranslate(item)}>
-                  <Text style={styles.menuOptionText}>Translate</Text>
-                </MenuOption>
-                <MenuOption onSelect={() => handleReport(item)}>
-                  <Text style={styles.menuOptionText}>{t("chat.report")}</Text>
-                </MenuOption>
-              </MenuOptions>
-            </Menu>
+            </TouchableOpacity>
+
+            {/* Reaction pills — tap one to add/remove the same reaction */}
+            {item.reactions && Object.keys(item.reactions).length > 0 && (() => {
+              const counts = {};
+              Object.values(item.reactions).forEach((emoji) => { counts[emoji] = (counts[emoji] || 0) + 1; });
+              const mine = item.reactions[user?.id] || null;
+              const interactive = rowActionsRef.current?.canReact(item);
+              return (
+                <View style={reactionStyles.row}>
+                  {Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([emoji, count]) => (
+                    <TouchableOpacity
+                      key={emoji}
+                      disabled={!interactive}
+                      onPress={() => rowActionsRef.current?.onReaction?.(item, emoji)}
+                      style={[
+                        reactionStyles.pill,
+                        { backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9', borderColor: isDarkMode ? '#334155' : '#e2e8f0' },
+                        mine === emoji && { backgroundColor: isDarkMode ? '#1e3a5f' : '#dbeafe', borderColor: isDarkMode ? '#3b82f6' : '#60a5fa' },
+                      ]}
+                    >
+                      <Text style={reactionStyles.emoji}>{emoji}</Text>
+                      <Text style={[
+                        reactionStyles.count,
+                        { color: mine === emoji ? (isDarkMode ? '#93c5fd' : '#2563eb') : (isDarkMode ? '#94a3b8' : '#64748b') },
+                      ]}>{count}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              );
+            })()}
 
             {/* {(item.reportCount > 0 || item.isReportedByUser) && (
               <Text style={styles.reportIcon}>Reported</Text>
@@ -649,84 +703,13 @@ const MessagesList = ({
             </Text>
 
           </View>
-          {(!isStaff && item.senderId === user?.id) && (
-            <Menu>
-              <MenuTrigger>
-                <Icon
-                  name="ellipsis-vertical-outline"
-                  size={16}
-                  color={config.colors.hasBlockGreen}
-                />
-              </MenuTrigger>
-              <MenuOptions >
-                {/* <MenuOption onSelect={() => onPinMessage(item)} style={styles.pinButton}>
-                    <Text style={styles.adminTextAction}>Pin</Text>
-                  </MenuOption> */}
-                <MenuOption onSelect={() => onDeleteMessage(item.id)} >
-                  <Text style={[{ backgroundColor: 'red', padding: 10, color: 'white' }]}>Delete</Text>
-                </MenuOption>
-
-
-
-
-
-                {/* {isAdmin && (
-                    <MenuOption onSelect={() => makeadmin(item.senderId)} style={styles.deleteButton}>
-                      <Text style={styles.adminTextAction}>Make Admin</Text>
-                    </MenuOption>
-                  )}
-                  {isAdmin && (
-                    <MenuOption onSelect={() => removeAdmin(item.senderId)} style={styles.deleteButton}>
-                      <Text style={styles.adminTextAction}>Remove Admin</Text>
-                    </MenuOption>
-                  )} */}
-              </MenuOptions>
-            </Menu>
-          )}
-          {isStaff && (
-            <Menu>
-              <MenuTrigger>
-                <Icon
-                  name="ellipsis-vertical-outline"
-                  size={16}
-                  color={config.colors.hasBlockGreen}
-                />
-              </MenuTrigger>
-              <MenuOptions>
-                <View style={styles.adminActions}>
-                  <MenuOption onSelect={() => onPinMessage(item)} style={styles.pinButton}>
-                    <Text style={styles.adminTextAction}>Pin</Text>
-                  </MenuOption>
-                  <MenuOption onSelect={() => onDeleteMessage(item.id)} style={styles.deleteButton}>
-                    <Text style={styles.adminTextAction}>Delete</Text>
-                  </MenuOption>
-                  <MenuOption onSelect={() => onDeleteAllMessage(item?.senderId)} style={styles.deleteButton}>
-                    <Text style={styles.adminTextAction}>Delete All</Text>
-                  </MenuOption>
-
-
-
-                  {/* {isAdmin && (
-                    <MenuOption onSelect={() => makeadmin(item.senderId)} style={styles.deleteButton}>
-                      <Text style={styles.adminTextAction}>Make Admin</Text>
-                    </MenuOption>
-                  )} */}
-                  {/* {isAdmin && (
-                    <MenuOption onSelect={() => removeAdmin(item.senderId)} style={styles.deleteButton}>
-                      <Text style={styles.adminTextAction}>Remove Admin</Text>
-                    </MenuOption>
-                  )} */}
-                </View>
-              </MenuOptions>
-            </Menu>
-          )}
 
 
         </View>}
 
       </View>
     );
-  }, [dateHeaderById, highlightedMessageId, user?.id, profileCacheVersion]);
+  }, [dateHeaderById, highlightedMessageId, user?.id, profileCacheVersion, isDarkMode]);
 
   return (
     <>
@@ -737,7 +720,7 @@ const MessagesList = ({
         contentContainerStyle={styles.chatList}
         inverted
         removeClippedSubviews={false}
-        extraData={`${highlightedMessageId}-${profileCacheVersion}`}
+        extraData={`${highlightedMessageId}-${profileCacheVersion}-${isDarkMode}`}
         ref={flatListRef}
         scrollEventThrottle={16}
         onScroll={({ nativeEvent }) => {
@@ -816,9 +799,39 @@ const MessagesList = ({
           setShowReportPopup(false);
         }}
       />
+      <MessageActionDrawer
+        visible={actionDrawerVisible}
+        message={selectedMessage}
+        onClose={() => {
+          setActionDrawerVisible(false);
+          // Report re-selects the message itself when it opens its popup.
+          if (!showReportPopup) setSelectedMessage(null);
+        }}
+        onReaction={selectedMessage && canReact(selectedMessage) ? onReaction : null}
+        onCopy={handleCopy}
+        onReply={onReply ? (msg) => onReply(msg) : null}
+        onTranslate={handleTranslate}
+        onReport={handleReport}
+        // Staff go through staffActionsRef (rank check + audit log); a
+        // regular user can only ever reach onDelete for their own message.
+        onDelete={isStaff
+          ? (msg) => staffActionsRef.current?.remove(msg)
+          : (onDeleteMessage ? (msg) => onDeleteMessage(msg.id) : null)}
+        onDeleteAll={isStaff && onDeleteAllMessage ? (msg) => staffActionsRef.current?.removeAll(msg) : null}
+        onPinMessage={isStaff && onPinMessage ? (msg) => staffActionsRef.current?.pin(msg) : null}
+        isStaff={isStaff}
+        userId={user?.id}
+        isDarkMode={isDarkMode}
+      />
     </>
   );
 };
+const reactionStyles = StyleSheet.create({
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 3, marginLeft: 4 },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, borderWidth: 1 },
+  emoji: { fontSize: 12 },
+  count: { fontSize: 10, fontWeight: '600' },
+});
 const pendingBadgeStyles = StyleSheet.create({
   badge: {
     position: 'absolute',

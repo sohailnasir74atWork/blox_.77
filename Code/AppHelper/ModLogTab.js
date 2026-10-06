@@ -5,7 +5,9 @@
 // build, plus automatic bans of alt accounts (functions/banEnforcement.js).
 //   Recent      — newest actions, filterable by action, 7 or 30 days
 //   Moderators  — per-mod totals for the same window
-// Tapping a row copies the target's user ID.
+// Tapping a row copies the target's user ID; screenshot thumbnails open the
+// evidence viewer. Also lists non-sanction staff actions (message deletes,
+// pins, role changes, review/profile deletes) logged via logModAction.
 
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -15,20 +17,23 @@ import {
   FlatList,
   ActivityIndicator,
   RefreshControl,
+  ScrollView,
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { fetchRecentModActions, fetchModLeaderboard } from '../Supabase/modLogBackend';
 import { showSuccessMessage } from '../Helper/MessageHelper';
+import { describeModAction, MOD_ACTION_COLOR, evidenceOf, EvidenceThumbs } from './ModHistoryList';
+import EvidenceViewer from './EvidenceViewer';
 
 dayjs.extend(relativeTime);
 
-const ACTION_COLOR = { strike: '#EF4444', ban: '#B91C1C', mute: '#7C3AED', unban: '#10B981' };
 const SOURCE_LABEL = {
   app: '', uid: 'by user ID', linked: 'linked account', device: 'same device', email: 're-registered email', email_hash: 're-registered email',
 };
-const ACTION_FILTERS = [null, 'strike', 'mute', 'unban'];
+const ACTION_FILTERS = [null, 'strike', 'mute', 'unban', 'unmute', 'message_delete', 'role_change'];
+const FILTER_LABEL = { message_delete: 'Deletes', role_change: 'Roles' };
 const PAGE = 30;
 
 const Pill = ({ label, active, onPress, isDark }) => (
@@ -43,13 +48,6 @@ const Pill = ({ label, active, onPress, isDark }) => (
   </TouchableOpacity>
 );
 
-const describe = (a) => {
-  if (a.action === 'mute') return `Muted ${a.durationMinutes ? `${a.durationMinutes} min` : ''}`.trim();
-  if (a.action === 'unban') return 'Unbanned';
-  if (a.isPermanent) return `Strike ${a.strikeCount || 3} · permanent`;
-  return `Strike ${a.strikeCount || '?'}`;
-};
-
 const ModLogTab = ({ isDark }) => {
   const [view, setView] = useState('recent'); // 'recent' | 'mods'
   const [days, setDays] = useState(7);
@@ -61,6 +59,7 @@ const ModLogTab = ({ isDark }) => {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [schemaMissing, setSchemaMissing] = useState(false);
+  const [viewer, setViewer] = useState(null); // { urls, index }
 
   const text = isDark ? '#FFF' : '#000';
   const sub = isDark ? '#999' : '#666';
@@ -113,7 +112,7 @@ const ModLogTab = ({ isDark }) => {
       style={{ backgroundColor: card, borderRadius: 12, padding: 12, marginHorizontal: 12, marginBottom: 8 }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Text style={{ color: ACTION_COLOR[a.action] || text, fontWeight: '800', fontSize: 13 }}>{describe(a)}</Text>
+        <Text style={{ color: MOD_ACTION_COLOR[a.action] || text, fontWeight: '800', fontSize: 13 }}>{describeModAction(a)}</Text>
         <Text style={{ color: sub, fontSize: 11 }}>{a.createdAt ? dayjs(a.createdAt).fromNow() : ''}</Text>
       </View>
       <Text style={{ color: text, fontSize: 14, fontWeight: '600', marginTop: 4 }} numberOfLines={1}>
@@ -125,6 +124,7 @@ const ModLogTab = ({ isDark }) => {
         {a.actorUid ? `by ${a.actorName || a.actorUid}${a.actorRole ? ` (${a.actorRole.replace('_', ' ')})` : ''}` : 'automatic'}
         {SOURCE_LABEL[a.source] ? ` · ${SOURCE_LABEL[a.source]}` : ''}
       </Text>
+      <EvidenceThumbs urls={evidenceOf(a)} onOpen={(index) => setViewer({ urls: evidenceOf(a), index })} />
     </TouchableOpacity>
   );
 
@@ -166,11 +166,11 @@ const ModLogTab = ({ isDark }) => {
         <Pill label="30d" active={days === 30} onPress={() => setDays(30)} isDark={isDark} />
       </View>
       {view === 'recent' && (
-        <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingBottom: 8 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 8 }}>
           {ACTION_FILTERS.map((f) => (
-            <Pill key={f || 'all'} label={f ? f[0].toUpperCase() + f.slice(1) : 'All'} active={action === f} onPress={() => setAction(f)} isDark={isDark} />
+            <Pill key={f || 'all'} label={f ? (FILTER_LABEL[f] || f[0].toUpperCase() + f.slice(1)) : 'All'} active={action === f} onPress={() => setAction(f)} isDark={isDark} />
           ))}
-        </View>
+        </ScrollView>
       )}
       {view === 'recent' ? (
         <FlatList
@@ -192,6 +192,12 @@ const ModLogTab = ({ isDark }) => {
           refreshControl={<RefreshControl refreshing={loading && mods.length > 0} onRefresh={load} />}
         />
       )}
+      <EvidenceViewer
+        visible={!!viewer}
+        urls={viewer?.urls || []}
+        startIndex={viewer?.index || 0}
+        onClose={() => setViewer(null)}
+      />
     </View>
   );
 };

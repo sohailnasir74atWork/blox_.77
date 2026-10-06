@@ -20,7 +20,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Icon from 'react-native-vector-icons/Ionicons';
 import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
 import { getMyCosmetics } from '../Helper/cosmeticsCache';
-import { useGlobalState } from '../GlobelStats';
+import { useGlobalState, modGateText } from '../GlobelStats';
 import { getStyles } from './settingstyle';
 import { handleGetSuggestions, handleOpenFacebook, handleOpenWebsite, handleRateApp, handleadoptme, handleShareApp, imageOptions, handleBloxFruit, handleMM2, handleRefresh, handleReport, handleOpenPrivacy, handleOpenChild } from './settinghelper';
 import EmailUpdatesRow from './EmailUpdatesRow';
@@ -477,7 +477,17 @@ export default function SettingsScreen({ selectedTheme }) {
   const [newDisplayName, setNewDisplayName] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [openSingnin, setOpenSignin] = useState(false);
-  const { user, theme, updateLocalStateAndDatabase, setUser, appdatabase, firestoreDB, single_offer_wall } = useGlobalState()
+  const { user, theme, updateLocalStateAndDatabase, setUser, appdatabase, firestoreDB, single_offer_wall, getModGate } = useGlobalState()
+
+  // Banned users can't change what others see on their profile (name,
+  // avatar, bio, Roblox name, reviews). Returns true when blocked.
+  const blockedByModGate = (action) => {
+    const modGate = getModGate('content');
+    if (!modGate) return false;
+    const { title, message } = modGateText(modGate, action);
+    showErrorMessage(title, message);
+    return true;
+  };
   const { updateLocalState, localState, mySubscriptions } = useLocalState()
   const [isPermissionGranted, setIsPermissionGranted] = useState(false);
   const [showOfferWall, setShowofferWall] = useState(false);
@@ -855,6 +865,7 @@ export default function SettingsScreen({ selectedTheme }) {
       showErrorMessage('Error', 'Please login first');
       return;
     }
+    if (blockedByModGate('profile')) return;
 
     const trimmedUsername = robloxUsername.trim();
     if (!trimmedUsername) {
@@ -1176,6 +1187,7 @@ export default function SettingsScreen({ selectedTheme }) {
     const PROFILE_EDIT_COOLDOWN_DAYS = 10;
 
     if (!user?.id) return;
+    if (blockedByModGate('profile')) return;
 
     if (newDisplayName.length > MAX_NAME_LENGTH) {
       showErrorMessage(
@@ -2208,6 +2220,7 @@ export default function SettingsScreen({ selectedTheme }) {
   // Save edited review
   const handleSaveEditedReview = async () => {
     if (!editingReview || !firestoreDB || !user?.id) return;
+    if (blockedByModGate('review')) return;
 
     const trimmedReview = (editReviewText || '').trim();
     if (!trimmedReview) {
