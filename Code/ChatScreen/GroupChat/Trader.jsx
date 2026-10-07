@@ -950,6 +950,15 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       try {
         const rows = await loadPinnedMessagesFromSupabase(activeChannel.path);
         if (cancelled) return;
+        // Supabase messages carry only senderId; names come from the profile
+        // cache. Pins are often older than the loaded page, so their senders
+        // may not be cached yet — warm them first or the header shows
+        // "Anonymous" for every pin.
+        const senderIds = (rows || []).map((p) => p.senderId).filter(Boolean);
+        if (senderIds.length > 0) {
+          try { await warmProfileCache(appdatabase, senderIds); } catch (_) {}
+          if (cancelled) return;
+        }
         setPinnedMessages(
           (rows || []).map((p) => ({ ...p, firebaseKey: p.pinnedRowId })),
         );
@@ -969,7 +978,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       cancelled = true;
       unsubPinned?.();
     };
-  }, [activeChannel?.path, isFocused]);
+  }, [activeChannel?.path, isFocused, appdatabase]);
 
   const handlePinMessage = async (message) => {
     // pinned_messages.message_id is the Supabase uuid; the UI id is the legacy

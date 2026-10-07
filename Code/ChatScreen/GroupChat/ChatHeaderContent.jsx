@@ -14,6 +14,7 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../../GlobelStats';
 import config from '../../Helper/Environment';
+import { resolveProfile } from '../../Helper/profileCache';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ChatRulesModal from './ChatRuleModel';
@@ -167,7 +168,7 @@ const ChatHeaderContent = ({
                       <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                           <Text style={styles.pinnedCardSender}>
-                            {msg.sender || 'Anonymous'}
+                            {resolveProfile(msg).displayName}
                           </Text>
                           {pinnedDate ? (
                             <Text style={styles.pinnedCardDate}>{pinnedDate}</Text>
