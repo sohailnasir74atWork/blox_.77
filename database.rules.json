@@ -142,11 +142,11 @@
       ".write": false
     },
     "mod_votes_by_user": {
-      ".read": true,
       "$uid": {
+        ".read": "((auth != null && auth.uid === $uid) || (auth != null && ((auth.token.email_verified === true && (auth.token.email === 'thesolanalabs@gmail.com' || auth.token.email === 'sohailnasir74business@gmail.com' || auth.token.email === 'sohailnasir74@gmail.com')) || (root.child('users').child(auth.uid).child('admin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === true))))",
         ".write": "auth != null && auth.uid === $uid",
         "$modUid": {
-          ".validate": "newData.val() === 1 || newData.val() === -1"
+          ".validate": "((newData.val() === 1 || newData.val() === -1) && $modUid !== $uid)"
         }
       }
     },
@@ -793,6 +793,14 @@
         ".write": "(auth != null && ((auth.token.email_verified === true && (auth.token.email === 'thesolanalabs@gmail.com' || auth.token.email === 'sohailnasir74business@gmail.com' || auth.token.email === 'sohailnasir74@gmail.com')) || (root.child('users').child(auth.uid).child('admin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === true)))",
         ".validate": "newData.val() === true"
       }
+    },
+    "mod_votes_tally": {
+      ".read": true,
+      ".write": false
+    },
+    "mod_votes_counted": {
+      ".read": "(auth != null && ((auth.token.email_verified === true && (auth.token.email === 'thesolanalabs@gmail.com' || auth.token.email === 'sohailnasir74business@gmail.com' || auth.token.email === 'sohailnasir74@gmail.com')) || (root.child('users').child(auth.uid).child('admin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === true)))",
+      ".write": false
     }
   }
 }

@@ -293,12 +293,18 @@ const OVERRIDES = {
     $uid: { '.write': ownOrAdminDelete('$uid') },
   },
   mod_votes_by_user: {
-    '.read': true,
+    // Own votes only (every build reads just its own): a mod must not be
+    // able to see who voted them down.
     $uid: {
+      '.read': or(and('auth != null', 'auth.uid === $uid'), wAdmin),
       '.write': ownUid('$uid'),
-      $modUid: { '.validate': 'newData.val() === 1 || newData.val() === -1' },
+      $modUid: { '.validate': and(or('newData.val() === 1', 'newData.val() === -1'), '$modUid !== $uid') },
     },
   },
+  // Server-counted ratings (functions/modVoteTally.js). Current builds read
+  // the tally; which votes counted is for admins only.
+  mod_votes_tally: { '.read': true, '.write': false },
+  mod_votes_counted: { '.read': wAdmin, '.write': false },
   mod_votes_summary: {
     '.read': true,
     $modUid: {

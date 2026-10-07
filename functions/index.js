@@ -55,6 +55,10 @@ for (const flag of staffMirror.STAFF_FLAGS) exports[`syncStaff_${flag}`] = staff
 const mods = require('./modRoster');
 exports.refreshModProfiles = mods.refreshModProfiles;
 exports.seedModRoster = mods.seedModRoster;
+// Mod ratings: server-counted tally (skips banned/muted and new accounts).
+const modVotes = require('./modVoteTally');
+exports.countModVote = modVotes.countModVote;
+exports.rebuildModVoteTally = modVotes.rebuildModVoteTally;
 
 // --- Fruit Crash game (2nd-gen scheduled function) ----------------------
 exports.fruitCrashController = require('./fruitCrashController').fruitCrashController;

@@ -2,12 +2,15 @@
  * ModsScreen.js — Moderator & Junior Mod roster with reputation voting
  *
  * Users upvote/downvote mods. Score = ups - downs.
- * Each user gets one vote per mod (can switch).
+ * Each user gets one vote per mod (can switch). The phone writes only the
+ * vote; functions/modVoteTally.js decides whether it counts (not banned or
+ * muted, account 7+ days old) and keeps the public tally.
  *
  * RTDB (bandwidth-optimized — no large fan-out nodes):
  *   mods/{uid}                          — synced by cloud fn (~60 bytes per mod)
  *   mod_votes_by_user/{voterUid}/{modUid} — 1 or -1 (~5 entries per user, ~20 bytes)
- *   mod_votes_summary/{modUid}          — { ups, downs } (~15 bytes per mod)
+ *   mod_votes_tally/{modUid}            — { ups, downs } counted by the server (read-only)
+ *   mod_votes_summary/{modUid}          — old phone-computed counter; old builds only
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -17,7 +20,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { ref, get, update } from '@react-native-firebase/database';
+import { ref, get, set } from '@react-native-firebase/database';
 import Icon from 'react-native-vector-icons/Ionicons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import { useGlobalState } from '../GlobelStats';
@@ -33,6 +36,15 @@ const ROLE_META = {
 
 // Roster ordering: Senior Mods first, then Mods, then Junior Mods.
 const ROLE_ORDER = { srmod: 0, mod: 1, jmod: 2 };
+
+// Same bar as functions/modVoteTally.js MIN_ACCOUNT_AGE_MS: a vote from a
+// younger account would be saved but never counted.
+const MIN_ACCOUNT_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const accountAgeMs = (authUser) => {
+  const raw = authUser?.metadata?.creationTime;
+  const created = /^\d+$/.test(String(raw)) ? Number(raw) : Date.parse(raw || '');
+  return Number.isFinite(created) ? Date.now() - created : null;
+};
 
 // ─── Mod Card ───
 const ModCard = React.memo(({ mod, myVote, onVote, onChat, isDarkMode }) => {
@@ -116,7 +128,7 @@ const ModCard = React.memo(({ mod, myVote, onVote, onChat, isDarkMode }) => {
 
 // ─── Main Screen ───
 const ModsScreen = () => {
-  const { theme, appdatabase, user } = useGlobalState();
+  const { theme, appdatabase, user, auth, isUserBlocked, isUserMuted } = useGlobalState();
   const { t } = useTranslation();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -138,7 +150,9 @@ const ModsScreen = () => {
     try {
       const fetches = [
         get(ref(appdatabase, 'mods')),
-        get(ref(appdatabase, 'mod_votes_summary')),
+        // Server-counted (functions/modVoteTally.js). mod_votes_summary is
+        // the old phone-computed counter, kept only for old builds.
+        get(ref(appdatabase, 'mod_votes_tally')),
       ];
       if (user?.id) {
         fetches.push(get(ref(appdatabase, `mod_votes_by_user/${user.id}`)));
@@ -201,6 +215,18 @@ const ModsScreen = () => {
       Alert.alert('Oops', "You can't vote for yourself!");
       return;
     }
+    // Votes from banned/muted or new accounts don't count on the server, so
+    // say so up front instead of showing a vote that won't stick.
+    if (isUserBlocked || isUserMuted) {
+      Alert.alert('Not right now', "You can't rate moderators while you are banned or muted.");
+      return;
+    }
+    const age = accountAgeMs(auth?.currentUser);
+    if (age !== null && age < MIN_ACCOUNT_AGE_MS) {
+      const daysLeft = Math.max(1, Math.ceil((MIN_ACCOUNT_AGE_MS - age) / (24 * 60 * 60 * 1000)));
+      Alert.alert('Almost there', `New accounts can rate moderators after 7 days. Try again in ${daysLeft} day${daysLeft === 1 ? '' : 's'}.`);
+      return;
+    }
 
     const oldVote = myVotes[modUid] || 0;
     const newVote = oldVote === vote ? 0 : vote; // toggle off if same, switch if different
@@ -228,16 +254,9 @@ const ModsScreen = () => {
       m.uid === modUid ? { ...m, ups, downs, score: ups - downs } : m
     ));
 
-    // Single multi-path update — 2 tiny nodes only
-    // mod_votes_by_user/{uid}: ~20 bytes (user's votes on ~5 mods)
-    // mod_votes_summary/{modUid}: ~15 bytes (just ups/downs counts)
-    // No bloated fan-out node
+    // Only the vote itself; the server moves the tally (countModVote).
     try {
-      const updates = {};
-      updates[`mod_votes_by_user/${user.id}/${modUid}`] = newVote === 0 ? null : newVote;
-      updates[`mod_votes_summary/${modUid}`] = { ups, downs };
-
-      await update(ref(appdatabase), updates);
+      await set(ref(appdatabase, `mod_votes_by_user/${user.id}/${modUid}`), newVote === 0 ? null : newVote);
     } catch (e) {
       // Revert optimistic update on failure
       setMyVotes(prev => {
@@ -251,7 +270,7 @@ const ModsScreen = () => {
       ));
       console.warn('[ModsScreen] vote error:', e?.message);
     }
-  }, [appdatabase, user?.id, myVotes, mods]);
+  }, [appdatabase, user?.id, myVotes, mods, auth, isUserBlocked, isUserMuted]);
 
   // Bottom drawer state
   const [drawerUser, setDrawerUser] = useState(null);
