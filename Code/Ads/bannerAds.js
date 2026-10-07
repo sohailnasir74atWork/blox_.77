@@ -4,6 +4,8 @@ import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 import getAdUnitId from './ads';
 import { npaRequiredFor } from './consent';
 import { useLocalState } from '../LocalGlobelStats';
+import { useAdsReady } from './init';
+import useIsAdFree from './useIsAdFree';
 
 // Bottom banners are the standard fixed 320x50 BANNER (owner decision,
 // 2026-10-05): no anchored-adaptive height and no collapsible overlay, which
@@ -15,6 +17,8 @@ const BannerAdComponent = ({
 }) => {
   const [isAdLoaded, setIsAdLoaded] = useState(false);
   const { localState } = useLocalState();
+  const adFree = useIsAdFree();
+  const adsReady = useAdsReady();
   const unitId = getAdUnitId(adType);
 
   // No-fill retry: a banner's FIRST load can fail (no fill / transient
@@ -67,7 +71,9 @@ const BannerAdComponent = ({
     [localState?.consentStatus],
   );
 
-  if (!visible) return null;
+  // Pro (either source) never sees a banner, whatever the call site checked;
+  // and nothing mounts — so nothing is requested — before consent + init.
+  if (!visible || adFree || !adsReady) return null;
 
   // The BannerAd is mounted ONCE and never unmounted while visible. The
   // old code conditionally re-rendered a *different* BannerAd once

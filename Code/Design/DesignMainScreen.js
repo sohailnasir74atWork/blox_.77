@@ -786,7 +786,7 @@ const DesignFeedScreen = ({ route }) => {
             blue and position, all from Helper/floatingButtonLayout. */}
         {showScrollTop && (
           <TouchableOpacity
-            style={[styles.feedScrollTop, { bottom: bannerAware(ABOVE_BANNER, !!localState?.isPro) }]}
+            style={[styles.feedScrollTop, { bottom: bannerAware(ABOVE_BANNER, !!(localState?.isPro || proGranted)) }]}
             onPress={handleFeedScrollToTop}
             activeOpacity={0.8}
           >
@@ -800,7 +800,7 @@ const DesignFeedScreen = ({ route }) => {
         <TouchableOpacity
           style={[
             styles.fab,
-            { bottom: bannerAware(ABOVE_BANNER, !!localState?.isPro) + (showScrollTop ? FLOATING_BUTTON_ICON_SIZE + 12 : 0) },
+            { bottom: bannerAware(ABOVE_BANNER, !!(localState?.isPro || proGranted)) + (showScrollTop ? FLOATING_BUTTON_ICON_SIZE + 12 : 0) },
           ]}
           onPress={() => user?.id ? setModalVisible(true) : setSigninDrawerVisible(true)}
           activeOpacity={0.85}
@@ -824,7 +824,7 @@ const DesignFeedScreen = ({ route }) => {
           screen="Design"
           message="Sign in to upload designs"
         />
-        {!localState.isPro && <BannerAdComponent collapsible />}
+        {!(localState.isPro || proGranted) && <BannerAdComponent collapsible />}
 
       </View>
     </View>

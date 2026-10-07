@@ -17,6 +17,9 @@ import { View, useWindowDimensions } from 'react-native';
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 import getAdUnitId from './ads';
 import { useLocalState } from '../LocalGlobelStats';
+import { npaRequiredFor } from './consent';
+import { useAdsReady } from './init';
+import useIsAdFree from './useIsAdFree';
 
 // Horizontal gutter the feed cards use, so the ad lines up with content.
 const CARD_GUTTER = 12;
@@ -26,12 +29,11 @@ const MAX_HEIGHT = 250;
 // One fresh request after a failed first load, then leave the slot alone.
 const RETRY_MS = 30000;
 
-const npaRequiredFor = (status) =>
-  status !== 'OBTAINED' && status !== 'NOT_REQUIRED';
-
 const FeedBannerAd = ({ adKey, isDarkMode = false }) => {
   const { width: screenWidth } = useWindowDimensions();
   const { localState } = useLocalState();
+  const adFree = useIsAdFree();
+  const adsReady = useAdsReady();
   const [loaded, setLoaded] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const retriedRef = useRef(false);
@@ -71,7 +73,7 @@ const FeedBannerAd = ({ adKey, isDarkMode = false }) => {
     retriedRef.current = false;
   }, [adKey]);
 
-  if (localState?.isPro) return null;
+  if (adFree || !adsReady) return null;
 
   return (
     <View

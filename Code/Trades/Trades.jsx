@@ -2249,7 +2249,7 @@ const TradeList = ({ route }) => {
         <Animated.View
           style={[
             styles.scrollToTopButton,
-            { bottom: bannerAware(ABOVE_BANNER, !!localState.isPro) },
+            { bottom: bannerAware(ABOVE_BANNER, !!isProStatus) },
             {
               opacity: scrollButtonOpacity,
               transform: [

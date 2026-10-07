@@ -7,35 +7,93 @@
 // config ran in one requestIdleCallback while the ad managers loaded in a
 // separate one, so ordering was a coin flip.
 //
-// ensureAdsInitialized() returns a single shared promise: setRequestConfiguration
-// first, then initialize(). Every ad loader awaits it before calling load(), so
-// no ad is ever requested before the config lands. Safe to call any number of
-// times from anywhere — the work runs once.
-import { MobileAds, MaxAdContentRating } from 'react-native-google-mobile-ads';
+// Consent comes first. Google's required order is: gather UMP consent →
+// check canRequestAds → initialise → request. Before the gate below, the
+// interstitial manager started loading on App mount while the consent form
+// was still on screen, so EEA users' first requests went out with no TC
+// string (non-compliant, and limited-ads pricing). App.js runs the consent
+// flow (UMP form, then iOS ATT) and calls openAdsGate() when it is done;
+// nothing initialises or requests an ad before that.
+//
+// ensureAdsInitialized() returns a single shared promise: gate → consent check
+// → setRequestConfiguration → initialize(). Every ad loader awaits it before
+// calling load(), so no ad is ever requested before consent and config land.
+// Safe to call any number of times from anywhere — the work runs once.
+import { useEffect, useState } from 'react';
+import { AdsConsent, MobileAds, MaxAdContentRating } from 'react-native-google-mobile-ads';
+
+let releaseAdsGate;
+const adsGate = new Promise((resolve) => { releaseAdsGate = resolve; });
+
+// Called by App.js once the consent flow has finished (or failed). Idempotent.
+export const openAdsGate = () => releaseAdsGate();
+
+// Show the UMP form if this user needs it, and return the resulting consent
+// info. Never throws: offline / SDK errors fall back to the SDK's cached info,
+// or null when even that is unavailable.
+export async function gatherAdsConsent() {
+  try {
+    await AdsConsent.gatherConsent();
+  } catch (_) {}
+  try {
+    return await AdsConsent.getConsentInfo();
+  } catch (_) {
+    return null;
+  }
+}
 
 let initPromise = null;
+let initialized = false;
+
+// True once the SDK is initialised and ads may be requested.
+export const adsInitialized = () => initialized;
 
 export function ensureAdsInitialized() {
   if (!initPromise) {
-    initPromise = MobileAds()
-      .setRequestConfiguration({
-        // 'T' (Teen) opens up Teen-rated inventory that AdMob's default 'G'
-        // ceiling silently locks out — matches our Play Console 13+ audience.
-        maxAdContentRating: MaxAdContentRating.T,
-        // Confirms this is NOT a kids-app build, avoiding the conservative
-        // kids pricing AdMob applies when treatment is left unspecified.
-        tagForChildDirectedTreatment: false,
-        // Explicit: not a mixed-audience under-age build either — leaving it
-        // unspecified lets AdMob guess; false keeps personalized ads eligible.
-        tagForUnderAgeOfConsent: false,
+    initPromise = adsGate
+      .then(() => AdsConsent.getConsentInfo())
+      .then((info) => {
+        // canRequestAds is false only when the UMP flow could not complete
+        // (e.g. offline on a first EEA launch). No requests until it can.
+        if (!info?.canRequestAds) throw new Error('ads-consent-not-ready');
+        return MobileAds().setRequestConfiguration({
+          // 'T' (Teen) opens up Teen-rated inventory that AdMob's default 'G'
+          // ceiling silently locks out — matches our Play Console 13+ audience.
+          maxAdContentRating: MaxAdContentRating.T,
+          // Confirms this is NOT a kids-app build, avoiding the conservative
+          // kids pricing AdMob applies when treatment is left unspecified.
+          tagForChildDirectedTreatment: false,
+          // Explicit: not a mixed-audience under-age build either — leaving it
+          // unspecified lets AdMob guess; false keeps personalized ads eligible.
+          tagForUnderAgeOfConsent: false,
+        });
       })
       .then(() => MobileAds().initialize())
+      .then(() => {
+        initialized = true;
+      })
       .catch((err) => {
-        // Reset so a transient failure can be retried by the next caller
-        // instead of permanently poisoning the promise.
+        // Reset so a transient failure (or consent completed later via the
+        // privacy options form) can be retried by the next caller instead of
+        // permanently poisoning the promise.
         initPromise = null;
         throw err;
       });
   }
   return initPromise;
+}
+
+// For components that render an ad view themselves (banners): false until the
+// SDK may serve, so a <BannerAd> never mounts — and requests — before consent.
+export function useAdsReady() {
+  const [ready, setReady] = useState(initialized);
+  useEffect(() => {
+    if (ready) return undefined;
+    let alive = true;
+    ensureAdsInitialized()
+      .then(() => { if (alive) setReady(true); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [ready]);
+  return ready;
 }

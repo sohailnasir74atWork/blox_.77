@@ -23,11 +23,11 @@ import AppOpenAdManager from './Code/Ads/openApp';
 // sign in meanwhile).
 const SPLASH_LOGIN_CAP_MS = 3000;
 const JS_STARTED_AT = Date.now();
-import { AdsConsent, AdsConsentStatus } from 'react-native-google-mobile-ads';
+import { AdsConsentStatus } from 'react-native-google-mobile-ads';
 import { requestTrackingPermission, getTrackingStatus } from 'react-native-tracking-transparency';
 import AttPrimer from './Code/AppHelper/AttPrimer';
 import EmailOptInGate from './Code/AppHelper/EmailOptInGate';
-import { ensureAdsInitialized } from './Code/Ads/init';
+import { gatherAdsConsent, openAdsGate } from './Code/Ads/init';
 import MainTabs from './Code/AppHelper/MainTabs';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {
@@ -103,6 +103,10 @@ const Stack = createNativeStackNavigator();
 // caching the in-flight promise + short-circuiting on already-determined
 // statuses ensures requestTrackingPermission is reached at most once per
 // app session, even if the caller is invoked multiple times.
+// Longest the ad gate waits on the ATT primer + system dialog after consent.
+// Past this, ads initialise without IDFA rather than not at all.
+const ATT_GATE_MAX_MS = 30000;
+
 let _attPromise = null;
 async function ensureAttRequested(beforePrompt) {
   if (_attPromise) return _attPromise;
@@ -229,38 +233,32 @@ function App() {
 
   const handleUserConsent = useCallback(async () => {
     try {
-      // Request ATT once per app session (iOS). Guarded inside
+      // UMP consent first (Google's order): shows the EEA/UK/CH form only to
+      // users who need it, and decides whether ads may be requested at all.
+      const consentInfo = await gatherAdsConsent();
+      // UNKNOWN means the flow could not complete (offline); keep whatever
+      // status an earlier launch persisted rather than overwrite it.
+      if (consentInfo?.status && consentInfo.status !== AdsConsentStatus.UNKNOWN) {
+        saveConsentStatus(consentInfo.status);
+      }
+
+      // Then ATT (iOS), once per app session. Guarded inside
       // ensureAttRequested: skips if already determined, and shares an
       // in-flight promise so the library's known double-resolve bug (when the
       // system dialog is interrupted by a scene transition) can't fire twice.
+      // Capped so a stuck dialog can never keep ads off for the session.
       if (Platform.OS === 'ios') {
-        await ensureAttRequested(showAttPrimer);
-      }
-
-      const consentInfo = await AdsConsent.requestInfoUpdate();
-
-      // Config-before-init: setRequestConfiguration (maxAdContentRating 'T',
-      // child-treatment flag) THEN initialize(), via the single shared promise
-      // every ad manager also awaits. Previously this was a bare
-      // MobileAds().initialize() with no config, so the first (highest-value)
-      // impressions served at AdMob's default 'G' ceiling and lower eCPM.
-      await ensureAdsInitialized();
-      // await MobileAds().openAdInspector();
-
-      if (
-        consentInfo.status === AdsConsentStatus.OBTAINED ||
-        consentInfo.status === AdsConsentStatus.NOT_REQUIRED
-      ) {
-        saveConsentStatus(consentInfo.status);
-        return;
-      }
-
-      if (consentInfo.isConsentFormAvailable && consentInfo.isRequestLocationInEeaOrUnknown) {
-        const formResult = await AdsConsent.showForm();
-        saveConsentStatus(formResult.status);
+        await Promise.race([
+          ensureAttRequested(showAttPrimer),
+          new Promise((resolve) => setTimeout(resolve, ATT_GATE_MAX_MS)),
+        ]);
       }
     } catch (error) {
       // Silently handle consent errors
+    } finally {
+      // Ads may initialise and load from here on — never before. The gate
+      // re-checks canRequestAds itself, so opening it after a failure is safe.
+      openAdsGate();
     }
   }, [saveConsentStatus, showAttPrimer]);
 

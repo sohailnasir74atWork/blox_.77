@@ -27,7 +27,7 @@ import {
   AdEventType,
 } from 'react-native-google-mobile-ads';
 import getAdUnitId from './ads';
-import { ensureAdsInitialized } from './init';
+import { ensureAdsInitialized, adsInitialized } from './init';
 import { setFullScreenAdVisible, markFullScreenAdShown, whenModalSettled } from './adVisibility';
 import { NO_FILL_RETRY_MS, isNoFillError } from './adPolicy';
 
@@ -107,6 +107,12 @@ class RewardedAdManager {
   // ── Safe load (prevents duplicate loads) ──
   static _load() {
     if (this.isLoaded || this.isLoading || !this.ad) return;
+    // Consent + config first: a load before the SDK is initialised would go
+    // out ahead of the UMP answer. Deferred, not dropped.
+    if (!adsInitialized()) {
+      ensureAdsInitialized().then(() => this._load()).catch(() => {});
+      return;
+    }
     this.isLoading = true;
     try {
       this.ad.load();

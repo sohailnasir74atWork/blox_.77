@@ -5,7 +5,7 @@ import {
   AdEventType,
 } from 'react-native-google-mobile-ads';
 import getAdUnitId from './ads';
-import { ensureAdsInitialized } from './init';
+import { ensureAdsInitialized, adsInitialized } from './init';
 import {
   setFullScreenAdVisible,
   isFullScreenAdVisible,
@@ -111,13 +111,12 @@ class InterstitialAdManager {
 
     // ✅ Config-before-load: await the shared AdMob init (consent →
     // setRequestConfiguration → initialize) so the first ad request already
-    // respects maxAdContentRating 'T' and the user's consent choices.
+    // respects maxAdContentRating 'T' and the user's consent choices. A
+    // rejection means ads may not be requested yet (consent incomplete); the
+    // next prepare()/showAd() re-checks via _load().
     ensureAdsInitialized()
       .then(() => this._createAndLoad())
-      .catch(() => {
-        // If init somehow rejects, still attempt to load so ads aren't dead.
-        this._createAndLoad();
-      });
+      .catch(() => {});
   }
 
   static _createAndLoad() {
@@ -149,6 +148,12 @@ class InterstitialAdManager {
 
   static _load() {
     if (this.isLoaded || this.isLoading || !this.ad) return;
+    // Consent + config first: a load before the SDK is initialised would go
+    // out ahead of the UMP answer. Deferred, not dropped.
+    if (!adsInitialized()) {
+      ensureAdsInitialized().then(() => this._load()).catch(() => {});
+      return;
+    }
     this.isLoading = true;
     try {
       this.ad.load();
@@ -224,6 +229,15 @@ class InterstitialAdManager {
   // ✅ Show ad. Same contract as before: caller's callback always runs, and
   // content is never gated on ad availability.
   static showAd(onAdClosedCallback, onAdUnavailableCallback) {
+    // ✅ Pro gate, here rather than trusting callers: most call sites only
+    // check localState.isPro, so RTDB-purchase Pro members (proGranted) got
+    // through, found no ad (none is ever loaded for Pro) and sat out the full
+    // WAIT_TIMEOUT_MS before their upload/post/search ran.
+    if (isProUser()) {
+      if (typeof onAdClosedCallback === 'function') onAdClosedCallback();
+      return;
+    }
+
     if (!this.hasInitialized) {
       this.init();
     }
