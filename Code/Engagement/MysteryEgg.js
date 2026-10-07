@@ -27,6 +27,7 @@ import { FRUIT_LIST, EGG_LIST, RARITY_CONFIG, COSMETIC_TYPE, ALL_ITEMS } from '.
 import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
 import RewardedAdManager from '../Ads/RewardedAdManager';
 import { getServerTime } from '../Helper/serverTime';
+import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
 
 const { width } = Dimensions.get('window');
 
@@ -910,6 +911,7 @@ const MysteryEggScreen = ({ navigation }) => {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      <ScreenBottomBanner background={bgColor} ad={false} />
     </View>
   );
 };

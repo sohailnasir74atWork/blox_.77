@@ -45,6 +45,11 @@ const MessageActionDrawer = ({
   onDeleteAll,
   onPinMessage,
   isStaff,
+  // Pin for someone who isn't staff (a group's creator), and whether this
+  // message is already pinned (the row then reads Unpin). The main chat
+  // passes neither, so it renders exactly as before.
+  canPin = false,
+  isPinned = false,
   userId,
   isDarkMode,
   allowSelfDelete = true,
@@ -80,6 +85,17 @@ const MessageActionDrawer = ({
 
   const isOwn = !!userId && message.senderId === userId;
   const showSelfDelete = allowSelfDelete && !isStaff && isOwn && !!onDelete;
+  const pinRow = onPinMessage && (isStaff || canPin) ? (
+    <ActionRow
+      styles={styles}
+      iconColor={iconColor}
+      icon={isPinned ? 'pin' : 'pin-outline'}
+      label={isPinned
+        ? t('chat.unpin_message', { defaultValue: 'Unpin' })
+        : t('chat.pin_this_message', { defaultValue: 'Pin Message' })}
+      onPress={() => run(onPinMessage)}
+    />
+  ) : null;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
@@ -133,14 +149,15 @@ const MessageActionDrawer = ({
               {!isOwn && onReport && (
                 <ActionRow styles={styles} iconColor={iconColor} icon="flag-outline" label={t('chat.report', { defaultValue: 'Report' })} onPress={() => run(onReport)} />
               )}
+              {/* Pin / Unpin for a non-staff pinner (a group's creator); staff
+                  get it in their section below. */}
+              {!isStaff && pinRow}
 
               {isStaff && (onPinMessage || onDelete || onDeleteAll) && (
                 <>
                   <View style={styles.divider} />
                   <Text style={styles.sectionLabel}>{t('chat.staff_actions', { defaultValue: 'Staff actions' })}</Text>
-                  {onPinMessage && (
-                    <ActionRow styles={styles} iconColor={iconColor} icon="pin-outline" label={t('chat.pin_this_message', { defaultValue: 'Pin Message' })} onPress={() => run(onPinMessage)} />
-                  )}
+                  {pinRow}
                   {onDelete && (
                     <ActionRow styles={styles} iconColor={iconColor} icon="trash-outline" label={t('chat.delete', { defaultValue: 'Delete' })} danger onPress={() => run(onDelete)} />
                   )}

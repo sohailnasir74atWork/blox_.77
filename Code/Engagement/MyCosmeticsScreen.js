@@ -16,6 +16,7 @@ import { getInventory, activateItem, deactivateItem, formatTimeRemaining } from 
 import { RARITY_CONFIG, ALL_ITEMS, COSMETIC_TYPE, FRAMES, TEXT_COLORS, TRADE_BG_COLORS, BANNER_GRADIENTS, CHAT_BG_COLORS } from './shopItems';
 import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
 import config from '../Helper/Environment';
+import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
 
 // ── DEV: Generate full inventory with all cosmetics for testing ──
 const generateTestInventory = () => {
@@ -282,6 +283,7 @@ const MyCosmeticsScreen = ({ navigation }) => {
           </>
         )}
       </ScrollView>
+      <ScreenBottomBanner background={bgColor} ad={false} />
 
       {/* ═══ FRAME PREVIEW MODAL ═══ */}
       {previewItem && (() => {

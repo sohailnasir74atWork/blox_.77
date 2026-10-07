@@ -566,7 +566,9 @@ export default function FruitCrash({ navigation }) {
           </>
         ) : (
           /* ── LEADERBOARD TAB ── */
-          <View style={{ flex: 1 }}>
+          // Stops above the system nav bar (edge-to-edge), so rows never
+          // scroll under the buttons; the gradient still fills behind it.
+          <View style={{ flex: 1, paddingBottom: insets.bottom }}>
             <View style={st.lbHeader}>
               <Text style={[st.lbHeaderTitle, { color: textMain }]}>All-Time Best Multipliers</Text>
               <Text style={[st.lbHeaderSub, { color: textDim }]}>Best single cash-out ever</Text>
@@ -579,7 +581,7 @@ export default function FruitCrash({ navigation }) {
               <FlatList
                 data={leaderboard}
                 keyExtractor={item => item.uid}
-                contentContainerStyle={{ paddingBottom: insets.bottom + 24, paddingTop: 8 }}
+                contentContainerStyle={{ paddingBottom: 24, paddingTop: 8 }}
                 renderItem={({ item, index }) => (
                   <LeaderboardRow item={item} rank={index + 1} isMe={item.uid === user?.id} c={c} />
                 )}
@@ -587,7 +589,7 @@ export default function FruitCrash({ navigation }) {
             )}
 
             {user?.id && leaderboard.findIndex(x => x.uid === user.id) === -1 && bestMultiplier > 0 && (
-              <View style={[st.myRankCard, { backgroundColor: cardBg, marginBottom: insets.bottom + 16 }]}>
+              <View style={[st.myRankCard, { backgroundColor: cardBg, marginBottom: 16 }]}>
                 <Text style={[st.myRankLabel, { color: textMain }]}>Your best: {bestMultiplier.toFixed(2)}x</Text>
                 <Text style={[st.myRankSub, { color: textDim }]}>Keep playing to climb the board!</Text>
               </View>

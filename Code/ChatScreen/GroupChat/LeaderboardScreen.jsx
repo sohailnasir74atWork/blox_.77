@@ -22,6 +22,7 @@ import ProfileBottomDrawer from './BottomDrawer';
 import { isUserOnline } from '../utils';
 import ThemeHeader from '../../../Code/Design/componenets/ThemeHeader';
 import { getUsersByRole } from '../../Supabase/userBackend';
+import ScreenBottomBanner from '../../Ads/ScreenBottomBanner';
 
 const CACHE_DURATION_MS = 2 * 24 * 60 * 60 * 1000; // 2 days — Top Rated (CF-computed)
 const ROSTER_CACHE_MS = 4 * 60 * 60 * 1000;        // 4 hours — tag rosters
@@ -347,6 +348,8 @@ const LeaderboardScreen = ({ route }) => {
             Last updated: {new Date(localState.leaderboardTop50.lastFetched).toLocaleDateString()}
           </Text>
         )}
+
+        <ScreenBottomBanner background={isDarkMode ? '#0f172a' : '#f2f2f7'} />
       </View>
 
       <ProfileBottomDrawer

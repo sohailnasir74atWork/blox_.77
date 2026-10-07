@@ -27,6 +27,8 @@ import { AdsConsentStatus } from 'react-native-google-mobile-ads';
 import { requestTrackingPermission, getTrackingStatus } from 'react-native-tracking-transparency';
 import AttPrimer from './Code/AppHelper/AttPrimer';
 import EmailOptInGate from './Code/AppHelper/EmailOptInGate';
+import DateOfBirthModal from './Code/AppHelper/DateOfBirthModal';
+import useDobGate from './Code/AppHelper/useDobGate';
 import { gatherAdsConsent, openAdsGate } from './Code/Ads/init';
 import MainTabs from './Code/AppHelper/MainTabs';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -44,7 +46,7 @@ import InterstitialAdManager from './Code/Ads/IntAd';
 import RNBootSplash from "react-native-bootsplash";
 import AdminUnbanScreen from './Code/AppHelper/AdminDashboard';
 import SocialDashboard from './Code/AppHelper/SocialDashboard';
-import CustomTopTabs from './Code/ValuesScreen/TopTabs';
+import { MoreStack } from './Code/More/MoreNavigator';
 import LeaderboardScreen from './Code/ChatScreen/GroupChat/LeaderboardScreen';
 import PrivateChatScreen from './Code/ChatScreen/PrivateChat/PrivateChat';
 import PrivateChatHeader from './Code/ChatScreen/PrivateChat/PrivateChatHeader';
@@ -162,6 +164,10 @@ function App() {
     checkForUpdate()
     // initAds()
   }, []);
+
+  // One-time date-of-birth screen for every signed-in player (Birthdays,
+  // owner decision 2026-10-07). See Code/AppHelper/useDobGate.js.
+  const dobGate = useDobGate(user?.id, appdatabase);
 
 
 
@@ -299,7 +305,7 @@ function App() {
   }, []);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1 }} onTouchStartCapture={AppOpenAdManager.noteUserTouch}>
       <Animated.View style={{ flex: 1 }}>
         <NavigationContainer theme={selectedTheme}>
           {/* Edge-to-edge: backgroundColor/translucent are ignored by the OS here, and
@@ -320,7 +326,7 @@ function App() {
               animation: 'fade',
               animationDuration: 250,
             }}>
-              {() => <CustomTopTabs selectedTheme={selectedTheme} />}
+              {() => <MoreStack selectedTheme={selectedTheme} />}
             </Stack.Screen>
 
             <Stack.Screen name="LeaderboardStack" options={{ headerShown: false }}>
@@ -470,6 +476,12 @@ function App() {
             />
 
             <Stack.Screen
+              name="Birthdays"
+              options={{ headerShown: false }}
+              getComponent={() => require('./Code/Birthdays/BirthdaysScreen').default}
+            />
+
+            <Stack.Screen
               name="Setting"
               options={{
                 title: t('tabs.settings'),
@@ -501,7 +513,15 @@ function App() {
           user={user}
           appdatabase={appdatabase}
           isDarkMode={theme === 'dark'}
-          blocked={attPrimerVisible}
+          knownDob={dobGate.dob}
+          blocked={attPrimerVisible || dobGate.visible}
+        />
+        {/* Birthday gate: asks once, before the email opt-in (which then
+            reuses the date instead of asking again). */}
+        <DateOfBirthModal
+          visible={dobGate.visible && !attPrimerVisible}
+          onSubmit={dobGate.submit}
+          isDarkMode={theme === 'dark'}
         />
       </Animated.View>
     </View>
@@ -512,12 +532,12 @@ export default function AppWrapper() {
   const { localState, updateLocalState } = useLocalState();
   const { theme, proGranted } = useGlobalState();
 
-  // Cold-start App Open ad: decided once per launch, shown FROM the splash or
-  // not at all (budget, first-launch and 4 h rules live in Code/Ads/openApp.js,
-  // ported from mm2values). start() registers the AppState listener so the ad
+  // Launch App Open ad: decided once per launch. The splash no longer waits
+  // for it; it shows when it loads, over the splash or Home, under the window
+  // and no-touch rules in Code/Ads/openApp.js / adPolicy.js. start() registers
+  // the AppState listener so the ad
   // also shows on every genuine background→foreground return (frequency-capped,
   // Pro-gated via MMKV, de-duped against other full-screen ads).
-  const [splashAdGateOpen, setSplashAdGateOpen] = useState(false);
   const [splashCapReached, setSplashCapReached] = useState(false);
   const coldStartPrepared = useRef(false);
   useEffect(() => {
@@ -528,10 +548,6 @@ export default function AppWrapper() {
       } else {
         AppOpenAdManager.prepareColdStart();
       }
-      AppOpenAdManager.splashGate.then(() => setSplashAdGateOpen(true));
-      // Belt and braces: whatever the ad SDK does, the splash never stays
-      // more than 6 s.
-      setTimeout(() => setSplashAdGateOpen(true), 6000);
     }
     if (localState.showOnBoardingScreen || localState.isPro) return undefined;
     AppOpenAdManager.start();
@@ -544,19 +560,22 @@ export default function AppWrapper() {
     return () => clearTimeout(id);
   }, []);
 
-  // Hide the splash once login is done (or the cap passed) AND the cold-start
-  // ad has either opened over it or been skipped. rAF, not
+  // Hide the splash once login is done (or the cap passed). rAF, not
   // requestIdleCallback: an idle callback can be starved and leave the splash
   // stuck on screen.
   useEffect(() => {
-    if ((localState.isAppReady || splashCapReached) && splashAdGateOpen) {
+    if (localState.isAppReady || splashCapReached) {
       const raf = requestAnimationFrame(() => {
-        RNBootSplash.hide({ fade: true });
+        // Once the splash has faded, Home is on screen: that starts the launch
+        // ad's no-touch rule (Code/Ads/openApp.js).
+        Promise.resolve(RNBootSplash.hide({ fade: true }))
+          .catch(() => {})
+          .then(() => AppOpenAdManager.noteHomeVisible());
       });
       return () => cancelAnimationFrame(raf);
     }
     return undefined;
-  }, [localState.isAppReady, splashCapReached, splashAdGateOpen]);
+  }, [localState.isAppReady, splashCapReached]);
 
   // ✅ Tear down the AppState listener + warm ad on unmount.
   useEffect(() => {

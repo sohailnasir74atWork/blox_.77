@@ -377,13 +377,68 @@ const OVERRIDES = {
   },
   news_feedback: (cur) => ({
     '.read': cur['.read'],
+    // The reports inbox (Code/ValuesScreen/AdminReport.js) pages it by date.
+    '.indexOn': ['createdAt'],
     $id: {
-      // Create-only (guests included, News screen has no sign-in gate).
-      '.write': `!data.exists() && newData.exists()`,
+      // Create-only (guests included: old builds' News screen has no sign-in
+      // gate); staff may delete from the reports inbox.
+      '.write': or('!data.exists() && newData.exists()', and('data.exists()', '!newData.exists()', wMod)),
       '.validate': "newData.hasChildren(['createdAt']) && newData.child('createdAt').isNumber() && (!newData.child('userId').exists() || newData.child('userId').val() === 'anonymous' || (auth != null && newData.child('userId').val() === auth.uid))",
     },
   }),
-  news: { '.read': true, ...adminOnly },
+  news: {
+    '.read': true,
+    ...adminOnly,
+    // Posts written from the Admin Dashboard's News tab
+    // (Code/ValuesScreen/newsApi.js). Old builds read the same list, sorted by
+    // `order` (= -createdAt), with `tag` as a chip.
+    updates: {
+      $id: {
+        '.validate': "newData.hasChildren(['title', 'body', 'createdAt', 'updatedAt'])",
+        title: { '.validate': 'newData.isString() && newData.val().length > 0 && newData.val().length <= 120' },
+        body: { '.validate': 'newData.isString() && newData.val().length > 0 && newData.val().length <= 5000' },
+        createdAt: { '.validate': 'newData.isNumber()' },
+        updatedAt: { '.validate': 'newData.isNumber()' },
+        order: { '.validate': 'newData.isNumber()' },
+        tag: { '.validate': 'newData.isString() && newData.val().length <= 30' },
+        by: { '.validate': 'newData.val() === auth.uid' },
+        $other: { '.validate': false },
+      },
+    },
+  },
+  // Values ▸ More ▸ Complaints & ideas (Code/Reports/reportsApi.js). Players
+  // create only, as themselves, one a minute (the same write must stamp
+  // player_feedback_last/{uid}); they read only their own (by userId). Staff
+  // read all; mods and up mark done / delete. Named player_feedback because
+  // Firestore user_reports is already the content-report queue.
+  player_feedback: {
+    '.read': or(staffRead, and('auth != null', "query.orderByChild === 'userId'", 'query.equalTo === auth.uid', 'query.limitToLast <= 30')),
+    '.indexOn': ['createdAt', 'userId'],
+    $id: {
+      '.write': or(and('auth != null', '!data.exists()', "newData.child('userId').val() === auth.uid"), and('data.exists()', wMod)),
+      '.validate': "newData.hasChildren(['userId', 'type', 'text', 'createdAt', 'status']) && (data.exists() || newData.parent().parent().child('player_feedback_last').child(auth.uid).val() === now)",
+      userId: { '.validate': "newData.isString() && (data.exists() ? newData.val() === data.val() : newData.val() === auth.uid)" },
+      userName: { '.validate': 'newData.isString() && newData.val().length <= 60' },
+      avatar: { '.validate': 'newData.isString() && newData.val().length <= 500' },
+      type: { '.validate': "newData.val() === 'complaint' || newData.val() === 'suggestion'" },
+      category: { '.validate': 'newData.isString() && newData.val().length <= 30' },
+      text: { '.validate': 'newData.isString() && newData.val().length > 0 && newData.val().length <= 2000' },
+      images: {
+        $i: { '.validate': "$i.matches(/^[0-2]$/) && newData.isString() && newData.val().beginsWith('https://pull-gag.b-cdn.net/report-images/') && newData.val().length <= 120" },
+      },
+      app: { '.validate': 'newData.isString() && newData.val().length <= 60' },
+      createdAt: { '.validate': 'data.exists() ? newData.val() === data.val() : newData.val() === now' },
+      status: { '.validate': "data.exists() ? (newData.val() === 'open' || newData.val() === 'done') : newData.val() === 'open'" },
+      $other: { '.validate': false },
+    },
+  },
+  player_feedback_last: {
+    $uid: {
+      '.read': ownUid('$uid'),
+      '.write': and(ownUid('$uid'), 'newData.exists()'),
+      '.validate': 'newData.val() === now && (!data.exists() || now - data.val() > 60000)',
+    },
+  },
   stock: { '.read': true, ...adminOnly },
   xlsData: { '.read': true, '.write': false },
   banned_users_by_email: (cur) => ({

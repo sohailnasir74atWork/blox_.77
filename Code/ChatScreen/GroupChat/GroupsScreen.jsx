@@ -20,7 +20,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
 import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
 import { useTranslation } from 'react-i18next';
-import { leaveGroup, acceptGroupInvite, declineGroupInvite, updateGroupAvatar, approveJoinRequest, rejectJoinRequest, getAllGroups, sendJoinRequest, deleteGroup } from '../utils/groupUtils';
+import { leaveGroup, acceptGroupInvite, declineGroupInvite, updateGroupAvatar, approveJoinRequest, rejectJoinRequest, getAllGroups, sendJoinRequest, deleteGroup, MAX_GROUPS_PER_USER } from '../utils/groupUtils';
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
 import { collection, query, where, onSnapshot, doc, getDoc, getCountFromServer, limit } from '@react-native-firebase/firestore';
 import { ref, get, set } from '@react-native-firebase/database';
@@ -811,9 +811,11 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
       .sort((a, b) => (b?.lastMessageTimestamp || 0) - (a?.lastMessageTimestamp || 0));
   }, [groups]);
 
-  // Find user's own group (for dynamic button text)
-  const myGroup = useMemo(() => {
-    return filteredGroups.find(g => g.createdBy === user?.id) || null;
+  // Up to MAX_GROUPS_PER_USER own groups: below that the button still
+  // creates (the picker then offers "Add to <group>" too); at the limit it
+  // only adds players.
+  const atGroupLimit = useMemo(() => {
+    return filteredGroups.filter(g => g.createdBy === user?.id).length >= MAX_GROUPS_PER_USER;
   }, [filteredGroups, user?.id]);
 
   // ✅ Load initial 10 groups when "All Groups" tab is active
@@ -1712,12 +1714,12 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
           }}
         >
           <Icon
-            name={myGroup ? 'person-add' : 'add'}
+            name={atGroupLimit ? 'person-add' : 'add'}
             size={20}
             color="#fff"
           />
           <Text style={{ color: '#fff', marginLeft: 6, fontWeight: '600', fontSize: 13 }} numberOfLines={1}>
-            {myGroup ? `Add members to ${truncateGroupName(myGroup.groupName, 15)}` : 'Create Group'}
+            {atGroupLimit ? t('chat.add_players', { defaultValue: 'Add players' }) : 'Create Group'}
           </Text>
         </TouchableOpacity>
       )}

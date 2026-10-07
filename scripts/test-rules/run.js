@@ -319,6 +319,51 @@ async function rtdbTests() {
   await ok('news feedback (guest, anonymous)', () => D.push(r(null, 'news_feedback'), { type: 'poll_vote', userId: 'anonymous', userName: null, userEmail: null, createdAt: now() }));
   await no('news feedback forged userId', () => D.push(r(U1, 'news_feedback'), { userId: U2, createdAt: now() }));
   await no('news feedback wipe', () => D.set(r(U1, 'news_feedback'), null));
+  // Old feedback in the reports inbox (2026-10-07): staff delete, players can't.
+  await ok('mod deletes an old feedback entry', async () => {
+    const k = D.push(r(null, 'news_feedback')).key;
+    await D.set(r(null, `news_feedback/${k}`), { type: 'custom_feedback', text: 'x', userId: 'anonymous', createdAt: now() });
+    return D.set(r(M, `news_feedback/${k}`), null);
+  });
+  await no('user deletes an old feedback entry', async () => {
+    const k = D.push(r(null, 'news_feedback')).key;
+    await D.set(r(null, `news_feedback/${k}`), { type: 'custom_feedback', text: 'x', userId: 'anonymous', createdAt: now() });
+    return D.set(r(U1, `news_feedback/${k}`), null);
+  });
+
+  sec('rtdb news posts (Admin Dashboard News tab, 2026-10-07)');
+  const post = (by, extra = {}) => ({ title: 'Update', body: 'Text', createdAt: D.serverTimestamp(), updatedAt: D.serverTimestamp(), order: -1, tag: '', by, ...extra });
+  await ok('admin posts news', () => D.set(r(A, 'news/updates/p1'), post(A)));
+  await ok('owner email posts news', () => D.set(r(O, 'news/updates/p2'), post(O)));
+  await no('mod posts news', () => D.set(r(M, 'news/updates/p3'), post(M)));
+  await no('user posts news', () => D.set(r(U1, 'news/updates/p3'), post(U1)));
+  await no('admin post without a title', () => D.set(r(A, 'news/updates/p4'), post(A, { title: '' })));
+  await no('admin post with an extra field', () => D.set(r(A, 'news/updates/p5'), post(A, { poll: 'x' })));
+  await no('admin post signed as someone else', () => D.set(r(A, 'news/updates/p6'), post(A2)));
+  await ok('admin deletes a post', () => D.set(r(A, 'news/updates/p1'), null));
+  await ok('guest reads news posts', () => D.get(r(null, 'news/updates')));
+
+  sec('rtdb player_feedback (Complaints & ideas, 2026-10-07)');
+  const rep = (uid, extra = {}) => ({ userId: uid, userName: 'n', type: 'complaint', category: 'moderation', text: 'hello', app: 'android 1', createdAt: D.serverTimestamp(), status: 'open', ...extra });
+  const send = (uid, id, extra) => D.update(D.ref(dbOf(uid)), { [`player_feedback/${id}`]: rep(uid, extra), [`player_feedback_last/${uid}`]: D.serverTimestamp() });
+  await ok('player sends a complaint', () => send(U1, 'f1'));
+  await no('second one within a minute', () => send(U1, 'f2', { type: 'suggestion' }));
+  await no('without the rate stamp', () => D.set(r(U2, 'player_feedback/f3'), rep(U2)));
+  await no('as someone else', () => D.update(D.ref(dbOf(U2)), { 'player_feedback/f4': rep(U1), [`player_feedback_last/${U2}`]: D.serverTimestamp() }));
+  await no('guest sends', () => D.update(D.ref(dbOf(null)), { 'player_feedback/f5': rep('anonymous') }));
+  await no('image outside report-images', () => send(U3, 'f6', { images: ['https://evil.example/x.jpg'] }));
+  await no('status done on create', () => send(U3, 'f7', { status: 'done' }));
+  await ok('suggestion with a report image', () => send(U2, 'f8', { type: 'suggestion', category: null, images: ['https://pull-gag.b-cdn.net/report-images/a.jpg'] }));
+  await no('player deletes own rate stamp', () => D.set(r(U1, `player_feedback_last/${U1}`), null));
+  await no('player edits own report', () => D.update(r(U1, 'player_feedback/f1'), { text: 'changed' }));
+  await no('player reads all', () => D.get(r(U1, 'player_feedback')));
+  await ok('player reads own by userId', () => D.get(D.query(r(U1, 'player_feedback'), D.orderByChild('userId'), D.equalTo(U1), D.limitToLast(20))));
+  await no("player reads someone else's", () => D.get(D.query(r(U1, 'player_feedback'), D.orderByChild('userId'), D.equalTo(U2), D.limitToLast(20))));
+  await ok('JMD reads the inbox', () => D.get(r(J, 'player_feedback')));
+  await ok('mod marks done', () => D.update(r(M, 'player_feedback/f1'), { status: 'done' }));
+  await no('JMD marks done', () => D.update(r(J, 'player_feedback/f8'), { status: 'done' }));
+  await no('mod rewrites the sender', () => D.update(r(M, 'player_feedback/f1'), { userId: U2 }));
+  await ok('mod deletes', () => D.set(r(M, 'player_feedback/f8'), null));
   await ok('wallpaper like counter (guest)', () => D.update(r(null, 'like_counter/12'), { likes: 4, dislikes: 0, downloads: 9 }));
   await no('wallpaper counter junk field', () => D.update(r(null, 'like_counter/12'), { evil: 'x' }));
   await no('wallpaper counter delete', () => D.set(r(null, 'like_counter/12'), null));

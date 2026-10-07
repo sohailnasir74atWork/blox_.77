@@ -13,7 +13,6 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import BouncingCartIcon from './CartIcon';
 import TopLevelStockComponent from '../StockScreen/StockNavigator';
 import DesignStack from '../Design/DesignNavigation';
-import CustomTopTabs from '../ValuesScreen/TopTabs';
 import ThemeHeader from '../Design/componenets/ThemeHeader';
 import { useGlobalState } from '../GlobelStats';
 import { checkDailyStreak } from '../ChatScreen/GroupChat/badgeUtils';
@@ -132,9 +131,6 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
     />
   ), [selectedTheme, modalVisibleChatinfo]);
 
-  const renderCustomTopTabs = useCallback(() => (
-    <CustomTopTabs selectedTheme={selectedTheme} />
-  ), [selectedTheme]);
 
   // Memoize screenOptions to prevent recreation on every render
   const screenOptions = useCallback(({ route }) => ({

@@ -36,10 +36,22 @@ export const CHAT_MESSAGES_PER_AD = 10;
 // App-open on a return from background: at most once per this window
 // (and only after APP_OPEN_MIN_BACKGROUND_MS away).
 export const APP_OPEN_MIN_INTERVAL_MS = 5 * 60 * 1000;
-// Launch (cold-start) app-open ad: returning users only, at most once per 4 h,
-// and only if it is ready while the splash is still up.
-export const COLD_START_MIN_GAP_MS = 4 * 60 * 60 * 1000;
-export const COLD_START_BUDGET_MS = 3000;
+// Launch (cold-start) app-open ad: returning users only, shown from the splash
+// or not at all. Every launch is eligible (owner decision, 2026-10-07): the
+// 4 h gap cut app-open impressions per session by 26–54% in the 2026-10-04
+// builds, and app-open is the largest earner. Raise this to space them again.
+export const COLD_START_MIN_GAP_MS = 0;
+// Launch-ad window (owner decision, 2026-10-07: no longer tied to the splash,
+// which now hides as soon as the app is ready). A launch ad that finishes
+// loading inside the window shows — over the splash or over Home — unless the
+// user has already touched Home; otherwise it is kept for the next return.
+// The window runs to the latest of COLD_START_BUDGET_MS from JS start and
+// LAUNCH_AD_HOME_GRACE_MS after Home appeared, but never past
+// LAUNCH_AD_MAX_MS. (3 s from JS start was spent mostly before the request
+// even went out: SDK init plus the consent refresh it used to wait for.)
+export const COLD_START_BUDGET_MS = 5000;
+export const LAUNCH_AD_HOME_GRACE_MS = 2000;
+export const LAUNCH_AD_MAX_MS = 7000;
 
 // Two different full-screen formats are never shown within this gap of each
 // other (interstitial after app-open, rewarded then interstitial…). Each
@@ -48,12 +60,16 @@ export const CROSS_FORMAT_GAP_MS = 60 * 1000;
 
 // An app-open ad needs the user to have genuinely LEFT: a 5-second flick to
 // Roblox and back is not a new session. Quick switches never get an ad.
-export const APP_OPEN_MIN_BACKGROUND_MS = 30 * 1000;
+// 10 s, not 30 s (owner decision, 2026-10-07): checking a trade in Roblox and
+// coming back is a real return, and 30 s skipped most of them.
+export const APP_OPEN_MIN_BACKGROUND_MS = 10 * 1000;
 
 // "No fill" is not a transient failure — the auction had nothing for this
 // user/geo right now — so the 1→16s exponential retry the managers used to
 // run just burned 5 more requests for the same answer. After a no-fill, one
-// retry this much later, then wait for the next real user signal.
+// retry this much later, then wait for the next real user signal. Used by the
+// interstitial AND app-open managers (app-open ignored it until 2026-10-07, so
+// one no-fill left nothing ready for the next return).
 export const NO_FILL_RETRY_MS = 60 * 1000;
 
 // AdMob frequency caps (interstitial 1 per minute, app-open 1 per minute,

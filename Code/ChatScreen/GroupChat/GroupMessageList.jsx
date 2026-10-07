@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState, useCallback } from 'react';
+import React, { memo, useMemo, useState, useCallback, useRef } from 'react';
 import {
   FlatList,
   View,
@@ -24,6 +24,7 @@ import config from '../../Helper/Environment';
 import { parseMessageText } from '../ChatHelper';
 import { resolveProfile, seedFromMessage } from '../../Helper/profileCache';
 import FramedAvatar from './FramedAvatar';
+import { BirthdayCake } from '../../Birthdays/BirthdayBits';
 import { getSafeTextColor, RainbowText, isMultiColorText, getMultiColorPalette } from '../../Helper/contrastHelper';
 
 const GroupMessageList = ({
@@ -43,6 +44,9 @@ const GroupMessageList = ({
   scrollToMessage, // Function to scroll to a message
   highlightedMessageId, // ID of highlighted message
   flatListRef, // Ref for FlatList
+  onPinMessage = null, // Callback to pin / unpin a message
+  canPin = false, // The group's creator may pin too (staff always can)
+  pinnedIds = null, // Set of pinned message ids (the menu then offers Unpin)
 }) => {
   const { theme, isAdmin, isModerator } = useGlobalState();
   const isDarkMode = theme === 'dark';
@@ -52,6 +56,24 @@ const GroupMessageList = ({
   const { triggerHapticFeedback } = useHaptic();
 
   const [selectedMessage, setSelectedMessage] = useState(null);
+
+  // Jumping to a reply or a pin far up the list: the row isn't laid out yet,
+  // so get close by the average row height, then retry.
+  const scrollRetryRef = useRef(0);
+  const handleScrollToIndexFailed = useCallback((info) => {
+    const list = flatListRef?.current;
+    if (!list) return;
+    list.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false });
+    // At most three retries per jump; the window reopens after 2 s.
+    if (scrollRetryRef.current >= 3) return;
+    scrollRetryRef.current += 1;
+    if (scrollRetryRef.current === 1) setTimeout(() => { scrollRetryRef.current = 0; }, 2000);
+    setTimeout(() => {
+      try {
+        flatListRef?.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.5 });
+      } catch (e) { /* the next failure callback retries */ }
+    }, 250);
+  }, [flatListRef]);
 
   const fruitColors = useMemo(
     () => ({
@@ -254,6 +276,7 @@ const GroupMessageList = ({
                       >
                         {senderName}
                       </Text>
+                      <BirthdayCake uid={item.senderId} />
 
                       {/* Pro badge */}
                       {item?.isPro && (
@@ -449,6 +472,15 @@ const GroupMessageList = ({
                     <Text style={styles.menuOptionText}>{t('chat.reply')}</Text>
                   </MenuOption>
                 )}
+                {onPinMessage && (isAdmin || isModerator || canPin) && (
+                  <MenuOption onSelect={() => onPinMessage(item)}>
+                    <Text style={styles.menuOptionText}>
+                      {pinnedIds?.has(item.id)
+                        ? t('chat.unpin_message', { defaultValue: 'Unpin' })
+                        : t('chat.pin_this_message', { defaultValue: 'Pin Message' })}
+                    </Text>
+                  </MenuOption>
+                )}
                 {(isAdmin || isModerator) && onDeleteMessage && (
                   <MenuOption onSelect={() => onDeleteMessage(item.id)}>
                     <Text style={[styles.menuOptionText, { color: '#FF3B30' }]}>Delete</Text>
@@ -474,7 +506,7 @@ const GroupMessageList = ({
         </View>
       );
     },
-    [userId, user, groupData, styles, fruitColors, myFruitColors, handleCopy, navigation, triggerHapticFeedback, onUserPress, isDarkMode, onReply, scrollToMessage, highlightedMessageId, getReplyPreview, t]
+    [userId, user, groupData, styles, fruitColors, myFruitColors, handleCopy, navigation, triggerHapticFeedback, onUserPress, isDarkMode, onReply, scrollToMessage, highlightedMessageId, getReplyPreview, t, onPinMessage, canPin, pinnedIds, isAdmin, isModerator]
   );
 
   const keyExtractor = useCallback((item, index) => {
@@ -535,6 +567,7 @@ const GroupMessageList = ({
       }
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
+      onScrollToIndexFailed={handleScrollToIndexFailed}
     />
   );
 };

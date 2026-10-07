@@ -27,6 +27,7 @@ import { useGlobalState } from '../GlobelStats';
 import { useTranslation } from 'react-i18next';
 import config from '../Helper/Environment';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
+import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
 
 const ROLE_META = {
   srmod: { label: 'Senior Mod', color: '#4F46E5', icon: 'shield-heart' },
@@ -386,7 +387,7 @@ const ModsScreen = () => {
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={config.colors.primary} style={{ marginTop: 40 }} />
+        <View style={{ flex: 1 }}><ActivityIndicator size="large" color={config.colors.primary} style={{ marginTop: 40 }} /></View>
       ) : (
         <FlatList
           data={mods}
@@ -410,6 +411,7 @@ const ModsScreen = () => {
           }
         />
       )}
+      <ScreenBottomBanner background={bgColor} />
 
       {/* Profile BottomDrawer */}
       <ProfileBottomDrawer

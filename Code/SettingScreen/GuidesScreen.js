@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../GlobelStats';
 import { useTranslation } from 'react-i18next';
+import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
 
 const GUIDES = [
   {
@@ -209,7 +210,8 @@ export default function GuidesScreen({ navigation }) {
   }, []);
 
   return (
-    <SafeAreaView style={styles.container}>
+    // Bottom edge comes from ScreenBottomBanner's spacer (below the banner).
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtn}>
@@ -272,6 +274,7 @@ export default function GuidesScreen({ navigation }) {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      <ScreenBottomBanner background={isDark ? '#0F172A' : '#F8FAFC'} />
     </SafeAreaView>
   );
 }

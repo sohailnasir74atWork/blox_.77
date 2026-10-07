@@ -14,8 +14,11 @@ import {
   APP_OPEN_MIN_INTERVAL_MS,
   COLD_START_MIN_GAP_MS,
   COLD_START_BUDGET_MS,
+  LAUNCH_AD_HOME_GRACE_MS,
+  LAUNCH_AD_MAX_MS,
   CROSS_FORMAT_GAP_MS,
   POST_SHOW_RELOAD_MS,
+  NO_FILL_RETRY_MS,
   isNoFillError,
 } from './adPolicy';
 
@@ -28,13 +31,19 @@ const AD_EXPIRY_MS = 4 * 60 * 60 * 1000;
 // flicking to another app for 5s and back) don't spam the user.
 const MIN_INTERVAL_MS = APP_OPEN_MIN_INTERVAL_MS;
 
-// ── Cold-start ad (ported from mm2values via adoptme-jan7, 2026-10-01) ──
-// Shown FROM the splash screen, never over a usable Home: the splash is held
-// until the ad opens or COLD_START_BUDGET_MS after launch, whichever is first.
-// An ad that loads after the budget is dropped for this launch, because an ad
-// appearing once the user is already tapping around is exactly the
-// "encouraging accidental clicks" pattern AdMob penalises. Before this, the
-// first ad of every launch showed whenever it finished loading.
+// ── Launch (cold-start) ad ──
+// No longer tied to the splash (owner decision, 2026-10-07). The splash hides
+// as soon as the app is ready; the launch ad shows when it finishes loading —
+// over the splash or over Home — if BOTH:
+//   1. it loaded inside the launch window (_launchDeadline: at least
+//      COLD_START_BUDGET_MS from JS start, at least LAUNCH_AD_HOME_GRACE_MS
+//      after Home appeared, never past LAUNCH_AD_MAX_MS), and
+//   2. the user has not touched the screen since Home appeared.
+// Rule 2 is the accidental-click guard: an ad that appears under a finger
+// already on its way to a button is the "unexpected ad" AdMob penalises, and
+// someone still looking at a Home they have not touched is not in that
+// position. A launch ad that misses either rule stays loaded for the next
+// return. Every eligible launch logs one `launch_ad` event (see _logLaunch).
 const APP_START_AT = Date.now();          // module load ≈ JS start (App.js imports this at the top)
 const K_LAST_COLD_AD = 'appOpenLastColdStartAt';
 const K_LAUNCHED_BEFORE = 'appOpenHasLaunchedBefore';
@@ -59,11 +68,6 @@ try {
     storage.getBoolean('isAppReady') === true);
   storage?.set(K_LAUNCHED_BEFORE, true);
 } catch (_) {}
-
-// Resolves when the splash may hide: the cold-start ad has opened (it now
-// covers the screen), or there will be no cold-start ad this launch.
-let releaseSplash;
-const splashGate = new Promise((r) => { releaseSplash = r; });
 
 const isProUser = () => {
   try {
@@ -97,13 +101,17 @@ class AppOpenAdManager {
   static backgroundedAt = 0;
   static retryCount = 0;
   static maxRetries = 3;
+  static noFillRetried = false;
   static unsubscribeEvents = [];
   static appStateSub = null;
   static showWatchdog = null;
   static foregroundTimer = null;
-  static splashGate = splashGate;
   static coldStartShowing = false;
   static skipForegroundUntil = 0;
+  // Launch-window bookkeeping (see the Launch ad notes at the top).
+  static homeVisibleAt = 0;
+  static touchedAt = 0;
+  static launchLogged = false;
 
   /**
    * Our own trips out of the app (the Play / App Store purchase sheet) come
@@ -118,31 +126,67 @@ class AppOpenAdManager {
   }
 
   /**
-   * Decide, at launch, whether this launch gets a cold-start ad, and arm the
-   * splash budget. Call before the splash hides. Always ends by releasing the
-   * splash — either when the ad opens or when the budget runs out.
+   * Decide, at launch, whether this launch gets a launch ad. Call once, early
+   * (App.js does it on mount). Nothing waits on it: the splash hides on its
+   * own schedule.
    */
   static prepareColdStart() {
     let lastCold = 0;
     try { lastCold = Number(storage?.getString(K_LAST_COLD_AD)) || 0; } catch (_) {}
     const eligible = launchedBefore && !isProUser() &&
       Date.now() - lastCold >= COLD_START_MIN_GAP_MS;
-    if (!eligible) { releaseSplash(); return; }
+    if (!eligible) return;
 
     this.showOnFirstLoad = true;
-    const remaining = Math.max(0, APP_START_AT + COLD_START_BUDGET_MS - Date.now());
+    // Window closed with nothing loaded: record it. The ad, if it lands later,
+    // stays warm for the next return.
     setTimeout(() => {
-      // Budget spent without the ad opening: give up on it for this launch.
-      if (!this.coldStartShowing) {
+      if (this.showOnFirstLoad) {
         this.showOnFirstLoad = false;
-        releaseSplash();
+        this._logLaunch('not_loaded');
       }
-    }, remaining);
+    }, Math.max(0, APP_START_AT + LAUNCH_AD_MAX_MS - Date.now()));
   }
 
   static skipColdStart() {
     this.showOnFirstLoad = false;
-    releaseSplash();
+  }
+
+  // App.js: the splash has gone, so Home is what the user sees from now on.
+  static noteHomeVisible() {
+    if (!this.homeVisibleAt) this.homeVisibleAt = Date.now();
+  }
+
+  // App.js root onTouchStartCapture. Only the first touch on Home matters.
+  static noteUserTouch() {
+    if (AppOpenAdManager.homeVisibleAt && !AppOpenAdManager.touchedAt) {
+      AppOpenAdManager.touchedAt = Date.now();
+    }
+  }
+
+  // Latest moment a launch ad may still appear.
+  static _launchDeadline() {
+    const afterHome = this.homeVisibleAt ? this.homeVisibleAt + LAUNCH_AD_HOME_GRACE_MS : 0;
+    return Math.min(
+      APP_START_AT + LAUNCH_AD_MAX_MS,
+      Math.max(APP_START_AT + COLD_START_BUDGET_MS, afterHome),
+    );
+  }
+
+  // One `launch_ad` analytics event per eligible launch, so the window can be
+  // tuned from real numbers: outcome = shown | late | touched | no_fill |
+  // not_loaded | failed | blocked; ms = time from JS start; over = what the
+  // user was looking at (splash or home).
+  static _logLaunch(outcome, ms = Date.now() - APP_START_AT) {
+    if (this.launchLogged) return;
+    this.launchLogged = true;
+    try {
+      require('../Helper/growthAnalytics').trackGrowthEvent('launch_ad', {
+        outcome,
+        ms: Math.round(ms),
+        over: this.homeVisibleAt ? 'home' : 'splash',
+      });
+    } catch (_) {}
   }
 
   // Call once after onboarding, for non-Pro users.
@@ -196,25 +240,37 @@ class AppOpenAdManager {
       this.isLoading = false;
       this.loadedAt = Date.now();
       this.retryCount = 0;
+      this.noFillRetried = false;
       if (this.showOnFirstLoad) {
         this.showOnFirstLoad = false;
-        // Only while the splash is still up; a late ad waits for the next
-        // foreground return instead of jumping onto a Home in use.
-        if (Date.now() <= APP_START_AT + COLD_START_BUDGET_MS) {
+        // Outside the launch window, or the user is already tapping around:
+        // keep it for the next return instead of dropping it onto them.
+        if (this.touchedAt) {
+          this._logLaunch('touched');
+        } else if (Date.now() > this._launchDeadline()) {
+          this._logLaunch('late');
+        } else {
           this.coldStartShowing = true;
           this.showAdIfAvailable();
-          if (!this.isShowing) { this.coldStartShowing = false; releaseSplash(); }
-        } else {
-          releaseSplash();
+          if (!this.isShowing) {
+            this.coldStartShowing = false;
+            this._logLaunch('blocked');
+          }
         }
       }
     });
 
     const onError = this.ad.addAdEventListener(AdEventType.ERROR, (error) => {
+      const noFill = isNoFillError(error);
       this.isLoaded = false;
       this.isLoading = false;
-      if (this.coldStartShowing) { this.coldStartShowing = false; releaseSplash(); }
-      this._retryLoad(isNoFillError(error));
+      // No launch ad this launch. (A transient error keeps the window open —
+      // its quick retry can still land in time.)
+      if (noFill && this.showOnFirstLoad) {
+        this.showOnFirstLoad = false;
+        this._logLaunch('no_fill');
+      }
+      this._retryLoad(noFill);
     });
 
     // OPENED confirms the ad actually presented — cancel the show watchdog so
@@ -223,11 +279,9 @@ class AppOpenAdManager {
       markFullScreenAdShown('app_open');
       this._clearShowWatchdog();
       if (this.coldStartShowing) {
-        // The ad covers the screen now, so the splash can go underneath it;
-        // closing the ad lands straight on Home.
         this.coldStartShowing = false;
         try { storage?.set(K_LAST_COLD_AD, String(Date.now())); } catch (_) {}
-        releaseSplash();
+        this._logLaunch('shown');
       }
     });
 
@@ -267,12 +321,18 @@ class AppOpenAdManager {
   // burned no-fill requests all session in zero-fill geos. Every
   // background→foreground return calls showAdIfAvailable(), which calls
   // _load() when nothing is loaded — that natural signal replaces the
-  // blind timer. A "no fill" answer gets no retry at all: the auction had
-  // nothing for this user, and the 1→16s backoff used to answer that with
-  // five more identical requests per launch (AdMob: 2.8M requests for 812K
-  // app-open impressions in one app).
+  // blind timer. A "no fill" gets ONE retry after NO_FILL_RETRY_MS (the
+  // 1→16s backoff used to answer it with five more identical requests per
+  // launch — AdMob: 2.8M requests for 812K app-open impressions in one app).
+  // It used to get none, which left nothing loaded for the next return: that
+  // return only started a load, so one no-fill cost a whole ad opportunity.
   static _retryLoad(noFill) {
-    if (noFill) return;
+    if (noFill) {
+      if (this.noFillRetried) return;
+      this.noFillRetried = true;
+      setTimeout(() => this._load(), NO_FILL_RETRY_MS);
+      return;
+    }
     if (this.retryCount >= this.maxRetries) return;
     const delay = Math.pow(2, this.retryCount) * 1000;
     setTimeout(() => {
@@ -310,15 +370,18 @@ class AppOpenAdManager {
 
   static showAdIfAvailable() {
     if (isProUser()) return;
-    // Never stack on top of an interstitial/rewarded, or on ourselves, and
-    // never follow one of them within the cross-format gap.
+    // Never stack on top of an interstitial/rewarded, or on ourselves.
     if (this.isShowing || isFullScreenAdVisible()) return;
-    if (msSinceOtherFullScreenAd('app_open') < CROSS_FORMAT_GAP_MS) return;
-    // Frequency cap.
-    if (Date.now() - this.lastShownAt < MIN_INTERVAL_MS) return;
 
+    // Make sure one is warming BEFORE the caps below decide this return gets
+    // nothing: a return too soon to show an ad is still the right moment to
+    // fetch one for the next return. (The caps used to return first, so a
+    // return inside the window left the manager empty for the following one.)
+    // Not inside the AdMob cap window right after a show, though — that
+    // request would only come back "frequency cap reached", and the post-show
+    // reload is already scheduled for the end of it.
     if (!this.isLoaded || !this.ad) {
-      this._load();
+      if (Date.now() - this.lastShownAt >= POST_SHOW_RELOAD_MS) this._load();
       return;
     }
     if (this._isExpired()) {
@@ -326,6 +389,11 @@ class AppOpenAdManager {
       this._createAndLoad();
       return;
     }
+
+    // Never follow another full-screen format within the cross-format gap.
+    if (msSinceOtherFullScreenAd('app_open') < CROSS_FORMAT_GAP_MS) return;
+    // Frequency cap.
+    if (Date.now() - this.lastShownAt < MIN_INTERVAL_MS) return;
 
     this.isShowing = true;
     this.lastShownAt = Date.now();
@@ -372,7 +440,10 @@ class AppOpenAdManager {
     setFullScreenAdVisible(false);
     this.isShowing = false;
     this.lastShownAt = 0;
-    if (this.coldStartShowing) { this.coldStartShowing = false; releaseSplash(); }
+    if (this.coldStartShowing) {
+      this.coldStartShowing = false;
+      this._logLaunch('failed');
+    }
     this._createAndLoad();
   }
 

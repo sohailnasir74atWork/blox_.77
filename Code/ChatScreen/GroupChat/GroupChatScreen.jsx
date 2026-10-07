@@ -24,7 +24,9 @@ import { get, ref, update } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import { sendGroupMessage, removeMemberFromGroup, hasGroupPermission, getPendingInviteForGroup, acceptGroupInvite, declineGroupInvite, leaveGroup, makeMemberCreator } from '../utils/groupUtils';
-import { doc, getDoc, onSnapshot, collection, query, where, getDocs } from '@react-native-firebase/firestore';
+import { doc, getDoc, onSnapshot, collection, query, where, getDocs, updateDoc } from '@react-native-firebase/firestore';
+import GroupPinnedBar, { MAX_GROUP_PINS } from './GroupPinnedBar';
+import { getThemeColors } from '../../Helper/themeColors';
 import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
@@ -35,6 +37,7 @@ import { resetGroupUnreadCount as sbResetGroupUnreadCount } from '../../Supabase
 import {
   loadGroupMessages as sbLoadGroupMessages,
   loadGroupMessagesSince as sbLoadGroupMessagesSince,
+  loadGroupMessagesBetween as sbLoadGroupMessagesBetween,
   subscribeToGroupMessages as sbSubscribeToGroupMessages,
   softDeleteGroupMessage as sbSoftDeleteGroupMessage,
   softDeleteGroupMessagesBySender as sbSoftDeleteGroupMessagesBySender,
@@ -54,7 +57,7 @@ const GroupChatScreen = () => {
   const navigation = useNavigation();
   const { groupId } = route.params || {};
 
-  const { user, theme, appdatabase, firestoreDB, currentUserEmail, isAdmin, isUserBlocked, isUserMuted, getModGate } = useGlobalState();
+  const { user, theme, appdatabase, firestoreDB, currentUserEmail, isAdmin, isSeniorMod, isModerator, isUserBlocked, isUserMuted, getModGate } = useGlobalState();
   // Declared up here with the other context hooks because `localState` is read
   // during render further down (the sendMessage dep array) and inside effects
   // that run before its old declaration site near the bottom of the file.
@@ -685,6 +688,98 @@ const GroupChatScreen = () => {
     [messages],
   );
 
+  // ── Pinned messages ──────────────────────────────────────────────────
+  // Stored on the group doc (pinnedMessages, newest first), which the
+  // onSnapshot above already streams to every member. The group's creator
+  // and staff pin and unpin; everyone can jump to a pin.
+  const pins = useMemo(
+    () => (Array.isArray(groupData?.pinnedMessages) ? groupData.pinnedMessages.filter((p) => p && p.id) : []),
+    [groupData?.pinnedMessages],
+  );
+  const pinnedIds = useMemo(() => new Set(pins.map((p) => p.id)), [pins]);
+  const canManagePins = !!user?.id && (groupData?.createdBy === user.id || !!isAdmin || !!isSeniorMod || !!isModerator);
+
+  const writePins = useCallback(async (next) => {
+    await updateDoc(doc(firestoreDB, 'groups', groupId), { pinnedMessages: next });
+  }, [firestoreDB, groupId]);
+
+  const handleTogglePin = useCallback(async (message) => {
+    if (!message?.id || !canManagePins) return;
+    try {
+      if (pinnedIds.has(message.id)) {
+        await writePins(pins.filter((p) => p.id !== message.id));
+        return;
+      }
+      if (pins.length >= MAX_GROUP_PINS) {
+        showErrorMessage(t('chat.error'), t('chat.pin_limit', {
+          max: MAX_GROUP_PINS,
+          defaultValue: 'You can pin up to {{max}} messages. Unpin one first.',
+        }));
+        return;
+      }
+      const pin = {
+        id: message.id,
+        text: String(message.text || '').slice(0, 200),
+        senderId: message.senderId || null,
+        senderName: String(message.sender || '').slice(0, 40) || null,
+        hasImage: !!message.imageUrl,
+        createdAt: message.createdAt || new Date(message.timestamp || Date.now()).toISOString(),
+        pinnedBy: user.id,
+        pinnedAt: Date.now(),
+      };
+      await writePins([pin, ...pins]);
+    } catch (e) {
+      console.warn('[GroupChat] pin failed:', e?.message);
+      showErrorMessage(t('chat.error'), t(pinnedIds.has(message.id) ? 'chat.unpin_error' : 'chat.pin_error'));
+    }
+  }, [canManagePins, pinnedIds, pins, writePins, user?.id, t]);
+
+  const handleUnpin = useCallback((pin) => {
+    if (!canManagePins) return;
+    writePins(pins.filter((p) => p.id !== pin.id)).catch(() => showErrorMessage(t('chat.error'), t('chat.unpin_error')));
+  }, [canManagePins, pins, writePins, t]);
+
+  // Jump to a pinned message. Older than everything loaded? Fetch the whole
+  // gap in one read (up to 300 messages), merge it, then scroll once the list
+  // has it.
+  const pendingJumpRef = useRef(null);
+  const jumpToPin = useCallback(async (pin) => {
+    if (!pin?.id) return;
+    if (messages.some((m) => m.id === pin.id)) {
+      scrollToMessage(pin.id);
+      return;
+    }
+    const gone = () => showErrorMessage(t('chat.error'), t('chat.pinned_gone', { defaultValue: 'That message is no longer in the chat.' }));
+    try {
+      const rows = await sbLoadGroupMessagesBetween(groupId, { fromCreatedAt: pin.createdAt, before: lastLoadedKeyRef.current });
+      if (!rows.some((m) => m.id === pin.id)) {
+        gone();
+        return;
+      }
+      pendingJumpRef.current = pin.id;
+      setMessages((prev) => {
+        const ids = new Set(prev.map((m) => String(m?.id)));
+        const merged = [...prev, ...rows.filter((m) => !ids.has(String(m?.id)))]
+          .sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
+        // The gap is filled, so "load more" carries on from the new oldest row.
+        const oldest = merged[merged.length - 1];
+        if (oldest?.createdAt) lastLoadedKeyRef.current = { createdAt: oldest.createdAt, id: oldest.id };
+        return merged;
+      });
+    } catch (e) {
+      gone();
+    }
+  }, [groupId, messages, scrollToMessage, t]);
+
+  // Second half of a jump that had to load history first.
+  useEffect(() => {
+    const id = pendingJumpRef.current;
+    if (!id || !messages.some((m) => m.id === id)) return undefined;
+    pendingJumpRef.current = null;
+    const timer = setTimeout(() => scrollToMessage(id), 250);
+    return () => clearTimeout(timer);
+  }, [messages, scrollToMessage]);
+
   // Handle reply to message
   const handleReply = useCallback((message) => {
     setReplyTo({
@@ -1190,6 +1285,13 @@ const GroupChatScreen = () => {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <ConditionalKeyboardWrapper style={{ flex: 1 }} privatechatscreen={true}>
           <View style={[styles.container, { position: 'relative' }]}>
+            <GroupPinnedBar
+              pins={pins}
+              c={getThemeColors(isDarkMode)}
+              canManage={canManagePins}
+              onJump={jumpToPin}
+              onUnpin={handleUnpin}
+            />
             {messages.length === 0 && !loading ? (
               // No messages yet - show empty state but keep input visible
               <View style={styles.emptyContainer}>
@@ -1213,6 +1315,8 @@ const GroupChatScreen = () => {
                   try {
                     await sbSoftDeleteGroupMessage(messageId, user?.id ?? null);
                     setMessages(prev => prev.filter(m => m.id !== messageId));
+                    // A deleted message can't stay pinned.
+                    if (pinnedIds.has(messageId)) writePins(pins.filter((p) => p.id !== messageId)).catch(() => {});
                   } catch (err) {
                     console.error('Delete message error:', err);
                   }
@@ -1235,6 +1339,9 @@ const GroupChatScreen = () => {
                 scrollToMessage={scrollToMessage}
                 highlightedMessageId={highlightedMessageId}
                 flatListRef={flatListRef}
+                onPinMessage={canManagePins ? handleTogglePin : null}
+                canPin={canManagePins}
+                pinnedIds={pinnedIds}
               />
             )}
 

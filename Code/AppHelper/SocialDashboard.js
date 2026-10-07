@@ -19,6 +19,7 @@ import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
 import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
 import config from '../Helper/Environment';
 import { useTranslation } from 'react-i18next';
+import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
 
 // ✅ Constants for optimization
 const FRIEND_PAGE_SIZE = 15;
@@ -693,6 +694,7 @@ const SocialDashboard = () => {
                     )}
                 </View>
             )}
+            <ScreenBottomBanner background={isDark ? '#000' : '#F2F2F7'} />
 
             {/* Profile Drawer */}
             <ProfileBottomDrawer

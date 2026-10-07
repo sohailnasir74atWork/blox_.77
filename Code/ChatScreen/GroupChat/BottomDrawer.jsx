@@ -61,6 +61,7 @@ import {
   isCurrentUserOwner, isOwnerEmail,
 } from '../utils'; // ✅ Import moderator utils
 import { getUserEmail } from '../../Helper/privateProfile';
+import { BirthdayProfileLine } from '../../Birthdays/BirthdayBits';
 import {
   callModSanction, sanctionErrorText, describeSanctionResult, logModAction,
   STRIKE_LADDER, strikeDurationLabel, formatMuteMinutes,
@@ -2456,6 +2457,11 @@ const ProfileBottomDrawer = ({
                   </Text>
                 </View>
               </View>
+            )}
+
+            {/* ═══ BIRTHDAY: "🎂 12 Oct", only if they show it (Code/Birthdays) ═══ */}
+            {loadDetails && !loadingRating && selectedUserId && (
+              <BirthdayProfileLine uid={selectedUserId} color={c.textMuted} />
             )}
             {/* 📝 Bio Section */}
             {loadDetails && (

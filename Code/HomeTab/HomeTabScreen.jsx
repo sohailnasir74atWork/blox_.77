@@ -27,6 +27,7 @@ import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
 import { getCachedAvatar } from '../Helper/cosmeticsCache';
 import { getActiveCosmetics } from '../Engagement/shopUtils';
 import GameLeaderboard from '../Engagement/GameLeaderboard';
+import BirthdayHomeCard from '../Birthdays/BirthdayHomeCard';
 import BannerAdComponent from '../Ads/bannerAds';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
 
@@ -586,6 +587,9 @@ const HomeTabScreen = ({ selectedTheme }) => {
               </TouchableOpacity>
             ))}
           </View>
+
+          {/* ═══ BIRTHDAYS: your celebration + stars gift, your countdown, or today's birthdays (Code/Birthdays) ═══ */}
+          <BirthdayHomeCard userId={user?.id} userName={user?.displayName} />
 
           {/* STATUS FEED (Stories) */}
           <StatusFeed

@@ -15,12 +15,15 @@
 // flow (UMP form, then iOS ATT) and calls openAdsGate() when it is done;
 // nothing initialises or requests an ad before that.
 //
-// ensureAdsInitialized() returns a single shared promise: gate → consent check
-// → setRequestConfiguration → initialize(). Every ad loader awaits it before
+// ensureAdsInitialized() returns a single shared promise: gate (skipped when
+// consent from an earlier session already allows ads) → consent check →
+// setRequestConfiguration → initialize(). Every ad loader awaits it before
 // calling load(), so no ad is ever requested before consent and config land.
 // Safe to call any number of times from anywhere — the work runs once.
 import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 import { AdsConsent, MobileAds, MaxAdContentRating } from 'react-native-google-mobile-ads';
+import { getTrackingStatus } from 'react-native-tracking-transparency';
 
 let releaseAdsGate;
 const adsGate = new Promise((resolve) => { releaseAdsGate = resolve; });
@@ -42,6 +45,25 @@ export async function gatherAdsConsent() {
   }
 }
 
+// Consent the user gave in an earlier session is kept on the device by UMP and
+// is enough to request ads right away: Google's UMP sample initialises the SDK
+// in parallel with the new session's consent refresh whenever canRequestAds()
+// is already true. Waiting for the gate below (the consent refresh, a network
+// round trip, then ATT) is what made the launch ad miss its splash window.
+// First launches, anyone whose consent is still incomplete, and iOS users with
+// the ATT prompt still to come keep waiting for the gate. getConsentInfo()
+// reads the stored state; it makes no network call.
+export async function canRequestAdsFromLastSession() {
+  try {
+    const info = await AdsConsent.getConsentInfo();
+    if (!info?.canRequestAds) return false;
+    if (Platform.OS === 'ios' && (await getTrackingStatus()) === 'not-determined') return false;
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 let initPromise = null;
 let initialized = false;
 
@@ -50,7 +72,10 @@ export const adsInitialized = () => initialized;
 
 export function ensureAdsInitialized() {
   if (!initPromise) {
-    initPromise = adsGate
+    initPromise = canRequestAdsFromLastSession()
+      // Earlier consent stands: skip the gate. App.js still runs this
+      // session's consent flow and opens the gate; that is a no-op by then.
+      .then((alreadyConsented) => (alreadyConsented ? undefined : adsGate))
       .then(() => AdsConsent.getConsentInfo())
       .then((info) => {
         // canRequestAds is false only when the UMP flow could not complete

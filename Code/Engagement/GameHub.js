@@ -20,6 +20,7 @@ import config from '../Helper/Environment';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getThemeColors } from '../Helper/themeColors';
 import GameLeaderboard from './GameLeaderboard';
+import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
 
 const GAMES = [
   { id: 'spot',   emoji: '🍎', name: 'Fruit Smash',      desc: 'Smash the rotten fruits!', color: '#B91C1C' },
@@ -37,64 +38,67 @@ const GameHub = ({ navigation }) => {
   const c = getThemeColors(isDarkMode);
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: c.bg }}
-      contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 20 }]}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.header}>
-        <Text style={{ fontSize: 32 }}>🎮</Text>
-        <View style={{ marginLeft: 12, flex: 1 }}>
-          <Text style={[styles.h1, { color: c.text }]}>Game Hub</Text>
-          <Text style={[styles.sub, { color: c.textSecondary }]}>Play games & compete! 🏆</Text>
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 20 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <Text style={{ fontSize: 32 }}>🎮</Text>
+          <View style={{ marginLeft: 12, flex: 1 }}>
+            <Text style={[styles.h1, { color: c.text }]}>Game Hub</Text>
+            <Text style={[styles.sub, { color: c.textSecondary }]}>Play games & compete! 🏆</Text>
+          </View>
         </View>
-      </View>
 
-      {/* ── GAMES GRID ── */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14 }}>
-        <View>
-          <Text style={[styles.sectionTitle, { color: c.text }]}>Mini Games 🎯</Text>
-          <Text style={[styles.sectionSub, { color: c.textSecondary, marginBottom: 0 }]}>1 free round a day — beat your best!</Text>
-        </View>
-        <TouchableOpacity
-          style={[styles.lbBtn, { backgroundColor: isDarkMode ? config.colors.surfaceDark : '#fff', borderColor: '#F59E0B' }]}
-          onPress={() => setShowLeaderboard(true)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.lbBtnEmoji}>🏆</Text>
-          <Text style={[styles.lbBtnText, { color: c.text }]}>Ranks</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.gameGrid}>
-        {GAMES.map(game => (
+        {/* ── GAMES GRID ── */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14 }}>
+          <View>
+            <Text style={[styles.sectionTitle, { color: c.text }]}>Mini Games 🎯</Text>
+            <Text style={[styles.sectionSub, { color: c.textSecondary, marginBottom: 0 }]}>1 free round a day — beat your best!</Text>
+          </View>
           <TouchableOpacity
-            key={game.id}
-            style={[styles.gameCard, { backgroundColor: game.color }]}
-            onPress={() => navigation.navigate('GameScreen', { gameId: game.id, title: `${game.emoji} ${game.name}`, color: game.color })}
-            activeOpacity={0.85}
+            style={[styles.lbBtn, { backgroundColor: isDarkMode ? config.colors.surfaceDark : '#fff', borderColor: '#F59E0B' }]}
+            onPress={() => setShowLeaderboard(true)}
+            activeOpacity={0.7}
           >
-            <Text style={styles.gameEmoji}>{game.emoji}</Text>
-            <Text style={styles.gameName}>{game.name}</Text>
-            <Text style={styles.gameInfo}>{game.desc}</Text>
-            <View style={styles.gameTag}>
-              <Text style={styles.gameTagText}>Daily</Text>
-            </View>
+            <Text style={styles.lbBtnEmoji}>🏆</Text>
+            <Text style={[styles.lbBtnText, { color: c.text }]}>Ranks</Text>
           </TouchableOpacity>
-        ))}
-      </View>
+        </View>
 
-      <View style={[styles.tipCard, { backgroundColor: isDarkMode ? config.colors.surfaceDark : '#EFF6FF' }]}>
-        <Icon name="information-circle" size={18} color="#4A7FB5" />
-        <Text style={[styles.tipText, { color: c.textSecondary }]}>
-          Your best scores are saved! Compete with friends! 🚀
-        </Text>
-      </View>
+        <View style={styles.gameGrid}>
+          {GAMES.map(game => (
+            <TouchableOpacity
+              key={game.id}
+              style={[styles.gameCard, { backgroundColor: game.color }]}
+              onPress={() => navigation.navigate('GameScreen', { gameId: game.id, title: `${game.emoji} ${game.name}`, color: game.color })}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.gameEmoji}>{game.emoji}</Text>
+              <Text style={styles.gameName}>{game.name}</Text>
+              <Text style={styles.gameInfo}>{game.desc}</Text>
+              <View style={styles.gameTag}>
+                <Text style={styles.gameTagText}>Daily</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
 
-      {/* Leaderboard */}
-      <GameLeaderboard visible={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
+        <View style={[styles.tipCard, { backgroundColor: isDarkMode ? config.colors.surfaceDark : '#EFF6FF' }]}>
+          <Icon name="information-circle" size={18} color="#4A7FB5" />
+          <Text style={[styles.tipText, { color: c.textSecondary }]}>
+            Your best scores are saved! Compete with friends! 🚀
+          </Text>
+        </View>
 
-    </ScrollView>
+        {/* Leaderboard */}
+        <GameLeaderboard visible={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
+
+      </ScrollView>
+      <ScreenBottomBanner background={c.bg} ad={false} />
+    </View>
   );
 };
 

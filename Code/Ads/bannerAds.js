@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { View } from 'react-native';
+import { View, Platform } from 'react-native';
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 import getAdUnitId from './ads';
 import { npaRequiredFor } from './consent';
@@ -8,12 +8,14 @@ import { useAdsReady } from './init';
 import useIsAdFree from './useIsAdFree';
 
 // Bottom banners are the standard fixed 320x50 BANNER (owner decision,
-// 2026-10-05): no anchored-adaptive height and no collapsible overlay, which
-// opened over half the screen. `collapsible` is still accepted so existing
-// call sites don't change, but it no longer does anything.
+// 2026-10-05): no anchored-adaptive height.
 const BannerAdComponent = ({
   adType = 'banner',
   visible = true,
+  // Collapsible banner, Android only: main screens pass it, chat screens never
+  // do (their input bar sits right above the banner, and the expanded first
+  // impression would cover it). See requestOptions below.
+  collapsible = false,
 }) => {
   const [isAdLoaded, setIsAdLoaded] = useState(false);
   const { localState } = useLocalState();
@@ -64,11 +66,21 @@ const BannerAdComponent = ({
   // render (which would otherwise force a fresh ad request).
   //
   // NPA decided from the persisted UMP consent status (never hardcoded).
+  //
+  // Collapsible banners are back on Android main screens (owner decision,
+  // 2026-10-07; removed 2026-10-05 because the expanded ad opened over half
+  // the screen). In the sibling apps, removing them halved what an Android
+  // banner impression earned (AdMob, same days, old vs new build: Adopt Me US
+  // $0.39 → $0.16, MM2 US $0.99 → $0.42 eCPM). The first request of a session
+  // expands until the user collapses it; refreshes are ordinary banners. iOS
+  // banners earned the same without it, so iOS stays a plain strip.
+  const isCollapsible = collapsible && Platform.OS === 'android';
   const requestOptions = useMemo(
     () => ({
       requestNonPersonalizedAdsOnly: npaRequiredFor(localState?.consentStatus),
+      ...(isCollapsible ? { networkExtras: { collapsible: 'bottom' } } : {}),
     }),
-    [localState?.consentStatus],
+    [localState?.consentStatus, isCollapsible],
   );
 
   // Pro (either source) never sees a banner, whatever the call site checked;

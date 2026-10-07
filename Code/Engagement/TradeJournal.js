@@ -30,6 +30,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocalState } from '../LocalGlobelStats';
 import { getThemeColors } from '../Helper/themeColors';
 import config from '../Helper/Environment';
+import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const FRUIT_CARD_SIZE = (SCREEN_WIDTH - 64) / 3;
@@ -664,7 +665,7 @@ const TradeJournal = ({
 
       {/* Select mode: sticky action bar */}
       {selectMode && (
-        <View style={[s.selectBar, { backgroundColor: c.bgAlt, borderTopColor: c.border, paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <View style={[s.selectBar, { backgroundColor: c.bgAlt, borderTopColor: c.border, paddingBottom: 12 }]}>
           <Text style={[s.selectBarCount, { color: c.text }]}>{selectedIdx.size} selected</Text>
           <TouchableOpacity
             style={[s.selectBarRemove, selectedIdx.size === 0 && s.selectBarRemoveDisabled]}
@@ -983,6 +984,8 @@ const TradeJournal = ({
           {tab === 'timeline' && renderTimelineTab()}
         </>
       )}
+
+      <ScreenBottomBanner background={c.bg} collapsible />
 
       {/* Minimal Fruit Picker Modal */}
       <Modal

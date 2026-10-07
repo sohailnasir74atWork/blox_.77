@@ -124,6 +124,34 @@ export async function loadGroupMessages(groupId, { limit = PAGE_SIZE_DEFAULT, be
   return (data || []).map(fromGroupMessageRow);
 }
 
+// Everything from `fromCreatedAt` (inclusive) up to the `before` cursor, so
+// jumping to an older pinned message can fill the gap in one read instead of
+// paging 10 at a time. Capped: past `limit` the caller gives up on the jump.
+// Newest-first, same contract as loadGroupMessages.
+export async function loadGroupMessagesBetween(groupId, { fromCreatedAt, before = null, limit = 300 } = {}) {
+  if (!groupId || !fromCreatedAt) return [];
+  let q = supabase
+    .from('group_messages')
+    .select(GROUP_MSG_COLS)
+    .eq('group_id', groupId)
+    .eq('deleted', false)
+    .gte('created_at', fromCreatedAt)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(limit);
+  if (before?.createdAt) {
+    q = q.or(
+      `created_at.lt.${before.createdAt},and(created_at.eq.${before.createdAt},id.lt.${before.id})`,
+    );
+  }
+  const { data, error } = await q;
+  if (error) {
+    console.warn('[groupMessagesBackend] loadGroupMessagesBetween error:', error.message);
+    return [];
+  }
+  return (data || []).map(fromGroupMessageRow);
+}
+
 // Catch-up fetch — everything NEWER than `after` ({ createdAt, id }).
 //
 // The realtime channel is only open while the chat screen is focused and the

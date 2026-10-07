@@ -9,7 +9,7 @@ import { useGlobalState } from '../GlobelStats';
 import { useLocalState } from '../LocalGlobelStats';
 import config from '../Helper/Environment';
 import { createMMKV } from 'react-native-mmkv';
-import BannerAdComponent from '../Ads/bannerAds';
+import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
 // translations removed — plain English used throughout
 
@@ -967,7 +967,7 @@ const AnalyticsScreen = ({ navigation }) => {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {!isPro && <BannerAdComponent collapsible />}
+      <ScreenBottomBanner background={isDarkMode ? '#0f0f1a' : '#F0F4FF'} collapsible />
       <SubscriptionScreen
         visible={showOfferwall}
         onClose={() => setShowOfferwall(false)}

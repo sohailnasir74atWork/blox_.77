@@ -24,6 +24,8 @@ import { useGlobalState, modGateText } from '../GlobelStats';
 import { getStyles } from './settingstyle';
 import { handleGetSuggestions, handleOpenFacebook, handleOpenWebsite, handleRateApp, handleadoptme, handleShareApp, imageOptions, handleBloxFruit, handleMM2, handleRefresh, handleReport, handleOpenPrivacy, handleOpenChild } from './settinghelper';
 import EmailUpdatesRow from './EmailUpdatesRow';
+import BirthdayVisibilityRow from '../Birthdays/BirthdayVisibilityRow';
+import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
 import { usePrivacyOptionsRequired, showPrivacyOptionsForm } from '../Ads/consentOptions';
 import { logoutUser } from '../Firebase/UserLogics';
 import SignInDrawer from '../Firebase/SigninDrawer';
@@ -2677,6 +2679,15 @@ export default function SettingsScreen({ selectedTheme }) {
                 />
               )}
 
+              {/* Birthdays: "Show my birthday" (hidden for under-13s) + the one-time change (Code/Birthdays) */}
+              {user?.id && (
+                <BirthdayVisibilityRow
+                  uid={user.id}
+                  styles={styles}
+                  onHaptic={() => triggerHapticFeedback('impactLight')}
+                />
+              )}
+
               {/* Chat availability — two independent doors. Trade chat opens from
                   the Trades screen; general chat is everywhere else (public chat,
                   feed, leaderboard, inbox, profiles). Each blocks both directions. */}
@@ -3166,6 +3177,8 @@ export default function SettingsScreen({ selectedTheme }) {
 
 
           </ScrollView>}
+        {/* Clears the system nav bar (edge-to-edge); transparent over the page colour. */}
+        <ScreenBottomBanner ad={false} />
 
         {/* Bottom Drawer */}
         {/* Bottom Drawer */}

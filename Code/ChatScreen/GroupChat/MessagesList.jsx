@@ -35,6 +35,7 @@ import RoleBadges from '../../Design/componenets/RoleBadges';
 import { resolveProfile, seedFromMessage, warmProfileCache, getCachedProfile } from '../../Helper/profileCache';
 import { getSafeTextColor, RainbowText, isMultiColorText, getMultiColorPalette } from '../../Helper/contrastHelper';
 import FramedAvatar from './FramedAvatar';
+import { BirthdayCake } from '../../Birthdays/BirthdayBits';
 
 const FRUIT_KEYWORDS = [
   'rocket', 'spin', 'chop', 'spring', 'bomb', 'spike', 'blade',
@@ -508,6 +509,7 @@ const MessagesList = ({
                         styles.userName,
                       ]}>{profile.displayName || item.sender || 'Anonymous'}</Text>
                     )}
+                    <BirthdayCake uid={item.senderId} />
                     {(profile.isPro || item?.isPro) && (
                       <Image
                         source={require('../../../assets/pro.png')}

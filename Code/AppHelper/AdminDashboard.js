@@ -100,6 +100,8 @@ import ReviewIntegrityTab from './ReviewIntegrityTab';
 import ModLogTab from './ModLogTab';
 import ReportsTab from './ReportsTab';
 import StaffAccessTab from './StaffAccessTab';
+import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
+import AdminNewsTab from './AdminNewsTab';
 import ModActionModal from './ModActionModal';
 import ModHistoryList from './ModHistoryList';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -1703,6 +1705,18 @@ const AdminDashboard = () => {
             </Text>
           </TouchableOpacity>
         )}
+
+        {/* More hub ▸ News posts (AdminNewsTab), admins only. */}
+        {isAdmin && (
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'news' && styles.activeTab, { borderColor: isDark ? '#333' : '#E5E5EA' }]}
+            onPress={() => setActiveTab('news')}
+          >
+            <Text style={[styles.tabText, activeTab === 'news' && styles.activeTabText, { color: activeTab === 'news' ? '#007AFF' : (isDark ? '#888' : '#666') }]}>
+              News
+            </Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       {activeTab === 'search' && (
@@ -1880,129 +1894,147 @@ const AdminDashboard = () => {
           {isAdmin && !selectedReport ? (
             <>
               <ScrollView style={{ maxHeight: 320 }} keyboardShouldPersistTaps="handled" nestedScrollEnabled contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 10 }}>
-                {/* Person 1 */}
-                <View style={{ marginBottom: 12 }}>
-                  <Text style={{ color: isDark ? '#888' : '#666', fontSize: 11, fontWeight: '600', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>Person 1</Text>
-                  {chatPerson1 ? (
-                    <View style={[styles.selectedPersonCard, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', borderColor: isDark ? '#2C2C2E' : '#E5E5EA' }]}>
-                      <Image source={{ uri: chatPerson1.avatar }} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#DDD' }} />
-                      <View style={{ flex: 1, marginLeft: 10 }}>
-                        <Text style={{ color: isDark ? '#FFF' : '#000', fontSize: 15, fontWeight: '600' }} numberOfLines={1}>{chatPerson1.displayName}</Text>
-                        <Text style={{ color: isDark ? '#666' : '#999', fontSize: 11 }} numberOfLines={1}>{chatPerson1.email || chatPerson1.id}</Text>
+                {/* Both people picked: one compact row (names, View) instead of
+                    two cards and a full-width button, so the conversation gets
+                    the screen. Tap a name to swap that person out. */}
+                {chatPerson1 && chatPerson2 ? (
+                  <View style={[styles.pairBar, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', borderColor: isDark ? '#2C2C2E' : '#E5E5EA' }]}>
+                    {[[chatPerson1, 1], [chatPerson2, 2]].map(([p, n]) => (
+                      <React.Fragment key={n}>
+                        {n === 2 ? <Ionicons name="swap-horizontal" size={16} color={isDark ? '#555' : '#BBB'} style={{ marginHorizontal: 4 }} /> : null}
+                        <TouchableOpacity
+                          style={styles.pairPerson}
+                          onPress={() => {
+                            if (n === 1) { setChatPerson1(null); setChatSearch1(''); setChatResults1([]); } else { setChatPerson2(null); setChatSearch2(''); setChatResults2([]); }
+                            setChatMessages([]);
+                          }}
+                        >
+                          <Image source={{ uri: p.avatar }} style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: '#DDD' }} />
+                          <Text style={{ color: isDark ? '#FFF' : '#000', fontSize: 13.5, fontWeight: '600', marginLeft: 6, flexShrink: 1 }} numberOfLines={1}>{p.displayName}</Text>
+                        </TouchableOpacity>
+                      </React.Fragment>
+                    ))}
+                    <TouchableOpacity onPress={loadChat} disabled={loadingChat} style={styles.pairView}>
+                      <Ionicons name="chatbubbles" size={14} color="#FFF" />
+                      <Text style={{ color: '#FFF', fontSize: 12.5, fontWeight: '800', marginLeft: 4 }}>View</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <>
+                  {/* Person 1 */}
+                  <View style={{ marginBottom: 12 }}>
+                    <Text style={{ color: isDark ? '#888' : '#666', fontSize: 11, fontWeight: '600', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>Person 1</Text>
+                    {chatPerson1 ? (
+                      <View style={[styles.selectedPersonCard, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', borderColor: isDark ? '#2C2C2E' : '#E5E5EA' }]}>
+                        <Image source={{ uri: chatPerson1.avatar }} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#DDD' }} />
+                        <View style={{ flex: 1, marginLeft: 10 }}>
+                          <Text style={{ color: isDark ? '#FFF' : '#000', fontSize: 15, fontWeight: '600' }} numberOfLines={1}>{chatPerson1.displayName}</Text>
+                          <Text style={{ color: isDark ? '#666' : '#999', fontSize: 11 }} numberOfLines={1}>{chatPerson1.email || chatPerson1.id}</Text>
+                        </View>
+                        <TouchableOpacity onPress={() => { setChatPerson1(null); setChatSearch1(''); setChatResults1([]); setChatMessages([]); }} style={{ padding: 4 }}>
+                          <Ionicons name="close-circle" size={22} color={isDark ? '#555' : '#CCC'} />
+                        </TouchableOpacity>
                       </View>
-                      <TouchableOpacity onPress={() => { setChatPerson1(null); setChatSearch1(''); setChatResults1([]); setChatMessages([]); }} style={{ padding: 4 }}>
-                        <Ionicons name="close-circle" size={22} color={isDark ? '#555' : '#CCC'} />
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <View>
-                      <View style={styles.searchContainer}>
-                        <TextInput
-                          value={chatSearch1}
-                          onChangeText={setChatSearch1}
-                          placeholder="Name, email, or user ID..."
-                          placeholderTextColor={isDark ? '#666' : '#999'}
-                          style={[styles.searchInput, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', color: isDark ? '#FFF' : '#000' }]}
-                          autoCapitalize="none"
-                          autoCorrect={false}
-                          returnKeyType="search"
-                          onSubmitEditing={() => searchChatUser(chatSearch1, 1)}
-                        />
-                        {chatSearching1 ? (
-                          <ActivityIndicator size="small" color="#007AFF" style={{ marginLeft: 8 }} />
-                        ) : (
-                          <TouchableOpacity style={[styles.searchBtn, { backgroundColor: '#5856D6' }]} onPress={() => searchChatUser(chatSearch1, 1)}>
-                            <Ionicons name="person-outline" size={18} color="#FFF" />
-                          </TouchableOpacity>
+                    ) : (
+                      <View>
+                        <View style={styles.searchContainer}>
+                          <TextInput
+                            value={chatSearch1}
+                            onChangeText={setChatSearch1}
+                            placeholder="Name, email, or user ID..."
+                            placeholderTextColor={isDark ? '#666' : '#999'}
+                            style={[styles.searchInput, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', color: isDark ? '#FFF' : '#000' }]}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            returnKeyType="search"
+                            onSubmitEditing={() => searchChatUser(chatSearch1, 1)}
+                          />
+                          {chatSearching1 ? (
+                            <ActivityIndicator size="small" color="#007AFF" style={{ marginLeft: 8 }} />
+                          ) : (
+                            <TouchableOpacity style={[styles.searchBtn, { backgroundColor: '#5856D6' }]} onPress={() => searchChatUser(chatSearch1, 1)}>
+                              <Ionicons name="person-outline" size={18} color="#FFF" />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                        {chatResults1.length > 0 && (
+                          <View style={[styles.chatDropdown, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', borderColor: isDark ? '#2C2C2E' : '#E5E5EA' }]}>
+                            {chatResults1.map((u) => (
+                              <TouchableOpacity
+                                key={u.id}
+                                onPress={() => { setChatPerson1(u); setChatSearch1(''); setChatResults1([]); }}
+                                style={[styles.chatDropdownItem, { borderBottomColor: isDark ? '#2C2C2E' : '#F2F2F7' }]}
+                              >
+                                <Image source={{ uri: u.avatar }} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: '#DDD' }} />
+                                <View style={{ flex: 1, marginLeft: 8 }}>
+                                  <Text style={{ color: isDark ? '#FFF' : '#000', fontSize: 14, fontWeight: '500' }} numberOfLines={1}>{u.displayName}</Text>
+                                  <Text style={{ color: isDark ? '#666' : '#999', fontSize: 11 }} numberOfLines={1}>{u.email || u.id}</Text>
+                                </View>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
                         )}
                       </View>
-                      {chatResults1.length > 0 && (
-                        <View style={[styles.chatDropdown, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', borderColor: isDark ? '#2C2C2E' : '#E5E5EA' }]}>
-                          {chatResults1.map((u) => (
-                            <TouchableOpacity
-                              key={u.id}
-                              onPress={() => { setChatPerson1(u); setChatSearch1(''); setChatResults1([]); }}
-                              style={[styles.chatDropdownItem, { borderBottomColor: isDark ? '#2C2C2E' : '#F2F2F7' }]}
-                            >
-                              <Image source={{ uri: u.avatar }} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: '#DDD' }} />
-                              <View style={{ flex: 1, marginLeft: 8 }}>
-                                <Text style={{ color: isDark ? '#FFF' : '#000', fontSize: 14, fontWeight: '500' }} numberOfLines={1}>{u.displayName}</Text>
-                                <Text style={{ color: isDark ? '#666' : '#999', fontSize: 11 }} numberOfLines={1}>{u.email || u.id}</Text>
-                              </View>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      )}
-                    </View>
-                  )}
-                </View>
+                    )}
+                  </View>
 
-                {/* Person 2 */}
-                <View style={{ marginBottom: 12 }}>
-                  <Text style={{ color: isDark ? '#888' : '#666', fontSize: 11, fontWeight: '600', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>Person 2</Text>
-                  {chatPerson2 ? (
-                    <View style={[styles.selectedPersonCard, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', borderColor: isDark ? '#2C2C2E' : '#E5E5EA' }]}>
-                      <Image source={{ uri: chatPerson2.avatar }} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#DDD' }} />
-                      <View style={{ flex: 1, marginLeft: 10 }}>
-                        <Text style={{ color: isDark ? '#FFF' : '#000', fontSize: 15, fontWeight: '600' }} numberOfLines={1}>{chatPerson2.displayName}</Text>
-                        <Text style={{ color: isDark ? '#666' : '#999', fontSize: 11 }} numberOfLines={1}>{chatPerson2.email || chatPerson2.id}</Text>
+                  {/* Person 2 */}
+                  <View style={{ marginBottom: 12 }}>
+                    <Text style={{ color: isDark ? '#888' : '#666', fontSize: 11, fontWeight: '600', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>Person 2</Text>
+                    {chatPerson2 ? (
+                      <View style={[styles.selectedPersonCard, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', borderColor: isDark ? '#2C2C2E' : '#E5E5EA' }]}>
+                        <Image source={{ uri: chatPerson2.avatar }} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#DDD' }} />
+                        <View style={{ flex: 1, marginLeft: 10 }}>
+                          <Text style={{ color: isDark ? '#FFF' : '#000', fontSize: 15, fontWeight: '600' }} numberOfLines={1}>{chatPerson2.displayName}</Text>
+                          <Text style={{ color: isDark ? '#666' : '#999', fontSize: 11 }} numberOfLines={1}>{chatPerson2.email || chatPerson2.id}</Text>
+                        </View>
+                        <TouchableOpacity onPress={() => { setChatPerson2(null); setChatSearch2(''); setChatResults2([]); setChatMessages([]); }} style={{ padding: 4 }}>
+                          <Ionicons name="close-circle" size={22} color={isDark ? '#555' : '#CCC'} />
+                        </TouchableOpacity>
                       </View>
-                      <TouchableOpacity onPress={() => { setChatPerson2(null); setChatSearch2(''); setChatResults2([]); setChatMessages([]); }} style={{ padding: 4 }}>
-                        <Ionicons name="close-circle" size={22} color={isDark ? '#555' : '#CCC'} />
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <View>
-                      <View style={styles.searchContainer}>
-                        <TextInput
-                          value={chatSearch2}
-                          onChangeText={setChatSearch2}
-                          placeholder="Name, email, or user ID..."
-                          placeholderTextColor={isDark ? '#666' : '#999'}
-                          style={[styles.searchInput, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', color: isDark ? '#FFF' : '#000' }]}
-                          autoCapitalize="none"
-                          autoCorrect={false}
-                          returnKeyType="search"
-                          onSubmitEditing={() => searchChatUser(chatSearch2, 2)}
-                        />
-                        {chatSearching2 ? (
-                          <ActivityIndicator size="small" color="#007AFF" style={{ marginLeft: 8 }} />
-                        ) : (
-                          <TouchableOpacity style={[styles.searchBtn, { backgroundColor: '#AF52DE' }]} onPress={() => searchChatUser(chatSearch2, 2)}>
-                            <Ionicons name="person-outline" size={18} color="#FFF" />
-                          </TouchableOpacity>
+                    ) : (
+                      <View>
+                        <View style={styles.searchContainer}>
+                          <TextInput
+                            value={chatSearch2}
+                            onChangeText={setChatSearch2}
+                            placeholder="Name, email, or user ID..."
+                            placeholderTextColor={isDark ? '#666' : '#999'}
+                            style={[styles.searchInput, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', color: isDark ? '#FFF' : '#000' }]}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            returnKeyType="search"
+                            onSubmitEditing={() => searchChatUser(chatSearch2, 2)}
+                          />
+                          {chatSearching2 ? (
+                            <ActivityIndicator size="small" color="#007AFF" style={{ marginLeft: 8 }} />
+                          ) : (
+                            <TouchableOpacity style={[styles.searchBtn, { backgroundColor: '#AF52DE' }]} onPress={() => searchChatUser(chatSearch2, 2)}>
+                              <Ionicons name="person-outline" size={18} color="#FFF" />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                        {chatResults2.length > 0 && (
+                          <View style={[styles.chatDropdown, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', borderColor: isDark ? '#2C2C2E' : '#E5E5EA' }]}>
+                            {chatResults2.map((u) => (
+                              <TouchableOpacity
+                                key={u.id}
+                                onPress={() => { setChatPerson2(u); setChatSearch2(''); setChatResults2([]); }}
+                                style={[styles.chatDropdownItem, { borderBottomColor: isDark ? '#2C2C2E' : '#F2F2F7' }]}
+                              >
+                                <Image source={{ uri: u.avatar }} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: '#DDD' }} />
+                                <View style={{ flex: 1, marginLeft: 8 }}>
+                                  <Text style={{ color: isDark ? '#FFF' : '#000', fontSize: 14, fontWeight: '500' }} numberOfLines={1}>{u.displayName}</Text>
+                                  <Text style={{ color: isDark ? '#666' : '#999', fontSize: 11 }} numberOfLines={1}>{u.email || u.id}</Text>
+                                </View>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
                         )}
                       </View>
-                      {chatResults2.length > 0 && (
-                        <View style={[styles.chatDropdown, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', borderColor: isDark ? '#2C2C2E' : '#E5E5EA' }]}>
-                          {chatResults2.map((u) => (
-                            <TouchableOpacity
-                              key={u.id}
-                              onPress={() => { setChatPerson2(u); setChatSearch2(''); setChatResults2([]); }}
-                              style={[styles.chatDropdownItem, { borderBottomColor: isDark ? '#2C2C2E' : '#F2F2F7' }]}
-                            >
-                              <Image source={{ uri: u.avatar }} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: '#DDD' }} />
-                              <View style={{ flex: 1, marginLeft: 8 }}>
-                                <Text style={{ color: isDark ? '#FFF' : '#000', fontSize: 14, fontWeight: '500' }} numberOfLines={1}>{u.displayName}</Text>
-                                <Text style={{ color: isDark ? '#666' : '#999', fontSize: 11 }} numberOfLines={1}>{u.email || u.id}</Text>
-                              </View>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      )}
-                    </View>
-                  )}
-                </View>
-
-                {/* Load Chat Button */}
-                {chatPerson1 && chatPerson2 && (
-                  <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: '#007AFF', height: 46, borderRadius: 14, marginBottom: 0 }]}
-                    onPress={loadChat}
-                  >
-                    <Ionicons name="chatbubbles" size={18} color="#FFF" style={{ marginRight: 8 }} />
-                    <Text style={[styles.buttonText, { fontSize: 15 }]}>View Conversation</Text>
-                  </TouchableOpacity>
+                    )}
+                  </View>
+                  </>
                 )}
               </ScrollView>
             </>
@@ -2461,9 +2493,21 @@ const AdminDashboard = () => {
           onSanctionUser={(u) => handleSelectUser(u)}
           onViewChat={(report) => { setActiveTab('chatViewer'); loadChatFromReport(report); }}
         />
+      ) : activeTab === 'news' && isAdmin ? (
+        <AdminNewsTab
+          db={db}
+          uid={currentUser?.id}
+          C={isDark
+            ? { surface: '#1C1C1E', fieldBg: '#2C2C2E', border: '#2C2C2E', text: '#FFF', textMuted: '#AAA', textFaint: '#666' }
+            : { surface: '#FFF', fieldBg: '#FFF', border: '#E5E5EA', text: '#000', textMuted: '#666', textFaint: '#999' }}
+          accent="#007AFF"
+          danger="#FF3B30"
+        />
       ) : activeTab === 'staffAccess' && canManageStaffAccess ? (
         <StaffAccessTab isDark={isDark} />
       ) : null}
+      {/* Staff tool: no ad, just clear the system nav bar. */}
+      <ScreenBottomBanner background={isDark ? '#000' : '#F2F2F7'} ad={false} />
 
       {/* Status profile drawer (admin moderation) */}
       <ProfileBottomDrawer
@@ -2871,6 +2915,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderWidth: 1,
   },
+  pairBar: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingLeft: 8, paddingRight: 6, borderRadius: 12, borderWidth: 1 },
+  pairPerson: { flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0 },
+  pairView: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#007AFF', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, marginLeft: 6 },
   selectedPersonCard: {
     flexDirection: 'row',
     alignItems: 'center',

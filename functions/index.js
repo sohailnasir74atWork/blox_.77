@@ -94,3 +94,9 @@ exports.tombstoneDeletedAccount = bans.tombstoneDeletedAccount;
 // 6-hourly safety net: Supabase banned_senders + Firestore banned_uids follow
 // RTDB banned_uids (the per-ban mirror writes are best-effort).
 exports.reconcileBanMirrors = bans.reconcileBanMirrors;
+
+// Birthdays (supabase/036_birthdays.sql; ported from Adopt Me 2026-10-07).
+// Deploy the schedulers PAUSED until an app build with Birthdays ships.
+exports.notifyBirthdays = require('./notifyBirthdays').notifyBirthdays;
+exports.notifyBirthdayWishes = require('./notifyBirthdayWishes').notifyBirthdayWishes;
+exports.updateBirthday = require('./updateBirthday').updateBirthday;

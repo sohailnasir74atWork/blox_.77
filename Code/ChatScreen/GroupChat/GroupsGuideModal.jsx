@@ -52,7 +52,7 @@ const GroupsGuideModal = ({ visible, onClose }) => {
               <Text style={[styles.sectionText, { color: isDarkMode ? '#D1D5DB' : '#4B5563' }]}>
                 1. Go to the main Chat screen and tap the plus icon (+) in the header.{'\n\n'}
                 2. Select members from the online users list (you can select multiple users by tapping on them).{'\n\n'}
-                3. Tap "Create" or "Add" button at the top (it will show "Create" if you don't have a group, or "Add" if you already have a group).{'\n\n'}
+                3. Tap "Create" or "Add" button at the top (it will show "Create" if you don't have a group, or "Add" if you already have a group). With a group already, you then pick which group they join (or start a new one while you have fewer than two).{'\n\n'}
                 4. If creating a new group, enter a group name (required, max 50 characters) in the modal that appears.{'\n\n'}
                 5. Tap "Create Group" to finalize.{'\n\n'}
                 6. Selected members will receive invitations to join your group.
@@ -69,7 +69,7 @@ const GroupsGuideModal = ({ visible, onClose }) => {
                 Important Rules
               </Text>
               <Text style={[styles.sectionText, { color: isDarkMode ? '#D1D5DB' : '#4B5563' }]}>
-                • <Text style={styles.boldText}>One Group Limit:</Text> Each user can only be an admin/creator of one group at a time.{'\n\n'}
+                • <Text style={styles.boldText}>Group Limit:</Text> Each user can be the admin/creator of up to two groups at a time.{'\n\n'}
                 • <Text style={styles.boldText}>Minimum Members:</Text> A group must have at least 2 members (including yourself).{'\n\n'}
                 • <Text style={styles.boldText}>Maximum Members:</Text> Each group can have up to 15 members.{'\n\n'}
                 • <Text style={styles.boldText}>Group Admin:</Text> The creator is the admin. Admins can remove members and make other members admin.{'\n\n'}
