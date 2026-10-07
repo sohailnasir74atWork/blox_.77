@@ -3673,28 +3673,6 @@ PODS:
     - RNNotifee/NotifeeCore (= 9.1.8)
   - RNNotifee/NotifeeCore (9.1.8):
     - React-Core
-  - RNPermissions (5.6.2):
-    - hermes-engine
-    - RCTRequired
-    - RCTTypeSafety
-    - React-bridging
-    - React-Core
-    - React-Core-prebuilt
-    - React-debug
-    - React-Fabric
-    - React-featureflags
-    - React-graphics
-    - React-ImageManager
-    - React-jsi
-    - React-NativeModulesApple
-    - React-RCTFabric
-    - React-renderercss
-    - React-rendererdebug
-    - React-utils
-    - ReactCodegen
-    - ReactCommon/turbomodule/core
-    - ReactNativeDependencies
-    - Yoga
   - RNPurchases (10.10.2):
     - PurchasesHybridCommon (= 19.3.1)
     - React-Core
@@ -3975,7 +3953,6 @@ DEPENDENCIES:
   - RNLinearGradient (from `../node_modules/react-native-linear-gradient`)
   - RNLocalize (from `../node_modules/react-native-localize`)
   - "RNNotifee (from `../node_modules/@notifee/react-native`)"
-  - RNPermissions (from `../node_modules/react-native-permissions`)
   - RNPurchases (from `../node_modules/react-native-purchases`)
   - RNReactNativeHapticFeedback (from `../node_modules/react-native-haptic-feedback`)
   - RNScreens (from `../node_modules/react-native-screens`)
@@ -4253,8 +4230,6 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-localize"
   RNNotifee:
     :path: "../node_modules/@notifee/react-native"
-  RNPermissions:
-    :path: "../node_modules/react-native-permissions"
   RNPurchases:
     :path: "../node_modules/react-native-purchases"
   RNReactNativeHapticFeedback:
@@ -4330,7 +4305,7 @@ SPEC CHECKSUMS:
   React-bridging: f6a560fb300d3ed0530b141e98082b20705c33b1
   React-callinvoker: 33c0c2c46a808f55ef5a2927fa373977a334ea3e
   React-Core: a85e5b125475d5d744af9614165ddb0944b1f86d
-  React-Core-prebuilt: cd44efd12c9bfad37c194372a6d3a18a6a6d5c00
+  React-Core-prebuilt: d02240839df49bdfe03148fae0a647aaf7288d53
   React-CoreModules: 6bc28ab7a1b0450fe502b38b1ba6323db9f2a472
   React-cxxreact: cc133718b2f46a384b4ffafda73c87e8de23eab2
   React-cxxstableapi: 9729effdd0475c76a2e3191caa1c2b1da7f1fb49
@@ -4424,7 +4399,6 @@ SPEC CHECKSUMS:
   RNLinearGradient: 3aff16e226356f89a2edd1d3f5761f4bde6626cf
   RNLocalize: 0e3cb5439707a5331971819645a96cb813b71572
   RNNotifee: 4a6ee5c7deaf00e005050052d73ee6315dff7ec9
-  RNPermissions: 6fa972ece7ad8e6e41b8092064cdcc0ac3062f49
   RNPurchases: 6e6a9327231ad2ebb70ae374f85b2ca031f1f47f
   RNReactNativeHapticFeedback: a8471dfc593b020ff5ba5a7fec571be6359cdd08
   RNScreens: 34f2cda6b90a1e9da0f23a27ab813890916ad092
