@@ -100,3 +100,9 @@ exports.reconcileBanMirrors = bans.reconcileBanMirrors;
 exports.notifyBirthdays = require('./notifyBirthdays').notifyBirthdays;
 exports.notifyBirthdayWishes = require('./notifyBirthdayWishes').notifyBirthdayWishes;
 exports.updateBirthday = require('./updateBirthday').updateBirthday;
+
+// Birthday email through Brevo, once a year on the day, 13+ only, English
+// (supabase/038; ported from Adopt Me 2026-10-08). Deploy PAUSED as above.
+exports.notifyBirthdayEmails = require('./notifyBirthdayEmails').notifyBirthdayEmails;
+// The unsubscribe link in those emails: turns RTDB email_prefs/{uid}.optIn off.
+exports.emailUnsubscribe = require('./emailUnsubscribe').emailUnsubscribe;
