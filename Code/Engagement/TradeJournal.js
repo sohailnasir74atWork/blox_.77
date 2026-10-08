@@ -86,11 +86,87 @@ const rarityRank = (key) => {
   const i = RARITY_ORDER.indexOf(key);
   return i === -1 ? RARITY_ORDER.length : i;
 };
-const compareRarityGroups = (a, b) => {
-  if (a.key === OTHER_RARITY) return 1;
-  if (b.key === OTHER_RARITY) return -1;
-  return rarityRank(a.key) - rarityRank(b.key) || a.key.localeCompare(b.key);
+const compareRarityKeys = (a, b) => {
+  if (a === OTHER_RARITY) return 1;
+  if (b === OTHER_RARITY) return -1;
+  return rarityRank(a) - rarityRank(b) || a.localeCompare(b);
 };
+const RARITY_COLORS = {
+  mythical: '#EF4444', legendary: '#F59E0B', rare: '#3B82F6', uncommon: '#10B981',
+  common: '#64748B', limited: '#EC4899', gamepass: '#8B5CF6', [OTHER_RARITY]: '#94A3B8',
+};
+
+// ── My Fruits filters ──
+// Owned entries are catalogue objects with `type` 'f' (normal), 'p'
+// (permanent) or 'gamepass'. Anything else (old builds) counts as a fruit.
+// Within a group an entry needs ANY chosen option; across groups, ALL.
+const TYPE_ORDER = ['f', 'p', 'gamepass'];
+const TYPE_COLORS = { f: '#3B82F6', p: '#D97706', gamepass: '#8B5CF6' };
+const fruitTypeKey = (item) => (
+  item?.type === 'p' ? 'p' : item?.type === 'gamepass' ? 'gamepass' : 'f'
+);
+const emptyFilters = () => ({ type: new Set(), rarity: new Set() });
+const matchesFilters = (entry, f) => (
+  (f.type.size === 0 || f.type.has(entry.type))
+  && (f.rarity.size === 0 || f.rarity.has(entry.rarity))
+);
+// Removals skip the confirm dialog; "Removed N · Undo" stays this long.
+const UNDO_MS = 8000;
+const nameKey = (name) => String(name || '').toLowerCase().trim();
+
+// One fruit in the My Fruits grid. Memoized, so tapping a card in select mode
+// re-renders that card only, not the whole inventory. Long-press starts select
+// mode with this fruit picked; outside select mode the ✕ is its own button.
+const OwnedFruitCard = React.memo(({
+  entry, imageUri, selectMode, isSelected, cardBg, borderColor, textColor, subtextColor, mutedColor,
+  onPress, onLongPress, onRemove,
+}) => {
+  const { item, originalIndex, value } = entry;
+  const isPerm = item.type === 'p';
+  return (
+    <TouchableOpacity
+      accessible={selectMode}
+      accessibilityRole={selectMode ? 'checkbox' : undefined}
+      accessibilityState={selectMode ? { checked: isSelected } : undefined}
+      accessibilityLabel={selectMode ? item.name : undefined}
+      activeOpacity={selectMode ? 0.7 : 0.9}
+      delayLongPress={350}
+      onPress={selectMode ? () => onPress(originalIndex) : undefined}
+      onLongPress={() => onLongPress(originalIndex)}
+      style={[s.fruitCard, { backgroundColor: cardBg, borderColor }, isSelected && s.fruitCardSelected]}
+    >
+      {!selectMode && (
+        <TouchableOpacity
+          style={s.fruitRemoveBtn}
+          onPress={() => onRemove(originalIndex)}
+          activeOpacity={0.7}
+          hitSlop={15}
+        >
+          <Icon name="close" size={16} color="#FFF" />
+        </TouchableOpacity>
+      )}
+      <Image
+        source={{ uri: imageUri }}
+        style={[s.fruitImg, isPerm && s.fruitImgPerm]}
+        resizeMode="contain"
+      />
+      <Text style={[s.fruitName, { color: textColor }]} numberOfLines={1}>{item.name}</Text>
+      <Text style={[s.fruitValue, { color: subtextColor }]}>{formatValue(value)}</Text>
+      {isPerm && <View style={[s.permBadge, s.permBadgeLeft]}><Text style={s.permBadgeText}>P</Text></View>}
+      {selectMode && (
+        <View pointerEvents="none" style={[s.selectOverlay, isSelected && s.selectOverlayActive]}>
+          <Icon
+            name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+            size={20}
+            color={isSelected ? SELECT_ACCENT : mutedColor}
+            style={s.selectCheck}
+          />
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+});
+OwnedFruitCard.displayName = 'OwnedFruitCard';
 
 const TradeJournal = ({
   firestoreDB, db, uid, isDarkMode,
@@ -112,9 +188,17 @@ const TradeJournal = ({
   const [showFruitPicker, setShowFruitPicker] = useState(false);
   const [fruitPickerMode, setFruitPickerMode] = useState('owned');
   const [fruitSearchQ, setFruitSearchQ] = useState('');
-  // My Fruits select mode: a Set of indices into ownedFruits (entries have no id)
+  // My Fruits select mode: a Set of ORIGINAL indices into ownedFruits (entries
+  // have no id) — not display positions, so it survives search/sort/filters.
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIdx, setSelectedIdx] = useState(() => new Set());
+  // My Fruits search / sort / filters and the "Removed · Undo" bar
+  const [ownedSearch, setOwnedSearch] = useState('');
+  const [ownedSort, setOwnedSort] = useState('recent'); // 'recent' | 'value-desc' | 'value-asc' | 'name'
+  const [filters, setFilters] = useState(emptyFilters);
+  const [showFilters, setShowFilters] = useState(false);
+  const [undo, setUndo] = useState(null); // { owned: list before the first removal, count }
+  const undoTimerRef = useRef(null);
   const ownedFruitsRef = useRef(ownedFruits);
   const wishlistFruitsRef = useRef(wishlistFruits);
   useEffect(() => { ownedFruitsRef.current = ownedFruits; }, [ownedFruits]);
@@ -358,20 +442,41 @@ const TradeJournal = ({
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [ownedFruits, wishlistFruits, saveFruits]);
 
+  // ── Removing fruits: instant, with "Removed · Undo" for a few seconds ──
+  // (no "are you sure?" per fruit). Removals inside the window add up, and
+  // Undo restores the list as it was before the first of them.
+  const showUndo = useCallback((before, count) => {
+    clearTimeout(undoTimerRef.current);
+    setUndo(prev => ({ owned: prev ? prev.owned : before, count: (prev?.count || 0) + count }));
+    undoTimerRef.current = setTimeout(() => setUndo(null), UNDO_MS);
+  }, []);
+  const dismissUndo = useCallback(() => {
+    clearTimeout(undoTimerRef.current);
+    setUndo(null);
+  }, []);
+  useEffect(() => () => clearTimeout(undoTimerRef.current), []);
+  // On return the list may have been rewritten (a trade logged from the
+  // Calculator), so an Undo snapshot from before would put that back.
+  useEffect(() => { if (!visible) dismissUndo(); }, [visible, dismissUndo]);
+
+  const doUndo = useCallback(() => {
+    if (!undo) return;
+    clearTimeout(undoTimerRef.current);
+    ownedFruitsRef.current = undo.owned;
+    setOwnedFruits(undo.owned);
+    saveFruits(undo.owned, wishlistFruitsRef.current);
+    setUndo(null);
+  }, [undo, saveFruits]);
+
   // Remove fruit from owned
   const removeFruit = useCallback((index) => {
-    Alert.alert('Remove Fruit', 'Remove this fruit from your inventory?', [
-      { text: 'Keep', style: 'cancel' },
-      {
-        text: 'Remove', style: 'destructive',
-        onPress: () => {
-          const newOwned = ownedFruits.filter((_, i) => i !== index);
-          setOwnedFruits(newOwned);
-          saveFruits(newOwned, wishlistFruits);
-        },
-      },
-    ]);
-  }, [ownedFruits, wishlistFruits, saveFruits]);
+    const before = ownedFruitsRef.current;
+    const newOwned = before.filter((_, i) => i !== index);
+    ownedFruitsRef.current = newOwned; // two quick ✕ taps must not both start from `before`
+    setOwnedFruits(newOwned);
+    saveFruits(newOwned, wishlistFruitsRef.current);
+    showUndo(before, 1);
+  }, [saveFruits, showUndo]);
 
   const removeWishlistFruit = useCallback((index) => {
     const newWishlist = wishlistFruits.filter((_, i) => i !== index);
@@ -410,14 +515,24 @@ const TradeJournal = ({
     return expandedList;
   }, [parsedData, fruitSearchQ]);
 
+  // lowercased name → catalogue item, built once per feed (first match wins,
+  // as find() did) — replaces a find() over the catalogue for every lookup.
+  const valueIndex = useMemo(() => {
+    const m = new Map();
+    parsedData.forEach(d => {
+      const n = nameKey(d?.name);
+      if (n && !m.has(n)) m.set(n, d);
+    });
+    return m;
+  }, [parsedData]);
+
   const lookupFruitValue = useCallback((fruit) => {
-    if (!fruit?.name || parsedData.length === 0) return Number(fruit?.value) || 0;
-    const fruitName = (fruit.name || '').toLowerCase().trim();
-    const item = parsedData.find(d => (d?.name || '').toLowerCase().trim() === fruitName);
+    if (!fruit?.name || valueIndex.size === 0) return Number(fruit?.value) || 0;
+    const item = valueIndex.get(nameKey(fruit.name));
     if (!item) return Number(fruit?.value) || 0;
     if (fruit.type === 'p') return Number(item.permValue || item.value) || 0;
     return Number(item.rvalue || item.value) || 0;
-  }, [parsedData]);
+  }, [valueIndex]);
 
   const portfolioValue = useMemo(() =>
     ownedFruits.reduce((s, f) => s + lookupFruitValue(f), 0)
@@ -454,7 +569,8 @@ const TradeJournal = ({
     setSelectedIdx(prev => (prev.size === 0 ? prev : new Set()));
   }, []);
 
-  useEffect(() => { exitSelectMode(); }, [tab, exitSelectMode]);
+  // Leave select mode on tab switch or when the screen loses focus.
+  useEffect(() => { exitSelectMode(); }, [tab, visible, exitSelectMode]);
 
   // Selected indices only mean something for the list they were picked from.
   // Keyed on the array (not just its length): a re-focus after logging a trade
@@ -464,31 +580,95 @@ const TradeJournal = ({
     if (ownedFruits.length === 0) setSelectMode(false);
   }, [ownedFruits]);
 
-  // lowercased catalogue name → normalised rarity, for O(1) grouping
-  const rarityByName = useMemo(() => {
-    const m = new Map();
-    parsedData.forEach(d => {
-      const n = String(d?.name || '').toLowerCase().trim();
-      if (n && !m.has(n)) m.set(n, normaliseRarity(d?.rarity));
-    });
-    return m;
-  }, [parsedData]);
+  // Every owned fruit with what the grid, sort and filters need, worked out
+  // once. originalIndex keeps removal and selection on the canonical
+  // ownedFruits array whatever the display order.
+  const ownedEntries = useMemo(() => ownedFruits.map((item, originalIndex) => ({
+    item,
+    originalIndex,
+    value: lookupFruitValue(item),
+    type: fruitTypeKey(item),
+    rarity: normaliseRarity(valueIndex.get(nameKey(item?.name))?.rarity)
+      || normaliseRarity(item?.rarity)
+      || OTHER_RARITY,
+  })), [ownedFruits, lookupFruitValue, valueIndex]);
 
-  const ownedRarityGroups = useMemo(() => {
-    if (!selectMode) return [];
-    const groups = new Map();
-    ownedFruits.forEach((f, i) => {
-      const key = rarityByName.get(String(f?.name || '').toLowerCase().trim()) || OTHER_RARITY;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(i);
-    });
-    return [...groups.entries()]
-      .map(([key, indices]) => ({ key, label: rarityLabel(key), indices }))
-      .sort(compareRarityGroups);
-  }, [selectMode, ownedFruits, rarityByName]);
+  const typeLabel = useCallback((key) => (
+    key === 'p' ? t('value.permanent_value', { defaultValue: 'Permanent' })
+      : key === 'gamepass' ? t('trade_journal.my_fruits.type_gamepass', { defaultValue: 'Game Pass' })
+        : t('trade_journal.my_fruits.type_fruit', { defaultValue: 'Fruit' })
+  ), [t]);
 
-  const selectionExtraData = useMemo(() => ({ selectMode, selectedIdx }), [selectMode, selectedIdx]);
-  const allSelected = ownedFruits.length > 0 && selectedIdx.size === ownedFruits.length;
+  const rarityText = useCallback((key) => {
+    if (key === 'gamepass') return typeLabel('gamepass');
+    if (key === OTHER_RARITY || RARITY_ORDER.includes(key)) {
+      return t(`trade_journal.my_fruits.rarity_${key}`, { defaultValue: rarityLabel(key) });
+    }
+    return rarityLabel(key); // a rarity the catalogue added later
+  }, [t, typeLabel]);
+
+  // Filter options: only what this inventory has, each with its count.
+  const filterOptions = useMemo(() => {
+    const counts = { type: new Map(), rarity: new Map() };
+    ownedEntries.forEach(e => {
+      counts.type.set(e.type, (counts.type.get(e.type) || 0) + 1);
+      counts.rarity.set(e.rarity, (counts.rarity.get(e.rarity) || 0) + 1);
+    });
+    return [
+      {
+        key: 'type',
+        title: t('trade_journal.my_fruits.filter_type', { defaultValue: 'Type' }),
+        options: TYPE_ORDER.filter(k => counts.type.has(k)).map(k => ({
+          key: k, label: typeLabel(k), color: TYPE_COLORS[k], count: counts.type.get(k),
+        })),
+      },
+      {
+        key: 'rarity',
+        title: t('trade_journal.my_fruits.filter_rarity', { defaultValue: 'Rarity' }),
+        options: [...counts.rarity.keys()].sort(compareRarityKeys).map(k => ({
+          key: k, label: rarityText(k), color: RARITY_COLORS[k] || RARITY_COLORS[OTHER_RARITY], count: counts.rarity.get(k),
+        })),
+      },
+    ].filter(g => g.options.length > 0);
+  }, [ownedEntries, t, typeLabel, rarityText]);
+
+  // A chosen option whose last fruit was removed no longer has a chip to turn
+  // it off, so only options still on offer count.
+  const activeFilters = useMemo(() => {
+    const present = { type: new Set(), rarity: new Set() };
+    filterOptions.forEach(g => g.options.forEach(o => present[g.key].add(o.key)));
+    return {
+      type: new Set([...filters.type].filter(k => present.type.has(k))),
+      rarity: new Set([...filters.rarity].filter(k => present.rarity.has(k))),
+    };
+  }, [filters, filterOptions]);
+  const activeFilterCount = activeFilters.type.size + activeFilters.rarity.size;
+
+  const toggleFilter = useCallback((group, key) => {
+    setFilters(prev => {
+      const next = new Set(prev[group]);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return { ...prev, [group]: next };
+    });
+  }, []);
+  const clearFilters = useCallback(() => setFilters(emptyFilters()), []);
+
+  // The list as the user sees it: search, then filters, then the chosen sort.
+  // 'recent' keeps the stored order (the order fruits were added).
+  const displayedFruits = useMemo(() => {
+    const q = ownedSearch.trim().toLowerCase();
+    const shown = ownedEntries.filter(e =>
+      (!q || String(e.item?.name || '').toLowerCase().includes(q))
+      && (activeFilterCount === 0 || matchesFilters(e, activeFilters)));
+    if (ownedSort === 'recent') return shown;
+    const sorted = [...shown];
+    if (ownedSort === 'value-desc') sorted.sort((a, b) => b.value - a.value);
+    else if (ownedSort === 'value-asc') sorted.sort((a, b) => a.value - b.value);
+    else if (ownedSort === 'name') sorted.sort((a, b) => String(a.item?.name || '').localeCompare(String(b.item?.name || '')));
+    return sorted;
+  }, [ownedEntries, ownedSearch, ownedSort, activeFilters, activeFilterCount]);
+
+  const displayedIndices = useMemo(() => displayedFruits.map(e => e.originalIndex), [displayedFruits]);
 
   const toggleSelected = useCallback((index) => {
     setSelectedIdx(prev => {
@@ -498,17 +678,22 @@ const TradeJournal = ({
     });
   }, []);
 
-  const toggleSelectAll = useCallback(() => {
-    setSelectedIdx(prev => (
-      prev.size === ownedFruits.length ? new Set() : new Set(ownedFruits.map((_, i) => i))
-    ));
-  }, [ownedFruits]);
+  // Long-press a fruit: start selecting, with that fruit already picked.
+  const startSelectWith = useCallback((index) => {
+    setSelectMode(true);
+    setSelectedIdx(prev => {
+      if (prev.has(index)) return prev;
+      const next = new Set(prev);
+      next.add(index);
+      return next;
+    });
+  }, []);
 
   // Adds the whole group to the selection, or clears it if it is all selected already.
-  const toggleRarityGroup = useCallback((indices) => {
+  const toggleGroup = useCallback((indices) => {
     setSelectedIdx(prev => {
+      const allIn = indices.length > 0 && indices.every(i => prev.has(i));
       const next = new Set(prev);
-      const allIn = indices.every(i => next.has(i));
       indices.forEach(i => { if (allIn) next.delete(i); else next.add(i); });
       return next;
     });
@@ -517,23 +702,14 @@ const TradeJournal = ({
   const removeSelectedFruits = useCallback(() => {
     const count = selectedIdx.size;
     if (count === 0) return;
-    Alert.alert(
-      `Remove ${count} ${count === 1 ? 'fruit' : 'fruits'}?`,
-      "They'll be removed from your inventory. Your goals and trade history are not affected.",
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove', style: 'destructive',
-          onPress: () => {
-            const newOwned = ownedFruits.filter((_, i) => !selectedIdx.has(i));
-            setOwnedFruits(newOwned);
-            saveFruits(newOwned, wishlistFruits);
-            exitSelectMode();
-          },
-        },
-      ],
-    );
-  }, [selectedIdx, ownedFruits, wishlistFruits, saveFruits, exitSelectMode]);
+    const before = ownedFruitsRef.current;
+    const newOwned = before.filter((_, i) => !selectedIdx.has(i));
+    ownedFruitsRef.current = newOwned;
+    setOwnedFruits(newOwned);
+    saveFruits(newOwned, wishlistFruitsRef.current);
+    exitSelectMode();
+    showUndo(before, count);
+  }, [selectedIdx, saveFruits, exitSelectMode, showUndo]);
 
   const selectBtnBg = isDarkMode ? '#1e293b' : '#fefce8'; // same fill as the Add Fruit button
 
@@ -550,138 +726,268 @@ const TradeJournal = ({
     </TouchableOpacity>
   );
 
-  // Transparent tap target over the whole card; replaces the ✕ in select mode.
-  const renderSelectOverlay = (item, index) => {
-    const isSelected = selectedIdx.has(index);
-    return (
-      <TouchableOpacity
-        style={[s.selectOverlay, isSelected && s.selectOverlayActive]}
-        onPress={() => toggleSelected(index)}
-        activeOpacity={0.6}
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: isSelected }}
-        accessibilityLabel={item.name}
-      >
-        <Icon
-          name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
-          size={20}
-          color={isSelected ? SELECT_ACCENT : c.textMuted}
-          style={s.selectCheck}
-        />
-      </TouchableOpacity>
-    );
-  };
+  // Portfolio hero card. Memoized: as the grid's list header it would
+  // otherwise re-render on every selection tap.
+  const fruitsHeroCard = useMemo(() => (
+    <View style={[s.heroCard, { backgroundColor: isDarkMode ? '#1e293b' : '#fffbeb' }]}>
+      <Text style={[s.heroLabel, { color: '#F59E0B' }]}>MY INVENTORY WORTH</Text>
+      <Text style={[s.heroValue, { color: '#F59E0B' }]}>🍋 {formatValue(portfolioValue)}</Text>
+      <Text style={[s.heroSub, { color: c.textSecondary }]}>{ownedFruits.length} fruits collected</Text>
+    </View>
+  ), [isDarkMode, portfolioValue, ownedFruits.length, c.textSecondary]);
+
+  const renderOwnedItem = useCallback(({ item: entry }) => (
+    <OwnedFruitCard
+      entry={entry}
+      imageUri={getImgUrl(entry.item.name, entry.item.type)}
+      selectMode={selectMode}
+      isSelected={selectMode && selectedIdx.has(entry.originalIndex)}
+      cardBg={c.bgAlt}
+      borderColor={c.border}
+      textColor={c.text}
+      subtextColor={c.textSecondary}
+      mutedColor={c.textMuted}
+      onPress={toggleSelected}
+      onLongPress={startSelectWith}
+      onRemove={removeFruit}
+    />
+  ), [getImgUrl, selectMode, selectedIdx, c.bgAlt, c.border, c.text, c.textSecondary, c.textMuted,
+    toggleSelected, startSelectWith, removeFruit]);
 
   // ═══════════════════════════════════════════════════
   // RENDER: My Fruits Tab
   // ═══════════════════════════════════════════════════
-  const renderFruitsTab = () => (
-    <View style={{ flex: 1 }}>
-      {/* Portfolio hero card */}
-      <View style={[s.heroCard, { backgroundColor: isDarkMode ? '#1e293b' : '#fffbeb' }]}>
-        <Text style={[s.heroLabel, { color: '#F59E0B' }]}>MY INVENTORY WORTH</Text>
-        <Text style={[s.heroValue, { color: '#F59E0B' }]}>🍋 {formatValue(portfolioValue)}</Text>
-        <Text style={[s.heroSub, { color: c.textSecondary }]}>{ownedFruits.length} fruits collected</Text>
-      </View>
-      
-      {/* Add Fruit + Select Buttons */}
-      <View style={s.inventoryActionsRow}>
-        <TouchableOpacity
-          style={[s.addFruitBtn, s.flex1, { backgroundColor: isDarkMode ? '#1e293b' : '#fefce8' }]}
-          onPress={() => { setFruitPickerMode('owned'); setShowFruitPicker(true); }}
-        >
-          <Text style={[s.addFruitText, { color: '#F59E0B' }]}>+ Add Fruit to Inventory</Text>
-        </TouchableOpacity>
-        {ownedFruits.length > 0 && (
+  const renderFruitsTab = () => {
+    const sortOptions = [
+      { key: 'recent', label: t('trade_journal.my_fruits.sort_recent', { defaultValue: 'Recent' }) },
+      { key: 'value-desc', label: t('trade_journal.my_fruits.sort_value_desc', { defaultValue: 'Value ↓' }) },
+      { key: 'value-asc', label: t('trade_journal.my_fruits.sort_value_asc', { defaultValue: 'Value ↑' }) },
+      { key: 'name', label: t('trade_journal.my_fruits.sort_name', { defaultValue: 'A–Z' }) },
+    ];
+    const allShownSelected = displayedIndices.length > 0 && displayedIndices.every(i => selectedIdx.has(i));
+    const filtersOn = showFilters || activeFilterCount > 0;
+
+    const header = (
+      <View style={s.ownedHeader}>
+        {fruitsHeroCard}
+
+        {/* Add Fruit + Select Buttons */}
+        <View style={s.inventoryActionsRow}>
           <TouchableOpacity
-            style={[s.selectBtn, { backgroundColor: selectBtnBg }, selectMode && s.selectBtnActive]}
-            onPress={selectMode ? exitSelectMode : () => setSelectMode(true)}
-            activeOpacity={0.7}
-            accessibilityRole="button"
+            style={[s.addFruitBtn, s.flex1, { backgroundColor: selectBtnBg }]}
+            onPress={() => { setFruitPickerMode('owned'); setShowFruitPicker(true); }}
           >
-            <Icon name={selectMode ? 'checkmark-done' : 'checkbox-outline'} size={16} color={SELECT_ACCENT} />
-            <Text style={[s.addFruitText, { color: SELECT_ACCENT }]}>{selectMode ? 'Done' : 'Select'}</Text>
+            <Text style={[s.addFruitText, { color: '#F59E0B' }]}>+ Add Fruit to Inventory</Text>
           </TouchableOpacity>
-        )}
-      </View>
+          {ownedFruits.length > 0 && (
+            <TouchableOpacity
+              style={[s.selectBtn, { backgroundColor: selectBtnBg }, selectMode && s.selectBtnActive]}
+              onPress={selectMode ? exitSelectMode : () => setSelectMode(true)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+            >
+              <Icon name={selectMode ? 'checkmark-done' : 'checkbox-outline'} size={16} color={SELECT_ACCENT} />
+              <Text style={[s.addFruitText, { color: SELECT_ACCENT }]}>{selectMode ? 'Done' : 'Select'}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
-      {/* Select mode: All + one chip per rarity in the inventory */}
-      {selectMode && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={s.chipScroll}
-          contentContainerStyle={s.chipRow}
-        >
-          {renderSelectChip('all', `All (${ownedFruits.length})`, allSelected, toggleSelectAll)}
-          {ownedRarityGroups.map(g => renderSelectChip(
-            `rarity-${g.key}`,
-            `${g.label} (${g.indices.length})`,
-            g.indices.every(i => selectedIdx.has(i)),
-            () => toggleRarityGroup(g.indices),
-          ))}
-        </ScrollView>
-      )}
+        {/* Search, sort, filters */}
+        {ownedFruits.length > 0 && (
+          <View style={s.ownedTools}>
+            <View style={[s.ownedSearchBox, { backgroundColor: c.bgAlt, borderColor: c.border }]}>
+              <FontAwesome name="magnifying-glass" size={12} color={c.textSecondary} />
+              <TextInput
+                value={ownedSearch}
+                onChangeText={setOwnedSearch}
+                placeholder={t('trade_journal.my_fruits.search_placeholder', { defaultValue: 'Search fruits...' })}
+                placeholderTextColor={c.textMuted}
+                style={[s.ownedSearchInput, { color: c.text }]}
+                autoCorrect={false}
+                autoCapitalize="none"
+                returnKeyType="search"
+              />
+              {ownedSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setOwnedSearch('')} hitSlop={8}>
+                  <FontAwesome name="circle-xmark" size={14} color={c.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
 
-      {/* Fruits grid */}
-      <FlatList
-        data={ownedFruits}
-        extraData={selectionExtraData}
-        numColumns={3}
-        keyExtractor={(_, i) => `owned-${i}`}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
-        ListEmptyComponent={
-          <View style={s.emptyState}>
-            <Text style={{ fontSize: 40 }}>🍋</Text>
-            <Text style={[s.emptyText, { color: c.textSecondary, marginTop: 8 }]}>No fruits yet</Text>
-            <Text style={[s.emptySubtext, { color: c.textMuted }]}>Tap + to add your first fruit</Text>
-          </View>
-        }
-        renderItem={({ item, index }) => (
-          <View style={[s.fruitCard, { backgroundColor: c.bgAlt, borderColor: c.border }, selectMode && selectedIdx.has(index) && s.fruitCardSelected]}>
-            {!selectMode && (
+            <View style={s.sortRow}>
+              {sortOptions.map(opt => {
+                const active = ownedSort === opt.key;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    onPress={() => setOwnedSort(opt.key)}
+                    style={[s.sortChip, active ? s.sortChipActive : { backgroundColor: c.bgAlt, borderColor: c.border }]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[s.sortChipText, { color: active ? '#FFF' : c.textSecondary }]}>{opt.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+              {/* Outlined so it doesn't read as a sort option */}
               <TouchableOpacity
-                style={{ position: 'absolute', top: -6, right: -6, backgroundColor: '#EF4444', borderRadius: 12, padding: 2, zIndex: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3, elevation: 3 }}
-                onPress={() => removeFruit(index)}
-                activeOpacity={0.7}
-                hitSlop={{ top: 15, right: 15, bottom: 15, left: 15 }}
+                onPress={() => setShowFilters(v => !v)}
+                style={[s.filterToggle, filtersOn && s.filterToggleActive]}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: showFilters }}
               >
-                <Icon name="close" size={16} color="#FFF" />
+                <FontAwesome name="filter" size={10} color={filtersOn ? '#FFF' : SELECT_ACCENT} />
+                <Text style={[s.filterToggleText, filtersOn && s.filterToggleTextActive]}>
+                  {activeFilterCount > 0
+                    ? t('trade_journal.my_fruits.filters_count', { count: activeFilterCount, defaultValue: 'Filters · {{count}}' })
+                    : t('trade_journal.my_fruits.filters', { defaultValue: 'Filters' })}
+                </Text>
               </TouchableOpacity>
+            </View>
+
+            {/* Filter panel: any mix, e.g. Permanent + Mythical */}
+            {showFilters && (
+              <View style={[s.filterPanel, { backgroundColor: c.bgAlt, borderColor: c.border }]}>
+                {filterOptions.map(group => (
+                  <View key={group.key} style={s.filterGroup}>
+                    <Text style={[s.filterGroupTitle, { color: c.textSecondary }]}>{group.title}</Text>
+                    <View style={s.filterChips}>
+                      {group.options.map(o => {
+                        const active = activeFilters[group.key].has(o.key);
+                        return (
+                          <TouchableOpacity
+                            key={o.key}
+                            onPress={() => toggleFilter(group.key, o.key)}
+                            style={[s.filterChip, { borderColor: o.color, backgroundColor: active ? o.color : o.color + '14' }]}
+                            accessibilityRole="checkbox"
+                            accessibilityState={{ checked: active }}
+                          >
+                            {active && <FontAwesome name="check" size={9} color="#FFF" />}
+                            <Text style={[s.filterChipText, { color: active ? '#FFF' : o.color }]}>
+                              {o.label} · {o.count}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                ))}
+              </View>
             )}
 
-            <Image
-              source={{ uri: getImgUrl(item.name, item.type) }}
-              style={[s.fruitImg, item.type === 'p' && { backgroundColor: '#FFCC0020' }]}
-              resizeMode="contain"
-            />
-            <Text style={[s.fruitName, { color: c.text }]} numberOfLines={1}>{item.name}</Text>
-            <Text style={[s.fruitValue, { color: c.textSecondary }]}>{formatValue(lookupFruitValue(item))}</Text>
-            {item.type === 'p' && <View style={[s.permBadge, { left: 4, right: undefined }]}><Text style={s.permBadgeText}>P</Text></View>}
-            {selectMode && renderSelectOverlay(item, index)}
+            {activeFilterCount > 0 && (
+              <View style={s.filterSummary}>
+                <Text style={[s.filterSummaryText, { color: c.textSecondary }]}>
+                  {t('trade_journal.my_fruits.showing', {
+                    shown: displayedFruits.length,
+                    total: ownedFruits.length,
+                    defaultValue: 'Showing {{shown}} of {{total}}',
+                  })}
+                </Text>
+                <TouchableOpacity onPress={clearFilters} hitSlop={8}>
+                  <Text style={s.filterClearText}>
+                    {t('trade_journal.my_fruits.clear_filters', { defaultValue: 'Clear filters' })}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         )}
-      />
 
-      {/* Select mode: sticky action bar */}
-      {selectMode && (
-        <View style={[s.selectBar, { backgroundColor: c.bgAlt, borderTopColor: c.border, paddingBottom: 12 }]}>
-          <Text style={[s.selectBarCount, { color: c.text }]}>{selectedIdx.size} selected</Text>
-          <TouchableOpacity
-            style={[s.selectBarRemove, selectedIdx.size === 0 && s.selectBarRemoveDisabled]}
-            onPress={removeSelectedFruits}
-            disabled={selectedIdx.size === 0}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: selectedIdx.size === 0 }}
-          >
-            <FontAwesome name="trash-can" size={13} color="#FFF" />
-            <Text style={s.selectBarRemoveText}>Remove</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
-  );
+        {/* Select mode: everything shown (after search and filters) at once */}
+        {selectMode && displayedFruits.length > 0 && (
+          <View style={s.chipRow}>
+            {renderSelectChip(
+              'all',
+              t('trade_journal.my_fruits.select_all', { count: displayedIndices.length, defaultValue: 'All ({{count}})' }),
+              allShownSelected,
+              () => toggleGroup(displayedIndices),
+            )}
+            {selectedIdx.size > 0 && (
+              <TouchableOpacity
+                style={[s.selectChip, { borderColor: c.border }]}
+                onPress={() => setSelectedIdx(new Set())}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+              >
+                <Text style={[s.selectChipText, { color: c.textSecondary }]}>
+                  {t('trade_journal.my_fruits.select_none', { defaultValue: 'Select none' })}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+      </View>
+    );
+
+    return (
+      <View style={s.flex1}>
+        <FlatList
+          data={displayedFruits}
+          numColumns={3}
+          keyExtractor={(e) => `owned-${e.originalIndex}`}
+          renderItem={renderOwnedItem}
+          ListHeaderComponent={header}
+          contentContainerStyle={s.ownedListContent}
+          keyboardShouldPersistTaps="handled"
+          initialNumToRender={18}
+          maxToRenderPerBatch={18}
+          windowSize={7}
+          // RN 0.87 Fabric: view clipping crashes in addViewAt.
+          removeClippedSubviews={false}
+          ListEmptyComponent={ownedFruits.length === 0 ? (
+            <View style={s.emptyState}>
+              <Text style={s.emptyEmoji}>🍋</Text>
+              <Text style={[s.emptyText, s.emptyTextGap, { color: c.textSecondary }]}>No fruits yet</Text>
+              <Text style={[s.emptySubtext, { color: c.textMuted }]}>Tap + to add your first fruit</Text>
+            </View>
+          ) : (
+            <View style={s.emptyState}>
+              <Text style={s.emptyEmoji}>🔍</Text>
+              <Text style={[s.emptyText, s.emptyTextGap, { color: c.textSecondary }]}>
+                {t('trade_journal.my_fruits.no_match_title', { defaultValue: 'No fruits match' })}
+              </Text>
+              <Text style={[s.emptySubtext, { color: c.textMuted }]}>
+                {activeFilterCount > 0
+                  ? t('trade_journal.my_fruits.no_match_filters', { defaultValue: 'Try a different search, or clear the filters.' })
+                  : t('trade_journal.my_fruits.no_match_sub', { defaultValue: 'Try a different search.' })}
+              </Text>
+            </View>
+          )}
+        />
+
+        {/* "Removed N · Undo" for a few seconds after a removal */}
+        {undo && (
+          <View style={s.undoBar}>
+            <Text style={s.undoText} numberOfLines={1}>
+              {t('trade_journal.my_fruits.removed', { count: undo.count, defaultValue: 'Removed {{count}}' })}
+            </Text>
+            <TouchableOpacity onPress={doUndo} hitSlop={10} accessibilityRole="button">
+              <Text style={s.undoBtn}>{t('trade_journal.my_fruits.undo', { defaultValue: 'Undo' })}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Select mode: sticky action bar */}
+        {selectMode && (
+          <View style={[s.selectBar, { backgroundColor: c.bgAlt, borderTopColor: c.border }]}>
+            <Text style={[s.selectBarCount, { color: c.text }]}>{selectedIdx.size} selected</Text>
+            <TouchableOpacity
+              style={[s.selectBarRemove, selectedIdx.size === 0 && s.selectBarRemoveDisabled]}
+              onPress={removeSelectedFruits}
+              disabled={selectedIdx.size === 0}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: selectedIdx.size === 0 }}
+            >
+              <FontAwesome name="trash-can" size={13} color="#FFF" />
+              <Text style={s.selectBarRemoveText}>Remove</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    );
+  };
 
   // ═══════════════════════════════════════════════════
   // RENDER: Goals Tab
@@ -1069,6 +1375,7 @@ const TradeJournal = ({
                     if (fruitPickerMode === 'owned') {
                       const newOwned = [...ownedFruitsRef.current, item];
                       setOwnedFruits(newOwned);
+                      dismissUndo(); // Undo restores a snapshot; it would drop this add
                     } else {
                       const newWishlist = [...wishlistFruitsRef.current, item];
                       setWishlistFruits(newWishlist);
@@ -1123,9 +1430,9 @@ const s = StyleSheet.create({
   tabPillText: { fontSize: 13, fontWeight: '700' },
 
   // Value card
-  heroCard: { 
-    borderRadius: 16, padding: 24, alignItems: 'center', 
-    marginHorizontal: 16, marginBottom: 12, marginTop: 16,
+  heroCard: {
+    borderRadius: 16, padding: 24, alignItems: 'center',
+    marginBottom: 12, marginTop: 16,
   },
   heroLabel: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 6 },
   heroValue: { fontSize: 38, fontWeight: '900', letterSpacing: -1 },
@@ -1221,7 +1528,7 @@ const s = StyleSheet.create({
   tlDeleteText: { color: '#EF4444', fontSize: 11, fontWeight: '700' },
 
   // ── My Fruits: select mode ──
-  inventoryActionsRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16 },
+  inventoryActionsRow: { flexDirection: 'row', gap: 8 },
   flex1: { flex: 1 },
   selectBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -1229,8 +1536,7 @@ const s = StyleSheet.create({
     borderWidth: 1.5, borderColor: 'rgba(245, 158, 11, 0.2)',
   },
   selectBtnActive: { borderColor: SELECT_ACCENT, backgroundColor: 'rgba(245, 158, 11, 0.15)' },
-  chipScroll: { flexGrow: 0, flexShrink: 0 },
-  chipRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 10 },
   selectChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
   selectChipActive: { backgroundColor: 'rgba(245, 158, 11, 0.15)', borderColor: SELECT_ACCENT },
   selectChipText: { fontSize: 12, fontWeight: '700' },
@@ -1241,7 +1547,7 @@ const s = StyleSheet.create({
   selectCheck: { position: 'absolute', top: 3, right: 3 },
   selectBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1,
+    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, borderTopWidth: 1,
   },
   selectBarCount: { fontSize: 14, fontWeight: '700' },
   selectBarRemove: {
@@ -1250,6 +1556,56 @@ const s = StyleSheet.create({
   },
   selectBarRemoveDisabled: { opacity: 0.4 },
   selectBarRemoveText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
+
+  // ── My Fruits: list, card, search / sort / filters, undo ──
+  // The list pads 16; header rows sit 4 further in, level with the cards.
+  ownedListContent: { paddingHorizontal: 16, paddingBottom: 100 },
+  ownedHeader: { marginHorizontal: 4 },
+  fruitRemoveBtn: {
+    position: 'absolute', top: -6, right: -6, zIndex: 10,
+    backgroundColor: '#EF4444', borderRadius: 12, padding: 2,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3, elevation: 3,
+  },
+  fruitImgPerm: { backgroundColor: '#FFCC0020' },
+  permBadgeLeft: { left: 4, right: undefined },
+  emptyEmoji: { fontSize: 40 },
+  emptyTextGap: { marginTop: 8 },
+  ownedTools: { marginBottom: 10 },
+  ownedSearchBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderRadius: 10, borderWidth: 1, paddingHorizontal: 10, height: 38, marginBottom: 8,
+  },
+  ownedSearchInput: { flex: 1, fontSize: 13, padding: 0 },
+  sortRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  sortChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, borderWidth: 1 },
+  sortChipActive: { backgroundColor: SELECT_ACCENT, borderColor: SELECT_ACCENT },
+  sortChipText: { fontSize: 11, fontWeight: '700' },
+  filterToggle: {
+    marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, borderWidth: 1, borderColor: SELECT_ACCENT,
+  },
+  filterToggleActive: { backgroundColor: SELECT_ACCENT },
+  filterToggleText: { fontSize: 11, fontWeight: '700', color: SELECT_ACCENT },
+  filterToggleTextActive: { color: '#FFF' },
+  filterPanel: { marginTop: 8, borderRadius: 12, borderWidth: 1, padding: 10, gap: 10 },
+  filterGroup: { gap: 6 },
+  filterGroupTitle: { fontSize: 10, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
+  filterChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  filterChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, borderWidth: 1,
+  },
+  filterChipText: { fontSize: 11, fontWeight: '700' },
+  filterSummary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+  filterSummaryText: { fontSize: 11, fontWeight: '600' },
+  filterClearText: { fontSize: 11, fontWeight: '800', color: SELECT_ACCENT },
+  undoBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginHorizontal: 12, marginBottom: 8, paddingHorizontal: 14, paddingVertical: 10,
+    borderRadius: 12, backgroundColor: '#1F2937',
+  },
+  undoText: { flex: 1, color: '#F9FAFB', fontSize: 13, fontWeight: '600' },
+  undoBtn: { color: '#FBBF24', fontSize: 13, fontWeight: '900', textTransform: 'uppercase' },
 });
 
 export default TradeJournal;
