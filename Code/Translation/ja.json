@@ -699,21 +699,19 @@
     "show_help": "表示されるのは月と日だけで、年齢や生まれ年は表示されません。当日、他のプレイヤーがお祝いを送れます。",
     "today": "今日",
     "none_today": "今日が誕生日の人はいません。",
-    "this_week": "今週",
-    "none_week": "今週誕生日の人はいません。",
-    "wish_title": "{{name}}さんにお祝いを送る",
-    "wish_sub": "メッセージを選んでください。送った人が相手に表示されます。",
+    "none_tomorrow": "明日が誕生日の人はいません。",
+    "load_more": "もっと見る",
+    "retry": "もう一度",
     "wishes": {
       "hbd": "お誕生日おめでとう！",
       "party": "最高の一日を！",
       "cake": "ケーキとプレゼントを楽しんでね！",
       "fruit": "夢のフルーツが手に入りますように！"
     },
-    "wish_sent_title": "お祝いを送りました 🎉",
-    "wish_sent": "{{name}}さんにお祝いが届きます。",
     "err": {
       "generic": "エラーが発生しました。もう一度お試しください。",
       "already_wished": "今年はもうお祝いを送っています。",
+      "limit": "今日はたくさんお祝いを送りました。また明日送れます！",
       "not_today": "誕生日当日にお祝いを送れます。",
       "cannot_wish": "このプレイヤーにはお祝いを送れません。",
       "sign_in": "お祝いを送るにはサインインしてください。",
@@ -748,5 +746,36 @@
     "stars_added": "+{{stars}} ⭐ 追加されました",
     "home_gift_stars": "🎁 誕生日プレゼントの準備ができました：{{stars}} ⭐",
     "minor_private_stars": "13歳未満のプレイヤーの誕生日は非公開です。誕生日スターはちゃんと受け取れます！"
+  },
+  "trade_journal": {
+    "my_fruits": {
+      "type_fruit": "フルーツ",
+      "type_gamepass": "ゲームパス",
+      "rarity_other": "その他",
+      "filter_type": "種類",
+      "filter_rarity": "レア度",
+      "filters": "フィルター",
+      "filters_count": "フィルター · {{count}}",
+      "showing": "{{total}}件中{{shown}}件を表示",
+      "clear_filters": "フィルターを解除",
+      "search_placeholder": "フルーツを検索...",
+      "sort_recent": "新しい順",
+      "sort_value_desc": "価値 ↓",
+      "sort_value_asc": "価値 ↑",
+      "sort_name": "A–Z",
+      "select_all": "すべて（{{count}}）",
+      "select_none": "選択を解除",
+      "no_match_title": "一致するフルーツがありません",
+      "no_match_filters": "検索ワードを変えるか、フィルターを解除してください。",
+      "no_match_sub": "別のワードで検索してみてください。",
+      "removed": "{{count}}個を削除しました",
+      "undo": "元に戻す",
+      "rarity_mythical": "Mythical",
+      "rarity_legendary": "Legendary",
+      "rarity_rare": "Rare",
+      "rarity_uncommon": "Uncommon",
+      "rarity_common": "Common",
+      "rarity_limited": "Limited"
+    }
   }
 }

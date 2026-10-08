@@ -754,21 +754,19 @@
         "show_help": "اليوم والشهر فقط، دون عمرك أو سنة ميلادك. في ذلك اليوم يمكن للاعبين تهنئتك.",
         "today": "اليوم",
         "none_today": "لا توجد أعياد ميلاد اليوم.",
-        "this_week": "هذا الأسبوع",
-        "none_week": "لا توجد أعياد ميلاد هذا الأسبوع.",
-        "wish_title": "هنّئ {{name}} بعيد ميلاده",
-        "wish_sub": "اختر رسالة. سيرى من أرسلها.",
+        "none_tomorrow": "لا توجد أعياد ميلاد غدًا.",
+        "load_more": "عرض المزيد",
+        "retry": "إعادة المحاولة",
         "wishes": {
             "hbd": "عيد ميلاد سعيد!",
             "party": "أتمنى لك يومًا رائعًا!",
             "cake": "استمتع بالكعكة والهدايا!",
             "fruit": "أتمنى أن تحصل على فاكهة أحلامك!"
         },
-        "wish_sent_title": "تم إرسال التهنئة 🎉",
-        "wish_sent": "سيرى {{name}} تهنئتك.",
         "err": {
             "generic": "حدث خطأ ما. حاول مرة أخرى.",
             "already_wished": "لقد هنّأت هذا اللاعب هذا العام بالفعل.",
+            "limit": "أرسلت الكثير من التهاني اليوم. يمكنك إرسال المزيد غدًا!",
             "not_today": "يمكنك تهنئته في يوم ميلاده.",
             "cannot_wish": "لا يمكنك تهنئة هذا اللاعب.",
             "sign_in": "سجّل الدخول لإرسال التهاني.",
@@ -815,5 +813,36 @@
         "stars_added": "تمت إضافة {{stars}} ⭐",
         "home_gift_stars": "🎁 هدية عيد ميلادك جاهزة: {{stars}} ⭐",
         "minor_private_stars": "أعياد ميلاد اللاعبين دون 13 سنة تبقى خاصة. ومع ذلك ستحصل على نجوم عيد ميلادك!"
+    },
+    "trade_journal": {
+        "my_fruits": {
+            "type_fruit": "فاكهة",
+            "type_gamepass": "Game Pass",
+            "rarity_other": "أخرى",
+            "filter_type": "النوع",
+            "filter_rarity": "الندرة",
+            "filters": "الفلاتر",
+            "filters_count": "الفلاتر · {{count}}",
+            "showing": "يظهر {{shown}} من {{total}}",
+            "clear_filters": "مسح الفلاتر",
+            "search_placeholder": "ابحث عن فاكهة...",
+            "sort_recent": "الأحدث",
+            "sort_value_desc": "القيمة ↓",
+            "sort_value_asc": "القيمة ↑",
+            "sort_name": "أ–ي",
+            "select_all": "الكل ({{count}})",
+            "select_none": "إلغاء التحديد",
+            "no_match_title": "لا توجد فواكه مطابقة",
+            "no_match_filters": "جرّب بحثًا آخر أو امسح الفلاتر.",
+            "no_match_sub": "جرّب بحثًا آخر.",
+            "removed": "تمت إزالة {{count}}",
+            "undo": "تراجع",
+            "rarity_mythical": "Mythical",
+            "rarity_legendary": "Legendary",
+            "rarity_rare": "Rare",
+            "rarity_uncommon": "Uncommon",
+            "rarity_common": "Common",
+            "rarity_limited": "Limited"
+        }
     }
 }

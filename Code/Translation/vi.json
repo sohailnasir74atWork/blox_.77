@@ -698,21 +698,19 @@
         "show_help": "Chỉ hiện ngày và tháng, không bao giờ hiện tuổi hay năm sinh. Người chơi có thể gửi lời chúc vào đúng ngày.",
         "today": "Hôm nay",
         "none_today": "Hôm nay không có ai sinh nhật.",
-        "this_week": "Tuần này",
-        "none_week": "Tuần này không có ai sinh nhật.",
-        "wish_title": "Chúc {{name}} sinh nhật vui vẻ",
-        "wish_sub": "Chọn một lời chúc. Họ sẽ thấy ai đã gửi.",
+        "none_tomorrow": "Ngày mai không có ai sinh nhật.",
+        "load_more": "Xem thêm",
+        "retry": "Thử lại",
         "wishes": {
             "hbd": "Chúc mừng sinh nhật!",
             "party": "Chúc bạn một ngày thật vui!",
             "cake": "Ăn bánh kem và nhận quà vui nhé!",
             "fruit": "Chúc bạn có được trái ác quỷ mơ ước!"
         },
-        "wish_sent_title": "Đã gửi lời chúc 🎉",
-        "wish_sent": "{{name}} sẽ thấy lời chúc của bạn.",
         "err": {
             "generic": "Có lỗi xảy ra. Thử lại nhé.",
             "already_wished": "Bạn đã chúc người này năm nay rồi.",
+            "limit": "Hôm nay bạn đã gửi rất nhiều lời chúc rồi. Mai gửi tiếp nhé!",
             "not_today": "Bạn có thể chúc vào đúng ngày sinh nhật của họ.",
             "cannot_wish": "Bạn không thể gửi lời chúc cho người chơi này.",
             "sign_in": "Đăng nhập để gửi lời chúc.",
@@ -747,5 +745,36 @@
         "stars_added": "+{{stars}} ⭐ đã được cộng",
         "home_gift_stars": "🎁 Quà sinh nhật của bạn đã sẵn sàng: {{stars}} ⭐",
         "minor_private_stars": "Sinh nhật của người chơi dưới 13 tuổi được giữ riêng tư. Bạn vẫn nhận được sao sinh nhật!"
+    },
+    "trade_journal": {
+        "my_fruits": {
+            "type_fruit": "Trái",
+            "type_gamepass": "Game Pass",
+            "rarity_other": "Khác",
+            "filter_type": "Loại",
+            "filter_rarity": "Độ hiếm",
+            "filters": "Bộ lọc",
+            "filters_count": "Bộ lọc · {{count}}",
+            "showing": "Đang hiện {{shown}}/{{total}}",
+            "clear_filters": "Xóa bộ lọc",
+            "search_placeholder": "Tìm trái...",
+            "sort_recent": "Mới nhất",
+            "sort_value_desc": "Giá trị ↓",
+            "sort_value_asc": "Giá trị ↑",
+            "sort_name": "A–Z",
+            "select_all": "Tất cả ({{count}})",
+            "select_none": "Bỏ chọn",
+            "no_match_title": "Không có trái nào khớp",
+            "no_match_filters": "Thử từ khóa khác hoặc xóa bộ lọc.",
+            "no_match_sub": "Thử từ khóa khác.",
+            "removed": "Đã xóa {{count}}",
+            "undo": "Hoàn tác",
+            "rarity_mythical": "Mythical",
+            "rarity_legendary": "Legendary",
+            "rarity_rare": "Rare",
+            "rarity_uncommon": "Uncommon",
+            "rarity_common": "Common",
+            "rarity_limited": "Limited"
+        }
     }
 }

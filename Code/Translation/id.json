@@ -698,21 +698,19 @@
         "show_help": "Hanya tanggal dan bulan, tidak pernah umur atau tahunmu. Pemain bisa mengirim ucapan di hari itu.",
         "today": "Hari ini",
         "none_today": "Tidak ada yang ulang tahun hari ini.",
-        "this_week": "Minggu ini",
-        "none_week": "Tidak ada ulang tahun minggu ini.",
-        "wish_title": "Ucapkan selamat ulang tahun ke {{name}}",
-        "wish_sub": "Pilih pesan. Mereka akan melihat siapa pengirimnya.",
+        "none_tomorrow": "Tidak ada yang ulang tahun besok.",
+        "load_more": "Muat lagi",
+        "retry": "Coba lagi",
         "wishes": {
             "hbd": "Selamat ulang tahun!",
             "party": "Semoga harimu seru!",
             "cake": "Selamat menikmati kue dan kadonya!",
             "fruit": "Semoga dapat buah impianmu!"
         },
-        "wish_sent_title": "Ucapan terkirim 🎉",
-        "wish_sent": "{{name}} akan melihat ucapanmu.",
         "err": {
             "generic": "Terjadi kesalahan. Coba lagi.",
             "already_wished": "Kamu sudah mengucapkan tahun ini.",
+            "limit": "Kamu sudah mengirim banyak ucapan hari ini. Lanjut besok, ya!",
             "not_today": "Kamu bisa mengucapkan di hari ulang tahunnya.",
             "cannot_wish": "Kamu tidak bisa mengirim ucapan ke pemain ini.",
             "sign_in": "Masuk untuk mengirim ucapan.",
@@ -747,5 +745,36 @@
         "stars_added": "+{{stars}} ⭐ ditambahkan",
         "home_gift_stars": "🎁 Hadiah ulang tahunmu siap: {{stars}} ⭐",
         "minor_private_stars": "Ulang tahun pemain di bawah 13 tahun tetap privat. Kamu tetap dapat bintang ulang tahun!"
+    },
+    "trade_journal": {
+        "my_fruits": {
+            "type_fruit": "Buah",
+            "type_gamepass": "Game Pass",
+            "rarity_other": "Lainnya",
+            "filter_type": "Jenis",
+            "filter_rarity": "Kelangkaan",
+            "filters": "Filter",
+            "filters_count": "Filter · {{count}}",
+            "showing": "Menampilkan {{shown}} dari {{total}}",
+            "clear_filters": "Hapus filter",
+            "search_placeholder": "Cari buah...",
+            "sort_recent": "Terbaru",
+            "sort_value_desc": "Nilai ↓",
+            "sort_value_asc": "Nilai ↑",
+            "sort_name": "A–Z",
+            "select_all": "Semua ({{count}})",
+            "select_none": "Batal pilih",
+            "no_match_title": "Tidak ada buah yang cocok",
+            "no_match_filters": "Coba kata lain, atau hapus filternya.",
+            "no_match_sub": "Coba kata pencarian lain.",
+            "removed": "{{count}} dihapus",
+            "undo": "Batalkan",
+            "rarity_mythical": "Mythical",
+            "rarity_legendary": "Legendary",
+            "rarity_rare": "Rare",
+            "rarity_uncommon": "Uncommon",
+            "rarity_common": "Common",
+            "rarity_limited": "Limited"
+        }
     }
 }
