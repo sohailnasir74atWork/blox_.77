@@ -15,7 +15,7 @@
  * owner chose for main screens; the rest are plain.
  */
 
-import React from 'react';
+import React, { createContext, useContext, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -58,46 +58,70 @@ const MoreButton = ({ onPress, label }) => (
   </TouchableOpacity>
 );
 
-export const MoreStack = ({ selectedTheme }) => {
+// selectedTheme for the screens below. They are module-level `component`s
+// reading it from context, not `{() => …}` render callbacks: a callback skips
+// React Navigation's StaticContainer, so every MoreStack render (isAdmin,
+// language, theme) re-rendered every mounted screen and its banner.
+const MoreThemeContext = createContext({ selectedTheme: undefined });
+
+const ValuesHomeScreen = ({ navigation }) => {
   const { t } = useTranslation();
+  const { selectedTheme } = useContext(MoreThemeContext);
+  return (
+    <Page
+      title={t('more_hub.values_title')}
+      collapsible
+      headerRight={<MoreButton label={t('more_hub.more_button')} onPress={() => navigation.navigate('MoreHub')} />}
+    >
+      <MemoValueScreen selectedTheme={selectedTheme} />
+    </Page>
+  );
+};
+
+const CodesPage = () => {
+  const { t } = useTranslation();
+  return <Page title={t('more_hub.codes_title')}><CodesScreen /></Page>;
+};
+const ScammersPage = () => {
+  const { t } = useTranslation();
+  return <Page title={t('more_hub.scammer_title')}><ScammerDatabaseScreen /></Page>;
+};
+const WallpapersPage = () => {
+  const { t } = useTranslation();
+  return <Page title={t('more_hub.wallpaper_title')}><HDWallpaperScreen /></Page>;
+};
+const NewsPage = () => {
+  const { t } = useTranslation();
+  return <Page title={t('more_hub.news_title')}><NewsScreen /></Page>;
+};
+// A form with a send button: no banner next to it.
+const ReportPage = () => {
+  const { t } = useTranslation();
+  return <Page title={t('reports.title')} ad={false}><ReportScreen /></Page>;
+};
+const AdminPage = () => <Page title="Reports inbox" ad={false}><AdminReportsInbox /></Page>;
+
+const SCREEN_OPTIONS = { headerShown: false, animation: 'slide_from_right' };
+
+export const MoreStack = ({ selectedTheme }) => {
   const { isAdmin, isModerator } = useGlobalState();
+  const themeValue = useMemo(() => ({ selectedTheme }), [selectedTheme]);
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
-      <Stack.Screen name="ValuesHome">
-        {({ navigation }) => (
-          <Page
-            title={t('more_hub.values_title')}
-            collapsible
-            headerRight={<MoreButton label={t('more_hub.more_button')} onPress={() => navigation.navigate('MoreHub')} />}
-          >
-            <MemoValueScreen selectedTheme={selectedTheme} />
-          </Page>
+    <MoreThemeContext.Provider value={themeValue}>
+      <Stack.Navigator screenOptions={SCREEN_OPTIONS}>
+        <Stack.Screen name="ValuesHome" component={ValuesHomeScreen} />
+        <Stack.Screen name="MoreHub" component={MoreHubScreen} />
+        <Stack.Screen name="MoreCodes" component={CodesPage} />
+        <Stack.Screen name="MoreScammers" component={ScammersPage} />
+        <Stack.Screen name="MoreWallpapers" component={WallpapersPage} />
+        <Stack.Screen name="MoreNews" component={NewsPage} />
+        <Stack.Screen name="MoreReport" component={ReportPage} />
+        {(isAdmin || isModerator) && (
+          <Stack.Screen name="MoreAdmin" component={AdminPage} />
         )}
-      </Stack.Screen>
-      <Stack.Screen name="MoreHub" component={MoreHubScreen} />
-      <Stack.Screen name="MoreCodes">
-        {() => <Page title={t('more_hub.codes_title')}><CodesScreen /></Page>}
-      </Stack.Screen>
-      <Stack.Screen name="MoreScammers">
-        {() => <Page title={t('more_hub.scammer_title')}><ScammerDatabaseScreen /></Page>}
-      </Stack.Screen>
-      <Stack.Screen name="MoreWallpapers">
-        {() => <Page title={t('more_hub.wallpaper_title')}><HDWallpaperScreen /></Page>}
-      </Stack.Screen>
-      <Stack.Screen name="MoreNews">
-        {() => <Page title={t('more_hub.news_title')}><NewsScreen /></Page>}
-      </Stack.Screen>
-      {/* A form with a send button: no banner next to it. */}
-      <Stack.Screen name="MoreReport">
-        {() => <Page title={t('reports.title')} ad={false}><ReportScreen /></Page>}
-      </Stack.Screen>
-      {(isAdmin || isModerator) && (
-        <Stack.Screen name="MoreAdmin">
-          {() => <Page title="Reports inbox" ad={false}><AdminReportsInbox /></Page>}
-        </Stack.Screen>
-      )}
-    </Stack.Navigator>
+      </Stack.Navigator>
+    </MoreThemeContext.Provider>
   );
 };
 

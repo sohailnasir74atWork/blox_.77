@@ -1,5 +1,5 @@
 // HDWallpaperScreen.jsx
-import React, { useMemo, useState, useCallback, useEffect } from "react";
+import React, { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import {
 
 import Icon from "react-native-vector-icons/Ionicons";
 import RNFS from "react-native-fs";
-import { ref, get, update } from "@react-native-firebase/database";
+import { ref, get, update, increment } from "@react-native-firebase/database";
 import { useGlobalState } from "../GlobelStats";
 import InterstitialAdManager from "../Ads/IntAd";
 import { useLocalState } from "../LocalGlobelStats";
@@ -30,6 +30,126 @@ const IMAGE_BASE = "https://pull-blox.b-cdn.net";
 // how many you want to load per "page"
 const PAGE_SIZE = 14;
 
+// The user's own like/dislike per wallpaper ('like' | 'dislike'; no key =
+// none), so a reaction survives leaving the screen. Before, nothing was kept
+// and every visit could like the same wallpaper again.
+let reactionStore;
+try {
+  const { createMMKV } = require("react-native-mmkv");
+  reactionStore = createMMKV({ id: "wallpaper_reactions" });
+} catch (e) {
+  const mem = new Map();
+  reactionStore = { getString: (k) => mem.get(k), set: (k, v) => mem.set(k, v), remove: (k) => mem.delete(k) };
+}
+const readReaction = (id) => reactionStore.getString(id) || "none";
+
+// One grid cell. Memoized, and it owns its image-loading flag: while that flag
+// lived in the screen, every image starting or finishing re-rendered every
+// card (~28 renders per card per page).
+const WallpaperCard = React.memo(function WallpaperCard({
+  item,
+  isDownloading,
+  onOpen,
+  onToggle,
+  onDownload,
+}) {
+  const [isLoading, setIsLoading] = useState(false);
+
+  return (
+    <TouchableOpacity
+      style={styles.card}
+      activeOpacity={0.85}
+      onPress={() => onOpen(item)}
+    >
+      <View>
+        {/* resizeMethod="resize": decode at cell size, not at the source's
+            size; the preview and the download still use the full original. */}
+        <Image
+          source={{ uri: item.thumbUrl || item.url }}
+          style={styles.image}
+          resizeMode="cover"
+          resizeMethod="resize"
+          onLoadStart={() => setIsLoading(true)}
+          onLoadEnd={() => setIsLoading(false)}
+          onError={(e) => {
+            // console.log("IMAGE ERROR:", item.url, e.nativeEvent.error);
+            setIsLoading(false);
+          }}
+        />
+
+        <View style={styles.cardOverlay}>
+          <View style={styles.reactionRow}>
+            <TouchableOpacity
+              onPress={() => onToggle(item.id, "like")}
+              style={styles.iconButton}
+            >
+              <Icon
+                name={
+                  item.likedState === "like" ? "heart" : "heart-outline"
+                }
+                size={18}
+                color={
+                  item.likedState === "like" ? "#ff6b81" : "#ffffff"
+                }
+              />
+              <Text style={styles.counterText}>{item.likes}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => onToggle(item.id, "dislike")}
+              style={styles.iconButton}
+            >
+              <Icon
+                name={
+                  item.likedState === "dislike"
+                    ? "thumbs-down"
+                    : "thumbs-down-outline"
+                }
+                size={18}
+                color={
+                  item.likedState === "dislike"
+                    ? "#ffd166"
+                    : "#ffffff"
+                }
+              />
+              <Text style={styles.counterText}>{item.dislikes}</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={styles.downloadButton}
+            onPress={() => onDownload(item)}
+          >
+            {isDownloading ? (
+              <ActivityIndicator size="small" color="#0d1f17" />
+            ) : (
+              <View
+                style={{ flexDirection: "row", alignItems: "center" }}
+              >
+                <Icon
+                  name="download-outline"
+                  size={18}
+                  color="#0d1f17"
+                  style={{ marginRight: 4 }}
+                />
+                <Text style={styles.downloadText}>
+                  {item.downloads}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {isLoading && (
+          <View style={styles.imageLoaderOverlay}>
+            <ActivityIndicator size="small" color="#ffffff" />
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+});
+
 const HDWallpaperScreen = () => {
   const { appdatabase } = useGlobalState();
   const { localState } = useLocalState();
@@ -40,10 +160,17 @@ const HDWallpaperScreen = () => {
 
   const [totalPics, setTotalPics] = useState(0);
   const [visibleCount, setVisibleCount] = useState(0); // how many are currently shown
-  const [loadingIds, setLoadingIds] = useState({});
   const [fullImageLoading, setFullImageLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [likeData, setLikeData] = useState({});
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadingMoreRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   // 🔢 Fetch pic_numbers once on mount — it's a counter that only changes
   // when an admin adds wallpapers (very rare). The previous onValue
@@ -66,7 +193,7 @@ const HDWallpaperScreen = () => {
   // The old onValue listener re-downloaded the entire like_counter object
   // every time ANYONE liked anything anywhere — bandwidth scaled with both
   // wallpaper count and total user activity. User's own likes update
-  // locally via the optimistic update (no listener needed for that).
+  // locally via toggleReaction (no listener needed for that).
   // Cost: other users' likes don't update live while you're on this screen.
   useEffect(() => {
     if (!appdatabase) return;
@@ -75,7 +202,9 @@ const HDWallpaperScreen = () => {
       .catch(() => { /* keep empty likeData */ });
   }, [appdatabase]);
 
-  // 🧱 Build base items whenever totalPics / visibleCount / likeData changes
+  // 🧱 Build items whenever totalPics / visibleCount / likeData changes.
+  // likeData already holds this user's own taps and downloads (bumpLocal),
+  // and the user's reaction comes from reactionStore.
   useEffect(() => {
     if (!totalPics || !visibleCount) {
       setItems([]);
@@ -85,14 +214,14 @@ const HDWallpaperScreen = () => {
     const countToRender = Math.min(totalPics, visibleCount);
 
     setItems((prev) => {
-      const baseItems = [];
+      const next = [];
 
       for (let i = 1; i <= countToRender; i++) {
         const id = String(i);
         const fileName = `pic${i}.jpg`;
         const remote = likeData[id] || {};
 
-        baseItems.push({
+        const base = {
           id,
           fileName,
           // Full-resolution original (1920x1080). Used by the fullscreen
@@ -107,17 +236,18 @@ const HDWallpaperScreen = () => {
           likes: remote.likes || 0,
           dislikes: remote.dislikes || 0,
           downloads: remote.downloads || 0,
-          likedState: "none", // will be overridden by prev if any
-        });
+          likedState: readReaction(id),
+        };
+
+        // ✅ Unchanged → keep the old object so its memoized card skips the render
+        const existing = prev[i - 1];
+        const same = existing && existing.id === id &&
+          existing.likes === base.likes && existing.dislikes === base.dislikes &&
+          existing.downloads === base.downloads && existing.likedState === base.likedState;
+        next.push(same ? existing : base);
       }
 
-      // keep any existing likedState from previous state
-      return baseItems.map((base) => {
-        const existing = prev.find((p) => p.id === base.id);
-        return existing
-          ? { ...base, likedState: existing.likedState || "none" }
-          : base;
-      });
+      return next;
     });
   }, [totalPics, visibleCount, likeData]);
   const requestAndroidGalleryPermission = async () => {
@@ -143,12 +273,32 @@ const HDWallpaperScreen = () => {
     }
   };
 
+  // Apply this user's own change to the local copy of /like_counter.
+  const bumpLocal = useCallback((id, delta) => {
+    setLikeData((prev) => {
+      const cur = prev[id] || {};
+      const next = { ...cur };
+      Object.keys(delta).forEach((k) => {
+        next[k] = Math.max(0, (cur[k] || 0) + delta[k]);
+      });
+      return { ...prev, [id]: next };
+    });
+  }, []);
+
+  // Deltas via increment(), never absolute counts: writing counts from this
+  // screen's snapshot erased every like other users made since it opened (and
+  // rewrote downloads with it). One update per field, because the rule rejects
+  // a count below 0 and a rejected multi-field update would drop the other
+  // field's change too.
   const pushCounters = useCallback(
-    (id, partial) => {
+    (id, delta) => {
       if (!appdatabase) return;
       const nodeRef = ref(appdatabase, `like_counter/${id}`);
-      update(nodeRef, partial).catch((e) => {
-        // console.log("Firebase like_counter update error:", e);
+      Object.keys(delta).forEach((field) => {
+        if (!delta[field]) return;
+        update(nodeRef, { [field]: increment(delta[field]) }).catch((e) => {
+          // console.log("Firebase like_counter update error:", e);
+        });
       });
     },
     [appdatabase],
@@ -156,66 +306,31 @@ const HDWallpaperScreen = () => {
 
   const toggleReaction = useCallback(
     (id, reaction) => {
-      let fbPayload = null;
+      // The stored reaction is read and written synchronously, so fast
+      // repeat taps can't count twice.
+      const prevState = readReaction(id);
+      const nextState = prevState === reaction ? "none" : reaction;
 
-      // update list items
-      setItems((prev) =>
-        prev.map((item) => {
-          if (item.id !== id) return item;
+      const delta = { likes: 0, dislikes: 0 };
+      if (prevState === "like") delta.likes -= 1;
+      if (prevState === "dislike") delta.dislikes -= 1;
+      if (nextState === "like") delta.likes += 1;
+      if (nextState === "dislike") delta.dislikes += 1;
 
-          let { likes, dislikes, likedState } = item;
+      if (nextState === "none") reactionStore.remove(id);
+      else reactionStore.set(id, nextState);
 
-          if (reaction === "like") {
-            if (likedState === "like") {
-              likes = Math.max(0, likes - 1);
-              likedState = "none";
-            } else {
-              likes += 1;
-              if (likedState === "dislike")
-                dislikes = Math.max(0, dislikes - 1);
-              likedState = "like";
-            }
-          } else if (reaction === "dislike") {
-            if (likedState === "dislike") {
-              dislikes = Math.max(0, dislikes - 1);
-              likedState = "none";
-            } else {
-              dislikes += 1;
-              if (likedState === "like") likes = Math.max(0, likes - 1);
-              likedState = "dislike";
-            }
-          }
-
-          const updated = { ...item, likes, dislikes, likedState };
-          fbPayload = { id, likes, dislikes, downloads: item.downloads };
-          return updated;
-        }),
-      );
+      bumpLocal(id, delta);
 
       // keep modal state in sync
       setSelected((prevSelected) => {
         if (!prevSelected || prevSelected.id !== id) return prevSelected;
-
-        let { likedState } = prevSelected;
-
-        if (reaction === "like") {
-          likedState = likedState === "like" ? "none" : "like";
-        } else if (reaction === "dislike") {
-          likedState = likedState === "dislike" ? "none" : "dislike";
-        }
-
-        return { ...prevSelected, likedState };
+        return { ...prevSelected, likedState: nextState };
       });
 
-      if (fbPayload) {
-        pushCounters(fbPayload.id, {
-          likes: fbPayload.likes,
-          dislikes: fbPayload.dislikes,
-          downloads: fbPayload.downloads,
-        });
-      }
+      pushCounters(id, delta);
     },
-    [pushCounters],
+    [bumpLocal, pushCounters],
   );
 
   const handleRefresh = useCallback(() => {
@@ -226,7 +341,6 @@ const HDWallpaperScreen = () => {
     // Reset visible count (first page), items will rebuild from likeData
     setVisibleCount(Math.min(PAGE_SIZE, totalPics));
 
-    setLoadingIds({});
     setSelected(null);
     setFullImageLoading(false);
 
@@ -267,17 +381,14 @@ const HDWallpaperScreen = () => {
 
           await CameraRoll.save(localPath, { type: 'photo' });
 
-          // update counters as you already do...
-          let nextDownloads = 0;
-          setItems((prev) =>
-            prev.map((w) => {
-              if (w.id !== item.id) return w;
-              const updated = { ...w, downloads: w.downloads + 1 };
-              nextDownloads = updated.downloads;
-              return updated;
-            }),
-          );
-          pushCounters(item.id, { downloads: nextDownloads });
+          // Local copy first for immediate feedback, then +1 on the server
+          // (never the absolute count from this screen's snapshot).
+          bumpLocal(item.id, { downloads: 1 });
+          setSelected((prevSelected) => {
+            if (!prevSelected || prevSelected.id !== item.id) return prevSelected;
+            return { ...prevSelected, downloads: (prevSelected.downloads || 0) + 1 };
+          });
+          pushCounters(item.id, { downloads: 1 });
 
           Alert.alert('Downloaded', 'Wallpaper saved to your gallery.');
         } else {
@@ -290,16 +401,30 @@ const HDWallpaperScreen = () => {
           e?.message || 'Something went wrong while downloading.',
         );
       } finally {
-        setDownloadingId(null);
+        if (mountedRef.current) setDownloadingId(null);
       }
     },
-    [pushCounters],
+    [bumpLocal, pushCounters],
   );
 
+  const openPreview = useCallback((item) => {
+    setFullImageLoading(true);
+    setSelected(item);
+  }, []);
 
-  // 🔽 Load more (next 14)
+  // 🔽 Load more (next 14). Non-Pro users see an interstitial first. One load
+  // at a time (a ref, since render state lags a fast double tap), and no
+  // state updates once the screen is gone.
   const handleLoadMore = useCallback(() => {
+    if (loadingMoreRef.current) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+
     const callbackfunction = () => {
+      // A short cooldown: a quick double tap loads one page, not two plus an ad.
+      setTimeout(() => { loadingMoreRef.current = false; }, 400);
+      if (!mountedRef.current) return;
+      setLoadingMore(false);
       setVisibleCount((prev) => {
         if (!totalPics) return prev;
         const next = prev + PAGE_SIZE;
@@ -326,116 +451,16 @@ const HDWallpaperScreen = () => {
   }, [totalPics, localState.isPro]);
 
   const renderItem = useCallback(
-    ({ item }) => {
-      const isLoading = !!loadingIds[item.id];
-
-      return (
-        <TouchableOpacity
-          style={styles.card}
-          activeOpacity={0.85}
-          onPress={() => {
-            setFullImageLoading(true);
-            setSelected(item);
-          }}
-        >
-          <View>
-            <Image
-              source={{ uri: item.thumbUrl || item.url }}
-              style={styles.image}
-              resizeMode="cover"
-              onLoadStart={() => {
-                setLoadingIds((prev) => ({ ...prev, [item.id]: true }));
-              }}
-              onLoadEnd={() => {
-                setLoadingIds((prev) => {
-                  const next = { ...prev };
-                  delete next[item.id];
-                  return next;
-                });
-              }}
-              onError={(e) => {
-                // console.log("IMAGE ERROR:", item.url, e.nativeEvent.error);
-                setLoadingIds((prev) => {
-                  const next = { ...prev };
-                  delete next[item.id];
-                  return next;
-                });
-              }}
-            />
-
-            <View style={styles.cardOverlay}>
-              <View style={styles.reactionRow}>
-                <TouchableOpacity
-                  onPress={() => toggleReaction(item.id, "like")}
-                  style={styles.iconButton}
-                >
-                  <Icon
-                    name={
-                      item.likedState === "like" ? "heart" : "heart-outline"
-                    }
-                    size={18}
-                    color={
-                      item.likedState === "like" ? "#ff6b81" : "#ffffff"
-                    }
-                  />
-                  <Text style={styles.counterText}>{item.likes}</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => toggleReaction(item.id, "dislike")}
-                  style={styles.iconButton}
-                >
-                  <Icon
-                    name={
-                      item.likedState === "dislike"
-                        ? "thumbs-down"
-                        : "thumbs-down-outline"
-                    }
-                    size={18}
-                    color={
-                      item.likedState === "dislike"
-                        ? "#ffd166"
-                        : "#ffffff"
-                    }
-                  />
-                  <Text style={styles.counterText}>{item.dislikes}</Text>
-                </TouchableOpacity>
-              </View>
-
-              <TouchableOpacity
-                style={styles.downloadButton}
-                onPress={() => handleDownload(item)}
-              >
-                {downloadingId === item.id ? (
-                  <ActivityIndicator size="small" color="#0d1f17" />
-                ) : (
-                  <View
-                    style={{ flexDirection: "row", alignItems: "center" }}
-                  >
-                    <Icon
-                      name="download-outline"
-                      size={18}
-                      color="#0d1f17"
-                      style={{ marginRight: 4 }}
-                    />
-                    <Text style={styles.downloadText}>
-                      {item.downloads}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            </View>
-
-            {isLoading && (
-              <View style={styles.imageLoaderOverlay}>
-                <ActivityIndicator size="small" color="#ffffff" />
-              </View>
-            )}
-          </View>
-        </TouchableOpacity>
-      );
-    },
-    [downloadingId, handleDownload, toggleReaction, loadingIds],
+    ({ item }) => (
+      <WallpaperCard
+        item={item}
+        isDownloading={downloadingId === item.id}
+        onOpen={openPreview}
+        onToggle={toggleReaction}
+        onDownload={handleDownload}
+      />
+    ),
+    [downloadingId, openPreview, toggleReaction, handleDownload],
   );
 
   const keyExtractor = useCallback((item) => item.id, []);
@@ -446,9 +471,13 @@ const HDWallpaperScreen = () => {
 
     return (
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.loadMoreBtn} onPress={handleLoadMore}>
-          <Text style={styles.loadMoreText}>Load more</Text>
-        </TouchableOpacity>
+        {loadingMore ? (
+          <ActivityIndicator size="small" color="#f9f871" />
+        ) : (
+          <TouchableOpacity style={styles.loadMoreBtn} onPress={handleLoadMore}>
+            <Text style={styles.loadMoreText}>Load more</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   };

@@ -12,7 +12,7 @@
  *  - Rate limit: 1 report per user per 24h
  */
 
-import React, { useState, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import {
     View,
     Text,
@@ -58,6 +58,7 @@ import { safeCompressImage } from '../Helper/safeCompressImage';
 import { useGlobalState, modGateText } from '../GlobelStats';
 import { submitUserReport } from '../Helper/userReports';
 import { useLocalState } from '../LocalGlobelStats';
+import { useTranslation } from 'react-i18next';
 import InterstitialAdManager from '../Ads/IntAd';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -74,23 +75,11 @@ const BUNNY_STORAGE_ZONE = 'post-gag';
 const BUNNY_ACCESS_KEY = '1b7e1a85-dff7-4a98-ba701fc7f9b9-6542-46e2';
 const BUNNY_CDN_BASE = 'https://pull-gag.b-cdn.net';
 
+// global.atob (native in Hermes, as Adopt Me uses for mod evidence) instead of a JS
+// decode loop that stalled the JS thread for hundreds of ms per proof image.
 const base64ToBytes = (base64) => {
     if (!base64 || typeof base64 !== 'string') throw new Error('Invalid base64');
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
-    const str = base64.replace(/[\r\n]+/g, '');
-    const output = [];
-    let i = 0;
-    while (i < str.length) {
-        const e1 = chars.indexOf(str.charAt(i++));
-        const e2 = chars.indexOf(str.charAt(i++));
-        const e3 = chars.indexOf(str.charAt(i++));
-        const e4 = chars.indexOf(str.charAt(i++));
-        if (e1 === -1 || e2 === -1) break;
-        output.push((e1 << 2) | (e2 >> 4));
-        if (e3 !== 64) output.push(((e2 & 15) << 4) | (e3 >> 2));
-        if (e4 !== 64 && e3 !== 64) output.push(((e3 & 3) << 6) | e4);
-    }
-    return Uint8Array.from(output);
+    return Uint8Array.from(global.atob(base64.replace(/[\r\n]+/g, '')), (c) => c.charCodeAt(0));
 };
 
 const PAGE_SIZE = 15;
@@ -125,11 +114,44 @@ const statusLabel = (s) => {
 
 const FILTERS = ['All', 'Verified', 'Unverified'];
 
+// ── Every report filed against one username ──
+// The summary's id is the first report's detail id. Later reports on the same
+// name only bump reportCount and get their own `${username_lc}_${ms}` detail
+// doc, which nothing pointed at. All detail docs (app and website, every
+// version) carry reportedUsername_lc, so they're found by that. A single
+// equality filter needs no composite index; sorted here by the id's ms.
+const MAX_DETAILS_SHOWN = 30;
+const detailMs = (id) => {
+    const ms = Number(String(id).split('_').pop());
+    return Number.isFinite(ms) ? ms : 0;
+};
+const fetchReportDetails = async (db, report, max = MAX_DETAILS_SHOWN) => {
+    const nameLc = report.reportedUsername_lc;
+    const [ownSnap, sameNameSnap] = await Promise.all([
+        getDoc(doc(db, 'scammerDetails', report.id)),
+        // Shown: skip the query for single-report names. Delete (max 0): always look.
+        nameLc && (!max || (report.reportCount || 1) > 1)
+            ? getDocs(max
+                ? query(collection(db, 'scammerDetails'), where('reportedUsername_lc', '==', nameLc), limit(max))
+                : query(collection(db, 'scammerDetails'), where('reportedUsername_lc', '==', nameLc)))
+            : null,
+    ]);
+    const since = detailMs(report.id);
+    const byId = {};
+    if (ownSnap.exists()) byId[ownSnap.id] = { id: ownSnap.id, ...ownSnap.data() };
+    (sameNameSnap?.docs || []).forEach((d) => {
+        // Older than this summary = left behind by an earlier, deleted summary for the same name.
+        if (detailMs(d.id) >= since) byId[d.id] = { id: d.id, ...d.data() };
+    });
+    return Object.values(byId).sort((a, b) => detailMs(a.id) - detailMs(b.id));
+};
+
 // ════════════════════════════════════════════════════════
 //  COMPONENT
 // ════════════════════════════════════════════════════════
 const ScammerDatabaseScreen = () => {
     const { theme, user, isAdmin, getModGate } = useGlobalState();
+    const { t } = useTranslation(); // the submit-form alerts below use it
     const { localState } = useLocalState();
     const isDark = theme === 'dark';
     const isMod = isAdmin || user?.isModerator || user?.isMod;
@@ -139,13 +161,21 @@ const ScammerDatabaseScreen = () => {
 
     // ── List state ──
     const [summaries, setSummaries] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true); // first load starts on mount
     const [refreshing, setRefreshing] = useState(false);
-    const [lastDoc, setLastDoc] = useState(null);
-    const [hasMore, setHasMore] = useState(true);
     const [isSearchMode, setIsSearchMode] = useState(false);
     const [searchText, setSearchText] = useState('');
     const [activeFilter, setActiveFilter] = useState('All');
+    const [searchPending, setSearchPending] = useState(false);
+    // Refs, not render state, so overlapping taps and onEndReached see the
+    // live values. Each list request takes a new id; a response whose id is
+    // no longer current (newer filter, search or refresh) is dropped.
+    const loadingRef = useRef(false);
+    const requestIdRef = useRef(0);
+    const lastDocRef = useRef(null);
+    const hasMoreRef = useRef(true);
+    const searchPendingRef = useRef(false);
+    const submittingRef = useRef(false);
 
     // ── Detail modal state ──
     const [selectedReport, setSelectedReport] = useState(null);
@@ -163,8 +193,10 @@ const ScammerDatabaseScreen = () => {
     const [submitting, setSubmitting] = useState(false);
     const [uploadingImages, setUploadingImages] = useState(false);
 
-    // ── Cache for details ──
+    // ── Cache for details (summary id → its reports) ──
     const detailsCache = useRef({});
+    // The report the detail sheet is showing; a late response for another one is ignored.
+    const requestedDetailIdRef = useRef(null);
 
     // ── Loading action for mod ──
     const [modAction, setModAction] = useState(null); // 'approve' | 'reject' | null
@@ -176,8 +208,12 @@ const ScammerDatabaseScreen = () => {
     //  FETCH SUMMARIES (paginated)
     // ════════════════════════════════════════
     const fetchSummariesPage = useCallback(async (reset = false, filter = activeFilter) => {
-        if (loading) return;
-        if (!reset && !hasMore) return;
+        // A reset (first load, refresh, filter) supersedes whatever is in
+        // flight; a next page needs a cursor and never overlaps another load.
+        if (!reset && (loadingRef.current || !hasMoreRef.current || !lastDocRef.current)) return;
+        const reqId = ++requestIdRef.current;
+        loadingRef.current = true;
+        if (reset) lastDocRef.current = null; // never page another filter's cursor
         setLoading(true);
         try {
             const ref = collection(db, 'scammerSummaries');
@@ -187,10 +223,11 @@ const ScammerDatabaseScreen = () => {
             if (filter === 'Verified') constraints.unshift(where('status', '==', 'verified'));
             else if (filter === 'Unverified') constraints.unshift(where('status', '==', 'unverified'));
 
-            if (!reset && lastDoc) constraints.push(startAfter(lastDoc));
+            if (!reset) constraints.push(startAfter(lastDocRef.current));
 
             const q = query(ref, ...constraints);
             const snap = await getDocs(q);
+            if (reqId !== requestIdRef.current) return;
             const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
             if (reset) {
@@ -198,15 +235,18 @@ const ScammerDatabaseScreen = () => {
             } else {
                 setSummaries((prev) => [...prev, ...list]);
             }
-            setLastDoc(snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null);
-            setHasMore(snap.docs.length === PAGE_SIZE);
+            lastDocRef.current = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null;
+            hasMoreRef.current = snap.docs.length === PAGE_SIZE;
             setIsSearchMode(false);
         } catch (err) {
             console.error('[Scammer] Fetch error:', err);
         } finally {
-            setLoading(false);
+            if (reqId === requestIdRef.current) {
+                loadingRef.current = false;
+                setLoading(false);
+            }
         }
-    }, [db, loading, hasMore, lastDoc, activeFilter]);
+    }, [db, activeFilter]);
 
     // ════════════════════════════════════════
     //  SEARCH
@@ -215,9 +255,11 @@ const ScammerDatabaseScreen = () => {
         const q_lc = text.trim().toLowerCase();
         if (!q_lc) {
             setIsSearchMode(false);
-            fetchSummariesPage(true);
+            await fetchSummariesPage(true);
             return;
         }
+        const reqId = ++requestIdRef.current;
+        loadingRef.current = true;
         setLoading(true);
         setIsSearchMode(true);
         try {
@@ -231,23 +273,52 @@ const ScammerDatabaseScreen = () => {
                 limit(PAGE_SIZE),
             );
             const snap = await getDocs(q);
+            if (reqId !== requestIdRef.current) return;
             const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
             setSummaries(list);
-            setHasMore(false); // search doesn't paginate
+            hasMoreRef.current = false; // search doesn't paginate
         } catch (err) {
             console.error('[Scammer] Search error:', err);
         } finally {
-            setLoading(false);
+            if (reqId === requestIdRef.current) {
+                loadingRef.current = false;
+                setLoading(false);
+            }
         }
     }, [db, fetchSummariesPage]);
+
+    // Search button / keyboard "search": the ad (non-Pro) can take ~3 s, so
+    // one search at a time, with a spinner in place of the button meanwhile.
+    const runSearch = useCallback(() => {
+        if (searchPendingRef.current) return;
+        const text = searchText;
+        searchPendingRef.current = true;
+        setSearchPending(true);
+        const go = async () => {
+            try {
+                await searchSummaries(text);
+            } finally {
+                searchPendingRef.current = false;
+                setSearchPending(false);
+            }
+        };
+        if (!localState.isPro && text.trim()) {
+            try {
+                InterstitialAdManager.showAd(go);
+            } catch (err) {
+                console.warn('[AdManager] Failed to show ad:', err);
+                go();
+            }
+        } else {
+            go();
+        }
+    }, [searchText, searchSummaries, localState.isPro]);
 
     // ════════════════════════════════════════
     //  REFRESH
     // ════════════════════════════════════════
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
-        setLastDoc(null);
-        setHasMore(true);
         if (isSearchMode && searchText.trim()) {
             await searchSummaries(searchText);
         } else {
@@ -255,38 +326,38 @@ const ScammerDatabaseScreen = () => {
             await fetchSummariesPage(true, activeFilter);
         }
         setRefreshing(false);
-    }, [db, isSearchMode, searchText, searchSummaries, fetchSummariesPage, activeFilter]);
+    }, [isSearchMode, searchText, searchSummaries, fetchSummariesPage, activeFilter]);
 
-    // Auto-load on first render
-    const didFirstLoad = useRef(false);
-    if (!didFirstLoad.current) {
-        didFirstLoad.current = true;
-        setTimeout(() => fetchSummariesPage(true), 100);
-    }
+    // Auto-load on mount
+    useEffect(() => {
+        fetchSummariesPage(true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // ════════════════════════════════════════
     //  DETAIL (fetch on tap, cache)
     // ════════════════════════════════════════
-    const fetchDetails = useCallback(async (reportId) => {
+    const fetchDetails = useCallback(async (report) => {
+        const reportId = report.id;
+        requestedDetailIdRef.current = reportId;
         // check cache
         if (detailsCache.current[reportId]) {
             setDetailData(detailsCache.current[reportId]);
+            setLoadingDetail(false);
             return;
         }
         setLoadingDetail(true);
         try {
-            const snap = await getDoc(doc(db, 'scammerDetails', reportId));
-            if (snap.exists()) {
-                const data = { id: snap.id, ...snap.data() };
-                detailsCache.current[reportId] = data;
-                setDetailData(data);
-            } else {
-                setDetailData(null);
-            }
+            const reports = await fetchReportDetails(db, report);
+            if (reports.length) detailsCache.current[reportId] = reports;
+            // The sheet closed or moved to another report while this loaded:
+            // never show these under someone else's name.
+            if (requestedDetailIdRef.current !== reportId) return;
+            setDetailData(reports.length ? reports : null);
         } catch (err) {
             console.error('[Scammer] Detail fetch error:', err);
         } finally {
-            setLoadingDetail(false);
+            if (requestedDetailIdRef.current === reportId) setLoadingDetail(false);
         }
     }, [db]);
 
@@ -294,8 +365,13 @@ const ScammerDatabaseScreen = () => {
         setSelectedReport(item);
         setDetailData(null);
         setShowDetailModal(true);
-        fetchDetails(item.id);
+        fetchDetails(item);
     }, [fetchDetails]);
+
+    const closeDetail = useCallback(() => {
+        requestedDetailIdRef.current = null;
+        setShowDetailModal(false);
+    }, []);
 
     // ════════════════════════════════════════
     //  UPLOAD IMAGE TO BUNNY
@@ -347,12 +423,13 @@ const ScammerDatabaseScreen = () => {
                 }
             },
         );
-    }, [reportImages.length]);
+    }, [reportImages.length, t]);
 
     // ════════════════════════════════════════
     //  SUBMIT REPORT (with rate limit)
     // ════════════════════════════════════════
     const submitReport = useCallback(async () => {
+        if (submittingRef.current) return; // a second tap before the first re-render
         if (!user?.id) { Alert.alert(t('scammer.sign_in_title'), t('scammer.sign_in_msg')); return; }
         // Banned users can't file scam reports (admins exempt; a mute is chat-only).
         const modGate = getModGate('content');
@@ -380,6 +457,7 @@ const ScammerDatabaseScreen = () => {
             Alert.alert(t('scammer.safety_title'), t('scammer.safety_personal_info')); return;
         }
 
+        submittingRef.current = true;
         setSubmitting(true);
 
         // Core submit logic — called directly (Pro) or after ad (non-Pro)
@@ -518,6 +596,7 @@ const ScammerDatabaseScreen = () => {
                     Alert.alert('Error', 'Failed to submit report. Please try again.');
                 }
             } finally {
+                submittingRef.current = false;
                 setSubmitting(false);
                 setUploadingImages(false);
             }
@@ -542,7 +621,7 @@ const ScammerDatabaseScreen = () => {
                 }
             }, 500);
         });
-    }, [db, user, reportUsername, reportScamType, reportWhat, reportScamDate, reportImages, uploadToBunny, handleRefresh, localState.isPro, getModGate]);
+    }, [db, user, reportUsername, reportScamType, reportWhat, reportScamDate, reportImages, uploadToBunny, handleRefresh, localState.isPro, getModGate, t]);
 
     // ════════════════════════════════════════
     //  APPROVE / REJECT (mod/admin)
@@ -569,8 +648,9 @@ const ScammerDatabaseScreen = () => {
         }
     }, [db, isMod, user, selectedReport]);
 
-    const rejectReport = useCallback(async (reportId) => {
+    const rejectReport = useCallback(async (report) => {
         if (!isMod) return;
+        const reportId = report.id;
         Alert.alert('Delete Report', 'This will permanently delete the report. Continue?', [
             { text: 'Cancel', style: 'cancel' },
             {
@@ -578,9 +658,14 @@ const ScammerDatabaseScreen = () => {
                     setModAction('reject');
                     try {
                         const summaryRef = doc(db, 'scammerSummaries', reportId);
-                        const detailRef = doc(db, 'scammerDetails', reportId);
+                        // Every report under this summary, not only the first
+                        // (uncapped, so none is left orphaned).
+                        const reports = await fetchReportDetails(db, report, 0);
                         await deleteDoc(summaryRef);
-                        await deleteDoc(detailRef);
+                        await Promise.all(
+                            [...new Set([reportId, ...reports.map((r) => r.id)])]
+                                .map((id) => deleteDoc(doc(db, 'scammerDetails', id))),
+                        );
                         // Remove from local state
                         setSummaries((prev) => prev.filter((s) => s.id !== reportId));
                         delete detailsCache.current[reportId];
@@ -655,6 +740,9 @@ const ScammerDatabaseScreen = () => {
         if (loading && summaries.length > 0) {
             return <ActivityIndicator size="small" color="#007AFF" style={{ padding: 16 }} />;
         }
+        if (loading) {
+            return <ActivityIndicator size="large" color="#007AFF" style={{ paddingVertical: 40 }} />;
+        }
         if (summaries.length === 0 && !loading) {
             return <Text style={[s.emptyText, { color: C.muted }]}>No reports found.</Text>;
         }
@@ -664,10 +752,8 @@ const ScammerDatabaseScreen = () => {
     // Handle filter change
     const onFilterChange = useCallback((filter) => {
         setActiveFilter(filter);
-        setLastDoc(null);
-        setHasMore(true);
         setSummaries([]);
-        setTimeout(() => fetchSummariesPage(true, filter), 50);
+        fetchSummariesPage(true, filter);
     }, [fetchSummariesPage]);
 
     // ════════════════════════════════════════
@@ -698,25 +784,17 @@ const ScammerDatabaseScreen = () => {
                     autoCapitalize="none"
                     autoCorrect={false}
                     returnKeyType="search"
-                    onSubmitEditing={() => {
-                        if (!localState.isPro && searchText.trim()) {
-                            InterstitialAdManager.showAd(() => searchSummaries(searchText));
-                        } else {
-                            searchSummaries(searchText);
-                        }
-                    }}
+                    onSubmitEditing={runSearch}
                 />
                 {searchText.length > 0 && (
                     <>
-                        <TouchableOpacity onPress={() => {
-                            if (!localState.isPro && searchText.trim()) {
-                                InterstitialAdManager.showAd(() => searchSummaries(searchText));
-                            } else {
-                                searchSummaries(searchText);
-                            }
-                        }} style={{ padding: 4, marginRight: 4 }}>
-                            <Icon name="search" size={18} color="#007AFF" />
-                        </TouchableOpacity>
+                        {searchPending ? (
+                            <ActivityIndicator size="small" color="#007AFF" style={{ padding: 4, marginRight: 4 }} />
+                        ) : (
+                            <TouchableOpacity onPress={runSearch} style={{ padding: 4, marginRight: 4 }}>
+                                <Icon name="search" size={18} color="#007AFF" />
+                            </TouchableOpacity>
+                        )}
                         <TouchableOpacity onPress={() => { setSearchText(''); setIsSearchMode(false); fetchSummariesPage(true); }} style={{ padding: 4 }}>
                             <Icon name="close-circle" size={18} color={C.sub} />
                         </TouchableOpacity>
@@ -746,7 +824,7 @@ const ScammerDatabaseScreen = () => {
                 ListFooterComponent={ListFooter}
                 contentContainerStyle={{ paddingBottom: 80 }}
                 showsVerticalScrollIndicator={false}
-                onEndReached={() => { if (!isSearchMode && hasMore && !loading) fetchSummariesPage(false); }}
+                onEndReached={() => { if (!isSearchMode) fetchSummariesPage(false); }}
                 onEndReachedThreshold={0.3}
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#007AFF" />
@@ -768,14 +846,20 @@ const ScammerDatabaseScreen = () => {
             {/* ════════════════════════════════════════ */}
             {/*  DETAIL MODAL                           */}
             {/* ════════════════════════════════════════ */}
-            <Modal visible={showDetailModal} animationType="slide" transparent>
+            <Modal
+                visible={showDetailModal}
+                animationType="slide"
+                transparent
+                // Android back: close the enlarged proof first, then the sheet.
+                onRequestClose={() => (fullscreenImage ? setFullscreenImage(null) : closeDetail())}
+            >
                 <View style={s.modalOverlay}>
                     <View style={[s.modalContent, { backgroundColor: C.card, paddingBottom: Math.max(insets.bottom, 20) }]}>
                         <ScrollView showsVerticalScrollIndicator={false}>
                             {/* Close */}
                             <View style={s.modalHeader}>
                                 <Text style={[s.modalTitle, { color: C.text }]}>Report Details</Text>
-                                <TouchableOpacity onPress={() => setShowDetailModal(false)} style={{ padding: 4 }}>
+                                <TouchableOpacity onPress={closeDetail} style={{ padding: 4 }}>
                                     <Icon name="close" size={22} color={C.sub} />
                                 </TouchableOpacity>
                             </View>
@@ -804,29 +888,36 @@ const ScammerDatabaseScreen = () => {
                                 <ActivityIndicator size="small" color="#007AFF" style={{ padding: 20 }} />
                             ) : detailData ? (
                                 <View>
-                                    <View style={[s.detailField, { borderColor: C.border }]}>
-                                        <Text style={[s.detailLabel, { color: C.sub }]}>Scam Type</Text>
-                                        <Text style={[s.detailValue, { color: C.text }]}>{detailData.scamType || 'N/A'}</Text>
-                                    </View>
+                                    {detailData.map((d, idx) => (
+                                        <View key={d.id} style={idx > 0 ? { marginTop: 16 } : null}>
+                                            {detailData.length > 1 && (
+                                                <Text style={[s.detailLabel, { color: C.sub }]}>#{idx + 1}</Text>
+                                            )}
+                                            <View style={[s.detailField, { borderColor: C.border }]}>
+                                                <Text style={[s.detailLabel, { color: C.sub }]}>Scam Type</Text>
+                                                <Text style={[s.detailValue, { color: C.text }]}>{d.scamType || 'N/A'}</Text>
+                                            </View>
 
-                                    <View style={[s.detailField, { borderColor: C.border }]}>
-                                        <Text style={[s.detailLabel, { color: C.sub }]}>What Happened</Text>
-                                        <Text style={[s.detailValue, { color: C.text }]}>{detailData.whatHappened || 'N/A'}</Text>
-                                    </View>
+                                            <View style={[s.detailField, { borderColor: C.border }]}>
+                                                <Text style={[s.detailLabel, { color: C.sub }]}>What Happened</Text>
+                                                <Text style={[s.detailValue, { color: C.text }]}>{d.whatHappened || 'N/A'}</Text>
+                                            </View>
 
-                                    {/* Proof images */}
-                                    {detailData.proofUrls?.length > 0 && (
-                                        <View style={{ marginTop: 8 }}>
-                                            <Text style={[s.detailLabel, { color: C.sub, marginBottom: 6 }]}>Proof Screenshots</Text>
-                                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                                                {detailData.proofUrls.map((url, i) => (
-                                                    <TouchableOpacity key={i} activeOpacity={0.8} onPress={() => setFullscreenImage(url)}>
-                                                        <Image source={{ uri: url }} style={s.proofImage} resizeMode="cover" />
-                                                    </TouchableOpacity>
-                                                ))}
-                                            </ScrollView>
+                                            {/* Proof images */}
+                                            {d.proofUrls?.length > 0 && (
+                                                <View style={{ marginTop: 8 }}>
+                                                    <Text style={[s.detailLabel, { color: C.sub, marginBottom: 6 }]}>Proof Screenshots</Text>
+                                                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                                        {d.proofUrls.map((url, i) => (
+                                                            <TouchableOpacity key={i} activeOpacity={0.8} onPress={() => setFullscreenImage(url)}>
+                                                                <Image source={{ uri: url }} style={s.proofImage} resizeMode="cover" />
+                                                            </TouchableOpacity>
+                                                        ))}
+                                                    </ScrollView>
+                                                </View>
+                                            )}
                                         </View>
-                                    )}
+                                    ))}
 
                                     {/* Mod/Admin actions */}
                                     {isMod && selectedReport && (
@@ -849,7 +940,7 @@ const ScammerDatabaseScreen = () => {
                                                 </TouchableOpacity>
                                                 <TouchableOpacity
                                                     style={[s.modBtn, { backgroundColor: '#FF3B30' }]}
-                                                    onPress={() => rejectReport(selectedReport.id)}
+                                                    onPress={() => rejectReport(selectedReport)}
                                                     disabled={!!modAction}
                                                 >
                                                     {modAction === 'reject' ? (
@@ -892,7 +983,7 @@ const ScammerDatabaseScreen = () => {
             {/* ════════════════════════════════════════ */}
             {/*  REPORT FORM MODAL                      */}
             {/* ════════════════════════════════════════ */}
-            <Modal visible={showReportModal} animationType="slide" transparent>
+            <Modal visible={showReportModal} animationType="slide" transparent onRequestClose={() => setShowReportModal(false)}>
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={s.modalOverlay}>
                     <View style={[s.modalContent, { backgroundColor: C.card, maxHeight: '90%', paddingBottom: Math.max(insets.bottom, 20) }]}>
                         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">

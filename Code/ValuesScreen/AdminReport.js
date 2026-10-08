@@ -47,6 +47,7 @@ const SEGMENTS = [
 ];
 
 const fmt = (ms) => (ms ? new Date(ms).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—');
+const NO_BANNED_USERS = [];
 
 // Merge a page into what's loaded: endAt() is inclusive, so the boundary row
 // arrives twice.
@@ -55,6 +56,99 @@ const mergeById = (prev, next) => {
   next.forEach((r) => seen.set(r.id, r));
   return [...seen.values()].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 };
+
+// Cards are memoized with stable callbacks, so a state change elsewhere (a
+// filter tap, the viewer, the profile drawer) doesn't re-render every card.
+const Sender = ({ r, c, onOpenProfile, onCopy }) => {
+  const known = r.userId && r.userId !== 'anonymous';
+  return (
+    <View style={styles.senderRow}>
+      <TouchableOpacity onPress={() => onOpenProfile(r)} disabled={!known} style={styles.sender} activeOpacity={0.7}>
+        {r.avatar ? (
+          <Image source={{ uri: r.avatar }} style={styles.avatar} />
+        ) : (
+          <View style={[styles.avatar, { backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center' }]}>
+            <Text style={{ color: '#FFF', fontWeight: '800' }}>{String(r.userName || '?').charAt(0).toUpperCase()}</Text>
+          </View>
+        )}
+        <View style={{ flex: 1, marginLeft: 10 }}>
+          <Text style={[styles.name, { color: c.text }]} numberOfLines={1}>
+            {r.userName || 'Anonymous'}{known ? <Text style={{ color: ACCENT, fontWeight: '700', fontSize: 12 }}>  · Profile ›</Text> : null}
+          </Text>
+          <Text style={{ color: c.textMuted, fontSize: 11 }}>{fmt(r.createdAt)}</Text>
+        </View>
+      </TouchableOpacity>
+      {known ? (
+        <TouchableOpacity onPress={() => onCopy(r.userId)} style={[styles.idPill, { borderColor: c.border }]} hitSlop={6}>
+          <Icon name="copy-outline" size={12} color={c.textSecondary} />
+          <Text style={{ color: c.textSecondary, fontSize: 11, fontWeight: '700', marginLeft: 4 }} numberOfLines={1}>
+            {r.userId.slice(0, 8)}…
+          </Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+};
+
+const ReportCard = React.memo(function ReportCard({ r, c, onOpenProfile, onCopy, onView, onToggleDone, onDelete }) {
+  const done = r.status === 'done';
+  return (
+    <View style={[styles.card, { backgroundColor: c.bgAlt, borderColor: c.border, opacity: done ? 0.75 : 1 }]}>
+      <Sender r={r} c={c} onOpenProfile={onOpenProfile} onCopy={onCopy} />
+      <View style={styles.chips}>
+        {r.type === 'complaint' ? (
+          <View style={[styles.chip, { backgroundColor: 'rgba(220,38,38,0.12)' }]}>
+            <Text style={[styles.chipText, { color: DANGER }]}>{CATEGORY_LABEL[r.category] || 'Complaint'}</Text>
+          </View>
+        ) : null}
+        <View style={[styles.chip, { backgroundColor: done ? 'rgba(22,163,74,0.14)' : 'rgba(124,58,237,0.12)' }]}>
+          <Text style={[styles.chipText, { color: done ? DONE : ACCENT }]}>{done ? 'Done' : 'Open'}</Text>
+        </View>
+      </View>
+      <Text style={[styles.body, { color: c.text }]} selectable>{r.text}</Text>
+      {r.images?.length ? (
+        <View style={styles.thumbs}>
+          {r.images.map((u) => (
+            <TouchableOpacity key={u} onPress={() => onView(u)} activeOpacity={0.85}>
+              <Image source={{ uri: u }} style={styles.thumb} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : null}
+      {r.app ? <Text style={{ color: c.textMuted, fontSize: 11, marginTop: 8 }}>App: {r.app}</Text> : null}
+      <View style={styles.actions}>
+        <TouchableOpacity onPress={() => onToggleDone(r)} style={[styles.btn, { backgroundColor: done ? c.bg : DONE, borderColor: done ? c.border : DONE }]}>
+          <Icon name={done ? 'refresh' : 'checkmark'} size={15} color={done ? c.text : '#FFF'} />
+          <Text style={[styles.btnText, { color: done ? c.text : '#FFF' }]}>{done ? 'Reopen' : 'Mark done'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => onDelete(r, false)} style={[styles.btn, { borderColor: 'rgba(220,38,38,0.4)' }]}>
+          <Icon name="trash-outline" size={15} color={DANGER} />
+          <Text style={[styles.btnText, { color: DANGER }]}>Delete</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+});
+
+const LegacyCard = React.memo(function LegacyCard({ r, c, onOpenProfile, onCopy, onDelete }) {
+  return (
+    <View style={[styles.card, { backgroundColor: c.bgAlt, borderColor: c.border }]}>
+      <Sender r={r} c={c} onOpenProfile={onOpenProfile} onCopy={onCopy} />
+      <View style={styles.chips}>
+        <View style={[styles.chip, { backgroundColor: c.bg }]}>
+          <Text style={[styles.chipText, { color: c.textSecondary }]}>{r.type === 'quick_suggestion' ? 'Quick suggestion' : 'Feedback'}</Text>
+        </View>
+      </View>
+      <Text style={[styles.body, { color: c.text }]} selectable>{r.text}</Text>
+      <View style={styles.actions}>
+        <TouchableOpacity onPress={() => onDelete(r, true)} style={[styles.btn, { borderColor: 'rgba(220,38,38,0.4)' }]}>
+          <Icon name="trash-outline" size={15} color={DANGER} />
+          <Text style={[styles.btnText, { color: DANGER }]}>Delete</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+});
 
 const AdminReportsInbox = () => {
   const { appdatabase, theme } = useGlobalState();
@@ -139,15 +233,17 @@ const AdminReportsInbox = () => {
     return (reports || []).filter((r) => r.type === segment && (statusFilter === 'all' || (statusFilter === 'done' ? r.status === 'done' : r.status !== 'done')));
   }, [segment, statusFilter, reports, legacy]);
 
-  const copy = (value) => {
+  const copy = useCallback((value) => {
     Clipboard.setString(String(value));
     showSuccessMessage('User ID copied', String(value));
-  };
+  }, []);
 
-  const openProfile = (r) => {
+  const openProfile = useCallback((r) => {
     if (!r.userId || r.userId === 'anonymous') return;
     setProfile({ senderId: r.userId, sender: r.userName || 'Player', avatar: r.avatar || null });
-  };
+  }, []);
+
+  const closeProfile = useCallback(() => setProfile(null), []);
 
   const startChat = () => {
     const p = profile;
@@ -160,7 +256,7 @@ const AdminReportsInbox = () => {
     }, 300);
   };
 
-  const toggleDone = async (r) => {
+  const toggleDone = useCallback(async (r) => {
     const next = r.status === 'done' ? 'open' : 'done';
     setReports((list) => list.map((x) => (x.id === r.id ? { ...x, status: next } : x)));
     try {
@@ -169,9 +265,9 @@ const AdminReportsInbox = () => {
       setReports((list) => list.map((x) => (x.id === r.id ? { ...x, status: r.status } : x)));
       showErrorMessage('Not saved', e?.message);
     }
-  };
+  }, [appdatabase]);
 
-  const confirmDelete = (r, isLegacy) => {
+  const confirmDelete = useCallback((r, isLegacy) => {
     Alert.alert('Delete this?', 'It is removed for good.', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -192,96 +288,15 @@ const AdminReportsInbox = () => {
         },
       },
     ]);
-  };
+  }, [appdatabase]);
 
-  const sender = (r) => {
-    const known = r.userId && r.userId !== 'anonymous';
-    return (
-      <View style={styles.senderRow}>
-        <TouchableOpacity onPress={() => openProfile(r)} disabled={!known} style={styles.sender} activeOpacity={0.7}>
-          {r.avatar ? (
-            <Image source={{ uri: r.avatar }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, { backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center' }]}>
-              <Text style={{ color: '#FFF', fontWeight: '800' }}>{String(r.userName || '?').charAt(0).toUpperCase()}</Text>
-            </View>
-          )}
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={[styles.name, { color: c.text }]} numberOfLines={1}>
-              {r.userName || 'Anonymous'}{known ? <Text style={{ color: ACCENT, fontWeight: '700', fontSize: 12 }}>  · Profile ›</Text> : null}
-            </Text>
-            <Text style={{ color: c.textMuted, fontSize: 11 }}>{fmt(r.createdAt)}</Text>
-          </View>
-        </TouchableOpacity>
-        {known ? (
-          <TouchableOpacity onPress={() => copy(r.userId)} style={[styles.idPill, { borderColor: c.border }]} hitSlop={6}>
-            <Icon name="copy-outline" size={12} color={c.textSecondary} />
-            <Text style={{ color: c.textSecondary, fontSize: 11, fontWeight: '700', marginLeft: 4 }} numberOfLines={1}>
-              {r.userId.slice(0, 8)}…
-            </Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
-    );
-  };
+  const renderReport = useCallback(({ item }) => (
+    <ReportCard r={item} c={c} onOpenProfile={openProfile} onCopy={copy} onView={setViewer} onToggleDone={toggleDone} onDelete={confirmDelete} />
+  ), [c, openProfile, copy, toggleDone, confirmDelete]);
 
-  const renderReport = ({ item: r }) => {
-    const done = r.status === 'done';
-    return (
-      <View style={[styles.card, { backgroundColor: c.bgAlt, borderColor: c.border, opacity: done ? 0.75 : 1 }]}>
-        {sender(r)}
-        <View style={styles.chips}>
-          {r.type === 'complaint' ? (
-            <View style={[styles.chip, { backgroundColor: 'rgba(220,38,38,0.12)' }]}>
-              <Text style={[styles.chipText, { color: DANGER }]}>{CATEGORY_LABEL[r.category] || 'Complaint'}</Text>
-            </View>
-          ) : null}
-          <View style={[styles.chip, { backgroundColor: done ? 'rgba(22,163,74,0.14)' : 'rgba(124,58,237,0.12)' }]}>
-            <Text style={[styles.chipText, { color: done ? DONE : ACCENT }]}>{done ? 'Done' : 'Open'}</Text>
-          </View>
-        </View>
-        <Text style={[styles.body, { color: c.text }]} selectable>{r.text}</Text>
-        {r.images?.length ? (
-          <View style={styles.thumbs}>
-            {r.images.map((u) => (
-              <TouchableOpacity key={u} onPress={() => setViewer(u)} activeOpacity={0.85}>
-                <Image source={{ uri: u }} style={styles.thumb} />
-              </TouchableOpacity>
-            ))}
-          </View>
-        ) : null}
-        {r.app ? <Text style={{ color: c.textMuted, fontSize: 11, marginTop: 8 }}>App: {r.app}</Text> : null}
-        <View style={styles.actions}>
-          <TouchableOpacity onPress={() => toggleDone(r)} style={[styles.btn, { backgroundColor: done ? c.bg : DONE, borderColor: done ? c.border : DONE }]}>
-            <Icon name={done ? 'refresh' : 'checkmark'} size={15} color={done ? c.text : '#FFF'} />
-            <Text style={[styles.btnText, { color: done ? c.text : '#FFF' }]}>{done ? 'Reopen' : 'Mark done'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => confirmDelete(r, false)} style={[styles.btn, { borderColor: 'rgba(220,38,38,0.4)' }]}>
-            <Icon name="trash-outline" size={15} color={DANGER} />
-            <Text style={[styles.btnText, { color: DANGER }]}>Delete</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  };
-
-  const renderLegacy = ({ item: r }) => (
-    <View style={[styles.card, { backgroundColor: c.bgAlt, borderColor: c.border }]}>
-      {sender(r)}
-      <View style={styles.chips}>
-        <View style={[styles.chip, { backgroundColor: c.bg }]}>
-          <Text style={[styles.chipText, { color: c.textSecondary }]}>{r.type === 'quick_suggestion' ? 'Quick suggestion' : 'Feedback'}</Text>
-        </View>
-      </View>
-      <Text style={[styles.body, { color: c.text }]} selectable>{r.text}</Text>
-      <View style={styles.actions}>
-        <TouchableOpacity onPress={() => confirmDelete(r, true)} style={[styles.btn, { borderColor: 'rgba(220,38,38,0.4)' }]}>
-          <Icon name="trash-outline" size={15} color={DANGER} />
-          <Text style={[styles.btnText, { color: DANGER }]}>Delete</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+  const renderLegacy = useCallback(({ item }) => (
+    <LegacyCard r={item} c={c} onOpenProfile={openProfile} onCopy={copy} onDelete={confirmDelete} />
+  ), [c, openProfile, copy, confirmDelete]);
 
   const loaded = segment === 'legacy' ? legacy : reports;
   const atEnd = segment === 'legacy' ? legacyEnd : reportsEnd;
@@ -347,14 +362,17 @@ const AdminReportsInbox = () => {
         </View>
       </Modal>
 
-      <ProfileBottomDrawer
-        isVisible={!!profile}
-        toggleModal={() => setProfile(null)}
-        startChat={startChat}
-        selectedUser={profile}
-        isOnline={false}
-        bannedUsers={[]}
-      />
+      {/* Mounted only while open: it is a ~3,200-line component. */}
+      {profile ? (
+        <ProfileBottomDrawer
+          isVisible
+          toggleModal={closeProfile}
+          startChat={startChat}
+          selectedUser={profile}
+          isOnline={false}
+          bannedUsers={NO_BANNED_USERS}
+        />
+      ) : null}
     </View>
   );
 };

@@ -7,7 +7,7 @@
  * has looked at each one. Data rules: Code/Reports/reportsApi.js.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, Image, ActivityIndicator, StyleSheet, RefreshControl,
 } from 'react-native';
@@ -38,6 +38,7 @@ export default function ReportScreen() {
   const [text, setText] = useState('');
   const [images, setImages] = useState([]);
   const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false); // render state lags a fast double tap
   const [progress, setProgress] = useState(null);
   const [mine, setMine] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -65,9 +66,10 @@ export default function ReportScreen() {
   };
 
   const submit = async () => {
-    if (sending) return;
+    if (sendingRef.current) return;
     if (type === 'complaint' && !category) { showErrorMessage(t('reports.err_category')); return; }
     if (!text.trim()) { showErrorMessage(t('reports.err_text')); return; }
+    sendingRef.current = true;
     setSending(true);
     try {
       await sendReport(appdatabase, user, { type, category, text, imageUris: images }, (done, total) => setProgress({ done, total }));
@@ -80,6 +82,7 @@ export default function ReportScreen() {
         : 'err_generic';
       showErrorMessage(t(`reports.${key}`));
     } finally {
+      sendingRef.current = false;
       setSending(false);
       setProgress(null);
     }
