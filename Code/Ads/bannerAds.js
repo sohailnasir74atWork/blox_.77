@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { View, Platform } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 import getAdUnitId from './ads';
 import { npaRequiredFor } from './consent';
@@ -74,7 +75,24 @@ const BannerAdComponent = ({
   // $0.39 → $0.16, MM2 US $0.99 → $0.42 eCPM). The first request of a session
   // expands until the user collapses it; refreshes are ordinary banners. iOS
   // banners earned the same without it, so iOS stays a plain strip.
-  const isCollapsible = collapsible && Platform.OS === 'android';
+  //
+  // The expanded ad is drawn ABOVE the app, not inside this screen, so it
+  // stayed floating over the next screen the player opened (verified on the
+  // emulator, 2026-10-07: Values ▸ More showed the Values list's expanded ad
+  // over the hub, and a tap on a hub card clicked the ad). So a collapsible
+  // banner is unmounted while its screen is out of focus, which removes the
+  // overlay, and once its screen has been left it comes back as a plain
+  // banner: it can expand only on the first visit.
+  const wantsCollapsible = collapsible && Platform.OS === 'android';
+  const isFocused = useIsFocused();
+  const [expandSpent, setExpandSpent] = useState(false);
+  useEffect(() => {
+    if (wantsCollapsible && !isFocused) {
+      setExpandSpent(true);
+      setIsAdLoaded(false);
+    }
+  }, [wantsCollapsible, isFocused]);
+  const isCollapsible = wantsCollapsible && !expandSpent;
   const requestOptions = useMemo(
     () => ({
       requestNonPersonalizedAdsOnly: npaRequiredFor(localState?.consentStatus),
@@ -86,6 +104,7 @@ const BannerAdComponent = ({
   // Pro (either source) never sees a banner, whatever the call site checked;
   // and nothing mounts — so nothing is requested — before consent + init.
   if (!visible || adFree || !adsReady) return null;
+  if (wantsCollapsible && !isFocused) return null;
 
   // The BannerAd is mounted ONCE and never unmounted while visible. The
   // old code conditionally re-rendered a *different* BannerAd once
