@@ -1,18 +1,22 @@
 /**
- * BirthdaysScreen — your birthday, and other players' birthdays this week.
- * Ported from Adopt Me (adoptme-jan7/Code/Birthdays, 2026-10-07). Root-stack
- * route `Birthdays` (headerShown false).
+ * BirthdaysScreen — your birthday, and other players' birthdays today and
+ * tomorrow.
+ * Ported from Adopt Me (adoptme-jan7/Code/Birthdays, 2026-10-07; paging,
+ * skeleton and one-tap wishes 2026-10-08). Root-stack route `Birthdays`.
  *
  * Only month and day are ever shown (never a year or an age), and only for
  * players who left "Show my birthday" on and are 13 or older; the server
- * enforces both (supabase/036_birthdays.sql). On your own birthday this is
- * the celebration: the once-a-year stars gift and the wishes you got.
- * Wishes are four fixed messages, so they are safe-chat friendly.
+ * enforces both (supabase/036–037). On your own birthday this is the
+ * celebration: the once-a-year stars gift and the wishes you got.
+ *
+ * The list comes 20 players at a time ("Load more"), today first (037). A
+ * wish is one tap: the button spins while the request is in flight, and
+ * other buttons can be tapped meanwhile; each wish is sent on its own.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch, ActivityIndicator, RefreshControl,
+  View, Text, FlatList, StyleSheet, TouchableOpacity, Switch, ActivityIndicator, RefreshControl, Animated,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,47 +26,147 @@ import { useGlobalState } from '../GlobelStats';
 import { getThemeColors } from '../Helper/themeColors';
 import { showErrorMessage, showSuccessMessage } from '../Helper/MessageHelper';
 import { trackGrowthEvent } from '../Helper/growthAnalytics';
+import { useHaptic } from '../Helper/HepticFeedBack';
 import SafeLottieView from '../Helper/SafeLottieView';
 import {
   setBirthdayUser, getMyBirthday, peekMyBirthday, peekBirthdayList, setBirthdayVisibility, listBirthdays,
-  sendBirthdayWish, birthdayErrorKey, invalidateBirthdays, isBirthdayMockActive, getBirthdayMock,
-  enableBirthdayPreview, claimBirthdayGift, flushBirthdayStars, getKnownDob, loadKnownDob, BIRTHDAY_GIFT_STARS,
+  loadMoreBirthdays, sendBirthdayWish, markWished, birthdayErrorKey, invalidateBirthdays, isBirthdayMockActive,
+  getBirthdayMock, enableBirthdayPreview, claimBirthdayGift, flushBirthdayStars, getKnownDob, loadKnownDob,
+  BIRTHDAY_GIFT_STARS,
 } from './birthdayApi';
 import { daysUntilBirthday, formatMonthDay, formatUpcoming } from './birthdayDate';
-import { BirthdayAvatar, WishSheet, wishLine, BIRTHDAY_PINK, BIRTHDAY_GRADIENT } from './BirthdayBits';
+import { BirthdayAvatar, wishLine, BIRTHDAY_PINK, BIRTHDAY_GRADIENT } from './BirthdayBits';
 import EditBirthdaySheet from './EditBirthdaySheet';
 import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
+
+// Every wish from this screen uses the plain "Happy birthday!" message.
+const WISH_TEMPLATE = 'hbd';
+
+// A soft pulse for the loading placeholders (native driver, stops on unmount).
+const usePulse = () => {
+  const value = useRef(new Animated.Value(0.45)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(value, { toValue: 1, duration: 650, useNativeDriver: true }),
+      Animated.timing(value, { toValue: 0.45, duration: 650, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [value]);
+  return value;
+};
+
+/** Placeholder for "Your birthday" or for a few list rows while they load. */
+const Placeholder = ({ c, isDark, rows = 0 }) => {
+  const opacity = usePulse();
+  const bone = { backgroundColor: isDark ? '#334155' : '#E5E7EB' };
+  if (!rows) {
+    return (
+      <Animated.View style={[styles.card, { backgroundColor: c.bgAlt, borderColor: c.border, opacity }]}>
+        <View style={[styles.bone, bone, { width: 90, height: 10 }]} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12 }}>
+          <View style={[bone, { width: 34, height: 34, borderRadius: 17 }]} />
+          <View style={{ marginLeft: 12, flex: 1 }}>
+            <View style={[styles.bone, bone, { width: '45%', height: 16 }]} />
+            <View style={[styles.bone, bone, { width: '30%', height: 10, marginTop: 8 }]} />
+          </View>
+        </View>
+      </Animated.View>
+    );
+  }
+  return (
+    <Animated.View style={[styles.listCard, { backgroundColor: c.bgAlt, borderColor: c.border, opacity }]}>
+      {Array.from({ length: rows }, (_, i) => (
+        <View key={i} style={[styles.row, i < rows - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border }]}>
+          <View style={[bone, { width: 42, height: 42, borderRadius: 21 }]} />
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <View style={[styles.bone, bone, { width: `${50 - (i % 3) * 8}%`, height: 13 }]} />
+            <View style={[styles.bone, bone, { width: '28%', height: 10, marginTop: 7 }]} />
+          </View>
+          <View style={[bone, { width: 76, height: 32, borderRadius: 16 }]} />
+        </View>
+      ))}
+    </Animated.View>
+  );
+};
+
+/** One player. Re-renders only when its own row, wish state or theme changes. */
+const BirthdayRow = memo(({ b, kind, first, last, self, pending, c, lang, t, onWish }) => (
+  <View
+    style={[
+      styles.rowWrap, { backgroundColor: c.bgAlt, borderColor: c.border },
+      first && styles.rowFirst, last && styles.rowLast,
+    ]}
+  >
+    <View style={[styles.row, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border }]}>
+      <BirthdayAvatar uri={b.avatar} name={b.name} size={42} ring={kind === 'today'} />
+      <View style={{ flex: 1, marginLeft: 12 }}>
+        <Text style={[styles.rowName, { color: c.text }]} numberOfLines={1}>{b.name}</Text>
+        <Text style={[styles.rowSub, { color: c.textSecondary }]} numberOfLines={1}>
+          {kind === 'today' ? t('birthdays.wish_count', { count: b.wishes || 0 }) : formatUpcoming(b.month, b.day, lang)}
+        </Text>
+      </View>
+      {kind !== 'today' ? null : self ? (
+        <Text style={[styles.youTag, { color: BIRTHDAY_PINK }]}>{t('birthdays.you')}</Text>
+      ) : b.wished ? (
+        <View style={[styles.wishedPill, { borderColor: c.border }]}>
+          <Icon name="checkmark" size={14} color={c.textSecondary} />
+          <Text style={[styles.wishedText, { color: c.textSecondary }]}>{t('birthdays.wished')}</Text>
+        </View>
+      ) : (
+        <TouchableOpacity
+          style={styles.wishBtn}
+          onPress={() => onWish(b)}
+          disabled={pending}
+          activeOpacity={0.85}
+        >
+          {pending
+            ? <ActivityIndicator size="small" color="#fff" />
+            : <Text style={styles.wishBtnText}>🎉 {t('birthdays.wish')}</Text>}
+        </TouchableOpacity>
+      )}
+    </View>
+  </View>
+));
 
 export default function BirthdaysScreen() {
   const { t, i18n } = useTranslation();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { user, theme, appdatabase } = useGlobalState();
+  const { triggerHapticFeedback } = useHaptic();
   const isDark = theme === 'dark';
   const c = getThemeColors(isDark);
   const uid = user?.id || null;
   const lang = i18n.language;
 
-  const [mine, setMine] = useState(peekMyBirthday());
   // Instant first paint from the phone's saved copy; load() refreshes it.
+  const [mine, setMine] = useState(peekMyBirthday());
   const [list, setList] = useState(peekBirthdayList());
   const [loading, setLoading] = useState(true);
+  const [listFailed, setListFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [toggling, setToggling] = useState(false);
-  const [wishFor, setWishFor] = useState(null);
-  const [sending, setSending] = useState(false);
   const [preview, setPreview] = useState(null);
   const [editing, setEditing] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [knownDob, setKnownDob] = useState(() => getKnownDob(uid));
+  // uids whose wish is in flight. The ref answers taps at once; the state draws the spinners.
+  const pendingRef = useRef(new Set());
+  const [pending, setPending] = useState(pendingRef.current);
+  const loadingMoreRef = useRef(false);
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
 
   const load = useCallback(async (force = false) => {
     setBirthdayUser(uid);
     // Stars granted earlier that never reached RTDB (an MMKV read; usually nothing).
     flushBirthdayStars(appdatabase, uid).catch(() => {});
-    const [m, l] = await Promise.allSettled([getMyBirthday({ force }), listBirthdays({ days: 7, force })]);
+    const [m, l] = await Promise.allSettled([getMyBirthday({ force }), listBirthdays({ force })]);
+    if (!alive.current) return;
     if (m.status === 'fulfilled') setMine(m.value);
-    if (l.status === 'fulfilled') setList(l.value);
+    if (l.status === 'fulfilled') { setList(l.value); setListFailed(false); } else setListFailed(true);
     if (isBirthdayMockActive()) setPreview(getBirthdayMock().getPreview());
     setLoading(false);
   }, [uid, appdatabase]);
@@ -79,16 +183,67 @@ export default function BirthdaysScreen() {
     const local = getKnownDob(uid);
     setKnownDob(local);
     if (local || !canEditMine) return undefined;
-    let alive = true;
-    loadKnownDob(appdatabase, uid).then((d) => { if (alive && d) setKnownDob(d); }).catch(() => {});
-    return () => { alive = false; };
+    let live = true;
+    loadKnownDob(appdatabase, uid).then((d) => { if (live && d) setKnownDob(d); }).catch(() => {});
+    return () => { live = false; };
   }, [uid, canEditMine, appdatabase]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await load(true);
-    setRefreshing(false);
+    if (alive.current) setRefreshing(false);
   }, [load]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMoreRef.current) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    try {
+      const l = await loadMoreBirthdays();
+      if (alive.current && l) setList(l);
+    } catch (e) {
+      showErrorMessage(t('home.alert.error'), t('birthdays.err.generic'));
+    } finally {
+      loadingMoreRef.current = false;
+      if (alive.current) setLoadingMore(false);
+    }
+  }, [t]);
+
+  const setPendingFor = useCallback((who, on) => {
+    const next = new Set(pendingRef.current);
+    if (on) next.add(who); else next.delete(who);
+    pendingRef.current = next;
+    if (alive.current) setPending(next);
+  }, []);
+
+  const showWished = useCallback((who, wishes) => {
+    if (!alive.current) return;
+    setList((l) => (l ? {
+      ...l,
+      rows: l.rows.map((b) => (b.uid === who ? { ...b, wished: true, wishes: wishes ?? (b.wished ? b.wishes : (b.wishes || 0) + 1) } : b)),
+    } : l));
+  }, []);
+
+  const wish = useCallback(async (b) => {
+    if (pendingRef.current.has(b.uid)) return;
+    setPendingFor(b.uid, true);
+    triggerHapticFeedback('impactLight');
+    try {
+      const res = await sendBirthdayWish(b.uid, WISH_TEMPLATE);
+      showWished(b.uid, res?.wishes);
+      trackGrowthEvent('birthday_wish', { template: WISH_TEMPLATE });
+    } catch (e) {
+      const key = birthdayErrorKey(e);
+      if (key === 'already_wished') {
+        markWished(b.uid);
+        showWished(b.uid);
+      } else {
+        showErrorMessage(t('home.alert.error'), t(`birthdays.err.${key}`));
+      }
+    } finally {
+      setPendingFor(b.uid, false);
+    }
+  }, [setPendingFor, showWished, triggerHapticFeedback, t]);
 
   const toggleShow = useCallback(async (next) => {
     if (toggling) return;
@@ -97,13 +252,15 @@ export default function BirthdaysScreen() {
     try {
       await setBirthdayVisibility(next);
       trackGrowthEvent('birthday_visibility', { show: next ? 1 : 0, where: 'screen' });
+      // Your own row joins or leaves the list when your birthday is today or tomorrow.
+      if (mine?.month && daysUntilBirthday(mine.month, mine.day) <= 1) load(true);
     } catch (e) {
       setMine((m) => (m ? { ...m, show: !next } : m));
       showErrorMessage(t('home.alert.error'), t('birthdays.err.generic'));
     } finally {
-      setToggling(false);
+      if (alive.current) setToggling(false);
     }
-  }, [toggling, t]);
+  }, [toggling, mine, load, t]);
 
   // Blox's gift: stars into the RTDB balance (no Pet Cards here).
   const claimGift = useCallback(async () => {
@@ -118,25 +275,9 @@ export default function BirthdaysScreen() {
       showErrorMessage(t('home.alert.error'), t(`birthdays.err.${birthdayErrorKey(e)}`));
       load(true);
     } finally {
-      setClaiming(false);
+      if (alive.current) setClaiming(false);
     }
   }, [claiming, appdatabase, uid, t, load]);
-
-  const sendWish = useCallback(async (template) => {
-    if (!wishFor || sending) return;
-    setSending(true);
-    try {
-      const res = await sendBirthdayWish(wishFor.uid, template);
-      setList((l) => (l || []).map((b) => (b.uid === wishFor.uid ? { ...b, wished: true, wishes: res?.wishes ?? b.wishes + 1 } : b)));
-      trackGrowthEvent('birthday_wish', { template });
-      showSuccessMessage(t('birthdays.wish_sent_title'), t('birthdays.wish_sent', { name: wishFor.name }));
-      setWishFor(null);
-    } catch (e) {
-      showErrorMessage(t('home.alert.error'), t(`birthdays.err.${birthdayErrorKey(e)}`));
-    } finally {
-      setSending(false);
-    }
-  }, [wishFor, sending, t]);
 
   const onBirthdaySaved = useCallback((dob) => {
     setEditing(false);
@@ -151,17 +292,66 @@ export default function BirthdaysScreen() {
   const switchPreview = useCallback((which) => {
     getBirthdayMock()?.setPreview(which);
     invalidateBirthdays();
+    setList(null);
+    load(true);
+  }, [load]);
+
+  const retryList = useCallback(() => {
+    setListFailed(false);
     load(true);
   }, [load]);
 
   const myDays = mine?.month ? daysUntilBirthday(mine.month, mine.day) : null;
   const myToday = myDays === 0;
-  const today = (list || []).filter((b) => b.daysUntil === 0);
-  const week = (list || []).filter((b) => b.daysUntil > 0);
   const name = user?.displayName || t('birthdays.you');
   const pad2 = (n) => String(n).padStart(2, '0');
   const editDob = (!isBirthdayMockActive() && knownDob)
     || (__DEV__ && mine?.month ? `${new Date().getFullYear() - 20}-${pad2(mine.month)}-${pad2(mine.day)}` : null);
+
+  // Section titles, rows and empty lines, flattened for one FlatList.
+  const items = useMemo(() => {
+    if (!list) return [];
+    const out = [];
+    const section = (kind, title, rows, emptyText, count) => {
+      out.push({ type: 'title', key: `t-${kind}`, title, count });
+      if (!rows.length) out.push({ type: 'empty', key: `e-${kind}`, text: emptyText });
+      rows.forEach((b, i) => out.push({ type: 'row', key: `${kind}-${b.uid}`, b, kind, first: i === 0, last: i === rows.length - 1 }));
+    };
+    const rows = list.rows || [];
+    const tomorrow = rows.filter((b) => b.daysUntil === 1);
+    section('today', `🎉 ${t('birthdays.today')}`, rows.filter((b) => b.daysUntil === 0), t('birthdays.none_today'), list.counts?.[0]);
+    // Pages run today first: tomorrow's section appears once its players do.
+    if (tomorrow.length || !list.next) {
+      section('tomorrow', `📅 ${t('birthdays.tomorrow')}`, tomorrow, t('birthdays.none_tomorrow'), list.counts?.[1]);
+    }
+    return out;
+  }, [list, t]);
+
+  const renderItem = useCallback(({ item }) => {
+    if (item.type === 'title') {
+      return (
+        <Text style={[styles.section, { color: c.text }]}>
+          {item.title}
+          {item.count ? <Text style={[styles.sectionCount, { color: c.textSecondary }]}>{`  ·  ${item.count}`}</Text> : null}
+        </Text>
+      );
+    }
+    if (item.type === 'empty') return <Text style={[styles.empty, { color: c.textSecondary }]}>{item.text}</Text>;
+    return (
+      <BirthdayRow
+        b={item.b}
+        kind={item.kind}
+        first={item.first}
+        last={item.last}
+        self={item.b.uid === uid}
+        pending={pending.has(item.b.uid)}
+        c={c}
+        lang={lang}
+        t={t}
+        onWish={wish}
+      />
+    );
+  }, [c, uid, pending, lang, t, wish]);
 
   const header = (
     <View style={[styles.header, { borderBottomColor: c.border }]}>
@@ -175,7 +365,7 @@ export default function BirthdaysScreen() {
       {/* Debug builds: long-press for the sample data (every state, no real account changes). */}
       <TouchableOpacity
         disabled={!__DEV__}
-        onLongPress={() => { enableBirthdayPreview(); load(true); }}
+        onLongPress={() => { enableBirthdayPreview(); setList(null); load(true); }}
         style={{ marginRight: 10 }}
       >
         <Text style={{ fontSize: 24 }}>🎂</Text>
@@ -195,178 +385,168 @@ export default function BirthdaysScreen() {
     );
   }
 
-  const row = (b, kind) => {
-    const self = b.uid === uid;
-    return (
-      <View key={b.uid} style={[styles.row, { borderBottomColor: c.border }]}>
-        <BirthdayAvatar uri={b.avatar} name={b.name} size={42} ring={kind === 'today'} />
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={[styles.rowName, { color: c.text }]} numberOfLines={1}>{b.name}</Text>
-          <Text style={[styles.rowSub, { color: c.textSecondary }]} numberOfLines={1}>
-            {kind === 'today'
-              ? t('birthdays.wish_count', { count: b.wishes || 0 })
-              : formatUpcoming(b.month, b.day, lang)}
-          </Text>
-        </View>
-        {kind === 'today' ? (
-          self ? (
-            <Text style={[styles.youTag, { color: BIRTHDAY_PINK }]}>{t('birthdays.you')}</Text>
-          ) : b.wished ? (
-            <View style={[styles.wishedPill, { borderColor: c.border }]}>
-              <Icon name="checkmark" size={14} color={c.textSecondary} />
-              <Text style={[styles.wishedText, { color: c.textSecondary }]}>{t('birthdays.wished')}</Text>
-            </View>
-          ) : (
-            <TouchableOpacity style={styles.wishBtn} onPress={() => setWishFor(b)} activeOpacity={0.85}>
-              <Text style={styles.wishBtnText}>🎉 {t('birthdays.wish')}</Text>
-            </TouchableOpacity>
-          )
-        ) : (
-          <View style={[styles.daysPill, { backgroundColor: isDark ? 'rgba(236,72,153,0.18)' : 'rgba(236,72,153,0.10)' }]}>
-            <Text style={[styles.daysText, { color: BIRTHDAY_PINK }]}>
-              {b.daysUntil === 1 ? t('birthdays.tomorrow') : t('birthdays.in_days', { count: b.daysUntil })}
+  const top = (
+    <View>
+      {/* ═══ YOUR BIRTHDAY ═══ */}
+      {!mine && loading ? <Placeholder c={c} isDark={isDark} /> : null}
+      {mine?.month ? (
+        myToday ? (
+          // Own keys: turning an existing card into a gradient one in
+          // place crashes Android's LinearGradient (RN 0.87
+          // BackgroundImageDrawable); a fresh view draws fine.
+          <View key="hero" style={[styles.hero, { backgroundImage: BIRTHDAY_GRADIENT }]}>
+            <SafeLottieView
+              source={require('../../assets/lottie/confetti.json')}
+              autoPlay
+              loop={false}
+              style={StyleSheet.absoluteFill}
+              pointerEvents="none"
+            />
+            <Text style={styles.heroCake}>🎂</Text>
+            <Text style={styles.heroTitle}>{t('birthdays.hero_title', { name })}</Text>
+            <Text style={styles.heroSub}>
+              {mine.giftReady
+                ? t('birthdays.hero_gift_stars', { stars: BIRTHDAY_GIFT_STARS })
+                : mine.giftOpened ? t('birthdays.hero_claimed', { stars: BIRTHDAY_GIFT_STARS }) : t('birthdays.hero_sub')}
             </Text>
+            {mine.giftReady ? (
+              <TouchableOpacity style={[styles.heroBtn, claiming && { opacity: 0.7 }]} onPress={claimGift} disabled={claiming} activeOpacity={0.9}>
+                {claiming
+                  ? <ActivityIndicator color={BIRTHDAY_PINK} />
+                  : <Text style={styles.heroBtnText}>🎁 {t('birthdays.claim_stars', { stars: BIRTHDAY_GIFT_STARS })}</Text>}
+              </TouchableOpacity>
+            ) : null}
           </View>
-        )}
-      </View>
-    );
-  };
+        ) : (
+          <View key="mine" style={[styles.card, { backgroundColor: c.bgAlt, borderColor: c.border }]}>
+            <Text style={[styles.cardLabel, { color: c.textSecondary }]}>{t('birthdays.your_birthday')}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+              <Text style={{ fontSize: 30 }}>🎂</Text>
+              <View style={{ marginLeft: 12, flex: 1 }}>
+                <Text style={[styles.bigDate, { color: c.text }]}>{formatMonthDay(mine.month, mine.day, lang)}</Text>
+                <Text style={[styles.rowSub, { color: c.textSecondary }]}>
+                  {myDays === 1 ? t('birthdays.tomorrow') : t('birthdays.in_days', { count: myDays })}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )
+      ) : null}
+
+      {/* Wishes you got today */}
+      {myToday && mine?.wishes?.length ? (
+        <View style={[styles.card, { backgroundColor: c.bgAlt, borderColor: c.border }]}>
+          <Text style={[styles.cardTitle, { color: c.text }]}>{t('birthdays.wishes_for_you', { count: mine.wishCount || mine.wishes.length })}</Text>
+          {mine.wishes.map((w, i) => (
+            <View key={`${w.name}-${i}`} style={[styles.wishRow, { borderTopColor: c.border, borderTopWidth: i ? StyleSheet.hairlineWidth : 0 }]}>
+              <BirthdayAvatar uri={w.avatar} name={w.name} size={30} />
+              <View style={{ marginLeft: 10, flex: 1 }}>
+                <Text style={[styles.wishFrom, { color: c.text }]} numberOfLines={1}>{w.name}</Text>
+                <Text style={[styles.rowSub, { color: c.textSecondary }]} numberOfLines={1}>{wishLine(t, w.template)}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {/* Show my birthday */}
+      {mine?.month ? (
+        <View style={[styles.card, { backgroundColor: c.bgAlt, borderColor: c.border }]}>
+          {mine.minor ? (
+            <Text style={[styles.help, { color: c.textSecondary, marginTop: 0 }]}>🔒 {t('birthdays.minor_private_stars')}</Text>
+          ) : (
+            <>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={[styles.toggleText, { color: c.text }]}>{t('birthdays.show_toggle')}</Text>
+                <Switch
+                  value={!!mine.show}
+                  disabled={toggling}
+                  onValueChange={toggleShow}
+                  trackColor={{ true: BIRTHDAY_PINK }}
+                  thumbColor="#fff"
+                />
+              </View>
+              <Text style={[styles.help, { color: c.textSecondary }]}>{t('birthdays.show_help')}</Text>
+            </>
+          )}
+          {mine.canEdit && editDob ? (
+            <TouchableOpacity onPress={() => setEditing(true)} style={[styles.editRow, { borderTopColor: c.border }]} activeOpacity={0.7}>
+              <Icon name="create-outline" size={16} color={BIRTHDAY_PINK} />
+              <Text style={[styles.editText, { color: BIRTHDAY_PINK }]}>{t('birthdays.edit_row')}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
+
+  const waiting = !list && (listFailed ? (
+    <View style={styles.failBox}>
+      <Text style={[styles.empty, { color: c.textSecondary, textAlign: 'center' }]}>{t('birthdays.err.generic')}</Text>
+      <TouchableOpacity onPress={retryList} style={[styles.moreBtn, { borderColor: c.border, backgroundColor: c.bgAlt }]} activeOpacity={0.8}>
+        <Text style={[styles.moreText, { color: BIRTHDAY_PINK }]}>{t('birthdays.retry')}</Text>
+      </TouchableOpacity>
+    </View>
+  ) : (
+    <>
+      <Text style={[styles.section, { color: c.text }]}>🎉 {t('birthdays.today')}</Text>
+      <Placeholder c={c} isDark={isDark} rows={5} />
+    </>
+  ));
+
+  const footer = (
+    <>
+      {list?.next ? (
+        <TouchableOpacity
+          onPress={loadMore}
+          disabled={loadingMore}
+          style={[styles.moreBtn, { borderColor: c.border, backgroundColor: c.bgAlt }]}
+          activeOpacity={0.8}
+        >
+          {loadingMore
+            ? <ActivityIndicator size="small" color={BIRTHDAY_PINK} />
+            : <Text style={[styles.moreText, { color: BIRTHDAY_PINK }]}>{t('birthdays.load_more')}</Text>}
+        </TouchableOpacity>
+      ) : null}
+
+      {/* Dev-only: move "your" birthday to preview every state. */}
+      {__DEV__ && preview ? (
+        <View style={[styles.devPanel, { borderColor: c.border }]}>
+          <Text style={[styles.devTitle, { color: c.textSecondary }]}>Preview (debug builds only): my birthday is</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+            {[['today', 'Today'], ['soon', 'In 3 days'], ['later', 'In 2 months']].map(([k, label]) => (
+              <TouchableOpacity
+                key={k}
+                onPress={() => switchPreview(k)}
+                style={[styles.devChip, { borderColor: BIRTHDAY_PINK, backgroundColor: preview === k ? BIRTHDAY_PINK : 'transparent' }]}
+              >
+                <Text style={{ color: preview === k ? '#fff' : BIRTHDAY_PINK, fontWeight: '800', fontSize: 12 }}>{label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      ) : null}
+    </>
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: c.bg, paddingTop: insets.top }]}>
       {header}
-      {loading && !mine && !list ? (
-        <View style={styles.center}><ActivityIndicator color={BIRTHDAY_PINK} /></View>
-      ) : (
-        <ScrollView
-          contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BIRTHDAY_PINK} />}
-        >
-          {/* ═══ YOUR BIRTHDAY ═══ */}
-          {mine?.month ? (
-            myToday ? (
-              // Own keys: turning an existing card into a gradient one in
-              // place crashes Android's LinearGradient (RN 0.87
-              // BackgroundImageDrawable); a fresh view draws fine.
-              <View key="hero" style={[styles.hero, { backgroundImage: BIRTHDAY_GRADIENT }]}>
-                <SafeLottieView
-                  source={require('../../assets/lottie/confetti.json')}
-                  autoPlay
-                  loop={false}
-                  style={StyleSheet.absoluteFill}
-                  pointerEvents="none"
-                />
-                <Text style={styles.heroCake}>🎂</Text>
-                <Text style={styles.heroTitle}>{t('birthdays.hero_title', { name })}</Text>
-                <Text style={styles.heroSub}>
-                  {mine.giftReady
-                    ? t('birthdays.hero_gift_stars', { stars: BIRTHDAY_GIFT_STARS })
-                    : mine.giftOpened ? t('birthdays.hero_claimed', { stars: BIRTHDAY_GIFT_STARS }) : t('birthdays.hero_sub')}
-                </Text>
-                {mine.giftReady ? (
-                  <TouchableOpacity style={[styles.heroBtn, claiming && { opacity: 0.7 }]} onPress={claimGift} disabled={claiming} activeOpacity={0.9}>
-                    {claiming
-                      ? <ActivityIndicator color={BIRTHDAY_PINK} />
-                      : <Text style={styles.heroBtnText}>🎁 {t('birthdays.claim_stars', { stars: BIRTHDAY_GIFT_STARS })}</Text>}
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            ) : (
-              <View key="mine" style={[styles.card, { backgroundColor: c.bgAlt, borderColor: c.border }]}>
-                <Text style={[styles.cardLabel, { color: c.textSecondary }]}>{t('birthdays.your_birthday')}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
-                  <Text style={{ fontSize: 30 }}>🎂</Text>
-                  <View style={{ marginLeft: 12, flex: 1 }}>
-                    <Text style={[styles.bigDate, { color: c.text }]}>{formatMonthDay(mine.month, mine.day, lang)}</Text>
-                    <Text style={[styles.rowSub, { color: c.textSecondary }]}>
-                      {myDays === 1 ? t('birthdays.tomorrow') : t('birthdays.in_days', { count: myDays })}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            )
-          ) : null}
-
-          {/* Wishes you got today */}
-          {myToday && mine?.wishes?.length ? (
-            <View style={[styles.card, { backgroundColor: c.bgAlt, borderColor: c.border }]}>
-              <Text style={[styles.cardTitle, { color: c.text }]}>{t('birthdays.wishes_for_you', { count: mine.wishCount || mine.wishes.length })}</Text>
-              {mine.wishes.map((w, i) => (
-                <View key={`${w.name}-${i}`} style={[styles.wishRow, { borderTopColor: c.border, borderTopWidth: i ? StyleSheet.hairlineWidth : 0 }]}>
-                  <BirthdayAvatar uri={w.avatar} name={w.name} size={30} />
-                  <View style={{ marginLeft: 10, flex: 1 }}>
-                    <Text style={[styles.wishFrom, { color: c.text }]} numberOfLines={1}>{w.name}</Text>
-                    <Text style={[styles.rowSub, { color: c.textSecondary }]} numberOfLines={1}>{wishLine(t, w.template)}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-          ) : null}
-
-          {/* Show my birthday */}
-          {mine?.month ? (
-            <View style={[styles.card, { backgroundColor: c.bgAlt, borderColor: c.border }]}>
-              {mine.minor ? (
-                <Text style={[styles.help, { color: c.textSecondary, marginTop: 0 }]}>🔒 {t('birthdays.minor_private_stars')}</Text>
-              ) : (
-                <>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={[styles.toggleText, { color: c.text }]}>{t('birthdays.show_toggle')}</Text>
-                    <Switch
-                      value={!!mine.show}
-                      disabled={toggling}
-                      onValueChange={toggleShow}
-                      trackColor={{ true: BIRTHDAY_PINK }}
-                      thumbColor="#fff"
-                    />
-                  </View>
-                  <Text style={[styles.help, { color: c.textSecondary }]}>{t('birthdays.show_help')}</Text>
-                </>
-              )}
-              {mine.canEdit && editDob ? (
-                <TouchableOpacity onPress={() => setEditing(true)} style={[styles.editRow, { borderTopColor: c.border }]} activeOpacity={0.7}>
-                  <Icon name="create-outline" size={16} color={BIRTHDAY_PINK} />
-                  <Text style={[styles.editText, { color: BIRTHDAY_PINK }]}>{t('birthdays.edit_row')}</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          ) : null}
-
-          {/* ═══ TODAY ═══ */}
-          <Text style={[styles.section, { color: c.text }]}>🎉 {t('birthdays.today')}</Text>
-          {today.length ? (
-            <View style={[styles.listCard, { backgroundColor: c.bgAlt, borderColor: c.border }]}>{today.map((b) => row(b, 'today'))}</View>
-          ) : (
-            <Text style={[styles.empty, { color: c.textSecondary }]}>{t('birthdays.none_today')}</Text>
-          )}
-
-          {/* ═══ THIS WEEK ═══ */}
-          <Text style={[styles.section, { color: c.text }]}>📅 {t('birthdays.this_week')}</Text>
-          {week.length ? (
-            <View style={[styles.listCard, { backgroundColor: c.bgAlt, borderColor: c.border }]}>{week.map((b) => row(b, 'week'))}</View>
-          ) : (
-            <Text style={[styles.empty, { color: c.textSecondary }]}>{t('birthdays.none_week')}</Text>
-          )}
-
-          {/* Dev-only: move "your" birthday to preview every state. */}
-          {__DEV__ && preview ? (
-            <View style={[styles.devPanel, { borderColor: c.border }]}>
-              <Text style={[styles.devTitle, { color: c.textSecondary }]}>Preview (debug builds only): my birthday is</Text>
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                {[['today', 'Today'], ['soon', 'In 3 days'], ['later', 'In 2 months']].map(([k, label]) => (
-                  <TouchableOpacity
-                    key={k}
-                    onPress={() => switchPreview(k)}
-                    style={[styles.devChip, { borderColor: BIRTHDAY_PINK, backgroundColor: preview === k ? BIRTHDAY_PINK : 'transparent' }]}
-                  >
-                    <Text style={{ color: preview === k ? '#fff' : BIRTHDAY_PINK, fontWeight: '800', fontSize: 12 }}>{label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          ) : null}
-        </ScrollView>
-      )}
+      <FlatList
+        data={items}
+        keyExtractor={(item) => item.key}
+        renderItem={renderItem}
+        ListHeaderComponent={top}
+        ListEmptyComponent={waiting || null}
+        ListFooterComponent={footer}
+        contentContainerStyle={styles.listContent}
+        initialNumToRender={12}
+        maxToRenderPerBatch={10}
+        windowSize={7}
+        // RN 0.87 Fabric: clipping crashes in addViewAt (see adoptme-167).
+        removeClippedSubviews={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BIRTHDAY_PINK} colors={[BIRTHDAY_PINK]} />}
+      />
       <ScreenBottomBanner background={c.bg} />
 
       <EditBirthdaySheet
@@ -375,15 +555,6 @@ export default function BirthdaysScreen() {
         c={c}
         onClose={() => setEditing(false)}
         onSaved={onBirthdaySaved}
-      />
-
-      <WishSheet
-        visible={!!wishFor}
-        name={wishFor?.name}
-        c={c}
-        busy={sending}
-        onPick={sendWish}
-        onClose={() => setWishFor(null)}
       />
     </View>
   );
@@ -395,9 +566,10 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 18, fontWeight: '800' },
   headerSub: { fontSize: 12, marginTop: 1 },
   iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  listContent: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 24 },
   center: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 24, gap: 8 },
   emptyTitle: { fontSize: 16, fontWeight: '800', textAlign: 'center' },
-  hero: { borderRadius: 20, paddingVertical: 22, paddingHorizontal: 18, alignItems: 'center', overflow: 'hidden' },
+  hero: { borderRadius: 20, paddingVertical: 22, paddingHorizontal: 18, alignItems: 'center', overflow: 'hidden', marginTop: 12 },
   heroCake: { fontSize: 54 },
   heroTitle: { color: '#fff', fontSize: 22, fontWeight: '900', textAlign: 'center', marginTop: 6 },
   heroSub: { color: 'rgba(255,255,255,0.92)', fontSize: 13, fontWeight: '600', textAlign: 'center', marginTop: 6, lineHeight: 18 },
@@ -412,18 +584,31 @@ const styles = StyleSheet.create({
   editRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth },
   editText: { fontSize: 13, fontWeight: '800' },
   section: { fontSize: 16, fontWeight: '900', marginTop: 22, marginBottom: 8 },
+  sectionCount: { fontSize: 13, fontWeight: '700' },
   listCard: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 12 },
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth },
+  // A list row is one slice of a rounded card: sides always, top/bottom on the ends.
+  rowWrap: { borderLeftWidth: 1, borderRightWidth: 1, paddingHorizontal: 12 },
+  rowFirst: { borderTopWidth: 1, borderTopLeftRadius: 14, borderTopRightRadius: 14 },
+  rowLast: { borderBottomWidth: 1, borderBottomLeftRadius: 14, borderBottomRightRadius: 14 },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11 },
   rowName: { fontSize: 15, fontWeight: '800' },
   rowSub: { fontSize: 12, marginTop: 2 },
-  wishBtn: { backgroundColor: BIRTHDAY_PINK, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
+  wishBtn: {
+    backgroundColor: BIRTHDAY_PINK, borderRadius: 999, minWidth: 84, height: 34,
+    paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center',
+  },
   wishBtnText: { color: '#fff', fontWeight: '900', fontSize: 13 },
   wishedPill: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
   wishedText: { fontSize: 12, fontWeight: '700' },
   youTag: { fontSize: 12, fontWeight: '900' },
-  daysPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-  daysText: { fontSize: 12, fontWeight: '800' },
   empty: { fontSize: 13, paddingVertical: 6 },
+  bone: { borderRadius: 6 },
+  moreBtn: {
+    marginTop: 14, height: 44, borderWidth: 1, borderRadius: 999,
+    alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch',
+  },
+  moreText: { fontSize: 14, fontWeight: '800' },
+  failBox: { paddingTop: 28, alignItems: 'stretch' },
   wishRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9 },
   wishFrom: { fontSize: 14, fontWeight: '800' },
   devPanel: { marginTop: 28, borderWidth: 1, borderStyle: 'dashed', borderRadius: 12, padding: 12 },

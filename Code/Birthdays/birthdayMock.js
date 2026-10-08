@@ -16,6 +16,12 @@ const PLAYERS = [
   { uid: 'm5', name: 'leopard_luna', avatar: null, offset: 3, wishes: 0 },
   { uid: 'm6', name: 'Sea_Beast_King', avatar: null, offset: 5, wishes: 0 },
   { uid: 'm7', name: 'BuddhaGrinder', avatar: null, offset: 6, wishes: 0 },
+  // Enough for "Load more" (037 pages of 20).
+  ...['Dragon', 'Kitsune', 'Leopard', 'Dough', 'Venom', 'Spirit', 'Shadow', 'Control', 'Portal', 'Buddha',
+    'Phoenix', 'Rumble', 'Magma', 'Ice', 'Light', 'Quake', 'Sound', 'Gravity',
+    'Mammoth', 'TRex', 'Yeti', 'Gas', 'Blizzard', 'Pain'].map((n, i) => ({
+    uid: `g${i}`, name: `${n}Main${i}`, avatar: null, offset: i < 18 ? 0 : 1, wishes: i % 5,
+  })),
 ];
 
 const RECEIVED = [
@@ -44,7 +50,7 @@ const state = {
 };
 
 const fail = (msg) => { throw new Error(msg); };
-const wait = (v) => new Promise((r) => setTimeout(() => r(v), 250));
+const wait = (v, ms = 250) => new Promise((r) => setTimeout(() => r(v), ms));
 
 const mine = () => {
   const { month, day } = state.edited || monthDayIn(OFFSETS[state.preview] ?? 0);
@@ -114,6 +120,27 @@ const mock = {
     return wait(rows);
   },
 
+  // 037: today .. today + p_days, PAGE of p_limit after p_cursor (an index here).
+  async list_birthdays_page({ p_days = 1, p_limit = 20, p_cursor = null }) {
+    const all = PLAYERS.filter((p) => p.offset <= p_days).sort((a, b) => a.offset - b.offset);
+    const start = typeof p_cursor === 'number' ? p_cursor : 0;
+    const rows = all.slice(start, start + p_limit).map((p) => ({
+      uid: p.uid,
+      name: p.name,
+      avatar: p.avatar,
+      ...monthDayIn(p.offset),
+      until: p.offset,
+      wishes: p.wishes + (state.wished.has(p.uid) ? 1 : 0),
+      wished: state.wished.has(p.uid),
+    }));
+    const end = start + p_limit;
+    return wait({
+      rows,
+      next: end < all.length ? end : null,
+      counts: start ? null : Array.from({ length: p_days + 1 }, (_, d) => all.filter((p) => p.offset === d).length),
+    }, 700);
+  },
+
   async update_my_birthday({ year, month, day }) {
     if (state.edited) fail('already_edited');
     state.edited = { month, day };
@@ -132,7 +159,7 @@ const mock = {
     if (p.offset !== 0) fail('not their birthday');
     if (state.wished.has(p_to)) fail('already wished');
     state.wished.add(p_to);
-    return wait({ wishes: p.wishes + 1 });
+    return wait({ wishes: p.wishes + 1 }, 600);
   },
 };
 

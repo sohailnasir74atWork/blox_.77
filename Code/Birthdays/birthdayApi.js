@@ -11,9 +11,10 @@
  *     your birthday plus [uid, month, day] for today's birthdays — a few KB,
  *     no names or photos. Kept on the phone (MMKV) for the local day and
  *     refreshed at most every HOME_TTL_MS, so a cold start reads nothing.
- *   - list_birthdays (names, photos, wish counts; up to 200 rows) only when
- *     the Birthdays screen opens. Kept on the phone for LIST_TTL_MS and shown
- *     instantly from there while it refreshes.
+ *   - list_birthdays_page (037; names, photos, wish counts) only when the
+ *     Birthdays screen opens: today and tomorrow only, PAGE_SIZE players at a
+ *     time, more on "Load more" (owner, 2026-10-08). The pages loaded so far
+ *     are kept on the phone for LIST_TTL_MS and shown instantly from there.
  *   - Neither cache crosses midnight: each day's birthdays are different.
  *     New players or a changed birthday appear within one refresh window.
  *   - Your own actions (a wish, Show/Hide, a correction, the gift) update
@@ -41,6 +42,8 @@ const HOME_TTL_MS = 2 * 60 * 60 * 1000;
 const LIST_TTL_MS = 30 * 60 * 1000;
 const PUBLIC_TTL_MS = 12 * 60 * 60 * 1000;
 const RETRY_AFTER_FAIL_MS = 10 * 60 * 1000;
+const PAGE_SIZE = 20;
+const LIST_DAYS = 1;               // today and tomorrow
 
 // Blox has no `cloudFunctionsUrl` in Helper/Environment.js (other callers
 // hardcode the fruiteblocks base too, e.g. Helper/modSanction.js).
@@ -75,7 +78,11 @@ try {
 
 let currentUid = null;
 let homeCache = null;              // { at, uid, day, data }   data = my birthday + today
-let listCache = null;              // { at, uid, day, days, data }
+let listCache = null;              // { at, uid, day, rows, next, counts }  pages loaded so far
+let listGen = 0;                   // bumped when the list restarts, so a late page is dropped
+let moreLoad = null;               // the "Load more" in flight
+let pagedMissing = false;          // server without 037: the old list, paged on the phone
+let legacyRows = null;
 const publicCache = new Map();     // uid -> { at, data }
 const dobMemory = new Map();       // uid -> 'YYYY-MM-DD' | null (read this session)
 let mock = null;
@@ -89,6 +96,11 @@ export const onBirthdaysChange = (fn) => { listeners.add(fn); return () => liste
 const localDay = () => {
   const d = new Date();
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+};
+const pad2 = (n) => String(n).padStart(2, '0');
+const localISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 };
 const fresh = (c, ttl) => !!c && c.uid === currentUid && c.day === localDay() && Date.now() - c.at < ttl;
 
@@ -106,7 +118,7 @@ const save = (key, value) => {
 };
 const forget = (key) => { try { storage.remove(key); } catch (_) {} };
 const homeKey = () => `home:${currentUid}`;
-const listKey = () => `list:${currentUid}`;
+const listKey = () => `page:${currentUid}`;
 const pendingStarsKey = (uid) => `gift_stars:${uid}`;
 
 const isMissingFunction = (error) =>
@@ -120,6 +132,10 @@ const switchToMock = (why) => {
   return mock;
 };
 
+// These fall back to older server calls themselves, so a missing one never
+// switches the session to the mock.
+const OWN_FALLBACK = new Set(['birthday_home', 'list_birthdays_page']);
+
 async function call(fn, args) {
   if (mock) return mock[fn](args);
   // Signed out (or the account not loaded yet): answer from the mock for this
@@ -128,7 +144,7 @@ async function call(fn, args) {
   const { data, error } = await supabase.rpc(fn, args || {});
   if (error) {
     if (__DEV__) console.log(`[Birthdays] ${fn} failed: ${error.code} ${error.message}`);
-    if (__DEV__ && isMissingFunction(error) && fn !== 'birthday_home') return switchToMock('not deployed')[fn](args);
+    if (__DEV__ && isMissingFunction(error) && !OWN_FALLBACK.has(fn)) return switchToMock('not deployed')[fn](args);
     throw error;
   }
   return data;
@@ -142,9 +158,16 @@ export const enableBirthdayPreview = () => {
   if (!__DEV__) return;
   switchToMock('preview');
   homeCache = null;
-  listCache = null;
+  resetList();
   publicCache.clear();
   emit();
+};
+
+const resetList = () => {
+  listCache = null;
+  legacyRows = null;
+  moreLoad = null;
+  listGen++;
 };
 
 const applyToday = (today) => {
@@ -158,7 +181,7 @@ export const setBirthdayUser = (uid) => {
   if ((uid || null) === currentUid) return;
   currentUid = uid || null;
   homeCache = null;
-  listCache = null;
+  resetList();
   publicCache.clear();
   todaySet = new Set();
   todayLoad = null;
@@ -171,7 +194,8 @@ export const setBirthdayUser = (uid) => {
       applyToday(h.data?.today);
     }
     const l = readSaved(listKey());
-    if (l && l.day === localDay()) listCache = { ...l, uid: currentUid };
+    if (l && l.day === localDay() && Array.isArray(l.rows)) listCache = { ...l, uid: currentUid };
+    forget(`list:${currentUid}`); // the old 7-day list (up to 200 rows)
   }
   emit();
 };
@@ -179,7 +203,7 @@ export const setBirthdayUser = (uid) => {
 /** Drop every cache (the dev preview switch). */
 export const invalidateBirthdays = () => {
   homeCache = null;
-  listCache = null;
+  resetList();
   publicCache.clear();
   if (currentUid) { forget(homeKey()); forget(listKey()); }
   emit();
@@ -189,6 +213,7 @@ export const invalidateBirthdays = () => {
 export const birthdayErrorKey = (e) => {
   const m = String(e?.message || e || '');
   if (/already wished/.test(m)) return 'already_wished';
+  if (/wish limit/.test(m)) return 'limit';
   if (/not their birthday/.test(m)) return 'not_today';
   if (/cannot wish/.test(m)) return 'cannot_wish';
   if (/gift not available/.test(m)) return 'gift_unavailable';
@@ -243,38 +268,88 @@ const patchHome = (patch) => {
 export async function setBirthdayVisibility(show) {
   const data = await call('set_birthday_visibility', { p_show: !!show });
   patchHome({ show: !!data?.show, asked: true });
-  // Your own row may appear in or leave today's list.
-  listCache = null;
-  if (currentUid) forget(listKey());
+  // Your own row joins or leaves the list when your birthday is today or tomorrow.
+  const me = homeCache?.data;
+  if (me?.month && daysUntilBirthday(me.month, me.day) <= LIST_DAYS) {
+    resetList();
+    if (currentUid) forget(listKey());
+  }
   homeCache = homeCache ? { ...homeCache, at: 0 } : null;
   emit();
   return data;
 }
 
-/**
- * Shown players with a birthday within `days` days (today included), soonest
- * first: [{ uid, name, avatar, month, day, daysUntil, wishes, wished }].
- * For the Birthdays screen only.
- */
-export async function listBirthdays({ days = 7, force = false } = {}) {
-  if (!force && fresh(listCache, LIST_TTL_MS) && listCache.days >= days) {
-    return listCache.data.filter((b) => b.daysUntil <= days);
+// Days are counted on the phone's calendar. 037 already counts from the
+// phone's date; the old list counts from UTC with a day of slack each side.
+const inWindow = (rows) => (rows || [])
+  .map((b) => ({ ...b, daysUntil: daysUntilBirthday(b.month, b.day) }))
+  .filter((b) => b.daysUntil != null && b.daysUntil <= LIST_DAYS);
+
+async function fetchPage(cursor) {
+  if (!pagedMissing) {
+    try {
+      const res = await call('list_birthdays_page', {
+        p_local_date: localISO(), p_days: LIST_DAYS, p_limit: PAGE_SIZE, p_cursor: cursor,
+      });
+      return { rows: inWindow(res?.rows), next: res?.next || null, counts: res?.counts || null };
+    } catch (e) {
+      if (!isMissingFunction(e)) throw e;
+      pagedMissing = true;
+    }
   }
-  const rows = await call('list_birthdays', { p_days: days });
-  // Days are counted on the phone's calendar, not the server's UTC one.
-  const data = (rows || [])
-    .map((b) => ({ ...b, daysUntil: daysUntilBirthday(b.month, b.day) }))
-    .filter((b) => b.daysUntil != null && b.daysUntil <= days)
-    .sort((a, b) => a.daysUntil - b.daysUntil || String(a.name).localeCompare(String(b.name)));
-  listCache = { at: Date.now(), uid: currentUid, day: localDay(), days, data };
-  save(listKey(), listCache);
-  emit();
-  return data;
+  // Server without 037: the old list once, handed out PAGE_SIZE at a time.
+  if (cursor == null || !legacyRows) {
+    legacyRows = inWindow(await call('list_birthdays', { p_days: LIST_DAYS }))
+      .sort((a, b) => a.daysUntil - b.daysUntil);
+  }
+  const start = typeof cursor === 'number' ? cursor : 0;
+  const end = start + PAGE_SIZE;
+  return {
+    rows: legacyRows.slice(start, end),
+    next: end < legacyRows.length ? end : null,
+    counts: start ? null : [0, 1].map((d) => legacyRows.filter((b) => b.daysUntil === d).length),
+  };
 }
 
-/** The saved list for an instant first paint (may be up to LIST_TTL_MS old), or null. */
+/**
+ * The Birthdays screen: shown players with a birthday today or tomorrow,
+ * today first, then the most recently active. Resolves the pages loaded so
+ * far: { rows: [{ uid, name, avatar, month, day, daysUntil, wishes, wished }],
+ *        next (null = no more), counts: [today, tomorrow] }.
+ * Starts over from the first page when the saved copy is stale or `force`.
+ */
+export async function listBirthdays({ force = false } = {}) {
+  if (!force && fresh(listCache, LIST_TTL_MS)) return listCache;
+  const gen = ++listGen;
+  moreLoad = null;
+  const page = await fetchPage(null);
+  if (gen !== listGen) return listCache; // started over again meanwhile
+  listCache = { at: Date.now(), uid: currentUid, day: localDay(), ...page };
+  save(listKey(), listCache);
+  return listCache;
+}
+
+/** "Load more": the next PAGE_SIZE players. Resolves the whole list so far. */
+export function loadMoreBirthdays() {
+  if (!listCache?.next) return Promise.resolve(listCache);
+  if (moreLoad) return moreLoad;
+  const gen = listGen;
+  const load = fetchPage(listCache.next)
+    .then((page) => {
+      if (gen !== listGen || !listCache) return listCache;
+      const have = new Set(listCache.rows.map((b) => b.uid));
+      listCache = { ...listCache, rows: [...listCache.rows, ...page.rows.filter((b) => !have.has(b.uid))], next: page.next };
+      save(listKey(), listCache);
+      return listCache;
+    })
+    .finally(() => { if (moreLoad === load) moreLoad = null; });
+  moreLoad = load;
+  return load;
+}
+
+/** The saved pages for an instant first paint (may be up to LIST_TTL_MS old), or null. */
 export const peekBirthdayList = () =>
-  (listCache && listCache.uid === currentUid && listCache.day === localDay() ? listCache.data : null);
+  (listCache && listCache.uid === currentUid && listCache.day === localDay() ? listCache : null);
 
 /** { month, day } for a profile, or null (hidden / under 13 / unknown). */
 export async function getPublicBirthday(uid) {
@@ -286,17 +361,20 @@ export async function getPublicBirthday(uid) {
   return data;
 }
 
+/** Record a wish on the saved list (also for "already wished" answers). */
+export const markWished = (toUid, wishes) => {
+  const patch = (b) => (b.uid === toUid ? { ...b, wished: true, wishes: wishes ?? (b.wished ? b.wishes : (b.wishes || 0) + 1) } : b);
+  if (legacyRows) legacyRows = legacyRows.map(patch);
+  if (listCache) {
+    listCache = { ...listCache, rows: listCache.rows.map(patch) };
+    save(listKey(), listCache);
+  }
+};
+
 /** One templated wish per player per birthday. Returns { wishes }. */
 export async function sendBirthdayWish(toUid, template) {
   const data = await call('send_birthday_wish', { p_to: toUid, p_template: template });
-  if (listCache) {
-    listCache = {
-      ...listCache,
-      data: listCache.data.map((b) => (b.uid === toUid ? { ...b, wished: true, wishes: data?.wishes ?? b.wishes + 1 } : b)),
-    };
-    save(listKey(), listCache);
-  }
-  emit();
+  markWished(toUid, data?.wishes);
   return data;
 }
 
@@ -363,7 +441,7 @@ export async function updateMyBirthday(year, month, day) {
     if (currentUid && data?.dateOfBirth) rememberDob(currentUid, data.dateOfBirth);
   }
   homeCache = null;
-  listCache = null;
+  resetList();
   publicCache.clear();
   if (currentUid) { forget(homeKey()); forget(listKey()); }
   emit();
