@@ -86,7 +86,9 @@ async function run(db, supabase) {
 exports.notifyBirthdayWishes = functions
   .runWith({
     secrets: ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'],
-    memory: '128MB',
+    // 128MB ran out (130 MiB) on 2026-10-12 with 242 first-wish pushes due at
+    // once after the job was resumed; thank-yous can add up to BATCH more.
+    memory: '256MB',
     timeoutSeconds: 120,
   })
   .pubsub.schedule('every 10 minutes')
