@@ -310,6 +310,8 @@ Next-Gen 1.4.0, test ad units:**
   7 days, Blox Android 54,180 requests at 80.6% match rate (1,957
   impressions, $2.19 eCPM); Blox iOS 6,838 at 89.7% (263, $7.84). Rewarded
   is checked on real devices from the internal testing build instead.
+- ✅ **Rewarded confirmed on a real Android device** (owner, 2026-10-12) with
+  4.0.23 (172) from the internal testing track, Next-Gen SDK, live unit.
 - Note for 4.4: Blox Android rewarded shows ~1 impression per 22 matched
   requests (the old code warmed rewarded often). Compare that show rate on
   the new build.
