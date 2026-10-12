@@ -7,6 +7,7 @@ import { npaRequiredFor } from './consent';
 import { useLocalState } from '../LocalGlobelStats';
 import { useAdsReady } from './init';
 import useIsAdFree from './useIsAdFree';
+import { logAdRevenue } from './adTelemetry';
 
 // Bottom banners are the standard fixed 320x50 BANNER (owner decision,
 // 2026-10-05): no anchored-adaptive height.
@@ -93,6 +94,10 @@ const BannerAdComponent = ({
     }
   }, [wantsCollapsible, isFocused]);
   const isCollapsible = wantsCollapsible && !expandSpent;
+  const handlePaid = useCallback(
+    (paid) => logAdRevenue('banner', isCollapsible ? 'banner_collapsible' : 'banner', paid, unitId),
+    [isCollapsible, unitId],
+  );
   const requestOptions = useMemo(
     () => ({
       requestNonPersonalizedAdsOnly: npaRequiredFor(localState?.consentStatus),
@@ -129,6 +134,7 @@ const BannerAdComponent = ({
         requestOptions={requestOptions}
         onAdLoaded={handleAdLoaded}
         onAdFailedToLoad={handleAdFailedToLoad}
+        onPaid={handlePaid}
       />
     </View>
   );

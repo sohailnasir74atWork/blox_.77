@@ -1,47 +1,32 @@
 import { Keyboard } from 'react-native';
 /**
  * RewardedAdManager.js
- * Singleton manager for rewarded ads.
- * Pattern mirrors IntAd.js (proven in production) but for rewarded format.
+ * WHEN a rewarded ad may show (cooldown, one at a time) and how the reward is
+ * granted. WHERE the ad comes from — Google's preloader on Android Next-Gen,
+ * one warm instance elsewhere — is fullscreenSource.js (17.x, 2026-10-12).
  *
  * Usage:
- *   import RewardedAdManager from './RewardedAdManager';
- *
- *   // Init once at app start (done in index.js or App.js)
- *   RewardedAdManager.init();
- *
- *   // Show ad (returns promise — resolves true if reward earned, false otherwise)
+ *   RewardedAdManager.prepare();            // on mount of a screen with a "Watch ad" button
  *   const earned = await RewardedAdManager.show();
- *   if (earned) { grantReward(); }
- *
- *   // Or callback style:
- *   RewardedAdManager.showWithCallback(
- *     () => { // onRewardEarned — user watched full ad },
- *     () => { // onAdClosed — user closed without earning reward },
- *     () => { // onAdUnavailable — no ad to show },
- *   );
+ *   RewardedAdManager.showWithCallback(onRewardEarned, onAdClosed, onAdUnavailable);
+ *   const r = await RewardedAdManager.showForResult(); // 'earned' | 'closed' | 'unavailable'
  */
-import {
-  RewardedAd,
-  RewardedAdEventType,
-  AdEventType,
-} from 'react-native-google-mobile-ads';
+import { RewardedAdEventType, AdEventType } from 'react-native-google-mobile-ads';
 import getAdUnitId from './ads';
-import { ensureAdsInitialized, adsInitialized } from './init';
 import { setFullScreenAdVisible, markFullScreenAdShown, whenModalSettled } from './adVisibility';
-import { NO_FILL_RETRY_MS, isNoFillError } from './adPolicy';
+import { createFullscreenSource, takeWithin, safeDestroy } from './fullscreenSource';
+import { adLog, logAdRevenue } from './adTelemetry';
 
 const adUnitId = getAdUnitId('rewarded');
+// 'pets' was an Adopt Me leftover; 'kids' contradicts our 'T' content rating
+// and pulls lower-value / policy-sensitive inventory.
+const source = createFullscreenSource('rewarded', adUnitId, { keywords: ['games', 'roblox'] });
+
+const run = (fn) => { if (typeof fn === 'function') fn(); };
 
 class RewardedAdManager {
-  static ad = null;
-  static isLoaded = false;
-  static isLoading = false;
   static hasInitialized = false;
-  static retryCount = 0;
-  static maxRetries = 3;
-  static noFillRetried = false;
-  static unsubscribeEvents = [];
+  static isShowing = false;
 
   // Cooldown to prevent ad spam (minimum 30s between ads)
   static lastShownAt = 0;
@@ -53,251 +38,149 @@ class RewardedAdManager {
   // blocked every interstitial and app-open ad for the rest of the session.
   static SHOW_WATCHDOG_MS = 5000;
 
-  // Wait timeout when no ad is preloaded (try to load one on-the-fly).
-  // Was 5s — rewarded creatives (video) routinely take longer than that to
-  // load cold, so the user's FIRST tap nearly always ended in "unavailable"
-  // and taught them the button is broken (AdMob showed 50% fill but 1.4%
-  // show). 12s behind the caller's own spinner gives a cold load a real
-  // chance; screens that call prepare() on mount won't hit the wait at all.
+  // Wait timeout when no ad is preloaded. Rewarded creatives (video) routinely
+  // take longer than 5 s to load cold, so a short wait taught users the button
+  // is broken (AdMob: 50% fill but 1.4% show). Screens that call prepare() on
+  // mount rarely hit the wait at all.
   static WAIT_TIMEOUT_MS = 12000;
 
-  // ── Init (call once at app start) ──
+  // iOS can deliver EARNED_REWARD just after CLOSED (fixed on the library's
+  // main branch after 17.2.0). Settling this long after CLOSED still pays a
+  // reward the user did earn.
+  static REWARD_GRACE_MS = 400;
+
   static init() {
     if (this.hasInitialized) return;
-    this._createAndLoad();
     this.hasInitialized = true;
-  }
-
-  // ── Create ad instance and wire up events ──
-  static _createAndLoad() {
-    // Clean up previous instance
-    this._cleanup();
-
-    // 'pets' was an Adopt Me leftover; 'kids' contradicts our 'T' content
-    // rating + tagForChildDirectedTreatment:false and pulls lower-value /
-    // policy-sensitive inventory.
-    this.ad = RewardedAd.createForAdRequest(adUnitId, {
-      keywords: ['games', 'roblox'],
-    });
-
-    const onLoaded = this.ad.addAdEventListener(
-      RewardedAdEventType.LOADED,
-      () => {
-        this.isLoaded = true;
-        this.isLoading = false;
-        this.retryCount = 0;
-        this.noFillRetried = false;
-      },
-    );
-
-    const onError = this.ad.addAdEventListener(
-      AdEventType.ERROR,
-      (error) => {
-        this.isLoaded = false;
-        this.isLoading = false;
-        this._retryLoad(isNoFillError(error));
-      },
-    );
-
-    this.unsubscribeEvents = [onLoaded, onError];
-    // Config-before-load: don't request until the request config is applied.
-    ensureAdsInitialized().then(() => this._load()).catch(() => {});
-  }
-
-  // ── Safe load (prevents duplicate loads) ──
-  static _load() {
-    if (this.isLoaded || this.isLoading || !this.ad) return;
-    // Consent + config first: a load before the SDK is initialised would go
-    // out ahead of the UMP answer. Deferred, not dropped.
-    if (!adsInitialized()) {
-      ensureAdsInitialized().then(() => this._load()).catch(() => {});
-      return;
-    }
-    this.isLoading = true;
-    try {
-      this.ad.load();
-    } catch {
-      this.isLoading = false;
-      this._retryLoad();
-    }
-  }
-
-  // ── Retry with exponential backoff (1s, 2s, 4s), then STOP ──
-  // The old 15s-forever loop kept filling rewarded ads in the background that
-  // no one would ever tap to see (fills with ~1% show rate are worse than no
-  // fills — they depress bids and invite ad-serving limits). Loading resumes
-  // on the next user signal: prepare() from a rewarded-surface mount, or a
-  // show attempt. "No fill" is not transient, so it gets a single retry a
-  // minute later instead of the backoff (see adPolicy.js).
-  static _retryLoad(noFill) {
-    if (noFill) {
-      if (this.noFillRetried) return;
-      this.noFillRetried = true;
-      setTimeout(() => this._load(), NO_FILL_RETRY_MS);
-      return;
-    }
-    if (this.retryCount >= this.maxRetries) return;
-    const delay = Math.pow(2, this.retryCount) * 1000;
-    setTimeout(() => {
-      this.retryCount += 1;
-      this._load();
-    }, delay);
+    source.prepare();
   }
 
   // ── Proximity preload: call from screens that render a rewarded button ──
-  // (GameScreen, MysteryEgg, reward centers) so the ad is warm BEFORE the
-  // user taps. Idempotent; also un-sticks a manager whose bounded retries
-  // ran out.
+  // (GameScreen, MysteryEgg, Trades) so the ad is warm BEFORE the user taps.
   static prepare() {
     if (!this.hasInitialized) {
       this.init();
       return;
     }
-    if (this.isLoaded || this.isLoading) return;
-    this.retryCount = 0;
-    if (this.ad) this._load();
-    else this._createAndLoad();
+    source.prepare(true);
   }
 
-  // ══════════════════════════════════════════════
-  //  PUBLIC API: Promise-based show
-  // ══════════════════════════════════════════════
-  /**
-   * Show a rewarded ad.
-   * @returns {Promise<boolean>} true if user earned reward, false if closed early or unavailable.
-   */
+  /** @returns {Promise<boolean>} true if the user earned the reward. */
   static show() {
     return new Promise((resolve) => {
+      this.showWithCallback(() => resolve(true), () => resolve(false), () => resolve(false));
+    });
+  }
+
+  /** @returns {Promise<'earned'|'closed'|'unavailable'>} */
+  static showForResult() {
+    return new Promise((resolve) => {
       this.showWithCallback(
-        () => resolve(true),   // earned
-        () => resolve(false),  // closed without reward
-        () => resolve(false),  // unavailable
+        () => resolve('earned'),
+        () => resolve('closed'),
+        () => resolve('unavailable'),
       );
     });
   }
 
-  // ══════════════════════════════════════════════
-  //  PUBLIC API: Callback-based show
-  // ══════════════════════════════════════════════
   /**
-   * @param {Function} onRewardEarned - Called when user completes the ad and earns the reward.
-   * @param {Function} onAdClosed - Called when ad is closed without earning reward.
-   * @param {Function} onAdUnavailable - Called when no ad is available after waiting.
+   * @param {Function} onRewardEarned - the user completed the ad and earned the reward.
+   * @param {Function} onAdClosed - the ad was shown and closed without earning it.
+   * @param {Function} onAdUnavailable - no ad could be shown (none filled, cooldown, a failed present).
+   * @param {string} placement - labels the revenue event.
    */
-  static showWithCallback(onRewardEarned, onAdClosed, onAdUnavailable) {
+  static showWithCallback(onRewardEarned, onAdClosed, onAdUnavailable, placement = 'reward') {
     if (!this.hasInitialized) this.init();
+    const unavailable = () => run(onAdUnavailable || onAdClosed);
 
-    // Cooldown check
-    const now = Date.now();
-    if (now - this.lastShownAt < this.COOLDOWN_MS) {
-      if (typeof onAdUnavailable === 'function') onAdUnavailable();
+    if (this.isShowing ||
+        Date.now() - this.lastShownAt < this.COOLDOWN_MS) {
+      unavailable();
       return;
     }
 
-    if (this.isLoaded) {
-      this._showAd(onRewardEarned, onAdClosed);
-    } else {
-      // Wait for ad to load (up to WAIT_TIMEOUT_MS)
-      this._waitAndShow(onRewardEarned, onAdClosed, onAdUnavailable);
-    }
+    this.isShowing = true;
+    // The user asked for this ad: a fresh request goes out even right after
+    // a no-fill (force). Two-argument then: a throwing callback must not run
+    // twice through a catch handler.
+    takeWithin(source, this.WAIT_TIMEOUT_MS, { force: true }).then((ad) => {
+      if (!ad) {
+        this.isShowing = false;
+        unavailable();
+        return;
+      }
+      // Never present while a modal is mid-transition — on iOS the ad is
+      // presented from the topmost view controller, and UIKit refuses to
+      // present from one that is itself animating.
+      whenModalSettled(() => this._present(ad, onRewardEarned, onAdClosed, unavailable, placement));
+    }, () => {
+      this.isShowing = false;
+      unavailable();
+    });
   }
 
-  // ── Internal: show the loaded ad ──
-  static _showAd(onRewardEarned, onAdClosed) {
-    if (!this.ad || !this.isLoaded) {
-      if (typeof onAdClosed === 'function') onAdClosed();
-      return;
-    }
-
-    // Reserve synchronously: the present below may be deferred, and a second
-    // trigger in that gap must not show the same ad twice.
-    this.isLoaded = false;
-
-    // Never present while a modal is mid-transition — on iOS the ad is
-    // presented from the topmost view controller, and UIKit refuses to
-    // present from one that is itself animating. Synchronous when nothing is
-    // animating, so the common path is unchanged.
-    // Pin the instance: _createAndLoad() replaces this.ad outright, and a
-    // deferred present must never attach listeners to a stale ad.
-    const ad = this.ad;
-    whenModalSettled(() => this._presentAd(ad, onRewardEarned, onAdClosed));
-  }
-
-  static _presentAd(ad, onRewardEarned, onAdClosed) {
-    if (!ad || ad !== this.ad) {
-      // The ad we reserved is gone. Nothing was shown, so no reward.
-      this._createAndLoad();
-      if (typeof onAdClosed === 'function') onAdClosed();
-      return;
-    }
-
+  static _present(ad, onRewardEarned, onAdClosed, onUnavailable, placement) {
     this.lastShownAt = Date.now();
     setFullScreenAdVisible(true);
 
     let didEarnReward = false;
     let settled = false;
     let watchdog = null;
-    let unsubReward = null;
-    let unsubOpened = null;
-    let unsubClose = null;
+    const unsubs = [];
 
-    const finish = (didShow) => {
+    const finish = (didShow, why) => {
       if (settled) return;
       settled = true;
-      if (watchdog) {
-        clearTimeout(watchdog);
-        watchdog = null;
-      }
-      try { if (unsubReward) unsubReward(); } catch (_) {}
-      try { if (unsubOpened) unsubOpened(); } catch (_) {}
-      try { if (unsubClose) unsubClose(); } catch (_) {}
+      if (watchdog) clearTimeout(watchdog);
+      unsubs.forEach((u) => { try { u(); } catch (_) {} });
       setFullScreenAdVisible(false);
+      this.isShowing = false;
+      // Not after the watchdog: on a slow device the ad may still be opening.
+      if (why !== 'watchdog') safeDestroy(ad);
+      adLog(`rewarded ${didShow ? (didEarnReward ? 'earned' : 'closed') : `failed ${why || ''}`}`);
       if (!didShow) {
         // Nothing reached the screen, so nothing was consumed: don't burn the
         // cooldown on an impression the user never saw.
         this.lastShownAt = 0;
       }
-
-      // Create new ad instance for next show (ads can only be shown once)
-      this._createAndLoad();
+      // Warm the next one: rewarded users often watch again (games, spins).
+      source.prepare();
 
       // A reward is only ever granted off a real EARNED_REWARD event, so a
-      // failed presentation can never pay out.
-      if (didShow && didEarnReward) {
-        if (typeof onRewardEarned === 'function') onRewardEarned();
-      } else {
-        if (typeof onAdClosed === 'function') onAdClosed();
-      }
+      // failed presentation can never pay out — and is reported as
+      // "unavailable", not as the user closing it early.
+      if (didShow && didEarnReward) run(onRewardEarned);
+      else if (didShow) run(onAdClosed);
+      else run(onUnavailable);
     };
 
-    // Listen for EARNED_REWARD (user completed the action)
-    unsubReward = ad.addAdEventListener(
-      RewardedAdEventType.EARNED_REWARD,
-      () => {
-        didEarnReward = true;
-      },
-    );
-
+    unsubs.push(ad.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => {
+      didEarnReward = true;
+    }));
     // OPENED confirms the ad actually reached the screen; CLOSED is then the
     // real completion signal, so stand the watchdog down. It is also the
     // moment the other formats start their cross-format gap from.
-    unsubOpened = ad.addAdEventListener(AdEventType.OPENED, () => {
+    unsubs.push(ad.addAdEventListener(AdEventType.OPENED, () => {
       markFullScreenAdShown('rewarded');
+      adLog(`rewarded opened ${placement}`);
       if (watchdog) {
         clearTimeout(watchdog);
         watchdog = null;
       }
-    });
-
-    // Listen for CLOSED (ad dismissed)
-    unsubClose = ad.addAdEventListener(AdEventType.CLOSED, () => finish(true));
+    }));
+    unsubs.push(ad.addAdEventListener(AdEventType.CLOSED, () => {
+      setTimeout(() => finish(true), this.REWARD_GRACE_MS);
+    }));
+    // 17.x: Android reports a refused present as ERROR (phase 'show').
+    unsubs.push(ad.addAdEventListener(AdEventType.ERROR, (e) => finish(false, e?.reason)));
+    unsubs.push(ad.addAdEventListener(AdEventType.PAID, (paid) =>
+      logAdRevenue('rewarded', placement, paid, adUnitId)));
 
     // A presentation UIKit refuses fires neither OPENED nor CLOSED. Before
-    // this watchdog that left the caller waiting forever — the rewarded flow
-    // simply never resolved — and threw the loaded ad away.
+    // this watchdog the rewarded flow simply never resolved.
     watchdog = setTimeout(() => {
       watchdog = null;
-      finish(false);
+      finish(false, 'watchdog');
     }, this.SHOW_WATCHDOG_MS);
 
     try {
@@ -305,62 +188,29 @@ class RewardedAdManager {
       // detaches while the ad covers the app crashed ScrollView.onSizeChanged
       // on return ("parameter must be a descendant of this view").
       Keyboard.dismiss();
-      const shown = ad.show();
-      if (shown && typeof shown.catch === 'function') {
-        shown.catch(() => finish(false));
-      }
+      // 17.2: "already showing" and a refused present REJECT the promise.
+      Promise.resolve(ad.show()).catch((e) => finish(false, e?.reason || 'show-rejected'));
     } catch {
-      finish(false);
+      finish(false, 'show-threw');
     }
   }
 
-  // ── Internal: wait for ad to load then show ──
-  static _waitAndShow(onRewardEarned, onAdClosed, onAdUnavailable) {
-    const startTime = Date.now();
-    this._load(); // trigger a load
-
-    const checkInterval = setInterval(() => {
-      if (this.isLoaded) {
-        clearInterval(checkInterval);
-        this._showAd(onRewardEarned, onAdClosed);
-        return;
-      }
-      if (Date.now() - startTime >= this.WAIT_TIMEOUT_MS) {
-        clearInterval(checkInterval);
-        if (typeof onAdUnavailable === 'function') onAdUnavailable();
-      }
-    }, 100);
-  }
-
-  // ── Check if ad is ready right now ──
   static isReady() {
-    return this.isLoaded;
+    return source.isReady();
   }
 
-  // ── Check if cooldown has passed ──
   static canShow() {
     return Date.now() - this.lastShownAt >= this.COOLDOWN_MS;
   }
 
-  // ── Force reload ──
   static forceReload() {
-    this._createAndLoad();
-  }
-
-  // ── Cleanup ──
-  static _cleanup() {
-    this.unsubscribeEvents.forEach(unsub => {
-      try { unsub(); } catch {}
-    });
-    this.unsubscribeEvents = [];
-    this.isLoaded = false;
-    this.isLoading = false;
+    source.prepare(true);
   }
 
   static destroy() {
-    this._cleanup();
+    source.reset('destroy');
     this.hasInitialized = false;
-    this.ad = null;
+    this.isShowing = false;
   }
 }
 

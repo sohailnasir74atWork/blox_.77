@@ -1,7 +1,6 @@
 // themes.js
 import { DefaultTheme, DarkTheme } from '@react-navigation/native';
 import InAppReview from 'react-native-in-app-review';
-import { AdsConsent, AdsConsentStatus } from 'react-native-google-mobile-ads';
 
 
 export const MyLightTheme = {
@@ -33,26 +32,5 @@ export const requestReview = () => {
     InAppReview.RequestInAppReview()
       .then(() => {/* console.log('In-App review flow completed') */ })
       .catch((error) => {/* console.error('In-App review error:', error) */ });
-  }
-};
-
-
-// consentHelper.js
-
-export const handleUserConsent = async (setConsentStatus, setLoading) => {
-  try {
-    const consentInfo = await AdsConsent.requestInfoUpdate();
-    if (consentInfo.isConsentFormAvailable) {
-      if (consentInfo.status === AdsConsentStatus.REQUIRED) {
-        const formResult = await AdsConsent.showForm();
-        setConsentStatus(formResult.status);
-      } else {
-        setConsentStatus(consentInfo.status);
-      }
-    }
-  } catch (error) {
-    console.error('Error handling consent:', error);
-  } finally {
-    setLoading(false);
   }
 };

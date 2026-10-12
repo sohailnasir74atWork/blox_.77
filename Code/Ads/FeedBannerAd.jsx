@@ -20,6 +20,7 @@ import { useLocalState } from '../LocalGlobelStats';
 import { npaRequiredFor } from './consent';
 import { useAdsReady } from './init';
 import useIsAdFree from './useIsAdFree';
+import { logAdRevenue } from './adTelemetry';
 
 // Horizontal gutter the feed cards use, so the ad lines up with content.
 const CARD_GUTTER = 12;
@@ -50,6 +51,7 @@ const FeedBannerAd = ({ adKey, isDarkMode = false }) => {
   );
 
   const handleAdLoaded = useCallback(() => setLoaded(true), []);
+  const handlePaid = useCallback((paid) => logAdRevenue('banner', 'feed', paid, unitId), [unitId]);
 
   const handleAdFailedToLoad = useCallback(() => {
     setLoaded(false);
@@ -98,6 +100,7 @@ const FeedBannerAd = ({ adKey, isDarkMode = false }) => {
         requestOptions={requestOptions}
         onAdLoaded={handleAdLoaded}
         onAdFailedToLoad={handleAdFailedToLoad}
+        onPaid={handlePaid}
       />
     </View>
   );

@@ -37,6 +37,8 @@ export const checkForUpdate = async () => {
     if (Platform.OS === 'android') {
       const result = await inAppUpdates.checkNeedsUpdate();
       if (result?.shouldUpdate) {
+        // Leaving for Play's update screen is not a return worth an app-open ad.
+        require('../Ads/openApp').default.skipNextForeground(2 * 60 * 1000);
         await inAppUpdates.startUpdate({ updateType: IAUUpdateKind.IMMEDIATE });
       }
     } else if (Platform.OS === 'ios') {

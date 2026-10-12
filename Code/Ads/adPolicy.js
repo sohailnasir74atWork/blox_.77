@@ -85,7 +85,17 @@ export const POST_SHOW_RELOAD_MS = 65 * 1000;
 // a silent no-op that still consumes the slot. Treat it as gone a little early.
 export const INTERSTITIAL_EXPIRY_MS = 55 * 60 * 1000;
 
-// react-native-google-mobile-ads reports AdMob's ERROR_CODE_NO_FILL as
-// `code: 'error-code-no-fill'` (iOS and Android alike).
+// App-open ads expire 4 h after load (Google); drop ours a little early.
+export const APP_OPEN_EXPIRY_MS = 4 * 60 * 60 * 1000 - 5 * 60 * 1000;
+
+// Android on the GMA Next-Gen SDK keeps full-screen ads ready with Google's
+// own preloader (react-native-google-mobile-ads AdPools) instead of our
+// one-instance warm-up. false = use the instance path everywhere (kill switch;
+// see fullscreenSource.js).
+export const USE_SDK_PRELOADER = true;
+
+// 17.x reports a no-fill as `reason: 'no-fill' | 'mediation-no-fill'`; the
+// deprecated `code` is still 'googleMobileAds/error-code-no-fill' (iOS and
+// Android alike).
 export const isNoFillError = (err) =>
-  /no-fill/i.test(String((err && (err.code || err.message)) || ''));
+  /no-fill/i.test(String((err && (err.reason || err.code || err.message)) || ''));

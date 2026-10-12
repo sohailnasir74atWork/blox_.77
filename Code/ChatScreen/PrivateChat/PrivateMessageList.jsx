@@ -269,22 +269,6 @@ const PrivateMessageList = ({
     };
 
 
-    // Determine roles for tagging
-    // If it's my message, check my roles (user object)
-    // If it's other's message, check selectedUser roles
-    // Resolved syntax error: checked consistent variable usage
-    const senderData = isMyMessage ? user : selectedUser;
-
-    // ✅ Use explicit isAdmin prop for current user if available, otherwise check object
-    // `admin` is the legacy flag, `isAdmin` the current one — both exist in the wild.
-    const isSenderAdmin = isMyMessage
-      ? (isAdmin || user?.isAdmin || user?.admin || false)
-      : (selectedUser?.isAdmin || selectedUser?.admin || false);
-    // Senior Mod outranks Mod but is a SEPARATE flag — a Sr Mod who was never
-    // also flagged isModerator used to render no badge at all in DMs.
-    const isSenderSeniorMod = senderData?.isSeniorMod || false;
-    const isSenderMod = senderData?.isModerator || false;
-    const isSenderJMD = senderData?.isBabyMod || false;
 
     const bubble = (
       <View
@@ -395,31 +379,8 @@ const PrivateMessageList = ({
 
               {!!item.text && (
                 <View>
-                  {/* Strict ladder — show only the highest rank the sender holds. */}
-                  {(isSenderAdmin || isSenderSeniorMod || isSenderMod || isSenderJMD) && (
-                    <View style={{ flexDirection: 'row', marginBottom: 2 }}>
-                      {isSenderAdmin && (
-                        <View style={[styles.adminContainer, { marginBottom: 2 }]}>
-                          <Text style={styles.admin}>{t("chat.admin")}</Text>
-                        </View>
-                      )}
-                      {(!isSenderAdmin && isSenderSeniorMod) && (
-                        <View style={[styles.moderatorContainer, { marginBottom: 2 }]}>
-                          <Text style={styles.moderator}>{t('chat.private_message_list.badge_sr_mod')}</Text>
-                        </View>
-                      )}
-                      {(!isSenderAdmin && !isSenderSeniorMod && isSenderMod) && (
-                        <View style={[styles.moderatorContainer, { marginBottom: 2 }]}>
-                          <Text style={styles.moderator}>{t('chat.private_message_list.badge_mod')}</Text>
-                        </View>
-                      )}
-                      {(!isSenderAdmin && !isSenderSeniorMod && !isSenderMod && isSenderJMD) && (
-                        <View style={[styles.moderatorContainer, { marginBottom: 2 }]}>
-                          <Text style={styles.moderator}>{t('chat.private_message_list.badge_jmd')}</Text>
-                        </View>
-                      )}
-                    </View>
-                  )}
+                  {/* No role tags here: the DM header already shows the other
+                      user's roles. Group chat bubbles keep theirs. */}
                   {isMultiColorText(profile.chatTextColor)
                     ? <RainbowText
                         colors={getMultiColorPalette(profile.chatTextColor)}

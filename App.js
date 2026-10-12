@@ -31,6 +31,7 @@ import EmailOptInGate from './Code/AppHelper/EmailOptInGate';
 import DateOfBirthModal from './Code/AppHelper/DateOfBirthModal';
 import useDobGate from './Code/AppHelper/useDobGate';
 import { gatherAdsConsent, openAdsGate } from './Code/Ads/init';
+import { installLeaveAppGuard } from './Code/Ads/leaveAppGuard';
 import MainTabs from './Code/AppHelper/MainTabs';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {
@@ -98,6 +99,10 @@ const PrivateChatRootWrapper = (props) => {
 
 
 const Stack = createNativeStackNavigator();
+
+// Picker / share / sign-in / links: our own trips out never come back to an
+// app-open ad (Code/Ads/leaveAppGuard.js).
+installLeaveAppGuard();
 
 // const adUnitId = getAdUnitId('openapp');
 
@@ -534,6 +539,7 @@ function App() {
 export default function AppWrapper() {
   const { localState, updateLocalState } = useLocalState();
   const { theme, proGranted } = useGlobalState();
+  const adFree = !!(localState.isPro || proGranted);
 
   // Launch App Open ad: decided once per launch. The splash no longer waits
   // for it; it shows when it loads, over the splash or Home, under the window
@@ -546,16 +552,23 @@ export default function AppWrapper() {
   useEffect(() => {
     if (!coldStartPrepared.current) {
       coldStartPrepared.current = true;
-      if (localState.showOnBoardingScreen || localState.isPro) {
+      if (localState.showOnBoardingScreen || adFree) {
         AppOpenAdManager.skipColdStart();
       } else {
         AppOpenAdManager.prepareColdStart();
       }
     }
-    if (localState.showOnBoardingScreen || localState.isPro) return undefined;
+    if (adFree) {
+      // Pro bought mid-session (either source): drop the warm app-open and
+      // interstitial ads and their timers now, not at the next launch.
+      AppOpenAdManager.stop();
+      InterstitialAdManager.cleanup();
+      return undefined;
+    }
+    if (localState.showOnBoardingScreen) return undefined;
     AppOpenAdManager.start();
     return undefined;
-  }, [localState.showOnBoardingScreen, localState.isPro]);
+  }, [localState.showOnBoardingScreen, adFree]);
 
   useEffect(() => {
     const id = setTimeout(() => setSplashCapReached(true),

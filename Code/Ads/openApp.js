@@ -1,7 +1,9 @@
 import { AppState, Keyboard } from 'react-native';
-import { AppOpenAd, AdEventType } from 'react-native-google-mobile-ads';
+import { AdEventType } from 'react-native-google-mobile-ads';
 import getAdUnitId from './ads';
-import { ensureAdsInitialized, adsInitialized } from './init';
+import { ensureAdsInitialized, isConsentFlowActive, whenConsentFlowIdle } from './init';
+import { createFullscreenSource, safeDestroy } from './fullscreenSource';
+import { adLog, logAdRevenue } from './adTelemetry';
 import {
   setFullScreenAdVisible,
   isFullScreenAdVisible,
@@ -18,15 +20,12 @@ import {
   LAUNCH_AD_MAX_MS,
   CROSS_FORMAT_GAP_MS,
   POST_SHOW_RELOAD_MS,
-  NO_FILL_RETRY_MS,
-  isNoFillError,
 } from './adPolicy';
 
 const adUnitId = getAdUnitId('openapp');
-
-// App Open ads expire ~4h after load — showing an expired ad is a silent
-// no-op / wasted slot, so we reload instead.
-const AD_EXPIRY_MS = 4 * 60 * 60 * 1000;
+// Where the ad comes from (Google's preloader on Android Next-Gen, one warm
+// instance elsewhere) and its 4 h expiry: fullscreenSource.js.
+const source = createFullscreenSource('app_open', adUnitId);
 // Don't show more than once per this window, so quick app-switches (e.g.
 // flicking to another app for 5s and back) don't spam the user.
 const MIN_INTERVAL_MS = APP_OPEN_MIN_INTERVAL_MS;
@@ -77,6 +76,7 @@ const isProUser = () => {
     return false;
   }
 };
+const noAppOpenAds = () => isProUser();
 
 /**
  * App Open ad manager.
@@ -89,20 +89,14 @@ const isProUser = () => {
  * utility app users reopen many times a day.
  */
 class AppOpenAdManager {
-  static ad = null;
-  static isLoaded = false;
-  static isLoading = false;
-  static loadedAt = 0;
   static lastShownAt = 0;
   static isShowing = false;
   static hasStarted = false;
   static showOnFirstLoad = false;
+  static coldStartDecided = false;
   static wasBackgrounded = false;
   static backgroundedAt = 0;
-  static retryCount = 0;
-  static maxRetries = 3;
-  static noFillRetried = false;
-  static unsubscribeEvents = [];
+  static availableUnsub = null;
   static appStateSub = null;
   static showWatchdog = null;
   static foregroundTimer = null;
@@ -131,9 +125,13 @@ class AppOpenAdManager {
    * own schedule.
    */
   static prepareColdStart() {
+    // Decided once per launch: at JS load for returning users (bottom of this
+    // file), and again (no-op) from App.js.
+    if (this.coldStartDecided) return;
+    this.coldStartDecided = true;
     let lastCold = 0;
     try { lastCold = Number(storage?.getString(K_LAST_COLD_AD)) || 0; } catch (_) {}
-    const eligible = launchedBefore && !isProUser() &&
+    const eligible = launchedBefore && !noAppOpenAds() &&
       Date.now() - lastCold >= COLD_START_MIN_GAP_MS;
     if (!eligible) return;
 
@@ -143,12 +141,16 @@ class AppOpenAdManager {
     setTimeout(() => {
       if (this.showOnFirstLoad) {
         this.showOnFirstLoad = false;
-        this._logLaunch('not_loaded');
+        let outcome = 'not_loaded';
+        if (source.recentNoFill()) outcome = 'no_fill';
+        else if (isConsentFlowActive()) outcome = 'consent';
+        this._logLaunch(outcome);
       }
     }, Math.max(0, APP_START_AT + LAUNCH_AD_MAX_MS - Date.now()));
   }
 
   static skipColdStart() {
+    this.coldStartDecided = true;
     this.showOnFirstLoad = false;
   }
 
@@ -196,9 +198,14 @@ class AppOpenAdManager {
 
     // Whether THIS launch shows a cold-start ad was decided by
     // prepareColdStart(); start() only loads and wires the foreground shows.
-
+    // The listeners are wired even for a user who gets no app-open ads right
+    // now (Pro mirror or child device still set from last session): that can
+    // change mid-session, and showAdIfAvailable() gates and warms per return.
+    this.availableUnsub = source.onAvailable(() => this._onAdReady());
+    // The early load above may already have an ad waiting.
+    if (source.isReady()) this._onAdReady();
     ensureAdsInitialized()
-      .then(() => this._createAndLoad())
+      .then(() => { if (this.hasStarted && !noAppOpenAds()) source.prepare(true); })
       .catch(() => {});
 
     this.appStateSub = AppState.addEventListener('change', (next) => {
@@ -231,118 +238,30 @@ class AppOpenAdManager {
     });
   }
 
-  static _createAndLoad() {
-    this._cleanupAd();
-    this.ad = AppOpenAd.createForAdRequest(adUnitId);
-
-    const onLoaded = this.ad.addAdEventListener(AdEventType.LOADED, () => {
-      this.isLoaded = true;
-      this.isLoading = false;
-      this.loadedAt = Date.now();
-      this.retryCount = 0;
-      this.noFillRetried = false;
-      if (this.showOnFirstLoad) {
-        this.showOnFirstLoad = false;
-        // Outside the launch window, or the user is already tapping around:
-        // keep it for the next return instead of dropping it onto them.
-        if (this.touchedAt) {
-          this._logLaunch('touched');
-        } else if (Date.now() > this._launchDeadline()) {
-          this._logLaunch('late');
-        } else {
-          this.coldStartShowing = true;
-          this.showAdIfAvailable();
-          if (!this.isShowing) {
-            this.coldStartShowing = false;
-            this._logLaunch('blocked');
-          }
-        }
-      }
-    });
-
-    const onError = this.ad.addAdEventListener(AdEventType.ERROR, (error) => {
-      const noFill = isNoFillError(error);
-      this.isLoaded = false;
-      this.isLoading = false;
-      // No launch ad this launch. (A transient error keeps the window open —
-      // its quick retry can still land in time.)
-      if (noFill && this.showOnFirstLoad) {
-        this.showOnFirstLoad = false;
-        this._logLaunch('no_fill');
-      }
-      this._retryLoad(noFill);
-    });
-
-    // OPENED confirms the ad actually presented — cancel the show watchdog so
-    // a legitimately-open ad isn't force-reset out from under the user.
-    const onOpened = this.ad.addAdEventListener(AdEventType.OPENED, () => {
-      markFullScreenAdShown('app_open');
-      this._clearShowWatchdog();
-      if (this.coldStartShowing) {
+  // An ad became ready. Only the launch ad cares: inside the launch window,
+  // with Home untouched, it shows now; otherwise it waits for the next return.
+  static _onAdReady() {
+    if (!this.showOnFirstLoad) return;
+    // This session's consent refresh is still running and may put the UMP
+    // form on screen: never present over it. Decide once it is done (the
+    // window rules below still apply then).
+    if (isConsentFlowActive()) {
+      whenConsentFlowIdle().then(() => this._onAdReady());
+      return;
+    }
+    this.showOnFirstLoad = false;
+    if (this.touchedAt) {
+      this._logLaunch('touched');
+    } else if (Date.now() > this._launchDeadline()) {
+      this._logLaunch('late');
+    } else {
+      this.coldStartShowing = true;
+      this.showAdIfAvailable();
+      if (!this.isShowing) {
         this.coldStartShowing = false;
-        try { storage?.set(K_LAST_COLD_AD, String(Date.now())); } catch (_) {}
-        this._logLaunch('shown');
+        this._logLaunch('blocked');
       }
-    });
-
-    const onClosed = this.ad.addAdEventListener(AdEventType.CLOSED, () => {
-      this._clearShowWatchdog();
-      setFullScreenAdVisible(false);
-      this.isShowing = false;
-      this.isLoaded = false;
-      // Warm up the next one for the next foreground return — after the
-      // AdMob cap window, or the request fails with "frequency cap reached"
-      // and nothing is ready for that return (see POST_SHOW_RELOAD_MS).
-      setTimeout(() => this._load(), POST_SHOW_RELOAD_MS);
-    });
-
-    this.unsubscribeEvents = [onLoaded, onError, onOpened, onClosed];
-    this._load();
-  }
-
-  static _load() {
-    if (this.isLoaded || this.isLoading || !this.ad) return;
-    // Consent + config first: a load before the SDK is initialised would go
-    // out ahead of the UMP answer. Deferred, not dropped.
-    if (!adsInitialized()) {
-      ensureAdsInitialized().then(() => this._load()).catch(() => {});
-      return;
     }
-    this.isLoading = true;
-    try {
-      this.ad.load();
-    } catch (_) {
-      this.isLoading = false;
-      this._retryLoad();
-    }
-  }
-
-  // Exponential backoff (1s,2s,4s), then STOP. The old 30s-forever loop
-  // burned no-fill requests all session in zero-fill geos. Every
-  // background→foreground return calls showAdIfAvailable(), which calls
-  // _load() when nothing is loaded — that natural signal replaces the
-  // blind timer. A "no fill" gets ONE retry after NO_FILL_RETRY_MS (the
-  // 1→16s backoff used to answer it with five more identical requests per
-  // launch — AdMob: 2.8M requests for 812K app-open impressions in one app).
-  // It used to get none, which left nothing loaded for the next return: that
-  // return only started a load, so one no-fill cost a whole ad opportunity.
-  static _retryLoad(noFill) {
-    if (noFill) {
-      if (this.noFillRetried) return;
-      this.noFillRetried = true;
-      setTimeout(() => this._load(), NO_FILL_RETRY_MS);
-      return;
-    }
-    if (this.retryCount >= this.maxRetries) return;
-    const delay = Math.pow(2, this.retryCount) * 1000;
-    setTimeout(() => {
-      this.retryCount += 1;
-      this._load();
-    }, delay);
-  }
-
-  static _isExpired() {
-    return Date.now() - this.loadedAt > AD_EXPIRY_MS;
   }
 
   static _clearShowWatchdog() {
@@ -369,24 +288,18 @@ class AppOpenAdManager {
   }
 
   static showAdIfAvailable() {
-    if (isProUser()) return;
+    if (noAppOpenAds()) return;
     // Never stack on top of an interstitial/rewarded, or on ourselves.
     if (this.isShowing || isFullScreenAdVisible()) return;
 
     // Make sure one is warming BEFORE the caps below decide this return gets
     // nothing: a return too soon to show an ad is still the right moment to
-    // fetch one for the next return. (The caps used to return first, so a
-    // return inside the window left the manager empty for the following one.)
-    // Not inside the AdMob cap window right after a show, though — that
-    // request would only come back "frequency cap reached", and the post-show
-    // reload is already scheduled for the end of it.
-    if (!this.isLoaded || !this.ad) {
-      if (Date.now() - this.lastShownAt >= POST_SHOW_RELOAD_MS) this._load();
-      return;
-    }
-    if (this._isExpired()) {
-      this.isLoaded = false;
-      this._createAndLoad();
+    // fetch one for the next return. Not inside the AdMob cap window right
+    // after a show, though — that request would only come back "frequency
+    // cap reached", and the post-show reload is already scheduled for the
+    // end of it. (Expired ads are dropped by the source, never shown.)
+    if (!source.isReady()) {
+      if (Date.now() - this.lastShownAt >= POST_SHOW_RELOAD_MS) source.prepare(true);
       return;
     }
 
@@ -398,13 +311,67 @@ class AppOpenAdManager {
     this.isShowing = true;
     this.lastShownAt = Date.now();
     setFullScreenAdVisible(true);
-    // Hold the present until no modal is animating: on iOS the ad is shown
-    // from the topmost view controller, and UIKit refuses to present from one
-    // that is itself mid-transition. Synchronous when nothing is animating.
-    whenModalSettled(() => this._present());
+    source.take().then((ad) => {
+      if (!ad) {
+        // Lost the race (expired, or the preloader's buffer was empty after
+        // all): nothing shown, nothing consumed.
+        this._resetFailedShow(null, 'no-ad');
+        return;
+      }
+      // Hold the present until no modal is animating: on iOS the ad is shown
+      // from the topmost view controller, and UIKit refuses to present from
+      // one that is itself mid-transition. Synchronous when nothing animates.
+      whenModalSettled(() => this._present(ad));
+    }, () => this._resetFailedShow(null, 'take-failed'));
   }
 
-  static _present() {
+  static _present(ad) {
+    if (!this.isShowing) {
+      // stop() ran inside the deferral: never present after it.
+      safeDestroy(ad);
+      return;
+    }
+    let settled = false;
+    const unsubs = [];
+    const placement = this.coldStartShowing ? 'launch' : 'return';
+    const done = () => {
+      settled = true;
+      unsubs.forEach((u) => { try { u(); } catch (_) {} });
+    };
+    unsubs.push(ad.addAdEventListener(AdEventType.OPENED, () => {
+      // OPENED confirms the ad actually presented — cancel the show watchdog
+      // so a legitimately-open ad isn't force-reset out from under the user.
+      markFullScreenAdShown('app_open');
+      this._clearShowWatchdog();
+      adLog(`app_open opened ${placement}`);
+      if (this.coldStartShowing) {
+        this.coldStartShowing = false;
+        try { storage?.set(K_LAST_COLD_AD, String(Date.now())); } catch (_) {}
+        this._logLaunch('shown');
+      }
+    }));
+    unsubs.push(ad.addAdEventListener(AdEventType.CLOSED, () => {
+      if (settled) return;
+      done();
+      this._clearShowWatchdog();
+      setFullScreenAdVisible(false);
+      this.isShowing = false;
+      safeDestroy(ad);
+      adLog('app_open closed');
+      // Warm up the next one for the next foreground return — after the
+      // AdMob cap window, or the request fails with "frequency cap reached"
+      // and nothing is ready for that return (see POST_SHOW_RELOAD_MS).
+      setTimeout(() => { if (!noAppOpenAds()) source.prepare(); }, POST_SHOW_RELOAD_MS);
+    }));
+    // 17.x: Android reports a refused present as ERROR (phase 'show').
+    unsubs.push(ad.addAdEventListener(AdEventType.ERROR, (e) => {
+      if (settled) return;
+      done();
+      this._resetFailedShow(ad, e?.reason || 'show-error');
+    }));
+    unsubs.push(ad.addAdEventListener(AdEventType.PAID, (paid) =>
+      logAdRevenue('app_open', placement, paid, adUnitId)));
+
     // Watchdog: App Open ads are frequently dismissed by re-backgrounding the
     // app rather than a clean close, and in those cases CLOSED can fail to
     // fire — which would leave isShowing + the shared full-screen flag stuck
@@ -414,51 +381,48 @@ class AppOpenAdManager {
     this._clearShowWatchdog();
     this.showWatchdog = setTimeout(() => {
       this.showWatchdog = null;
-      if (this.isShowing) this._resetFailedShow();
+      if (this.isShowing && !settled) {
+        done();
+        // Not destroyed: on a slow device it may still be opening.
+        this._resetFailedShow(null, 'watchdog');
+      }
     }, 10000);
     try {
-      // show() returns a promise; a refused present rejects it rather than
-      // throwing. Only reset if this attempt is still the live one.
       // Drop keyboard focus first: a focused TextInput that list clipping
       // detaches while the ad covers the app crashed ScrollView.onSizeChanged
       // on return ("parameter must be a descendant of this view").
       Keyboard.dismiss();
-      const shown = this.ad.show();
-      this.isLoaded = false;
-      if (shown && typeof shown.catch === 'function') {
-        shown.catch(() => { if (this.isShowing) this._resetFailedShow(); });
-      }
+      // 17.2: "already showing" and a refused present REJECT the promise.
+      Promise.resolve(ad.show()).catch((e) => {
+        if (this.isShowing && !settled) {
+          done();
+          this._resetFailedShow(ad, e?.reason || 'show-rejected');
+        }
+      });
     } catch (_) {
-      this._resetFailedShow();
+      done();
+      this._resetFailedShow(ad, 'show-threw');
     }
   }
 
   // A present that never reached the screen: nothing was displayed, so don't
   // burn the interval on an impression the user never saw.
-  static _resetFailedShow() {
+  static _resetFailedShow(ad, why) {
     this._clearShowWatchdog();
     setFullScreenAdVisible(false);
     this.isShowing = false;
     this.lastShownAt = 0;
+    safeDestroy(ad);
+    adLog(`app_open failed ${why || ''}`);
     if (this.coldStartShowing) {
       this.coldStartShowing = false;
       this._logLaunch('failed');
     }
-    this._createAndLoad();
-  }
-
-  static _cleanupAd() {
-    this.unsubscribeEvents.forEach((u) => {
-      try {
-        u();
-      } catch (_) {}
-    });
-    this.unsubscribeEvents = [];
-    this.isLoaded = false;
-    this.isLoading = false;
+    if (!noAppOpenAds()) source.prepare();
   }
 
   static stop() {
+    this.isShowing = false;
     this._clearShowWatchdog();
     if (this.foregroundTimer) {
       clearTimeout(this.foregroundTimer);
@@ -468,10 +432,27 @@ class AppOpenAdManager {
       this.appStateSub.remove();
       this.appStateSub = null;
     }
-    this._cleanupAd();
+    if (this.availableUnsub) {
+      this.availableUnsub();
+      this.availableUnsub = null;
+    }
+    this.showOnFirstLoad = false;
+    source.reset('stop');
     this.hasStarted = false;
-    this.ad = null;
   }
+}
+
+// Returning non-Pro users past onboarding: decide the launch ad and start the
+// manager the moment JS loads, not when the first screen's effects run (about
+// 10 s later on the emulator's debug build, seconds on a slow phone), so the
+// ad can load and show inside its launch window. App.js still calls both
+// (no-ops by then) and stops the manager when Pro arrives. Requests wait for
+// consent from an earlier session (init.js); first launches never get here.
+let onboardingDone = false;
+try { onboardingDone = storage?.getBoolean('showOnBoardingScreen') === false; } catch (_) {}
+if (launchedBefore && onboardingDone && !isProUser()) {
+  AppOpenAdManager.prepareColdStart();
+  AppOpenAdManager.start();
 }
 
 export default AppOpenAdManager;

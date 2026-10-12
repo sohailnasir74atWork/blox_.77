@@ -24,6 +24,7 @@ import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { AdsConsent, MobileAds, MaxAdContentRating } from 'react-native-google-mobile-ads';
 import { getTrackingStatus } from 'react-native-tracking-transparency';
+import { adLog } from './adTelemetry';
 
 let releaseAdsGate;
 const adsGate = new Promise((resolve) => { releaseAdsGate = resolve; });
@@ -40,10 +41,45 @@ export const whenAdsGateOpen = () => adsGate;
 // Show the UMP form if this user needs it, and return the resulting consent
 // info. Never throws: offline / SDK errors fall back to the SDK's cached info,
 // or null when even that is unavailable.
+// While it runs, the UMP form may be on screen: openApp.js holds the launch
+// ad until it is done (a returning user's launch ad loads in parallel with
+// this refresh and used to be able to present over a re-shown form).
+let consentFlow = null;
+export const isConsentFlowActive = () => consentFlow !== null;
+export const whenConsentFlowIdle = () => consentFlow || Promise.resolve();
+
+// One UMP consent refresh per launch, shared by the two callers below. It is
+// started as early as possible because UMP only reports the consent stored by
+// an earlier session (canRequestAds) once this session's refresh has been
+// requested — before that it always says false (verified on the emulator,
+// 2026-10-12), which made every returning user's launch ad wait for the full
+// refresh and miss its window (`launch_ad` outcome not_loaded).
+let consentRefresh = null;
+function startConsentRefresh() {
+  if (!consentRefresh) {
+    try {
+      // Called synchronously so the native request is queued before any
+      // getConsentInfo() that follows it.
+      consentRefresh = AdsConsent.requestInfoUpdate().catch(() => null);
+    } catch (_) {
+      consentRefresh = Promise.resolve(null);
+    }
+  }
+  return consentRefresh;
+}
+
 export async function gatherAdsConsent() {
+  let release;
+  consentFlow = new Promise((resolve) => { release = resolve; });
   try {
-    await AdsConsent.gatherConsent();
-  } catch (_) {}
+    // Same steps as AdsConsent.gatherConsent(), sharing this launch's refresh.
+    await startConsentRefresh();
+    await AdsConsent.loadAndShowConsentFormIfRequired();
+  } catch (_) {
+  } finally {
+    consentFlow = null;
+    release();
+  }
   try {
     return await AdsConsent.getConsentInfo();
   } catch (_) {
@@ -61,6 +97,7 @@ export async function gatherAdsConsent() {
 // reads the stored state; it makes no network call.
 export async function canRequestAdsFromLastSession() {
   try {
+    startConsentRefresh();
     const info = await AdsConsent.getConsentInfo();
     if (!info?.canRequestAds) return false;
     if (Platform.OS === 'ios' && (await getTrackingStatus()) === 'not-determined') return false;
@@ -81,12 +118,20 @@ export function ensureAdsInitialized() {
     initPromise = canRequestAdsFromLastSession()
       // Earlier consent stands: skip the gate. App.js still runs this
       // session's consent flow and opens the gate; that is a no-op by then.
-      .then((alreadyConsented) => (alreadyConsented ? undefined : adsGate))
+      .then((alreadyConsented) => {
+        if (__DEV__) console.log(`[ads] consent from last session usable: ${alreadyConsented}`);
+        return alreadyConsented ? undefined : adsGate;
+      })
       .then(() => AdsConsent.getConsentInfo())
       .then((info) => {
         // canRequestAds is false only when the UMP flow could not complete
         // (e.g. offline on a first EEA launch). No requests until it can.
         if (!info?.canRequestAds) throw new Error('ads-consent-not-ready');
+        // Set BEFORE initialize() so every request — including the Next-Gen
+        // SDK's, which folds it into its InitializationConfig — carries it.
+        // No per-user age signal (owner decision, 2026-10-12): the app's own
+        // date-of-birth data is not used for ads; Google applies its own
+        // protections to accounts it knows are children or teens.
         return MobileAds().setRequestConfiguration({
           // 'T' (Teen) opens up Teen-rated inventory that AdMob's default 'G'
           // ceiling silently locks out — matches our Play Console 13+ audience.
@@ -102,6 +147,7 @@ export function ensureAdsInitialized() {
       .then(() => MobileAds().initialize())
       .then(() => {
         initialized = true;
+        adLog('initialized');
       })
       .catch((err) => {
         // Reset so a transient failure (or consent completed later via the
