@@ -8,15 +8,28 @@
  *        "List-Unsubscribe=One-Click"): turns email off and says so.
  *
  * Turning email off writes RTDB email_prefs/{uid} = { optIn: false, ... },
- * the same switch as Settings → Email updates, so the app shows it off and
- * notifyBirthdayEmails skips the player. The token is an HMAC of the uid
+ * the same switch as Settings → Email updates, so the app shows it off, and
+ * puts the player's ADDRESS (from Firebase Auth) on the unsubscribe list,
+ * email_unsubscribes/{emailKey} (owner, 2026-10-12): notifyBirthdayEmails
+ * never emails that address again, on any account. The token is an HMAC of the uid
  * (EMAIL_UNSUB_SECRET, functions/birthdayEmail.js), so a link only ever
  * works for its own player.
  */
 
 const admin = require('firebase-admin');
 const functions = require('firebase-functions/v1');
-const { PAGE, pickLang, escapeHtml, verifyUnsubToken } = require('./birthdayEmail');
+const { PAGE, pickLang, escapeHtml, verifyUnsubToken, emailKey } = require('./birthdayEmail');
+
+// The player's address for the unsubscribe list, or null (deleted account,
+// no email). A failure here never fails the unsubscribe itself.
+async function authEmail(uid) {
+  try {
+    const u = await admin.auth().getUser(uid);
+    return u.email || null;
+  } catch (_) {
+    return null;
+  }
+}
 
 const page = (lang, title, body, form) => {
   const l = pickLang(lang);
@@ -69,7 +82,15 @@ exports.emailUnsubscribe = functions
         source: 'settings',
         updatedAt: admin.database.ServerValue.TIMESTAMP,
       });
-      console.log('[emailUnsubscribe] unsubscribed', uid);
+      const email = await authEmail(uid);
+      if (email) {
+        await admin.database().ref(`email_unsubscribes/${emailKey(email)}`).set({
+          email: email.trim().toLowerCase(),
+          uid,
+          at: admin.database.ServerValue.TIMESTAMP,
+        });
+      }
+      console.log('[emailUnsubscribe] unsubscribed', uid, email ? '(address listed)' : '(no address)');
       res.status(200).send(page(lang, copy.doneTitle, copy.doneBody, ''));
     } catch (e) {
       console.error('[emailUnsubscribe] write failed:', e.message);

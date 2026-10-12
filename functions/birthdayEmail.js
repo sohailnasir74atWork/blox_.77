@@ -86,6 +86,15 @@ const verifyUnsubToken = (uid, token, secret) => {
 const unsubUrl = (uid, lang, secret) =>
   `${UNSUB_BASE}?u=${encodeURIComponent(uid)}&t=${unsubToken(uid, secret)}&l=${pickLang(lang)}`;
 
+// The unsubscribe list is by ADDRESS (owner, 2026-10-12): RTDB
+// email_unsubscribes/{emailKey(email)} = { email, uid, at }. Keyed by a hash
+// of the lowercased address so RTDB's key rules ('.', '#', '$', '[', ']')
+// never matter. No rule opens this path: only Cloud Functions read or write it.
+const emailKey = (email) => crypto
+  .createHash('sha256')
+  .update(String(email || '').trim().toLowerCase())
+  .digest('hex');
+
 // ── The email ────────────────────────────────────────────────────────────
 // Gmail files designed mail (colour blocks, big buttons, emoji subjects) under
 // Promotions. `plain` reads like a personal note instead: plain paragraphs, a
@@ -193,6 +202,6 @@ async function sendBrevo({ apiKey, to, toName, subject, html, text, unsubscribeU
 module.exports = {
   SENDER, APP_URL, POSTAL_ADDRESS, LANGS, COPY, PAGE,
   pickLang, escapeHtml, cleanName,
-  unsubToken, verifyUnsubToken, unsubUrl,
+  unsubToken, verifyUnsubToken, unsubUrl, emailKey,
   renderBirthdayEmail, sendBrevo,
 };

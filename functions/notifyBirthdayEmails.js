@@ -7,9 +7,13 @@
  * supabase/038: birthday is today in UTC, 13 or older, not emailed yet this
  * year; claiming marks them, so a crashed or retried run never emails anyone
  * twice), then for each player:
- *   - skips them if they turned email off (RTDB email_prefs/{uid}.optIn ===
- *     false, which the unsubscribe link also sets);
  *   - takes the address from Firebase Auth (Google, Apple or verified email);
+ *     everyone counts as subscribed until they unsubscribe (owner, 2026-10-12);
+ *   - skips them if they turned email off (RTDB email_prefs/{uid}.optIn ===
+ *     false) or the ADDRESS is on the unsubscribe list
+ *     (email_unsubscribes/{emailKey}, written by the unsubscribe link), so an
+ *     address that unsubscribed is never emailed again, on any account. Only
+ *     a later in-app "Email updates: on" by that player lifts it;
  *   - skips Apple "Hide My Email" relay addresses until the domain is
  *     registered with Apple (they would bounce and hurt the sender score);
  *   - sends the email (English: Blox keeps no per-player language on the
@@ -26,7 +30,7 @@
 const admin = require('firebase-admin');
 const functions = require('firebase-functions/v1');
 const { getSupabaseAdmin } = require('./_supabaseAdmin');
-const { renderBirthdayEmail, sendBrevo, unsubUrl, cleanName } = require('./birthdayEmail');
+const { renderBirthdayEmail, sendBrevo, unsubUrl, cleanName, emailKey } = require('./birthdayEmail');
 
 const CLAIM_BATCH = 100;      // also Firebase Auth's getUsers() limit
 const MAX_SENDS = 120;        // Brevo's free 300/day is shared: Adopt Me 150, Blox 120, rest for tests
@@ -43,9 +47,17 @@ async function emailsFor(auth, uids) {
   return out;
 }
 
-async function optedOut(db, uid) {
-  const v = (await db.ref(`email_prefs/${uid}/optIn`).once('value')).val();
-  return v === false;
+async function optedOut(db, uid, email) {
+  const [p, u] = await Promise.all([
+    db.ref(`email_prefs/${uid}`).once('value'),
+    db.ref(`email_unsubscribes/${emailKey(email)}`).once('value'),
+  ]);
+  const prefs = p.val() || {};
+  if (prefs.optIn === false) return true;
+  const listed = u.val();
+  if (!listed) return false;
+  // Turning email back on in the app after the unsubscribe click wins.
+  return !(prefs.optIn === true && (prefs.updatedAt || 0) > (listed.at || 0));
 }
 
 // Small worker pool so one slow request doesn't hold up the rest.
@@ -80,7 +92,7 @@ async function run({ db, auth, supabase, apiKey, unsubSecret }) {
       const email = emails[uid];
       if (!email) { stats.noEmail++; return; }
       if (SKIP_APPLE_RELAY && /@privaterelay\.appleid\.com$/i.test(email)) { stats.appleRelay++; return; }
-      if (await optedOut(db, uid)) { stats.optedOut++; return; }
+      if (await optedOut(db, uid, email)) { stats.optedOut++; return; }
       const lang = 'en';
       const unsubscribeUrl = unsubUrl(uid, lang, unsubSecret);
       const mail = renderBirthdayEmail({ name: r.r_name, gift: !!r.r_gift, lang, unsubscribeUrl });
