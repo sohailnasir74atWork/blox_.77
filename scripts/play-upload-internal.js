@@ -4,9 +4,10 @@
 //   node scripts/play-upload-internal.js [--notes "What's new"] [--dry-run]
 //
 // Uses the service account in .secrets/play-sa-key.json (same as
-// play-fetch.js). Steps: open an edit, upload the bundle and its R8
-// mapping.txt (so Play Console shows readable crash stacks), set the internal
+// play-fetch.js). Steps: open an edit, upload the bundle, set the internal
 // track to this version only, commit. --dry-run validates and discards the edit.
+// No separate mapping.txt upload: the AAB already carries the R8 mapping and
+// native debug symbols, and Play extracts both on upload.
 const fs = require('fs');
 const path = require('path');
 const { GoogleAuth } = require('google-auth-library');
@@ -14,7 +15,6 @@ const { GoogleAuth } = require('google-auth-library');
 const ROOT = path.join(__dirname, '..');
 const PKG = 'com.bloxfruitevalues';
 const AAB = path.join(ROOT, 'android/app/build/outputs/bundle/release/app-release.aab');
-const MAPPING = path.join(ROOT, 'android/app/build/outputs/mapping/release/mapping.txt');
 const DRY = process.argv.includes('--dry-run');
 const notesIdx = process.argv.indexOf('--notes');
 const NOTES = notesIdx > -1 ? process.argv[notesIdx + 1] : 'Bug fixes and performance improvements.';
@@ -44,13 +44,6 @@ const UPLOAD = `https://androidpublisher.googleapis.com/upload/androidpublisher/
     });
     console.log('bundle uploaded: versionCode', bundle.versionCode, 'sha256', bundle.sha256?.slice(0, 12));
 
-    if (fs.existsSync(MAPPING)) {
-      await call(`${UPLOAD}/edits/${edit.id}/apks/${bundle.versionCode}/deobfuscationFiles/proguard?uploadType=media`, {
-        method: 'POST', body: fs.readFileSync(MAPPING), headers: { 'Content-Type': 'application/octet-stream' },
-      });
-      console.log('mapping.txt uploaded');
-    }
-
     const track = await call(`${API}/edits/${edit.id}/tracks/internal`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -77,4 +70,4 @@ const UPLOAD = `https://androidpublisher.googleapis.com/upload/androidpublisher/
     await call(`${API}/edits/${edit.id}`, { method: 'DELETE' }).catch(() => {});
     throw e;
   }
-})().catch((e) => { console.error('FAILED:', e.message); process.exit(1); });
+})().catch((e) => { console.error('FAILED:', e.message, e.cause?.code || e.cause?.message || ''); process.exit(1); });
