@@ -134,7 +134,7 @@ const ExploreGroupsModal = ({ visible, onClose }) => {
 
     return (
       <View style={styles.groupItem}>
-        <Image
+        <Image resizeMethod="resize"
           source={groupAvatar ? { uri: groupAvatar } : require('../../../assets/groups.png')}
           style={styles.groupAvatar}
         />

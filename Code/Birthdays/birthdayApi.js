@@ -217,10 +217,13 @@ export const birthdayErrorKey = (e) => {
   if (/not their birthday/.test(m)) return 'not_today';
   if (/cannot wish/.test(m)) return 'cannot_wish';
   if (/gift not available/.test(m)) return 'gift_unavailable';
-  if (/sign in required|sign_in/.test(m)) return 'sign_in';
-  if (/age_change/.test(m)) return 'age_change';
-  if (/already_edited/.test(m)) return 'already_edited';
-  if (/bad_date|bad_request|same/.test(m)) return 'bad_date';
+  if (/sign in required/.test(m) || m === 'sign_in') return 'sign_in';
+  // updateBirthday answers with a bare code. Compare whole codes: matching a
+  // word anywhere turned unrelated errors (anything containing "same") into
+  // "That date isn't valid".
+  if (m === 'age_change') return 'age_change';
+  if (m === 'already_edited') return 'already_edited';
+  if (m === 'bad_date' || m === 'bad_request') return 'bad_date';
   return 'generic';
 };
 
@@ -279,10 +282,14 @@ export async function setBirthdayVisibility(show) {
   return data;
 }
 
-// Days are counted on the phone's calendar. 037 already counts from the
-// phone's date; the old list counts from UTC with a day of slack each side.
+// 037 counts days from the phone's date, or from the UTC date when no real
+// time zone is on the phone's date (clock set wrong). Its `until` is used as
+// is, so a row shown under "today" is always one send_birthday_wish accepts
+// (UTC yesterday..tomorrow); recounting on the phone's clock turned a wrong
+// clock into "not their birthday" errors. The old list (036) sends no `until`
+// and counts from UTC with a day of slack each side: counted here instead.
 const inWindow = (rows) => (rows || [])
-  .map((b) => ({ ...b, daysUntil: daysUntilBirthday(b.month, b.day) }))
+  .map((b) => ({ ...b, daysUntil: Number.isInteger(b.until) ? b.until : daysUntilBirthday(b.month, b.day) }))
   .filter((b) => b.daysUntil != null && b.daysUntil <= LIST_DAYS);
 
 async function fetchPage(cursor) {
@@ -436,7 +443,14 @@ export async function updateMyBirthday(year, month, day) {
       body: JSON.stringify({ year, month, day }),
     });
     data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.error || `http ${res.status}`);
+    // 'same': the server already holds this date (this phone's copy was
+    // stale; the sheet never sends an unchanged date). That is the result
+    // the player asked for, so it counts as saved.
+    if (!res.ok && data?.error === 'same') {
+      data = { dateOfBirth: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}` };
+    } else if (!res.ok) {
+      throw new Error(data?.error || `http ${res.status}`);
+    }
     // The sample data never touches the signed-in profile.
     if (currentUid && data?.dateOfBirth) rememberDob(currentUid, data.dateOfBirth);
   }

@@ -31,6 +31,7 @@ import { useGlobalState } from '../GlobelStats';
 import config from '../Helper/Environment';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { loadGameStats, saveGameStats, submitLeaderboardScore } from './gameScores';
 import GameRoundActions from './GameRoundActions';
 
@@ -42,11 +43,11 @@ const PENALTY_MS = 999;
 const ACCENT = '#DC2626';
 
 const getRank = (avgMs) => {
-  if (avgMs <= 200) return { label: 'Lightning! ⚡', emoji: '⚡', color: '#F59E0B', tier: 4 };
-  if (avgMs <= 300) return { label: 'Fruit Master! 🎯', emoji: '🎯', color: '#10B981', tier: 3 };
-  if (avgMs <= 450) return { label: 'Quick Slash! 🗡️', emoji: '🗡️', color: '#3B82F6', tier: 2 };
-  if (avgMs <= 600) return { label: 'Steady Hand', emoji: '🍊', color: '#8B5CF6', tier: 1 };
-  return { label: 'Keep Practicing', emoji: '🐢', color: '#6B7280', tier: 0 };
+  if (avgMs <= 200) return { labelKey: 'engagement.quick_draw.rank_lightning', emoji: '⚡', color: '#F59E0B', tier: 4 };
+  if (avgMs <= 300) return { labelKey: 'engagement.quick_draw.rank_master', emoji: '🎯', color: '#10B981', tier: 3 };
+  if (avgMs <= 450) return { labelKey: 'engagement.quick_draw.rank_quick', emoji: '🗡️', color: '#3B82F6', tier: 2 };
+  if (avgMs <= 600) return { labelKey: 'engagement.quick_draw.rank_steady', emoji: '🍊', color: '#8B5CF6', tier: 1 };
+  return { labelKey: 'engagement.quick_draw.rank_practice', emoji: '🐢', color: '#6B7280', tier: 0 };
 };
 
 const isPenalty = (t) => t >= PENALTY_MS;
@@ -67,6 +68,7 @@ const QuickDraw = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading }) =
   const { triggerHapticFeedback } = useHaptic();
   const isDarkMode = theme === 'dark';
   const uid = user?.id;
+  const { t } = useTranslation();
 
   const [phase, setPhase] = useState('loading'); // loading | rules | waiting | draw | early | roundResult | gameResult
   const [bestTime, setBestTime] = useState(0);
@@ -272,7 +274,7 @@ const QuickDraw = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading }) =
         <TouchableOpacity onPress={onClose} style={styles.backBtn} hitSlop={8}>
           <Icon name="chevron-back" size={24} color={c.text} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: c.text }]}>⚡ Fruit Slash</Text>
+        <Text style={[styles.title, { color: c.text }]}>⚡ {t('engagement.game_hub.draw_name')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -285,17 +287,17 @@ const QuickDraw = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading }) =
       {phase === 'rules' && (
         <ScrollView contentContainerStyle={styles.rulesContent} showsVerticalScrollIndicator={false}>
           <Text style={{ fontSize: 64, textAlign: 'center' }}>🗡️</Text>
-          <Text style={[styles.bigTitle, { color: c.text, textAlign: 'center' }]}>Fruit Slash!</Text>
+          <Text style={[styles.bigTitle, { color: c.text, textAlign: 'center' }]}>{t('engagement.quick_draw.title_bang')}</Text>
           <Text style={[styles.subText, { color: c.textSecondary, textAlign: 'center', marginBottom: 20 }]}>
-            How fast are your reflexes, pirate?
+            {t('engagement.quick_draw.tagline')}
           </Text>
 
           <View style={[styles.ruleCard, { backgroundColor: isDarkMode ? config.colors.surfaceDark : '#FEF3C7' }]}>
             <View style={styles.ruleRow}>
               <Text style={styles.ruleEmoji}>⏳</Text>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.ruleTitle, { color: c.text }]}>Wait for It...</Text>
-                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>The screen turns dark red. WAIT patiently. Don't tap yet!</Text>
+                <Text style={[styles.ruleTitle, { color: c.text }]}>{t('engagement.quick_draw.rule1_title')}</Text>
+                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>{t('engagement.quick_draw.rule1_desc')}</Text>
               </View>
             </View>
           </View>
@@ -304,8 +306,8 @@ const QuickDraw = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading }) =
             <View style={styles.ruleRow}>
               <Text style={styles.ruleEmoji}>🗡️</Text>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.ruleTitle, { color: c.text }]}>SLASH!</Text>
-                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>When it turns GREEN and says "SLASH!" — TAP fast!</Text>
+                <Text style={[styles.ruleTitle, { color: c.text }]}>{t('engagement.quick_draw.rule2_title')}</Text>
+                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>{t('engagement.quick_draw.rule2_desc')}</Text>
               </View>
             </View>
           </View>
@@ -314,8 +316,8 @@ const QuickDraw = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading }) =
             <View style={styles.ruleRow}>
               <Text style={styles.ruleEmoji}>🚫</Text>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.ruleTitle, { color: c.text }]}>Don't Slash Early!</Text>
-                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>Tapping before the signal (or guessing it) adds a 999ms penalty to your average.</Text>
+                <Text style={[styles.ruleTitle, { color: c.text }]}>{t('engagement.quick_draw.rule3_title')}</Text>
+                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>{t('engagement.quick_draw.rule3_desc')}</Text>
               </View>
             </View>
           </View>
@@ -324,15 +326,15 @@ const QuickDraw = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading }) =
             <View style={styles.ruleRow}>
               <Text style={styles.ruleEmoji}>🏆</Text>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.ruleTitle, { color: c.text }]}>3 Rounds!</Text>
-                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>Your fastest slash goes on the leaderboard. Under 200ms = LIGHTNING! ⚡</Text>
+                <Text style={[styles.ruleTitle, { color: c.text }]}>{t('engagement.quick_draw.rule4_title')}</Text>
+                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>{t('engagement.quick_draw.rule4_desc')}</Text>
               </View>
             </View>
           </View>
 
           {bestTime > 0 && (
             <Text style={[styles.bestScoreLabel, { color: '#F59E0B' }]}>
-              ⚡ Best Time: {bestTime}ms
+              {t('engagement.quick_draw.best_time', { ms: bestTime })}
             </Text>
           )}
 
@@ -342,7 +344,7 @@ const QuickDraw = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading }) =
             onWatchAd={onWatchAd}
             adLoading={adLoading}
             color={ACCENT}
-            playLabel="LET'S GO! 🎮"
+            playLabel={t('engagement.games.lets_go')}
             playIcon="play"
             textColor={c.textSecondary}
             style={{ marginTop: 16 }}
@@ -353,10 +355,10 @@ const QuickDraw = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading }) =
       {phase === 'waiting' && (
         <Pressable style={[styles.fullZone, { backgroundColor: '#7F1D1D' }]} onPressIn={handleTap}>
           {renderDots()}
-          <Text style={styles.waitTitle}>WAIT...</Text>
-          <Text style={styles.waitSub}>Don't tap yet! 🤫</Text>
+          <Text style={styles.waitTitle}>{t('engagement.quick_draw.wait')}</Text>
+          <Text style={styles.waitSub}>{t('engagement.quick_draw.dont_tap')}</Text>
           <View style={styles.waitPulse}><Text style={{ fontSize: 56 }}>🎯</Text></View>
-          <Text style={styles.roundInfo}>Round {currentRound + 1}/{TOTAL_ROUNDS}</Text>
+          <Text style={styles.roundInfo}>{t('engagement.quick_draw.round_of', { current: currentRound + 1, total: TOTAL_ROUNDS })}</Text>
         </Pressable>
       )}
 
@@ -364,8 +366,8 @@ const QuickDraw = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading }) =
         <Animated.View style={{ flex: 1, opacity: flashAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }}>
           <Pressable style={[styles.fullZone, { backgroundColor: '#15803D' }]} onPressIn={handleTap}>
             {renderDots()}
-            <Animated.Text style={[styles.drawTitle, { transform: [{ scale: scaleAnim }] }]}>SLASH! 🗡️</Animated.Text>
-            <Text style={styles.drawSub}>TAP NOW!</Text>
+            <Animated.Text style={[styles.drawTitle, { transform: [{ scale: scaleAnim }] }]}>{t('engagement.quick_draw.slash')}</Animated.Text>
+            <Text style={styles.drawSub}>{t('engagement.quick_draw.tap_now')}</Text>
           </Pressable>
         </Animated.View>
       )}
@@ -374,13 +376,13 @@ const QuickDraw = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading }) =
         <View style={[styles.fullZone, { backgroundColor: surface }]}>
           {renderDots()}
           <Text style={{ fontSize: 64 }}>🚫</Text>
-          <Text style={styles.earlyTitle}>TOO EARLY!</Text>
+          <Text style={styles.earlyTitle}>{t('engagement.quick_draw.too_early')}</Text>
           <Text style={styles.earlySub}>
-            {earlyReason === 'guess' ? 'Faster than humanly possible — that was a guess! 😜' : 'You slashed before the signal! 😤'}
+            {earlyReason === 'guess' ? t('engagement.quick_draw.early_guess') : t('engagement.quick_draw.early_before')}
           </Text>
-          <Text style={styles.penaltyText}>+{PENALTY_MS}ms penalty</Text>
+          <Text style={styles.penaltyText}>{t('engagement.quick_draw.penalty', { ms: PENALTY_MS })}</Text>
           <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#F59E0B', marginTop: 32 }]} onPress={nextRound}>
-            <Text style={styles.actionBtnText}>{isLastRound ? 'See Results 🏆' : 'Next Round →'}</Text>
+            <Text style={styles.actionBtnText}>{isLastRound ? t('engagement.quick_draw.see_results') : t('engagement.quick_draw.next_round')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -393,10 +395,10 @@ const QuickDraw = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading }) =
             {currentTime}ms
           </Animated.Text>
           <Text style={[styles.timeLabel, { color: getTimeColor(currentTime) }]}>
-            {currentTime <= 200 ? 'INCREDIBLE! ⚡' : currentTime <= 300 ? 'Super fast! 🎯' : currentTime <= 450 ? 'Nice reflexes! 🗡️' : currentTime <= 600 ? 'Not bad! 🍊' : 'A bit slow... 🐢'}
+            {currentTime <= 200 ? t('engagement.quick_draw.time_incredible') : currentTime <= 300 ? t('engagement.quick_draw.time_super_fast') : currentTime <= 450 ? t('engagement.quick_draw.time_nice') : currentTime <= 600 ? t('engagement.quick_draw.time_not_bad') : t('engagement.quick_draw.time_slow')}
           </Text>
           <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#10B981', marginTop: 32 }]} onPress={nextRound}>
-            <Text style={styles.actionBtnText}>{isLastRound ? 'See Results 🏆' : 'Next Round →'}</Text>
+            <Text style={styles.actionBtnText}>{isLastRound ? t('engagement.quick_draw.see_results') : t('engagement.quick_draw.next_round')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -404,35 +406,35 @@ const QuickDraw = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading }) =
       {phase === 'gameResult' && (
         <ScrollView contentContainerStyle={styles.centerContent} showsVerticalScrollIndicator={false}>
           <Text style={{ fontSize: 80 }}>{rank.emoji}</Text>
-          <Text style={[styles.bigTitle, { color: rank.color }]}>{rank.label}</Text>
+          <Text style={[styles.bigTitle, { color: rank.color }]}>{t(rank.labelKey)}</Text>
 
           <View style={[styles.statsCard, { backgroundColor: surface, borderColor: border }]}>
             <View style={styles.statRow}>
-              <Text style={[styles.statLabel, { color: c.textSecondary }]}>Average</Text>
+              <Text style={[styles.statLabel, { color: c.textSecondary }]}>{t('engagement.quick_draw.average')}</Text>
               <Text style={[styles.statVal, { color: getTimeColor(avgTime) }]}>{avgTime}ms</Text>
             </View>
             <View style={styles.statRow}>
-              <Text style={[styles.statLabel, { color: c.textSecondary }]}>Best Round</Text>
+              <Text style={[styles.statLabel, { color: c.textSecondary }]}>{t('engagement.quick_draw.best_round')}</Text>
               <Text style={[styles.statVal, { color: getTimeColor(bestRound) }]}>{!isPenalty(bestRound) ? `${bestRound}ms` : '—'}</Text>
             </View>
             <View style={[styles.statRow, { borderBottomWidth: 0 }]}>
-              <Text style={[styles.statLabel, { color: c.textSecondary }]}>Early Slashes</Text>
+              <Text style={[styles.statLabel, { color: c.textSecondary }]}>{t('engagement.quick_draw.early_slashes')}</Text>
               <Text style={[styles.statVal, { color: earlyCount > 0 ? '#EF4444' : '#10B981' }]}>{earlyCount}</Text>
             </View>
           </View>
 
           <View style={styles.roundTimesRow}>
-            {roundTimes.map((t, i) => (
-              <View key={i} style={[styles.roundChip, { backgroundColor: getTimeColor(t) }]}>
-                <Text style={styles.roundChipText}>{isPenalty(t) ? 'EARLY' : `${t}ms`}</Text>
+            {roundTimes.map((ms, i) => (
+              <View key={i} style={[styles.roundChip, { backgroundColor: getTimeColor(ms) }]}>
+                <Text style={styles.roundChipText}>{isPenalty(ms) ? t('engagement.quick_draw.early_chip') : `${ms}ms`}</Text>
               </View>
             ))}
           </View>
 
           {isNewBest ? (
-            <Text style={[styles.bestScoreLabel, { color: '#F59E0B', marginTop: 16 }]}>🎉 New Best Time: {bestTime}ms!</Text>
+            <Text style={[styles.bestScoreLabel, { color: '#F59E0B', marginTop: 16 }]}>{t('engagement.quick_draw.new_best_time', { ms: bestTime })}</Text>
           ) : bestTime > 0 ? (
-            <Text style={[styles.bestScoreLabel, { color: '#F59E0B', marginTop: 16 }]}>⚡ All-time Best: {bestTime}ms</Text>
+            <Text style={[styles.bestScoreLabel, { color: '#F59E0B', marginTop: 16 }]}>{t('engagement.quick_draw.all_time_best', { ms: bestTime })}</Text>
           ) : null}
 
           <GameRoundActions
@@ -441,11 +443,11 @@ const QuickDraw = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading }) =
             onWatchAd={onWatchAd}
             adLoading={adLoading}
             color={ACCENT}
-            playLabel="Play Again"
+            playLabel={t('engagement.games.play_again')}
             textColor={c.textSecondary}
           />
           <TouchableOpacity style={[styles.actionBtn, styles.doneBtn]} onPress={onClose}>
-            <Text style={styles.actionBtnText}>Done</Text>
+            <Text style={styles.actionBtnText}>{t('engagement.games.done')}</Text>
           </TouchableOpacity>
         </ScrollView>
       )}

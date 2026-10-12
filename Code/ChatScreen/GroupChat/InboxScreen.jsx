@@ -204,7 +204,7 @@ const InboxScreen = ({ bannedUsers }) => {
         chatsMap.set(chatPartnerId, {
           chatId: row.chatId,
           otherUserId: chatPartnerId,
-          lastMessage: row.lastMessage || 'No messages yet',
+          lastMessage: row.lastMessage || '',
           lastMessageTimestamp: row.timestamp || 0,
           unreadCount: isBlocked ? 0 : rawUnread,
           otherUserAvatar: row.receiverAvatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
@@ -259,7 +259,7 @@ const InboxScreen = ({ bannedUsers }) => {
       chatsMap.set(chatPartnerId, {
         chatId: chatData.chatId,
         otherUserId: chatPartnerId,
-        lastMessage: chatData.lastMessage || 'No messages yet',
+        lastMessage: chatData.lastMessage || '',
         lastMessageTimestamp: chatData.timestamp || 0,
         unreadCount: isBlocked ? 0 : rawUnread,
         otherUserAvatar: chatData.receiverAvatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
@@ -409,7 +409,7 @@ const InboxScreen = ({ bannedUsers }) => {
               showSuccessMessage(t("home.alert.success"), t("chat.chat_success_message"));
             } catch (error) {
               console.error('❌ Error deleting chat:', error);
-              Alert.alert('Error', 'Failed to delete chat. Please try again.');
+              Alert.alert(t('chat.error'), t('chat.inbox_screen.delete_failed'));
             }
           },
         },
@@ -438,12 +438,12 @@ const InboxScreen = ({ bannedUsers }) => {
       showSuccessMessage(
         t('home.alert.success'),
         newMuted
-          ? `Notifications muted for "${otherUserName}"`
-          : `Notifications enabled for "${otherUserName}"`,
+          ? t('chat.inbox_screen.notifications_muted', { name: otherUserName })
+          : t('chat.inbox_screen.notifications_enabled', { name: otherUserName }),
       );
     } catch (error) {
       console.warn('[Inbox] toggle mute error:', error?.message);
-      Alert.alert('Error', 'Failed to update notification settings.');
+      Alert.alert(t('chat.error'), t('chat.inbox_screen.notifications_failed'));
     }
   }, [user?.id, t]);
 
@@ -481,9 +481,9 @@ const InboxScreen = ({ bannedUsers }) => {
 
     } catch (error) {
       console.error("Error opening chat:", error);
-      Alert.alert('Error', 'Failed to open chat. Please try again.');
+      Alert.alert(t('chat.error'), t('chat.inbox_screen.open_failed'));
     }
-  }, [user?.id, navigation]);
+  }, [user?.id, navigation, t]);
 
   // Rows read the props they need; ChatRow's memo skips the unchanged ones.
   // profileCacheVersion isn't referenced here; the FlatList `extraData` prop
@@ -504,7 +504,7 @@ const InboxScreen = ({ bannedUsers }) => {
         otherUserName={item.otherUserName || 'Anonymous'}
         otherUserAvatar={otherUserId !== user?.id ? otherUserAvatar : (user?.avatar || DEFAULT_AVATAR)}
         frame={cachedProfile?.profileFrame || null}
-        lastMessage={item.lastMessage || 'No messages yet'}
+        lastMessage={item.lastMessage || t('chat.message_common.no_messages')}
         unreadCount={item.unreadCount || 0}
         muted={!!item.muted}
         isDarkMode={isDarkMode}
@@ -541,7 +541,7 @@ const InboxScreen = ({ bannedUsers }) => {
               <View style={styles.loadMoreContainer}>
                 <ActivityIndicator size="small" color="#1E88E5" />
                 <Text style={styles.loadMoreText}>
-                  Loading more chats... ({displayedChatsCount} of {filteredChats.length})
+                  {t('chat.inbox_screen.loading_more', { shown: displayedChatsCount, total: filteredChats.length })}
                 </Text>
               </View>
             ) : null

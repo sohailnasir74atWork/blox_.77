@@ -239,7 +239,7 @@ export default function DailyCheckIn({
               ]}
             >
               <Text style={styles.dayLabel}>DAY {index + 1}</Text>
-              <Image source={require('../../../assets/money-bag.png')} style={{ width: 30, height: 30 }} />
+              <Image resizeMethod="resize" source={require('../../../assets/money-bag.png')} style={{ width: 30, height: 30 }} />
               <Text style={styles.coinText}>{`${coins} coins`}</Text>
 
               {isClaimed && <Icon name="checkmark-circle" size={16} color={config.colors.hasBlockGreen} style={styles.overlayIcon} />}

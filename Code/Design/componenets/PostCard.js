@@ -20,6 +20,7 @@ import FramedAvatar from '../../ChatScreen/GroupChat/FramedAvatar';
 import { canSaveToGallery, saveImagesToGallery } from '../../Helper/saveImageToGallery';
 import { showErrorMessage, showSuccessMessage } from '../../Helper/MessageHelper';
 import { trackGrowthEvent } from '../../Helper/growthAnalytics';
+import { useTranslation } from 'react-i18next';
 
 const REACTION_EMOJIS = ['❤️', '🔥', '😍', '💀', '🎯'];
 
@@ -33,8 +34,21 @@ const TAG_CONFIG = {
   'misc': { color: '#6B7280', icon: 'ellipsis' },
 };
 
+// Stored tag values stay English (filters query them); only the label shown
+// on the card is translated.
+const TAG_LABEL_KEYS = {
+  'scam alert': 'feed.tags.scam_alert',
+  'looking for trade': 'feed.tags.looking_for_trade',
+  'discussion': 'feed.tags.discussion',
+  'real or fake': 'feed.tags.real_or_fake',
+  'need help': 'feed.tags.need_help',
+  'misc.': 'feed.tags.misc',
+  'misc': 'feed.tags.misc',
+};
+
 const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete, onDeleteAll }) => {
   const navigation = useNavigation();
+  const { t } = useTranslation();
 
   const [showComments, setShowComments] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -79,6 +93,10 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
   const canModerate = isAdmin || isSeniorMod || isModerator;
   const isDark = theme === 'dark';
 
+  const getTagLabel = (tag) => {
+    const key = TAG_LABEL_KEYS[tag?.toLowerCase?.()];
+    return key ? t(key) : tag;
+  };
   const getTagConfig = (tag) => TAG_CONFIG[tag?.toLowerCase()] || { color: config.colors.primary, icon: 'tag' };
 
   const banUserwithEmail = async (email, admin) => {
@@ -104,7 +122,7 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
 
   const openProfileDrawer = async () => {
     if (!userId) {
-      showMessage({ message: 'Please sign in to message', type: 'warning' });
+      showMessage({ message: t('feed.comments_modal.sign_in_to_message'), type: 'warning' });
       return;
     }
     try {
@@ -125,11 +143,11 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
 
   const handleChatNavigation = useCallback(() => {
     if (!userId) {
-      showMessage({ message: 'Please sign in to message', type: 'warning' });
+      showMessage({ message: t('feed.comments_modal.sign_in_to_message'), type: 'warning' });
       return;
     }
     navigation.navigate('PrivateChatDesign', { selectedUser, item });
-  }, [userId, item, navigation]);
+  }, [userId, item, navigation, t]);
 
   const handleEmojiTap = useCallback((emoji) => {
     setShowEmojiPicker(false);
@@ -141,7 +159,7 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
   }, [item, onReaction]);
 
   const s = useMemo(() => getStyles(isDark), [isDark]);
-  const formattedTime = item.createdAt ? dayjs(item.createdAt.toDate()).fromNow() : 'Anonymous';
+  const formattedTime = item.createdAt ? dayjs(item.createdAt.toDate()).fromNow() : t('chat.anonymous');
   const hasNoImages = !Array.isArray(item.imageUrl) || item.imageUrl.length === 0;
 
   const [savingImages, setSavingImages] = useState(false);
@@ -150,20 +168,20 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
     setSavingImages(true);
     try {
       if (!(await canSaveToGallery())) {
-        showErrorMessage('Error', 'Allow storage access to save images.');
+        showErrorMessage(t('home.alert.error'), t('feed.image_viewer.storage_denied'));
         return;
       }
       const saved = await saveImagesToGallery(item.imageUrl);
       if (saved > 0) {
         trackGrowthEvent('feed_image_save', { source: 'post_menu', count: saved });
-        showSuccessMessage('Saved', saved > 1 ? `${saved} images saved to your gallery.` : 'Image saved to your gallery.');
+        showSuccessMessage(t('feed.image_viewer.saved'), t('feed.post_card.images_saved', { count: saved }));
       } else {
-        showErrorMessage('Error', 'Could not save the image. Try again.');
+        showErrorMessage(t('home.alert.error'), t('feed.image_viewer.save_failed'));
       }
     } finally {
       setSavingImages(false);
     }
-  }, [hasNoImages, savingImages, item.imageUrl]);
+  }, [hasNoImages, savingImages, item.imageUrl, t]);
 
   return (
     <View style={s.card}>
@@ -186,10 +204,10 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
             <Text style={s.name} numberOfLines={1}>{item.displayName}</Text>
             <RoleBadges userItem={item} />
             {item.isPro && (
-              <Image source={require('../../../assets/pro.png')} style={s.badge} />
+              <Image resizeMethod="resize" source={require('../../../assets/pro.png')} style={s.badge} />
             )}
             {item.robloxUsernameVerified && (
-              <Image source={require('../../../assets/verification.png')} style={s.badge} />
+              <Image resizeMethod="resize" source={require('../../../assets/verification.png')} style={s.badge} />
             )}
             {(() => {
               const hasRecentWin =
@@ -197,7 +215,7 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
                 (typeof item?.lastGameWinAt === 'number' &&
                   Date.now() - item.lastGameWinAt <= 24 * 60 * 60 * 1000);
               return hasRecentWin ? (
-                <Image source={require('../../../assets/trophy.webp')} style={s.badge} />
+                <Image resizeMethod="resize" source={require('../../../assets/trophy.webp')} style={s.badge} />
               ) : null;
             })()}
           </View>
@@ -217,7 +235,7 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
                 <View style={[s.menuItem, { borderBottomWidth: 1, borderBottomColor: isDark ? '#334155' : '#f1f5f9' }]}>
                   <FontAwesome6 name="download" size={12} color={config.colors.primary} solid />
                   <Text style={[s.menuItemText, { color: isDark ? '#e2e8f0' : '#0f172a' }]}>
-                    {item.imageUrl.length > 1 ? 'Save all images' : 'Save image'}
+                    {item.imageUrl.length > 1 ? t('feed.post_card.save_all_images') : t('feed.image_viewer.save_image')}
                   </Text>
                 </View>
               </MenuOption>
@@ -225,17 +243,17 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
             <MenuOption onSelect={() => setShowReportModal(true)}>
               <View style={s.menuItem}>
                 <FontAwesome6 name="flag" size={12} color="#F59E0B" solid />
-                <Text style={[s.menuItemText, { color: '#F59E0B' }]}>Report</Text>
+                <Text style={[s.menuItemText, { color: '#F59E0B' }]}>{t('chat.report')}</Text>
               </View>
             </MenuOption>
             {(userId === item.userId || canModerate) && (
-              <MenuOption onSelect={() => Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Delete', onPress: () => onDelete(item.id), style: 'destructive' },
+              <MenuOption onSelect={() => Alert.alert(t('feed.post_card.delete_title'), t('feed.post_card.delete_confirm'), [
+                { text: t('common.cancel'), style: 'cancel' },
+                { text: t('common.delete'), onPress: () => onDelete(item.id), style: 'destructive' },
               ])}>
                 <View style={[s.menuItem, { borderTopWidth: 1, borderTopColor: isDark ? '#334155' : '#f1f5f9' }]}>
                   <FontAwesome6 name="trash" size={12} color="#EF4444" solid />
-                  <Text style={[s.menuItemText, { color: '#EF4444' }]}>Delete</Text>
+                  <Text style={[s.menuItemText, { color: '#EF4444' }]}>{t('common.delete')}</Text>
                 </View>
               </MenuOption>
             )}
@@ -264,7 +282,7 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
                 return (
                   <View key={idx} style={[s.overlayPill, { backgroundColor: cfg.color }]}>
                     <FontAwesome6 name={cfg.icon} size={9} color="#fff" solid />
-                    <Text style={s.overlayPillText}>{tag}</Text>
+                    <Text style={s.overlayPillText}>{getTagLabel(tag)}</Text>
                   </View>
                 );
               })}
@@ -288,7 +306,7 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
               return (
                 <View key={idx} style={[s.overlayPill, { backgroundColor: cfg.color }]}>
                   <FontAwesome6 name={cfg.icon} size={9} color="#fff" solid />
-                  <Text style={s.overlayPillText}>{tag}</Text>
+                  <Text style={s.overlayPillText}>{getTagLabel(tag)}</Text>
                 </View>
               );
             })}
@@ -300,7 +318,7 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
                 activeOpacity={0.95}
                 onPress={() => navigation.navigate('ImageViewerScreen', { images: item.imageUrl, initialIndex: 0 })}
               >
-                <Image source={{ uri: item.imageUrl[0] }} style={s.singleImage} />
+                <Image resizeMethod="resize" source={{ uri: item.imageUrl[0] }} style={s.singleImage} />
               </TouchableOpacity>
             ) : (
               <View style={s.multiGrid}>
@@ -311,7 +329,7 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
                     activeOpacity={0.9}
                     onPress={() => navigation.navigate('ImageViewerScreen', { images: item.imageUrl, initialIndex: idx })}
                   >
-                    <Image source={{ uri: url }} style={s.gridImage} />
+                    <Image resizeMethod="resize" source={{ uri: url }} style={s.gridImage} />
                     {idx === 3 && item.imageUrl.length > 4 && (
                       <View style={s.moreOverlay}>
                         <Text style={s.moreText}>+{item.imageUrl.length - 4}</Text>
@@ -347,7 +365,7 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
             </View>
           ))}
           {totalReactions > 0 && (
-            <Text style={s.totalReactionsText}>{totalReactions} {totalReactions === 1 ? 'reaction' : 'reactions'}</Text>
+            <Text style={s.totalReactionsText}>{t('feed.post_card.reactions', { count: totalReactions })}</Text>
           )}
         </View>
       )}
@@ -372,7 +390,7 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
         <TouchableOpacity style={s.actionBtn} onPress={() => setShowComments(true)} activeOpacity={0.75}>
           <Icon name="comment-o" size={14} color={isDark ? '#94a3b8' : '#64748b'} />
           <Text style={s.actionBtnLabel}>
-            {item.commentCount ? `${item.commentCount} comments` : '0 Comments'}
+            {item.commentCount ? t('feed.post_card.comments', { count: item.commentCount }) : t('feed.post_card.zero_comments')}
           </Text>
         </TouchableOpacity>
 
@@ -381,7 +399,7 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
         {/* Chat button */}
         <TouchableOpacity style={s.chatBtn} onPress={openProfileDrawer} activeOpacity={0.8}>
           <Icon name="paper-plane" size={11} color="#fff" />
-          <Text style={s.chatBtnLabel}>Chat</Text>
+          <Text style={s.chatBtnLabel}>{t('tabs.chat')}</Text>
         </TouchableOpacity>
       </View>
 

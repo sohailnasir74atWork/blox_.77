@@ -4,23 +4,24 @@ import config from '../Helper/Environment';
 import TimerScreen from './TimerScreen';
 // import ValueScreen from '../ValuesScreen/ValueScreen';
 import { useGlobalState } from '../GlobelStats';
-import BannerAdComponent from '../Ads/bannerAds';
-import { useLocalState } from '../LocalGlobelStats';
+import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
 import ThemeHeader from '../Design/componenets/ThemeHeader';
 import { useTranslation } from 'react-i18next';
 
 
-const TopLevelStockComponent = ({ selectedTheme }) => {
+// Shown from the More hub (MoreNavigator.js, route MoreStock) since the Stock
+// tab became the More tab (2026-10-08); `showBack` is the only difference.
+const TopLevelStockComponent = ({ selectedTheme, showBack = false }) => {
   const [activeTab, setActiveTab] = useState('Stock'); // Default tab is 'Stock'
-  const { theme, proGranted } = useGlobalState();
+  const { theme } = useGlobalState();
   const isDarkMode = theme === 'dark';
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
-  const { localState } = useLocalState();
   const { t } = useTranslation();
+  const background = isDarkMode ? '#0f172a' : '#f8fafc';
 
   return (
-    <View style={[styles.container, { backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc' }]}>
-      <ThemeHeader title={t('tabs.stock', { defaultValue: 'Stocks' })} />
+    <View style={[styles.container, { backgroundColor: background }]}>
+      <ThemeHeader title={t('tabs.stock', { defaultValue: 'Stocks' })} showBack={showBack} />
       {/* Tab Buttons */}
       {/* <View style={styles.tabs}>
         <TouchableOpacity
@@ -42,7 +43,10 @@ const TopLevelStockComponent = ({ selectedTheme }) => {
       {activeTab === 'Stock' && <TimerScreen selectedTheme={selectedTheme} />}
       {/* {activeTab === 'Values & Codes' && <ValueScreen selectedTheme={ selectedTheme }  />} */}
       {/* {activeTab === 'Code' && <CodeComponent />} */}
-      {(!localState.isPro && !proGranted) && <BannerAdComponent collapsible />}
+      {/* Same collapsible banner as before (BannerAdComponent renders nothing
+          for Pro). The wrapper adds a nav-bar spacer only when this page is
+          opened outside the tab bar (Values > More > Stock in the root stack). */}
+      <ScreenBottomBanner background={background} collapsible />
     </View>
   );
 };

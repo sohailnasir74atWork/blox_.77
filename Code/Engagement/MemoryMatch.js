@@ -26,6 +26,8 @@ import { useGlobalState } from '../GlobelStats';
 import config from '../Helper/Environment';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import i18next from 'i18next';
 import { loadGameStats, saveGameStats, submitLeaderboardScore } from './gameScores';
 import GameRoundActions from './GameRoundActions';
 
@@ -35,9 +37,9 @@ const FLIP_BACK_DELAY = 800;
 const RANKED_DIFFICULTY = 'medium'; // the only difficulty on the leaderboard
 
 const DIFFICULTIES = {
-  easy:   { cols: 3, rows: 2, pairs: 3, label: 'Easy',   emoji: '😊', color: '#10B981', desc: '3×2 grid · 3 pairs' },
-  medium: { cols: 4, rows: 3, pairs: 6, label: 'Medium', emoji: '🧠', color: '#F59E0B', desc: '4×3 grid · 6 pairs' },
-  hard:   { cols: 4, rows: 4, pairs: 8, label: 'Hard',   emoji: '🔥', color: '#EF4444', desc: '4×4 grid · 8 pairs' },
+  easy:   { cols: 3, rows: 2, pairs: 3, labelKey: 'engagement.memory_match.diff_easy',   emoji: '😊', color: '#10B981', descKey: 'engagement.memory_match.diff_easy_desc' },
+  medium: { cols: 4, rows: 3, pairs: 6, labelKey: 'engagement.memory_match.diff_medium', emoji: '🧠', color: '#F59E0B', descKey: 'engagement.memory_match.diff_medium_desc' },
+  hard:   { cols: 4, rows: 4, pairs: 8, labelKey: 'engagement.memory_match.diff_hard',   emoji: '🔥', color: '#EF4444', descKey: 'engagement.memory_match.diff_hard_desc' },
 };
 
 // Blox Fruit themed emoji pool
@@ -67,16 +69,18 @@ const generateDeck = (pairCount) => {
 const formatTime = (s) => {
   const mins = Math.floor(s / 60);
   const secs = s % 60;
-  return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+  return mins > 0
+    ? i18next.t('engagement.memory_match.time_min_sec', { m: mins, s: secs })
+    : i18next.t('engagement.memory_match.time_sec', { s: secs });
 };
 
 const getStars = (m, d) => {
   const thresholds = { easy: [4, 6, 8], medium: [8, 12, 16], hard: [10, 15, 20] };
   const t = thresholds[d] || thresholds.medium;
-  if (m <= t[0]) return { stars: 3, label: 'Perfect! 🌟', emoji: '🌟', color: '#F59E0B' };
-  if (m <= t[1]) return { stars: 2, label: 'Great Memory!', emoji: '⭐', color: '#10B981' };
-  if (m <= t[2]) return { stars: 2, label: 'Good Job!', emoji: '👏', color: '#3B82F6' };
-  return { stars: 1, label: 'Keep Practicing!', emoji: '🧠', color: '#8B5CF6' };
+  if (m <= t[0]) return { stars: 3, labelKey: 'engagement.memory_match.rating_perfect', emoji: '🌟', color: '#F59E0B' };
+  if (m <= t[1]) return { stars: 2, labelKey: 'engagement.memory_match.rating_great', emoji: '⭐', color: '#10B981' };
+  if (m <= t[2]) return { stars: 2, labelKey: 'engagement.memory_match.rating_good', emoji: '👏', color: '#3B82F6' };
+  return { stars: 1, labelKey: 'engagement.memory_match.rating_practice', emoji: '🧠', color: '#8B5CF6' };
 };
 
 const makeAnims = (n) => Array(n).fill(null).map(() => new Animated.Value(0));
@@ -87,6 +91,7 @@ const MemoryMatch = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
   const { triggerHapticFeedback } = useHaptic();
   const isDarkMode = theme === 'dark';
   const uid = user?.id;
+  const { t } = useTranslation();
 
   const [phase, setPhase] = useState('loading'); // loading | rules | playing | complete
   const [difficulty, setDifficulty] = useState('medium');
@@ -364,7 +369,7 @@ const MemoryMatch = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
         <TouchableOpacity onPress={onClose} style={styles.backBtn} hitSlop={8}>
           <Icon name="chevron-back" size={24} color={c.text} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: c.text }]}>🃏 Memory Match</Text>
+        <Text style={[styles.title, { color: c.text }]}>🃏 {t('engagement.game_hub.memory_name')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -377,17 +382,17 @@ const MemoryMatch = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
       {phase === 'rules' && (
         <ScrollView contentContainerStyle={styles.rulesContent} showsVerticalScrollIndicator={false}>
           <Text style={{ fontSize: 64, textAlign: 'center' }}>🃏</Text>
-          <Text style={[styles.bigTitle, { color: c.text, textAlign: 'center' }]}>Memory Match</Text>
+          <Text style={[styles.bigTitle, { color: c.text, textAlign: 'center' }]}>{t('engagement.game_hub.memory_name')}</Text>
           <Text style={[styles.subText, { color: c.textSecondary, textAlign: 'center', marginBottom: 20 }]}>
-            Find all the matching fruit pairs! 🧠
+            {t('engagement.memory_match.tagline')}
           </Text>
 
           <View style={[styles.ruleCard, { backgroundColor: isDarkMode ? config.colors.surfaceDark : '#FEF3C7' }]}>
             <View style={styles.ruleRow}>
               <Text style={styles.ruleEmoji}>👆</Text>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.ruleTitle, { color: c.text }]}>Tap to Flip</Text>
-                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>Tap any card to reveal the fruit hidden underneath!</Text>
+                <Text style={[styles.ruleTitle, { color: c.text }]}>{t('engagement.memory_match.rule1_title')}</Text>
+                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>{t('engagement.memory_match.rule1_desc')}</Text>
               </View>
             </View>
           </View>
@@ -396,13 +401,13 @@ const MemoryMatch = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
             <View style={styles.ruleRow}>
               <Text style={styles.ruleEmoji}>🔍</Text>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.ruleTitle, { color: c.text }]}>Find the Match</Text>
-                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>Flip 2 cards — if they match, they stay! Fewer moves = more stars.</Text>
+                <Text style={[styles.ruleTitle, { color: c.text }]}>{t('engagement.memory_match.rule2_title')}</Text>
+                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>{t('engagement.memory_match.rule2_desc')}</Text>
               </View>
             </View>
           </View>
 
-          <Text style={[styles.bigTitle, { fontSize: 22, color: c.text, marginTop: 12, marginBottom: 12 }]}>Difficulty</Text>
+          <Text style={[styles.bigTitle, { fontSize: 22, color: c.text, marginTop: 12, marginBottom: 12 }]}>{t('engagement.memory_match.difficulty')}</Text>
 
           {Object.entries(DIFFICULTIES).map(([key, d]) => {
             const best = bestMoves[key];
@@ -423,14 +428,14 @@ const MemoryMatch = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
                 </View>
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={[styles.diffLabel, { color: d.color }]}>{d.label}</Text>
+                    <Text style={[styles.diffLabel, { color: d.color }]}>{t(d.labelKey)}</Text>
                     {key === RANKED_DIFFICULTY && (
-                      <View style={styles.rankedTag}><Text style={styles.rankedTagText}>🏆 Ranked</Text></View>
+                      <View style={styles.rankedTag}><Text style={styles.rankedTagText}>{t('engagement.memory_match.ranked')}</Text></View>
                     )}
                   </View>
-                  <Text style={[styles.diffDesc, { color: c.textSecondary }]}>{d.desc}</Text>
+                  <Text style={[styles.diffDesc, { color: c.textSecondary }]}>{t(d.descKey)}</Text>
                   {best > 0 && (
-                    <Text style={[styles.diffBest, { color: c.textSecondary }]}>🏆 Best: {best} moves · {formatTime(bestTime[key] || 0)}</Text>
+                    <Text style={[styles.diffBest, { color: c.textSecondary }]}>{t('engagement.memory_match.best_moves_time', { moves: best, time: formatTime(bestTime[key] || 0) })}</Text>
                   )}
                 </View>
                 <View style={[styles.diffRadio, { borderColor: d.color, backgroundColor: selected ? d.color : 'transparent' }]}>
@@ -446,7 +451,7 @@ const MemoryMatch = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
             onWatchAd={onWatchAd}
             adLoading={adLoading}
             color={diff.color}
-            playLabel="LET'S GO! 🎮"
+            playLabel={t('engagement.games.lets_go')}
             playIcon="play"
             textColor={c.textSecondary}
             style={{ marginTop: 16 }}
@@ -458,21 +463,21 @@ const MemoryMatch = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
         <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 16 }}>
           <View style={[styles.hud, { backgroundColor: surface, borderColor: border }]}>
             <View style={styles.hudItem}>
-              <Text style={[styles.hudLabel, { color: c.textSecondary }]}>Pairs</Text>
+              <Text style={[styles.hudLabel, { color: c.textSecondary }]}>{t('engagement.memory_match.pairs')}</Text>
               <Text style={[styles.hudVal, { color: '#10B981' }]}>{matchedPairs}/{diff.pairs}</Text>
             </View>
             <View style={styles.hudItem}>
-              <Text style={[styles.hudLabel, { color: c.textSecondary }]}>Moves</Text>
+              <Text style={[styles.hudLabel, { color: c.textSecondary }]}>{t('engagement.memory_match.moves')}</Text>
               <Text style={[styles.hudVal, { color: '#F59E0B' }]}>{moves}</Text>
             </View>
             <View style={styles.hudItem}>
-              <Text style={[styles.hudLabel, { color: c.textSecondary }]}>Time</Text>
+              <Text style={[styles.hudLabel, { color: c.textSecondary }]}>{t('engagement.memory_match.time')}</Text>
               <Text style={[styles.hudVal, { color: c.text }]}>{formatTime(timer)}</Text>
             </View>
           </View>
 
           <View style={[styles.diffBadge, { backgroundColor: diff.color, marginBottom: 12 }]}>
-            <Text style={styles.diffBadgeText}>{diff.label}{curBest > 0 ? ` · Best ${curBest} moves` : ''}</Text>
+            <Text style={styles.diffBadgeText}>{t(diff.labelKey)}{curBest > 0 ? ` · ${t('engagement.memory_match.best_moves_short', { moves: curBest })}` : ''}</Text>
           </View>
 
           <View style={styles.gridContainer}>
@@ -486,30 +491,30 @@ const MemoryMatch = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
       {phase === 'complete' && (
         <ScrollView contentContainerStyle={styles.centerContent} showsVerticalScrollIndicator={false}>
           <Text style={{ fontSize: 80 }}>{rating.emoji}</Text>
-          <Text style={[styles.bigTitle, { color: rating.color }]}>{rating.label}</Text>
+          <Text style={[styles.bigTitle, { color: rating.color }]}>{t(rating.labelKey)}</Text>
           <Text style={styles.starsRow}>
             {'★'.repeat(rating.stars)}<Text style={{ color: isDarkMode ? '#334155' : '#e2e8f0' }}>{'★'.repeat(3 - rating.stars)}</Text>
           </Text>
 
           <View style={[styles.statsCard, { backgroundColor: surface, borderColor: border }]}>
             <View style={styles.statRow}>
-              <Text style={[styles.statLabel, { color: c.textSecondary }]}>Moves</Text>
+              <Text style={[styles.statLabel, { color: c.textSecondary }]}>{t('engagement.memory_match.moves')}</Text>
               <Text style={[styles.statVal, { color: '#F59E0B' }]}>{moves}{result.newBestMoves ? ' 🎉' : ''}</Text>
             </View>
             <View style={styles.statRow}>
-              <Text style={[styles.statLabel, { color: c.textSecondary }]}>Time</Text>
+              <Text style={[styles.statLabel, { color: c.textSecondary }]}>{t('engagement.memory_match.time')}</Text>
               <Text style={[styles.statVal, { color: c.text }]}>{formatTime(timer)}{result.newBestTime ? ' 🎉' : ''}</Text>
             </View>
             <View style={[styles.statRow, { borderBottomWidth: 0 }]}>
-              <Text style={[styles.statLabel, { color: c.textSecondary }]}>Difficulty</Text>
-              <Text style={[styles.statVal, { color: diff.color }]}>{diff.label}</Text>
+              <Text style={[styles.statLabel, { color: c.textSecondary }]}>{t('engagement.memory_match.difficulty')}</Text>
+              <Text style={[styles.statVal, { color: diff.color }]}>{t(diff.labelKey)}</Text>
             </View>
           </View>
 
           {result.newBestMoves ? (
-            <Text style={[styles.bestScoreLabel, { color: diff.color }]}>🎉 NEW BEST! 🎉</Text>
+            <Text style={[styles.bestScoreLabel, { color: diff.color }]}>{t('engagement.memory_match.new_best')}</Text>
           ) : curBest > 0 && !result.firstClear ? (
-            <Text style={[styles.bestScoreLabel, { color: diff.color }]}>🏆 Best: {curBest} moves</Text>
+            <Text style={[styles.bestScoreLabel, { color: diff.color }]}>{t('engagement.memory_match.best_moves', { moves: curBest })}</Text>
           ) : null}
 
           <GameRoundActions
@@ -518,17 +523,17 @@ const MemoryMatch = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
             onWatchAd={onWatchAd}
             adLoading={adLoading}
             color={diff.color}
-            playLabel="Play Again"
+            playLabel={t('engagement.games.play_again')}
             textColor={c.textSecondary}
           />
           {!roundInfo?.maxedOut && (
             <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#6366F1', marginTop: 10, width: '100%', justifyContent: 'center' }]} onPress={() => setPhase('rules')}>
               <Icon name="options-outline" size={22} color="#fff" />
-              <Text style={styles.actionBtnText}>Change Difficulty</Text>
+              <Text style={styles.actionBtnText}>{t('engagement.memory_match.change_difficulty')}</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity style={[styles.actionBtn, styles.doneBtn]} onPress={onClose}>
-            <Text style={styles.actionBtnText}>Done</Text>
+            <Text style={styles.actionBtnText}>{t('engagement.games.done')}</Text>
           </TouchableOpacity>
         </ScrollView>
       )}

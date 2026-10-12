@@ -17,7 +17,7 @@ import { ref as dbRef, onValue } from '@react-native-firebase/database';
 import { getServerTime, getServerTimeQuick } from '../Helper/serverTime';
 
 import { getStarStatus } from '../Engagement/starUtils';
-import { getLevelFromXP, getXPProgress } from '../Engagement/xpUtils';
+import { getLevelFromXP, getXPProgress, getLevelTitle } from '../Engagement/xpUtils';
 
 import LinearGradient from 'react-native-linear-gradient';
 import SignInDrawer from '../Firebase/SigninDrawer';
@@ -298,8 +298,8 @@ const HomeTabScreen = ({ selectedTheme }) => {
       } else {
         navigation.navigate(game.screen);
       }
-    }, 'Sign in to play');
-  }, [navigation, user?.id]);
+    }, t('home.home_tab_screen.signin_play'));
+  }, [navigation, user?.id, t]);
 
   const handleShare = async () => {
     const link = Platform.OS === 'ios' ? config.IOsShareLink : config.andriodShareLink;
@@ -333,14 +333,14 @@ const HomeTabScreen = ({ selectedTheme }) => {
           <View style={styles.heroContent}>
             <View style={styles.heroTextWrap}>
               <Text style={styles.heroGreeting}>{greeting}</Text>
-              <Text style={styles.heroName} numberOfLines={1}>
+              <Text style={styles.heroName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>
                 {user?.displayName || t('home_tab.fruit_trader_default', { defaultValue: 'Fruit Trader' })}
               </Text>
             </View>
             {/* Settings */}
             <View style={styles.heroRightGroup}>
               <TouchableOpacity
-                accessibilityRole="button" accessibilityLabel="Choose language / Выбрать язык"
+                accessibilityRole="button" accessibilityLabel={t('home.home_tab_screen.choose_language_a11y')}
                 onPress={() => setShowLangPicker(true)}
                 style={{padding: 10, minWidth: 44, minHeight: 44, justifyContent: 'center'}}>
                 <Text style={{fontSize: 22}}>{currentLang.flag}</Text>
@@ -371,7 +371,7 @@ const HomeTabScreen = ({ selectedTheme }) => {
               <View style={styles.xpCardLeft}>
                 <Text style={[styles.xpLevelEmoji]}>{currentLevel.emoji}</Text>
                 <View>
-                  <Text style={[styles.xpCardTitle, { color: isDarkMode ? config.darkColors.textPrimary : '#fff' }]}>{currentLevel.title}</Text>
+                  <Text style={[styles.xpCardTitle, { color: isDarkMode ? config.darkColors.textPrimary : '#fff' }]}>{getLevelTitle(currentLevel)}</Text>
                   <Text style={[styles.xpCardSub, { color: isDarkMode ? config.darkColors.textSecondary : 'rgba(255,255,255,0.7)' }]}>
                     {t('home_tab.xp_level_sub', { defaultValue: `Level ${currentLevel.level} • ${userXP.total.toLocaleString()} XP`, level: currentLevel.level, xp: userXP.total.toLocaleString() })}
                   </Text>
@@ -574,14 +574,18 @@ const HomeTabScreen = ({ selectedTheme }) => {
                 <View style={{ position: 'relative' }}>
                   <View style={[styles.quickActionIcon, { backgroundColor: action.color + '14' }]}>
                     {action.image
-                      ? <Image source={action.image} style={styles.quickActionImage} resizeMode="contain" />
+                      ? <Image resizeMethod="resize" source={action.image} style={styles.quickActionImage} resizeMode="contain" />
                       : <FontAwesome name={action.icon} size={18} color={action.color} solid />}
                   </View>
                   {action.hasBadge && (
                     <Animated.View style={[styles.starBadge, { transform: [{ scale: starPulse }] }]} />
                   )}
                 </View>
-                <Text style={[styles.quickActionLabel, { color: isDarkMode ? config.darkColors.textSecondary : '#64748b' }]} numberOfLines={1}>
+                <Text
+                  style={[styles.quickActionLabel, { color: isDarkMode ? config.darkColors.textSecondary : '#64748b' }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
                   {action.label}
                 </Text>
               </TouchableOpacity>
@@ -617,31 +621,31 @@ const HomeTabScreen = ({ selectedTheme }) => {
               </View>
               <TouchableOpacity
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: isDarkMode ? config.colors.surfaceDark : '#fff', borderWidth: 1, borderColor: '#F59E0B' }}
-                onPress={() => requireSignIn(() => setShowGameLeaderboard(true), 'Sign in to see ranks')}
+                onPress={() => requireSignIn(() => setShowGameLeaderboard(true), t('home.home_tab_screen.signin_ranks'))}
                 activeOpacity={0.7}
               >
-                <Image source={require('../../assets/home-actions/leaderboard.png')} style={{ width: 16, height: 16 }} resizeMode="contain" />
-                <Text style={{ fontSize: 12, fontWeight: '800', color: selectedTheme.colors.text }}>Ranks</Text>
+                <Image resizeMethod="resize" source={require('../../assets/home-actions/leaderboard.png')} style={{ width: 16, height: 16 }} resizeMode="contain" />
+                <Text style={{ fontSize: 12, fontWeight: '800', color: selectedTheme.colors.text }}>{t('home.home_tab_screen.ranks')}</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.gamesGrid}>
               {[
-                { id: 'mystery', image: require('../../assets/game-icons/mystery.png'), emoji: '🍋', label: 'Mystery',  color: '#16A34A', screen: 'MysteryEggScreen', tag: 'HOT' },
-                { id: 'crash',   image: require('../../assets/game-icons/crash.png'), emoji: '🚀', label: 'Crash',    color: '#F59E0B', screen: 'FruitCrashScreen' },
-                { id: 'spot',    image: require('../../assets/game-icons/smash.png'), emoji: '🍎', label: 'Smash',    color: '#B91C1C', screen: 'GameScreen', gameId: 'spot' },
-                { id: 'safe',    image: require('../../assets/game-icons/chest.png'), emoji: '🔐', label: 'Chest',    color: '#D97706', screen: 'GameScreen', gameId: 'safe' },
-                { id: 'draw',    image: require('../../assets/game-icons/slash.png'), emoji: '⚡', label: 'Slash',    color: '#DC2626', screen: 'GameScreen', gameId: 'draw' },
-                { id: 'memory',  image: require('../../assets/game-icons/memory.png'), emoji: '🃏', label: 'Memory',   color: '#6366F1', screen: 'GameScreen', gameId: 'memory' },
+                { id: 'mystery', image: require('../../assets/game-icons/mystery.png'), emoji: '🍋', label: t('home.home_tab_screen.game_mystery'),  color: '#16A34A', screen: 'MysteryEggScreen', tag: t('home.home_tab_screen.tag_hot') },
+                { id: 'crash',   image: require('../../assets/game-icons/crash.png'), emoji: '🚀', label: t('home.home_tab_screen.game_crash'),    color: '#F59E0B', screen: 'FruitCrashScreen' },
+                { id: 'spot',    image: require('../../assets/game-icons/smash.png'), emoji: '🍎', label: t('home.home_tab_screen.game_smash'),    color: '#B91C1C', screen: 'GameScreen', gameId: 'spot' },
+                { id: 'safe',    image: require('../../assets/game-icons/chest.png'), emoji: '🔐', label: t('home.home_tab_screen.game_chest'),    color: '#D97706', screen: 'GameScreen', gameId: 'safe' },
+                { id: 'draw',    image: require('../../assets/game-icons/slash.png'), emoji: '⚡', label: t('home.home_tab_screen.game_slash'),    color: '#DC2626', screen: 'GameScreen', gameId: 'draw' },
+                { id: 'memory',  image: require('../../assets/game-icons/memory.png'), emoji: '🃏', label: t('home.home_tab_screen.game_memory'),   color: '#6366F1', screen: 'GameScreen', gameId: 'memory' },
               ].map((game) => (
                 <TouchableOpacity
                   key={game.id}
                   style={[styles.gameTile, { backgroundColor: game.color }]}
                   onPress={() => {
                     if (game.premium && !localState?.isPro) {
-                      Alert.alert('Pro Feature', 'Mystery Fruit unlocks cosmetics! Upgrade to Pro to play.', [
-                        { text: 'Cancel', style: 'cancel' },
+                      Alert.alert(t('home.home_tab_screen.pro_feature_title'), t('home.home_tab_screen.pro_feature_body'), [
+                        { text: t('common.cancel'), style: 'cancel' },
                         // The 'Store' route is commented out in App.js; open the paywall.
-                        { text: 'Get Pro', onPress: () => setShowOfferWall(true) },
+                        { text: t('home.home_tab_screen.get_pro'), onPress: () => setShowOfferWall(true) },
                       ]);
                       return;
                     }
@@ -655,7 +659,7 @@ const HomeTabScreen = ({ selectedTheme }) => {
                     </View>
                   )}
                   {game.image
-                    ? <Image source={game.image} style={styles.gameImage} resizeMode="contain" />
+                    ? <Image resizeMethod="resize" source={game.image} style={styles.gameImage} resizeMode="contain" />
                     : <Text style={styles.gameEmoji}>{game.emoji}</Text>}
                   <Text style={styles.gameTileLabel}>{game.label}</Text>
                 </TouchableOpacity>
@@ -781,7 +785,7 @@ const HomeTabScreen = ({ selectedTheme }) => {
 
           {/* FOOTER */}
           <View style={styles.footer}>
-            <Image
+            <Image resizeMethod="resize"
               source={require('../../assets/logo.png')}
               style={styles.footerLogo}
               resizeMode="contain"
@@ -1043,6 +1047,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     textAlign: 'center',
+    width: '100%',
   },
 
   // Share button

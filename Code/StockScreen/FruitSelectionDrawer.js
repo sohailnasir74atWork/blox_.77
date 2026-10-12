@@ -67,7 +67,7 @@ const FruitSelectionDrawer = ({ visible, onClose, onSelect, data, selectedTheme 
             <Icon name="search" size={18} color={isDarkMode ? '#94a3b8' : '#94a3b8'} />
             <TextInput
               style={[styles.searchInput, { color: isDarkMode ? '#f1f5f9' : '#1e293b' }]}
-              placeholder="Search fruits..."
+              placeholder={t('stock.fruit_selection_drawer.search_placeholder')}
               placeholderTextColor={isDarkMode ? '#64748b' : '#94a3b8'}
               value={searchText}
               onChangeText={handleSearchChange}
@@ -100,7 +100,7 @@ const FruitSelectionDrawer = ({ visible, onClose, onSelect, data, selectedTheme 
                 onPress={() => handleSelect(item)}
                 activeOpacity={0.7}
               >
-                <Image
+                <Image resizeMethod="resize"
                   source={{
                     uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${item.name.replace(
                       /^\+/,

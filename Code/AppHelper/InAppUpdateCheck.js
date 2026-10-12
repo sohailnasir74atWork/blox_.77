@@ -1,5 +1,6 @@
 import { Platform, Linking, Alert } from 'react-native';
 import DeviceInfo from 'react-native-device-info';
+import i18next from 'i18next';
 
 // Only import & init the library on Android — on iOS it triggers its own
 // native alert from the constructor, bypassing our JS version check entirely.
@@ -49,12 +50,12 @@ export const checkForUpdate = async () => {
       if (!storeVersion || !isNewerVersion(storeVersion, currentVersion)) return;
 
       Alert.alert(
-        'Update Available',
-        `A new version (${storeVersion}) is available. You're on ${currentVersion}.`,
+        i18next.t('app.in_app_update.title'),
+        i18next.t('app.in_app_update.message', { storeVersion, currentVersion }),
         [
-          { text: 'Later', style: 'cancel' },
+          { text: i18next.t('app.in_app_update.later'), style: 'cancel' },
           {
-            text: 'Update Now',
+            text: i18next.t('app.in_app_update.update_now'),
             onPress: async () => {
               try {
                 await Linking.openURL(IOS_STORE_DEEPLINK);

@@ -18,6 +18,7 @@ import {
 } from '../ChatScreen/GroupChat/badgeUtils';
 import {
   LEVELS, XP_ACTIONS, getLevelFromXP, getNextLevel, getXPProgress, getUserXP,
+  getLevelTitle,
 } from '../Engagement/xpUtils';
 import { getStarStatus } from '../Engagement/starUtils';
 import DailyStarRewards from '../Engagement/DailyStarRewards';
@@ -65,7 +66,7 @@ const XPHeader = ({ xp, isDark }) => {
         )}
         <View style={{ flex: 1, marginLeft: 10 }}>
           <Text style={[s.xpTitle, { color: isDark ? '#f1f5f9' : '#0f172a' }]}>
-            {currentLevel.title}
+            {getLevelTitle(currentLevel)}
           </Text>
           <Text style={[s.xpSubtitle, { color: isDark ? '#64748b' : '#94a3b8' }]}>
             {t('badges_screen.xp.level_and_xp', { defaultValue: `Level ${currentLevel.level} • ${xp.toLocaleString()} XP`, level: currentLevel.level, xp: xp.toLocaleString() })}
@@ -121,7 +122,7 @@ const BadgeCard = ({ badgeId, earned, isDark }) => {
         alignItems: 'center', justifyContent: 'center',
       }, earned && { backgroundColor: badge.color + '20' }]}>
         {earned && BADGE_IMAGES[badgeId] ? (
-          <Image source={BADGE_IMAGES[badgeId]} style={[{ width: 36, height: 36 }, isDark && badge.tier === 1 && { tintColor: '#e2e8f0' }]} />
+          <Image resizeMethod="resize" source={BADGE_IMAGES[badgeId]} style={[{ width: 36, height: 36 }, isDark && badge.tier === 1 && { tintColor: '#e2e8f0' }]} />
         ) : (
           <Text style={{ fontSize: 28, opacity: 0.3 }}>🔒</Text>
         )}
@@ -144,6 +145,7 @@ const BadgeCard = ({ badgeId, earned, isDark }) => {
 
 // ── Level Roadmap Item ──
 const LevelItem = ({ level, currentLevel, isDark }) => {
+  const { t } = useTranslation();
   const reached = currentLevel >= level.level;
   const isCurrent = currentLevel === level.level;
 
@@ -174,15 +176,15 @@ const LevelItem = ({ level, currentLevel, isDark }) => {
           color: reached ? (isDark ? '#e2e8f0' : '#1e293b') : (isDark ? '#475569' : '#94a3b8'),
           fontWeight: isCurrent ? '800' : '600',
         }]}>
-          Lv.{level.level} — {level.title}
+          {t('settings.badges_screen.level_row', { level: level.level, title: getLevelTitle(level) })}
         </Text>
         <Text style={[s.levelXp, { color: isDark ? '#475569' : '#94a3b8' }]}>
-          {level.xp.toLocaleString()} XP
+          {t('settings.badges_screen.xp_amount', { xp: level.xp.toLocaleString() })}
         </Text>
       </View>
       {isCurrent && (
         <View style={s.currentTag}>
-          <Text style={s.currentTagText}>YOU</Text>
+          <Text style={s.currentTagText}>{t('settings.badges_screen.you')}</Text>
         </View>
       )}
     </View>
@@ -433,9 +435,9 @@ const BadgesScreen = ({ navigation }) => {
 
             <View style={s.shareCardHeader}>
               <Text style={{ fontSize: 36 }}>🍋</Text>
-              <Text style={s.shareCardTitle}>My Blox Fruit Badges!</Text>
+              <Text style={s.shareCardTitle}>{t('settings.badges_screen.share_title')}</Text>
               <Text style={s.shareCardLevel}>
-                {currentLevel.emoji} {user?.displayName || 'Fruit Trader'} • Lv.{currentLevel.level}
+                {currentLevel.emoji} {t('settings.badges_screen.share_level', { name: user?.displayName || t('settings.badges_screen.fruit_trader'), level: currentLevel.level })}
               </Text>
             </View>
 
@@ -450,7 +452,7 @@ const BadgesScreen = ({ navigation }) => {
                       return (
                         <View key={id} style={[s.shareCardBadge, { backgroundColor: badge.bgLight, borderColor: badge.color + '40' }]}>
                           {BADGE_IMAGES[id] ? (
-                            <Image source={BADGE_IMAGES[id]} style={{ width: 28, height: 28 }} />
+                            <Image resizeMethod="resize" source={BADGE_IMAGES[id]} style={{ width: 28, height: 28 }} />
                           ) : (
                             <Text style={{ fontSize: 22 }}>{badge.emoji}</Text>
                           )}
@@ -461,18 +463,18 @@ const BadgesScreen = ({ navigation }) => {
                   {earnedCount > 6 && (
                     <View style={[s.shareCardBadge, { backgroundColor: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.3)' }]}>
                       <Text style={{ fontSize: 18, color: '#818cf8' }}>+{earnedCount - 6}</Text>
-                      <Text style={[s.shareCardBadgeName, { color: '#818cf8' }]}>more</Text>
+                      <Text style={[s.shareCardBadgeName, { color: '#818cf8' }]}>{t('settings.badges_screen.more')}</Text>
                     </View>
                   )}
                 </>
               ) : (
-                <Text style={s.shareCardEmpty}>Just getting started! 🌱</Text>
+                <Text style={s.shareCardEmpty}>{t('settings.badges_screen.just_started')}</Text>
               )}
             </View>
 
             <View style={s.shareCardProgress}>
               <Text style={s.shareCardProgressText}>
-                🏆 {earnedCount}/{BADGE_DISPLAY_ORDER.length} badges collected!
+                {t('settings.badges_screen.collected', { earned: earnedCount, total: BADGE_DISPLAY_ORDER.length })}
               </Text>
               <View style={s.shareCardProgressBar}>
                 <View style={[s.shareCardProgressFill, { width: `${Math.round((earnedCount / BADGE_DISPLAY_ORDER.length) * 100)}%` }]} />

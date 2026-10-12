@@ -1,17 +1,17 @@
 import React, { useCallback, useMemo, useEffect } from 'react';
 import { TouchableOpacity, View, Text, Image } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import HomeScreen from '../Homescreen/HomeScreen';
 import HomeTabScreen from '../HomeTab/HomeTabScreen';
 import ValueScreen from '../ValuesScreen/ValueScreen';
-import TimerScreen from '../StockScreen/TimerScreen';
 import { ChatStack } from '../ChatScreen/ChatNavigator';
 import { TradeStack } from '../Trades/TradeNavigator';
 import { useTranslation } from 'react-i18next';
 import config from '../Helper/Environment';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import BouncingCartIcon from './CartIcon';
-import TopLevelStockComponent from '../StockScreen/StockNavigator';
+import { MoreStack } from '../More/MoreNavigator';
 import DesignStack from '../Design/DesignNavigation';
 import ThemeHeader from '../Design/componenets/ThemeHeader';
 import { useGlobalState } from '../GlobelStats';
@@ -39,10 +39,10 @@ const Tab = createBottomTabNavigator();
 const TAB_IMAGES = {
   HomeTab: [require('../../assets/tab-icons/home.png'), require('../../assets/tab-icons/home-off.png')],
   Calculator: [require('../../assets/tab-icons/calculator.png'), require('../../assets/tab-icons/calculator-off.png')],
-  Stock: [require('../../assets/tab-icons/stock.png'), require('../../assets/tab-icons/stock-off.png')],
   Trade: [require('../../assets/tab-icons/trade.png'), require('../../assets/tab-icons/trade-off.png')],
   Designs: [require('../../assets/tab-icons/feed.png'), require('../../assets/tab-icons/feed-off.png')],
   Chat: [require('../../assets/tab-icons/chat.png'), require('../../assets/tab-icons/chat-off.png')],
+  More: [require('../../assets/tab-icons/more.png'), require('../../assets/tab-icons/more-off.png')],
 };
 const TAB_IMAGE_STYLE = { width: 24, height: 24 };
 const TAB_IMAGE_STYLE_FOCUSED = { width: 24, height: 24, transform: [{ scale: 1.08 }] };
@@ -51,7 +51,7 @@ const AnimatedTabIcon = React.memo(({ routeName, iconName, color, size, focused 
   const images = TAB_IMAGES[routeName];
   if (images) {
     return (
-      <Image
+      <Image resizeMethod="resize"
         source={focused ? images[0] : images[1]}
         style={focused ? TAB_IMAGE_STYLE_FOCUSED : TAB_IMAGE_STYLE}
         resizeMode="contain"
@@ -86,11 +86,11 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
     const icons = {
       HomeTab: ['house', 'house'],
       Calculator: ['calculator', 'calculator'],
-      Stock: ['cart-shopping', 'cart-shopping'],
       Trade: ['handshake', 'handshake'],
       Chat: ['envelope', 'envelope'],
       Values: ['angles-right', 'angles-right'],
       Designs: ['chart-simple', 'chart-simple'],
+      More: ['table-cells-large', 'table-cells-large'],
     };
 
     return icons[routeName] ? (focused ? icons[routeName][0] : icons[routeName][1]) : 'alert-circle-outline';
@@ -105,8 +105,10 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
     <HomeScreen selectedTheme={selectedTheme} />
   ), [selectedTheme]);
 
-  const renderTopLevelStockComponent = useCallback(() => (
-    <TopLevelStockComponent selectedTheme={selectedTheme} />
+  // More tab (replaced the Stock tab, owner decision 2026-10-08): the card hub
+  // with its own stack, so Stock, Codes and the rest open inside the tab.
+  const renderMoreStack = useCallback(() => (
+    <MoreStack selectedTheme={selectedTheme} inTab />
   ), [selectedTheme]);
 
   const renderTradeStack = useCallback(() => (
@@ -184,6 +186,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
 
   // Memoize Calculator tab options
   const calculatorOptions = useCallback(() => ({
+    title: t('tabs.calculator', { defaultValue: 'Calculator' }),
     header: () => (
       <ThemeHeader 
         title={t('tabs.calculator', { defaultValue: 'Calculator' })} 
@@ -211,16 +214,6 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
       </Tab.Screen>
 
       <Tab.Screen
-        name="Stock"
-        options={{
-          headerShown: false,
-          title: 'Stocks',
-        }}
-      >
-        {renderTopLevelStockComponent}
-      </Tab.Screen>
-
-      <Tab.Screen
         name="Trade"
         options={{
           headerShown: false,
@@ -232,7 +225,7 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
       <Tab.Screen
         name="Designs"
         options={{
-          title: 'Feed', // Translation applied here
+          title: t('app.main_tabs.feed'), // Translation applied here
           headerShown: false
         }}
       >
@@ -241,8 +234,12 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
 
       <Tab.Screen
         name="Chat"
-        options={{
+        options={({ route }) => ({
           headerShown: false,
+          // The Mod Panel is a full-screen tool: give it the tab bar's space.
+          ...(getFocusedRouteNameFromRoute(route) === 'AdminDashboard'
+            ? { tabBarStyle: { display: 'none' } }
+            : null),
           title: t('tabs.chat'), // Translation applied here
           tabBarBadge: chatFocused ? "" : null,
           tabBarBadgeStyle: {
@@ -253,9 +250,19 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
             // backgroundColor: 'red',
             color: 'white',
           },
-        }}
+        })}
       >
         {renderChatStack}
+      </Tab.Screen>
+
+      <Tab.Screen
+        name="More"
+        options={{
+          headerShown: false,
+          title: t('tabs.more', { defaultValue: 'More' }),
+        }}
+      >
+        {renderMoreStack}
       </Tab.Screen>
 
     </Tab.Navigator>

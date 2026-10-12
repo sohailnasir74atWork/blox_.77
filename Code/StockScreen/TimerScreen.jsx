@@ -102,9 +102,9 @@ const TimerScreen = ({ selectedTheme }) => {
 
     if ((!localState.isPro && !stockNotifierPurchase) && selectedFruits.length >= 3) {
       Alert.alert(
-        "Selection Limit Reached",
-        "You can only select up to 3 fruits as a free user. Upgrade to Pro or purchse notifier to select more.",
-        [{ text: "OK", onPress: () => {} }]
+        t('stock.timer_screen.limit_title'),
+        t('stock.timer_screen.limit_body'),
+        [{ text: t('stock.timer_screen.ok'), onPress: () => {} }]
       );
       return;
     }
@@ -224,7 +224,7 @@ const TimerScreen = ({ selectedTheme }) => {
   // ── Stock fruit card (compact, 2-per-row) ──
   const StockFruitCard = ({ item }) => (
     <View style={styles.fruitCard}>
-      <Image
+      <Image resizeMethod="resize"
         source={{
           uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${item.Normal.replace(/^\+/, '').replace(/\s+/g, '-')}_Icon.webp`,
         }}
@@ -358,7 +358,7 @@ const TimerScreen = ({ selectedTheme }) => {
                 <View style={styles.chipsWrap}>
                   {user.selectedFruits.map((item) => (
                     <View key={item.name || item.Name} style={styles.chip}>
-                      <Image
+                      <Image resizeMethod="resize"
                         source={{
                           uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${item.name?.replace(/^\+/, '').replace(/\s+/g, '-') || item.Name?.replace(/^\+/, '').replace(/\s+/g, '-')}_Icon.webp`,
                         }}
@@ -392,7 +392,7 @@ const TimerScreen = ({ selectedTheme }) => {
             {/* ── Refresh Button ── */}
             <TouchableOpacity style={styles.refreshBtn} onPress={handleRefresh} activeOpacity={0.8}>
               <Icon name="refresh" size={18} color="white" />
-              <Text style={styles.refreshBtnText}>REFRESH</Text>
+              <Text style={styles.refreshBtnText}>{t('stock.timer_screen.refresh')}</Text>
             </TouchableOpacity>
 
             {/* ── Previous Stock Divider ── */}

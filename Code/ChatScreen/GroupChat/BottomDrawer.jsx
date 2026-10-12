@@ -58,7 +58,7 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import {
   makeSeniorMod, removeSeniorMod, makeModerator, removeModerator, makeBabyMod, removeBabyMod, canModerate,
   applySanction, liftSanction, getSanctionStatus, getModPermissions, canLiftSanction, fetchUserRoles,
-  isCurrentUserOwner, isOwnerEmail,
+  isCurrentUserOwner,
 } from '../utils'; // ✅ Import moderator utils
 import { getUserEmail } from '../../Helper/privateProfile';
 import { BirthdayProfileLine } from '../../Birthdays/BirthdayBits';
@@ -261,8 +261,11 @@ const ProfileBottomDrawer = ({
 
   // ✅ OPTIMIZED: Fetch user data from Firebase only for missing fields
   // This minimizes Firebase reads and reduces costs
+  // Keyed on isVisible too: callers keep the drawer mounted and the close
+  // reset below clears userData, so reopening the same person must refetch
+  // (otherwise the badge falls back to "No Roblox ID" and roles vanish).
   useEffect(() => {
-    if (!selectedUserId || !appdatabase) return;
+    if (!isVisible || !selectedUserId || !appdatabase) return;
 
     let isMounted = true;
 
@@ -375,7 +378,7 @@ const ProfileBottomDrawer = ({
     return () => {
       isMounted = false;
     };
-  }, [selectedUserId, selectedUser?.robloxUsername, selectedUser?.robloxUserId, selectedUser?.flage, selectedUser?.isPro, selectedUser?.lastGameWinAt, appdatabase]);
+  }, [isVisible, selectedUserId, selectedUser?.robloxUsername, selectedUser?.robloxUserId, selectedUser?.flage, selectedUser?.isPro, selectedUser?.lastGameWinAt, appdatabase]);
 
   // ✅ Current sanction — staff only, and only once Mod Tools are opened
   // (another user's email and ban records are staff-only data). Reads the
@@ -390,11 +393,16 @@ const ProfileBottomDrawer = ({
       // Records stop carrying an email after round 2 — resolve it from
       // users_private (staff-readable) when the row has none.
       const email = selectedUser?.email || await getUserEmail(appdatabase, selectedUserId);
-      const status = await getSanctionStatus(selectedUserId, email);
+      // Fresh role flags too: owner rank comes from the server-written
+      // users/{uid}/owner flag, which the profile data doesn't carry.
+      const [status, roles] = await Promise.all([
+        getSanctionStatus(selectedUserId, email),
+        fetchUserRoles(selectedUserId),
+      ]);
       if (!alive) return;
-      setSanction({ ...status, email: email || null });
-      const roles = status.active && status.bannedByUid ? await fetchUserRoles(status.bannedByUid) : null;
-      if (alive) setBannerRoles(roles);
+      setSanction({ ...status, email: email || null, targetOwner: !!roles?.isOwner });
+      const banner = status.active && status.bannedByUid ? await fetchUserRoles(status.bannedByUid) : null;
+      if (alive) setBannerRoles(banner);
     })().catch(() => {
       if (alive) setSanction({ active: false, type: null, strikeCount: 0, email: null, failed: true });
     });
@@ -555,8 +563,8 @@ const ProfileBottomDrawer = ({
     isSeniorMod: !!mergedUser?.isSeniorMod,
     isModerator: !!mergedUser?.isModerator,
     isBabyMod: !!mergedUser?.isBabyMod,
-    isOwner: isOwnerEmail(sanction?.email),
-  }), [mergedUser?.isAdmin, mergedUser?.isSeniorMod, mergedUser?.isModerator, mergedUser?.isBabyMod, sanction?.email]);
+    isOwner: !!sanction?.targetOwner,
+  }), [mergedUser?.isAdmin, mergedUser?.isSeniorMod, mergedUser?.isModerator, mergedUser?.isBabyMod, sanction?.targetOwner]);
   const modPerms = useMemo(() => getModPermissions(callerRoles, targetRoles), [callerRoles, targetRoles]);
   const canLiftCurrent = !!(sanction?.active && canLiftSanction(callerRoles, targetRoles, sanction.type, bannerRoles));
 
@@ -1235,7 +1243,7 @@ const ProfileBottomDrawer = ({
 
     Alert.alert(
       `${action}`,
-      `${t('chat.are_you_sure')} ${action.toLowerCase()} ${userName}?`,
+      t(isBlock ? 'chat.confirm_unblock' : 'chat.confirm_block', { name: userName }),
       [
         { text: t('chat.cancel'), style: 'cancel' },
         {
@@ -1849,7 +1857,7 @@ const ProfileBottomDrawer = ({
           backgroundColor: isDarkMode ? '#0f172a' : '#e5e7eb',
         }}
       >
-        <Image
+        <Image resizeMethod="resize"
           source={{ uri: imageUrl }}
           style={{ width: '100%', height: '100%' }}
           defaultSource={{ uri: 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }}
@@ -1922,7 +1930,7 @@ const ProfileBottomDrawer = ({
                   borderRadius: 4,
                   marginRight: 6,
                 }}>
-                  <Text style={{ color: '#fff', fontSize: 9, fontWeight: '600' }}>FEATURED</Text>
+                  <Text style={{ color: '#fff', fontSize: 9, fontWeight: '600' }}>{t('chat.bottom_drawer.featured')}</Text>
                 </View>
               )}
               <Text style={{ fontSize: 10, color: isDarkMode ? '#9ca3af' : '#6b7280' }}>
@@ -1965,13 +1973,13 @@ const ProfileBottomDrawer = ({
           {/* Has Items */}
           <View style={{ flex: 1, alignItems: 'center', marginRight: 4 }}>
             <Text style={{ fontSize: 9, fontWeight: '600', color: isDarkMode ? '#9ca3af' : '#6b7280', marginBottom: 4 }}>
-              ME
+              {t('chat.bottom_drawer.me')}
             </Text>
             {groupedHasItems.length > 0 ? (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 3 }}>
                 {groupedHasItems.slice(0, 2).map((hasItem) => (
                   <View key={`${hasItem.name}-${hasItem.type}`} style={{ alignItems: 'center', marginBottom: 2 }}>
-                    <Image
+                    <Image resizeMethod="resize"
                       source={{
                         uri: hasItem.type === 'p'
                           ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatTradeName(hasItem.name)}_Icon.webp`
@@ -2014,7 +2022,7 @@ const ProfileBottomDrawer = ({
               </View>
             ) : (
               <Text style={{ fontSize: 9, color: isDarkMode ? '#6b7280' : '#9ca3af', fontStyle: 'italic' }}>
-                No items
+                {t('chat.bottom_drawer.no_items')}
               </Text>
             )}
             {groupedHasItems.length > 0 && trade.hasTotal && (
@@ -2035,7 +2043,7 @@ const ProfileBottomDrawer = ({
 
           {/* Transfer Icon */}
           <View style={{ justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6 }}>
-            <Image
+            <Image resizeMethod="resize"
               source={require('../../../assets/transfer.png')}
               style={{ width: 16, height: 16, opacity: 0.6 }}
             />
@@ -2044,13 +2052,13 @@ const ProfileBottomDrawer = ({
           {/* Wants Items */}
           <View style={{ flex: 1, alignItems: 'center', marginLeft: 4 }}>
             <Text style={{ fontSize: 9, fontWeight: '600', color: isDarkMode ? '#9ca3af' : '#6b7280', marginBottom: 4 }}>
-              YOU
+              {t('chat.bottom_drawer.you')}
             </Text>
             {groupedWantsItems.length > 0 ? (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 3 }}>
                 {groupedWantsItems.slice(0, 2).map((wantnItem) => (
                   <View key={`${wantnItem.name}-${wantnItem.type}`} style={{ alignItems: 'center', marginBottom: 2 }}>
-                    <Image
+                    <Image resizeMethod="resize"
                       source={{
                         uri: wantnItem.type === 'p'
                           ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatTradeName(wantnItem.name)}_Icon.webp`
@@ -2093,7 +2101,7 @@ const ProfileBottomDrawer = ({
               </View>
             ) : (
               <Text style={{ fontSize: 9, color: isDarkMode ? '#6b7280' : '#9ca3af', fontStyle: 'italic' }}>
-                No items
+                {t('chat.bottom_drawer.no_items')}
               </Text>
             )}
             {groupedWantsItems.length > 0 && trade.wantsTotal && (
@@ -2162,7 +2170,7 @@ const ProfileBottomDrawer = ({
         }}
       >
         {images.length > 0 && (
-          <Image
+          <Image resizeMethod="resize"
             source={{ uri: images[0] }}
             style={{ width: '100%', height: 140, borderTopLeftRadius: 12, borderTopRightRadius: 12 }}
             resizeMode="cover"
@@ -2272,8 +2280,8 @@ const ProfileBottomDrawer = ({
                   paddingHorizontal: 10, paddingVertical: 4,
                   borderRadius: 999,
                 }}>
-                  <Image source={require('../../../assets/pro.png')} style={{ width: 11, height: 11 }} />
-                  <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 }}>Pro</Text>
+                  <Image resizeMethod="resize" source={require('../../../assets/pro.png')} style={{ width: 11, height: 11 }} />
+                  <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 }}>{t('chat.bottom_drawer.pro')}</Text>
                 </View>
               )}
 
@@ -2326,7 +2334,7 @@ const ProfileBottomDrawer = ({
                       (typeof mergedUser?.lastGameWinAt === 'number' &&
                         Date.now() - mergedUser.lastGameWinAt <= 24 * 60 * 60 * 1000);
                     return hasRecentWin ? (
-                      <Image
+                      <Image resizeMethod="resize"
                         source={require('../../../assets/trophy.webp')}
                         style={{ width: 10, height: 10, marginLeft: 4 }}
                       />
@@ -2354,7 +2362,7 @@ const ProfileBottomDrawer = ({
                   marginTop: 4,
                 }}>
                   <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '600' }}>
-                    {mergedUser?.robloxUsernameVerified ? '✓ Verified' : '⚠ Unverified'}
+                    {mergedUser?.robloxUsernameVerified ? t('chat.bottom_drawer.verified') : t('chat.bottom_drawer.unverified')}
                   </Text>
                 </View>
               ) : (
@@ -2366,7 +2374,7 @@ const ProfileBottomDrawer = ({
                   marginTop: 4,
                 }}>
                   <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '600' }}>
-                    No Roblox ID
+                    {t('chat.bottom_drawer.no_roblox_id')}
                   </Text>
                 </View>
               )}
@@ -2403,7 +2411,7 @@ const ProfileBottomDrawer = ({
                 {/* Rating */}
                 {ratingSummary ? (
                   <View style={{ flex: 1, alignItems: 'center' }}>
-                    <Text style={{ fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, color: c.textMuted }}>Rating</Text>
+                    <Text style={{ fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, color: c.textMuted }}>{t('chat.bottom_drawer.rating')}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3 }}>
                       <Text style={{ fontSize: 12, color: '#fbbf24' }}>★</Text>
                       <Text style={{ fontSize: 13, fontWeight: '800', color: c.text }}>{ratingSummary.value.toFixed(1)}</Text>
@@ -2412,13 +2420,13 @@ const ProfileBottomDrawer = ({
                   </View>
                 ) : (
                   <View style={{ flex: 1, alignItems: 'center' }}>
-                    <Text style={{ fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, color: c.textMuted }}>Rating</Text>
+                    <Text style={{ fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, color: c.textMuted }}>{t('chat.bottom_drawer.rating')}</Text>
                     <Text style={{ fontSize: 11, fontWeight: '600', color: c.textMuted, marginTop: 3 }}>—</Text>
                   </View>
                 )}
                 {/* Followers */}
                 <View style={{ flex: 1, alignItems: 'center', borderLeftWidth: 1, borderColor: c.border }}>
-                  <Text style={{ fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, color: c.textMuted }}>Followers</Text>
+                  <Text style={{ fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, color: c.textMuted }}>{t('chat.bottom_drawer.followers')}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3 }}>
                     <Icon name="people" size={12} color="#8b5cf6" />
                     <Text style={{ fontSize: 13, fontWeight: '800', color: c.text }}>{followersCount || 0}</Text>
@@ -2437,7 +2445,7 @@ const ProfileBottomDrawer = ({
                 {/* Wins */}
                 {gameWins !== null && gameWins > 0 && (
                   <View style={{ flex: 1, alignItems: 'center', borderLeftWidth: 1, borderColor: c.border }}>
-                    <Text style={{ fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, color: c.textMuted }}>Wins</Text>
+                    <Text style={{ fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, color: c.textMuted }}>{t('chat.bottom_drawer.wins')}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3 }}>
                       <Text style={{ fontSize: 12 }}>🏆</Text>
                       <Text style={{ fontSize: 13, fontWeight: '800', color: c.text }}>{gameWins}</Text>
@@ -2453,7 +2461,7 @@ const ProfileBottomDrawer = ({
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <Icon name="calendar-outline" size={11} color={c.textMuted} />
                   <Text style={{ fontSize: 10, color: c.textMuted, fontWeight: '500' }}>
-                    Joined {createdAtText}
+                    {t('chat.bottom_drawer.joined', { time: createdAtText })}
                   </Text>
                 </View>
               </View>
@@ -2549,7 +2557,7 @@ const ProfileBottomDrawer = ({
                   color: isDarkMode ? '#e5e7eb' : '#111827',
                 }}
               >
-                Recent Reviews
+                {t('chat.bottom_drawer.recent_reviews')}
               </Text>
 
               {/* ⭐ Star Filter Pills */}
@@ -2561,7 +2569,7 @@ const ProfileBottomDrawer = ({
               >
                 {STAR_OPTIONS.map((star) => {
                   const isActive = starFilter === star;
-                  const label = star === null ? 'All' : `${star}★`;
+                  const label = star === null ? t('chat.bottom_drawer.all_stars') : `${star}★`;
                   return (
                     <TouchableOpacity
                       key={star === null ? 'all' : star}
@@ -2612,7 +2620,7 @@ const ProfileBottomDrawer = ({
                     color: isDarkMode ? '#9ca3af' : '#6b7280',
                   }}
                 >
-                  No reviews yet.
+                  {t('chat.bottom_drawer.no_reviews')}
                 </Text>
               ) : (
                 <>
@@ -2672,7 +2680,7 @@ const ProfileBottomDrawer = ({
                                   marginTop: 2,
                                 }}
                               >
-                                Edited
+                                {t('chat.bottom_drawer.edited')}
                               </Text>
                             )}
                           </View>
@@ -2722,7 +2730,7 @@ const ProfileBottomDrawer = ({
                           color: isDarkMode ? '#e5e7eb' : '#111827',
                         }}
                       >
-                        Load more reviews
+                        {t('chat.bottom_drawer.load_more_reviews')}
                       </Text>
                     </TouchableOpacity>
                   )}
@@ -2756,7 +2764,7 @@ const ProfileBottomDrawer = ({
                     color: isDarkMode ? '#e5e7eb' : '#111827',
                   }}
                 >
-                  Recent Trades
+                  {t('chat.bottom_drawer.recent_trades')}
                 </Text>
 
                 {loadingTrades && trades.length === 0 ? (
@@ -2771,7 +2779,7 @@ const ProfileBottomDrawer = ({
                       color: isDarkMode ? '#9ca3af' : '#6b7280',
                     }}
                   >
-                    No trades yet.
+                    {t('chat.bottom_drawer.no_trades')}
                   </Text>
                 ) : (
                   <>
@@ -2796,7 +2804,7 @@ const ProfileBottomDrawer = ({
                             color: isDarkMode ? '#e5e7eb' : '#111827',
                           }}
                         >
-                          Load more trades
+                          {t('chat.bottom_drawer.load_more_trades')}
                         </Text>
                       </TouchableOpacity>
                     )}
@@ -2943,7 +2951,7 @@ const ProfileBottomDrawer = ({
                   >
                     <Icon name="person" size={16} color={isDarkMode ? '#e2e8f0' : '#475569'} />
                     <Text style={{ fontSize: 12, fontWeight: '700', color: isDarkMode ? '#e2e8f0' : '#475569' }}>
-                      View Detail Profile
+                      {t('chat.bottom_drawer.view_detail_profile')}
                     </Text>
                   </TouchableOpacity>
                 )}

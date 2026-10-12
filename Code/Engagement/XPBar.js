@@ -10,7 +10,8 @@
 
 import React, { useMemo, useEffect, useRef } from 'react';
 import { View, Text, Animated, StyleSheet } from 'react-native';
-import { getLevelFromXP, getNextLevel, getXPProgress } from './xpUtils';
+import { useTranslation } from 'react-i18next';
+import { getLevelFromXP, getNextLevel, getXPProgress, getLevelTitle } from './xpUtils';
 import { getThemeColors } from '../Helper/themeColors';
 import SafeLottieView from '../Helper/SafeLottieView';
 
@@ -33,6 +34,7 @@ const LEVEL_LOTTIE = {
 };
 
 const XPBar = ({ xp = 0, isDarkMode = false, compact = false }) => {
+  const { t } = useTranslation();
   const currentLevel = useMemo(() => getLevelFromXP(xp), [xp]);
   const nextLevel = useMemo(() => getNextLevel(xp), [xp]);
   const progress = useMemo(() => getXPProgress(xp), [xp]);
@@ -65,7 +67,7 @@ const XPBar = ({ xp = 0, isDarkMode = false, compact = false }) => {
           <Text>{currentLevel.emoji}</Text>
         )}
         <Text style={[styles.compactLevel, { color: textColor }]}>
-          {' '}Lv.{currentLevel.level}
+          {' '}{t('engagement.xp_bar.lv_short', { level: currentLevel.level })}
         </Text>
         <View style={[styles.compactBar, { backgroundColor: barBg }]}>
           <Animated.View
@@ -101,11 +103,11 @@ const XPBar = ({ xp = 0, isDarkMode = false, compact = false }) => {
             <Text style={{ fontSize: 16 }}>{currentLevel.emoji}</Text>
           )}
           <Text style={[styles.levelText, { color: textColor }]}>
-            Level {currentLevel.level}
+            {t('engagement.xp_bar.level', { level: currentLevel.level })}
           </Text>
         </View>
         <Text style={[styles.titleText, { color: barFill }]}>
-          {currentLevel.title}
+          {getLevelTitle(currentLevel)}
         </Text>
       </View>
 
@@ -137,7 +139,7 @@ const XPBar = ({ xp = 0, isDarkMode = false, compact = false }) => {
         )}
         {isMaxLevel && (
           <Text style={[styles.xpText, { color: barFill }]}>
-            MAX
+            {t('engagement.xp_bar.max')}
           </Text>
         )}
       </View>

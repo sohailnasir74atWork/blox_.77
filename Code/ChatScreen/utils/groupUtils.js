@@ -81,17 +81,17 @@ export const getUserAdminGroups = async (firestoreDB, userId) => {
  */
 export const createGroup = async (firestoreDB, appdatabase, creatorData, memberIds = [], groupName = null, invitedUsersMap = null, groupAvatarUrl = null, groupDescription = null) => {
   if (!firestoreDB || !appdatabase || !creatorData?.id) {
-    return { success: false, error: 'Missing required parameters' };
+    return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
 
   // Group name is required
   if (!groupName || !groupName.trim()) {
-    return { success: false, error: 'Group name is required' };
+    return { success: false, error: i18n.t('chat.group_utils.group_name_is_required') };
   }
 
   // Group description is required
   if (!groupDescription || !groupDescription.trim()) {
-    return { success: false, error: 'Group description is required' };
+    return { success: false, error: i18n.t('chat.group_utils.group_description_is_required') };
   }
 
   // Up to MAX_GROUPS_PER_USER groups as admin/creator at a time.
@@ -109,11 +109,11 @@ export const createGroup = async (firestoreDB, appdatabase, creatorData, memberI
   // Validate member count (creator + members <= MAX_GROUP_MEMBERS)
   const totalMembers = 1 + (memberIds?.length || 0);
   if (totalMembers > MAX_GROUP_MEMBERS) {
-    return { success: false, error: `Maximum ${MAX_GROUP_MEMBERS} members allowed` };
+    return { success: false, error: i18n.t('chat.group_utils.maximum_max_members_allowed', { max: MAX_GROUP_MEMBERS }) };
   }
 
   if (totalMembers < 2) {
-    return { success: false, error: 'Group must have at least 2 members' };
+    return { success: false, error: i18n.t('chat.group_utils.group_must_have_at_least_2') };
   }
 
   try {
@@ -252,7 +252,7 @@ export const createGroup = async (firestoreDB, appdatabase, creatorData, memberI
     return { success: true, groupId };
   } catch (error) {
     console.error('Error creating group:', error);
-    return { success: false, error: error.message || 'Failed to create group' };
+    return { success: false, error: error.message || i18n.t('chat.group_utils.failed_to_create_group') };
   }
 };
 
@@ -267,26 +267,26 @@ export const createGroup = async (firestoreDB, appdatabase, creatorData, memberI
  */
 export const sendGroupInvite = async (firestoreDB, groupId, invitedUserId, inviterData, invitedUserData = null) => {
   if (!firestoreDB || !groupId || !invitedUserId || !inviterData?.id) {
-    return { success: false, error: 'Missing required parameters' };
+    return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
 
   try {
     // Check if user is already in group (1 Firestore read)
     const groupDoc = await getDoc(doc(firestoreDB, 'groups', groupId));
     if (!groupDoc.exists()) {
-      return { success: false, error: 'Group not found' };
+      return { success: false, error: i18n.t('chat.group_utils.group_not_found') };
     }
 
     const groupData = groupDoc.data();
     const memberIds = groupData.memberIds || [];
 
     if (memberIds.includes(invitedUserId)) {
-      return { success: false, error: 'User is already in group' };
+      return { success: false, error: i18n.t('chat.group_utils.user_is_already_in_group') };
     }
 
     // Check group size limit
     if (memberIds.length >= MAX_GROUP_MEMBERS) {
-      return { success: false, error: `Group is full (max ${MAX_GROUP_MEMBERS} members)` };
+      return { success: false, error: i18n.t('chat.group_utils.group_is_full_max_max_members', { max: MAX_GROUP_MEMBERS }) };
     }
 
     // Check if pending invite exists (1 Firestore query)
@@ -299,7 +299,7 @@ export const sendGroupInvite = async (firestoreDB, groupId, invitedUserId, invit
     const existingInvite = await getDocs(existingInviteQuery);
 
     if (!existingInvite.empty) {
-      return { success: false, error: 'Invitation already sent' };
+      return { success: false, error: i18n.t('chat.group_utils.invitation_already_sent') };
     }
 
     // ✅ Fetch invited user data if not provided
@@ -349,7 +349,7 @@ export const sendGroupInvite = async (firestoreDB, groupId, invitedUserId, invit
     return { success: true };
   } catch (error) {
     console.error('Error sending group invite:', error);
-    return { success: false, error: error.message || 'Failed to send invitation' };
+    return { success: false, error: error.message || i18n.t('chat.group_utils.failed_to_send_invitation') };
   }
 };
 
@@ -363,7 +363,7 @@ export const sendGroupInvite = async (firestoreDB, groupId, invitedUserId, invit
  */
 export const acceptGroupInvite = async (firestoreDB, appdatabase, inviteId, userData) => {
   if (!firestoreDB || !appdatabase || !inviteId || !userData?.id) {
-    return { success: false, error: 'Missing required parameters' };
+    return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
 
   try {
@@ -371,29 +371,29 @@ export const acceptGroupInvite = async (firestoreDB, appdatabase, inviteId, user
     const inviteSnap = await getDoc(inviteRef);
 
     if (!inviteSnap.exists()) {
-      return { success: false, error: 'Invitation not found' };
+      return { success: false, error: i18n.t('chat.group_utils.invitation_not_found') };
     }
 
     const inviteData = inviteSnap.data();
 
     // Validate
     if (inviteData.invitedUserId !== userData.id) {
-      return { success: false, error: 'Not your invitation' };
+      return { success: false, error: i18n.t('chat.group_utils.not_your_invitation') };
     }
 
     if (inviteData.status !== 'pending') {
-      return { success: false, error: 'Invitation already processed' };
+      return { success: false, error: i18n.t('chat.group_utils.invitation_already_processed') };
     }
 
     if (Date.now() > inviteData.expiresAt) {
-      return { success: false, error: 'Invitation expired' };
+      return { success: false, error: i18n.t('chat.group_utils.invitation_expired') };
     }
 
     const groupRef = doc(firestoreDB, 'groups', inviteData.groupId);
     const groupSnap = await getDoc(groupRef);
 
     if (!groupSnap.exists()) {
-      return { success: false, error: 'Group not found' };
+      return { success: false, error: i18n.t('chat.group_utils.group_not_found') };
     }
 
     const groupData = groupSnap.data();
@@ -401,31 +401,31 @@ export const acceptGroupInvite = async (firestoreDB, appdatabase, inviteId, user
     // Check if already member
     if (groupData.memberIds?.includes(userData.id)) {
       await updateDoc(inviteRef, { status: 'accepted' });
-      return { success: false, error: 'Already in group' };
+      return { success: false, error: i18n.t('chat.group_utils.already_in_group') };
     }
 
     // Check group size limit
     if (groupData.memberIds?.length >= MAX_GROUP_MEMBERS) {
-      return { success: false, error: `Group is full (max ${MAX_GROUP_MEMBERS} members)` };
+      return { success: false, error: i18n.t('chat.group_utils.group_is_full_max_max_members', { max: MAX_GROUP_MEMBERS }) };
     }
 
     // Add user to group (transaction to prevent race conditions)
     await runTransaction(firestoreDB, async (transaction) => {
       const freshGroupSnap = await transaction.get(groupRef);
       if (!freshGroupSnap.exists()) {
-        throw new Error('Group not found');
+        throw new Error(i18n.t('chat.group_utils.group_not_found'));
       }
 
       const freshData = freshGroupSnap.data();
 
       // Double-check not already member
       if (freshData.memberIds?.includes(userData.id)) {
-        throw new Error('Already in group');
+        throw new Error(i18n.t('chat.group_utils.already_in_group'));
       }
 
       // Double-check group size
       if (freshData.memberIds?.length >= MAX_GROUP_MEMBERS) {
-        throw new Error('Group is full');
+        throw new Error(i18n.t('chat.group_utils.group_is_full'));
       }
 
       // Add to members
@@ -469,7 +469,7 @@ export const acceptGroupInvite = async (firestoreDB, appdatabase, inviteId, user
     return { success: true, groupId: inviteData.groupId };
   } catch (error) {
     console.error('Error accepting group invite:', error);
-    return { success: false, error: error.message || 'Failed to accept invitation' };
+    return { success: false, error: error.message || i18n.t('chat.group_utils.failed_to_accept_invitation') };
   }
 };
 
@@ -482,7 +482,7 @@ export const acceptGroupInvite = async (firestoreDB, appdatabase, inviteId, user
  */
 export const declineGroupInvite = async (firestoreDB, inviteId, userId) => {
   if (!firestoreDB || !inviteId || !userId) {
-    return { success: false, error: 'Missing required parameters' };
+    return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
 
   try {
@@ -490,19 +490,19 @@ export const declineGroupInvite = async (firestoreDB, inviteId, userId) => {
     const inviteSnap = await getDoc(inviteRef);
 
     if (!inviteSnap.exists()) {
-      return { success: false, error: 'Invitation not found' };
+      return { success: false, error: i18n.t('chat.group_utils.invitation_not_found') };
     }
 
     const inviteData = inviteSnap.data();
     if (inviteData.invitedUserId !== userId) {
-      return { success: false, error: 'Not your invitation' };
+      return { success: false, error: i18n.t('chat.group_utils.not_your_invitation') };
     }
 
     await updateDoc(inviteRef, { status: 'declined' });
     return { success: true };
   } catch (error) {
     console.error('Error declining group invite:', error);
-    return { success: false, error: error.message || 'Failed to decline invitation' };
+    return { success: false, error: error.message || i18n.t('chat.group_utils.failed_to_decline_invitation') };
   }
 };
 
@@ -516,7 +516,7 @@ export const declineGroupInvite = async (firestoreDB, inviteId, userId) => {
  */
 export const leaveGroup = async (firestoreDB, appdatabase, groupId, userId) => {
   if (!firestoreDB || !appdatabase || !groupId || !userId) {
-    return { success: false, error: 'Missing required parameters' };
+    return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
 
   try {
@@ -534,7 +534,7 @@ export const leaveGroup = async (firestoreDB, appdatabase, groupId, userId) => {
 
       // Check if user is member
       if (!groupData.memberIds?.includes(userId)) {
-        throw new Error('Not a member');
+        throw new Error(i18n.t('chat.group_utils.not_a_member'));
       }
 
       // Remove from members
@@ -651,7 +651,7 @@ export const leaveGroup = async (firestoreDB, appdatabase, groupId, userId) => {
     return result;
   } catch (error) {
     console.error('Error leaving group:', error);
-    return { success: false, error: error.message || 'Failed to leave group' };
+    return { success: false, error: error.message || i18n.t('chat.group_utils.failed_to_leave_group') };
   } finally {
     // Always cleanup metadata (even if Firestore transaction fails) — Supabase.
     try {
@@ -680,7 +680,7 @@ export const leaveGroup = async (firestoreDB, appdatabase, groupId, userId) => {
  */
 export const sendGroupMessage = async (appdatabase, firestoreDB, groupId, messageData, senderData) => {
   if (!appdatabase || !firestoreDB || !groupId || !messageData || !senderData?.id) {
-    return { success: false, error: 'Missing required parameters' };
+    return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
 
   try {
@@ -696,7 +696,7 @@ export const sendGroupMessage = async (appdatabase, firestoreDB, groupId, messag
     // who to fan out to, or nothing is written at all.
     const groupDoc = await getDoc(doc(firestoreDB, 'groups', groupId));
     if (!groupDoc.exists()) {
-      return { success: false, error: 'Group not found' };
+      return { success: false, error: i18n.t('chat.group_utils.group_not_found') };
     }
 
     const groupData = groupDoc.data();
@@ -742,7 +742,7 @@ export const sendGroupMessage = async (appdatabase, firestoreDB, groupId, messag
       'Error sending group message:',
       error?.code, '|', error?.message, '|', error?.details, '|', error?.hint, '|', error,
     );
-    return { success: false, error: error.message || 'Failed to send message' };
+    return { success: false, error: error.message || i18n.t('chat.group_utils.failed_to_send_message') };
   }
 };
 
@@ -768,11 +768,11 @@ export const sendGroupMessage = async (appdatabase, firestoreDB, groupId, messag
  */
 export const addMembersToGroup = async (firestoreDB, appdatabase, groupId, newMemberIds, inviterData, invitedUsersMap = null) => {
   if (!firestoreDB || !appdatabase || !groupId || !Array.isArray(newMemberIds) || !inviterData?.id) {
-    return { success: false, error: 'Missing required parameters' };
+    return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
 
   if (newMemberIds.length === 0) {
-    return { success: false, error: 'No members to invite' };
+    return { success: false, error: i18n.t('chat.group_utils.no_members_to_invite') };
   }
 
   try {
@@ -780,7 +780,7 @@ export const addMembersToGroup = async (firestoreDB, appdatabase, groupId, newMe
     const groupSnap = await getDoc(groupRef);
     
     if (!groupSnap.exists()) {
-      return { success: false, error: 'Group not found' };
+      return { success: false, error: i18n.t('chat.group_utils.group_not_found') };
     }
 
     const groupData = groupSnap.data();
@@ -790,20 +790,20 @@ export const addMembersToGroup = async (firestoreDB, appdatabase, groupId, newMe
     // ✅ Only creator can add members
     const isCreator = groupData.createdBy === inviterData.id;
     if (!isCreator) {
-      return { success: false, error: 'Only the creator can add members' };
+      return { success: false, error: i18n.t('chat.group_utils.only_the_creator_can_add_members') };
     }
 
     // Filter out users already in group
     const uniqueNewMembers = newMemberIds.filter(id => !currentMemberIds.includes(id));
     
     if (uniqueNewMembers.length === 0) {
-      return { success: false, error: 'All selected users are already in the group' };
+      return { success: false, error: i18n.t('chat.group_utils.all_selected_users_are_already_in') };
     }
 
     // Check total member count (if all accept)
     const newTotal = currentMemberIds.length + uniqueNewMembers.length;
     if (newTotal > MAX_GROUP_MEMBERS) {
-      return { success: false, error: `Group cannot exceed ${MAX_GROUP_MEMBERS} members` };
+      return { success: false, error: i18n.t('chat.group_utils.group_cannot_exceed_max_members', { max: MAX_GROUP_MEMBERS }) };
     }
 
     // ✅ Use provided user data map, or fetch from RTDB users node only if needed (OPTIMIZATION: avoid extra reads)
@@ -885,7 +885,7 @@ export const addMembersToGroup = async (firestoreDB, appdatabase, groupId, newMe
     return { success: true, invitedCount };
   } catch (error) {
     console.error('Error adding members to group:', error);
-    return { success: false, error: error.message || 'Failed to send invitations' };
+    return { success: false, error: error.message || i18n.t('chat.group_utils.failed_to_send_invitations') };
   }
 };
 
@@ -900,7 +900,7 @@ export const addMembersToGroup = async (firestoreDB, appdatabase, groupId, newMe
  */
 export const removeMemberFromGroup = async (firestoreDB, appdatabase, groupId, memberIdToRemove, adminId) => {
   if (!firestoreDB || !appdatabase || !groupId || !memberIdToRemove || !adminId) {
-    return { success: false, error: 'Missing required parameters' };
+    return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
 
   try {
@@ -909,7 +909,7 @@ export const removeMemberFromGroup = async (firestoreDB, appdatabase, groupId, m
     return await runTransaction(firestoreDB, async (transaction) => {
       const groupSnap = await transaction.get(groupRef);
       if (!groupSnap.exists()) {
-        throw new Error('Group not found');
+        throw new Error(i18n.t('chat.group_utils.group_not_found'));
       }
 
       const groupData = groupSnap.data();
@@ -919,22 +919,22 @@ export const removeMemberFromGroup = async (firestoreDB, appdatabase, groupId, m
       // ✅ Check if user has permission (must be creator)
       const isCreator = groupData.createdBy === adminId;
       if (!isCreator) {
-        throw new Error('Only the creator can remove members');
+        throw new Error(i18n.t('chat.group_utils.only_the_creator_can_remove_members'));
       }
 
       // Cannot remove creator
       if (groupData.createdBy === memberIdToRemove) {
-        throw new Error('Cannot remove the group creator');
+        throw new Error(i18n.t('chat.group_utils.cannot_remove_the_group_creator'));
       }
 
       // Cannot remove yourself (use leaveGroup instead)
       if (memberIdToRemove === adminId) {
-        throw new Error('Cannot remove yourself. Use leave group instead.');
+        throw new Error(i18n.t('chat.group_utils.cannot_remove_yourself_use_leave_group'));
       }
 
       // Check if member exists
       if (!currentMemberIds.includes(memberIdToRemove)) {
-        throw new Error('User is not a member of this group');
+        throw new Error(i18n.t('chat.group_utils.user_is_not_a_member_of'));
       }
 
       // Remove member
@@ -969,7 +969,7 @@ export const removeMemberFromGroup = async (firestoreDB, appdatabase, groupId, m
     });
   } catch (error) {
     console.error('Error removing member from group:', error);
-    return { success: false, error: error.message || 'Failed to remove member' };
+    return { success: false, error: error.message || i18n.t('chat.group_utils.failed_to_remove_member') };
   }
 };
 
@@ -1100,7 +1100,7 @@ export const hasGroupPermission = (groupData, userId, permission) => {
  */
 export const makeMemberCreator = async (firestoreDB, appdatabase, groupId, memberIdToMakeCreator, currentCreatorId) => {
   if (!firestoreDB || !appdatabase || !groupId || !memberIdToMakeCreator || !currentCreatorId) {
-    return { success: false, error: 'Missing required parameters' };
+    return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
 
   try {
@@ -1109,7 +1109,7 @@ export const makeMemberCreator = async (firestoreDB, appdatabase, groupId, membe
     return await runTransaction(firestoreDB, async (transaction) => {
       const groupSnap = await transaction.get(groupRef);
       if (!groupSnap.exists()) {
-        throw new Error('Group not found');
+        throw new Error(i18n.t('chat.group_utils.group_not_found'));
       }
 
       const groupData = groupSnap.data();
@@ -1117,17 +1117,17 @@ export const makeMemberCreator = async (firestoreDB, appdatabase, groupId, membe
 
       // ✅ Only current creator can transfer creator status
       if (groupData.createdBy !== currentCreatorId) {
-        throw new Error('Only the creator can transfer creator status');
+        throw new Error(i18n.t('chat.group_utils.only_the_creator_can_transfer_creator'));
       }
 
       // Check if member exists
       if (!currentMemberIds.includes(memberIdToMakeCreator)) {
-        throw new Error('User is not a member of this group');
+        throw new Error(i18n.t('chat.group_utils.user_is_not_a_member_of'));
       }
 
       // Cannot make yourself creator (you already are)
       if (memberIdToMakeCreator === currentCreatorId) {
-        throw new Error('You are already the creator');
+        throw new Error(i18n.t('chat.group_utils.you_are_already_the_creator'));
       }
 
       // ✅ Transfer creator status - update createdBy field
@@ -1141,7 +1141,7 @@ export const makeMemberCreator = async (firestoreDB, appdatabase, groupId, membe
     });
   } catch (error) {
     console.error('Error making member creator:', error);
-    return { success: false, error: error.message || 'Failed to make member creator' };
+    return { success: false, error: error.message || i18n.t('chat.group_utils.failed_to_make_member_creator') };
   }
 };
 
@@ -1157,7 +1157,7 @@ export const makeMemberCreator = async (firestoreDB, appdatabase, groupId, membe
 // ✅ Update group name (Group creator only)
 export const updateGroupName = async (firestoreDB, appdatabase, groupId, userId, groupName, isAdmin = false) => {
   if (!firestoreDB || !appdatabase || !groupId || !userId || !groupName) {
-    return { success: false, error: 'Missing required parameters' };
+    return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
 
   try {
@@ -1165,7 +1165,7 @@ export const updateGroupName = async (firestoreDB, appdatabase, groupId, userId,
     const groupSnap = await getDoc(groupRef);
 
     if (!groupSnap.exists()) {
-      return { success: false, error: 'Group not found' };
+      return { success: false, error: i18n.t('chat.group_utils.group_not_found') };
     }
 
     const groupData = groupSnap.data();
@@ -1173,12 +1173,12 @@ export const updateGroupName = async (firestoreDB, appdatabase, groupId, userId,
     // ✅ Only group creator can update name (not global admin)
     const isCreator = groupData.createdBy === userId;
     if (!isCreator) {
-      return { success: false, error: 'Only the group creator can update the group name' };
+      return { success: false, error: i18n.t('chat.group_utils.only_creator_update_name') };
     }
 
     const trimmedName = groupName.trim();
     if (!trimmedName || trimmedName.length === 0) {
-      return { success: false, error: 'Group name cannot be empty' };
+      return { success: false, error: i18n.t('chat.group_utils.group_name_cannot_be_empty') };
     }
 
     // Update Firestore
@@ -1201,14 +1201,14 @@ export const updateGroupName = async (firestoreDB, appdatabase, groupId, userId,
     return { success: true };
   } catch (error) {
     console.error('Error updating group name:', error);
-    return { success: false, error: error.message || 'Failed to update group name' };
+    return { success: false, error: error.message || i18n.t('chat.group_utils.failed_to_update_group_name') };
   }
 };
 
 // ✅ Update group description (Group creator only, max 100 chars)
 export const updateGroupDescription = async (firestoreDB, appdatabase, groupId, userId, description, isAdmin = false) => {
   if (!firestoreDB || !appdatabase || !groupId || !userId) {
-    return { success: false, error: 'Missing required parameters' };
+    return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
 
   try {
@@ -1216,7 +1216,7 @@ export const updateGroupDescription = async (firestoreDB, appdatabase, groupId, 
     const groupSnap = await getDoc(groupRef);
 
     if (!groupSnap.exists()) {
-      return { success: false, error: 'Group not found' };
+      return { success: false, error: i18n.t('chat.group_utils.group_not_found') };
     }
 
     const groupData = groupSnap.data();
@@ -1224,7 +1224,7 @@ export const updateGroupDescription = async (firestoreDB, appdatabase, groupId, 
     // ✅ Only group creator can update description (not global admin)
     const isCreator = groupData.createdBy === userId;
     if (!isCreator) {
-      return { success: false, error: 'Only the group creator can update the group description' };
+      return { success: false, error: i18n.t('chat.group_utils.only_creator_update_description') };
     }
 
     // Limit description to 100 characters
@@ -1245,13 +1245,13 @@ export const updateGroupDescription = async (firestoreDB, appdatabase, groupId, 
     return { success: true };
   } catch (error) {
     console.error('Error updating group description:', error);
-    return { success: false, error: error.message || 'Failed to update group description' };
+    return { success: false, error: error.message || i18n.t('chat.group_utils.failed_to_update_group_description') };
   }
 };
 
 export const updateGroupAvatar = async (firestoreDB, appdatabase, groupId, userId, avatarUrl, isAdmin = false) => {
   if (!firestoreDB || !appdatabase || !groupId || !userId) {
-    return { success: false, error: 'Missing required parameters' };
+    return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
 
   try {
@@ -1259,7 +1259,7 @@ export const updateGroupAvatar = async (firestoreDB, appdatabase, groupId, userI
     const groupSnap = await getDoc(groupRef);
 
     if (!groupSnap.exists()) {
-      return { success: false, error: 'Group not found' };
+      return { success: false, error: i18n.t('chat.group_utils.group_not_found') };
     }
 
     const groupData = groupSnap.data();
@@ -1267,7 +1267,7 @@ export const updateGroupAvatar = async (firestoreDB, appdatabase, groupId, userI
     // ✅ Only group creator can update avatar (not global admin)
     const isCreator = groupData.createdBy === userId;
     if (!isCreator) {
-      return { success: false, error: 'Only the group creator can update the group icon' };
+      return { success: false, error: i18n.t('chat.group_utils.only_creator_update_icon') };
     }
 
     // Update Firestore
@@ -1289,7 +1289,7 @@ export const updateGroupAvatar = async (firestoreDB, appdatabase, groupId, userI
     return { success: true };
   } catch (error) {
     console.error('Error updating group avatar:', error);
-    return { success: false, error: error.message || 'Failed to update group icon' };
+    return { success: false, error: error.message || i18n.t('chat.group_utils.failed_to_update_group_icon') };
   }
 };
 
@@ -1302,7 +1302,7 @@ export const updateGroupAvatar = async (firestoreDB, appdatabase, groupId, userI
  */
 export const sendJoinRequest = async (firestoreDB, groupId, requesterData) => {
   if (!firestoreDB || !groupId || !requesterData?.id) {
-    return { success: false, error: 'Missing required parameters' };
+    return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
 
   try {
@@ -1311,7 +1311,7 @@ export const sendJoinRequest = async (firestoreDB, groupId, requesterData) => {
     const groupSnap = await getDoc(groupRef);
 
     if (!groupSnap.exists()) {
-      return { success: false, error: 'Group not found' };
+      return { success: false, error: i18n.t('chat.group_utils.group_not_found') };
     }
 
     const groupData = groupSnap.data();
@@ -1319,12 +1319,12 @@ export const sendJoinRequest = async (firestoreDB, groupId, requesterData) => {
     // Check if group is full
     const memberCount = groupData.memberIds?.length || 0;
     if (memberCount >= MAX_GROUP_MEMBERS) {
-      return { success: false, error: 'Group is full (100 members maximum)' };
+      return { success: false, error: i18n.t('chat.group_utils.group_is_full_100_members_maximum') };
     }
 
     // Check if user is already a member
     if (groupData.memberIds?.includes(requesterData.id)) {
-      return { success: false, error: 'You are already a member of this group' };
+      return { success: false, error: i18n.t('chat.group_utils.you_are_already_a_member_of') };
     }
 
     // Check if user already has a pending request
@@ -1337,7 +1337,7 @@ export const sendJoinRequest = async (firestoreDB, groupId, requesterData) => {
     const existingRequestSnap = await getDocs(existingRequestQuery);
 
     if (!existingRequestSnap.empty) {
-      return { success: false, error: 'You already have a pending request for this group' };
+      return { success: false, error: i18n.t('chat.group_utils.you_already_have_a_pending_request') };
     }
 
     // Create join request
@@ -1358,7 +1358,7 @@ export const sendJoinRequest = async (firestoreDB, groupId, requesterData) => {
     return { success: true };
   } catch (error) {
     console.error('Error sending join request:', error);
-    return { success: false, error: error.message || 'Failed to send join request' };
+    return { success: false, error: error.message || i18n.t('chat.group_utils.failed_to_send_join_request') };
   }
 };
 
@@ -1372,7 +1372,7 @@ export const sendJoinRequest = async (firestoreDB, groupId, requesterData) => {
  */
 export const approveJoinRequest = async (firestoreDB, appdatabase, requestId, creatorId) => {
   if (!firestoreDB || !appdatabase || !requestId || !creatorId) {
-    return { success: false, error: 'Missing required parameters' };
+    return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
 
   try {
@@ -1380,19 +1380,19 @@ export const approveJoinRequest = async (firestoreDB, appdatabase, requestId, cr
     const requestSnap = await getDoc(requestRef);
 
     if (!requestSnap.exists()) {
-      return { success: false, error: 'Join request not found' };
+      return { success: false, error: i18n.t('chat.group_utils.join_request_not_found') };
     }
 
     const requestData = requestSnap.data();
 
     // Verify creator authorization
     if (requestData.creatorId !== creatorId) {
-      return { success: false, error: 'Only the group creator can approve requests' };
+      return { success: false, error: i18n.t('chat.group_utils.only_the_group_creator_can_approve') };
     }
 
     // Check if request is still pending
     if (requestData.status !== 'pending') {
-      return { success: false, error: 'This request has already been processed' };
+      return { success: false, error: i18n.t('chat.group_utils.this_request_has_already_been_processed') };
     }
 
     const groupId = requestData.groupId;
@@ -1403,7 +1403,7 @@ export const approveJoinRequest = async (firestoreDB, appdatabase, requestId, cr
     const groupSnap = await getDoc(groupRef);
 
     if (!groupSnap.exists()) {
-      return { success: false, error: 'Group not found' };
+      return { success: false, error: i18n.t('chat.group_utils.group_not_found') };
     }
 
     const groupData = groupSnap.data();
@@ -1417,7 +1417,7 @@ export const approveJoinRequest = async (firestoreDB, appdatabase, requestId, cr
         rejectedAt: serverTimestamp(),
         rejectionReason: 'Group is now full',
       });
-      return { success: false, error: 'Group is now full' };
+      return { success: false, error: i18n.t('chat.group_utils.group_is_now_full') };
     }
 
     // Check if user is already a member
@@ -1427,7 +1427,7 @@ export const approveJoinRequest = async (firestoreDB, appdatabase, requestId, cr
         status: 'approved',
         approvedAt: serverTimestamp(),
       });
-      return { success: false, error: 'User is already a member' };
+      return { success: false, error: i18n.t('chat.group_utils.user_is_already_a_member') };
     }
 
     // Get requester data from the request document (already fetched above)
@@ -1442,7 +1442,7 @@ export const approveJoinRequest = async (firestoreDB, appdatabase, requestId, cr
       // Double-check member count
       const freshMemberCount = freshGroupData.memberIds?.length || 0;
       if (freshMemberCount >= MAX_GROUP_MEMBERS) {
-        throw new Error('Group is now full');
+        throw new Error(i18n.t('chat.group_utils.group_is_now_full'));
       }
 
       // Add user to group with displayName and avatar
@@ -1486,7 +1486,7 @@ export const approveJoinRequest = async (firestoreDB, appdatabase, requestId, cr
     return { success: true };
   } catch (error) {
     console.error('Error approving join request:', error);
-    return { success: false, error: error.message || 'Failed to approve join request' };
+    return { success: false, error: error.message || i18n.t('chat.group_utils.failed_to_approve_join_request') };
   }
 };
 
@@ -1499,7 +1499,7 @@ export const approveJoinRequest = async (firestoreDB, appdatabase, requestId, cr
  */
 export const rejectJoinRequest = async (firestoreDB, requestId, creatorId) => {
   if (!firestoreDB || !requestId || !creatorId) {
-    return { success: false, error: 'Missing required parameters' };
+    return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
 
   try {
@@ -1507,19 +1507,19 @@ export const rejectJoinRequest = async (firestoreDB, requestId, creatorId) => {
     const requestSnap = await getDoc(requestRef);
 
     if (!requestSnap.exists()) {
-      return { success: false, error: 'Join request not found' };
+      return { success: false, error: i18n.t('chat.group_utils.join_request_not_found') };
     }
 
     const requestData = requestSnap.data();
 
     // Verify creator authorization
     if (requestData.creatorId !== creatorId) {
-      return { success: false, error: 'Only the group creator can reject requests' };
+      return { success: false, error: i18n.t('chat.group_utils.only_the_group_creator_can_reject') };
     }
 
     // Check if request is still pending
     if (requestData.status !== 'pending') {
-      return { success: false, error: 'This request has already been processed' };
+      return { success: false, error: i18n.t('chat.group_utils.this_request_has_already_been_processed') };
     }
 
     // Update request status
@@ -1531,7 +1531,7 @@ export const rejectJoinRequest = async (firestoreDB, requestId, creatorId) => {
     return { success: true };
   } catch (error) {
     console.error('Error rejecting join request:', error);
-    return { success: false, error: error.message || 'Failed to reject join request' };
+    return { success: false, error: error.message || i18n.t('chat.group_utils.failed_to_reject_join_request') };
   }
 };
 
@@ -1545,7 +1545,7 @@ export const rejectJoinRequest = async (firestoreDB, requestId, creatorId) => {
 // ✅ Delete group (Admin only)
 export const deleteGroup = async (firestoreDB, appdatabase, groupId, deletedByUserId = null) => {
   if (!firestoreDB || !appdatabase || !groupId) {
-    return { success: false, error: 'Missing required parameters' };
+    return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
 
   try {
@@ -1708,13 +1708,13 @@ export const deleteGroup = async (firestoreDB, appdatabase, groupId, deletedByUs
     return { success: true };
   } catch (error) {
     console.error('Error deleting group:', error);
-    return { success: false, error: error.message || 'Failed to delete group' };
+    return { success: false, error: error.message || i18n.t('chat.group_utils.failed_to_delete_group') };
   }
 };
 
 export const getAllGroups = async (firestoreDB, filter = 'all', searchQuery = '', limitCount = 100, lastDoc = null) => {
   if (!firestoreDB) {
-    return { success: false, error: 'Missing Firestore database' };
+    return { success: false, error: i18n.t('chat.group_utils.missing_firestore_database') };
   }
 
   try {
@@ -1784,7 +1784,7 @@ export const getAllGroups = async (firestoreDB, filter = 'all', searchQuery = ''
     };
   } catch (error) {
     console.error('Error getting all groups:', error);
-    return { success: false, error: error.message || 'Failed to get groups' };
+    return { success: false, error: error.message || i18n.t('chat.group_utils.failed_to_get_groups') };
   }
 };
 

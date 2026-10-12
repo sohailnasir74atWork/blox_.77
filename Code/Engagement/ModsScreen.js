@@ -28,11 +28,12 @@ import { useTranslation } from 'react-i18next';
 import config from '../Helper/Environment';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
 import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
+import { getRolesBatch } from '../Supabase/userBackend';
 
 const ROLE_META = {
-  srmod: { label: 'Senior Mod', color: '#4F46E5', icon: 'shield-heart' },
-  mod: { label: 'Moderator', color: '#3B82F6', icon: 'shield-halved' },
-  jmod: { label: 'Junior Mod', color: '#8B5CF6', icon: 'shield' },
+  srmod: { labelKey: 'engagement.mods_screen.role_srmod', color: '#4F46E5', icon: 'shield-heart' },
+  mod: { labelKey: 'engagement.mods_screen.role_mod', color: '#3B82F6', icon: 'shield-halved' },
+  jmod: { labelKey: 'engagement.mods_screen.role_jmod', color: '#8B5CF6', icon: 'shield' },
 };
 
 // Roster ordering: Senior Mods first, then Mods, then Junior Mods.
@@ -49,6 +50,7 @@ const accountAgeMs = (authUser) => {
 
 // ─── Mod Card ───
 const ModCard = React.memo(({ mod, myVote, onVote, onChat, isDarkMode }) => {
+  const { t } = useTranslation();
   const roleMeta = ROLE_META[mod.role] || ROLE_META.mod;
   const cardBg = isDarkMode ? '#1e293b' : '#ffffff';
   const textColor = isDarkMode ? '#f1f5f9' : '#1a1a2e';
@@ -60,7 +62,7 @@ const ModCard = React.memo(({ mod, myVote, onVote, onChat, isDarkMode }) => {
       {/* Avatar */}
       <View style={styles.avatarWrap}>
         {mod.avatar ? (
-          <Image source={{ uri: mod.avatar }} style={styles.avatar} />
+          <Image resizeMethod="resize" source={{ uri: mod.avatar }} style={styles.avatar} />
         ) : (
           <View style={[styles.avatar, { backgroundColor: roleMeta.color + '20', alignItems: 'center', justifyContent: 'center' }]}>
             <FontAwesome name="user" size={18} color={roleMeta.color} solid />
@@ -78,7 +80,7 @@ const ModCard = React.memo(({ mod, myVote, onVote, onChat, isDarkMode }) => {
         </Text>
         <View style={styles.metaRow}>
           <View style={[styles.rolePill, { backgroundColor: roleMeta.color + '18' }]}>
-            <Text style={[styles.roleText, { color: roleMeta.color }]}>{roleMeta.label}</Text>
+            <Text style={[styles.roleText, { color: roleMeta.color }]}>{t(roleMeta.labelKey)}</Text>
           </View>
           {totalVotes > 0 && (
             <View style={[styles.rankPill, {
@@ -87,7 +89,7 @@ const ModCard = React.memo(({ mod, myVote, onVote, onChat, isDarkMode }) => {
               <Text style={[styles.rankText, {
                 color: mod.ups / totalVotes >= 0.7 ? '#10B981' : mod.ups / totalVotes >= 0.4 ? '#F59E0B' : '#EF4444',
               }]}>
-                {Math.round((mod.ups / totalVotes) * 100)}% positive
+                {t('engagement.mods_screen.positive', { pct: Math.round((mod.ups / totalVotes) * 100) })}
               </Text>
             </View>
           )}
@@ -184,6 +186,15 @@ const ModsScreen = () => {
         };
       });
 
+      // The RTDB roster only ever stores 'mod'/'jmod'; Senior Mod lives in
+      // Supabase user_roles.is_cmsr (same source the profile drawer reads).
+      try {
+        const roles = await getRolesBatch(list.map((m) => m.uid));
+        list.forEach((m) => {
+          if (roles.get(m.uid)?.isSeniorMod) m.role = 'srmod';
+        });
+      } catch (_) {}
+
       // Sort: Senior Mods first, then Mods, then Junior Mods; ties by score desc
       list.sort((a, b) => {
         const ra = ROLE_ORDER[a.role] ?? 99;
@@ -209,23 +220,23 @@ const ModsScreen = () => {
   // Uses local summary from already-fetched mods state instead of re-reading
   const handleVote = useCallback(async (modUid, vote) => {
     if (!appdatabase || !user?.id) {
-      Alert.alert('Sign In', 'Sign in to vote on moderators.');
+      Alert.alert(t('engagement.mods_screen.sign_in_title'), t('engagement.mods_screen.sign_in_vote'));
       return;
     }
     if (modUid === user.id) {
-      Alert.alert('Oops', "You can't vote for yourself!");
+      Alert.alert(t('engagement.mods_screen.oops'), t('engagement.mods_screen.no_self_vote'));
       return;
     }
     // Votes from banned/muted or new accounts don't count on the server, so
     // say so up front instead of showing a vote that won't stick.
     if (isUserBlocked || isUserMuted) {
-      Alert.alert('Not right now', "You can't rate moderators while you are banned or muted.");
+      Alert.alert(t('engagement.mods_screen.not_now_title'), t('engagement.mods_screen.not_now_msg'));
       return;
     }
     const age = accountAgeMs(auth?.currentUser);
     if (age !== null && age < MIN_ACCOUNT_AGE_MS) {
       const daysLeft = Math.max(1, Math.ceil((MIN_ACCOUNT_AGE_MS - age) / (24 * 60 * 60 * 1000)));
-      Alert.alert('Almost there', `New accounts can rate moderators after 7 days. Try again in ${daysLeft} day${daysLeft === 1 ? '' : 's'}.`);
+      Alert.alert(t('engagement.mods_screen.almost_title'), t('engagement.mods_screen.almost_msg', { count: daysLeft }));
       return;
     }
 
@@ -271,7 +282,7 @@ const ModsScreen = () => {
       ));
       console.warn('[ModsScreen] vote error:', e?.message);
     }
-  }, [appdatabase, user?.id, myVotes, mods, auth, isUserBlocked, isUserMuted]);
+  }, [appdatabase, user?.id, myVotes, mods, auth, isUserBlocked, isUserMuted, t]);
 
   // Bottom drawer state
   const [drawerUser, setDrawerUser] = useState(null);
@@ -280,7 +291,7 @@ const ModsScreen = () => {
   // Tap mod → open profile drawer
   const handleModPress = useCallback((mod) => {
     if (!user?.id) {
-      Alert.alert('Sign In', 'Sign in to view moderator profiles.');
+      Alert.alert(t('engagement.mods_screen.sign_in_title'), t('engagement.mods_screen.sign_in_profile'));
       return;
     }
     setDrawerUser({
@@ -289,7 +300,7 @@ const ModsScreen = () => {
       avatar: mod.avatar,
     });
     setIsDrawerVisible(true);
-  }, [user?.id]);
+  }, [user?.id, t]);
 
   // Chat from drawer — close drawer first, then navigate (iOS modal fix)
   const handleStartChatFromDrawer = useCallback(() => {
@@ -324,7 +335,7 @@ const ModsScreen = () => {
       {/* Best mod badge on #1 */}
       {index === 0 && item.score > 0 && (
         <View style={styles.bestBadge}>
-          <Text style={styles.bestBadgeText}>👑 Top Rated</Text>
+          <Text style={styles.bestBadgeText}>{t('engagement.mods_screen.top_rated')}</Text>
         </View>
       )}
       <ModCard
@@ -335,7 +346,7 @@ const ModsScreen = () => {
         isDarkMode={isDarkMode}
       />
     </View>
-  ), [isDarkMode, handleVote, handleModPress, myVotes]);
+  ), [isDarkMode, handleVote, handleModPress, myVotes, t]);
 
   return (
     <View style={[styles.container, { backgroundColor: bgColor, paddingTop: insets.top }]}>
@@ -357,7 +368,7 @@ const ModsScreen = () => {
             <View style={styles.statItem}>
               <FontAwesome name="shield-heart" size={12} color="#4F46E5" solid />
               <Text style={[styles.statNum, { color: textColor }]}>{stats.srCount}</Text>
-              <Text style={[styles.statLabel, { color: subColor }]}>Sr Mods</Text>
+              <Text style={[styles.statLabel, { color: subColor }]}>{t('engagement.mods_screen.stat_srmods')}</Text>
             </View>
             <View style={[styles.statDivider, { backgroundColor: isDarkMode ? '#334155' : '#e2e8f0' }]} />
           </>
@@ -365,13 +376,13 @@ const ModsScreen = () => {
         <View style={styles.statItem}>
           <FontAwesome name="shield-halved" size={12} color="#3B82F6" solid />
           <Text style={[styles.statNum, { color: textColor }]}>{stats.modCount}</Text>
-          <Text style={[styles.statLabel, { color: subColor }]}>Mods</Text>
+          <Text style={[styles.statLabel, { color: subColor }]}>{t('engagement.mods_screen.stat_mods')}</Text>
         </View>
         <View style={[styles.statDivider, { backgroundColor: isDarkMode ? '#334155' : '#e2e8f0' }]} />
         <View style={styles.statItem}>
           <FontAwesome name="shield" size={12} color="#8B5CF6" solid />
           <Text style={[styles.statNum, { color: textColor }]}>{stats.jmodCount}</Text>
-          <Text style={[styles.statLabel, { color: subColor }]}>JMods</Text>
+          <Text style={[styles.statLabel, { color: subColor }]}>{t('engagement.mods_screen.stat_jmods')}</Text>
         </View>
         {stats.best && stats.best.score > 0 && (
           <>

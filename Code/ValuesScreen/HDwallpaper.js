@@ -12,7 +12,6 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
-  PermissionsAndroid,
 } from "react-native";
 
 import Icon from "react-native-vector-icons/Ionicons";
@@ -23,6 +22,8 @@ import InterstitialAdManager from "../Ads/IntAd";
 import { useLocalState } from "../LocalGlobelStats";
 import { CameraRoll } from "@react-native-camera-roll/camera-roll"; // ✅ default import
 import { bunnyImageUrl } from "../Helper/bunnyImage";
+import { canSaveToGallery } from "../Helper/saveImageToGallery";
+import { useTranslation } from "react-i18next";
 
 // Base URL for your wallpapers
 const IMAGE_BASE = "https://pull-blox.b-cdn.net";
@@ -152,6 +153,7 @@ const WallpaperCard = React.memo(function WallpaperCard({
 
 const HDWallpaperScreen = () => {
   const { appdatabase } = useGlobalState();
+  const { t } = useTranslation();
   const { localState } = useLocalState();
 
   const [items, setItems] = useState([]);
@@ -250,29 +252,6 @@ const HDWallpaperScreen = () => {
       return next;
     });
   }, [totalPics, visibleCount, likeData]);
-  const requestAndroidGalleryPermission = async () => {
-    if (Platform.OS !== 'android') return true;
-
-    try {
-      // Android 13+ uses READ_MEDIA_IMAGES
-      if (Platform.Version >= 33) {
-        const res = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
-        );
-        return res === PermissionsAndroid.RESULTS.GRANTED;
-      }
-
-      // Older Android versions use WRITE_EXTERNAL_STORAGE
-      const res = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-      );
-      return res === PermissionsAndroid.RESULTS.GRANTED;
-    } catch (e) {
-      // console.log('Permission error:', e);
-      return false;
-    }
-  };
-
   // Apply this user's own change to the local copy of /like_counter.
   const bumpLocal = useCallback((id, delta) => {
     setLikeData((prev) => {
@@ -352,13 +331,13 @@ const HDWallpaperScreen = () => {
       try {
         setDownloadingId(item.id);
 
-        // ✅ Android: ask for permission first
+        // Only Android 9 and older need a storage permission to save.
         if (Platform.OS === 'android') {
-          const granted = await requestAndroidGalleryPermission();
+          const granted = await canSaveToGallery();
           if (!granted) {
             Alert.alert(
-              'Permission required',
-              'Storage permission is needed to save wallpapers to your gallery.',
+              t('values.hd_wallpaper.permission_title'),
+              t('values.hd_wallpaper.permission_body'),
             );
             return;
           }
@@ -390,21 +369,21 @@ const HDWallpaperScreen = () => {
           });
           pushCounters(item.id, { downloads: 1 });
 
-          Alert.alert('Downloaded', 'Wallpaper saved to your gallery.');
+          Alert.alert(t('values.hd_wallpaper.downloaded_title'), t('values.hd_wallpaper.downloaded_body'));
         } else {
-          Alert.alert('Error', 'Could not download this image.');
+          Alert.alert(t('home.alert.error'), t('values.hd_wallpaper.download_failed'));
         }
       } catch (e) {
         // console.log('Download error (raw):', e);
         Alert.alert(
-          'Error',
-          e?.message || 'Something went wrong while downloading.',
+          t('home.alert.error'),
+          e?.message || t('values.hd_wallpaper.download_error'),
         );
       } finally {
         if (mountedRef.current) setDownloadingId(null);
       }
     },
-    [bumpLocal, pushCounters],
+    [bumpLocal, pushCounters, t],
   );
 
   const openPreview = useCallback((item) => {
@@ -475,7 +454,7 @@ const HDWallpaperScreen = () => {
           <ActivityIndicator size="small" color="#f9f871" />
         ) : (
           <TouchableOpacity style={styles.loadMoreBtn} onPress={handleLoadMore}>
-            <Text style={styles.loadMoreText}>Load more</Text>
+            <Text style={styles.loadMoreText}>{t('common.load_more')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -505,7 +484,7 @@ const HDWallpaperScreen = () => {
         <View style={styles.modalBackdrop}>
           {/* Fullscreen image */}
           {selectedUrl ? (
-            <Image
+            <Image resizeMethod="resize"
               source={{ uri: selectedUrl }}
               style={styles.fullscreenImage}
               resizeMode="contain"

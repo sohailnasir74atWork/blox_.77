@@ -239,11 +239,14 @@ export default function BirthdaysScreen() {
         showWished(b.uid);
       } else {
         showErrorMessage(t('home.alert.error'), t(`birthdays.err.${key}`));
+        // The list outlived the day it was loaded for (screen left open past
+        // midnight): reload so the row moves to where the server puts it.
+        if (key === 'not_today') load(true);
       }
     } finally {
       setPendingFor(b.uid, false);
     }
-  }, [setPendingFor, showWished, triggerHapticFeedback, t]);
+  }, [setPendingFor, showWished, triggerHapticFeedback, t, load]);
 
   const toggleShow = useCallback(async (next) => {
     if (toggling) return;
@@ -303,7 +306,7 @@ export default function BirthdaysScreen() {
 
   const myDays = mine?.month ? daysUntilBirthday(mine.month, mine.day) : null;
   const myToday = myDays === 0;
-  const name = user?.displayName || t('birthdays.you');
+  const name = user?.displayName;
   const pad2 = (n) => String(n).padStart(2, '0');
   const editDob = (!isBirthdayMockActive() && knownDob)
     || (__DEV__ && mine?.month ? `${new Date().getFullYear() - 20}-${pad2(mine.month)}-${pad2(mine.day)}` : null);
@@ -403,7 +406,7 @@ export default function BirthdaysScreen() {
               pointerEvents="none"
             />
             <Text style={styles.heroCake}>🎂</Text>
-            <Text style={styles.heroTitle}>{t('birthdays.hero_title', { name })}</Text>
+            <Text style={styles.heroTitle}>{name ? t('birthdays.hero_title', { name }) : t('birthdays.hero_title_noname')}</Text>
             <Text style={styles.heroSub}>
               {mine.giftReady
                 ? t('birthdays.hero_gift_stars', { stars: BIRTHDAY_GIFT_STARS })

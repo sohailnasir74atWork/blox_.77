@@ -4,7 +4,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import ViewShot from 'react-native-view-shot';
 import { useGlobalState, modGateText } from '../GlobelStats';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import config from '../Helper/Environment';
 import ConditionalKeyboardWrapper from '../Helper/keyboardAvoidingContainer';
 import { useHaptic } from '../Helper/HepticFeedBack';
@@ -107,13 +106,11 @@ const HomeScreen = ({ selectedTheme }) => {
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins === 1) return '1 min ago';
-    if (diffMins < 60) return `${diffMins} min ago`;
-    if (diffHours === 1) return '1 hour ago';
-    if (diffHours < 24) return `${diffHours} hours ago`;
+    if (diffMins < 1) return t('home.home_screen.just_now');
+    if (diffMins < 60) return t('home.home_screen.mins_ago', { count: diffMins });
+    if (diffHours < 24) return t('home.home_screen.hours_ago', { count: diffHours });
     return lastUpdatedTime.toLocaleDateString();
-  }, [lastUpdatedTime]);
+  }, [lastUpdatedTime, t]);
 
   // ✅ Hard refresh values - reloads data from CDN/Firebase
   const handleRefresh = useCallback(async () => {
@@ -129,11 +126,11 @@ const HomeScreen = ({ selectedTheme }) => {
       // ✅ Update last refreshed time
       setLastUpdatedTime(new Date());
       // ✅ Show success message when values are reloaded
-      showSuccessMessage('Success', 'Values have been reloaded');
+      showSuccessMessage(t('home.alert.success'), t('home.home_screen.values_reloaded'));
     } catch (error) {
       console.error('Error refreshing values:', error);
       if (!isMountedRef.current) return;
-      showErrorMessage('Error', 'Failed to reload values. Please try again.');
+      showErrorMessage(t('home.alert.error'), t('home.home_screen.reload_failed'));
     } finally {
       if (isMountedRef.current) {
         setRefreshing(false);
@@ -199,7 +196,7 @@ const HomeScreen = ({ selectedTheme }) => {
       if (!user?.id || !currentUserEmail) {
         showErrorMessage(
           t("home.alert.error"),
-          "Please sign in to create a trade."
+          t('home.home_screen.signin_create_trade')
         );
         setIsSubmitting(false);
         return;
@@ -316,7 +313,7 @@ const HomeScreen = ({ selectedTheme }) => {
         const showSuccessCallback = () => {
           showSuccessMessage(
             t("home.alert.success"),
-            "Your trade has been share successfully!"
+            t('home.home_screen.trade_shared')
           );
         };
         setModalVisible(false);
@@ -333,11 +330,11 @@ const HomeScreen = ({ selectedTheme }) => {
           const minutesLeft = Math.floor(secondsLeft / 60);
           const remainingSeconds = secondsLeft % 60;
           const timeMessage = minutesLeft > 0
-            ? `${minutesLeft} minute${minutesLeft === 1 ? '' : 's'} and ${remainingSeconds} second${remainingSeconds === 1 ? '' : 's'}`
-            : `${secondsLeft} second${secondsLeft === 1 ? '' : 's'}`;
+            ? t('home.home_screen.minutes_and_seconds', { minutes: t('home.home_screen.minutes', { count: minutesLeft }), seconds: t('home.home_screen.seconds', { count: remainingSeconds }) })
+            : t('home.home_screen.seconds', { count: secondsLeft });
           showErrorMessage(
             t("home.alert.error"),
-            `Please wait ${timeMessage} before creating a new trade.`
+            t('home.home_screen.cooldown_wait', { time: timeMessage })
           );
           setIsSubmitting(false);
           return;
@@ -360,7 +357,7 @@ const HomeScreen = ({ selectedTheme }) => {
           if (!isMountedRef.current) return;
           showSuccessMessage(
             t("home.alert.success"),
-            "Your trade has been posted successfully!"
+            t('home.home_screen.trade_posted')
           );
         };
 
@@ -404,7 +401,7 @@ const HomeScreen = ({ selectedTheme }) => {
       console.error("Error creating trade:", error);
       showErrorMessage(
         t("home.alert.error"),
-        "Something went wrong while posting the trade."
+        t('home.home_screen.post_failed')
       );
     } finally {
       setIsSubmitting(false);
@@ -672,7 +669,7 @@ const HomeScreen = ({ selectedTheme }) => {
     const currentItems = selectedSection === 'has' ? [...hasItems] : [...wantsItems];
     const filledCount = currentItems.filter(Boolean).length;
     if (filledCount >= MAX_ITEMS_PER_SIDE) {
-      showErrorMessage(t('home.alert.error'), `Maximum ${MAX_ITEMS_PER_SIDE} items allowed per side.`);
+      showErrorMessage(t('home.alert.error'), t('home.home_screen.max_items_per_side', { max: MAX_ITEMS_PER_SIDE }));
       closeDrawer();
       return;
     }
@@ -712,7 +709,7 @@ const HomeScreen = ({ selectedTheme }) => {
       // Tap on empty slot — open picker
       const filledCount = items.filter(Boolean).length;
       if (filledCount >= MAX_ITEMS_PER_SIDE) {
-        showErrorMessage(t('home.alert.error'), `Maximum ${MAX_ITEMS_PER_SIDE} items allowed per side.`);
+        showErrorMessage(t('home.alert.error'), t('home.home_screen.max_items_per_side', { max: MAX_ITEMS_PER_SIDE }));
         return;
       }
       triggerHapticFeedback('impactLight');
@@ -901,12 +898,12 @@ const HomeScreen = ({ selectedTheme }) => {
           {demandString !== '0/10' && (
             <Text style={styles.demandBadgeText}>{demandString}</Text>
           )}
-          <Image
+          <Image resizeMethod="resize"
             source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
             style={[styles.itemImageOverlay]}
           />
           <Text style={[styles.itemText, { color: textColor }]}>${Number(item.Value)?.toLocaleString()}</Text>
-          <Text style={[styles.itemText, { color: textColor }]}>{item.Type === 'p' && 'Perm'} {item.Name}</Text>
+          <Text style={[styles.itemText, { color: textColor }]}>{item.Type === 'p' && t('home.home_screen.perm')} {item.Name}</Text>
         </>
       </TouchableOpacity>
     );
@@ -972,8 +969,11 @@ const HomeScreen = ({ selectedTheme }) => {
   if (!config.isNoman) {
     return (
       <>
-        <GestureHandlerRootView>
-          <View style={styles.container} key={language}>
+        {/* Plain non-collapsable roots: Fabric's addViewAt IOOBE (Crashlytics
+            c907906e) comes from children shifting under views that get
+            flattened/unflattened between renders. */}
+        <View style={styles.flexOne} collapsable={false}>
+          <View style={styles.container} key={language} collapsable={false}>
             <ScrollView showsVerticalScrollIndicator={false}>
               <ViewShot ref={viewRef} style={styles.screenshotView}>
 
@@ -989,7 +989,7 @@ const HomeScreen = ({ selectedTheme }) => {
                     </View>
                     <View style={{ flex: 1, marginLeft: 14 }}>
                       <Text style={styles.altHeroLabel}>
-                        {isProfit ? t('home.profit') : (neutral ? 'Even' : t('home.loss'))}
+                        {isProfit ? t('home.profit') : (neutral ? t('home.home_screen.even') : t('home.loss'))}
                       </Text>
                       <Text style={styles.altHeroAmount}>
                         ${formatValue(Math.abs(profitLoss))}
@@ -1002,22 +1002,22 @@ const HomeScreen = ({ selectedTheme }) => {
                   {/* Quick stats row inside hero */}
                   <View style={styles.altHeroStatsRow}>
                     <View style={styles.altHeroStat}>
-                      <Text style={styles.altHeroStatLabel}>ME Value</Text>
+                      <Text style={styles.altHeroStatLabel}>{t('home.home_screen.me_value')}</Text>
                       <Text style={styles.altHeroStatVal}>{formatValue(hasTotal.value || 0)}</Text>
                     </View>
                     <View style={[styles.altHeroStatDivider]} />
                     <View style={styles.altHeroStat}>
-                      <Text style={styles.altHeroStatLabel}>YOU Value</Text>
+                      <Text style={styles.altHeroStatLabel}>{t('home.home_screen.you_value')}</Text>
                       <Text style={styles.altHeroStatVal}>{formatValue(wantsTotal.value || 0)}</Text>
                     </View>
                     <View style={[styles.altHeroStatDivider]} />
                     <View style={styles.altHeroStat}>
-                      <Text style={styles.altHeroStatLabel}>ME Price</Text>
+                      <Text style={styles.altHeroStatLabel}>{t('home.home_screen.me_price')}</Text>
                       <Text style={styles.altHeroStatVal}>${formatValue(hasTotal.price || 0)}</Text>
                     </View>
                     <View style={[styles.altHeroStatDivider]} />
                     <View style={styles.altHeroStat}>
-                      <Text style={styles.altHeroStatLabel}>YOU Price</Text>
+                      <Text style={styles.altHeroStatLabel}>{t('home.home_screen.you_price')}</Text>
                       <Text style={styles.altHeroStatVal}>${formatValue(wantsTotal.price || 0)}</Text>
                     </View>
                   </View>
@@ -1028,10 +1028,10 @@ const HomeScreen = ({ selectedTheme }) => {
                 {/* ME Section */}
                 <View style={styles.altSectionHeader}>
                   <View style={styles.altSectionDot} />
-                  <Text style={styles.altSectionTitle}>ME</Text>
+                  <Text style={styles.altSectionTitle}>{t('home.home_screen.me')}</Text>
                   <View style={{ flex: 1 }} />
                   <View style={styles.altSectionBadge}>
-                    <Text style={styles.altSectionBadgeText}>Demand: {aggregateDemand.buy || '0/10'}</Text>
+                    <Text style={styles.altSectionBadgeText}>{t('home.home_screen.demand', { value: aggregateDemand.buy || '0/10' })}</Text>
                   </View>
                 </View>
                 <View style={styles.altItemGrid}>
@@ -1057,7 +1057,7 @@ const HomeScreen = ({ selectedTheme }) => {
                             ) : null;
                           })()}
                           {renderHotPill(item, styles.hotPillAlt)}
-                          <Image
+                          <Image resizeMethod="resize"
                             source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
                             style={styles.altItemImage}
                           />
@@ -1097,10 +1097,10 @@ const HomeScreen = ({ selectedTheme }) => {
                 {/* YOU Section */}
                 <View style={styles.altSectionHeader}>
                   <View style={[styles.altSectionDot, { backgroundColor: config.colors.wantBlockRed }]} />
-                  <Text style={[styles.altSectionTitle, { color: config.colors.wantBlockRed }]}>YOU</Text>
+                  <Text style={[styles.altSectionTitle, { color: config.colors.wantBlockRed }]}>{t('home.home_screen.you')}</Text>
                   <View style={{ flex: 1 }} />
                   <View style={[styles.altSectionBadge, { backgroundColor: config.colors.wantBlockRed }]}>
-                    <Text style={styles.altSectionBadgeText}>Demand: {aggregateDemand.sale || '0/10'}</Text>
+                    <Text style={styles.altSectionBadgeText}>{t('home.home_screen.demand', { value: aggregateDemand.sale || '0/10' })}</Text>
                   </View>
                 </View>
                 <View style={styles.altItemGrid}>
@@ -1126,7 +1126,7 @@ const HomeScreen = ({ selectedTheme }) => {
                             ) : null;
                           })()}
                           {renderHotPill(item, styles.hotPillAlt)}
-                          <Image
+                          <Image resizeMethod="resize"
                             source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
                             style={styles.altItemImage}
                           />
@@ -1169,7 +1169,7 @@ const HomeScreen = ({ selectedTheme }) => {
                     <Icon name="time-outline" size={13} color={isDarkMode ? '#556' : '#99a'} style={{ marginRight: 6 }} />
                   )}
                   <Text style={[styles.altUpdatedText, { color: isDarkMode ? '#556' : '#99a' }]}>
-                    {refreshing ? 'Updating...' : `Updated ${getLastUpdatedText()}`}
+                    {refreshing ? t('home.home_screen.updating') : t('home.home_screen.updated', { time: getLastUpdatedText() })}
                   </Text>
                   {!refreshing && (
                     <Icon name="refresh-outline" size={13} color={config.colors.secondary} style={{ marginLeft: 6 }} />
@@ -1286,8 +1286,12 @@ const HomeScreen = ({ selectedTheme }) => {
             />
           </View>
           <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} track='Remove Ads' oneWallOnly={single_offer_wall} />
-        </GestureHandlerRootView>
-        {(!localState.isPro && !proGranted) && <BannerAdComponent collapsible />}
+        </View>
+        {/* Always-mounted slot so the banner appearing/vanishing never changes
+            this level's child count. */}
+        <View collapsable={false}>
+          {(!localState.isPro && !proGranted) && <BannerAdComponent collapsible />}
+        </View>
       </>
     );
   }
@@ -1295,26 +1299,27 @@ const HomeScreen = ({ selectedTheme }) => {
   // ── Original (Noman) layout ──
   return (
     <>
-      <GestureHandlerRootView>
-        <View style={styles.container} key={language}>
+      {/* Same non-collapsable roots and banner slot as the layout above. */}
+      <View style={styles.flexOne} collapsable={false}>
+        <View style={styles.container} key={language} collapsable={false}>
           <ScrollView showsVerticalScrollIndicator={false}>
             <ViewShot ref={viewRef} style={styles.screenshotView}>
               {config.isNoman && <View style={styles.summaryContainer}>
                 <View style={[styles.summaryBox, styles.hasBox]}>
-                  <Text style={[styles.summaryText]}>ME</Text>
+                  <Text style={[styles.summaryText]}>{t('home.home_screen.me')}</Text>
                   <View style={{ width: '90%', backgroundColor: '#e0e0e0', height: 1, alignSelf: 'center' }} />
                   <Text style={styles.priceValue}>{t('home.value')}: {formatValue(hasTotal.value || 0)}</Text>
                   <Text style={styles.priceValue}>{t('home.price')}: ${formatValue(hasTotal.price || 0)}</Text>
                   {/* ✅ Aggregate Demand for Has Items */}
-                  <Text style={styles.priceValue}>Demand: {aggregateDemand.buy || '0/10'}</Text>
+                  <Text style={styles.priceValue}>{t('home.home_screen.demand', { value: aggregateDemand.buy || '0/10' })}</Text>
                 </View>
                 <View style={[styles.summaryBox, styles.wantsBox]}>
-                  <Text style={styles.summaryText}>YOU</Text>
+                  <Text style={styles.summaryText}>{t('home.home_screen.you')}</Text>
                   <View style={{ width: '90%', backgroundColor: '#e0e0e0', height: 1, alignSelf: 'center' }} />
                   <Text style={styles.priceValue}>{t('home.value')}: {formatValue(wantsTotal.value || 0)}</Text>
                   <Text style={styles.priceValue}>{t('home.price')}: ${formatValue(wantsTotal.price || 0)}</Text>
                   {/* ✅ Aggregate Demand for Wants Items */}
-                  <Text style={styles.priceValue}>Demand: {aggregateDemand.sale || '0/10'}</Text>
+                  <Text style={styles.priceValue}>{t('home.home_screen.demand', { value: aggregateDemand.sale || '0/10' })}</Text>
                 </View>
               </View>}
               <View style={styles.profitLossBox}>
@@ -1365,7 +1370,7 @@ const HomeScreen = ({ selectedTheme }) => {
                               ) : null;
                             })()}
                             {renderHotPill(item, styles.hotPillCell)}
-                            <Image
+                            <Image resizeMethod="resize"
                               source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
                               style={[styles.itemImageOverlay]}
                             />
@@ -1422,7 +1427,7 @@ const HomeScreen = ({ selectedTheme }) => {
                               ) : null;
                             })()}
                             {renderHotPill(item, styles.hotPillCell)}
-                            <Image
+                            <Image resizeMethod="resize"
                               source={{ uri: item.Type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.Name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.Name)}_Icon.webp` }}
                               style={[styles.itemImageOverlay]}
                             />
@@ -1467,7 +1472,7 @@ const HomeScreen = ({ selectedTheme }) => {
                     <Icon name="time-outline" size={14} color={isDarkMode ? '#aaa' : '#888'} style={{ marginRight: 6 }} />
                   )}
                   <Text style={[styles.lastUpdatedText, { color: isDarkMode ? '#aaa' : '#666' }]}>
-                    {refreshing ? 'Updating...' : `Updated ${getLastUpdatedText()}`}
+                    {refreshing ? t('home.home_screen.updating') : t('home.home_screen.updated', { time: getLastUpdatedText() })}
                   </Text>
                   {!refreshing && (
                     <Icon name="refresh-outline" size={14} color={config.colors.primary} style={{ marginLeft: 6 }} />
@@ -1478,7 +1483,7 @@ const HomeScreen = ({ selectedTheme }) => {
 
 
               <View style={styles.divider}>
-                <Image
+                <Image resizeMethod="resize"
                   source={require('../../assets/reset.png')}
                   style={{ width: 18, height: 18, tintColor: 'white' }}
                   onTouchEnd={resetState}
@@ -1497,7 +1502,7 @@ const HomeScreen = ({ selectedTheme }) => {
                   </View>
                   {/* ✅ Aggregate Demand for Has Items */}
                   <View style={{ justifyContent: 'space-between', flexDirection: 'row', marginTop: 5 }}>
-                    <Text style={styles.priceValue}>Demand:</Text>
+                    <Text style={styles.priceValue}>{t('home.home_screen.demand_label')}</Text>
                     <Text style={styles.priceValue}>{aggregateDemand.buy || '0/10'}</Text>
                   </View>
                 </View>
@@ -1513,7 +1518,7 @@ const HomeScreen = ({ selectedTheme }) => {
                   </View>
                   {/* ✅ Aggregate Demand for Wants Items */}
                   <View style={{ justifyContent: 'space-between', flexDirection: 'row', marginTop: 5 }}>
-                    <Text style={styles.priceValue}>Demand:</Text>
+                    <Text style={styles.priceValue}>{t('home.home_screen.demand_label')}</Text>
                     <Text style={styles.priceValue}>{aggregateDemand.sale || '0/10'}</Text>
                   </View>
                 </View>
@@ -1526,7 +1531,7 @@ const HomeScreen = ({ selectedTheme }) => {
               </TouchableOpacity>
               <TouchableOpacity style={styles.middleTradeButton} onPress={() => setShowTradeCompletion(true)}>
                 <Icon name="book-outline" size={16} color="white" style={{ padding: 4 }} />
-                <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>Log Trade</Text>
+                <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>{t('home.home_screen.log_trade')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.shareTradeButton} onPress={() => handleCreateTradePress('share')}>
                 <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>{t('home.share_trade')}</Text>
@@ -1641,14 +1646,17 @@ const HomeScreen = ({ selectedTheme }) => {
           tradeResult={loggedTradeResult}
           firestoreDB={firestoreDB}
         />
-      </GestureHandlerRootView>
-      {(!localState.isPro && !proGranted) && <BannerAdComponent collapsible />}
+      </View>
+      <View collapsable={false}>
+        {(!localState.isPro && !proGranted) && <BannerAdComponent collapsible />}
+      </View>
     </>
   );
 };
 
 const getStyles = (isDarkMode) =>
   StyleSheet.create({
+    flexOne: { flex: 1 },
     container: {
       flex: 1,
       backgroundColor: isDarkMode ? config.colors.backgroundDark : config.colors.backgroundLight,

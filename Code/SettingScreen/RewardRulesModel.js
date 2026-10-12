@@ -3,9 +3,11 @@ import { View, Text, TouchableOpacity, Modal, StyleSheet, ScrollView } from 'rea
 import { useGlobalState } from '../GlobelStats';
 import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../Helper/Environment';
+import { useTranslation, Trans } from 'react-i18next';
 
 const RewardRulesModal = ({ visible, onClose }) => {
   const { theme } = useGlobalState();
+  const { t } = useTranslation();
   const isDarkMode = theme === 'dark';
 
   return (
@@ -16,7 +18,7 @@ const RewardRulesModal = ({ visible, onClose }) => {
           {/* Header with Close Button */}
           <View style={styles.modalHeader}>
             <Text style={[styles.modalTitle, { color: isDarkMode ? 'white' : 'black' }]}>
-              🎉 Reward Rules
+              {t('settings.reward_rules.title')}
             </Text>
             <TouchableOpacity onPress={onClose}>
               <Icon name="close-circle" size={28} color={isDarkMode ? '#bbb' : '#333'} />
@@ -26,15 +28,12 @@ const RewardRulesModal = ({ visible, onClose }) => {
           {/* Scrollable Content */}
           <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollContainer}>
             <Text style={[styles.modalText, { color: isDarkMode ? '#ccc' : '#333' }]}>
-              1. A giveaway happens <Text style={styles.highlightedText}>twice a month—on the 15th and last day.</Text>{"\n\n"}
-              2. Everyone gets <Text style={styles.highlightedText}>2 entry slots max</Text> per giveaway.{"\n\n"}
-              3. <Text style={styles.highlightedText}>Pro users</Text> are auto-entered—no action needed.{"\n\n"}
-              4. <Text style={styles.highlightedText}>Free users</Text> earn entries via rewarded ads.{"\n\n"}
-              5. <Text style={styles.highlightedText}>The top leaderboard player at month-end gets</Text> prize as well.{"\n\n"}
-              6. Rewards include <Text style={styles.highlightedText}>Robux, Fruits or Free Pro Subscription</Text>.{"\n\n"}
-              7. Winners are chosen randomly—<Text style={styles.highlightedText}>no disputes</Text>.{"\n\n"}
-              8. Claim rewards within <Text style={styles.highlightedText}>5 days</Text> of the announcement.{"\n\n"}
-              9. Cheating =<Text style={styles.highlightedText}>Disqualification.</Text>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+                <React.Fragment key={n}>
+                  {n > 1 ? "\n\n" : null}
+                  <Trans i18nKey={`settings.reward_rules.rule_${n}`} components={{ b: <Text style={styles.highlightedText} /> }} />
+                </React.Fragment>
+              ))}
             </Text>
           </ScrollView>
 
@@ -44,7 +43,7 @@ const RewardRulesModal = ({ visible, onClose }) => {
             onPress={onClose}
           >
             <Text style={[styles.closeButtonText, { color: isDarkMode ? 'white' : 'white' }]}>
-              Got It!
+              {t('settings.reward_rules.got_it')}
             </Text>
           </TouchableOpacity>
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import config from '../Helper/Environment';
+import { useTranslation } from 'react-i18next';
 
 // ATT priming pre-prompt (iOS only).
 //
@@ -17,34 +18,32 @@ import config from '../Helper/Environment';
 const ACCENT = '#8B5CF6';
 
 const AttPrimer = ({ visible, onContinue, isDarkMode }) => {
+  const { t } = useTranslation();
   if (!visible) return null;
 
   const bgColor = isDarkMode ? '#1A1527' : '#FFFFFF';
   const textColor = isDarkMode ? '#F3EEFF' : '#1F1235';
   const subColor = isDarkMode ? '#A89CC8' : '#7C6D9B';
-  const appName = config?.appName || 'this app';
+  const appName = config?.appName || t('app.att_primer.this_app');
 
   return (
     <View style={styles.overlay}>
       <View style={[styles.card, { backgroundColor: bgColor }]}>
         <Text style={styles.icon}>🎯</Text>
-        <Text style={[styles.title, { color: textColor }]}>Keep {appName} free</Text>
+        <Text style={[styles.title, { color: textColor }]}>{t('app.att_primer.title', { appName })}</Text>
         <Text style={[styles.subtitle, { color: subColor }]}>
-          We show ads so {appName} can stay free for everyone. With your
-          permission we can show ads that are more relevant to you, which
-          earns more and helps support the app.
+          {t('app.att_primer.body', { appName })}
         </Text>
         <Text style={[styles.subtitle, { color: subColor }]}>
-          On the next screen iOS will ask whether to allow tracking. You can
-          change your choice anytime in Settings → Privacy.
+          {t('app.att_primer.next_screen')}
         </Text>
 
         <TouchableOpacity style={styles.continueBtn} onPress={onContinue} activeOpacity={0.85}>
-          <Text style={styles.continueText}>Continue</Text>
+          <Text style={styles.continueText}>{t('first.continue')}</Text>
         </TouchableOpacity>
 
         <Text style={[styles.disclaimer, { color: subColor }]}>
-          🔒 We never sell your personal data.
+          {t('app.att_primer.disclaimer')}
         </Text>
       </View>
     </View>

@@ -288,7 +288,7 @@ const FortuneWheel = ({
                       ]}
                     >
                       {pet.image ? (
-                        <Image source={{ uri: pet.image }} style={styles.petImage} resizeMode="contain" />
+                        <Image resizeMethod="resize" source={{ uri: pet.image }} style={styles.petImage} resizeMode="contain" />
                       ) : (
                         <View style={styles.petImagePlaceholder} />
                       )}

@@ -505,7 +505,7 @@ const PetGuessingGameScreen = () => {
                   <Text style={styles.cardTitle}>🎮 How to Play</Text>
                   {/* Roulette illustration */}
                   <View style={styles.rouletteImageWrapper}>
-                    <Image
+                    <Image resizeMethod="resize"
                       source={require('../../../assets/roulette.png')}
                       style={styles.rouletteImage}
                       resizeMode="contain"
@@ -635,7 +635,7 @@ const PetGuessingGameScreen = () => {
                             isLastItem && styles.pendingInviteItemLast,
                           ]}
                         >
-                          <Image
+                          <Image resizeMethod="resize"
                             source={{
                               uri: invite.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
                             }}

@@ -363,12 +363,12 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     }
 
     if (!rating || rating < 1 || rating > 5) {
-      showErrorMessage("Error", "Please select a rating first.");
+      showErrorMessage(t('chat.error'), t('chat.private_chat.select_rating'));
       return;
     }
 
     if (!selectedUserId || !myUserId || !appdatabase || !firestoreDB) {
-      showErrorMessage("Error", "Missing required data. Please try again.");
+      showErrorMessage(t('chat.error'), t('chat.private_chat.missing_data'));
       return;
     }
 
@@ -442,12 +442,12 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
         });
 
       showSuccessMessage(
-        "Success",
+        t('chat.message_common.success'),
         reviewWasSaved
           ? reviewWasUpdated
-            ? "Your review was updated."
-            : "Thanks for your review!"
-          : "Thanks for your rating!"
+            ? t('chat.private_chat.review_updated')
+            : t('chat.private_chat.thanks_review')
+          : t('chat.private_chat.thanks_rating')
       );
 
       setShowRatingModal(false);
@@ -470,7 +470,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
 
     } catch (error) {
       console.error("Rating error:", error);
-      showErrorMessage("Error", "Error submitting rating. Try again!");
+      showErrorMessage(t('chat.error'), t('chat.private_chat.rating_failed'));
       setStartRating(false);
     }
   }, [rating, selectedUserId, myUserId, appdatabase, firestoreDB, reviewText, user?.id, user?.displayName, updateUserPoints, getModGate, t]);
@@ -659,14 +659,14 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     // is shut, so this only fires if the switch flipped while the chat was open.
     if (chatBlockedBy) {
       Alert.alert(
-        "Error",
+        t('chat.error'),
         chatBlockedBy === 'them'
           ? (chatType === 'trade'
-            ? "This user has disabled trade chat. You cannot message them from a trade."
-            : "This user has disabled chat. You cannot message them right now.")
+            ? t('chat.private_chat.them_disabled_trade')
+            : t('chat.private_chat.them_disabled_chat'))
           : (chatType === 'trade'
-            ? "You have disabled trade chat. Turn it back on in Settings."
-            : "You have disabled chat. Turn it back on in Settings.")
+            ? t('chat.private_chat.you_disabled_trade')
+            : t('chat.private_chat.you_disabled_chat'))
       );
       return;
     }
@@ -676,7 +676,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     const hasFruits = Array.isArray(fruits) && fruits.length > 0;
 
     if (!myUserId || !currentUserEmail) {
-      showErrorMessage(t("home.alert.error"), "You must be logged in to send messages.");
+      showErrorMessage(t("home.alert.error"), t('chat.private_chat.must_login'));
       return;
     }
     // Block banned / muted users from sending (admins exempt), and wait for
@@ -690,7 +690,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     }
 
     if (hasFruits && fruits.length > 18) {
-      showErrorMessage(t("home.alert.error"), "You can only send up to 18 pets in a message.");
+      showErrorMessage(t("home.alert.error"), t('chat.message_common.max_pets'));
       return;
     }
 
@@ -700,7 +700,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     }
 
     if (!myUserId || !selectedUserId || !appdatabase) {
-      showErrorMessage(t("home.alert.error"), "Missing required data. Please try again.");
+      showErrorMessage(t("home.alert.error"), t('chat.private_chat.missing_data'));
       return;
     }
 
@@ -816,7 +816,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
         showErrorMessage(rejected.title, rejected.message);
         return;
       }
-      Alert.alert("Error", "Could not send your message. Please try again.");
+      Alert.alert(t('chat.error'), t('chat.private_chat.send_failed'));
     }
   }, [myUserId, selectedUserId, appdatabase, currentSelectedUser, user, t, currentUserEmail, getModGate, chatBlockedBy, chatType]);
 
@@ -996,7 +996,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
                   <View style={styles.itemList}>
                     {groupedHasItems?.map((hasItem, index) => (
                       <View key={`${hasItem.name}-${hasItem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
-                        <Image
+                        <Image resizeMethod="resize"
                           source={{
                             uri: hasItem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(hasItem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(hasItem.name)}_Icon.webp`,
                           }}
@@ -1014,12 +1014,12 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
                     ))}
                   </View>
                   <View style={styles.transfer}>
-                    <Image source={require('../../../assets/transfer.png')} style={styles.transferImage} />
+                    <Image resizeMethod="resize" source={require('../../../assets/transfer.png')} style={styles.transferImage} />
                   </View>
                   <View style={styles.itemList}>
                     {groupedWantsItems?.map((wantitem, index) => (
                       <View key={`${wantitem.name}-${wantitem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
-                        <Image
+                        <Image resizeMethod="resize"
                           source={{
                             uri: wantitem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(wantitem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(wantitem.name)}_Icon.webp`,
                           }}
@@ -1084,11 +1084,11 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
                 <Text style={styles.chatUnavailableText}>
                   {chatBlockedBy === 'them'
                     ? (chatType === 'trade'
-                      ? 'This user has disabled trade chat. You cannot message them from a trade.'
-                      : 'This user has disabled chat. You cannot message them right now.')
+                      ? t('chat.private_chat.them_disabled_trade')
+                      : t('chat.private_chat.them_disabled_chat'))
                     : (chatType === 'trade'
-                      ? 'You have disabled trade chat. Turn it back on in Settings.'
-                      : 'You have disabled chat. Turn it back on in Settings.')}
+                      ? t('chat.private_chat.you_disabled_trade')
+                      : t('chat.private_chat.you_disabled_chat'))}
                 </Text>
               </View>
             )}
@@ -1156,7 +1156,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
             </TouchableOpacity>
 
             <Text style={{ fontSize: 16, marginBottom: 10, textAlign: 'center', fontWeight: '600' }}>
-              Rate this Trader
+              {t('chat.private_chat.rate_title')}
             </Text>
 
             <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 15 }}>
@@ -1181,7 +1181,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
                 textAlignVertical: 'top',
                 fontSize: 14,
               }}
-              placeholder="Write an optional review..."
+              placeholder={t('chat.private_chat.review_placeholder')}
               placeholderTextColor="#999"
               multiline
               value={reviewText}
@@ -1199,7 +1199,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
               onPress={handleRating}
             >
               <Text style={{ color: 'white', fontSize: 14, textAlign: 'center' }}>
-                {!startRating ? 'Submit Rating' : 'Submitting'}
+                {!startRating ? t('chat.private_chat.submit_rating') : t('chat.private_chat.submitting')}
               </Text>
             </TouchableOpacity>
           </View>

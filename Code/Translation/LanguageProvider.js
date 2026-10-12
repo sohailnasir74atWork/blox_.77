@@ -1,14 +1,15 @@
 import React, { createContext, useContext, useState } from "react";
 import i18n from "../../i18n";
+import { setAppLanguage } from "../../i18n";
 
 const LanguageContext = createContext();
 
 export const LanguageProvider = ({ children }) => {
   const [language, setLanguage] = useState(i18n.language);
 
-  const changeLanguage = (lng) => {
-    i18n.changeLanguage(lng);
-    setLanguage(lng);
+  const changeLanguage = async (lng) => {
+    await setAppLanguage(lng);
+    setLanguage(i18n.language);
   };
 
   return (

@@ -4,6 +4,7 @@ import { Text, View, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../Helper/Environment';
 import { useTranslation } from 'react-i18next';
+import i18next from 'i18next';
 import { ref, set, remove, get, serverTimestamp as rtdbTimestamp } from '@react-native-firebase/database';
 import { collection, addDoc, serverTimestamp as fsTimestamp } from '@react-native-firebase/firestore';
 
@@ -89,7 +90,7 @@ const _countByType = async (appdatabase, myUid, type) => {
 export const saveTrade = async (appdatabase, myUid, trade) => {
   const count = await _countByType(appdatabase, myUid, 'saved');
   if (count >= MAX_SAVED) {
-    throw new Error(`You can only save ${MAX_SAVED} trades at a time. Remove some first.`);
+    throw new Error(i18next.t('trade.trade_helpers.save_limit', { max: MAX_SAVED }));
   }
 
   const tradeId = trade.id;

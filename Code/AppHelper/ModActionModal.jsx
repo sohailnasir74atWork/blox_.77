@@ -268,7 +268,7 @@ const ModActionModal = ({
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                     {shots.map((uri) => (
                       <View key={uri}>
-                        <Image source={{ uri }} style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: C.chip }} />
+                        <Image resizeMethod="resize" source={{ uri }} style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: C.chip }} />
                         {!busy && (
                           <TouchableOpacity
                             onPress={() => removeShot(uri)}

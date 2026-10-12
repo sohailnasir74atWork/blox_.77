@@ -39,6 +39,8 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
   const { t } = useTranslation();
   const filters = ['All', 'COMMON', 'UNCOMMON', 'RARE', 'LEGENDARY', 'MYTHICAL', 'GAME PASS', 'LIMITED'];
   const displayedFilter = selectedFilter === 'PREMIUM' ? 'GAME PASS' : selectedFilter;
+  // Filter values are compared against item rarity; only the label is translated.
+  const filterLabel = (f) => t(`values.value_screen.filter_${String(f).toLowerCase().replace(/\s+/g, '_')}`, { defaultValue: f });
   const formatName = (name) => name.replace(/^\+/, '').replace(/\s+/g, '-');
   const { triggerHapticFeedback } = useHaptic();
   const [selectedFruit, setSelectedFruit] = useState(null);
@@ -380,7 +382,7 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
     <View style={styles.altCard} disabled={!fromChat && !fromSetting}>
       {/* Top row: icon, name, rarity */}
       <View style={styles.altCardTop}>
-        <Image
+        <Image resizeMethod="resize"
           source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.name)}_Icon.webp` }}
           style={styles.altCardIcon}
           resizeMode="cover"
@@ -388,8 +390,8 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
         <View style={styles.altCardNameWrap}>
           <Text style={styles.altCardName}>{item.name}</Text>
           <View style={styles.altCardPriceRow}>
-            <Text style={styles.altCardPriceText}>Robux: ${Number(item?.robux).toLocaleString()}</Text>
-            <Text style={styles.altCardPriceText}>  Beli: ${Number(item?.beli).toLocaleString()}</Text>
+            <Text style={styles.altCardPriceText}>{t('values.value_screen.robux_short', { price: Number(item?.robux).toLocaleString() })}</Text>
+            <Text style={styles.altCardPriceText}>  {t('values.value_screen.beli_short', { price: Number(item?.beli).toLocaleString() })}</Text>
           </View>
         </View>
         <View style={styles.altRarityPill}>
@@ -400,40 +402,40 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
       {/* Stats row: horizontal inline pills */}
       <View style={styles.altStatsRow}>
         <View style={styles.altStatPill}>
-          <Text style={styles.altStatLabel}>Value</Text>
-          <Text style={styles.altStatValue}>${item?.value ? Number(item?.value).toLocaleString() : 'N/A'}</Text>
+          <Text style={styles.altStatLabel}>{t('values.value_screen.value')}</Text>
+          <Text style={styles.altStatValue}>${item?.value ? Number(item?.value).toLocaleString() : t('values.value_screen.na')}</Text>
         </View>
         <View style={styles.altStatPill}>
-          <Text style={styles.altStatLabel}>Demand</Text>
-          <Text style={styles.altStatValue}>{item?.demand || 'N/A'}</Text>
+          <Text style={styles.altStatLabel}>{t('values.value_screen.demand')}</Text>
+          <Text style={styles.altStatValue}>{item?.demand || t('values.value_screen.na')}</Text>
         </View>
         <View style={styles.altStatPill}>
-          <Text style={styles.altStatLabel}>Status</Text>
-          <Text style={styles.altStatValue}>{item?.physicalStatus || 'N/A'}</Text>
+          <Text style={styles.altStatLabel}>{t('values.value_screen.status')}</Text>
+          <Text style={styles.altStatValue}>{item?.physicalStatus || t('values.value_screen.na')}</Text>
         </View>
       </View>
 
       {/* Perm stats row */}
       <View style={styles.altStatsRow}>
         <View style={[styles.altStatPill, { backgroundColor: isDarkMode ? '#2a2a1a' : '#fff8e0' }]}>
-          <Text style={styles.altStatLabel}>Perm Val</Text>
-          <Text style={styles.altStatValue}>${item?.permValue ? Number(item?.permValue).toLocaleString() : 'N/A'}</Text>
+          <Text style={styles.altStatLabel}>{t('values.value_screen.perm_val')}</Text>
+          <Text style={styles.altStatValue}>${item?.permValue ? Number(item?.permValue).toLocaleString() : t('values.value_screen.na')}</Text>
         </View>
         <View style={[styles.altStatPill, { backgroundColor: isDarkMode ? '#2a2a1a' : '#fff8e0' }]}>
-          <Text style={styles.altStatLabel}>P.Demand</Text>
-          <Text style={styles.altStatValue}>{item?.permDemand || 'N/A'}</Text>
+          <Text style={styles.altStatLabel}>{t('values.value_screen.p_demand')}</Text>
+          <Text style={styles.altStatValue}>{item?.permDemand || t('values.value_screen.na')}</Text>
         </View>
         <View style={[styles.altStatPill, { backgroundColor: isDarkMode ? '#2a2a1a' : '#fff8e0' }]}>
-          <Text style={styles.altStatLabel}>P.Status</Text>
-          <Text style={styles.altStatValue}>{item?.permanentStatus || 'N/A'}</Text>
+          <Text style={styles.altStatLabel}>{t('values.value_screen.p_status')}</Text>
+          <Text style={styles.altStatValue}>{item?.permanentStatus || t('values.value_screen.na')}</Text>
         </View>
       </View>
 
       {/* Type & best used for */}
       {!fromChat && !fromSetting && (
         <View style={styles.altTypeRow}>
-          <Text style={styles.altTypeLabel}>Type: <Text style={styles.altTypeValue}>{item.type || 'N/A'}</Text></Text>
-          <Text style={styles.altTypeLabel}>Best for: <Text style={styles.altTypeValue}>{item.bestUsedFor || 'N/A'}</Text></Text>
+          <Text style={styles.altTypeLabel}>{t('values.value_screen.type_label')} <Text style={styles.altTypeValue}>{item.type || t('values.value_screen.na')}</Text></Text>
+          <Text style={styles.altTypeLabel}>{t('values.value_screen.best_for_label')} <Text style={styles.altTypeValue}>{item.bestUsedFor || t('values.value_screen.na')}</Text></Text>
         </View>
       )}
 
@@ -441,10 +443,10 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
       {(fromChat || fromSetting) && (
         <View style={styles.altSelectRow}>
           <TouchableOpacity style={styles.altSelectBtn} onPress={() => handlePress(item, 'n')}>
-            <Text style={styles.altSelectText}>Select Normal</Text>
+            <Text style={styles.altSelectText}>{t('values.value_screen.select_normal')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.altSelectBtn, { backgroundColor: '#e1a900' }]} onPress={() => handlePress(item, 'p')}>
-            <Text style={styles.altSelectText}>Select Permanent</Text>
+            <Text style={styles.altSelectText}>{t('values.value_screen.select_permanent')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -455,7 +457,7 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
     <View style={styles.itemContainer} disabled={!fromChat && !fromSetting}>
       <View style={styles.headerContainer}>
         <View style={styles.imageContainer}>
-          <Image
+          <Image resizeMethod="resize"
             source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.name)}_Icon.webp` }}
             style={styles.icon}
             resizeMode="cover"
@@ -463,8 +465,8 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
 
           <View>
             <Text style={styles.name}>{item.name}</Text>
-            <Text style={styles.value}> Robux Price: ${Number(item?.robux).toLocaleString()}</Text>
-            <Text style={styles.value}> Beli Price: ${Number(item?.beli).toLocaleString()}</Text>
+            <Text style={styles.value}> {t('values.value_screen.robux_price', { price: Number(item?.robux).toLocaleString() })}</Text>
+            <Text style={styles.value}> {t('values.value_screen.beli_price', { price: Number(item?.beli).toLocaleString() })}</Text>
 
           </View>
         </View>
@@ -480,31 +482,31 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
       <View style={styles.headerContainer}>
         <View style={styles.pointsBox}>
           <View style={styles.rowcenter}>
-            <Text style={styles.headertext}>Value: </Text>
-            <Text style={styles.value}>${item?.value ? Number(item?.value).toLocaleString() : 'N/A'} </Text>
+            <Text style={styles.headertext}>{t('values.value_screen.value_colon')} </Text>
+            <Text style={styles.value}>${item?.value ? Number(item?.value).toLocaleString() : t('values.value_screen.na')} </Text>
           </View>
           <View style={styles.rowcenter}>
-            <Text style={styles.headertext}>Status: </Text>
-            <Text style={styles.value}>{item?.physicalStatus ? item?.physicalStatus : 'N/A'} </Text>
+            <Text style={styles.headertext}>{t('values.value_screen.status_colon')} </Text>
+            <Text style={styles.value}>{item?.physicalStatus ? item?.physicalStatus : t('values.value_screen.na')} </Text>
           </View>
           <View style={styles.rowcenter}>
-            <Text style={styles.headertext}>Demand: </Text>
-            <Text style={styles.value}>{item?.demand ? item?.demand : 'N/A'} </Text>
+            <Text style={styles.headertext}>{t('values.value_screen.demand_colon')} </Text>
+            <Text style={styles.value}>{item?.demand ? item?.demand : t('values.value_screen.na')} </Text>
           </View>
         </View>
 
         <View style={styles.pointsBox}>
           <View style={styles.rowcenter}>
-            <Text style={styles.headertext}>Perm Value: </Text>
-            <Text style={styles.value}>${item?.permValue ? Number(item?.permValue).toLocaleString() : 'N/A'}</Text>
+            <Text style={styles.headertext}>{t('values.value_screen.perm_value_colon')} </Text>
+            <Text style={styles.value}>${item?.permValue ? Number(item?.permValue).toLocaleString() : t('values.value_screen.na')}</Text>
           </View>
           <View style={styles.rowcenter}>
-            <Text style={styles.headertext}>Perm Status: </Text>
-            <Text style={styles.value}>{item?.permanentStatus ? item?.permanentStatus : 'N/A'}</Text>
+            <Text style={styles.headertext}>{t('values.value_screen.perm_status_colon')} </Text>
+            <Text style={styles.value}>{item?.permanentStatus ? item?.permanentStatus : t('values.value_screen.na')}</Text>
           </View>
           <View style={styles.rowcenter}>
-            <Text style={styles.headertext}>Perm Demand: </Text>
-            <Text style={styles.value}>{item?.permDemand ? item?.permDemand : 'N/A'}</Text>
+            <Text style={styles.headertext}>{t('values.value_screen.perm_demand_colon')} </Text>
+            <Text style={styles.value}>{item?.permDemand ? item?.permDemand : t('values.value_screen.na')}</Text>
           </View>
 
         </View>
@@ -513,12 +515,12 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
       </View>
       {!fromChat && !fromSetting && <View style={{ backgroundColor: isDarkMode ? '#34495E' : '#CCCCFF', width: '100%', borderRadius: 8, padding: 10, marginTop: 10 }}>
         <View style={styles.rowcenter}>
-          <Text style={styles.headertext}>TYPE : </Text>
-          <Text style={styles.value}>{item.type ? item.type : 'N/A'} </Text>
+          <Text style={styles.headertext}>{t('values.value_screen.type_caps')} </Text>
+          <Text style={styles.value}>{item.type ? item.type : t('values.value_screen.na')} </Text>
         </View>
         <View style={styles.rowcenter}>
-          <Text style={styles.headertext}>BEST USED FOR :</Text>
-          <Text style={styles.value}>{item.bestUsedFor ? item.bestUsedFor : 'N/A'} </Text>
+          <Text style={styles.headertext}>{t('values.value_screen.best_used_for_caps')}</Text>
+          <Text style={styles.value}>{item.bestUsedFor ? item.bestUsedFor : t('values.value_screen.na')} </Text>
 
         </View>
         <View style={styles.rowcenter}>
@@ -543,11 +545,11 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
       </View>}
       {(fromChat || fromSetting) && <View style={styles.headerContainer}>
         <TouchableOpacity style={[styles.pointsBox, { backgroundColor: config.colors.hasBlockGreen }]} onPress={() => handlePress(item, 'n')}>
-          <Text style={{ fontWeight: 'bold', alignSelf: 'center' }}>Select Normal</Text>
+          <Text style={{ fontWeight: 'bold', alignSelf: 'center' }}>{t('values.value_screen.select_normal')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={[styles.pointsBox, { backgroundColor: '#FFD700' }]} onPress={() => handlePress(item, 'p')}>
-          <Text style={{ fontWeight: 'bold', alignSelf: 'center' }}>Select Permenenet</Text>
+          <Text style={{ fontWeight: 'bold', alignSelf: 'center' }}>{t('values.value_screen.select_permenenet')}</Text>
         </TouchableOpacity>
 
 
@@ -584,10 +586,10 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
               <View style={styles.selectedPetsHeader}>
                 <Text style={styles.selectedPetsTitle}>
                   {fromChat
-                    ? 'Selected pets'
+                    ? t('values.value_screen.selected_pets')
                     : owned
-                      ? 'Owned pets'
-                      : 'Wishlist'}
+                      ? t('values.value_screen.owned_pets')
+                      : t('values.value_screen.wishlist')}
                 </Text>
 
                 <Text style={styles.selectedPetsCount}>
@@ -603,7 +605,7 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
                 contentContainerStyle={styles.selectedPetsList}
                 renderItem={({ item, index }) => (
                   <TouchableOpacity style={styles.selectedPetCard} onPress={() => handleRemoveSelected(index)}>
-                    <Image
+                    <Image resizeMethod="resize"
                       source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/${item.type === 'n' ? '09' : '08'}/${formatName(item.name)}_Icon.webp` }}
                       style={styles.selectedPetImage}
                     />
@@ -634,7 +636,7 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
                 activeOpacity={0.85}
               >
                 <Text style={[styles.chatSourceText, chatSource === 'mine' && styles.chatSourceTextActive]}>
-                  {`My Items${ownedCount ? ` (${ownedCount})` : ''}`}
+                  {`${t('home.picker_my_items')}${ownedCount ? ` (${ownedCount})` : ''}`}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -643,7 +645,7 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
                 activeOpacity={0.85}
               >
                 <Text style={[styles.chatSourceText, chatSource === 'all' && styles.chatSourceTextActive]}>
-                  All
+                  {t('home.picker_all')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -652,7 +654,7 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
           <View style={styles.searchFilterContainer}>
             <TextInput
               style={styles.searchInput}
-              placeholder="Search"
+              placeholder={t('value.search_placeholder')}
               placeholderTextColor="#888"
               onChangeText={handleSearchChange}
 
@@ -660,7 +662,7 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
             {!fromChat && !fromSetting && <Menu>
               <MenuTrigger onPress={() => { }}>
                 <View style={styles.filterButton}>
-                  <Text style={styles.filterText}>{displayedFilter}</Text>
+                  <Text style={styles.filterText}>{filterLabel(displayedFilter)}</Text>
                   <Icon name="chevron-down-outline" size={18} color="white" />
                 </View>
               </MenuTrigger>
@@ -674,7 +676,7 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
                     }}
                   >
                     <Text style={[styles.filterOptionText, selectedFilter === filter && styles.selectedOption]}>
-                      {filter}
+                      {filterLabel(filter)}
                     </Text>
                   </MenuOption>
                 ))}
@@ -685,7 +687,7 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
               onPress={onRequestClose}
             >
               <Text style={styles.filterText}>
-                Done
+                {t('values.value_screen.done')}
               </Text>
             </TouchableOpacity>}
           </View>
@@ -718,15 +720,15 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
             <View style={styles.chatEmptyMine}>
               <Text style={[styles.description, { textAlign: 'center', color: 'gray' }]}>
                 {ownedCount === 0
-                  ? 'No items in your inventory yet.\nAdd fruits from My Stuff to see them here.'
-                  : 'No matching items in your inventory.'}
+                  ? t('home.picker_empty')
+                  : t('values.value_screen.no_matching_owned')}
               </Text>
               <TouchableOpacity
                 style={[styles.filterButton, { backgroundColor: config.colors.primary, marginTop: 14, alignSelf: 'center' }]}
                 onPress={() => setChatSource('all')}
                 activeOpacity={0.85}
               >
-                <Text style={styles.filterText}>Browse all items</Text>
+                <Text style={styles.filterText}>{t('home.picker_browse_all')}</Text>
               </TouchableOpacity>
             </View>
           ) : (

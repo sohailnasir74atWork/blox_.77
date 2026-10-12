@@ -65,7 +65,7 @@ const Sender = ({ r, c, onOpenProfile, onCopy }) => {
     <View style={styles.senderRow}>
       <TouchableOpacity onPress={() => onOpenProfile(r)} disabled={!known} style={styles.sender} activeOpacity={0.7}>
         {r.avatar ? (
-          <Image source={{ uri: r.avatar }} style={styles.avatar} />
+          <Image resizeMethod="resize" source={{ uri: r.avatar }} style={styles.avatar} />
         ) : (
           <View style={[styles.avatar, { backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center' }]}>
             <Text style={{ color: '#FFF', fontWeight: '800' }}>{String(r.userName || '?').charAt(0).toUpperCase()}</Text>
@@ -110,7 +110,7 @@ const ReportCard = React.memo(function ReportCard({ r, c, onOpenProfile, onCopy,
         <View style={styles.thumbs}>
           {r.images.map((u) => (
             <TouchableOpacity key={u} onPress={() => onView(u)} activeOpacity={0.85}>
-              <Image source={{ uri: u }} style={styles.thumb} />
+              <Image resizeMethod="resize" source={{ uri: u }} style={styles.thumb} />
             </TouchableOpacity>
           ))}
         </View>
@@ -358,7 +358,7 @@ const AdminReportsInbox = () => {
           <TouchableOpacity onPress={() => setViewer(null)} style={[styles.viewerClose, { top: insets.top + 10 }]} hitSlop={12}>
             <Icon name="close" size={28} color="#FFF" />
           </TouchableOpacity>
-          {viewer ? <Image source={{ uri: viewer }} style={styles.flex1} resizeMode="contain" /> : null}
+          {viewer ? <Image resizeMethod="resize" source={{ uri: viewer }} style={styles.flex1} resizeMode="contain" /> : null}
         </View>
       </Modal>
 

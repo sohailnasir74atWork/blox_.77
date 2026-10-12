@@ -9,7 +9,7 @@ const Leaderboard = ({ leaderboardData, styles }) => {
                     <View key={player.id} style={styles.leaderboardCard}>
                         <View style={styles.leaderboardCardsub}>
                             <Text style={styles.rankText}>#{index + 1}</Text>
-                            <Image source={{ uri: player.avatar }} style={styles.avatar} />
+                            <Image resizeMethod="resize" source={{ uri: player.avatar }} style={styles.avatar} />
                             <Text style={styles.playerName}>{player.name}</Text>
                         </View>
                         <Text style={styles.playerScore}>{player.slots} Slots</Text>

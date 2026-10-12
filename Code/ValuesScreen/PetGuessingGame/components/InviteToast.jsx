@@ -122,7 +122,7 @@ const InviteToast = ({ visible, fromUserName, fromUserAvatar, onPress, onDismiss
             </Text>
           </View>
           {fromUserAvatar && (
-            <Image
+            <Image resizeMethod="resize"
               source={{ uri: fromUserAvatar }}
               style={styles.avatar}
             />

@@ -18,8 +18,34 @@
 const admin = require('firebase-admin');
 const functions = require('firebase-functions/v1');
 const { getSupabaseAdmin } = require('./_supabaseAdmin');
+const { OWNER_EMAILS } = require('./banEnforcement')._internal;
 
 if (!admin.apps.length) admin.initializeApp();
+
+// users/{uid}/owner = true for each owner account with a VERIFIED email. The
+// app reads owner rank from this flag (clients can't write it: rules
+// `.write: false`), so the owner emails never ship in the app. Only accounts
+// that already have a users/{uid} profile, so no stub profile is created.
+// Never cleared here (nothing else can set it); if an email leaves
+// OWNER_EMAILS, delete that account's flag by hand.
+async function syncOwnerFlags(db) {
+  let set = 0;
+  for (const email of OWNER_EMAILS) {
+    let user;
+    try {
+      user = await admin.auth().getUserByEmail(email);
+    } catch (e) {
+      if (e?.code === 'auth/user-not-found') continue;
+      throw e;
+    }
+    if (!user.emailVerified) continue;
+    const snap = await db.ref(`users/${user.uid}`).get();
+    if (!snap.exists() || snap.child('owner').val() === true) continue;
+    await db.ref(`users/${user.uid}/owner`).set(true);
+    set += 1;
+  }
+  return set;
+}
 
 // RTDB flag(s) → Supabase column (exactly the columns the table has).
 //
@@ -50,6 +76,14 @@ exports.reconcileRolesMirror = functions
   .onRun(async () => {
     const db = admin.database();
     const supabase = getSupabaseAdmin();
+
+    // 0) Owner flags (the app's only source of owner rank).
+    try {
+      const n = await syncOwnerFlags(db);
+      if (n) console.log(`[reconcileRoles] set owner flag on ${n} account(s)`);
+    } catch (e) {
+      console.error('[reconcileRoles] owner flags failed:', e.message);
+    }
 
     // 1) Truth: uids that hold each flag in RTDB.
     const truth = {}; // uid -> { col: true }
@@ -101,3 +135,5 @@ exports.reconcileRolesMirror = functions
     console.log(`[reconcileRoles] repaired ${drifted.length} drifted row(s)`);
     return null;
   });
+
+exports._internal = { syncOwnerFlags };

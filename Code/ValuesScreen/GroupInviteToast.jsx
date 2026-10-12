@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../GlobelStats';
+import { useTranslation } from 'react-i18next';
 import { Dimensions } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -17,6 +18,7 @@ const MAX_TOAST_WIDTH = 280;
 
 const GroupInviteToast = ({ visible, fromUserName, fromUserAvatar, groupName, inviteType = 'group', onPress, onDismiss }) => {
   const { theme } = useGlobalState();
+  const { t } = useTranslation();
   const isDarkMode = theme === 'dark';
   const slideAnim = useRef(new Animated.Value(MAX_TOAST_WIDTH)).current; // Start off-screen right
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -118,20 +120,20 @@ const GroupInviteToast = ({ visible, fromUserName, fromUserAvatar, groupName, in
               style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}
               numberOfLines={1}
             >
-              {isGameInvite ? '🎮 Game Invite!' : '👥 Group Invitation!'}
+              {isGameInvite ? t('values.group_invite_toast.game_invite_title') : t('values.group_invite_toast.group_invite_title')}
             </Text>
             <Text
               style={[styles.message, { color: isDarkMode ? '#9ca3af' : '#6b7280' }]}
               numberOfLines={2}
             >
               {isGameInvite
-                ? `${fromUserName || 'Someone'} invites you to play now`
-                : `${fromUserName || 'Someone'} invited you to join "${groupName || 'Group'}"`
+                ? t('values.group_invite_toast.game_invite_body', { name: fromUserName || t('values.group_invite_toast.someone') })
+                : t('values.group_invite_toast.group_invite_body', { name: fromUserName || t('values.group_invite_toast.someone'), group: groupName || t('values.group_invite_toast.group') })
               }
             </Text>
           </View>
           {fromUserAvatar && (
-            <Image
+            <Image resizeMethod="resize"
               source={{ uri: fromUserAvatar }}
               style={styles.avatar}
             />

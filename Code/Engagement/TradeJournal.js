@@ -51,15 +51,15 @@ const TAB_COLORS = {
 };
 
 const TABS = [
-  { key: 'fruits', icon: 'lemon', label: 'My Fruits' },
-  { key: 'goals', icon: 'star', label: 'Goals' },
-  { key: 'timeline', icon: 'clock-rotate-left', label: 'Done Trades' },
+  { key: 'fruits', icon: 'lemon', labelKey: 'engagement.trade_journal.tab_fruits' },
+  { key: 'goals', icon: 'star', labelKey: 'engagement.trade_journal.tab_goals' },
+  { key: 'timeline', icon: 'clock-rotate-left', labelKey: 'engagement.trade_journal.tab_timeline' },
 ];
 
 const RESULT_META = {
-  win:  { emoji: '🏆', label: 'I Won!', color: '#10B981' },
-  fair: { emoji: '🤝', label: 'Even',   color: '#F59E0B' },
-  loss: { emoji: '📉', label: 'I Lost', color: '#EF4444' },
+  win:  { emoji: '🏆', labelKey: 'engagement.trade_journal.result_win', color: '#10B981' },
+  fair: { emoji: '🤝', labelKey: 'engagement.trade_journal.result_fair', color: '#F59E0B' },
+  loss: { emoji: '📉', labelKey: 'engagement.trade_journal.result_loss', color: '#EF4444' },
 };
 
 // Trade history pages 5 at a time (server-side, RTDB)
@@ -145,7 +145,7 @@ const OwnedFruitCard = React.memo(({
           <Icon name="close" size={16} color="#FFF" />
         </TouchableOpacity>
       )}
-      <Image
+      <Image resizeMethod="resize"
         source={{ uri: imageUri }}
         style={[s.fruitImg, isPerm && s.fruitImgPerm]}
         resizeMode="contain"
@@ -324,10 +324,10 @@ const TradeJournal = ({
 
   // ── Clear trade history ──
   const clearHistory = useCallback(() => {
-    Alert.alert('Clear trade history?', 'This deletes every logged trade and resets your stats. This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('engagement.trade_journal.clear_title'), t('engagement.trade_journal.clear_msg'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Clear All', style: 'destructive',
+        text: t('engagement.trade_journal.clear_all'), style: 'destructive',
         onPress: async () => {
           try {
             if (db && uid) {
@@ -338,21 +338,21 @@ const TradeJournal = ({
             setTradeStats(null);
             historyLastTimestampRef.current = null;
             setHasMoreHistory(false);
-            Alert.alert('Done', 'Trade history cleared.');
+            Alert.alert(t('engagement.trade_journal.done'), t('engagement.trade_journal.cleared'));
           } catch (err) {
-            Alert.alert('Error', 'Could not clear history.');
+            Alert.alert(t('home.alert.error'), t('engagement.trade_journal.clear_error'));
           }
         },
       },
     ]);
-  }, [db, uid]);
+  }, [db, uid, t]);
 
   // ── Delete single history item ──
   const deleteHistoryItem = useCallback((item) => {
-    Alert.alert('Delete this trade?', 'This will remove this trade record.', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('engagement.trade_journal.delete_title'), t('engagement.trade_journal.delete_msg'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Delete', style: 'destructive',
+        text: t('common.delete'), style: 'destructive',
         onPress: async () => {
           try {
             if (db && uid && item.id) {
@@ -363,12 +363,12 @@ const TradeJournal = ({
             const gtv = Number(item.gotValue) || (item.got || []).reduce((s, f) => s + (Number(f.value) || 0), 0);
             updateTradeStats(item.result, gv, gtv, -1);
           } catch {
-            Alert.alert('Error', 'Could not delete trade.');
+            Alert.alert(t('home.alert.error'), t('engagement.trade_journal.delete_error'));
           }
         },
       },
     ]);
-  }, [db, uid, updateTradeStats]);
+  }, [db, uid, updateTradeStats, t]);
 
   // Initial data load
   const initialLoadDoneRef = useRef(false);
@@ -730,11 +730,11 @@ const TradeJournal = ({
   // otherwise re-render on every selection tap.
   const fruitsHeroCard = useMemo(() => (
     <View style={[s.heroCard, { backgroundColor: isDarkMode ? '#1e293b' : '#fffbeb' }]}>
-      <Text style={[s.heroLabel, { color: '#F59E0B' }]}>MY INVENTORY WORTH</Text>
+      <Text style={[s.heroLabel, { color: '#F59E0B' }]}>{t('engagement.trade_journal.inventory_worth')}</Text>
       <Text style={[s.heroValue, { color: '#F59E0B' }]}>🍋 {formatValue(portfolioValue)}</Text>
-      <Text style={[s.heroSub, { color: c.textSecondary }]}>{ownedFruits.length} fruits collected</Text>
+      <Text style={[s.heroSub, { color: c.textSecondary }]}>{t('engagement.trade_journal.fruits_collected', { count: ownedFruits.length })}</Text>
     </View>
-  ), [isDarkMode, portfolioValue, ownedFruits.length, c.textSecondary]);
+  ), [isDarkMode, portfolioValue, ownedFruits.length, c.textSecondary, t]);
 
   const renderOwnedItem = useCallback(({ item: entry }) => (
     <OwnedFruitCard
@@ -777,7 +777,7 @@ const TradeJournal = ({
             style={[s.addFruitBtn, s.flex1, { backgroundColor: selectBtnBg }]}
             onPress={() => { setFruitPickerMode('owned'); setShowFruitPicker(true); }}
           >
-            <Text style={[s.addFruitText, { color: '#F59E0B' }]}>+ Add Fruit to Inventory</Text>
+            <Text style={[s.addFruitText, { color: '#F59E0B' }]}>{t('engagement.trade_journal.add_fruit')}</Text>
           </TouchableOpacity>
           {ownedFruits.length > 0 && (
             <TouchableOpacity
@@ -787,7 +787,7 @@ const TradeJournal = ({
               accessibilityRole="button"
             >
               <Icon name={selectMode ? 'checkmark-done' : 'checkbox-outline'} size={16} color={SELECT_ACCENT} />
-              <Text style={[s.addFruitText, { color: SELECT_ACCENT }]}>{selectMode ? 'Done' : 'Select'}</Text>
+              <Text style={[s.addFruitText, { color: SELECT_ACCENT }]}>{selectMode ? t('engagement.trade_journal.done') : t('engagement.trade_journal.select')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -938,8 +938,8 @@ const TradeJournal = ({
           ListEmptyComponent={ownedFruits.length === 0 ? (
             <View style={s.emptyState}>
               <Text style={s.emptyEmoji}>🍋</Text>
-              <Text style={[s.emptyText, s.emptyTextGap, { color: c.textSecondary }]}>No fruits yet</Text>
-              <Text style={[s.emptySubtext, { color: c.textMuted }]}>Tap + to add your first fruit</Text>
+              <Text style={[s.emptyText, s.emptyTextGap, { color: c.textSecondary }]}>{t('engagement.trade_journal.no_fruits')}</Text>
+              <Text style={[s.emptySubtext, { color: c.textMuted }]}>{t('engagement.trade_journal.no_fruits_sub')}</Text>
             </View>
           ) : (
             <View style={s.emptyState}>
@@ -971,7 +971,7 @@ const TradeJournal = ({
         {/* Select mode: sticky action bar */}
         {selectMode && (
           <View style={[s.selectBar, { backgroundColor: c.bgAlt, borderTopColor: c.border }]}>
-            <Text style={[s.selectBarCount, { color: c.text }]}>{selectedIdx.size} selected</Text>
+            <Text style={[s.selectBarCount, { color: c.text }]}>{t('engagement.trade_journal.selected_count', { count: selectedIdx.size })}</Text>
             <TouchableOpacity
               style={[s.selectBarRemove, selectedIdx.size === 0 && s.selectBarRemoveDisabled]}
               onPress={removeSelectedFruits}
@@ -981,7 +981,7 @@ const TradeJournal = ({
               accessibilityState={{ disabled: selectedIdx.size === 0 }}
             >
               <FontAwesome name="trash-can" size={13} color="#FFF" />
-              <Text style={s.selectBarRemoveText}>Remove</Text>
+              <Text style={s.selectBarRemoveText}>{t('engagement.trade_journal.remove')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1004,15 +1004,15 @@ const TradeJournal = ({
               style={[s.addFruitBtn, { backgroundColor: isDarkMode ? '#1e293b' : '#fefce8' }]}
               onPress={() => { setFruitPickerMode('wishlist'); setShowFruitPicker(true); }}
             >
-              <Text style={[s.addFruitText, { color: '#F59E0B' }]}>+ Add Dream Fruit</Text>
+              <Text style={[s.addFruitText, { color: '#F59E0B' }]}>{t('engagement.trade_journal.add_dream')}</Text>
             </TouchableOpacity>
           </View>
         }
         ListEmptyComponent={
           <View style={s.emptyState}>
             <Text style={{ fontSize: 40, marginBottom: 8 }}>✨</Text>
-            <Text style={[s.emptyText, { color: c.textSecondary }]}>No goals yet</Text>
-            <Text style={[s.emptySubtext, { color: c.textMuted }]}>Add fruits you want to get!</Text>
+            <Text style={[s.emptyText, { color: c.textSecondary }]}>{t('engagement.trade_journal.no_goals')}</Text>
+            <Text style={[s.emptySubtext, { color: c.textMuted }]}>{t('engagement.trade_journal.no_goals_sub')}</Text>
           </View>
         }
         renderItem={({ item, index }) => {
@@ -1020,7 +1020,7 @@ const TradeJournal = ({
           const hasIt = ownedFruits.some(o => o.name === item.name && o.type === item.type);
           return (
             <View style={[s.goalRow, { backgroundColor: c.bgAlt, borderColor: c.border }]}>
-              <Image source={{ uri: getImgUrl(item.name, item.type) }} style={s.goalImg} resizeMode="contain" />
+              <Image resizeMethod="resize" source={{ uri: getImgUrl(item.name, item.type) }} style={s.goalImg} resizeMode="contain" />
               <View style={{ flex: 1 }}>
                 <Text style={[s.goalName, { color: c.text }]}>{item.name}</Text>
                 <Text style={[s.goalValue, { color: c.textSecondary }]}>{formatValue(val)}</Text>
@@ -1057,9 +1057,9 @@ const TradeJournal = ({
         const d = new Date(item.completedAt);
         if (!isNaN(d.getTime())) {
           const diffDays = Math.floor((Date.now() - d) / 86400000);
-          if (diffDays === 0) dateStr = 'Today';
-          else if (diffDays === 1) dateStr = 'Yesterday';
-          else if (diffDays < 7) dateStr = `${diffDays} days ago`;
+          if (diffDays === 0) dateStr = t('engagement.trade_journal.today');
+          else if (diffDays === 1) dateStr = t('engagement.trade_journal.yesterday');
+          else if (diffDays < 7) dateStr = t('engagement.trade_journal.days_ago', { count: diffDays });
           else dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         }
       } catch {}
@@ -1070,7 +1070,7 @@ const TradeJournal = ({
         <Text style={[s.tlSideLabel, { color }]}>{label}</Text>
         <View style={[s.tlBubbles, alignEnd && { justifyContent: 'flex-end' }]}>
           {items.map((f, i) => (
-            <Image
+            <Image resizeMethod="resize"
               key={`${label}-${i}`}
               source={{ uri: getImgUrl(f.name, f.type) }}
               style={[s.tlImg, f.type === 'p' && { backgroundColor: '#FFCC0020' }]}
@@ -1085,7 +1085,7 @@ const TradeJournal = ({
       <View style={[s.tlCard, { backgroundColor: c.bgAlt, borderColor: c.border }]}>
         <View style={s.tlHeadRow}>
           <View style={[s.tlResultBadge, { backgroundColor: meta.color + '20' }]}>
-            <Text style={[s.tlResultText, { color: meta.color }]}>{meta.emoji} {meta.label}</Text>
+            <Text style={[s.tlResultText, { color: meta.color }]}>{meta.emoji} {t(meta.labelKey)}</Text>
           </View>
           {netVal !== 0 && (
             <View style={[s.tlNetBadge, { backgroundColor: netVal >= 0 ? '#10B98115' : '#EF444415' }]}>
@@ -1101,16 +1101,16 @@ const TradeJournal = ({
           )}
           {item.didScam && (
             <View style={[s.tlNetBadge, { backgroundColor: '#FEE2E2' }]}>
-              <Text style={{ fontSize: 10, color: '#EF4444', fontWeight: '700' }}>⚠️ Scam</Text>
+              <Text style={{ fontSize: 10, color: '#EF4444', fontWeight: '700' }}>{t('engagement.trade_journal.scam')}</Text>
             </View>
           )}
           {dateStr ? <Text style={[s.tlDate, { color: c.textSecondary }]}>{dateStr}</Text> : null}
         </View>
 
         <View style={s.tlTradeRow}>
-          {renderSide(gaveItems, 'I GAVE', '#EF4444', false)}
+          {renderSide(gaveItems, t('engagement.trade_journal.i_gave'), '#EF4444', false)}
           <FontAwesome name="arrow-right" size={12} color={c.textSecondary} />
-          {renderSide(gotItems, 'I GOT', '#10B981', true)}
+          {renderSide(gotItems, t('engagement.trade_journal.i_got'), '#10B981', true)}
         </View>
 
         <View style={s.tlValRow}>
@@ -1124,7 +1124,7 @@ const TradeJournal = ({
 
         <TouchableOpacity style={s.tlDeleteBtn} onPress={() => deleteHistoryItem(item)} activeOpacity={0.7}>
           <FontAwesome name="trash-can" size={11} color="#EF4444" />
-          <Text style={s.tlDeleteText}>Delete</Text>
+          <Text style={s.tlDeleteText}>{t('common.delete')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -1141,7 +1141,7 @@ const TradeJournal = ({
           <View style={{ marginBottom: 12 }}>
             {/* Win / Fair / Loss distribution */}
             <View style={[s.statsCard, { backgroundColor: c.bgAlt, borderColor: c.border }]}>
-              <Text style={[s.statsCardTitle, { color: c.text }]}>📊 Trade Results</Text>
+              <Text style={[s.statsCardTitle, { color: c.text }]}>{t('engagement.trade_journal.trade_results')}</Text>
               <View style={s.barChartWrap}>
                 {stats.wins > 0 && (
                   <View style={[s.barSegment, { flex: stats.wins, backgroundColor: '#10B981' }]}>
@@ -1160,10 +1160,10 @@ const TradeJournal = ({
                 )}
               </View>
               <View style={s.barLegend}>
-                {[['Win', '#10B981'], ['Fair', '#F59E0B'], ['Loss', '#EF4444']].map(([label, color]) => (
-                  <View key={label} style={s.legendItem}>
+                {[['engagement.trade_completion.rating_win', '#10B981'], ['engagement.trade_completion.rating_fair', '#F59E0B'], ['engagement.trade_completion.rating_loss', '#EF4444']].map(([labelKey, color]) => (
+                  <View key={labelKey} style={s.legendItem}>
                     <View style={[s.legendDot, { backgroundColor: color }]} />
-                    <Text style={[s.legendText, { color: c.textSecondary }]}>{label}</Text>
+                    <Text style={[s.legendText, { color: c.textSecondary }]}>{t(labelKey)}</Text>
                   </View>
                 ))}
               </View>
@@ -1174,25 +1174,25 @@ const TradeJournal = ({
               <View style={[s.statsGridItem, { backgroundColor: c.bgAlt, borderColor: c.border }]}>
                 <Text style={{ fontSize: 20 }}>📦</Text>
                 <Text style={[s.statsGridValue, { color: c.text }]}>{stats.total}</Text>
-                <Text style={[s.statsGridLabel, { color: c.textSecondary }]}>Total Trades</Text>
+                <Text style={[s.statsGridLabel, { color: c.textSecondary }]}>{t('engagement.trade_journal.total_trades')}</Text>
               </View>
               <View style={[s.statsGridItem, { backgroundColor: c.bgAlt, borderColor: c.border }]}>
                 <Text style={{ fontSize: 20 }}>🏆</Text>
                 <Text style={[s.statsGridValue, { color: '#10B981' }]}>{stats.winRate}%</Text>
-                <Text style={[s.statsGridLabel, { color: c.textSecondary }]}>Win Rate</Text>
+                <Text style={[s.statsGridLabel, { color: c.textSecondary }]}>{t('engagement.trade_journal.win_rate')}</Text>
               </View>
               <View style={[s.statsGridItem, { backgroundColor: c.bgAlt, borderColor: c.border }]}>
                 <Text style={{ fontSize: 20 }}>{stats.netValue >= 0 ? '📈' : '📉'}</Text>
                 <Text style={[s.statsGridValue, { color: stats.netValue >= 0 ? '#10B981' : '#EF4444' }]}>
                   {stats.netValue >= 0 ? '+' : ''}{formatValue(stats.netValue)}
                 </Text>
-                <Text style={[s.statsGridLabel, { color: c.textSecondary }]}>Net Value</Text>
+                <Text style={[s.statsGridLabel, { color: c.textSecondary }]}>{t('engagement.trade_journal.net_value')}</Text>
               </View>
             </View>
 
             <TouchableOpacity style={s.clearHistoryBtn} onPress={clearHistory} activeOpacity={0.7}>
               <FontAwesome name="trash-can" size={12} color="#EF4444" />
-              <Text style={s.clearHistoryText}>Clear History</Text>
+              <Text style={s.clearHistoryText}>{t('engagement.trade_journal.clear_history')}</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -1210,16 +1210,16 @@ const TradeJournal = ({
             >
               {loadingMore
                 ? <ActivityIndicator size="small" color={c.text} />
-                : <Text style={[s.loadMoreText, { color: c.text }]}>Load More ⬇️</Text>}
+                : <Text style={[s.loadMoreText, { color: c.text }]}>{t('engagement.trade_journal.load_more')}</Text>}
             </TouchableOpacity>
           ) : null
         }
         ListEmptyComponent={
           <View style={s.emptyState}>
             <Text style={{ fontSize: 40 }}>📈</Text>
-            <Text style={[s.emptyText, { color: c.textSecondary, marginTop: 8 }]}>No trades yet!</Text>
+            <Text style={[s.emptyText, { color: c.textSecondary, marginTop: 8 }]}>{t('engagement.trade_journal.no_trades')}</Text>
             <Text style={[s.emptySubtext, { color: c.textMuted, textAlign: 'center' }]}>
-              Calculate a trade, then tap “Log Trade” to save it here 🍋
+              {t('engagement.trade_journal.no_trades_sub')}
             </Text>
           </View>
         }
@@ -1247,7 +1247,7 @@ const TradeJournal = ({
           <TouchableOpacity onPress={() => navigation.goBack()} style={{ paddingRight: 16 }} activeOpacity={0.7}>
             <FontAwesome name="chevron-left" size={20} color="#fff" />
           </TouchableOpacity>
-          <Text style={{ fontSize: 20, fontWeight: '800', color: '#fff' }}>My Stuff</Text>
+          <Text style={{ fontSize: 20, fontWeight: '800', color: '#fff' }}>{t('engagement.trade_journal.title')}</Text>
         </View>
 
         {/* Tab bar wrapped in the hero gradient */}
@@ -1257,21 +1257,21 @@ const TradeJournal = ({
           style={{ flexGrow: 0, flexShrink: 0 }}
           contentContainerStyle={{ flexDirection: 'row', paddingHorizontal: 12, gap: 8, alignItems: 'center' }}
         >
-          {TABS.map(t => {
-            const isActive = tab === t.key;
+          {TABS.map(tabDef => {
+            const isActive = tab === tabDef.key;
             // On dark hero bg, active=white filled, inactive=frosted glass transparent
             return (
               <TouchableOpacity
-                key={t.key}
+                key={tabDef.key}
                 style={[
                   s.tabPill, 
                   isActive ? { backgroundColor: '#fff', borderColor: 'transparent' } : { backgroundColor: 'rgba(255,255,255,0.15)', borderColor: 'rgba(255,255,255,0.25)' }
                 ]}
-                onPress={() => setTab(t.key)}
+                onPress={() => setTab(tabDef.key)}
                 activeOpacity={0.8}
               >
-                <FontAwesome name={t.icon} size={12} color={isActive ? (isDarkMode ? '#2d1b69' : config.colors.primary) : '#ffffff'} solid={isActive} />
-                <Text style={[s.tabPillText, { color: isActive ? (isDarkMode ? '#2d1b69' : config.colors.primary) : '#ffffff' }]}>{t.label}</Text>
+                <FontAwesome name={tabDef.icon} size={12} color={isActive ? (isDarkMode ? '#2d1b69' : config.colors.primary) : '#ffffff'} solid={isActive} />
+                <Text style={[s.tabPillText, { color: isActive ? (isDarkMode ? '#2d1b69' : config.colors.primary) : '#ffffff' }]}>{t(tabDef.labelKey)}</Text>
               </TouchableOpacity>
             );
           })}
@@ -1324,7 +1324,7 @@ const TradeJournal = ({
             {/* Header */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <Text style={{ fontSize: 18, fontWeight: '800', color: c.text }}>
-                {fruitPickerMode === 'owned' ? 'Add to Inventory' : 'Add Dream Fruit'}
+                {fruitPickerMode === 'owned' ? t('engagement.trade_journal.picker_add_inventory') : t('engagement.trade_journal.picker_add_dream')}
               </Text>
               <TouchableOpacity onPress={() => { setShowFruitPicker(false); setFruitSearchQ(''); }}>
                 <FontAwesome name="xmark" size={20} color={c.textSecondary} />
@@ -1339,7 +1339,7 @@ const TradeJournal = ({
               <FontAwesome name="magnifying-glass" size={16} color={c.textSecondary} style={{ marginRight: 10 }} />
               <TextInput
                 style={{ flex: 1, fontSize: 15, color: c.text, height: '100%' }}
-                placeholder="Search fruits..."
+                placeholder={t('trade_journal.my_fruits.search_placeholder', { defaultValue: 'Search fruits...' })}
                 placeholderTextColor={c.textMuted}
                 value={fruitSearchQ}
                 onChangeText={setFruitSearchQ}
@@ -1384,7 +1384,7 @@ const TradeJournal = ({
                     setFruitSearchQ('');
                   }}
                 >
-                  <Image
+                  <Image resizeMethod="resize"
                     source={{ uri: getImgUrl(item.name, item.type) }}
                     style={{ width: 48, height: 48, borderRadius: 12, marginBottom: 8, backgroundColor: item.type === 'p' ? '#FFCC0020' : (isDarkMode ? '#1e293b' : '#fff') }}
                     resizeMode="contain"
@@ -1402,7 +1402,7 @@ const TradeJournal = ({
               ListEmptyComponent={
                 <View style={{ alignItems: 'center', paddingTop: 60 }}>
                   <Text style={{ fontSize: 40 }}>🔍</Text>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: c.textSecondary, marginTop: 12 }}>No fruits found</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: c.textSecondary, marginTop: 12 }}>{t('engagement.trade_journal.no_fruits_found')}</Text>
                 </View>
               }
             />

@@ -7,6 +7,7 @@ import { softDeleteMessagesBySender } from '../Supabase/chatBackend';
 import { getServerTime } from '../Helper/serverTime';
 import { getDeviceFingerprint } from '../Helper/deviceFingerprint';
 import { encodeEmailKey, isMuteRecord, normalizeEmail } from '../Helper/banKeys';
+import { getCurrentUserOwner } from '../Helper/ownerFlag';
 import {
   callModSanction,
   logModAction,
@@ -30,7 +31,7 @@ const isSelfTargeting = (targetEmail, targetUid = null) => {
 
 // ─── Staff hierarchy ────────────────────────────────────────────────
 // Strict ladder: a staffer can only act on someone STRICTLY below them.
-// Owner (verified owner email) > Admin > Senior Mod > Mod > JMD > user.
+// Owner (server-set owner flag) > Admin > Senior Mod > Mod > JMD > user.
 // Mods can't ban Mods. Admins can't ban Admins or owners. JMDs can only act
 // on regular users. Promote/demote rules: only Admins can manage Senior
 // Mods; Admins and Senior Mods can manage Mods; Admins, Senior Mods and
@@ -44,28 +45,13 @@ const isSelfTargeting = (targetEmail, targetUid = null) => {
 // lets a Senior Mod appoint or remove Mods and JMDs.
 export const STAFF_RANK = { owner: 5, admin: 4, seniorMod: 3, moderator: 2, babyMod: 1, user: 0 };
 
-// Mirrors OWNER_EMAILS in functions/banEnforcement.js and database.rules.json.
-export const OWNER_EMAILS = new Set([
-  'thesolanalabs@gmail.com',
-  'sohailnasir74business@gmail.com',
-  'sohailnasir74@gmail.com',
-]);
-
-export const isOwnerEmail = (email) => {
-  const e = normalizeEmail(email);
-  return !!e && OWNER_EMAILS.has(e);
-};
-
-// The signed-in user counts as owner only with a VERIFIED owner email — the
-// same test the server and the rules apply.
-export const isCurrentUserOwner = () => {
-  const me = getAuth()?.currentUser;
-  return !!(me && me.emailVerified && isOwnerEmail(me.email));
-};
+// Owner rank comes from the server-written users/{uid}/owner flag
+// (Helper/ownerFlag.js); the owner email list never ships in the app.
+export const isCurrentUserOwner = () => getCurrentUserOwner(getAuth()?.currentUser?.uid);
 
 export const getStaffRank = (roles) => {
   if (!roles) return STAFF_RANK.user;
-  if (roles.isOwner) return STAFF_RANK.owner;
+  if (roles.isOwner || roles.owner === true) return STAFF_RANK.owner;
   if (roles.isAdmin || roles.admin) return STAFF_RANK.admin;
   if (roles.isSeniorMod) return STAFF_RANK.seniorMod;
   if (roles.isModerator) return STAFF_RANK.moderator;
@@ -139,7 +125,8 @@ const fetchTargetRoles = async (userId) => {
   if (!userId) return null;
   try {
     const db = getDatabase();
-    const [adminLegacySnap, adminSnap, seniorSnap, modSnap, jmdSnap] = await Promise.all([
+    const [ownerSnap, adminLegacySnap, adminSnap, seniorSnap, modSnap, jmdSnap] = await Promise.all([
+      get(ref(db, `users/${userId}/owner`)),
       get(ref(db, `users/${userId}/admin`)),
       get(ref(db, `users/${userId}/isAdmin`)),
       get(ref(db, `users/${userId}/isSeniorMod`)),
@@ -147,6 +134,7 @@ const fetchTargetRoles = async (userId) => {
       get(ref(db, `users/${userId}/isBabyMod`)),
     ]);
     return {
+      isOwner: ownerSnap?.exists() && ownerSnap.val() === true,
       isAdmin: !!(
         (adminLegacySnap?.exists() && adminLegacySnap.val()) ||
         (adminSnap?.exists() && adminSnap.val())
@@ -161,24 +149,19 @@ const fetchTargetRoles = async (userId) => {
 };
 
 /**
- * Fresh role flags for any user (RTDB), plus isOwner when their email is
- * known and on the owner list. Resolves null when nothing could be read.
+ * Fresh role flags for any user (RTDB), owner included. Resolves null when
+ * nothing could be read.
  */
-export const fetchUserRoles = async (userId, email = null) => {
-  const roles = await fetchTargetRoles(userId);
-  if (!roles && !email) return null;
-  return { ...(roles || {}), isOwner: isOwnerEmail(email) };
-};
+export const fetchUserRoles = async (userId) => fetchTargetRoles(userId);
 
 // Resolve the most authoritative target-role view: prefer a fresh RTDB
 // read (so a stale userInfo can't mask a recent promotion), fall back to
-// whatever the caller passed. An owner email always ranks as owner.
-const resolveTargetRoles = async (userId, fallback = {}, email = null) => {
+// whatever the caller passed.
+const resolveTargetRoles = async (userId, fallback = {}) => {
   const fetched = await fetchTargetRoles(userId);
-  const isOwner = isOwnerEmail(email || fallback?.email);
-  if (fetched) return { ...fetched, isOwner };
+  if (fetched) return fetched;
   return {
-    isOwner,
+    isOwner: !!(fallback?.isOwner || fallback?.owner === true),
     isAdmin: !!fallback?.isAdmin,
     isSeniorMod: !!fallback?.isSeniorMod,
     isModerator: !!fallback?.isModerator,
@@ -946,9 +929,10 @@ export const applySanction = async ({
     }
     r = await callModSanction(action, targetUid, opts);
   } else if (email) {
-    // No uid: the client is the only gate before the server's sync, so check
-    // what can be checked (owner emails can never be banned from the app).
-    const targetRoles = { isOwner: isOwnerEmail(email) };
+    // No uid, so no role flags to read here. syncEmailBan works out the
+    // target's rank from the email (owners included) and reverts a write the
+    // caller is outranked for; this only applies the caller-side limits.
+    const targetRoles = {};
     if (!canSanction(callerRolesFromBanner(bannerInfo), targetRoles)) return { ok: false, error: 'outranked' };
     if (getStaffRank(callerRolesFromBanner(bannerInfo)) === STAFF_RANK.babyMod &&
       (action !== 'mute' || minutes > JMD_MAX_MUTE_MINUTES)) {
@@ -1010,7 +994,7 @@ export const banUserwithEmail = async (email, isAdmin = false, senderId = null, 
   // staff immunity. Legacy callers pass only the `isAdmin` boolean; newer
   // ones stamp full role flags on bannerInfo — union both.
   const callerRoles = callerRolesFromBanner({ ...bannerInfo, isAdmin: !!(isAdmin || bannerInfo?.isAdmin) });
-  const targetRoles = await resolveTargetRoles(targetUid, userInfo, email);
+  const targetRoles = await resolveTargetRoles(targetUid, userInfo);
   if (!canSanction(callerRoles, targetRoles) || getStaffRank(callerRoles) === STAFF_RANK.babyMod) {
     if (showConfirm || showAlert) Alert.alert('Permission Denied', 'You cannot ban this user.');
     return false;
@@ -1062,7 +1046,7 @@ export const setUserStrike = async (email, strikeCount, userId = null, showAlert
     return false;
   }
   const callerRoles = callerRolesFromBanner(bannerInfo);
-  const targetRoles = await resolveTargetRoles(userId, userInfo, email);
+  const targetRoles = await resolveTargetRoles(userId, userInfo);
   if (!canSanction(callerRoles, targetRoles) || getStaffRank(callerRoles) === STAFF_RANK.babyMod) {
     if (showAlert || showConfirm) Alert.alert('Permission Denied', 'You cannot strike this user.');
     return false;
@@ -1516,7 +1500,7 @@ export const muteUser = async (email, minutes, userInfo = null, bannerInfo = nul
   }
   // UX pre-check (the server re-checks): strict rank, staff immunity, JMD ≤ 2 h.
   const callerRoles = callerRolesFromBanner(bannerInfo);
-  const targetRoles = await resolveTargetRoles(targetUid, userInfo || {}, email);
+  const targetRoles = await resolveTargetRoles(targetUid, userInfo || {});
   const perms = getModPermissions(callerRoles, targetRoles);
   if (!perms.canMute) {
     if (showAlert) Alert.alert('Permission Denied', 'You cannot mute this user.');

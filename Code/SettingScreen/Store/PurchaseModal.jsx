@@ -303,7 +303,7 @@ const PurchaseModal = ({
                             {!imageLoaded[url] && (
                               <ActivityIndicator size="small" color="#6A5ACD" style={StyleSheet.absoluteFill} />
                             )}
-                            <Image
+                            <Image resizeMethod="resize"
                               source={{ uri: url }}
                               style={[modalStyles.image, !imageLoaded[url] && { opacity: 0 }]}
                               onLoad={() => setImageLoaded((prev) => ({ ...prev, [url]: true }))}
@@ -337,7 +337,7 @@ const PurchaseModal = ({
 
                     {/* Selected Icons */}
                     {selectedIcons.map((name) => (
-                      <Image
+                      <Image resizeMethod="resize"
                         key={name}
                         source={iconMap[name]}
                         style={{
@@ -377,7 +377,7 @@ const PurchaseModal = ({
                           opacity: selectedIcons.length >= 4 && !isSelected ? 0.5 : 1,
                         }}
                       >
-                        <Image
+                        <Image resizeMethod="resize"
                           source={iconMap[name]}
                           style={{
                             width: 50,
@@ -406,7 +406,7 @@ const PurchaseModal = ({
 
                     {/* Loop through the Emojies array */}
                     {Emojies.map((emoji) => (
-                      <Image
+                      <Image resizeMethod="resize"
                         key={emoji}
                         source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2025/Emojies/${emoji}` }}
                         style={{

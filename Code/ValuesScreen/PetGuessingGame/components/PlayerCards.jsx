@@ -126,7 +126,7 @@ const PlayerCards = ({ roomData, currentUserId }) => {
 
               {/* Left: Avatar with Host Badge */}
               <View style={styles.avatarContainer}>
-                <Image
+                <Image resizeMethod="resize"
                   source={{
                     uri: player.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
                   }}
@@ -159,7 +159,7 @@ const PlayerCards = ({ roomData, currentUserId }) => {
                   <View style={styles.petsContainer}>
                     {player.winningPets.map((fruit, fruitIndex) => (
                       <View key={fruitIndex} style={styles.petImageWrapper}>
-                        <Image
+                        <Image resizeMethod="resize"
                           source={{ uri: fruit.image }}
                           style={styles.petImage}
                           resizeMode="contain"

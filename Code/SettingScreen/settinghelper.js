@@ -3,6 +3,7 @@ import config from "../Helper/Environment";
 import Share from 'react-native-share';
 import DeviceInfo from 'react-native-device-info';
 import Purchases from 'react-native-purchases';
+import i18next from 'i18next';
 
 export const getAppDownloadLink = () => {
     return Platform.OS === 'ios'
@@ -14,8 +15,8 @@ export const getAppDownloadLink = () => {
     try {
       const appLink = getAppDownloadLink();
       const shareOptions = {
-        message: `Explore the ultimate Blox Fruits value calculator! Learn about Blox Fruits, check values, and make smarter trades. Download now: ${appLink}`,
-        title: 'Share App',
+        message: i18next.t('settings.setting_helper.share_message', { link: appLink }),
+        title: i18next.t('settings.share_app'),
       };
       await Share.open(shareOptions);
     } catch (error) {
@@ -57,32 +58,32 @@ export const getAppDownloadLink = () => {
   
       // ✅ Open email client
       Linking.openURL(mailtoUrl).catch(() =>
-        Alert.alert('Error', 'Unable to open the email client. Please try again later.')
+        Alert.alert(i18next.t('home.alert.error'), i18next.t('settings.setting_helper.email_client_error'))
       );
     } catch (error) {
       console.error('❌ Error opening feedback email:', error);
-      Alert.alert('Error', 'Could not prepare the email. Please try again.');
+      Alert.alert(i18next.t('home.alert.error'), i18next.t('settings.setting_helper.email_prepare_error'));
     }
   };
 
   export const handleOpenPrivacy = () => {
     const websiteUrl = 'https://bloxfruitscalc.com/privacy';
     Linking.openURL(websiteUrl).catch(() =>
-      Alert.alert('Error', 'Unable to open the website. Please try again later.')
+      Alert.alert(i18next.t('home.alert.error'), i18next.t('settings.setting_helper.website_error'))
     );
   };
 
   export const handleOpenTerms = () => {
     const websiteUrl = 'https://bloxfruitscalc.com/terms';
     Linking.openURL(websiteUrl).catch(() =>
-      Alert.alert('Error', 'Unable to open the website. Please try again later.')
+      Alert.alert(i18next.t('home.alert.error'), i18next.t('settings.setting_helper.website_error'))
     );
   };
 
   export const handleOpenChild = () => {
     const websiteUrl = 'https://bloxfruitscalc.com/child-safety-standards-policy';
     Linking.openURL(websiteUrl).catch(() =>
-      Alert.alert('Error', 'Unable to open the website. Please try again later.')
+      Alert.alert(i18next.t('home.alert.error'), i18next.t('settings.setting_helper.website_error'))
     );
   };
 
@@ -119,11 +120,11 @@ I would like to share the following suggestions:
 
     // ✅ Open email client
     Linking.openURL(mailtoUrl).catch(() =>
-      Alert.alert('Error', 'Unable to open the email client. Please try again later.')
+      Alert.alert(i18next.t('home.alert.error'), i18next.t('settings.setting_helper.email_client_error'))
     );
   } catch (error) {
     console.error('❌ Error opening feedback email:', error);
-    Alert.alert('Error', 'Could not prepare the email. Please try again.');
+    Alert.alert(i18next.t('home.alert.error'), i18next.t('settings.setting_helper.email_prepare_error'));
   }
 };
 
@@ -134,34 +135,34 @@ I would like to share the following suggestions:
         ? config.IOsShareLink
         : config.andriodShareLink;
     Linking.openURL(storeLink).catch(() =>
-      Alert.alert('Error', 'Unable to open the app store. Please try again later.')
+      Alert.alert(i18next.t('home.alert.error'), i18next.t('settings.setting_helper.store_error'))
     );
   };
 
   export const handleOpenFacebook = () => {
     const facebookUrl = 'https://www.facebook.com/share/g/15V1JErjbY/';
     Linking.openURL(facebookUrl).catch(() =>
-      Alert.alert('Error', 'Unable to open Facebook. Please try again later.')
+      Alert.alert(i18next.t('home.alert.error'), i18next.t('settings.setting_helper.facebook_error'))
     );
   };
 
   export const handleOpenWebsite = () => {
     const websiteUrl = config.webSite;
     Linking.openURL(websiteUrl).catch(() =>
-      Alert.alert('Error', 'Unable to open the website. Please try again later.')
+      Alert.alert(i18next.t('home.alert.error'), i18next.t('settings.setting_helper.website_error'))
     );
   };
 
   export const handleadoptme = () => {
     const websiteUrl = config.otherapplink;
     Linking.openURL(websiteUrl).catch(() =>
-      Alert.alert('Error', 'Unable to open the website. Please try again later.')
+      Alert.alert(i18next.t('home.alert.error'), i18next.t('settings.setting_helper.website_error'))
     );
   };
   export const handleMM2 = () => {
     const websiteUrl = config.otherapplink2;
     Linking.openURL(websiteUrl).catch(() =>
-      Alert.alert('Error', 'Unable to open the website. Please try again later.')
+      Alert.alert(i18next.t('home.alert.error'), i18next.t('settings.setting_helper.website_error'))
     );
   };
 

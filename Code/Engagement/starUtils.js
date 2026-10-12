@@ -13,6 +13,7 @@
 import { ref, get, update, increment } from '@react-native-firebase/database';
 import { addXP } from './xpUtils';
 import { getServerTime, formatServerDate } from '../Helper/serverTime';
+import i18next from 'i18next';
 
 // ────────────────────────────────────────────────────────
 //  DAILY REWARDS TABLE
@@ -163,7 +164,7 @@ export const spendStars = async (db, uid, amount) => {
     const currentBalance = snap.val() || 0;
 
     if (currentBalance < amount) {
-      return { success: false, error: 'Not enough Stars', currentBalance };
+      return { success: false, error: i18next.t('engagement.star_utils.not_enough_stars'), currentBalance };
     }
 
     await update(ref(db, `users/${uid}/dailyStars`), {

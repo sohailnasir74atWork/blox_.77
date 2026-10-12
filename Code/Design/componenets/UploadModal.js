@@ -25,11 +25,24 @@ import RNFS from 'react-native-fs';
 import { validateContent } from '../../Helper/ContentModeration';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import i18next from 'i18next';
+import { useTranslation } from 'react-i18next';
 
 
 const CLOUD_NAME = 'djtqw0jb5';
 const UPLOAD_PRESET = 'my_upload';
 const MAX_IMAGES = 4;
+
+// Tag values are stored on the post and used as filters — keep them English;
+// only the label is translated.
+const POST_TAGS = [
+  { value: 'Scam Alert', labelKey: 'feed.tags.scam_alert' },
+  { value: 'Looking for Trade', labelKey: 'feed.tags.looking_for_trade' },
+  { value: 'Discussion', labelKey: 'feed.tags.discussion' },
+  { value: 'Real or Fake', labelKey: 'feed.tags.real_or_fake' },
+  { value: 'Need Help', labelKey: 'feed.tags.need_help' },
+  { value: 'Misc', labelKey: 'feed.tags.misc' },
+];
 
 const BUNNY_STORAGE_HOST = 'storage.bunnycdn.com';     // or your regional host
 const BUNNY_STORAGE_ZONE = 'post-gag';
@@ -65,6 +78,7 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
   const { currentUserEmail, appdatabase, getModGate } = useGlobalState();
   const { theme } = useGlobalState();
   const isDark = theme === 'dark';
+  const { t } = useTranslation();
   const { localState } = useLocalState()
 
   // ✅ Session-based last post time (resets on app close/reopen - simple state, no storage)
@@ -136,8 +150,8 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
         // Show alert if any images were rejected
         if (rejectedCount.length > 0) {
           Alert.alert(
-            'Image Too Large',
-            `${rejectedCount.length} image(s) exceed 1 MB limit and were not added. Please select smaller images.`
+            i18next.t('feed.upload_modal.too_large_title'),
+            i18next.t('feed.upload_modal.too_large_body', { count: rejectedCount.length })
           );
         }
 
@@ -154,7 +168,7 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
       }
     } catch (error) {
       console.error('❌ Image picker crash:', error);
-      Alert.alert('Error', 'Failed to pick images. Please try again.');
+      Alert.alert(i18next.t('home.alert.error'), i18next.t('feed.upload_modal.pick_failed'));
     }
   }, []);
 
@@ -240,7 +254,7 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
 
     if (!user?.id) return;
     if (!currentUserEmail) {
-      Alert.alert('Missing Email', 'Could not detect your account email. Please re-login.');
+      Alert.alert(i18next.t('feed.upload_modal.missing_email'), i18next.t('feed.upload_modal.missing_email_body'));
       return;
     }
 
@@ -255,7 +269,7 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
     }
 
     if (!desc && imageUris.length === 0) {
-      return Alert.alert('Missing Info', 'Please add a description or at least one image.');
+      return Alert.alert(i18next.t('feed.upload_modal.missing_info'), i18next.t('feed.upload_modal.missing_info_body'));
     }
 
     // ✅ Content moderation: Check description for inappropriate content
@@ -263,7 +277,7 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
     if (trimmedDesc) {
       const contentValidation = validateContent(trimmedDesc);
       if (!contentValidation.isValid) {
-        Alert.alert('Content Not Allowed', contentValidation.reason || 'Your post contains inappropriate content.');
+        Alert.alert(i18next.t('feed.comments_modal.content_not_allowed'), contentValidation.reason || i18next.t('feed.upload_modal.inappropriate'));
         return;
       }
     }
@@ -273,8 +287,8 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
     if (lastPostTime && (now - lastPostTime) < 60000) {
       const secondsLeft = Math.ceil((60000 - (now - lastPostTime)) / 1000);
       showMessage({
-        message: '⏱️ Cooldown Active',
-        description: `Please wait ${secondsLeft} second${secondsLeft === 1 ? '' : 's'} before posting again.`,
+        message: i18next.t('feed.upload_modal.cooldown_title'),
+        description: i18next.t('feed.upload_modal.cooldown_body', { count: secondsLeft }),
         type: 'warning',
         duration: 3000,
       });
@@ -306,12 +320,12 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
 
         onClose();
         showMessage({
-          message: 'Success',
-          description: 'Post created successfully',
+          message: i18next.t('home.alert.success'),
+          description: i18next.t('feed.design_main.post_created'),
           type: 'success',
         });
       } catch (err) {
-        Alert.alert('Upload Failed', 'Something went wrong. Try again.', err);
+        Alert.alert(i18next.t('feed.design_main.upload_failed'), i18next.t('feed.upload_modal.upload_failed_body'), err);
         console.log(err);
         // ✅ Reset loading on error so user can retry
         setLoading(false);
@@ -349,7 +363,7 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
       <View style={themedStyles.fullScreenContainer}>
         {/* Header - Fixed at top */}
         <View style={themedStyles.header}>
-          <Text style={themedStyles.headerTitle}>Create Post</Text>
+          <Text style={themedStyles.headerTitle}>{t('feed.upload_modal.title')}</Text>
           <TouchableOpacity onPress={onClose} style={themedStyles.closeButton}>
             <Icon name="close" size={24} color={isDark ? '#fff' : '#000'} />
           </TouchableOpacity>
@@ -363,10 +377,10 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
             keyboardShouldPersistTaps="handled"
           >
             {/* Description Input */}
-            <Text style={themedStyles.sectionLabel}>DESCRIPTION</Text>
+            <Text style={themedStyles.sectionLabel}>{t('feed.upload_modal.description')}</Text>
             <TextInput
               style={themedStyles.input}
-              placeholder="What's on your mind?..."
+              placeholder={t('feed.upload_modal.placeholder')}
               placeholderTextColor={isDark ? '#888' : '#aaa'}
               value={desc}
               onChangeText={setDesc}
@@ -375,9 +389,9 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
             />
 
             {/* Tags */}
-            <Text style={themedStyles.sectionLabel}>SELECT TOPIC</Text>
+            <Text style={themedStyles.sectionLabel}>{t('feed.upload_modal.select_topic')}</Text>
             <View style={themedStyles.tagSelector}>
-              {['Scam Alert', 'Looking for Trade', 'Discussion', 'Real or Fake', 'Need Help', 'Misc'].map((tag) => (
+              {POST_TAGS.map(({ value: tag, labelKey }) => (
                 <TouchableOpacity
                   key={tag}
                   style={[
@@ -394,14 +408,14 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
                       fontWeight: '600',
                     }}
                   >
-                    {tag}
+                    {t(labelKey)}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             {/* Image Picker */}
-            <Text style={themedStyles.sectionLabel}>PHOTOS (MAX 4)</Text>
+            <Text style={themedStyles.sectionLabel}>{t('feed.upload_modal.photos', { max: MAX_IMAGES })}</Text>
             <TouchableOpacity
               style={[themedStyles.imagePicker, imageUris.length > 0 && { justifyContent: 'flex-start', padding: 10 }]}
               onPress={pickAndCompress}
@@ -411,7 +425,7 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
                 <View style={themedStyles.imageGrid}>
                   {imageUris.map((uri, idx) => (
                     <View key={idx} style={themedStyles.imagePreviewContainer}>
-                      <Image source={{ uri }} style={themedStyles.previewImage} />
+                      <Image resizeMethod="resize" source={{ uri }} style={themedStyles.previewImage} />
                       <View style={themedStyles.imageCountBadge}>
                         <Text style={themedStyles.imageCountText}>{idx + 1}</Text>
                       </View>
@@ -426,7 +440,7 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
               ) : (
                 <View style={{ alignItems: 'center' }}>
                   <Icon name="images-outline" size={32} color={config.colors.primary} style={{ marginBottom: 8 }} />
-                  <Text style={{ color: isDark ? '#aaa' : '#666', fontSize: 13 }}>Tap to select photos</Text>
+                  <Text style={{ color: isDark ? '#aaa' : '#666', fontSize: 13 }}>{t('feed.upload_modal.tap_to_select')}</Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -444,7 +458,7 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
                 <ActivityIndicator color="#fff" />
               ) : (
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={themedStyles.btnText}>Post Now</Text>
+                  <Text style={themedStyles.btnText}>{t('feed.upload_modal.post_now')}</Text>
                   <Icon name="arrow-forward" size={18} color="#fff" style={{ marginLeft: 6 }} />
                 </View>
               )}

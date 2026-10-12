@@ -50,7 +50,7 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
     if (!code || typeof code !== 'string') return;
     triggerHapticFeedback('impactLight');
     Clipboard.setString(code);
-    showSuccessMessage(t("value.copy"), "Copied to Clipboard");
+    showSuccessMessage(t("value.copy"), t("chat.copied_to_clipboard"));
   }, [triggerHapticFeedback, t]);
 
   // Fetch user data from Firebase if roblox data is missing
@@ -205,8 +205,8 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
   );
 
   const userName = useMemo(() =>
-    mergedUser?.sender || cachedProfile?.displayName || 'User',
-    [mergedUser?.sender, cachedProfile?.displayName]
+    mergedUser?.sender || cachedProfile?.displayName || t('chat.private_chat_header.user_fallback'),
+    [mergedUser?.sender, cachedProfile?.displayName, t]
   );
 
   const isOnline = useOnlineStatus(selectedUserId);
@@ -229,10 +229,10 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
   const handleBanToggle = useCallback(async () => {
     if (!selectedUserId) return;
 
-    const action = !isBanned ? 'Block' : 'Unblock';
+    const action = !isBanned ? t('chat.private_chat_header.block') : t('chat.private_chat_header.unblock');
     Alert.alert(
       `${action}`,
-      `${t("chat.are_you_sure")} ${action.toLowerCase()} ${userName}?`,
+      !isBanned ? t('chat.private_chat_header.block_confirm', { name: userName }) : t('chat.private_chat_header.unblock_confirm', { name: userName }),
       [
         { text: t("chat.cancel"), style: 'cancel' },
         {
@@ -327,13 +327,13 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
           <RoleBadges userItem={mergedUser} />
 
           {(mergedUser?.isPro || cachedProfile?.isPro) && (
-            <Image source={require('../../../assets/pro.png')} style={styles.inlineIcon} />
+            <Image resizeMethod="resize" source={require('../../../assets/pro.png')} style={styles.inlineIcon} />
           )}
           {(mergedUser?.robloxUsernameVerified || cachedProfile?.robloxUsernameVerified) && (
-            <Image source={require('../../../assets/verification.png')} style={styles.inlineIcon} />
+            <Image resizeMethod="resize" source={require('../../../assets/verification.png')} style={styles.inlineIcon} />
           )}
           {hasRecentWin && (
-            <Image source={require('../../../assets/trophy.webp')} style={styles.inlineIcon} />
+            <Image resizeMethod="resize" source={require('../../../assets/trophy.webp')} style={styles.inlineIcon} />
           )}
 
           <TouchableOpacity
@@ -348,7 +348,7 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
         {/* Bottom row: status + role badges */}
         <View style={styles.metaRow}>
           <Text style={[styles.statusText, { color: isOnline ? '#22c55e' : c.textMuted }]}>
-            {isOnline ? 'Online' : 'Offline'}
+            {isOnline ? t('chat.private_chat_header.online') : t('chat.private_chat_header.offline')}
           </Text>
         </View>
       </TouchableOpacity>

@@ -212,7 +212,7 @@ const InviteNotification = ({ currentUser, onAccept, isInActiveGame = false }) =
           { backgroundColor: isDarkMode ? '#1a1a1a' : '#fff' },
         ]}
       >
-        <Image
+        <Image resizeMethod="resize"
           source={{
             uri:
               currentInvite.fromUserAvatar ||

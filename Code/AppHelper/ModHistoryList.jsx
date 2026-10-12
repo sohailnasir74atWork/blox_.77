@@ -76,7 +76,7 @@ export const EvidenceThumbs = ({ urls, onOpen, size = 44 }) => {
     <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
       {urls.map((u, i) => (
         <TouchableOpacity key={`${u}-${i}`} onPress={() => onOpen(i)} activeOpacity={0.8}>
-          <Image source={{ uri: u }} style={{ width: size, height: size, borderRadius: 6, backgroundColor: '#3334' }} />
+          <Image resizeMethod="resize" source={{ uri: u }} style={{ width: size, height: size, borderRadius: 6, backgroundColor: '#3334' }} />
         </TouchableOpacity>
       ))}
     </View>

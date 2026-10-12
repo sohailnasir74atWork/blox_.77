@@ -8,12 +8,13 @@ import { getFirestore } from '@react-native-firebase/firestore';
 import { createNewUser, firebaseConfig, registerForNotifications } from './Globelhelper';
 import { useLocalState } from './LocalGlobelStats';
 import { requestPermission } from './Helper/PermissionCheck';
-import { useColorScheme, AppState } from 'react-native';
+import { useColorScheme, AppState, Alert } from 'react-native';
 import { clearUserCache } from './Helper/UserDataCache';
 import { generateOnePieceUsername } from './Helper/RendomNamegen';
 import { getDeviceFingerprint } from './Helper/deviceFingerprint';
 import { getServerTime, warmServerTime, serverNowMs } from './Helper/serverTime';
 import { encodeEmailKey, isMuteRecord } from './Helper/banKeys';
+import { setCurrentUserOwner } from './Helper/ownerFlag';
 import * as chatBackend from './Supabase/chatBackend';
 import i18n from 'i18next';
 import { setLastActivity } from './Supabase/userBackend';
@@ -163,9 +164,9 @@ export const formatBanTimeLeft = (untilMs) => {
   const days = Math.floor(totalMinutes / 1440);
   const hours = Math.floor((totalMinutes % 1440) / 60);
   const minutes = totalMinutes % 60;
-  if (days > 0) return `${days}d ${hours}h`;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  return `${minutes}m`;
+  if (days > 0) return tr('home.globel_stats.time_days_hours', '{{days}}d {{hours}}h', { days, hours });
+  if (hours > 0) return tr('home.globel_stats.time_hours_minutes', '{{hours}}h {{minutes}}m', { hours, minutes });
+  return tr('home.globel_stats.time_minutes', '{{minutes}}m', { minutes });
 };
 
 const MOD_ACTION_TEXT = {
@@ -546,6 +547,7 @@ export const GlobalStateProvider = ({ children }) => {
     loadedUidRef.current = null;
     resetUserState();
     setCurrentuserEmail('');
+    setCurrentUserOwner(null, false);
     setIsAdmin(false);
     setIsSeniorMod(false);
     setIsModerator(false);
@@ -598,19 +600,16 @@ export const GlobalStateProvider = ({ children }) => {
       let userData;
       let isNewRecord = false;
 
-      // console.log(loggedInUser.email)
-      const makeadmin = loggedInUser.email === 'thesolanalabs@gmail.com' || loggedInUser.email === 'sohailnasir74@gmail.com';
-      if (makeadmin) { setIsAdmin(makeadmin) }
       setCurrentuserEmail(loggedInUser.email)
 
       if (snapshot.exists()) {
         const existing = snapshot.val();
 
-        // ✅ Persist hardcoded admin flag to RTDB once (so RoleBadges / profile cache see it)
-        if (makeadmin && !existing.isAdmin && !existing.admin) {
-          update(userRef, { isAdmin: true }).catch(() => {});
-          existing.isAdmin = true;
-        }
+        // ✅ Owner: users/{uid}/owner, written only by the server
+        // (functions/reconcileRolesMirror.js). No owner emails in the app;
+        // the owner gets the admin screens too.
+        setCurrentUserOwner(userId, existing.owner === true);
+        if (existing.owner === true) setIsAdmin(true);
 
         // ✅ Check if user is Senior Mod from DB (one rank below Admin).
         // Senior Mod is granted in-app via the Admin dashboard (makeSeniorMod),
@@ -823,9 +822,9 @@ export const GlobalStateProvider = ({ children }) => {
     } catch {
       // ✅ Show a friendly alert message
       Alert.alert(
-        "⚠️ No Internet Connection",
-        "Some features may not work properly. Please check your network and try again.",
-        [{ text: "OK" }]
+        tr('home.globel_stats.no_internet_title', '⚠️ No Internet Connection'),
+        tr('home.globel_stats.no_internet_body', 'Some features may not work properly. Please check your network and try again.'),
+        [{ text: tr('home.globel_stats.ok', 'OK') }]
       );
     }
   };

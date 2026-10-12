@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import StyledUsernamePreview from './StyledName';
 import { useGlobalState } from '../../GlobelStats';
+import { useTranslation } from 'react-i18next';
 
 const iconMap = {
   "camping": require("../../../assets/Icons/camping.png"),
@@ -28,6 +29,7 @@ const StyledDisplayName = ({
   const styleData = user?.purchases?.[9]?.style || null; // Styled Username purchase
   const iconNames = user?.purchases?.[10]?.icons || []; // Styled Icons purchase
   const { proTagBought, theme } = useGlobalState(); // Pro tag purchase status
+  const { t } = useTranslation();
   const isDark = theme === 'dark'
 
   // console.log(styleData, 'styleds', user.purchases)
@@ -44,7 +46,7 @@ const StyledDisplayName = ({
         <View >
           {styleData ? (
             <StyledUsernamePreview
-              text={user.displayName || user.displayname || 'Guest User'}
+              text={user.displayName || user.displayname || t('first.guest_user')}
               variant={styleData.variant}
               options={styleData}
               fontSize={fontSize}
@@ -53,20 +55,20 @@ const StyledDisplayName = ({
             />
           ) : (
             <Text style={[styles.userName, { color: isDark ? 'white' : 'black' }]}>
-              {user.displayName || user.displayname || 'Guest User'}
+              {user.displayName || user.displayname || t('first.guest_user')}
             </Text>
           )}
         </View>
 
         {/* Badges */}
         {isPro && (
-          <Image
+          <Image resizeMethod="resize"
             source={require('../../../assets/pro.png')}
             style={styles.badge}
           />
         )}
         {(isProGranted) && (
-          <Image
+          <Image resizeMethod="resize"
             source={require('../../../assets/progranted.png')}
             style={styles.badge}
           />
@@ -75,7 +77,7 @@ const StyledDisplayName = ({
         {/* Icons if any */}
         {iconNames.slice(0, 4).map((iconName) =>
           iconMap[iconName] ? (
-            <Image
+            <Image resizeMethod="resize"
               key={iconName}
               source={iconMap[iconName]}
               style={styles.icon}

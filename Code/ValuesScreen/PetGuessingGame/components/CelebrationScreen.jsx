@@ -85,7 +85,7 @@ const CelebrationScreen = ({ winner, onPlayAgain, onClose }) => {
           </View>
 
           {winner.petImage && (
-            <Image
+            <Image resizeMethod="resize"
               source={{ uri: winner.petImage }}
               style={styles.winnerPetImage}
               resizeMode="contain"

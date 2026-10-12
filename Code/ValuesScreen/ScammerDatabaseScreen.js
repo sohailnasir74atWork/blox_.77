@@ -105,14 +105,18 @@ const statusColor = (s) => {
         default: return '#FF9500';
     }
 };
-const statusLabel = (s) => {
+const statusLabel = (s, t) => {
     switch (s) {
-        case 'verified': return 'Verified Scammer';
-        default: return 'Unverified';
+        case 'verified': return t('values.scammer_database_screen.status_verified');
+        default: return t('values.scammer_database_screen.status_unverified');
     }
 };
 
 const FILTERS = ['All', 'Verified', 'Unverified'];
+// Display labels only; FILTERS / SCAM_TYPES values are stored and compared.
+const FILTER_LABEL_KEYS = { All: 'values.scammer_database_screen.filter_all', Verified: 'values.scammer_database_screen.filter_verified', Unverified: 'values.scammer_database_screen.filter_unverified' };
+const SCAM_TYPE_LABEL_KEYS = { 'Trust trade': 'values.scammer_database_screen.type_trust_trade', 'Switch scam': 'values.scammer_database_screen.type_switch_scam', 'Fail trade': 'values.scammer_database_screen.type_fail_trade', Other: 'values.scammer_database_screen.type_other' };
+const scamTypeLabel = (type, t) => (SCAM_TYPE_LABEL_KEYS[type] ? t(SCAM_TYPE_LABEL_KEYS[type]) : type);
 
 // ── Every report filed against one username ──
 // The summary's id is the first report's detail id. Later reports on the same
@@ -477,7 +481,7 @@ const ScammerDatabaseScreen = () => {
                 // Fallback: let dayjs try native parsing
                 if (!parsed.isValid()) parsed = dayjs(dateStr);
                 if (!parsed.isValid()) {
-                    Alert.alert('Error', 'Invalid date format. Try: Jan 5, 2025');
+                    Alert.alert(t('scammer.error_title'), t('values.scammer_database_screen.invalid_date'));
                     setSubmitting(false);
                     return;
                 }
@@ -495,7 +499,7 @@ const ScammerDatabaseScreen = () => {
                         }
                     } catch (err) {
                         console.error('Image upload error:', err);
-                        Alert.alert('Error', 'Failed to upload images. Try again.');
+                        Alert.alert(t('scammer.error_title'), t('values.scammer_database_screen.upload_failed'));
                         setSubmitting(false);
                         setUploadingImages(false);
                         return;
@@ -578,7 +582,7 @@ const ScammerDatabaseScreen = () => {
                     text: `${username}: ${whatText}`,
                 }).catch((reportErr) => console.warn('[Scammer] user_reports write failed:', reportErr?.message || reportErr));
 
-                Alert.alert('Report Submitted', 'Your report has been submitted for review. Thank you!');
+                Alert.alert(t('values.scammer_database_screen.submitted_title'), t('values.scammer_database_screen.submitted_body'));
                 // Reset form
                 setReportUsername('');
                 setReportScamType(SCAM_TYPES[0]);
@@ -590,10 +594,10 @@ const ScammerDatabaseScreen = () => {
                 handleRefresh();
             } catch (err) {
                 if (err?.message === 'RATE_LIMIT') {
-                    Alert.alert('Limit Reached', 'You can only submit 1 report per 24 hours.');
+                    Alert.alert(t('values.scammer_database_screen.limit_title'), t('values.scammer_database_screen.limit_body'));
                 } else {
                     console.error('[Scammer] Submit error:', err);
-                    Alert.alert('Error', 'Failed to submit report. Please try again.');
+                    Alert.alert(t('scammer.error_title'), t('values.scammer_database_screen.submit_failed'));
                 }
             } finally {
                 submittingRef.current = false;
@@ -716,7 +720,7 @@ const ScammerDatabaseScreen = () => {
                             {item.reportedUsername}
                             {(item.reportCount || 1) > 1 && (
                                 <Text style={{ color: '#FF3B30', fontSize: 12, fontWeight: '700' }}>
-                                    {' '}({item.reportCount} reports)
+                                    {' '}{t('values.scammer_database_screen.report_count', { count: item.reportCount })}
                                 </Text>
                             )}
                         </Text>
@@ -727,11 +731,11 @@ const ScammerDatabaseScreen = () => {
                 </View>
                 <View style={[s.badge, { backgroundColor: statusColor(item.status) + '20' }]}>
                     <View style={[s.badgeDot, { backgroundColor: statusColor(item.status) }]} />
-                    <Text style={[s.badgeText, { color: statusColor(item.status) }]}>{statusLabel(item.status)}</Text>
+                    <Text style={[s.badgeText, { color: statusColor(item.status) }]}>{statusLabel(item.status, t)}</Text>
                 </View>
             </View>
         </TouchableOpacity>
-    ), [C, openDetail]);
+    ), [C, openDetail, t]);
 
     // ════════════════════════════════════════
     //  RENDER: List footer
@@ -744,10 +748,10 @@ const ScammerDatabaseScreen = () => {
             return <ActivityIndicator size="large" color="#007AFF" style={{ paddingVertical: 40 }} />;
         }
         if (summaries.length === 0 && !loading) {
-            return <Text style={[s.emptyText, { color: C.muted }]}>No reports found.</Text>;
+            return <Text style={[s.emptyText, { color: C.muted }]}>{t('values.scammer_database_screen.no_reports')}</Text>;
         }
         return null;
-    }, [loading, summaries.length, C.muted]);
+    }, [loading, summaries.length, C.muted, t]);
 
     // Handle filter change
     const onFilterChange = useCallback((filter) => {
@@ -766,7 +770,7 @@ const ScammerDatabaseScreen = () => {
             <View style={[s.banner, { backgroundColor: C.bannerBg }]}>
                 <Icon name="warning-outline" size={16} color={C.bannerText} style={{ marginRight: 6 }} />
                 <Text style={[s.bannerText, { color: C.bannerText }]}>
-                    ⚠️ This database is community-reported. Always trade safely and never share personal info.
+                    {t('values.scammer_database_screen.safety_banner')}
                 </Text>
             </View>
 
@@ -778,7 +782,7 @@ const ScammerDatabaseScreen = () => {
                 <TextInput
                     value={searchText}
                     onChangeText={setSearchText}
-                    placeholder="Search by Roblox username…"
+                    placeholder={t('values.scammer_database_screen.search_placeholder')}
                     placeholderTextColor={C.muted}
                     style={[s.searchInput, { color: C.text }]}
                     autoCapitalize="none"
@@ -811,7 +815,7 @@ const ScammerDatabaseScreen = () => {
                         onPress={() => onFilterChange(f)}
                         activeOpacity={0.7}
                     >
-                        <Text style={[s.filterTabText, activeFilter === f && s.filterTabTextActive]}>{f}</Text>
+                        <Text style={[s.filterTabText, activeFilter === f && s.filterTabTextActive]}>{t(FILTER_LABEL_KEYS[f])}</Text>
                     </TouchableOpacity>
                 ))}
             </View>
@@ -835,7 +839,7 @@ const ScammerDatabaseScreen = () => {
             <TouchableOpacity
                 style={s.fab}
                 onPress={() => {
-                    if (!user?.id) { Alert.alert('Sign In Required', 'Please sign in to report a scammer.'); return; }
+                    if (!user?.id) { Alert.alert(t('values.scammer_database_screen.signin_title'), t('values.scammer_database_screen.signin_body')); return; }
                     setShowReportModal(true);
                 }}
                 activeOpacity={0.8}
@@ -858,7 +862,7 @@ const ScammerDatabaseScreen = () => {
                         <ScrollView showsVerticalScrollIndicator={false}>
                             {/* Close */}
                             <View style={s.modalHeader}>
-                                <Text style={[s.modalTitle, { color: C.text }]}>Report Details</Text>
+                                <Text style={[s.modalTitle, { color: C.text }]}>{t('values.scammer_database_screen.details_title')}</Text>
                                 <TouchableOpacity onPress={closeDetail} style={{ padding: 4 }}>
                                     <Icon name="close" size={22} color={C.sub} />
                                 </TouchableOpacity>
@@ -872,12 +876,12 @@ const ScammerDatabaseScreen = () => {
                                         <View style={{ flex: 1 }}>
                                             <Text style={[s.detailUsername, { color: C.text }]}>{selectedReport.reportedUsername}</Text>
                                             <Text style={[s.detailSub, { color: C.sub }]}>
-                                                Scam date: {selectedReport.scamDate ? fmtDate(selectedReport.scamDate) : 'N/A'}
+                                                {t('values.scammer_database_screen.scam_date', { date: selectedReport.scamDate ? fmtDate(selectedReport.scamDate) : t('values.scammer_database_screen.na') })}
                                             </Text>
                                         </View>
                                         <View style={[s.badge, { backgroundColor: statusColor(selectedReport.status) + '20' }]}>
                                             <View style={[s.badgeDot, { backgroundColor: statusColor(selectedReport.status) }]} />
-                                            <Text style={[s.badgeText, { color: statusColor(selectedReport.status) }]}>{statusLabel(selectedReport.status)}</Text>
+                                            <Text style={[s.badgeText, { color: statusColor(selectedReport.status) }]}>{statusLabel(selectedReport.status, t)}</Text>
                                         </View>
                                     </View>
                                 </View>
@@ -894,23 +898,23 @@ const ScammerDatabaseScreen = () => {
                                                 <Text style={[s.detailLabel, { color: C.sub }]}>#{idx + 1}</Text>
                                             )}
                                             <View style={[s.detailField, { borderColor: C.border }]}>
-                                                <Text style={[s.detailLabel, { color: C.sub }]}>Scam Type</Text>
-                                                <Text style={[s.detailValue, { color: C.text }]}>{d.scamType || 'N/A'}</Text>
+                                                <Text style={[s.detailLabel, { color: C.sub }]}>{t('values.scammer_database_screen.scam_type')}</Text>
+                                                <Text style={[s.detailValue, { color: C.text }]}>{d.scamType ? scamTypeLabel(d.scamType, t) : t('values.scammer_database_screen.na')}</Text>
                                             </View>
 
                                             <View style={[s.detailField, { borderColor: C.border }]}>
-                                                <Text style={[s.detailLabel, { color: C.sub }]}>What Happened</Text>
-                                                <Text style={[s.detailValue, { color: C.text }]}>{d.whatHappened || 'N/A'}</Text>
+                                                <Text style={[s.detailLabel, { color: C.sub }]}>{t('values.scammer_database_screen.what_happened_label')}</Text>
+                                                <Text style={[s.detailValue, { color: C.text }]}>{d.whatHappened || t('values.scammer_database_screen.na')}</Text>
                                             </View>
 
                                             {/* Proof images */}
                                             {d.proofUrls?.length > 0 && (
                                                 <View style={{ marginTop: 8 }}>
-                                                    <Text style={[s.detailLabel, { color: C.sub, marginBottom: 6 }]}>Proof Screenshots</Text>
+                                                    <Text style={[s.detailLabel, { color: C.sub, marginBottom: 6 }]}>{t('values.scammer_database_screen.proof_screenshots')}</Text>
                                                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                                                         {d.proofUrls.map((url, i) => (
                                                             <TouchableOpacity key={i} activeOpacity={0.8} onPress={() => setFullscreenImage(url)}>
-                                                                <Image source={{ uri: url }} style={s.proofImage} resizeMode="cover" />
+                                                                <Image resizeMethod="resize" source={{ uri: url }} style={s.proofImage} resizeMode="cover" />
                                                             </TouchableOpacity>
                                                         ))}
                                                     </ScrollView>
@@ -957,7 +961,7 @@ const ScammerDatabaseScreen = () => {
                                     )}
                                 </View>
                             ) : (
-                                <Text style={[s.emptyText, { color: C.muted }]}>No details available.</Text>
+                                <Text style={[s.emptyText, { color: C.muted }]}>{t('values.scammer_database_screen.no_details')}</Text>
                             )}
                         </ScrollView>
 
@@ -968,7 +972,7 @@ const ScammerDatabaseScreen = () => {
                                 <TouchableOpacity style={s.fullscreenClose} onPress={() => setFullscreenImage(null)}>
                                     <Icon name="close-circle" size={32} color="#FFF" />
                                 </TouchableOpacity>
-                                <Image
+                                <Image resizeMethod="resize"
                                     source={{ uri: fullscreenImage }}
                                     style={s.fullscreenImg}
                                     resizeMode="contain"
@@ -989,7 +993,7 @@ const ScammerDatabaseScreen = () => {
                         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                             {/* Header */}
                             <View style={s.modalHeader}>
-                                <Text style={[s.modalTitle, { color: C.text }]}>Report a Scammer</Text>
+                                <Text style={[s.modalTitle, { color: C.text }]}>{t('values.scammer_database_screen.form_title')}</Text>
                                 <TouchableOpacity onPress={() => setShowReportModal(false)} style={{ padding: 4 }}>
                                     <Icon name="close" size={22} color={C.sub} />
                                 </TouchableOpacity>
@@ -998,16 +1002,16 @@ const ScammerDatabaseScreen = () => {
                             {/* Safety note */}
                             <View style={[s.banner, { backgroundColor: C.bannerBg, marginBottom: 12 }]}>
                                 <Text style={[s.bannerText, { color: C.bannerText, fontSize: 11 }]}>
-                                    Only report genuine scammers. False reports may result in a ban.
+                                    {t('values.scammer_database_screen.form_warning')}
                                 </Text>
                             </View>
 
                             {/* Username */}
-                            <Text style={[s.formLabel, { color: C.sub }]}>Roblox Username</Text>
+                            <Text style={[s.formLabel, { color: C.sub }]}>{t('values.scammer_database_screen.roblox_username')}</Text>
                             <TextInput
                                 value={reportUsername}
                                 onChangeText={setReportUsername}
-                                placeholder="Enter their Roblox username"
+                                placeholder={t('values.scammer_database_screen.username_placeholder')}
                                 placeholderTextColor={C.muted}
                                 style={[s.formInput, { backgroundColor: C.input, color: C.text, borderColor: C.border }]}
                                 autoCapitalize="none"
@@ -1016,11 +1020,11 @@ const ScammerDatabaseScreen = () => {
                             />
 
                             {/* Scam Date */}
-                            <Text style={[s.formLabel, { color: C.sub }]}>When did the scam happen?</Text>
+                            <Text style={[s.formLabel, { color: C.sub }]}>{t('values.scammer_database_screen.when_label')}</Text>
                             <TextInput
                                 value={reportScamDate}
                                 onChangeText={setReportScamDate}
-                                placeholder="e.g. Jan 5, 2025"
+                                placeholder={t('values.scammer_database_screen.date_placeholder')}
                                 placeholderTextColor={C.muted}
                                 style={[s.formInput, { backgroundColor: C.input, color: C.text, borderColor: C.border }]}
                                 autoCapitalize="words"
@@ -1028,7 +1032,7 @@ const ScammerDatabaseScreen = () => {
                             />
 
                             {/* Scam Type */}
-                            <Text style={[s.formLabel, { color: C.sub }]}>Scam Type</Text>
+                            <Text style={[s.formLabel, { color: C.sub }]}>{t('values.scammer_database_screen.scam_type')}</Text>
                             <View style={s.typeRow}>
                                 {SCAM_TYPES.map((type) => (
                                     <TouchableOpacity
@@ -1042,17 +1046,17 @@ const ScammerDatabaseScreen = () => {
                                             },
                                         ]}
                                     >
-                                        <Text style={{ color: reportScamType === type ? '#FFF' : C.text, fontSize: 12, fontWeight: '600' }}>{type}</Text>
+                                        <Text style={{ color: reportScamType === type ? '#FFF' : C.text, fontSize: 12, fontWeight: '600' }}>{scamTypeLabel(type, t)}</Text>
                                     </TouchableOpacity>
                                 ))}
                             </View>
 
                             {/* What happened */}
-                            <Text style={[s.formLabel, { color: C.sub }]}>What happened? <Text style={{ fontWeight: '400', fontSize: 10 }}>(max 200 chars)</Text></Text>
+                            <Text style={[s.formLabel, { color: C.sub }]}>{t('values.scammer_database_screen.what_label')} <Text style={{ fontWeight: '400', fontSize: 10 }}>{t('values.scammer_database_screen.max_chars')}</Text></Text>
                             <TextInput
                                 value={reportWhat}
                                 onChangeText={(val) => setReportWhat(val.slice(0, 200))}
-                                placeholder="Briefly describe what happened…"
+                                placeholder={t('values.scammer_database_screen.what_placeholder')}
                                 placeholderTextColor={C.muted}
                                 style={[s.formInput, s.formInputMulti, { backgroundColor: C.input, color: C.text, borderColor: C.border }]}
                                 multiline
@@ -1061,11 +1065,11 @@ const ScammerDatabaseScreen = () => {
                             <Text style={{ color: C.muted, fontSize: 10, textAlign: 'right', marginTop: -4, marginBottom: 8 }}>{reportWhat.length}/200</Text>
 
                             {/* Proof images */}
-                            <Text style={[s.formLabel, { color: C.sub }]}>Proof Screenshots <Text style={{ fontWeight: '400', fontSize: 10 }}>(optional, max 3)</Text></Text>
+                            <Text style={[s.formLabel, { color: C.sub }]}>{t('values.scammer_database_screen.proof_screenshots')} <Text style={{ fontWeight: '400', fontSize: 10 }}>{t('values.scammer_database_screen.proof_optional')}</Text></Text>
                             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
                                 {reportImages.map((uri, i) => (
                                     <View key={i} style={{ position: 'relative' }}>
-                                        <Image source={{ uri }} style={s.proofThumb} resizeMode="cover" />
+                                        <Image resizeMethod="resize" source={{ uri }} style={s.proofThumb} resizeMode="cover" />
                                         <TouchableOpacity
                                             onPress={() => setReportImages((prev) => prev.filter((_, idx) => idx !== i))}
                                             style={s.proofRemove}
@@ -1077,7 +1081,7 @@ const ScammerDatabaseScreen = () => {
                                 {reportImages.length < 3 && (
                                     <TouchableOpacity onPress={handlePickProofImage} style={[s.addProofBtn, { borderColor: C.border }]}>
                                         <Icon name="camera-outline" size={22} color={C.sub} />
-                                        <Text style={{ color: C.sub, fontSize: 10, marginTop: 2 }}>Add Photo</Text>
+                                        <Text style={{ color: C.sub, fontSize: 10, marginTop: 2 }}>{t('values.scammer_database_screen.add_photo')}</Text>
                                     </TouchableOpacity>
                                 )}
                             </View>
@@ -1091,10 +1095,10 @@ const ScammerDatabaseScreen = () => {
                                 {submitting ? (
                                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                                         <ActivityIndicator size="small" color="#FFF" style={{ marginRight: 8 }} />
-                                        <Text style={s.submitBtnText}>{uploadingImages ? 'Uploading images…' : 'Submitting…'}</Text>
+                                        <Text style={s.submitBtnText}>{uploadingImages ? t('values.scammer_database_screen.uploading_images') : t('values.scammer_database_screen.submitting')}</Text>
                                     </View>
                                 ) : (
-                                    <Text style={s.submitBtnText}>Submit Report</Text>
+                                    <Text style={s.submitBtnText}>{t('values.scammer_database_screen.submit_report')}</Text>
                                 )}
                             </TouchableOpacity>
                         </ScrollView>

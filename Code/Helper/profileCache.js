@@ -222,7 +222,12 @@ export const getOrFetchProfile = async (db, uid) => {
 // ────────────────────────────────────────────────────────
 export const warmProfileCache = async (db, uids) => {
   if (!db || !Array.isArray(uids) || uids.length === 0) return;
-  const uncached = [...new Set(uids)].filter(uid => !getCachedProfile(uid));
+  // Entries seeded from a message carry only what the message had (slim
+  // messages have no role fields, so every role reads false) — refetch them.
+  const uncached = [...new Set(uids)].filter(uid => {
+    const c = getCachedProfile(uid);
+    return !c || c._seeded;
+  });
   if (uncached.length === 0) return;
   const batch = uncached.slice(0, 20);
 
@@ -296,6 +301,7 @@ export const seedFromMessage = (msg) => {
   if (!msg.avatar && !msg.sender) return;
 
   setCachedProfile(msg.senderId, {
+    _seeded: true, // partial: warmProfileCache replaces it with the real profile
     displayName: msg.sender || 'Anonymous',
     avatar: msg.avatar || null,
     isPro: !!msg.isPro,

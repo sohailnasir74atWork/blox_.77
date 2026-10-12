@@ -70,7 +70,7 @@ const EvidenceViewer = ({ visible, urls = [], startIndex = 0, onClose }) => {
               </Text>
             </View>
           ) : (
-            <Image
+            <Image resizeMethod="resize"
               source={{ uri: url }}
               style={styles.image}
               resizeMode="contain"

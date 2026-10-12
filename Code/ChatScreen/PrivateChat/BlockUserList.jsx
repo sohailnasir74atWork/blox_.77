@@ -14,6 +14,7 @@ import config from '../../Helper/Environment';
 import { useLocalState } from '../../LocalGlobelStats';
 import { useGlobalState } from '../../GlobelStats';
 import { useTranslation } from 'react-i18next';
+import i18next from 'i18next';
 import { showSuccessMessage } from '../../Helper/MessageHelper';
 import FramedAvatar from '../GroupChat/FramedAvatar';
 import { getCachedProfile } from '../../Helper/profileCache';
@@ -69,7 +70,7 @@ const BlockedUsersScreen = () => {
 
             return {
               id,
-              displayName: displayNameSnap?.exists() ? (displayNameSnap.val()?.trim() || 'Anonymous') : 'Anonymous',
+              displayName: displayNameSnap?.exists() ? (displayNameSnap.val()?.trim() || i18next.t('chat.anonymous')) : i18next.t('chat.anonymous'),
               avatar: avatarSnap?.exists() ? (avatarSnap.val()?.trim() || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png')
                 : 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
             };

@@ -11,7 +11,8 @@
 //                            (fetchMessageReports, supabase/034); "Hide"
 //                            is session-only — no reviewed flag server-side
 //
-// Actions: View (profile drawer), Sanction (dashboard user detail, which has
+// Actions: View reported / View reporter (profile drawer, so a mod can hear
+// both sides), Sanction (dashboard user detail, which has
 // strike / mute / ban with the reason prompt), Dismiss (marks it reviewed).
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -42,6 +43,7 @@ import { getAuth } from '@react-native-firebase/auth';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import * as chatBackend from '../Supabase/chatBackend';
+import { getIdentityBatch } from '../Supabase/userBackend';
 
 dayjs.extend(relativeTime);
 
@@ -75,7 +77,8 @@ const toMs = (v) => {
 const TABLE_LABEL = { messages: 'Public chat', private_messages: 'Private chat', group_messages: 'Group chat' };
 const normalizeMessageReport = (r) => {
   const reports = Array.isArray(r.reports) ? r.reports : [];
-  const reasons = [...new Set(reports.map((x) => x?.reason).filter(Boolean))];
+  // 'legacy_client' = a report from an app build that couldn't send a reason.
+  const reasons = [...new Set(reports.map((x) => (x?.reason === 'legacy_client' ? 'No reason given (older app)' : x?.reason)).filter(Boolean))];
   return {
     key: `msg:${r.table}:${r.messageId}`,
     source: 'message',
@@ -166,6 +169,23 @@ const ReportsTab = ({ isDark, onViewUser, onSanctionUser, onViewChat }) => {
 
     await Promise.all([userReports, chatReports, tradeReports, messageReports]);
     out.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+    // Chat-message and user reports carry only uids: look the names up so
+    // cards read "Against: Name" instead of a raw uid. Best effort.
+    const missing = new Set();
+    out.forEach((x) => {
+      if (x.targetUid && !x.targetName) missing.add(x.targetUid);
+      if (x.reporterUid && !x.reporterName) missing.add(x.reporterUid);
+    });
+    if (missing.size > 0) {
+      try {
+        const ids = await getIdentityBatch([...missing]);
+        out.forEach((x) => {
+          if (x.targetUid && !x.targetName) x.targetName = ids.get(x.targetUid)?.displayName || null;
+          if (x.reporterUid && !x.reporterName) x.reporterName = ids.get(x.reporterUid)?.displayName || null;
+        });
+      } catch (_) { /* uids still show */ }
+    }
     setItems(out);
     setWarnings(warn);
     setLoading(false);
@@ -227,6 +247,11 @@ const ReportsTab = ({ isDark, onViewUser, onSanctionUser, onViewChat }) => {
     else onViewUser?.(target);
   }, [resolveTarget, onSanctionUser, onViewUser]);
 
+  const openReporter = useCallback((r) => {
+    if (!r.reporterUid) return;
+    onViewUser?.({ id: r.reporterUid, senderId: r.reporterUid, displayName: r.reporterName || null, sender: r.reporterName || null });
+  }, [onViewUser]);
+
   const Btn = ({ label, color, onPress, disabled }) => (
     <TouchableOpacity
       onPress={onPress}
@@ -262,7 +287,8 @@ const ReportsTab = ({ isDark, onViewUser, onSanctionUser, onViewChat }) => {
         {!!r.extra && <Text style={{ color: sub, fontSize: 10 }} numberOfLines={1}>{r.extra}</Text>}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 }}>
           {r.kind === 'chat' && onViewChat && <Btn label="View chat" color="#5856D6" onPress={() => onViewChat(r.raw)} />}
-          <Btn label="View user" color="#007AFF" onPress={() => openUser(r, false)} />
+          <Btn label="View reported" color="#007AFF" onPress={() => openUser(r, false)} />
+          {!!r.reporterUid && <Btn label="View reporter" color="#0A84FF" onPress={() => openReporter(r)} />}
           <Btn label="Sanction" color="#FF3B30" onPress={() => openUser(r, true)} />
           {!reviewed && (
             <Btn

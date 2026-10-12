@@ -24,6 +24,7 @@ import RNFS from 'react-native-fs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FramedAvatar from './FramedAvatar';
 import { getCachedProfile } from '../../Helper/profileCache';
+import { useTranslation } from 'react-i18next';
 
 const BUNNY_STORAGE_HOST = 'storage.bunnycdn.com';
 const BUNNY_STORAGE_ZONE = 'post-gag';
@@ -72,6 +73,7 @@ const MAX_GROUP_MEMBERS = 100;
 const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = null, editGroupName = null, editGroupDescription = null, editGroupAvatar = null, isAdmin = false, onGroupUpdated = null }) => {
   const { theme, user, firestoreDB, appdatabase, getModGate } = useGlobalState();
   const isEditMode = !!editGroupId;
+  const { t } = useTranslation();
   const { triggerHapticFeedback } = useHaptic();
   const navigation = useNavigation();
   const isDarkMode = theme === 'dark';
@@ -210,7 +212,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
   // Handle submit (create or update)
   const handleSubmit = async () => {
     if (!user?.id || !firestoreDB || !appdatabase) {
-      showErrorMessage('Error', 'Missing required data');
+      showErrorMessage(t('chat.error'), t('chat.create_group_modal.missing_data'));
       return;
     }
 
@@ -225,7 +227,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
 
     // Validate group name (required for both create and edit)
     if (!groupName.trim()) {
-      showErrorMessage('Error', 'Group name is required');
+      showErrorMessage(t('chat.error'), t('chat.create_group_modal.name_required'));
       return;
     }
 
@@ -243,19 +245,19 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
     // Ban / mute gate lives in handleSubmit (covers create and edit).
     // Validate description (required for create)
     if (!groupDescription.trim()) {
-      showErrorMessage('Error', 'Group description is required');
+      showErrorMessage(t('chat.error'), t('chat.create_group_modal.description_required'));
       return;
     }
 
     // Validate member count
     const totalMembers = 1 + selectedMemberIds.length; // Creator + selected members
     if (totalMembers < 2) {
-      showErrorMessage('Error', 'Select at least 1 member to create a group');
+      showErrorMessage(t('chat.error'), t('chat.create_group_modal.select_member'));
       return;
     }
 
     if (totalMembers > MAX_GROUP_MEMBERS) {
-      showErrorMessage('Error', `Maximum ${MAX_GROUP_MEMBERS} members allowed`);
+      showErrorMessage(t('chat.error'), t('chat.create_group_modal.max_members', { max: MAX_GROUP_MEMBERS }));
       return;
     }
 
@@ -271,7 +273,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
           groupAvatarUrl = await uploadToBunny(groupAvatarUri);
         } catch (error) {
           console.error('Error uploading group avatar:', error);
-          showErrorMessage('Error', 'Failed to upload group icon. Creating group without icon...');
+          showErrorMessage(t('chat.error'), t('chat.create_group_modal.icon_upload_failed_create'));
         } finally {
           setUploadingAvatar(false);
         }
@@ -304,7 +306,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
       );
 
       if (result.success) {
-        showSuccessMessage('Success', 'Group created successfully!');
+        showSuccessMessage(t('home.alert.success'), t('chat.create_group_modal.created'));
         onClose();
         // Navigate to group chat
         if (result.groupId && navigation && typeof navigation.navigate === 'function') {
@@ -314,11 +316,11 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
           });
         }
       } else {
-        showErrorMessage('Error', result.error || 'Failed to create group');
+        showErrorMessage(t('chat.error'), result.error || t('chat.create_group_modal.create_failed'));
       }
     } catch (error) {
       console.error('Error creating group:', error);
-      showErrorMessage('Error', 'Failed to create group. Please try again.');
+      showErrorMessage(t('chat.error'), t('chat.create_group_modal.create_failed_retry'));
     } finally {
       setCreating(false);
     }
@@ -327,7 +329,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
   // Handle update group (edit mode)
   const handleUpdateGroup = async () => {
     if (!editGroupId) {
-      showErrorMessage('Error', 'Group ID is missing');
+      showErrorMessage(t('chat.error'), t('chat.create_group_modal.group_id_missing'));
       return;
     }
 
@@ -344,7 +346,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
           groupAvatarUrl = await uploadToBunny(groupAvatarUri);
         } catch (error) {
           console.error('Error uploading group avatar:', error);
-          showErrorMessage('Error', 'Failed to upload group icon. Updating group without icon change...');
+          showErrorMessage(t('chat.error'), t('chat.create_group_modal.icon_upload_failed_update'));
         } finally {
           setUploadingAvatar(false);
         }
@@ -364,7 +366,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
           isAdmin
         );
         if (!nameResult.success) {
-          showErrorMessage('Error', nameResult.error || 'Failed to update group name');
+          showErrorMessage(t('chat.error'), nameResult.error || t('chat.create_group_modal.update_name_failed'));
           setCreating(false);
           return;
         }
@@ -382,7 +384,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
           isAdmin
         );
         if (!descResult.success) {
-          showErrorMessage('Error', descResult.error || 'Failed to update group description');
+          showErrorMessage(t('chat.error'), descResult.error || t('chat.create_group_modal.update_description_failed'));
           setCreating(false);
           return;
         }
@@ -399,20 +401,20 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
           isAdmin
         );
         if (!avatarResult.success) {
-          showErrorMessage('Error', avatarResult.error || 'Failed to update group icon');
+          showErrorMessage(t('chat.error'), avatarResult.error || t('chat.create_group_modal.update_icon_failed'));
           setCreating(false);
           return;
         }
       }
 
-      showSuccessMessage('Success', 'Group updated successfully!');
+      showSuccessMessage(t('home.alert.success'), t('chat.create_group_modal.updated'));
       if (onGroupUpdated && typeof onGroupUpdated === 'function') {
         onGroupUpdated();
       }
       onClose();
     } catch (error) {
       console.error('Error updating group:', error);
-      showErrorMessage('Error', 'Failed to update group. Please try again.');
+      showErrorMessage(t('chat.error'), t('chat.create_group_modal.update_failed_retry'));
     } finally {
       setCreating(false);
     }
@@ -439,7 +441,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                 <Icon name="close" size={24} color={isDarkMode ? '#fff' : '#000'} />
               </TouchableOpacity>
-              <Text style={styles.headerTitle}>{isEditMode ? 'Edit Group' : 'Create Group'}</Text>
+              <Text style={styles.headerTitle}>{isEditMode ? t('chat.create_group_modal.edit_title') : t('chat.create_group_modal.create_title')}</Text>
               <View style={styles.placeholder} />
             </View>
 
@@ -450,14 +452,14 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
             >
             {/* Group Icon Selection */}
             <View style={styles.avatarContainer}>
-              <Text style={styles.label}>Group Icon (Optional)</Text>
+              <Text style={styles.label}>{t('chat.create_group_modal.icon_label')}</Text>
               <TouchableOpacity
                 onPress={handlePickImage}
                 style={styles.avatarButton}
                 disabled={uploadingAvatar}
               >
                 {groupAvatarUri ? (
-                  <Image source={{ uri: groupAvatarUri }} style={styles.avatarPreview} />
+                  <Image resizeMethod="resize" source={{ uri: groupAvatarUri }} style={styles.avatarPreview} />
                 ) : (
                   <View style={[styles.avatarPlaceholder, { backgroundColor: isDarkMode ? '#2a2a2a' : '#f5f5f5' }]}>
                     <Icon name="camera" size={32} color={isDarkMode ? '#666' : '#999'} />
@@ -481,7 +483,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
 
             {/* Group Name Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Group Name <Text style={{ color: '#EF4444' }}>*</Text></Text>
+              <Text style={styles.label}>{t('chat.create_group_modal.name_label')} <Text style={{ color: '#EF4444' }}>*</Text></Text>
               <TextInput
                 style={[
                   styles.input,
@@ -490,7 +492,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
                     color: isDarkMode ? '#fff' : '#000',
                   },
                 ]}
-                placeholder="Enter group name (required)..."
+                placeholder={t('chat.create_group_modal.name_placeholder')}
                 placeholderTextColor={isDarkMode ? '#666' : '#999'}
                 value={groupName}
                 onChangeText={setGroupName}
@@ -501,8 +503,8 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
             {/* Group Description Input */}
             <View style={styles.inputContainer}>
               <Text style={styles.label}>
-                Description {!isEditMode && <Text style={{ color: '#EF4444' }}>*</Text>}
-                {isEditMode && <Text style={{ fontSize: 12, color: isDarkMode ? '#9CA3AF' : '#6B7280' }}> (max 100 characters)</Text>}
+                {t('chat.create_group_modal.description_label')} {!isEditMode && <Text style={{ color: '#EF4444' }}>*</Text>}
+                {isEditMode && <Text style={{ fontSize: 12, color: isDarkMode ? '#9CA3AF' : '#6B7280' }}> {t('chat.create_group_modal.description_max')}</Text>}
               </Text>
               <TextInput
                 style={[
@@ -514,7 +516,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
                     textAlignVertical: 'top',
                   },
                 ]}
-                placeholder={isEditMode ? "Enter group description (optional)..." : "Enter group description (required)..."}
+                placeholder={isEditMode ? t('chat.create_group_modal.description_placeholder_optional') : t('chat.create_group_modal.description_placeholder_required')}
                 placeholderTextColor={isDarkMode ? '#666' : '#999'}
                 value={groupDescription}
                 onChangeText={setGroupDescription}
@@ -528,9 +530,9 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
               <>
                 <View style={styles.memberCountContainer}>
                   <Text style={styles.memberCountText}>
-                    {selectedMemberIds.length} member{selectedMemberIds.length !== 1 ? 's' : ''} selected
+                    {t('chat.create_group_modal.members_selected', { count: selectedMemberIds.length })}
                     {totalMembers >= MAX_GROUP_MEMBERS && (
-                      <Text style={styles.maxReachedText}> (Max reached)</Text>
+                      <Text style={styles.maxReachedText}> {t('chat.create_group_modal.max_reached')}</Text>
                     )}
                   </Text>
                 </View>
@@ -540,7 +542,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
                 <View style={styles.membersList}>
                   {selectedMembersList.length === 0 ? (
                     <View style={styles.emptyContainer}>
-                      <Text style={styles.emptyText}>No members selected</Text>
+                      <Text style={styles.emptyText}>{t('chat.create_group_modal.no_members')}</Text>
                     </View>
                   ) : (
                     selectedMembersList.map((item) => (
@@ -557,7 +559,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
                           />
                         </View>
                         <Text style={styles.memberName} numberOfLines={1}>
-                          {item.displayName || 'Anonymous'}
+                          {item.displayName || t('chat.anonymous')}
                         </Text>
                         <TouchableOpacity
                           onPress={() => handleRemoveUser(item.id)}
@@ -590,7 +592,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
                 ) : (
                   <>
                     <Icon name={isEditMode ? "checkmark" : "people"} size={20} color="#fff" />
-                    <Text style={styles.createButtonText}>{isEditMode ? 'Update Group' : 'Create Group'}</Text>
+                    <Text style={styles.createButtonText}>{isEditMode ? t('chat.create_group_modal.update_button') : t('chat.create_group_modal.create_title')}</Text>
                   </>
                 )}
               </TouchableOpacity>

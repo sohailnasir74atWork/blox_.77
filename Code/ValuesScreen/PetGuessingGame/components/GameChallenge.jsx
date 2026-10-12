@@ -250,7 +250,7 @@ const GameChallenge = ({ roomData, currentUser, onAnswer, roomId }) => {
 
       {challenge.type === 'name' && challenge.imageUrl && (
         <View style={styles.imageContainer}>
-          <Image
+          <Image resizeMethod="resize"
             source={{ uri: challenge.imageUrl }}
             style={styles.petImage}
             resizeMode="contain"

@@ -83,7 +83,7 @@ const ChatHeaderContent = ({
       {/* ── Top Bar: No Spamming + Info ── */}
       <View style={styles.topBar}>
         <Text style={styles.topBarText}>
-          No Spamming | No Abuse | Be Civil & Polite
+          {t('chat.chat_header_content.top_bar_rules')}
         </Text>
         <TouchableOpacity onPress={() => { setModalVisibleChatinfo(true); triggerHapticFeedback('impactLight'); }}>
           <Icon name="information-circle-outline" size={15} color={config.colors.primary} style={{ marginRight: 10 }} />

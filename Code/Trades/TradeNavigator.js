@@ -140,7 +140,7 @@ export const TradeStack = ({ selectedTheme }) => {
         <Stack.Screen
           name="Trade Notifier"
           component={NotifierDrawer}
-
+          options={{ title: t('trade.trade_navigator.notifier_title') }}
         />
       </Stack.Navigator>
 

@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
 
 import config from '../Helper/Environment';
 import { useGlobalState } from '../GlobelStats';
@@ -16,6 +17,7 @@ const Stack = createNativeStackNavigator();
 export const DesignStack = ({ selectedTheme }) => {
   const [bannedUsers, setBannedUsers] = useState([]);
   const { triggerHapticFeedback } = useHaptic();
+  const { t } = useTranslation();
   const { theme } = useGlobalState();
   const isDarkMode = theme === 'dark';
 
@@ -71,7 +73,7 @@ export const DesignStack = ({ selectedTheme }) => {
         name="DesignScreen"
         component={DesignFeedScreen}
         initialParams={sharedParams}
-        options={{ header: () => <ThemeHeader title="Community Feed" /> }}
+        options={{ header: () => <ThemeHeader title={t('feed.navigation.community_feed')} /> }}
       />
 
       <Stack.Screen name="PrivateChatDesign" options={getPrivateChatOptions}>
@@ -89,7 +91,7 @@ export const DesignStack = ({ selectedTheme }) => {
       <Stack.Screen
         name="ImageViewerScreen"
         component={ImageViewerScreen}
-        options={{ title: 'Image' }}
+        options={{ title: t('feed.navigation.image') }}
       />
     </Stack.Navigator>
   );

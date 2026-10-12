@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState, useCallback, useRef } from 'react';
+import React, { memo, useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import {
   FlatList,
   View,
@@ -22,7 +22,8 @@ import { fruitStyles } from '../PrivateChat/PrivateMessageList';
 import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
 import { parseMessageText } from '../ChatHelper';
-import { resolveProfile, seedFromMessage } from '../../Helper/profileCache';
+import { resolveProfile, seedFromMessage, warmProfileCache, getCachedProfile } from '../../Helper/profileCache';
+import RoleBadges from '../../Design/componenets/RoleBadges';
 import FramedAvatar from './FramedAvatar';
 import { BirthdayCake } from '../../Birthdays/BirthdayBits';
 import { getSafeTextColor, RainbowText, isMultiColorText, getMultiColorPalette } from '../../Helper/contrastHelper';
@@ -48,7 +49,25 @@ const GroupMessageList = ({
   canPin = false, // The group's creator may pin too (staff always can)
   pinnedIds = null, // Set of pinned message ids (the menu then offers Unpin)
 }) => {
-  const { theme, isAdmin, isModerator } = useGlobalState();
+  const { theme, isAdmin, isModerator, appdatabase } = useGlobalState();
+
+  // Group messages carry no role fields, so staff/role badges come from the
+  // profile cache (Supabase user_roles), same as the public chat.
+  const [profileCacheVersion, setProfileCacheVersion] = useState(0);
+  useEffect(() => {
+    if (!appdatabase || !Array.isArray(messages) || messages.length === 0) return;
+    const uids = [...new Set(messages.map(m => m?.senderId).filter(Boolean))]
+      .filter(uid => {
+        const c = getCachedProfile(uid);
+        return !c || c._seeded;
+      });
+    if (uids.length === 0) return;
+    let cancelled = false;
+    warmProfileCache(appdatabase, uids).then(() => {
+      if (!cancelled) setProfileCacheVersion(v => v + 1);
+    });
+    return () => { cancelled = true; };
+  }, [messages, appdatabase]);
   const isDarkMode = theme === 'dark';
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
   const { t } = useTranslation();
@@ -113,30 +132,30 @@ const GroupMessageList = ({
     if (!message || !message.text) return;
     Clipboard.setString(message.text);
     triggerHapticFeedback('impactLight');
-    showSuccessMessage('Success', 'Message Copied');
-  }, [triggerHapticFeedback]);
+    showSuccessMessage(t('chat.message_common.success'), t('chat.message_common.message_copied'));
+  }, [triggerHapticFeedback, t]);
 
   // Get reply preview text
   const getReplyPreview = useCallback((replyTo) => {
-    if (!replyTo || typeof replyTo !== 'object') return '[Deleted message]';
+    if (!replyTo || typeof replyTo !== 'object') return t('chat.message_common.reply_deleted');
 
     if (replyTo.text && typeof replyTo.text === 'string' && replyTo.text.trim().length > 0) {
       return replyTo.text;
     }
 
     if (replyTo.imageUrl) {
-      return '[Image]';
+      return t('chat.message_common.reply_image');
     }
 
     if (replyTo.hasFruits || (Array.isArray(replyTo.fruits) && replyTo.fruits.length > 0)) {
       const count = replyTo.fruitsCount || (Array.isArray(replyTo.fruits) ? replyTo.fruits.length : 0);
       return count > 0
-        ? `[${count} pet(s) message]`
-        : '[Pets message]';
+        ? t('chat.message_common.reply_pets_count', { count })
+        : t('chat.message_common.reply_pets');
     }
 
-    return '[Deleted message]';
-  }, []);
+    return t('chat.message_common.reply_deleted');
+  }, [t]);
 
   // Filtered messages (sorted descending for inverted FlatList)
   const filteredMessages = useMemo(() => {
@@ -224,7 +243,7 @@ const GroupMessageList = ({
                 onPress={() => scrollToMessage && scrollToMessage(item.replyTo.id)}
               >
                 <Text style={[styles.replyText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]} numberOfLines={2}>
-                  Replying to: {'\n'}
+                  {t('chat.replying_to')} {'\n'}
                   {getReplyPreview(item.replyTo)}
                 </Text>
               </TouchableOpacity>
@@ -274,13 +293,13 @@ const GroupMessageList = ({
                         numberOfLines={1}
                         ellipsizeMode="tail"
                       >
-                        {senderName}
+                        {item.sender || t('chat.anonymous')}
                       </Text>
                       <BirthdayCake uid={item.senderId} />
 
                       {/* Pro badge */}
                       {item?.isPro && (
-                        <Image
+                        <Image resizeMethod="resize"
                           source={require('../../../assets/pro.png')}
                           style={{ width: 16, height: 16, marginLeft: 4 }}
                         />
@@ -288,7 +307,7 @@ const GroupMessageList = ({
 
                       {/* Verified badge */}
                       {item?.robloxUsernameVerified && (
-                        <Image
+                        <Image resizeMethod="resize"
                           source={require('../../../assets/verification.png')}
                           style={{ width: 16, height: 16, marginLeft: 4 }}
                         />
@@ -296,7 +315,7 @@ const GroupMessageList = ({
 
                       {/* Trophy badge (recent win) */}
                       {hasRecentWin && (
-                        <Image
+                        <Image resizeMethod="resize"
                           source={require('../../../assets/trophy.webp')}
                           style={{ width: 10, height: 10, marginLeft: 4 }}
                         />
@@ -315,9 +334,11 @@ const GroupMessageList = ({
                             color: '#FFF',
                             fontSize: 9,
                             fontWeight: '600'
-                          }}>Creator</Text>
+                          }}>{t('chat.message_common.creator_badge')}</Text>
                         </View>
                       )}
+
+                      <RoleBadges userItem={item} cacheVersion={profileCacheVersion} />
                     </View>
                   </TouchableOpacity>
                   {/* Image */}
@@ -332,7 +353,7 @@ const GroupMessageList = ({
                           })
                         }
                       >
-                        <Image source={{ uri: item.imageUrl }} style={styles.chatImage} />
+                        <Image resizeMethod="resize" source={{ uri: item.imageUrl }} style={styles.chatImage} />
                       </TouchableOpacity>
                     </View>
                   )}
@@ -357,7 +378,7 @@ const GroupMessageList = ({
                             key={`${fruit.id || fruit.name}-${index}`}
                             style={fruitStyles.fruitCard}
                           >
-                            <Image
+                            <Image resizeMethod="resize"
                               source={{ uri: fruit.imageUrl }}
                               style={fruitStyles.fruitImage}
                             />
@@ -379,7 +400,7 @@ const GroupMessageList = ({
                                   { color: fc.valueColor },
                                 ]}
                               >
-                                · Value: {Number(fruit.value || 0).toLocaleString()}
+                                {t('chat.message_common.fruit_value', { value: Number(fruit.value || 0).toLocaleString() })}
                               </Text>
 
                               <View style={fruitStyles.badgeRow}>
@@ -423,7 +444,7 @@ const GroupMessageList = ({
                               { color: fc.totalLabel },
                             ]}
                           >
-                            Total:
+                            {t('chat.message_common.total')}
                           </Text>
                           <Text
                             style={[
@@ -465,7 +486,7 @@ const GroupMessageList = ({
                 }}
               >
                 <MenuOption onSelect={() => handleCopy(item)}>
-                  <Text style={styles.menuOptionText}>Copy</Text>
+                  <Text style={styles.menuOptionText}>{t('chat.copy')}</Text>
                 </MenuOption>
                 {userId && onReply && (
                   <MenuOption onSelect={() => onReply(item)}>
@@ -506,7 +527,7 @@ const GroupMessageList = ({
         </View>
       );
     },
-    [userId, user, groupData, styles, fruitColors, myFruitColors, handleCopy, navigation, triggerHapticFeedback, onUserPress, isDarkMode, onReply, scrollToMessage, highlightedMessageId, getReplyPreview, t, onPinMessage, canPin, pinnedIds, isAdmin, isModerator]
+    [userId, user, groupData, styles, fruitColors, myFruitColors, handleCopy, navigation, triggerHapticFeedback, onUserPress, isDarkMode, onReply, scrollToMessage, highlightedMessageId, getReplyPreview, t, onPinMessage, canPin, pinnedIds, isAdmin, isModerator, profileCacheVersion]
   );
 
   const keyExtractor = useCallback((item, index) => {
@@ -540,7 +561,7 @@ const GroupMessageList = ({
       inverted={true} // ✅ Latest messages at bottom
       style={messageListStyles}
       contentContainerStyle={messageListContentStyles}
-      extraData={highlightedMessageId} // Re-render when highlight changes
+      extraData={`${highlightedMessageId}-${profileCacheVersion}`} // Re-render on highlight / roles loaded
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#8B5CF6" />
       }
@@ -561,7 +582,7 @@ const GroupMessageList = ({
       ListEmptyComponent={
         !loading ? (
           <View style={{ padding: 40, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={styles.emptyText}>No messages yet</Text>
+            <Text style={styles.emptyText}>{t('chat.message_common.no_messages')}</Text>
           </View>
         ) : null
       }

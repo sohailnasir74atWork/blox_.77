@@ -34,6 +34,7 @@ import { resetUserState } from '../Globelhelper';
 import ConditionalKeyboardWrapper from '../Helper/keyboardAvoidingContainer';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { useLocalState } from '../LocalGlobelStats';
+import { setValueUpdateSubscription } from '../Helper/valueUpdateAlerts';
 import config from '../Helper/Environment';
 import notifee from '@notifee/react-native';
 import SubscriptionScreen from './OfferWall';
@@ -41,6 +42,7 @@ import { ref, remove, get, update } from '@react-native-firebase/database';
 import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
 import { useLanguage } from '../Translation/LanguageProvider';
 import { useTranslation } from 'react-i18next';
+import i18next from 'i18next';
 import { showSuccessMessage, showErrorMessage } from '../Helper/MessageHelper';
 import { claimUsername } from '../Supabase/usernameBackend';
 import { setAppLanguage } from '../../i18n';
@@ -262,7 +264,7 @@ const EditProfileDrawerContent = ({
         {/* Display Name - Minimal Design */}
         <View style={{ marginBottom: 10 }}>
           <Text style={{ fontSize: 11, fontWeight: 'bold', color: isDarkMode ? '#9ca3af' : '#6b7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            Display Name
+            {t('settings.setting.display_name')}
           </Text>
           <TextInput
             style={{
@@ -273,7 +275,7 @@ const EditProfileDrawerContent = ({
               color: isDarkMode ? '#fff' : '#000',
               borderWidth: 0,
             }}
-            placeholder="Enter name"
+            placeholder={t('settings.setting.enter_name')}
             placeholderTextColor={isDarkMode ? '#6b7280' : '#9ca3af'}
             value={newDisplayName}
             onChangeText={setNewDisplayName}
@@ -283,7 +285,7 @@ const EditProfileDrawerContent = ({
         {/* Profile Picture - Clean Section */}
         <View style={{ marginBottom: 10 }}>
           <Text style={{ fontSize: 11, fontWeight: 'bold', color: isDarkMode ? '#9ca3af' : '#6b7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            Profile Picture
+            {t('settings.setting.profile_picture')}
           </Text>
 
           <TouchableOpacity
@@ -311,7 +313,7 @@ const EditProfileDrawerContent = ({
                   style={{ marginRight: 6 }}
                 />
                 <Text style={{ color: config.colors.primary, fontSize: 13, fontWeight: 'bold' }}>
-                  Upload Photo
+                  {t('settings.setting.upload_photo')}
                 </Text>
               </>
             )}
@@ -333,7 +335,7 @@ const EditProfileDrawerContent = ({
                 color: isDarkMode ? '#fff' : '#000',
                 padding: 0,
               }}
-              placeholder="Search fruits..."
+              placeholder={t('settings.setting.search_fruits')}
               placeholderTextColor={isDarkMode ? '#6b7280' : '#9ca3af'}
               value={avatarSearch}
               onChangeText={setAvatarSearch}
@@ -359,7 +361,7 @@ const EditProfileDrawerContent = ({
                   padding: selectedImage === item.url ? 2 : 0,
                 }}
               >
-                <Image
+                <Image resizeMethod="resize"
                   source={{ uri: item.url }}
                   style={{ width: 40, height: 40, borderRadius: 20, opacity: selectedImage === item.url ? 1 : 0.6 }}
                 />
@@ -372,7 +374,7 @@ const EditProfileDrawerContent = ({
         <View style={{ marginBottom: 12 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
             <Text style={{ fontSize: 11, fontWeight: 'bold', color: isDarkMode ? '#9ca3af' : '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Bio
+              {t('settings.setting.bio')}
             </Text>
             <Text style={{
               fontSize: 10,
@@ -393,7 +395,7 @@ const EditProfileDrawerContent = ({
               color: isDarkMode ? '#fff' : '#000',
               borderWidth: 0,
             }}
-            placeholder="Tell us about yourself..."
+            placeholder={t('settings.setting.bio_placeholder')}
             placeholderTextColor={isDarkMode ? '#6b7280' : '#9ca3af'}
             value={bio}
             onChangeText={(text) => {
@@ -428,7 +430,7 @@ const EditProfileDrawerContent = ({
                 fontWeight: 'bold',
                 color: isDarkMode ? '#FCD34D' : '#92400E'
               }}>
-                Edit Cooldown Active
+                {t('settings.setting.cooldown_active')}
               </Text>
             </View>
             <Text style={{
@@ -437,9 +439,7 @@ const EditProfileDrawerContent = ({
               color: isDarkMode ? '#FCD34D' : '#92400E',
               lineHeight: 16,
             }}>
-              You can only edit your display name and profile picture once every {PROFILE_EDIT_COOLDOWN_DAYS} days.
-              Please try again in {cooldownStatus.daysRemaining} day{cooldownStatus.daysRemaining === 1 ? '' : 's'}.
-              (Bio can be edited anytime)
+              {t('settings.setting.cooldown_body', { days: PROFILE_EDIT_COOLDOWN_DAYS, count: cooldownStatus.daysRemaining })}
             </Text>
           </View>
         )}
@@ -462,7 +462,7 @@ const EditProfileDrawerContent = ({
         >
           <Text style={{ color: '#fff', fontSize: 15, fontWeight: 'bold' }}>
             {shouldDisableSave
-              ? `Edit Available in ${cooldownStatus.daysRemaining} Day${cooldownStatus.daysRemaining === 1 ? '' : 's'}`
+              ? t('settings.setting.edit_available_in', { count: cooldownStatus.daysRemaining })
               : t('settings.save_changes')}
           </Text>
         </TouchableOpacity>
@@ -569,8 +569,8 @@ export default function SettingsScreen({ selectedTheme }) {
       }}
     >
       {[
-        { key: "profile", label: "Profile Settings" },
-        { key: "app", label: "App Settings" },
+        { key: "profile", label: t('settings.setting.tab_profile') },
+        { key: "app", label: t('settings.setting.tab_app') },
       ].map((tab) => {
         const isActive = activeTab === tab.key;
         return (
@@ -580,24 +580,32 @@ export default function SettingsScreen({ selectedTheme }) {
               triggerHapticFeedback('impactLight');
               setActiveTab(tab.key);
             }}
-            android_ripple={{ color: 'rgba(255,255,255,0.2)', borderless: true }}
-            style={{
-              flex: 1,
-              paddingVertical: 10,
-              borderRadius: 10,
-              alignItems: "center",
-              backgroundColor: isActive ? config.colors.primary : "transparent",
-            }}
+            // 2026-10-11: a borderless ripple, set as this view's Android
+            // *background*, took the backgroundColor with it on the New
+            // Architecture, so the active tab lost its fill and its white label
+            // vanished in light mode. Same fix as Adopt Me (2026-10-03): the fill
+            // lives on an inner View and the ripple draws over it.
+            android_ripple={{ color: 'rgba(255,255,255,0.25)', foreground: true }}
+            style={{ flex: 1, borderRadius: 10, overflow: 'hidden' }}
           >
-            <Text
+            <View
               style={{
-                fontSize: 12,
-                fontWeight: 'bold',
-                color: isActive ? "#fff" : (isDarkMode ? "#ddd" : "#333"),
+                paddingVertical: 10,
+                borderRadius: 10,
+                alignItems: "center",
+                backgroundColor: isActive ? config.colors.primary : "transparent",
               }}
             >
-              {tab.label}
-            </Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: 'bold',
+                  color: isActive ? "#fff" : (isDarkMode ? "#ddd" : "#333"),
+                }}
+              >
+                {tab.label}
+              </Text>
+            </View>
           </Pressable>
         );
       })}
@@ -687,8 +695,8 @@ export default function SettingsScreen({ selectedTheme }) {
       // 🔹 Reject heavy images
       if (stat.size > MAX_AVATAR_SIZE_BYTES) {
         Alert.alert(
-          'Image too large',
-          'Please choose a smaller image (max ~500 KB) or crop it before uploading.'
+          t('settings.setting.image_too_large_title'),
+          t('settings.setting.image_too_large_body')
         );
         setUploadingAvatar(false);
         return;
@@ -715,7 +723,7 @@ export default function SettingsScreen({ selectedTheme }) {
 
       if (!res.ok) {
         console.warn('[Bunny avatar ERROR]', res.status, txt?.slice(0, 200));
-        Alert.alert('Upload failed', 'Could not upload image. Please try again.');
+        Alert.alert(t('settings.setting.upload_failed'), t('settings.setting.upload_failed_body'));
         setUploadingAvatar(false);
         return;
       }
@@ -726,11 +734,11 @@ export default function SettingsScreen({ selectedTheme }) {
       setSelectedImage(publicUrl);
     } catch (e) {
       console.warn('[Avatar upload]', e?.message || e);
-      Alert.alert('Upload failed', 'Something went wrong. Please try again.');
+      Alert.alert(t('settings.setting.upload_failed'), t('settings.setting.something_wrong'));
     } finally {
       setUploadingAvatar(false);
     }
-  }, [user?.id]);
+  }, [user?.id, t]);
 
 
 
@@ -757,12 +765,12 @@ export default function SettingsScreen({ selectedTheme }) {
     // ✅ Check if user is pro - if not, show upgrade alert
     if (!localState.isPro) {
       Alert.alert(
-        "Pro Feature",
-        "Buy a plan to unlock this feature",
+        t('settings.setting.pro_feature'),
+        t('settings.setting.pro_feature_body'),
         [
           { text: t("home.cancel"), style: 'cancel' },
           {
-            text: "Upgrade",
+            text: t('settings.setting.upgrade'),
             style: 'default',
             onPress: () => setShowofferWall(true),
           },
@@ -787,7 +795,7 @@ export default function SettingsScreen({ selectedTheme }) {
   // ✅ Verify Roblox username exists and get user ID
   const verifyRobloxUsername = async (username) => {
     if (!username || username.trim().length < 3) {
-      return { valid: false, error: 'Username must be at least 3 characters' };
+      return { valid: false, error: t('settings.setting.roblox_min_length') };
     }
 
     try {
@@ -814,12 +822,12 @@ export default function SettingsScreen({ selectedTheme }) {
 
       // ✅ Check if data exists and has results
       if (!data.data || !Array.isArray(data.data) || data.data.length === 0) {
-        return { valid: false, error: 'Username not found on Roblox. Please check spelling.' };
+        return { valid: false, error: t('settings.setting.roblox_not_found') };
       }
 
       const robloxUser = data.data[0];
       if (!robloxUser || !robloxUser.id) {
-        return { valid: false, error: 'Invalid user data received from Roblox' };
+        return { valid: false, error: t('settings.setting.roblox_invalid_data') };
       }
 
       return {
@@ -829,7 +837,7 @@ export default function SettingsScreen({ selectedTheme }) {
       };
     } catch (error) {
       console.error('Error verifying Roblox username:', error);
-      return { valid: false, error: `Failed to verify username: ${error.message || 'Please try again.'}` };
+      return { valid: false, error: t('settings.setting.roblox_verify_failed', { detail: error.message || t('settings.setting.please_try_again') }) };
     }
   };
 
@@ -853,25 +861,25 @@ export default function SettingsScreen({ selectedTheme }) {
       if (description.includes(code)) {
         return { verified: true, userId: verifyResult.userId };
       } else {
-        return { verified: false, error: 'Verification code not found in your Roblox profile description' };
+        return { verified: false, error: t('settings.setting.roblox_code_not_found') };
       }
     } catch (error) {
       console.error('Error checking verification code:', error);
-      return { verified: false, error: 'Failed to verify. Please try again.' };
+      return { verified: false, error: t('settings.setting.roblox_check_failed') };
     }
   };
 
   // ✅ Handle Roblox username update with verification
   const handleUpdateRobloxUsername = async () => {
     if (!user?.id) {
-      showErrorMessage('Error', 'Please login first');
+      showErrorMessage(t('home.alert.error'), t('settings.setting.login_first'));
       return;
     }
     if (blockedByModGate('profile')) return;
 
     const trimmedUsername = robloxUsername.trim();
     if (!trimmedUsername) {
-      showErrorMessage('Error', 'Please enter a Roblox username');
+      showErrorMessage(t('home.alert.error'), t('settings.setting.enter_roblox_username'));
       return;
     }
 
@@ -881,7 +889,7 @@ export default function SettingsScreen({ selectedTheme }) {
 
     if (!verifyResult.valid) {
       setIsVerifyingRoblox(false);
-      showErrorMessage('Invalid Username', verifyResult.error);
+      showErrorMessage(t('settings.setting.invalid_username'), verifyResult.error);
       return;
     }
 
@@ -891,12 +899,12 @@ export default function SettingsScreen({ selectedTheme }) {
 
     // Show instructions
     Alert.alert(
-      'Verify Your Roblox Username',
-      `To verify ownership, please:\n\n1. Go to your Roblox profile\n2. Edit your profile description\n3. Add this code: ${code}\n4. Save your profile\n5. Then click "I Added It" below`,
+      t('settings.setting.verify_roblox_title'),
+      t('settings.setting.verify_roblox_body', { code }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'I Added It',
+          text: t('settings.setting.i_added_it'),
           onPress: async () => {
             setIsVerifyingRoblox(true);
             const result = await checkVerificationCode(trimmedUsername, code);
@@ -925,9 +933,9 @@ export default function SettingsScreen({ selectedTheme }) {
             }));
 
             if (isVerified) {
-              showSuccessMessage('Success', 'Roblox username verified and saved!');
+              showSuccessMessage(t('home.alert.success'), t('settings.setting.roblox_verified_saved'));
             } else {
-              showSuccessMessage('Username Saved', 'Username saved but not verified. You can verify it later by clicking "Re-verify".');
+              showSuccessMessage(t('settings.setting.username_saved'), t('settings.setting.username_saved_unverified'));
             }
             setIsVerifyingRoblox(false);
           },
@@ -948,7 +956,8 @@ export default function SettingsScreen({ selectedTheme }) {
     { code: "fr", label: t("settings.languages.fr"), flag: "🇫🇷" },
     { code: "de", label: t("settings.languages.de"), flag: "🇩🇪" },
     { code: "ru", label: t("settings.languages.ru"), flag: "🇷🇺" },
-    { code: "ar", label: t("settings.languages.ar"), flag: "🇸🇦" }
+    { code: "ar", label: t("settings.languages.ar"), flag: "🇸🇦" },
+    { code: "ja", label: t("settings.languages.ja"), flag: "🇯🇵" }
   ];
   const iconMap = {
     camping: require('../../assets/Icons/camping.png'),
@@ -1082,20 +1091,20 @@ export default function SettingsScreen({ selectedTheme }) {
             const diffMs = now - ts;
             if (diffMs >= 0) {
               const minutes = Math.floor(diffMs / 60000);
-              if (minutes < 1) setCreatedAtText('Just now');
-              else if (minutes < 60) setCreatedAtText(`${minutes} min${minutes === 1 ? '' : 's'} ago`);
+              if (minutes < 1) setCreatedAtText(i18next.t('settings.setting.just_now'));
+              else if (minutes < 60) setCreatedAtText(i18next.t('settings.setting.minutes_ago', { count: minutes }));
               else {
                 const hours = Math.floor(minutes / 60);
-                if (hours < 24) setCreatedAtText(`${hours} hour${hours === 1 ? '' : 's'} ago`);
+                if (hours < 24) setCreatedAtText(i18next.t('settings.setting.hours_ago', { count: hours }));
                 else {
                   const days = Math.floor(hours / 24);
-                  if (days < 30) setCreatedAtText(`${days} day${days === 1 ? '' : 's'} ago`);
+                  if (days < 30) setCreatedAtText(i18next.t('settings.setting.days_ago', { count: days }));
                   else {
                     const months = Math.floor(days / 30);
-                    if (months < 12) setCreatedAtText(`${months} month${months === 1 ? '' : 's'} ago`);
+                    if (months < 12) setCreatedAtText(i18next.t('settings.setting.months_ago', { count: months }));
                     else {
                       const years = Math.floor(months / 12);
-                      setCreatedAtText(`${years} year${years === 1 ? '' : 's'} ago`);
+                      setCreatedAtText(i18next.t('settings.setting.years_ago', { count: years }));
                     }
                   }
                 }
@@ -1170,6 +1179,17 @@ export default function SettingsScreen({ selectedTheme }) {
     }
   };
 
+  // Value update notifications: the FCM topic `value-updates`
+  // (Code/Helper/valueUpdateAlerts.js). Saved locally, default ON. Turning it
+  // on also asks for notification permission, so the pushes can show.
+  const handleToggleValueUpdates = async (value) => {
+    updateLocalState('valueUpdateNotifications', value);
+    setValueUpdateSubscription(value);
+    if (value) {
+      await requestPermission();
+    }
+  };
+
   // Handle toggle
   const handleToggleNotification = async (value) => {
     if (value) {
@@ -1216,8 +1236,8 @@ export default function SettingsScreen({ selectedTheme }) {
 
         if (daysSinceLastEdit < PROFILE_EDIT_COOLDOWN_DAYS) {
           showErrorMessage(
-            'Edit Cooldown',
-            `You can only edit your display name and profile picture once every ${PROFILE_EDIT_COOLDOWN_DAYS} days. Please try again in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'}.`
+            t('settings.setting.edit_cooldown'),
+            t('settings.setting.cooldown_error', { days: PROFILE_EDIT_COOLDOWN_DAYS, count: daysRemaining })
           );
           return;
         }
@@ -1248,8 +1268,8 @@ export default function SettingsScreen({ selectedTheme }) {
             showErrorMessage(
               t('home.alert.error'),
               err?.taken
-                ? 'That username is already taken. Please choose a different one.'
-                : (err?.message || 'Could not verify username availability. Please try again.')
+                ? t('settings.setting.username_taken')
+                : (err?.message || t('settings.setting.username_check_failed'))
             );
             return;
           }
@@ -1297,7 +1317,7 @@ export default function SettingsScreen({ selectedTheme }) {
       console.error('Error updating profile:', error);
       showErrorMessage(
         t("home.alert.error"),
-        "Failed to save profile changes. Please try again."
+        t('settings.setting.save_profile_failed')
       );
     }
   };
@@ -1329,7 +1349,7 @@ export default function SettingsScreen({ selectedTheme }) {
       <View key={`${pet.id || pet.name}-${index}`} style={styles.petBubble}>
 
 
-        <Image
+        <Image resizeMethod="resize"
           source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/${pet.type === 'n' ? '09' : '08'}/${formatName(pet.name)}_Icon.webp` }}
           style={styles.petImageSmall}
         />
@@ -1445,7 +1465,7 @@ export default function SettingsScreen({ selectedTheme }) {
                 id: doc.id,
                 ...data,
                 type: 'gave',
-                reviewedUserName: userData?.displayName || 'Unknown User',
+                reviewedUserName: userData?.displayName || i18next.t('settings.setting.unknown_user'),
                 reviewedUserAvatar: userData?.avatar || null,
               };
             } catch (error) {
@@ -1453,7 +1473,7 @@ export default function SettingsScreen({ selectedTheme }) {
                 id: doc.id,
                 ...data,
                 type: 'gave',
-                reviewedUserName: 'Unknown User',
+                reviewedUserName: i18next.t('settings.setting.unknown_user'),
                 reviewedUserAvatar: null,
               };
             }
@@ -1505,7 +1525,7 @@ export default function SettingsScreen({ selectedTheme }) {
                 id: doc.id,
                 ...data,
                 type: 'received',
-                reviewerName: userData?.displayName || 'Unknown User',
+                reviewerName: userData?.displayName || i18next.t('settings.setting.unknown_user'),
                 reviewerAvatar: userData?.avatar || null,
               };
             } catch (error) {
@@ -1513,7 +1533,7 @@ export default function SettingsScreen({ selectedTheme }) {
                 id: doc.id,
                 ...data,
                 type: 'received',
-                reviewerName: 'Unknown User',
+                reviewerName: i18next.t('settings.setting.unknown_user'),
                 reviewerAvatar: null,
               };
             }
@@ -1568,7 +1588,7 @@ export default function SettingsScreen({ selectedTheme }) {
                   id: doc.id,
                   ...data,
                   type: 'gave',
-                  reviewedUserName: userData?.displayName || 'Unknown User',
+                  reviewedUserName: userData?.displayName || t('settings.setting.unknown_user'),
                   reviewedUserAvatar: userData?.avatar || null,
                 };
               } catch (error) {
@@ -1576,7 +1596,7 @@ export default function SettingsScreen({ selectedTheme }) {
                   id: doc.id,
                   ...data,
                   type: 'gave',
-                  reviewedUserName: 'Unknown User',
+                  reviewedUserName: t('settings.setting.unknown_user'),
                   reviewedUserAvatar: null,
                 };
               }
@@ -1602,7 +1622,7 @@ export default function SettingsScreen({ selectedTheme }) {
     } finally {
       setLoadingModalGaveReviews(false);
     }
-  }, [user?.id, firestoreDB, appdatabase, modalLastGaveDoc, loadingModalGaveReviews]);
+  }, [user?.id, firestoreDB, appdatabase, modalLastGaveDoc, loadingModalGaveReviews, t]);
 
   // Load more "received" reviews in modal - keeps loading until all are fetched
   const loadMoreReceivedModalReviews = useCallback(async () => {
@@ -1638,7 +1658,7 @@ export default function SettingsScreen({ selectedTheme }) {
                   id: doc.id,
                   ...data,
                   type: 'received',
-                  reviewerName: userData?.displayName || 'Unknown User',
+                  reviewerName: userData?.displayName || t('settings.setting.unknown_user'),
                   reviewerAvatar: userData?.avatar || null,
                 };
               } catch (error) {
@@ -1646,7 +1666,7 @@ export default function SettingsScreen({ selectedTheme }) {
                   id: doc.id,
                   ...data,
                   type: 'received',
-                  reviewerName: 'Unknown User',
+                  reviewerName: t('settings.setting.unknown_user'),
                   reviewerAvatar: null,
                 };
               }
@@ -1672,7 +1692,7 @@ export default function SettingsScreen({ selectedTheme }) {
     } finally {
       setLoadingModalReceivedReviews(false);
     }
-  }, [user?.id, firestoreDB, appdatabase, modalLastReceivedDoc, loadingModalReceivedReviews]);
+  }, [user?.id, firestoreDB, appdatabase, modalLastReceivedDoc, loadingModalReceivedReviews, t]);
 
   // Load "My Trades" modal when opens
   useEffect(() => {
@@ -1739,11 +1759,11 @@ export default function SettingsScreen({ selectedTheme }) {
               ]);
               return {
                 id: followerId,
-                displayName: displayNameSnap.val() || 'Unknown',
+                displayName: displayNameSnap.val() || i18next.t('settings.setting.unknown'),
                 avatar: avatarSnap.val() || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
               };
             } catch {
-              return { id: followerId, displayName: 'Unknown', avatar: 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' };
+              return { id: followerId, displayName: i18next.t('settings.setting.unknown'), avatar: 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' };
             }
           })
         );
@@ -1790,11 +1810,11 @@ export default function SettingsScreen({ selectedTheme }) {
             ]);
             return {
               id: followerId,
-              displayName: displayNameSnap.val() || 'Unknown',
+              displayName: displayNameSnap.val() || t('settings.setting.unknown'),
               avatar: avatarSnap.val() || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png',
             };
           } catch {
-            return { id: followerId, displayName: 'Unknown', avatar: 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' };
+            return { id: followerId, displayName: t('settings.setting.unknown'), avatar: 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' };
           }
         })
       );
@@ -1808,7 +1828,7 @@ export default function SettingsScreen({ selectedTheme }) {
     } finally {
       setLoadingModalFollowers(false);
     }
-  }, [user?.id, firestoreDB, appdatabase, modalLastFollowerDoc, loadingModalFollowers]);
+  }, [user?.id, firestoreDB, appdatabase, modalLastFollowerDoc, loadingModalFollowers, t]);
 
   // Load more "My Trades" in modal
   const loadMoreMyTrades = useCallback(async () => {
@@ -1898,12 +1918,12 @@ export default function SettingsScreen({ selectedTheme }) {
     if (!user?.id || !firestoreDB || modalMyTrades.length === 0) return;
 
     Alert.alert(
-      "Delete All Trades",
-      `Are you sure you want to delete all ${modalMyTrades.length} trades? This action cannot be undone.`,
+      t('settings.setting.delete_all_trades_title'),
+      t('settings.setting.delete_all_trades_body', { count: modalMyTrades.length }),
       [
         { text: t("trade.cancel") || "Cancel", style: "cancel" },
         {
-          text: "Delete All",
+          text: t('settings.setting.delete_all'),
           style: "destructive",
           onPress: async () => {
             try {
@@ -1941,10 +1961,10 @@ export default function SettingsScreen({ selectedTheme }) {
               setModalMyTrades([]);
               setModalLastTradeDoc(null);
               setModalHasMoreTrades(false);
-              showSuccessMessage("Success", "All trades deleted successfully");
+              showSuccessMessage(t('home.alert.success'), t('settings.setting.all_trades_deleted'));
             } catch (error) {
               console.error("Error deleting all trades:", error);
-              showErrorMessage("Error", "Failed to delete all trades");
+              showErrorMessage(t('home.alert.error'), t('settings.setting.delete_all_failed'));
             } finally {
               setIsDeletingAll(false);
             }
@@ -1960,7 +1980,7 @@ export default function SettingsScreen({ selectedTheme }) {
     const tradePercentage = Math.abs(((tradeRatio - 1) * 100).toFixed(0));
     const isProfit = tradeRatio > 1;
     const neutral = tradeRatio === 1;
-    const formattedTime = trade.timestamp ? dayjs(trade.timestamp.toDate()).fromNow() : "Unknown";
+    const formattedTime = trade.timestamp ? dayjs(trade.timestamp.toDate()).fromNow() : t('settings.setting.unknown');
 
     const groupedHasItems = groupTradeItems(trade.hasItems || []);
     const groupedWantsItems = groupTradeItems(trade.wantsItems || []);
@@ -1989,7 +2009,7 @@ export default function SettingsScreen({ selectedTheme }) {
                   borderRadius: 4,
                   marginRight: 6,
                 }}>
-                  <Text style={{ color: '#fff', fontSize: 9, fontWeight: '600' }}>FEATURED</Text>
+                  <Text style={{ color: '#fff', fontSize: 9, fontWeight: '600' }}>{t('settings.setting.featured')}</Text>
                 </View>
               )}
               <Text style={{ fontSize: 11, color: isDarkMode ? '#9ca3af' : '#6b7280' }}>
@@ -2047,13 +2067,13 @@ export default function SettingsScreen({ selectedTheme }) {
           {/* Has Items */}
           <View style={{ flex: 1, alignItems: 'center', marginRight: 4 }}>
             <Text style={{ fontSize: 10, fontWeight: '600', color: isDarkMode ? '#9ca3af' : '#6b7280', marginBottom: 6 }}>
-              ME
+              {t('settings.setting.me')}
             </Text>
             {groupedHasItems.length > 0 ? (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 4 }}>
                 {groupedHasItems.slice(0, 3).map((hasItem) => (
                   <View key={`${hasItem.name}-${hasItem.type}`} style={{ alignItems: 'center', marginBottom: 4 }}>
-                    <Image
+                    <Image resizeMethod="resize"
                       source={{
                         uri: hasItem.type === 'p'
                           ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatTradeName(hasItem.name)}_Icon.webp`
@@ -2090,13 +2110,13 @@ export default function SettingsScreen({ selectedTheme }) {
                 ))}
                 {groupedHasItems.length > 3 && (
                   <Text style={{ fontSize: 9, color: isDarkMode ? '#9ca3af' : '#6b7280' }}>
-                    +{groupedHasItems.length - 3} more
+                    {t('settings.setting.plus_more', { count: groupedHasItems.length - 3 })}
                   </Text>
                 )}
               </View>
             ) : (
               <Text style={{ fontSize: 10, color: isDarkMode ? '#6b7280' : '#9ca3af', fontStyle: 'italic' }}>
-                No items
+                {t('settings.setting.no_items')}
               </Text>
             )}
             {groupedHasItems.length > 0 && trade.hasTotal && (
@@ -2117,7 +2137,7 @@ export default function SettingsScreen({ selectedTheme }) {
 
           {/* Transfer Icon */}
           <View style={{ justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8 }}>
-            <Image
+            <Image resizeMethod="resize"
               source={require('../../assets/transfer.png')}
               style={{ width: 20, height: 20, opacity: 0.6 }}
             />
@@ -2126,13 +2146,13 @@ export default function SettingsScreen({ selectedTheme }) {
           {/* Wants Items */}
           <View style={{ flex: 1, alignItems: 'center', marginLeft: 4 }}>
             <Text style={{ fontSize: 10, fontWeight: '600', color: isDarkMode ? '#9ca3af' : '#6b7280', marginBottom: 6 }}>
-              YOU
+              {t('settings.badges_screen.you')}
             </Text>
             {groupedWantsItems.length > 0 ? (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 4 }}>
                 {groupedWantsItems.slice(0, 3).map((wantnItem) => (
                   <View key={`${wantnItem.name}-${wantnItem.type}`} style={{ alignItems: 'center', marginBottom: 4 }}>
-                    <Image
+                    <Image resizeMethod="resize"
                       source={{
                         uri: wantnItem.type === 'p'
                           ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatTradeName(wantnItem.name)}_Icon.webp`
@@ -2169,13 +2189,13 @@ export default function SettingsScreen({ selectedTheme }) {
                 ))}
                 {groupedWantsItems.length > 3 && (
                   <Text style={{ fontSize: 9, color: isDarkMode ? '#9ca3af' : '#6b7280' }}>
-                    +{groupedWantsItems.length - 3} more
+                    {t('settings.setting.plus_more', { count: groupedWantsItems.length - 3 })}
                   </Text>
                 )}
               </View>
             ) : (
               <Text style={{ fontSize: 10, color: isDarkMode ? '#6b7280' : '#9ca3af', fontStyle: 'italic' }}>
-                No items
+                {t('settings.setting.no_items')}
               </Text>
             )}
             {groupedWantsItems.length > 0 && trade.wantsTotal && (
@@ -2226,7 +2246,7 @@ export default function SettingsScreen({ selectedTheme }) {
 
     const trimmedReview = (editReviewText || '').trim();
     if (!trimmedReview) {
-      showErrorMessage('Error', 'Review text cannot be empty');
+      showErrorMessage(t('home.alert.error'), t('settings.setting.review_empty'));
       return;
     }
 
@@ -2282,13 +2302,13 @@ export default function SettingsScreen({ selectedTheme }) {
         )
       );
 
-      showSuccessMessage('Success', 'Review updated successfully!');
+      showSuccessMessage(t('home.alert.success'), t('settings.setting.review_updated'));
       setEditingReview(null);
       setEditReviewText('');
       setEditReviewRating(0);
     } catch (error) {
       console.error('Error updating review:', error);
-      showErrorMessage('Error', 'Failed to update review');
+      showErrorMessage(t('home.alert.error'), t('settings.setting.review_update_failed'));
     }
   };
 
@@ -2437,11 +2457,11 @@ export default function SettingsScreen({ selectedTheme }) {
   const formatPlanName = (plan) => {
     // console.log(plan, 'plan');
 
-    if (plan === 'monthly:monthly' || plan === 'Blox_values_199_1m') return '1 MONTH';
-    if (plan === 'quarterly:quarterly' || plan === 'Blox_values_499_3m') return '3 MONTHS';
-    if (plan === 'yearly:yearly' || plan === 'Blox_values_999_1y') return '1 YEAR';
+    if (plan === 'monthly:monthly' || plan === 'Blox_values_199_1m') return t('settings.setting.plan_1_month');
+    if (plan === 'quarterly:quarterly' || plan === 'Blox_values_499_3m') return t('settings.setting.plan_3_months');
+    if (plan === 'yearly:yearly' || plan === 'Blox_values_999_1y') return t('settings.setting.plan_1_year');
 
-    return 'Anonymous Plan';
+    return t('settings.setting.plan_anonymous');
   };
 
 
@@ -2520,7 +2540,7 @@ export default function SettingsScreen({ selectedTheme }) {
                             borderRadius: 4
                           }}>
                             <Text style={{ color: '#fff', fontSize: 9, fontWeight: '600' }}>
-                              {user?.robloxUsernameVerified ? '✓ Verified' : '⚠ Unverified'}
+                              {user?.robloxUsernameVerified ? t('settings.setting.verified') : t('settings.setting.unverified')}
                             </Text>
                           </View>
                         )}
@@ -2528,7 +2548,7 @@ export default function SettingsScreen({ selectedTheme }) {
                     )}
 
                     {!user?.id && <Text style={styles.rewardLogout}>{t('settings.login_description')}</Text>}
-                    {user?.id && <Text style={styles.reward}>My Points: {userPoints !== null ? Number(userPoints).toLocaleString() : 0}</Text>}
+                    {user?.id && <Text style={styles.reward}>{t('settings.setting.my_points', { points: userPoints !== null ? Number(userPoints).toLocaleString() : 0 })}</Text>}
                   </TouchableOpacity>
                 </View>
                 <TouchableOpacity onPress={handleProfileUpdate}>
@@ -2567,9 +2587,7 @@ export default function SettingsScreen({ selectedTheme }) {
                           color: isDarkMode ? '#e5e7eb' : '#4b5563',
                         }}
                       >
-                        {ratingSummary.value.toFixed(1)} / 5 ·{' '}
-                        {ratingSummary.count} rating
-                        {ratingSummary.count === 1 ? '' : 's'}
+                        {t('settings.setting.rating_summary', { value: ratingSummary.value.toFixed(1), count: ratingSummary.count })}
                       </Text>
                     </>
                   ) : (
@@ -2579,7 +2597,7 @@ export default function SettingsScreen({ selectedTheme }) {
                         color: isDarkMode ? '#9ca3af' : '#6b7280',
                       }}
                     >
-                      Not rated yet
+                      {t('settings.setting.not_rated')}
                     </Text>
                   )}
 
@@ -2595,7 +2613,7 @@ export default function SettingsScreen({ selectedTheme }) {
                         marginLeft: 5,
                       }}
                     >
-                      Joined {createdAtText}
+                      {t('settings.setting.joined', { time: createdAtText })}
                     </Text>
                   )}
                 </View>
@@ -2619,7 +2637,7 @@ export default function SettingsScreen({ selectedTheme }) {
                       color: isDarkMode ? '#e5e7eb' : '#111827',
                     }}
                   >
-                    Bio
+                    {t('settings.setting.bio')}
                   </Text>
                   <Text
                     style={{
@@ -2628,7 +2646,7 @@ export default function SettingsScreen({ selectedTheme }) {
                       lineHeight: 18,
                     }}
                   >
-                    {bio || 'Hi there, I am new here'}
+                    {bio || t('settings.setting.default_bio')}
                   </Text>
                 </View>
               )}
@@ -2661,7 +2679,7 @@ export default function SettingsScreen({ selectedTheme }) {
                     onPress={() => handleToggleOnlineStatus(!localState.showOnlineStatus)}
                   >
                     <Icon name="radio-button-on-outline" size={18} color={'white'} style={{ backgroundColor: '#4CAF50', padding: 5, borderRadius: 5 }} />
-                    <Text style={styles.optionText}>Online Status</Text>
+                    <Text style={styles.optionText}>{t('settings.setting.online_status')}</Text>
                   </TouchableOpacity>
                   <Switch
                     value={localState.showOnlineStatus ?? true}
@@ -2696,7 +2714,7 @@ export default function SettingsScreen({ selectedTheme }) {
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
                     <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <Icon name="chatbubble-ellipses-outline" size={18} color={'white'} style={{ backgroundColor: '#8B5CF6', padding: 5, borderRadius: 5 }} />
-                      <Text style={styles.optionText}>{user?.chatOffGeneral ? 'General Chat Off' : 'General Chat On'}</Text>
+                      <Text style={styles.optionText}>{user?.chatOffGeneral ? t('settings.setting.general_chat_off') : t('settings.setting.general_chat_on')}</Text>
                     </TouchableOpacity>
                     <Switch
                       value={!user?.chatOffGeneral}
@@ -2714,7 +2732,7 @@ export default function SettingsScreen({ selectedTheme }) {
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
                     <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <Icon name="swap-horizontal-outline" size={18} color={'white'} style={{ backgroundColor: '#F59E0B', padding: 5, borderRadius: 5 }} />
-                      <Text style={styles.optionText}>{user?.chatOffTrade ? 'Trade Chat Off' : 'Trade Chat On'}</Text>
+                      <Text style={styles.optionText}>{user?.chatOffTrade ? t('settings.setting.trade_chat_off') : t('settings.setting.trade_chat_on')}</Text>
                     </TouchableOpacity>
                     <Switch
                       value={!user?.chatOffTrade}
@@ -2744,7 +2762,7 @@ export default function SettingsScreen({ selectedTheme }) {
                           marginRight: 8
                         }}
                       />
-                      <Text style={styles.optionText}>Roblox Username</Text>
+                      <Text style={styles.optionText}>{t('settings.setting.roblox_username')}</Text>
                       {robloxUsername && (
                         <View style={{
                           marginLeft: 8,
@@ -2754,7 +2772,7 @@ export default function SettingsScreen({ selectedTheme }) {
                           borderRadius: 4
                         }}>
                           <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>
-                            {robloxUsernameVerified ? '✓ Verified' : '⚠ Unverified'}
+                            {robloxUsernameVerified ? t('settings.setting.verified') : t('settings.setting.unverified')}
                           </Text>
                         </View>
                       )}
@@ -2779,7 +2797,7 @@ export default function SettingsScreen({ selectedTheme }) {
                           fontSize: 14,
                           height: 30,
                         }}
-                        placeholder="Enter your Roblox username"
+                        placeholder={t('settings.setting.roblox_username_placeholder')}
                         placeholderTextColor={isDarkMode ? '#888' : '#999'}
                         value={robloxUsername}
                         onChangeText={setRobloxUsername}
@@ -2816,7 +2834,7 @@ export default function SettingsScreen({ selectedTheme }) {
                           }}
                         >
                           <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>
-                            {robloxUsernameVerified ? 'Re-verify' : 'Verify'}
+                            {robloxUsernameVerified ? t('settings.setting.reverify') : t('settings.setting.verify')}
                           </Text>
                         </TouchableOpacity>
                       )}
@@ -2830,7 +2848,7 @@ export default function SettingsScreen({ selectedTheme }) {
                         marginTop: 4,
                         marginLeft: 0,
                       }}>
-                        ⚠️ Unverified - Click "Verify" to prove ownership
+                        {t('settings.setting.unverified_hint')}
                       </Text>
                     )}
               </View>
@@ -2840,12 +2858,12 @@ export default function SettingsScreen({ selectedTheme }) {
               {/* Followers Section */}
               <View style={styles.reviewsSection}>
                 <Text style={{ fontSize: 14, fontWeight: 'bold', color: isDarkMode ? '#e5e7eb' : '#111827', marginBottom: 12 }}>
-                  Followers
+                  {t('settings.setting.followers')}
                 </Text>
 
                 {!user?.id ? (
                   <Text style={styles.reviewsEmptyText}>
-                    Login to see your followers
+                    {t('settings.setting.login_followers')}
                   </Text>
                 ) : (
                   <TouchableOpacity
@@ -2864,7 +2882,7 @@ export default function SettingsScreen({ selectedTheme }) {
                   >
                     <Icon name="people-outline" size={18} color="#4A90E2" style={{ marginRight: 6 }} />
                     <Text style={{ fontSize: 13, fontWeight: '600', color: isDarkMode ? '#e5e7eb' : '#111827' }}>
-                      View Followers
+                      {t('settings.setting.view_followers')}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -2873,12 +2891,12 @@ export default function SettingsScreen({ selectedTheme }) {
               {/* Reviews Section - Two Small Modern Buttons */}
               <View style={styles.reviewsSection}>
                 <Text style={{ fontSize: 14, fontWeight: 'bold', color: isDarkMode ? '#e5e7eb' : '#111827', marginBottom: 12 }}>
-                  Reviews
+                  {t('settings.setting.reviews')}
                 </Text>
 
                 {!user?.id ? (
                   <Text style={styles.reviewsEmptyText}>
-                    Login to see your reviews
+                    {t('settings.setting.login_reviews')}
                   </Text>
                 ) : (
                   <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -2900,7 +2918,7 @@ export default function SettingsScreen({ selectedTheme }) {
                     >
                       <Icon name="star" size={18} color="#4A90E2" style={{ marginRight: 6 }} />
                       <Text style={{ fontSize: 13, fontWeight: '600', color: isDarkMode ? '#e5e7eb' : '#111827' }}>
-                        I Gave
+                        {t('settings.setting.i_gave')}
                       </Text>
                     </TouchableOpacity>
 
@@ -2922,7 +2940,7 @@ export default function SettingsScreen({ selectedTheme }) {
                     >
                       <Icon name="heart" size={18} color="#9B59B6" style={{ marginRight: 6 }} />
                       <Text style={{ fontSize: 13, fontWeight: '600', color: isDarkMode ? '#e5e7eb' : '#111827' }}>
-                        I Received
+                        {t('settings.setting.i_received')}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -2947,7 +2965,7 @@ export default function SettingsScreen({ selectedTheme }) {
               }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
                   <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Image source={SETTINGS_IMAGES.haptic} style={SETTINGS_IMAGE} />
+                    <Image resizeMethod="resize" source={SETTINGS_IMAGES.haptic} style={SETTINGS_IMAGE} />
                     <Text style={styles.optionText}>{t('settings.haptic_feedback')}</Text></TouchableOpacity>
                   <Switch value={localState.isHaptic} onValueChange={handleToggle} />
                 </View>
@@ -2958,7 +2976,7 @@ export default function SettingsScreen({ selectedTheme }) {
               }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
                   <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Image source={SETTINGS_IMAGES.notifications} style={SETTINGS_IMAGE} />
+                    <Image resizeMethod="resize" source={SETTINGS_IMAGES.notifications} style={SETTINGS_IMAGE} />
                     <Text style={styles.optionText}>{t('settings.chat_notifications')}</Text></TouchableOpacity>
                   <Switch
                     value={isPermissionGranted}
@@ -2968,12 +2986,24 @@ export default function SettingsScreen({ selectedTheme }) {
 
               </View>
 
+              <View style={styles.optionLast}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+                  <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Image resizeMethod="resize" source={SETTINGS_IMAGES.notifications} style={SETTINGS_IMAGE} />
+                    <Text style={styles.optionText}>{t('settings.value_update_notifications')}</Text></TouchableOpacity>
+                  <Switch
+                    value={localState.valueUpdateNotifications !== false}
+                    onValueChange={handleToggleValueUpdates}
+                  />
+                </View>
+              </View>
+
               <View style={styles.optionLast} onPress={() => {
                 handleShareApp(); triggerHapticFeedback('impactLight');
               }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
                   <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Image source={SETTINGS_IMAGES.theme} style={SETTINGS_IMAGE} />
+                    <Image resizeMethod="resize" source={SETTINGS_IMAGES.theme} style={SETTINGS_IMAGE} />
                     <Text style={styles.optionText}>{t('settings.theme')}</Text></TouchableOpacity>
                   <View style={styles.containertheme}>
                     {themes.map((theme, index) => (
@@ -3036,7 +3066,7 @@ export default function SettingsScreen({ selectedTheme }) {
               <TouchableOpacity style={[styles.optionLast]} onPress={() => {
                 setShowofferWall(true);
               }}>
-                <Image source={SETTINGS_IMAGES.pro} style={SETTINGS_IMAGE} />
+                <Image resizeMethod="resize" source={SETTINGS_IMAGES.pro} style={SETTINGS_IMAGE} />
                 <Text style={[styles.optionText, { color: 'black' }]}>
                   {t('settings.active_plan')} : {localState.isPro ? t('settings.paid') : t('settings.free')}
                 </Text>
@@ -3067,66 +3097,66 @@ export default function SettingsScreen({ selectedTheme }) {
               <TouchableOpacity style={styles.option} onPress={() => {
                 handleShareApp(); triggerHapticFeedback('impactLight');
               }}>
-                <Image source={SETTINGS_IMAGES.share} style={SETTINGS_IMAGE} />
+                <Image resizeMethod="resize" source={SETTINGS_IMAGES.share} style={SETTINGS_IMAGE} />
                 <Text style={styles.optionText}>{t('settings.share_app')}</Text>
               </TouchableOpacity>
               {/* <TouchableOpacity style={styles.option} onPress={() => {
             handleGetSuggestions(user); triggerHapticFeedback('impactLight');
           }}>
             <Icon name="color-filter-outline" size={18} color={'white'}  style={{backgroundColor:'#066D5D', padding:5, borderRadius:5}}/>
-            <Text style={styles.optionText}>Partner with Us</Text>
+            <Text style={styles.optionText}>{t('settings.setting.partner_with_us')}</Text>
           </TouchableOpacity> */}
               <TouchableOpacity style={styles.option} onPress={() => {
                 handleGetSuggestions(user); triggerHapticFeedback('impactLight');
               }}>
-                <Image source={SETTINGS_IMAGES.contact} style={SETTINGS_IMAGE} />
-                <Text style={styles.optionText}>Contact Us</Text>
+                <Image resizeMethod="resize" source={SETTINGS_IMAGES.contact} style={SETTINGS_IMAGE} />
+                <Text style={styles.optionText}>{t('settings.setting.contact_us')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.option} onPress={() => {
                 handleReport(user); triggerHapticFeedback('impactLight');
               }}>
-                <Image source={SETTINGS_IMAGES.report} style={SETTINGS_IMAGE} />
-                <Text style={styles.optionText}>Report Abusive Content</Text>
+                <Image resizeMethod="resize" source={SETTINGS_IMAGES.report} style={SETTINGS_IMAGE} />
+                <Text style={styles.optionText}>{t('settings.setting.report_abusive')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.option} onPress={() => { handleRateApp(); triggerHapticFeedback('impactLight'); }
               }>
-                <Image source={SETTINGS_IMAGES.rate} style={SETTINGS_IMAGE} />
+                <Image resizeMethod="resize" source={SETTINGS_IMAGES.rate} style={SETTINGS_IMAGE} />
                 <Text style={styles.optionText}>{t('settings.rate_us')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.option} onPress={() => {
                 handleOpenFacebook(); triggerHapticFeedback('impactLight');
               }}>
-                <Image source={SETTINGS_IMAGES.community} style={SETTINGS_IMAGE} />
+                <Image resizeMethod="resize" source={SETTINGS_IMAGES.community} style={SETTINGS_IMAGE} />
                 <Text style={styles.optionText}>{t('settings.visit_facebook_group')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={user?.id ? styles.option : styles.optionLast} onPress={() => {
                 handleOpenWebsite(); triggerHapticFeedback('impactLight');
               }}>
-                <Image source={SETTINGS_IMAGES.website} style={SETTINGS_IMAGE} />
+                <Image resizeMethod="resize" source={SETTINGS_IMAGES.website} style={SETTINGS_IMAGE} />
                 <Text style={styles.optionText}>{t('settings.visit_website')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={user?.id ? styles.option : styles.optionLast} onPress={() => {
                 handleOpenPrivacy(); triggerHapticFeedback('impactLight');
               }}>
-                <Image source={SETTINGS_IMAGES.privacy} style={SETTINGS_IMAGE} />
-                <Text style={styles.optionText}>Privacy Policy</Text>
+                <Image resizeMethod="resize" source={SETTINGS_IMAGES.privacy} style={SETTINGS_IMAGE} />
+                <Text style={styles.optionText}>{t('offer.privacyPolicy')}</Text>
               </TouchableOpacity>
               {privacyOptionsRequired && (
                 <TouchableOpacity style={user?.id ? styles.option : styles.optionLast} onPress={() => {
                   showPrivacyOptionsForm(); triggerHapticFeedback('impactLight');
                 }}>
-                  <Image source={SETTINGS_IMAGES.privacyOptions} style={SETTINGS_IMAGE} />
+                  <Image resizeMethod="resize" source={SETTINGS_IMAGES.privacyOptions} style={SETTINGS_IMAGE} />
                   <Text style={styles.optionText}>{t('settings.privacy_options', { defaultValue: 'Privacy options' })}</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity style={user?.id ? styles.option : styles.optionLast} onPress={() => {
                 handleOpenChild(); triggerHapticFeedback('impactLight');
               }}>
-                <Image source={SETTINGS_IMAGES.childSafety} style={SETTINGS_IMAGE} />
-                <Text style={styles.optionText}>Child Safety Standards</Text>
+                <Image resizeMethod="resize" source={SETTINGS_IMAGES.childSafety} style={SETTINGS_IMAGE} />
+                <Text style={styles.optionText}>{t('settings.setting.child_safety')}</Text>
               </TouchableOpacity>
               {user?.id && <TouchableOpacity style={styles.option} onPress={handleLogout} >
-                <Image source={SETTINGS_IMAGES.logout} style={SETTINGS_IMAGE} />
+                <Image resizeMethod="resize" source={SETTINGS_IMAGES.logout} style={SETTINGS_IMAGE} />
                 <Text style={styles.optionTextLogout}>{t('settings.logout')}</Text>
               </TouchableOpacity>}
               {user?.id && <TouchableOpacity style={styles.optionDelete} onPress={handleDeleteUser} >
@@ -3137,7 +3167,7 @@ export default function SettingsScreen({ selectedTheme }) {
 
 
             </View>
-            <Text style={styles.subtitle}>Our Other APPS</Text>
+            <Text style={styles.subtitle}>{t('settings.setting.other_apps')}</Text>
 
             <View style={styles.cardContainer}>
 
@@ -3145,7 +3175,7 @@ export default function SettingsScreen({ selectedTheme }) {
               <TouchableOpacity style={styles.option} onPress={() => {
                 handleadoptme(); triggerHapticFeedback('impactLight');
               }}>
-                <Image
+                <Image resizeMethod="resize"
                   source={require('../../assets/adoptme.png')}
                   style={{ width: 40, height: 40, borderRadius: 5 }}
                 />
@@ -3155,7 +3185,7 @@ export default function SettingsScreen({ selectedTheme }) {
               <TouchableOpacity style={styles.optionLast} onPress={() => {
                 handleMM2(); triggerHapticFeedback('impactLight');
               }}>
-                <Image
+                <Image resizeMethod="resize"
                   source={require('../../assets/logo2.png')}
                   style={{ width: 40, height: 40, borderRadius: 5 }}
                 />
@@ -3165,11 +3195,11 @@ export default function SettingsScreen({ selectedTheme }) {
 
 
             </View>
-            <Text style={styles.subtitle}>Business Enquiries
+            <Text style={styles.subtitle}>{t('settings.setting.business_enquiries')}
             </Text>
 
             <Text style={styles.text}>
-              For collaborations, partnerships, or other business-related queries, feel free to contact us at:{' '}
+              {t('settings.setting.business_body')}{' '}
               <TouchableOpacity onPress={() => Linking.openURL('mailto:thesolanalabs@gmail.com')}>
                 <Text style={styles.emailText}>thesolanalabs@gmail.com</Text>
               </TouchableOpacity>
@@ -3224,7 +3254,7 @@ export default function SettingsScreen({ selectedTheme }) {
           visible={openSingnin}
           onClose={() => setOpenSignin(false)}
           selectedTheme={selectedTheme}
-          message='Signin to access all features'
+          message={t('settings.setting.signin_message')}
           screen='Setting'
         />
 
@@ -3256,7 +3286,7 @@ export default function SettingsScreen({ selectedTheme }) {
           }}>
             <View style={[styles.drawer, { maxHeight: '90%', paddingBottom: Math.max(insets.bottom, 16) }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <Text style={styles.drawerSubtitle}>Reviews I Gave</Text>
+                <Text style={styles.drawerSubtitle}>{t('settings.setting.reviews_i_gave')}</Text>
                 <TouchableOpacity onPress={() => {
                   setShowGaveReviewsModal(false);
                   setModalGaveReviews([]);
@@ -3272,7 +3302,7 @@ export default function SettingsScreen({ selectedTheme }) {
                   <ActivityIndicator size="small" color={config.colors.primary} style={{ marginVertical: 20 }} />
                 ) : modalGaveReviews.length === 0 ? (
                   <Text style={{ textAlign: 'center', color: isDarkMode ? '#9ca3af' : '#6b7280', marginVertical: 20 }}>
-                    No reviews found
+                    {t('settings.setting.no_reviews')}
                   </Text>
                 ) : (
                   <>
@@ -3291,7 +3321,7 @@ export default function SettingsScreen({ selectedTheme }) {
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                           <View style={{ flex: 1 }}>
                             <Text style={{ fontSize: 14, fontWeight: '600', color: isDarkMode ? '#e5e7eb' : '#111827', marginBottom: 4 }}>
-                              {review.reviewedUserName || 'Unknown User'}
+                              {review.reviewedUserName || t('settings.setting.unknown_user')}
                             </Text>
                             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                               {[1, 2, 3, 4, 5].map((star) => (
@@ -3305,7 +3335,7 @@ export default function SettingsScreen({ selectedTheme }) {
                               ))}
                               {review.edited && (
                                 <Text style={{ fontSize: 10, color: isDarkMode ? '#9ca3af' : '#6b7280', marginLeft: 6 }}>
-                                  (Edited)
+                                  {t('settings.setting.edited')}
                                 </Text>
                               )}
                             </View>
@@ -3353,7 +3383,7 @@ export default function SettingsScreen({ selectedTheme }) {
                           <ActivityIndicator size="small" color="#FFFFFF" />
                         ) : (
                           <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
-                            Load More
+                            {t('settings.setting.load_more')}
                           </Text>
                         )}
                       </TouchableOpacity>
@@ -3393,7 +3423,7 @@ export default function SettingsScreen({ selectedTheme }) {
           }}>
             <View style={[styles.drawer, { maxHeight: '90%', paddingBottom: Math.max(insets.bottom, 16) }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <Text style={styles.drawerSubtitle}>Reviews I Received</Text>
+                <Text style={styles.drawerSubtitle}>{t('settings.setting.reviews_i_received')}</Text>
                 <TouchableOpacity onPress={() => {
                   setShowReceivedReviewsModal(false);
                   setModalReceivedReviews([]);
@@ -3409,7 +3439,7 @@ export default function SettingsScreen({ selectedTheme }) {
                   <ActivityIndicator size="small" color={config.colors.primary} style={{ marginVertical: 20 }} />
                 ) : modalReceivedReviews.length === 0 ? (
                   <Text style={{ textAlign: 'center', color: isDarkMode ? '#9ca3af' : '#6b7280', marginVertical: 20 }}>
-                    No reviews found
+                    {t('settings.setting.no_reviews')}
                   </Text>
                 ) : (
                   <>
@@ -3428,7 +3458,7 @@ export default function SettingsScreen({ selectedTheme }) {
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                           <View style={{ flex: 1 }}>
                             <Text style={{ fontSize: 14, fontWeight: '600', color: isDarkMode ? '#e5e7eb' : '#111827', marginBottom: 4 }}>
-                              {review.reviewerName || 'Unknown User'}
+                              {review.reviewerName || t('settings.setting.unknown_user')}
                             </Text>
                             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                               {[1, 2, 3, 4, 5].map((star) => (
@@ -3442,7 +3472,7 @@ export default function SettingsScreen({ selectedTheme }) {
                               ))}
                               {review.edited && (
                                 <Text style={{ fontSize: 10, color: isDarkMode ? '#9ca3af' : '#6b7280', marginLeft: 6 }}>
-                                  (Edited)
+                                  {t('settings.setting.edited')}
                                 </Text>
                               )}
                             </View>
@@ -3479,7 +3509,7 @@ export default function SettingsScreen({ selectedTheme }) {
                           <ActivityIndicator size="small" color="#FFFFFF" />
                         ) : (
                           <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
-                            Load More
+                            {t('settings.setting.load_more')}
                           </Text>
                         )}
                       </TouchableOpacity>
@@ -3514,7 +3544,7 @@ export default function SettingsScreen({ selectedTheme }) {
             <View style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
               <View style={[styles.drawer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                  <Text style={styles.drawerSubtitle}>Edit Review</Text>
+                  <Text style={styles.drawerSubtitle}>{t('settings.setting.edit_review')}</Text>
                   <TouchableOpacity
                     onPress={() => {
                       setEditingReview(null);
@@ -3526,7 +3556,7 @@ export default function SettingsScreen({ selectedTheme }) {
                   </TouchableOpacity>
                 </View>
 
-                <Text style={[styles.drawerSubtitle, { marginBottom: 8 }]}>Rating</Text>
+                <Text style={[styles.drawerSubtitle, { marginBottom: 8 }]}>{t('settings.setting.rating')}</Text>
                 <View style={{ flexDirection: 'row', marginBottom: 16 }}>
                   {[1, 2, 3, 4, 5].map((star) => (
                     <TouchableOpacity
@@ -3543,10 +3573,10 @@ export default function SettingsScreen({ selectedTheme }) {
                   ))}
                 </View>
 
-                <Text style={[styles.drawerSubtitle, { marginBottom: 8 }]}>Review</Text>
+                <Text style={[styles.drawerSubtitle, { marginBottom: 8 }]}>{t('settings.setting.review')}</Text>
                 <TextInput
                   style={[styles.input, { minHeight: 100, textAlignVertical: 'top' }]}
-                  placeholder="Write your review..."
+                  placeholder={t('settings.setting.review_placeholder')}
                   placeholderTextColor="#999"
                   value={editReviewText}
                   onChangeText={setEditReviewText}
@@ -3558,7 +3588,7 @@ export default function SettingsScreen({ selectedTheme }) {
                   style={[styles.saveButton, { marginTop: 16 }]}
                   onPress={handleSaveEditedReview}
                 >
-                  <Text style={styles.saveButtonText}>Save Changes</Text>
+                  <Text style={styles.saveButtonText}>{t('settings.save_changes')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -3593,7 +3623,7 @@ export default function SettingsScreen({ selectedTheme }) {
           }}>
             <View style={[styles.drawer, { maxHeight: '90%', paddingBottom: Math.max(insets.bottom, 16) }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <Text style={styles.drawerSubtitle}>My Trades</Text>
+                <Text style={styles.drawerSubtitle}>{t('settings.setting.my_trades')}</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   {modalMyTrades.length > 0 && (
                     <TouchableOpacity
@@ -3611,7 +3641,7 @@ export default function SettingsScreen({ selectedTheme }) {
                         <ActivityIndicator size="small" color="#FFFFFF" />
                       ) : (
                         <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>
-                          Delete All
+                          {t('settings.setting.delete_all')}
                         </Text>
                       )}
                     </TouchableOpacity>
@@ -3632,7 +3662,7 @@ export default function SettingsScreen({ selectedTheme }) {
                   <ActivityIndicator size="small" color={config.colors.primary} style={{ marginVertical: 20 }} />
                 ) : modalMyTrades.length === 0 ? (
                   <Text style={{ textAlign: 'center', color: isDarkMode ? '#9ca3af' : '#6b7280', marginVertical: 20 }}>
-                    No trades found
+                    {t('settings.setting.no_trades')}
                   </Text>
                 ) : (
                   <>
@@ -3660,7 +3690,7 @@ export default function SettingsScreen({ selectedTheme }) {
                           <ActivityIndicator size="small" color="#FFFFFF" />
                         ) : (
                           <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
-                            Load More
+                            {t('settings.setting.load_more')}
                           </Text>
                         )}
                       </TouchableOpacity>
@@ -3700,7 +3730,7 @@ export default function SettingsScreen({ selectedTheme }) {
           }}>
             <View style={[styles.drawer, { maxHeight: '90%', paddingBottom: Math.max(insets.bottom, 16) }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <Text style={styles.drawerSubtitle}>Followers</Text>
+                <Text style={styles.drawerSubtitle}>{t('settings.setting.followers')}</Text>
                 <TouchableOpacity onPress={() => {
                   setShowFollowersModal(false);
                   setModalFollowers([]);
@@ -3716,7 +3746,7 @@ export default function SettingsScreen({ selectedTheme }) {
                   <ActivityIndicator size="small" color={config.colors.primary} style={{ marginVertical: 20 }} />
                 ) : modalFollowers.length === 0 ? (
                   <Text style={{ textAlign: 'center', color: isDarkMode ? '#9ca3af' : '#6b7280', marginVertical: 20 }}>
-                    No followers yet
+                    {t('settings.setting.no_followers')}
                   </Text>
                 ) : (
                   <>
@@ -3733,7 +3763,7 @@ export default function SettingsScreen({ selectedTheme }) {
                         }}
                         activeOpacity={0.7}
                       >
-                        <Image
+                        <Image resizeMethod="resize"
                           source={{ uri: follower.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }}
                           style={{ width: 44, height: 44, borderRadius: 22 }}
                         />
@@ -3761,7 +3791,7 @@ export default function SettingsScreen({ selectedTheme }) {
                           <ActivityIndicator size="small" color="#FFFFFF" />
                         ) : (
                           <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
-                            Load More
+                            {t('settings.setting.load_more')}
                           </Text>
                         )}
                       </TouchableOpacity>

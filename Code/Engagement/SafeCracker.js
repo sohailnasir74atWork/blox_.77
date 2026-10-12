@@ -30,6 +30,7 @@ import { useGlobalState } from '../GlobelStats';
 import config from '../Helper/Environment';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { loadGameStats, saveGameStats, submitLeaderboardScore } from './gameScores';
 import GameRoundActions from './GameRoundActions';
 
@@ -60,6 +61,7 @@ const SafeCracker = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
   const { triggerHapticFeedback } = useHaptic();
   const isDarkMode = theme === 'dark';
   const uid = user?.id;
+  const { t } = useTranslation();
 
   const [phase, setPhase] = useState('loading'); // loading | rules | spinning | checking | failed | cracked | gameover
   const [bestScore, setBestScore] = useState(0);
@@ -316,7 +318,7 @@ const SafeCracker = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
   );
 
   const inDialPhase = phase === 'spinning' || phase === 'checking' || phase === 'failed';
-  const dirLabel = lockDirection(currentLock) === 1 ? '↻ clockwise' : '↺ counter-clockwise';
+  const dirLabel = lockDirection(currentLock) === 1 ? t('engagement.safe_cracker.dir_cw') : t('engagement.safe_cracker.dir_ccw');
 
   return (
     <View style={[styles.screen, { backgroundColor: isDarkMode ? config.colors.backgroundDark : '#f8fafc', paddingBottom: Math.max(insets.bottom, 16) }]}>
@@ -324,7 +326,7 @@ const SafeCracker = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
         <TouchableOpacity onPress={onClose} style={styles.backBtn} hitSlop={8}>
           <Icon name="chevron-back" size={24} color={c.text} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: c.text }]}>🔐 Crack the Chest</Text>
+        <Text style={[styles.title, { color: c.text }]}>🔐 {t('engagement.game_hub.safe_name')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -337,17 +339,17 @@ const SafeCracker = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
       {phase === 'rules' && (
         <ScrollView contentContainerStyle={styles.rulesContent} showsVerticalScrollIndicator={false}>
           <Text style={{ fontSize: 64, textAlign: 'center' }}>🔐</Text>
-          <Text style={[styles.bigTitle, { color: c.text, textAlign: 'center' }]}>Crack the Chest</Text>
+          <Text style={[styles.bigTitle, { color: c.text, textAlign: 'center' }]}>{t('engagement.game_hub.safe_name')}</Text>
           <Text style={[styles.subText, { color: c.textSecondary, textAlign: 'center', marginBottom: 20 }]}>
-            Can you unlock the treasure chest? 💰
+            {t('engagement.safe_cracker.tagline')}
           </Text>
 
           <View style={[styles.ruleCard, { backgroundColor: isDarkMode ? config.colors.surfaceDark : '#FEF3C7' }]}>
             <View style={styles.ruleRow}>
               <Text style={styles.ruleEmoji}>🎯</Text>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.ruleTitle, { color: c.text }]}>Stop on Gold!</Text>
-                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>The dial spins nonstop. Tap STOP when the GOLDEN number reaches the arrow ▼ at the top!</Text>
+                <Text style={[styles.ruleTitle, { color: c.text }]}>{t('engagement.safe_cracker.rule1_title')}</Text>
+                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>{t('engagement.safe_cracker.rule1_desc')}</Text>
               </View>
             </View>
           </View>
@@ -356,8 +358,8 @@ const SafeCracker = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
             <View style={styles.ruleRow}>
               <Text style={styles.ruleEmoji}>🔒</Text>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.ruleTitle, { color: c.text }]}>3 Locks per Chest</Text>
-                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>Each lock spins the opposite way, like a real safe. Every chest you crack makes the dial faster!</Text>
+                <Text style={[styles.ruleTitle, { color: c.text }]}>{t('engagement.safe_cracker.rule2_title')}</Text>
+                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>{t('engagement.safe_cracker.rule2_desc')}</Text>
               </View>
             </View>
           </View>
@@ -366,15 +368,15 @@ const SafeCracker = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
             <View style={styles.ruleRow}>
               <Text style={styles.ruleEmoji}>💥</Text>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.ruleTitle, { color: c.text }]}>One Mistake = BOOM</Text>
-                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>Stop on the wrong number and the chest jams. Game Over!</Text>
+                <Text style={[styles.ruleTitle, { color: c.text }]}>{t('engagement.safe_cracker.rule3_title')}</Text>
+                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>{t('engagement.safe_cracker.rule3_desc')}</Text>
               </View>
             </View>
           </View>
 
           {bestScore > 0 && (
             <Text style={[styles.bestScoreLabel, { color: ACCENT }]}>
-              🏆 High Score: {bestScore}
+              {t('engagement.games.high_score', { score: bestScore })}
             </Text>
           )}
 
@@ -384,7 +386,7 @@ const SafeCracker = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
             onWatchAd={onWatchAd}
             adLoading={adLoading}
             color={ACCENT}
-            playLabel="LET'S GO! 🎮"
+            playLabel={t('engagement.games.lets_go')}
             playIcon="play"
             textColor={c.textSecondary}
             style={{ marginTop: 16 }}
@@ -396,16 +398,16 @@ const SafeCracker = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
         <View style={{ flex: 1, alignItems: 'center' }}>
           <View style={[styles.hud, { backgroundColor: surface, borderColor: border }]}>
             <View style={styles.hudItem}>
-              <Text style={[styles.hudLabel, { color: c.textSecondary }]}>Score</Text>
+              <Text style={[styles.hudLabel, { color: c.textSecondary }]}>{t('engagement.games.score')}</Text>
               <Text style={[styles.hudVal, { color: ACCENT }]}>{score}</Text>
             </View>
             <View style={styles.hudItem}>
-              <Text style={[styles.hudLabel, { color: c.textSecondary }]}>Chest</Text>
+              <Text style={[styles.hudLabel, { color: c.textSecondary }]}>{t('engagement.safe_cracker.chest')}</Text>
               <Text style={[styles.hudVal, { color: c.text }]}>#{safesOpened + 1}</Text>
             </View>
             <View style={[styles.hudItem, { alignItems: 'flex-end' }]}>
-              <Text style={[styles.hudLabel, { color: c.textSecondary }]}>Speed</Text>
-              <Text style={[styles.hudVal, { color: safesOpened >= 3 ? '#EF4444' : '#10B981' }]}>Lv.{safesOpened + 1}</Text>
+              <Text style={[styles.hudLabel, { color: c.textSecondary }]}>{t('engagement.safe_cracker.speed')}</Text>
+              <Text style={[styles.hudVal, { color: safesOpened >= 3 ? '#EF4444' : '#10B981' }]}>{t('engagement.xp_bar.lv_short', { level: safesOpened + 1 })}</Text>
             </View>
           </View>
 
@@ -413,11 +415,11 @@ const SafeCracker = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
 
           <View style={[styles.targetBox, { backgroundColor: isDarkMode ? config.colors.surfaceDark : '#FEF3C7', borderColor: GOLD }]}>
             <Text style={{ fontSize: 14, color: c.textSecondary, fontWeight: '800', textTransform: 'uppercase' }}>
-              🎯 Stop at: <Text style={{ fontSize: 24, fontWeight: '900', color: GOLD }}>{targetNum}</Text>
+              {t('engagement.safe_cracker.stop_at')}{' '}<Text style={{ fontSize: 24, fontWeight: '900', color: GOLD }}>{targetNum}</Text>
             </Text>
           </View>
           <Text style={[styles.lockHint, { color: c.textSecondary }]}>
-            Lock {currentLock + 1} of {LOCKS_PER_SAFE} · {dirLabel}
+            {t('engagement.safe_cracker.lock_progress', { current: currentLock + 1, total: LOCKS_PER_SAFE, dir: dirLabel })}
           </Text>
 
           <Animated.View style={[styles.dialContainer, { transform: [{ translateX: shakeAnim }] }]}>
@@ -439,19 +441,19 @@ const SafeCracker = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
               style={({ pressed }) => [styles.stopBtn, pressed && { transform: [{ scale: 0.96 }] }]}
               onPressIn={handleStop}
             >
-              <Text style={styles.stopBtnText}>🛑 STOP!</Text>
+              <Text style={styles.stopBtnText}>{t('engagement.safe_cracker.stop')}</Text>
             </Pressable>
           )}
 
           {phase === 'checking' && (
-            <Text style={[styles.bigTitle, { color: '#10B981', marginTop: 16 }]}>✅ Locked In!</Text>
+            <Text style={[styles.bigTitle, { color: '#10B981', marginTop: 16 }]}>{t('engagement.safe_cracker.locked_in')}</Text>
           )}
 
           {phase === 'failed' && (
             <View style={{ alignItems: 'center', marginTop: 12 }}>
-              <Text style={[styles.bigTitle, { color: '#EF4444', marginTop: 0 }]}>💥 Jammed!</Text>
+              <Text style={[styles.bigTitle, { color: '#EF4444', marginTop: 0 }]}>{t('engagement.safe_cracker.jammed')}</Text>
               <Text style={[styles.subText, { color: c.textSecondary }]}>
-                Landed on {stoppedSegment} — needed {targetNum}
+                {t('engagement.safe_cracker.landed_on', { landed: stoppedSegment, target: targetNum })}
               </Text>
             </View>
           )}
@@ -461,14 +463,14 @@ const SafeCracker = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
       {phase === 'cracked' && (
         <View style={styles.centerContent}>
           <Text style={{ fontSize: 80 }}>💰</Text>
-          <Text style={[styles.bigTitle, { color: '#10B981' }]}>Chest #{safesOpened} Open!</Text>
-          <Text style={[styles.subText, { color: c.textSecondary, fontSize: 16 }]}>+{LOCK_POINTS + CHEST_BONUS} points!</Text>
-          <Text style={[styles.hudVal, { color: ACCENT, marginTop: 12 }]}>Total: {score} pts</Text>
-          <Text style={[styles.subText, { color: '#EF4444', fontWeight: '800', marginTop: 12 }]}>⚡ Next chest spins faster!</Text>
+          <Text style={[styles.bigTitle, { color: '#10B981' }]}>{t('engagement.safe_cracker.chest_open', { n: safesOpened })}</Text>
+          <Text style={[styles.subText, { color: c.textSecondary, fontSize: 16 }]}>{t('engagement.safe_cracker.points_gain', { points: LOCK_POINTS + CHEST_BONUS })}</Text>
+          <Text style={[styles.hudVal, { color: ACCENT, marginTop: 12 }]}>{t('engagement.safe_cracker.total_pts', { score })}</Text>
+          <Text style={[styles.subText, { color: '#EF4444', fontWeight: '800', marginTop: 12 }]}>{t('engagement.safe_cracker.next_faster')}</Text>
 
           <TouchableOpacity style={[styles.actionBtn, { backgroundColor: ACCENT, marginTop: 28 }]} onPress={startNewSafe}>
             <Icon name="lock-closed-outline" size={22} color="#fff" />
-            <Text style={styles.actionBtnText}>Next Chest! 🔐</Text>
+            <Text style={styles.actionBtnText}>{t('engagement.safe_cracker.next_chest')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -477,26 +479,26 @@ const SafeCracker = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
         <ScrollView contentContainerStyle={styles.centerContent} showsVerticalScrollIndicator={false}>
           <Text style={{ fontSize: 80 }}>{isNewBest ? '🏆' : safesOpened >= 3 ? '💰' : safesOpened >= 1 ? '🔓' : '💥'}</Text>
           <Text style={[styles.bigTitle, { color: ACCENT, textAlign: 'center' }]}>
-            {safesOpened >= 5 ? 'Master Pirate!' : safesOpened >= 3 ? 'Treasure Hunter!' : safesOpened >= 1 ? 'Nice Try!' : 'Chest Jammed!'}
+            {safesOpened >= 5 ? t('engagement.safe_cracker.result_master') : safesOpened >= 3 ? t('engagement.safe_cracker.result_hunter') : safesOpened >= 1 ? t('engagement.safe_cracker.result_nice_try') : t('engagement.safe_cracker.result_jammed')}
           </Text>
 
           <View style={[styles.statsCard, { backgroundColor: surface, borderColor: border }]}>
             <View style={styles.statRow}>
-              <Text style={[styles.statLabel, { color: c.textSecondary }]}>Score</Text>
+              <Text style={[styles.statLabel, { color: c.textSecondary }]}>{t('engagement.games.score')}</Text>
               <Text style={[styles.statVal, { color: ACCENT }]}>{score}</Text>
             </View>
             <View style={[styles.statRow, { borderBottomWidth: 0 }]}>
-              <Text style={[styles.statLabel, { color: c.textSecondary }]}>Cracked</Text>
-              <Text style={[styles.statVal, { color: c.text }]}>{safesOpened} {safesOpened === 1 ? 'chest' : 'chests'}</Text>
+              <Text style={[styles.statLabel, { color: c.textSecondary }]}>{t('engagement.safe_cracker.cracked')}</Text>
+              <Text style={[styles.statVal, { color: c.text }]}>{t('engagement.safe_cracker.chests_count', { count: safesOpened })}</Text>
             </View>
           </View>
 
           {isNewBest ? (
             <Text style={[styles.bestScoreLabel, { color: ACCENT, marginTop: 16 }]}>
-              🎉 NEW HIGH SCORE! 🎉{prevBest > 0 ? `\nPrevious best: ${prevBest}` : ''}
+              {t('engagement.games.new_high_score_banner')}{prevBest > 0 ? `\n${t('engagement.games.previous_best', { score: prevBest })}` : ''}
             </Text>
           ) : bestScore > 0 ? (
-            <Text style={[styles.bestScoreLabel, { color: ACCENT, marginTop: 16 }]}>Best Score: {bestScore}</Text>
+            <Text style={[styles.bestScoreLabel, { color: ACCENT, marginTop: 16 }]}>{t('engagement.games.best_score', { score: bestScore })}</Text>
           ) : null}
 
           <GameRoundActions
@@ -505,11 +507,11 @@ const SafeCracker = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
             onWatchAd={onWatchAd}
             adLoading={adLoading}
             color={ACCENT}
-            playLabel="Play Again"
+            playLabel={t('engagement.games.play_again')}
             textColor={c.textSecondary}
           />
           <TouchableOpacity style={[styles.actionBtn, styles.doneBtn]} onPress={onClose}>
-            <Text style={styles.actionBtnText}>Done</Text>
+            <Text style={styles.actionBtnText}>{t('engagement.games.done')}</Text>
           </TouchableOpacity>
         </ScrollView>
       )}

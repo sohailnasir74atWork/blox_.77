@@ -227,7 +227,7 @@ const TradeList = ({ route }) => {
               borderColor: isMyTradesActive ? primary : headerTint + '55',
             }}
           >
-            <Image source={isMyTradesActive ? TRADE_HEADER_IMAGES.mytrades[0] : TRADE_HEADER_IMAGES.mytrades[1]} style={TRADE_HEADER_IMAGE} resizeMode="contain" />
+            <Image resizeMethod="resize" source={isMyTradesActive ? TRADE_HEADER_IMAGES.mytrades[0] : TRADE_HEADER_IMAGES.mytrades[1]} style={TRADE_HEADER_IMAGE} resizeMode="contain" />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -244,7 +244,7 @@ const TradeList = ({ route }) => {
               borderColor: isFollowingActive ? '#8b5cf6' : headerTint + '55',
             }}
           >
-            <Image source={isFollowingActive ? TRADE_HEADER_IMAGES.following[0] : TRADE_HEADER_IMAGES.following[1]} style={TRADE_HEADER_IMAGE} resizeMode="contain" />
+            <Image resizeMethod="resize" source={isFollowingActive ? TRADE_HEADER_IMAGES.following[0] : TRADE_HEADER_IMAGES.following[1]} style={TRADE_HEADER_IMAGE} resizeMode="contain" />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -261,11 +261,11 @@ const TradeList = ({ route }) => {
               borderColor: isSavedActive ? '#F59E0B' : headerTint + '55',
             }}
           >
-            <Image source={isSavedActive ? TRADE_HEADER_IMAGES.saved[0] : TRADE_HEADER_IMAGES.saved[1]} style={TRADE_HEADER_IMAGE} resizeMode="contain" />
+            <Image resizeMethod="resize" source={isSavedActive ? TRADE_HEADER_IMAGES.saved[0] : TRADE_HEADER_IMAGES.saved[1]} style={TRADE_HEADER_IMAGE} resizeMode="contain" />
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => navigation.navigate('Trade Notifier')} activeOpacity={0.8} style={{ padding: 4 }}>
-            <Image source={TRADE_HEADER_IMAGES.notifier[0]} style={{ width: 22, height: 22 }} resizeMode="contain" />
+            <Image resizeMethod="resize" source={TRADE_HEADER_IMAGES.notifier[0]} style={{ width: 22, height: 22 }} resizeMode="contain" />
           </TouchableOpacity>
         </View>
       ),
@@ -626,8 +626,8 @@ const TradeList = ({ route }) => {
 
       if (featuredSnapshot.size >= 2) {
         Alert.alert(
-          "Limit Reached",
-          "You can only feature 2 trades every 24 hours."
+          t("trade.limit_reached_title"),
+          t('trade.trades.feature_limit_24h')
         );
         return;
       }
@@ -675,7 +675,7 @@ const TradeList = ({ route }) => {
       );
     } catch (err) {
       console.error("❌ Error checking featured trades:", err);
-      Alert.alert("Error", "Unable to verify your featured trades. Try again later.");
+      Alert.alert(t('home.alert.error'), t('trade.trades.verify_featured_failed'));
     }
   };
 
@@ -854,7 +854,7 @@ const TradeList = ({ route }) => {
 
     } catch (error) {
       console.error('Error navigating to PrivateChat:', error);
-      Alert.alert('Error', 'Unable to navigate to the chat. Please try again later.');
+      Alert.alert(t('home.alert.error'), t('trade.trades.chat_nav_failed'));
     }
   };
 
@@ -903,7 +903,7 @@ const TradeList = ({ route }) => {
     }
 
     if (!searchInHas && !searchInWants) {
-      Alert.alert('Search Error', 'Please select at least one search option (ME side or YOU side)');
+      Alert.alert(t('trade.trades.search_error'), t('trade.trades.search_select_option'));
       return;
     }
 
@@ -1035,7 +1035,7 @@ const TradeList = ({ route }) => {
 
     } catch (error) {
       console.error('❌ Error searching trades:', error);
-      Alert.alert('Search Error', 'Failed to search trades. Please try again.');
+      Alert.alert(t('trade.trades.search_error'), t('trade.trades.search_failed'));
     } finally {
       setIsSearching(false);
     }
@@ -1573,7 +1573,7 @@ const TradeList = ({ route }) => {
     const tradePercentage = Math.abs(((tradeRatio - 1) * 100).toFixed(0));
     const isProfit = tradeRatio > 1;
     const neutral = tradeRatio === 1;
-    const formattedTime = item.timestamp ? dayjs(item.timestamp.toDate()).fromNow() : "Anonymous";
+    const formattedTime = item.timestamp ? dayjs(item.timestamp.toDate()).fromNow() : t('trade.trades.anonymous');
     const groupedHasItems = groupItems(item.hasItems || []);
     const groupedWantsItems = groupItems(item.wantsItems || []);
 
@@ -1587,7 +1587,7 @@ const TradeList = ({ route }) => {
       };
       try { callbackfunction(); } catch (error) {
         console.error('Error navigating to PrivateChat:', error);
-        Alert.alert('Error', 'Unable to navigate to the chat. Please try again later.');
+        Alert.alert(t('home.alert.error'), t('trade.trades.chat_nav_failed'));
       }
     };
 
@@ -1603,7 +1603,7 @@ const TradeList = ({ route }) => {
         {item.isFeatured && (
           <View style={styles.altFeaturedRow}>
             <View style={styles.altFeaturedBadge}>
-              <Text style={styles.altFeaturedText}>⭐ FEATURED</Text>
+              <Text style={styles.altFeaturedText}>{t('trade.trades.featured_caps')}</Text>
             </View>
           </View>
         )}
@@ -1625,15 +1625,15 @@ const TradeList = ({ route }) => {
                   <Text style={styles.altTradeName}>{item.traderName}</Text>
                 )}
                 <RoleBadges userItem={item} />
-                {item?.isPro && <Image source={require('../../assets/pro.png')} style={{ width: 10, height: 10, marginLeft: 4 }} />}
-                {item?.robloxUsernameVerified && <Image source={require('../../assets/verification.png')} style={{ width: 10, height: 10, marginLeft: 4 }} />}
+                {item?.isPro && <Image resizeMethod="resize" source={require('../../assets/pro.png')} style={{ width: 10, height: 10, marginLeft: 4 }} />}
+                {item?.robloxUsernameVerified && <Image resizeMethod="resize" source={require('../../assets/verification.png')} style={{ width: 10, height: 10, marginLeft: 4 }} />}
                 {(() => {
                   const hasRecentWin = !!item?.hasRecentGameWin || (typeof item?.lastGameWinAt === 'number' && Date.now() - item.lastGameWinAt <= 24 * 60 * 60 * 1000);
-                  return hasRecentWin ? <Image source={require('../../assets/trophy.webp')} style={{ width: 10, height: 10, marginLeft: 4 }} /> : null;
+                  return hasRecentWin ? <Image resizeMethod="resize" source={require('../../assets/trophy.webp')} style={{ width: 10, height: 10, marginLeft: 4 }} /> : null;
                 })()}
-                {(item?.isProGranted || item.proTagBought) && <Image source={require('../../assets/progranted.png')} style={{ width: 14, height: 14, marginLeft: 4 }} />}
+                {(item?.isProGranted || item.proTagBought) && <Image resizeMethod="resize" source={require('../../assets/progranted.png')} style={{ width: 14, height: 14, marginLeft: 4 }} />}
                 {Array.isArray(item.icons) && item.icons.slice(0, 4).map(iconKey => (
-                  <Image key={iconKey} source={iconMap[iconKey]} style={{ width: 14, height: 14, marginLeft: 4, resizeMode: 'contain' }} />
+                  <Image resizeMethod="resize" key={iconKey} source={iconMap[iconKey]} style={{ width: 14, height: 14, marginLeft: 4, resizeMode: 'contain' }} />
                 ))}
               </View>
               <Text style={styles.altTradeTime}>{formattedTime}</Text>
@@ -1655,13 +1655,13 @@ const TradeList = ({ route }) => {
         {/* Totals bar at top of items */}
         <View style={styles.altTotalsBar}>
           {groupedHasItems.length > 0 && <View style={[styles.altTotalPill, { backgroundColor: config.colors.hasBlockGreen }]}>
-            <Text style={styles.altTotalPillText}>ME {formatValue(item.hasTotal.value)}</Text>
+            <Text style={styles.altTotalPillText}>{t('trade.trades.me_total', { value: formatValue(item.hasTotal.value) })}</Text>
           </View>}
           {(groupedHasItems.length > 0 && groupedWantsItems.length > 0) && <Text style={[styles.altPercentText, { color: !isProfit ? config.colors.hasBlockGreen : config.colors.wantBlockRed }]}>
             {tradePercentage}% {!neutral && <Icon name={isProfit ? 'arrow-down-outline' : 'arrow-up-outline'} size={10} color={isProfit ? config.colors.wantBlockRed : config.colors.hasBlockGreen} />}
           </Text>}
           {groupedWantsItems.length > 0 && <View style={[styles.altTotalPill, { backgroundColor: config.colors.wantBlockRed }]}>
-            <Text style={styles.altTotalPillText}>YOU {formatValue(item.wantsTotal.value)}</Text>
+            <Text style={styles.altTotalPillText}>{t('trade.trades.you_total', { value: formatValue(item.wantsTotal.value) })}</Text>
           </View>}
         </View>
 
@@ -1670,7 +1670,7 @@ const TradeList = ({ route }) => {
           <View style={styles.altItemsSection}>
             {groupedHasItems.length > 0 ? groupedHasItems.map((hasItem) => (
               <View key={`${hasItem.name}-${hasItem.type}`} style={styles.altItemBubble}>
-                <Image
+                <Image resizeMethod="resize"
                   source={{ uri: hasItem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(hasItem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(hasItem.name)}_Icon.webp` }}
                   style={[styles.altItemImg, { backgroundColor: hasItem.type === 'p' ? '#FFCC00' : 'transparent' }]}
                   resizeMode="contain"
@@ -1680,17 +1680,17 @@ const TradeList = ({ route }) => {
               </View>
             )) : (
               <TouchableOpacity style={styles.altOfferBtn} onPress={() => handleOpenProfile(item)}>
-                <Text style={styles.altOfferBtnText}>Give offer</Text>
+                <Text style={styles.altOfferBtnText}>{t('trade.trades.give_offer')}</Text>
               </TouchableOpacity>
             )}
           </View>
           <View style={styles.altTransferIcon}>
-            <Image source={require('../../assets/transfer.png')} style={{ width: 14, height: 14 }} />
+            <Image resizeMethod="resize" source={require('../../assets/transfer.png')} style={{ width: 14, height: 14 }} />
           </View>
           <View style={styles.altItemsSection}>
             {groupedWantsItems.length > 0 ? groupedWantsItems.map((wantItem) => (
               <View key={`${wantItem.name}-${wantItem.type}`} style={styles.altItemBubble}>
-                <Image
+                <Image resizeMethod="resize"
                   source={{ uri: wantItem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(wantItem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(wantItem.name)}_Icon.webp` }}
                   style={[styles.altItemImg, { backgroundColor: wantItem.type === 'p' ? '#FFCC00' : 'transparent' }]}
                   resizeMode="contain"
@@ -1700,7 +1700,7 @@ const TradeList = ({ route }) => {
               </View>
             )) : (
               <TouchableOpacity style={styles.altOfferBtn} onPress={handleChatNavigation}>
-                <Text style={styles.altOfferBtnText}>Give offer</Text>
+                <Text style={styles.altOfferBtnText}>{t('trade.trades.give_offer')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1713,7 +1713,7 @@ const TradeList = ({ route }) => {
           <View style={styles.altFooterRow}>
             {!item.isFeatured && <TouchableOpacity onPress={() => handleMakeFeatureTrade(item)} style={styles.altBoostBtn}>
               <Icon name="rocket-outline" size={12} color="white" />
-              <Text style={styles.altBoostText}>BOOST</Text>
+              <Text style={styles.altBoostText}>{t('trade.trades.boost')}</Text>
             </TouchableOpacity>}
             {/* Watch-an-ad boost. Hidden from Pro members on purpose: they
                 already get two instant boosts a day, and part of what they
@@ -1726,7 +1726,7 @@ const TradeList = ({ route }) => {
             )}
             <TouchableOpacity onPress={() => handleDelete(item)} style={styles.altDeleteBtn}>
               <Icon name="trash-outline" size={12} color="white" />
-              <Text style={styles.altBoostText}>DELETE</Text>
+              <Text style={styles.altBoostText}>{t('trade.trades.delete_caps')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1744,7 +1744,7 @@ const TradeList = ({ route }) => {
                     setSavedTradeRefs(prev => { const n = { ...prev }; delete n[tradeId]; return n; });
                     showSuccessMessage(t('trade.removed', { defaultValue: 'Removed' }), t('trade.trade_unsaved', { defaultValue: 'Trade removed from saved' }));
                   } catch (e) {
-                    showErrorMessage(t('home.alert.error'), e?.message || 'Error');
+                    showErrorMessage(t('home.alert.error'), e?.message || t('home.alert.error'));
                   }
                 } else {
                   try {
@@ -1752,7 +1752,7 @@ const TradeList = ({ route }) => {
                     setSavedTradeRefs(prev => ({ ...prev, [tradeId]: { type: 'saved' } }));
                     showSuccessMessage(t('trade.saved', { defaultValue: 'Trade Saved!' }), '');
                   } catch (e) {
-                    showErrorMessage(t('home.alert.error'), e?.message || 'Error');
+                    showErrorMessage(t('home.alert.error'), e?.message || t('home.alert.error'));
                   }
                 }
               }}
@@ -1763,7 +1763,7 @@ const TradeList = ({ route }) => {
             </TouchableOpacity>
             <TouchableOpacity style={styles.tradeChatBtn2} onPress={handleChatNavigation} activeOpacity={0.8}>
               <Icon name="paper-plane-outline" size={10} color="#fff" />
-              <Text style={styles.tradeChatBtnLabel}>Chat</Text>
+              <Text style={styles.tradeChatBtnLabel}>{t('feed.chat', { defaultValue: 'Chat' })}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1780,7 +1780,7 @@ const TradeList = ({ route }) => {
 
     const isProfit = tradeRatio > 1; // Profit if trade ratio > 1
     const neutral = tradeRatio === 1; // Exactly 1:1 trade
-    const formattedTime = item.timestamp ? dayjs(item.timestamp.toDate()).fromNow() : "Anonymous";
+    const formattedTime = item.timestamp ? dayjs(item.timestamp.toDate()).fromNow() : t('trade.trades.anonymous');
 
     // ✅ OPTIMIZED: Group items (no hooks - just regular function calls)
     const groupedHasItems = groupItems(item.hasItems || []);
@@ -1813,7 +1813,7 @@ const TradeList = ({ route }) => {
 
       } catch (error) {
         console.error('Error navigating to PrivateChat:', error);
-        Alert.alert('Error', 'Unable to navigate to the chat. Please try again later.');
+        Alert.alert(t('home.alert.error'), t('trade.trades.chat_nav_failed'));
       }
     };
 
@@ -1829,7 +1829,7 @@ const TradeList = ({ route }) => {
         {item.isFeatured && (
           <View style={styles.featuredTopRow}>
             <View style={styles.featuredTopLabel}>
-              <Text style={styles.featuredTopLabelText}>⭐ Featured</Text>
+              <Text style={styles.featuredTopLabelText}>{t('trade.trades.featured')}</Text>
             </View>
           </View>
         )}
@@ -1859,13 +1859,13 @@ const TradeList = ({ route }) => {
                 )}
                 <RoleBadges userItem={item} />
                 {item?.isPro && (
-                  <Image
+                  <Image resizeMethod="resize"
                     source={require('../../assets/pro.png')}
                     style={{ width: 10, height: 10, marginRight: 5 }}
                   />
                 )}
                 {item?.robloxUsernameVerified && (
-                  <Image
+                  <Image resizeMethod="resize"
                     source={require('../../assets/verification.png')}
                     style={{ width: 10, height: 10, marginRight: 5 }}
                   />
@@ -1876,20 +1876,20 @@ const TradeList = ({ route }) => {
                     (typeof item?.lastGameWinAt === 'number' &&
                       Date.now() - item.lastGameWinAt <= 24 * 60 * 60 * 1000);
                   return hasRecentWin ? (
-                    <Image
+                    <Image resizeMethod="resize"
                       source={require('../../assets/trophy.webp')}
                       style={{ width: 10, height: 10, marginRight: 5 }}
                     />
                   ) : null;
                 })()}
                 {(item?.isProGranted || item.proTagBought) && (
-                  <Image
+                  <Image resizeMethod="resize"
                     source={require('../../assets/progranted.png')}
                     style={{ width: 16, height: 16, marginLeft: 2 }}
                   />
                 )}
                 {Array.isArray(item.icons) && item.icons.slice(0, 4).map(iconKey => (
-                  <Image
+                  <Image resizeMethod="resize"
                     key={iconKey}
                     source={iconMap[iconKey]}
                     style={{ width: 16, height: 16, marginLeft: 4, resizeMode: 'contain' }}
@@ -1927,7 +1927,7 @@ const TradeList = ({ route }) => {
             {groupedHasItems.length > 0 ? (
               groupedHasItems.map((hasItem, index) => (
                 <View key={`${hasItem.name}-${hasItem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
-                  <Image
+                  <Image resizeMethod="resize"
                     source={{
                       uri: hasItem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(hasItem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(hasItem.name)}_Icon.webp`,
                     }}
@@ -1946,7 +1946,7 @@ const TradeList = ({ route }) => {
               ))
             ) : (
               <TouchableOpacity style={styles.dealContainerSingle} onPress={() => handleOpenProfile(item)}>
-                <Text style={styles.dealText}>Give offer</Text>
+                <Text style={styles.dealText}>{t('trade.trades.give_offer')}</Text>
               </TouchableOpacity>
             )}
 
@@ -1954,7 +1954,7 @@ const TradeList = ({ route }) => {
 
           {/* Transfer Icon */}
           <View style={styles.transfer}>
-            <Image source={require('../../assets/transfer.png')} style={styles.transferImage} />
+            <Image resizeMethod="resize" source={require('../../assets/transfer.png')} style={styles.transferImage} />
           </View>
 
           {/* Wants Items */}
@@ -1962,7 +1962,7 @@ const TradeList = ({ route }) => {
             {groupedWantsItems.length > 0 ? (
               groupedWantsItems.map((wantnItem, index) => (
                 <View key={`${wantnItem.name}-${wantnItem.type}`} style={{ justifyContent: 'center', alignItems: 'center' }}>
-                  <Image
+                  <Image resizeMethod="resize"
                     source={{
                       uri: wantnItem.type === 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(wantnItem.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(wantnItem.name)}_Icon.webp`,
                     }}
@@ -1981,14 +1981,14 @@ const TradeList = ({ route }) => {
               ))
             ) : (
               <TouchableOpacity style={styles.dealContainerSingle} onPress={handleChatNavigation}>
-                <Text style={styles.dealText}>Give offer</Text>
+                <Text style={styles.dealText}>{t('trade.trades.give_offer')}</Text>
               </TouchableOpacity>
             )}
           </View>
         </View>
         <View style={styles.tradeTotals}>
           {groupedHasItems.length > 0 && <Text style={[styles.priceText, styles.hasBackground]}>
-            ME {formatValue(item.hasTotal.value)}
+            {t('trade.trades.me_total', { value: formatValue(item.hasTotal.value) })}
           </Text>}
           <View style={styles.transfer}>
             {(groupedHasItems.length > 0 && groupedWantsItems.length > 0) && <Text style={[styles.priceTextProfit, { color: !isProfit ? config.colors.hasBlockGreen : config.colors.wantBlockRed }]}>
@@ -2003,7 +2003,7 @@ const TradeList = ({ route }) => {
             </Text>}
           </View>
           {groupedWantsItems.length > 0 && <Text style={[styles.priceText, styles.wantBackground]}>
-            YOU {formatValue(item.wantsTotal.value)}
+            {t('trade.trades.you_total', { value: formatValue(item.wantsTotal.value) })}
           </Text>}
         </View>
 
@@ -2021,7 +2021,7 @@ const TradeList = ({ route }) => {
                 {!item.isFeatured && (
                   <TouchableOpacity onPress={() => handleMakeFeatureTrade(item)} style={styles.tradeBoostBtn}>
                     <Icon name="rocket-outline" size={11} color="white" />
-                    <Text style={styles.tradeBtnText}>BOOST</Text>
+                    <Text style={styles.tradeBtnText}>{t('trade.trades.boost')}</Text>
                   </TouchableOpacity>
                 )}
                 {/* Watch-an-ad boost. Hidden from Pro members on purpose: they
@@ -2035,7 +2035,7 @@ const TradeList = ({ route }) => {
                 )}
                 <TouchableOpacity onPress={() => handleDelete(item)} style={styles.tradeDeleteBtn}>
                   <Icon name="trash-outline" size={11} color="white" />
-                  <Text style={styles.tradeBtnText}>DELETE</Text>
+                  <Text style={styles.tradeBtnText}>{t('trade.trades.delete_caps')}</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -2057,7 +2057,7 @@ const TradeList = ({ route }) => {
                         setSavedTradeRefs(prev => { const n = { ...prev }; delete n[tradeId]; return n; });
                         showSuccessMessage(t('trade.removed', { defaultValue: 'Removed' }), t('trade.trade_unsaved', { defaultValue: 'Trade removed from saved' }));
                       } catch (e) {
-                        showErrorMessage(t('home.alert.error'), e?.message || 'Error');
+                        showErrorMessage(t('home.alert.error'), e?.message || t('home.alert.error'));
                       }
                     } else {
                       try {
@@ -2069,7 +2069,7 @@ const TradeList = ({ route }) => {
                           [{ text: t('trade.got_it', { defaultValue: 'Got it!' }) }]
                         );
                       } catch (e) {
-                        showErrorMessage(t('home.alert.error'), e?.message || 'Error');
+                        showErrorMessage(t('home.alert.error'), e?.message || t('home.alert.error'));
                       }
                     }
                   }}
@@ -2098,7 +2098,7 @@ const TradeList = ({ route }) => {
       <View style={styles.container}>
         <ActivityIndicator style={styles.loader} size="large" color="#007BFF" />
         <Text style={[styles.loadingText, { color: isDarkMode ? 'white' : 'black' }]}>
-          Loading trades...
+          {t('trade.trades.loading')}
         </Text>
       </View>
     );
@@ -2178,7 +2178,7 @@ const TradeList = ({ route }) => {
               }}
               activeOpacity={0.7}
             >
-              <Text style={[styles.searchChipText, searchInHas && styles.searchChipTextActive]}>ME side</Text>
+              <Text style={[styles.searchChipText, searchInHas && styles.searchChipTextActive]}>{t('trade.trades.me_side')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.searchChip, searchInWants && styles.searchChipActive]}
@@ -2189,7 +2189,7 @@ const TradeList = ({ route }) => {
               }}
               activeOpacity={0.7}
             >
-              <Text style={[styles.searchChipText, searchInWants && styles.searchChipTextActive]}>YOU side</Text>
+              <Text style={[styles.searchChipText, searchInWants && styles.searchChipTextActive]}>{t('trade.trades.you_side')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -2238,7 +2238,7 @@ const TradeList = ({ route }) => {
           !loading && filteredTrades.length === 0 ? (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
               <Text style={[styles.loadingText, { color: isDarkMode ? 'white' : 'black' }]}>
-                No trades found
+                {t('trade.trades.no_trades')}
               </Text>
             </View>
           ) : null

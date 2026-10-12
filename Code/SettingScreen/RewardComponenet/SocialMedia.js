@@ -212,7 +212,7 @@ export default function SocialTasks({ user, appdatabase, setOpenSignin }) {
         return (
           <View key={item.id} style={[styles.taskItem, { backgroundColor: isDarkMode ? '#123024' : '#86A788' }]}>
             <View style={styles.platformInfo}>
-              <Image source={item.icon} style={styles.icon} />
+              <Image resizeMethod="resize" source={item.icon} style={styles.icon} />
               <Text style={styles.platformName}>{item.name}</Text>
             </View>
             <Text style={styles.pointsText}>+{item.points} Coins</Text>

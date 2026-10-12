@@ -3,6 +3,17 @@ import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import * as RNLocalize from "react-native-localize";
 import { createMMKV } from "react-native-mmkv";
+import dayjs from "dayjs";
+import "dayjs/locale/tl-ph";
+import "dayjs/locale/vi";
+import "dayjs/locale/pt-br";
+import "dayjs/locale/id";
+import "dayjs/locale/es";
+import "dayjs/locale/fr";
+import "dayjs/locale/de";
+import "dayjs/locale/ru";
+import "dayjs/locale/ar";
+import "dayjs/locale/ja";
 
 // Import translation files
 import en from "./Code/Translation/en.json";
@@ -21,21 +32,6 @@ import ja from "./Code/Translation/ja.json";
 const storage = createMMKV();
 
 // Map country codes to languages
-const countryToLanguage = {
-  BR: "pt",
-  PH: "fil",
-  VN: "vi",
-  ID: "id",
-  US: "en",
-  MX: "es",
-  FR: "fr",
-  DE: "de",
-  RU: "ru",
-  IN: "en",
-  AR: "ar",
-  JP: "ja",
-};
-
 // Function to get saved language from MMKV
 const getStoredLanguage = () => {
   return storage.getString("appLanguage") || null;
@@ -44,11 +40,22 @@ const getStoredLanguage = () => {
 // Function to get the device language
 export const getDeviceLanguage = () => {
   const locales = RNLocalize.getLocales();
-  return locales.length > 0 ? locales[0].languageCode : 'en';
+  if (!locales.length) return 'en';
+  const { languageCode, countryCode } = locales[0];
+  if (languageCode === 'tl' || languageCode === 'fil') return 'fil';
+  if (languageCode === 'pt') return 'pt';
+  if (languageCode === 'es') return 'es';
+  if (languageCode === 'zh') return 'en';
+  return SUPPORTED_LANGUAGES.includes(languageCode) ? languageCode
+    : countryToLanguage[countryCode] || 'en';
 };
 
 
 const SUPPORTED_LANGUAGES = ['en', 'fil', 'vi', 'pt', 'id', 'es', 'fr', 'de', 'ru', 'ar', 'ja'];
+const countryToLanguage = {
+  BR: 'pt', PH: 'fil', VN: 'vi', ID: 'id', MX: 'es',
+  FR: 'fr', DE: 'de', RU: 'ru', AR: 'es', JP: 'ja', // AR = Argentina
+};
 
 // Determine initial language
 const savedLanguage = getStoredLanguage();
@@ -81,11 +88,20 @@ i18n
     },
   });
 
+// dayjs dates and "5 minutes ago" follow the app language, not English.
+const DAYJS_LOCALE = { fil: "tl-ph", pt: "pt-br" };
+const syncDayjsLocale = (lng) =>
+  dayjs.locale(SUPPORTED_LANGUAGES.includes(lng) ? DAYJS_LOCALE[lng] || lng : "en");
+syncDayjsLocale(initialLanguage);
+i18n.on("languageChanged", syncDayjsLocale);
+
 // Function to update language and store in MMKV
 export const setAppLanguage = (languageCode) => {
-  i18n.changeLanguage(languageCode);
+  if (!SUPPORTED_LANGUAGES.includes(languageCode)) return Promise.resolve(i18n.language);
+  const change = i18n.changeLanguage(languageCode);
   storage.set("appLanguage", languageCode);
-  trackGrowthEvent("app_language_selected", {language: languageCode});
+  trackGrowthEvent("app_language_selected", { language: languageCode });
+  return change;
 };
 
 export default i18n;

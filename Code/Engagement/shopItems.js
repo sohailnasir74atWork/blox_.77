@@ -6,6 +6,8 @@
  * for Profile Frames, Chat Text Colors, and Trade Card Backgrounds.
  */
 
+import i18next from 'i18next';
+
 // ════════════════════════════════════════════════════════════
 //  RARITY TIERS
 // ════════════════════════════════════════════════════════════
@@ -24,6 +26,10 @@ export const RARITY_CONFIG = {
   [RARITY.LEGENDARY]: { label: 'Legendary', color: '#f59e0b', emoji: '🟡', bgLight: '#fffbeb', bgDark: '#78350f' },
   [RARITY.EXCLUSIVE]: { label: 'Exclusive', color: '#a855f7', emoji: '🟣', bgLight: '#faf5ff', bgDark: '#581c87' },
 };
+
+// Localized rarity label — translate at call time (RARITY_CONFIG is module-level).
+export const getRarityLabel = (rarity) =>
+  i18next.t(`engagement.rarity.${rarity}`, { defaultValue: RARITY_CONFIG[rarity]?.label || rarity || '' });
 
 // ════════════════════════════════════════════════════════════
 //  COSMETIC TYPES

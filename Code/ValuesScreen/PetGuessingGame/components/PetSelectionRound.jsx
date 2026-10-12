@@ -204,7 +204,7 @@ const PetSelectionRound = ({ roomData, currentUser, onSelectPet, roomId }) => {
             Your Pick:
           </Text>
           <View style={styles.selectedPetCard}>
-            <Image
+            <Image resizeMethod="resize"
               source={{ uri: userPick.petImage || getImageUrl(selectedPet) }}
               style={styles.selectedPetImage}
             />
@@ -233,7 +233,7 @@ const PetSelectionRound = ({ roomData, currentUser, onSelectPet, roomId }) => {
                   onPress={() => handleSelectPet(item)}
                   activeOpacity={0.7}
                 >
-                  <Image
+                  <Image resizeMethod="resize"
                     source={{ uri: getImageUrl(item) }}
                     style={styles.petImage}
                     resizeMode="contain"

@@ -13,6 +13,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useLocalState } from '../LocalGlobelStats';
 import RewardedAdManager from '../Ads/RewardedAdManager';
@@ -34,6 +35,7 @@ const todayKey = () => {
 
 const GameScreen = () => {
   const navigation = useNavigation();
+  const { t } = useTranslation();
   const route = useRoute();
   const { gameId } = route.params || {};
   const { localState, updateLocalState } = useLocalState();
@@ -106,12 +108,12 @@ const GameScreen = () => {
       () => { settle(); unlockRounds(); },
       () => {
         settle();
-        Alert.alert('Ad Skipped', 'Watch the full ad to unlock more rounds.');
+        Alert.alert(t('engagement.game_screen.ad_skipped_title'), t('engagement.game_screen.ad_skipped_msg'));
       },
       // No ad available — unlock anyway as a graceful fallback
       () => { settle(); unlockRounds(); },
     );
-  }, [unlockRounds]);
+  }, [unlockRounds, t]);
 
   const renderGame = () => {
     const gameProps = {

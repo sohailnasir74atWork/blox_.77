@@ -26,7 +26,7 @@ const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false,
 
   const handleSubmit = async () => {
     if (!message) {
-      Alert.alert("Error", "Invalid message. Unable to report.");
+      Alert.alert(t('chat.error'), t('chat.report_popup.invalid_message'));
       return;
     }
 
@@ -52,7 +52,7 @@ const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false,
       // moderators see why it was flagged (report_message RPC p_reason).
       const reason = (showCustomInput ? customReason : selectedReason).trim().slice(0, 200) || null;
       if (showCustomInput && !reason) {
-        Alert.alert("Error", "Please describe the problem.");
+        Alert.alert(t('chat.error'), t('chat.report_popup.describe_problem'));
         return;
       }
 
@@ -64,7 +64,7 @@ const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false,
       onClose(true);
     } catch (error) {
       console.error('Error reporting message:', error);
-      Alert.alert('Error', 'Failed to submit the report. Please try again.');
+      Alert.alert(t('chat.error'), t('chat.report_popup.submit_failed'));
     } finally {
       setLoading(false);
     }
@@ -79,9 +79,9 @@ const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false,
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.popup}>
-          <Text style={styles.title}>Report Message</Text>
-          <Text style={styles.messageText}>{`Message: "${message?.text}"`}</Text>
-          <Text style={styles.messageText}>{`Sender: ${message?.sender || "Anonymous"}`}</Text>
+          <Text style={styles.title}>{t('chat.report_popup.title')}</Text>
+          <Text style={styles.messageText}>{t('chat.report_popup.message_line', { text: message?.text })}</Text>
+          <Text style={styles.messageText}>{t('chat.report_popup.sender_line', { name: message?.sender || t('chat.anonymous') })}</Text>
 
           {/* Standard Reasons */}
           <View style={styles.optionsContainer}>
@@ -131,7 +131,7 @@ const ReportPopup = ({ visible, message, onClose, chatId, isPrivateChat = false,
           {showCustomInput && (
             <TextInput
               style={styles.input}
-              placeholder="Enter custom reason"
+              placeholder={t('chat.report_popup.custom_placeholder')}
               placeholderTextColor="#888"
               value={customReason}
               onChangeText={setCustomReason}

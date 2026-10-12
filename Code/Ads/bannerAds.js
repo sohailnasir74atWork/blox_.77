@@ -118,7 +118,10 @@ const BannerAdComponent = ({
     : { height: 0, overflow: 'hidden' };
 
   return (
-    <View style={containerStyle}>
+    // collapsable={false}: the loaded style is layout-only, so Fabric would
+    // flatten this View once the ad loads and re-parent the native ad view —
+    // a known trigger for the addViewAt IndexOutOfBounds crash.
+    <View style={containerStyle} collapsable={false}>
       <BannerAd
         key={reloadKey}
         unitId={unitId}

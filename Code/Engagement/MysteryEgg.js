@@ -23,7 +23,7 @@ import { getUserXP } from './xpUtils';
 import { getStarBalance } from './starUtils';
 import { purchaseEgg, formatTimeRemaining, getShopStats, getInventory } from './shopUtils';
 import { getMyCosmetics, syncMyCosmetics, getCachedEggData, setCachedEggXP, setCachedEggStats, setCachedEggInventory } from '../Helper/cosmeticsCache';
-import { FRUIT_LIST, EGG_LIST, RARITY_CONFIG, COSMETIC_TYPE, ALL_ITEMS } from './shopItems';
+import { FRUIT_LIST, EGG_LIST, RARITY_CONFIG, getRarityLabel, COSMETIC_TYPE, ALL_ITEMS } from './shopItems';
 import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
 import RewardedAdManager from '../Ads/RewardedAdManager';
 import { getServerTime } from '../Helper/serverTime';
@@ -117,7 +117,7 @@ const FruitCard = ({ egg: fruit, starBalance, isDark, onPress, index }) => {
         {/* Center: Info */}
         <View style={{ flex: 1, zIndex: 1 }}>
           <Text style={[s.eggName, { color: canAfford ? '#1a2744' : (isDark ? '#cbd5e1' : '#475569'), textAlign: 'left' }]}>
-            {fruit.name}
+            {t(`engagement.mystery_egg.fruit_${fruit.id}`, { defaultValue: fruit.name })}
           </Text>
           <View style={[s.dropRatesRow, { justifyContent: 'flex-start', marginTop: 4 }]}>
             {Object.entries(fruit.dropTable)
@@ -126,7 +126,7 @@ const FruitCard = ({ egg: fruit, starBalance, isDark, onPress, index }) => {
                 <View key={rarity} style={s.dropRateItem}>
                   <View style={[s.dropDot, { backgroundColor: RARITY_CONFIG[rarity]?.color || '#94a3b8' }]} />
                   <Text style={[s.dropText, { color: canAfford ? '#6b4c4a' : (isDark ? '#94a3b8' : '#64748b') }]}>
-                    {RARITY_CONFIG[rarity]?.label || rarity} {weight}%
+                    {getRarityLabel(rarity)} {weight}%
                   </Text>
                 </View>
               ))}
@@ -220,7 +220,7 @@ const RewardReveal = ({ reward, isDark }) => {
 
       {/* Rarity badge */}
       <View style={[s.rarityBadge, { backgroundColor: rarityConfig.color }]}>
-        <Text style={s.rarityText}>{rarityConfig.emoji} {rarityConfig.label}</Text>
+        <Text style={s.rarityText}>{rarityConfig.emoji} {getRarityLabel(RARITY_CONFIG[reward.rarity] ? reward.rarity : 'common')}</Text>
       </View>
 
       {/* Large Preview — with glow behind */}
@@ -333,7 +333,7 @@ const RewardCatalog = ({ isDark }) => {
               {previewFn(item, rc, isHidden, isDark)}
               <View style={{ flex: 1, marginLeft: 10 }}>
                 <Text style={[s.rewardItemName, { color: isHidden ? rc?.color : (isDark ? '#e2e8f0' : '#334155') }]}>
-                  {isHidden ? t('mystery_fruit.catalog.hidden_reward', { rarity: rc?.label }) : item.name}
+                  {isHidden ? t('mystery_fruit.catalog.hidden_reward', { rarity: getRarityLabel(item.rarity) }) : item.name}
                 </Text>
                 {item.duration && !isHidden && (
                   <Text style={{ fontSize: 9, color: isDark ? '#64748b' : '#94a3b8', marginTop: 1 }}>
@@ -343,7 +343,7 @@ const RewardCatalog = ({ isDark }) => {
               </View>
               <View style={[s.rewardRarityPill, { backgroundColor: rc?.color + '20' }]}>
                 <Text style={[s.rewardRarityText, { color: rc?.color }]}>
-                  {isHidden ? '🔒 ' : ''}{rc?.label}
+                  {isHidden ? '🔒 ' : ''}{getRarityLabel(item.rarity)}
                 </Text>
               </View>
             </View>
@@ -496,7 +496,7 @@ const MysteryEggScreen = ({ navigation }) => {
     if (loading) return;
 
     Alert.alert(
-      `${fruit.emoji} ${fruit.name}`,
+      `${fruit.emoji} ${t(`engagement.mystery_egg.fruit_${fruit.id}`, { defaultValue: fruit.name })}`,
       t('mystery_fruit.alerts.buy_prompt_msg', { defaultValue: `Open this fruit for ${fruit.cost.toLocaleString()} ⭐?\nYour balance: ${starBalance.toLocaleString()} ⭐`, cost: fruit.cost.toLocaleString(), balance: starBalance.toLocaleString() }),
       [
         { text: t('mystery_fruit.alerts.nope', { defaultValue: 'Nope' }), style: 'cancel' },

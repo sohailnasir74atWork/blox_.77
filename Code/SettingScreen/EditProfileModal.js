@@ -85,7 +85,7 @@ export default function EditProfileModal({
           horizontal
           renderItem={({ item }) => (
             <TouchableOpacity onPress={() => setSelectedImage(item)}>
-              <Image
+              <Image resizeMethod="resize"
                 source={item}
                 style={{
                   width: 60,

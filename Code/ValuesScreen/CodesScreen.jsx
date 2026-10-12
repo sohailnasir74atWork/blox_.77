@@ -11,7 +11,7 @@ import { useGlobalState } from '../GlobelStats';
 import { useLocalState } from '../LocalGlobelStats';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useHaptic } from '../Helper/HepticFeedBack';
-import { t } from 'i18next';
+import { useTranslation } from 'react-i18next';
 import { showSuccessMessage } from '../Helper/MessageHelper';
 import config from '../Helper/Environment';
 
@@ -20,6 +20,7 @@ const CodesScreen = () => {
   const { localState } = useLocalState();
   const isDarkMode = theme === 'dark';
   const { triggerHapticFeedback } = useHaptic();
+  const { t } = useTranslation();
   const [codesData, setCodesData] = useState([]);
 
   useEffect(() => {
@@ -79,7 +80,7 @@ const CodesScreen = () => {
     <View style={styles.emptyContainer}>
       <Icon name="code-slash-outline" size={60} color={isDarkMode ? '#555' : '#ccc'} />
       <Text style={[styles.emptyText, { color: isDarkMode ? '#888' : '#666' }]}>
-        No codes available
+        {t('values.codes_screen.no_codes')}
       </Text>
     </View>
   );

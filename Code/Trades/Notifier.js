@@ -10,12 +10,14 @@ import { requestPermission } from '../Helper/PermissionCheck';
 import { showMessage } from 'react-native-flash-message';
 import config from '../Helper/Environment';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 const NotifierDrawer = () => {
   const { user, appdatabase, theme } = useGlobalState();
   const { localState } = useLocalState();
   const isDarkMode = theme === 'dark';
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
 
   const [mode, setMode] = useState('buy');
   const [savedItems, setSavedItems] = useState({ buy: {}, sale: {} });
@@ -25,7 +27,7 @@ const NotifierDrawer = () => {
   const openDrawerToSelect = () => {
     if (!user?.id) {
       showMessage({
-        message: 'Please log in to select an item',
+        message: t('trade.notifier.login_to_select'),
         type: 'warning',
         duration: 2500,
       });
@@ -160,12 +162,12 @@ const NotifierDrawer = () => {
 
   const subtitleText =
     mode === 'buy'
-      ? "Select items you want to buy. You'll be notified when someone is offering them."
-      : "Select items you want to sell. You'll be notified when someone is looking for them.";
+      ? t('trade.notifier.subtitle_buy')
+      : t('trade.notifier.subtitle_sell');
   const buttonText =
     mode === 'buy'
-      ? "Notify me when offered"
-      : "Notify me when wanted";
+      ? t('trade.notifier.button_offered')
+      : t('trade.notifier.button_wanted');
 
 
   const handleSelect = (item) => {
@@ -187,7 +189,7 @@ const NotifierDrawer = () => {
     });
 
     showMessage({
-      message: `${itemName} added to ${mode.toUpperCase()}`,
+      message: mode === 'buy' ? t('trade.notifier.added_to_buy', { name: itemName }) : t('trade.notifier.added_to_sale', { name: itemName }),
       type: 'success',
       duration: 2500,
     });
@@ -207,7 +209,7 @@ const NotifierDrawer = () => {
       });
 
       showMessage({
-        message: 'Item removed',
+        message: t('trade.notifier.item_removed'),
         type: 'info',
         duration: 2000,
       });
@@ -225,7 +227,7 @@ const NotifierDrawer = () => {
       <TouchableOpacity
         style={[styles.itemContainer, isSelected && styles.itemSelected, isDarkMode && styles.itemContainerDark]}
         onPress={() => handleSelect(item)}>
-        <Image
+        <Image resizeMethod="resize"
           source={{ uri: getImageUrl(item) }}
           style={styles.itemImage}
         />
@@ -242,7 +244,7 @@ const NotifierDrawer = () => {
     const imageUrl = getImageUrl({}, itemName); // Pass empty object, name as override
     return (
       <View style={styles.savedItem} key={key}>
-        <Image source={{ uri: imageUrl }} style={styles.itemImageSelected} />
+        <Image resizeMethod="resize" source={{ uri: imageUrl }} style={styles.itemImageSelected} />
         <Text style={[styles.itemText, { color: isDarkMode ? '#fff' : '#000', marginLeft: 5 }]}>{itemName}</Text>
         <TouchableOpacity onPress={() => handleRemove(key)}>
           <Icon name="close-circle" size={20} color="red" style={styles.removeText} />
@@ -265,12 +267,12 @@ const NotifierDrawer = () => {
         <TouchableOpacity
           style={[styles.toggleButton, mode === 'buy' && styles.active]}
           onPress={() => setMode('buy')}>
-          <Text style={{ fontWeight: 'bold', color: '#fff', fontSize: 13 }}>Notify Me When Offered</Text>
+          <Text style={{ fontWeight: 'bold', color: '#fff', fontSize: 13 }}>{t('trade.notifier.toggle_offered')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.toggleButton, mode === 'sale' && styles.active]}
           onPress={() => setMode('sale')}>
-          <Text style={{ fontWeight: 'bold', color: '#fff', fontSize: 13 }}>Notify Me When Wanted</Text>
+          <Text style={{ fontWeight: 'bold', color: '#fff', fontSize: 13 }}>{t('trade.notifier.toggle_wanted')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -280,14 +282,14 @@ const NotifierDrawer = () => {
         {Object.keys(savedItems[mode] || {}).length > 0
           ? Object.entries(savedItems[mode]).map(renderSavedItem)
           : <Text style={[styles.placeholderText, { color: isDarkMode ? '#aaa' : '#888' }]}>
-            No items selected.
+            {t('trade.notifier.no_items')}
           </Text>}
       </View>
 
 
       <Modal visible={isDrawerVisible} animationType="slide">
         <View style={[styles.drawerContainer, { backgroundColor: isDarkMode ? '#1e1e1e' : '#fff', paddingBottom: Math.max(insets.bottom, 16) }]}>
-          <Text style={[styles.sectionTitle, { fontWeight: 'bold', color: isDarkMode ? '#fff' : '#000' }]}>Select Items to Notify</Text>
+          <Text style={[styles.sectionTitle, { fontWeight: 'bold', color: isDarkMode ? '#fff' : '#000' }]}>{t('trade.notifier.select_items')}</Text>
 
           <FlatList
             data={parsedValuesData}
@@ -298,7 +300,7 @@ const NotifierDrawer = () => {
           />
 
           <TouchableOpacity onPress={() => setIsDrawerVisible(false)} style={styles.closeButton}>
-            <Text style={{ fontWeight: 'bold', color: '#fff' }}>Close</Text>
+            <Text style={{ fontWeight: 'bold', color: '#fff' }}>{t('trade.notifier.close')}</Text>
           </TouchableOpacity>
         </View>
       </Modal>

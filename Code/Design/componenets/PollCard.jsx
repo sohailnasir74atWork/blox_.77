@@ -280,7 +280,7 @@ const PollCard = ({ poll, user, isDarkMode, onRequireSignIn }) => {
             ]}
         >
             <TouchableOpacity onPress={() => handleChatWithUser(comment)}>
-                <Image
+                <Image resizeMethod="resize"
                     source={{ uri: comment.userAvatar || DEFAULT_AVATAR }}
                     style={styles.commentAvatar}
                 />
@@ -351,7 +351,7 @@ const PollCard = ({ poll, user, isDarkMode, onRequireSignIn }) => {
 
             {/* Image */}
             {poll.imageUrl ? (
-                <Image
+                <Image resizeMethod="resize"
                     source={{ uri: poll.imageUrl }}
                     style={styles.pollImage}
                     resizeMode="cover"

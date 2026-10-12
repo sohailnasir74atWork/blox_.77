@@ -2,6 +2,7 @@ import React, { useMemo, useCallback, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, Modal, ScrollView, ActivityIndicator } from 'react-native';
 import { useGlobalState, modGateText } from '../../GlobelStats';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { useTranslation } from 'react-i18next';
 import { getFirestore, collection, addDoc, Timestamp, query as firestoreQuery, where, getDocs, limit as firestoreLimit } from '@react-native-firebase/firestore';
 
 const REPORT_REASONS = [
@@ -11,6 +12,15 @@ const REPORT_REASONS = [
   'Spam',
   'Other',
 ];
+
+// Display labels for the reason values above (the English value is what gets saved).
+const REPORT_REASON_KEYS = {
+  'Scam / Fraud': 'chat.scam_warning.reason_scam',
+  'Inappropriate Content': 'chat.scam_warning.reason_inappropriate',
+  'Harassment / Bullying': 'chat.scam_warning.reason_harassment',
+  'Spam': 'chat.scam_warning.reason_spam',
+  'Other': 'chat.scam_warning.reason_other',
+};
 
 export default function ScamSafetyBox({
   setShowRatingModal,
@@ -22,6 +32,7 @@ export default function ScamSafetyBox({
 }) {
   const { theme, user: currentUser, isAdmin, isModerator, getModGate } = useGlobalState();
   const isDarkMode = theme === 'dark';
+  const { t } = useTranslation();
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
 
   const [showReportModal, setShowReportModal] = useState(false);
@@ -39,7 +50,7 @@ export default function ScamSafetyBox({
 
   const handleReportPress = useCallback(() => {
     if (!otherUserId || !userId) {
-      Alert.alert('Error', 'Cannot report — chat info unavailable.');
+      Alert.alert(t('chat.error'), t('chat.scam_warning.info_unavailable'));
       return;
     }
     if (isAdmin || isModerator) {
@@ -55,11 +66,11 @@ export default function ScamSafetyBox({
     }
     setSelectedReason(null);
     setShowReportModal(true);
-  }, [otherUserId, userId, isAdmin, isModerator, getModGate]);
+  }, [otherUserId, userId, isAdmin, isModerator, getModGate, t]);
 
   const handleSubmitReport = useCallback(async () => {
     if (!selectedReason) {
-      Alert.alert('Error', 'Please select a reason.');
+      Alert.alert(t('chat.error'), t('chat.scam_warning.select_reason_error'));
       return;
     }
     const modGate = getModGate('content');
@@ -86,7 +97,7 @@ export default function ScamSafetyBox({
       );
 
       if (!existing.empty) {
-        Alert.alert('Already Reported', 'You have already reported this conversation. A moderator will review it soon.');
+        Alert.alert(t('chat.scam_warning.already_reported_title'), t('chat.scam_warning.already_reported_body'));
         setShowReportModal(false);
         setSubmitting(false);
         return;
@@ -105,17 +116,17 @@ export default function ScamSafetyBox({
       });
 
       Alert.alert(
-        'Report Submitted',
-        'Thank you for reporting. A moderator will review this conversation. Your chat consent allows them to view the messages.',
+        t('chat.report_submitted'),
+        t('chat.scam_warning.submitted_body'),
       );
       setShowReportModal(false);
     } catch (err) {
       console.error('Report submit error:', err);
-      Alert.alert('Error', 'Could not submit report. Please try again.');
+      Alert.alert(t('chat.error'), t('chat.scam_warning.submit_failed'));
     } finally {
       setSubmitting(false);
     }
-  }, [selectedReason, chatKey, userId, currentUser, otherUserId, otherUserName, getModGate]);
+  }, [selectedReason, chatKey, userId, currentUser, otherUserId, otherUserName, getModGate, t]);
 
   return (
     <View style={styles.container}>
@@ -123,7 +134,7 @@ export default function ScamSafetyBox({
       <View style={styles.safetyRow}>
         <Text style={styles.warningIcon}>⚠️</Text>
         <Text style={styles.safetyText} numberOfLines={2}>
-          {'Too good? It\'s a scam.'} · {'Never share login.'} · {'Use trusted servers.'}
+          {t('chat.scam_warning.tip_scam')} · {t('chat.scam_warning.tip_login')} · {t('chat.scam_warning.tip_servers')}
         </Text>
       </View>
 
@@ -136,7 +147,7 @@ export default function ScamSafetyBox({
             activeOpacity={0.7}
           >
             <Ionicons name="flag-outline" size={12} color={isDarkMode ? '#FCA5A5' : '#DC2626'} style={{ marginRight: 4 }} />
-            <Text style={styles.reportChipText}>Report Chat</Text>
+            <Text style={styles.reportChipText}>{t('chat.scam_warning.report_chat')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -146,7 +157,7 @@ export default function ScamSafetyBox({
           >
             <Text style={styles.rateChipIcon}>⭐</Text>
             <Text style={styles.rateChipText}>
-              {hasRated ? 'Edit Rating' : 'Rate Trader'}
+              {hasRated ? t('chat.scam_warning.edit_rating') : t('chat.scam_warning.rate_trader')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -158,17 +169,17 @@ export default function ScamSafetyBox({
           <View style={[styles.modalContent, { backgroundColor: isDarkMode ? '#1C1C1E' : '#FFF' }]}>
             <View style={styles.modalHeader}>
               <Ionicons name="flag" size={22} color="#FF3B30" />
-              <Text style={[styles.modalTitle, { color: isDarkMode ? '#FFF' : '#000' }]}>Report Conversation</Text>
+              <Text style={[styles.modalTitle, { color: isDarkMode ? '#FFF' : '#000' }]}>{t('chat.scam_warning.report_title')}</Text>
               <TouchableOpacity onPress={() => setShowReportModal(false)} style={{ padding: 4 }}>
                 <Ionicons name="close" size={22} color={isDarkMode ? '#888' : '#666'} />
               </TouchableOpacity>
             </View>
 
             <Text style={[styles.modalSubtitle, { color: isDarkMode ? '#AAA' : '#666' }]}>
-              Reporting {otherUserName || 'this user'}
+              {otherUserName ? t('chat.scam_warning.reporting_name', { name: otherUserName }) : t('chat.scam_warning.reporting_this_user')}
             </Text>
 
-            <Text style={[styles.modalLabel, { color: isDarkMode ? '#CCC' : '#333' }]}>Select a reason:</Text>
+            <Text style={[styles.modalLabel, { color: isDarkMode ? '#CCC' : '#333' }]}>{t('chat.scam_warning.select_reason')}</Text>
 
             <ScrollView style={{ maxHeight: 220 }}>
               {REPORT_REASONS.map((reason) => (
@@ -191,7 +202,7 @@ export default function ScamSafetyBox({
                     color={selectedReason === reason ? '#FF3B30' : (isDarkMode ? '#666' : '#999')}
                     style={{ marginRight: 10 }}
                   />
-                  <Text style={{ color: isDarkMode ? '#FFF' : '#000', fontSize: 14 }}>{reason}</Text>
+                  <Text style={{ color: isDarkMode ? '#FFF' : '#000', fontSize: 14 }}>{t(REPORT_REASON_KEYS[reason])}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -199,7 +210,7 @@ export default function ScamSafetyBox({
             <View style={[styles.consentBox, { backgroundColor: isDarkMode ? 'rgba(59,130,246,0.1)' : 'rgba(59,130,246,0.05)', borderColor: isDarkMode ? 'rgba(59,130,246,0.3)' : 'rgba(59,130,246,0.2)' }]}>
               <Ionicons name="eye-outline" size={16} color="#3B82F6" style={{ marginRight: 8 }} />
               <Text style={[styles.consentText, { color: isDarkMode ? '#93C5FD' : '#1D4ED8' }]}>
-                By reporting, you allow moderators to view this conversation to investigate.
+                {t('chat.scam_warning.consent')}
               </Text>
             </View>
 
@@ -213,7 +224,7 @@ export default function ScamSafetyBox({
               ) : (
                 <>
                   <Ionicons name="send" size={16} color="#FFF" style={{ marginRight: 6 }} />
-                  <Text style={styles.submitButtonText}>Submit Report</Text>
+                  <Text style={styles.submitButtonText}>{t('chat.scam_warning.submit_report')}</Text>
                 </>
               )}
             </TouchableOpacity>

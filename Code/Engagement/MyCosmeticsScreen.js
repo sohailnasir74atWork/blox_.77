@@ -13,7 +13,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGlobalState } from '../GlobelStats';
 import { getMyCosmetics, syncMyCosmetics, getCachedEggData, setCachedEggInventory } from '../Helper/cosmeticsCache';
 import { getInventory, activateItem, deactivateItem, formatTimeRemaining } from './shopUtils';
-import { RARITY_CONFIG, ALL_ITEMS, COSMETIC_TYPE, FRAMES, TEXT_COLORS, TRADE_BG_COLORS, BANNER_GRADIENTS, CHAT_BG_COLORS } from './shopItems';
+import { useTranslation } from 'react-i18next';
+import { RARITY_CONFIG, getRarityLabel, ALL_ITEMS, COSMETIC_TYPE, FRAMES, TEXT_COLORS, TRADE_BG_COLORS, BANNER_GRADIENTS, CHAT_BG_COLORS } from './shopItems';
 import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
 import config from '../Helper/Environment';
 import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
@@ -42,15 +43,16 @@ const generateTestInventory = () => {
 };
 
 const TYPE_LABELS = {
-  profileFrame: { emoji: '🖼️', label: 'Profile Frames' },
-  chatTextColor: { emoji: '🔤', label: 'Text Colors' },
-  tradeCardBg: { emoji: '🃏', label: 'Trade Backgrounds' },
-  profileBanner: { emoji: '🌈', label: 'Profile Banners' },
-  chatBubbleBg: { emoji: '💬', label: 'Chat Bubbles' },
+  profileFrame: { emoji: '🖼️', labelKey: 'engagement.my_cosmetics.type_frames' },
+  chatTextColor: { emoji: '🔤', labelKey: 'engagement.my_cosmetics.type_text_colors' },
+  tradeCardBg: { emoji: '🃏', labelKey: 'engagement.my_cosmetics.type_trade_bgs' },
+  profileBanner: { emoji: '🌈', labelKey: 'engagement.my_cosmetics.type_banners' },
+  chatBubbleBg: { emoji: '💬', labelKey: 'engagement.my_cosmetics.type_chat_bubbles' },
 };
 
 const MyCosmeticsScreen = ({ navigation }) => {
   const { theme, user, appdatabase } = useGlobalState();
+  const { t } = useTranslation();
   const isDark = theme === 'dark';
   const insets = useSafeAreaInsets();
 
@@ -107,8 +109,8 @@ const MyCosmeticsScreen = ({ navigation }) => {
         <View style={s.headerCenter}>
           <Text style={{ fontSize: 26 }}>✨</Text>
           <View>
-            <Text style={s.headerTitle}>My Cosmetics</Text>
-            <Text style={s.headerSub}>Tap to equip • Tap active to remove</Text>
+            <Text style={s.headerTitle}>{t('engagement.my_cosmetics.title')}</Text>
+            <Text style={s.headerSub}>{t('engagement.my_cosmetics.subtitle')}</Text>
           </View>
         </View>
 
@@ -135,7 +137,7 @@ const MyCosmeticsScreen = ({ navigation }) => {
           <View style={s.emptyState}>
             <ActivityIndicator size="large" color={isDark ? '#a78bfa' : '#7c3aed'} />
             <Text style={[s.emptySubtitle, { color: isDark ? '#64748b' : '#94a3b8', marginTop: 16 }]}>
-              Loading your cosmetics...
+              {t('engagement.my_cosmetics.loading')}
             </Text>
           </View>
         ) : !hasAnyItems ? (
@@ -143,10 +145,10 @@ const MyCosmeticsScreen = ({ navigation }) => {
           <View style={s.emptyState}>
             <Text style={{ fontSize: 60, marginBottom: 16 }}>🎒</Text>
             <Text style={[s.emptyTitle, { color: isDark ? '#e2e8f0' : '#0f172a' }]}>
-              No cosmetics yet!
+              {t('engagement.my_cosmetics.empty_title')}
             </Text>
             <Text style={[s.emptySubtitle, { color: isDark ? '#64748b' : '#94a3b8' }]}>
-              Open Mystery Fruits to win profile frames, chat colors, trade backgrounds, and more!
+              {t('engagement.my_cosmetics.empty_sub')}
             </Text>
             <TouchableOpacity
               style={s.emptyBtn}
@@ -154,7 +156,7 @@ const MyCosmeticsScreen = ({ navigation }) => {
               activeOpacity={0.85}
             >
               <Text style={{ fontSize: 18 }}>🍈</Text>
-              <Text style={s.emptyBtnText}>Open Mystery Fruits</Text>
+              <Text style={s.emptyBtnText}>{t('engagement.my_cosmetics.open_mystery')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -167,7 +169,7 @@ const MyCosmeticsScreen = ({ navigation }) => {
               return (
                 <View key={type} style={[s.typeSection, { backgroundColor: isDark ? '#1e293b' : '#fff' }]}>
                   <Text style={[s.typeLabel, { color: isDark ? '#e2e8f0' : '#0f172a' }]}>
-                    {typeInfo.emoji} {typeInfo.label}
+                    {typeInfo.emoji} {typeInfo.labelKey ? t(typeInfo.labelKey) : typeInfo.label}
                   </Text>
 
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingVertical: 8 }}>
@@ -199,7 +201,7 @@ const MyCosmeticsScreen = ({ navigation }) => {
                           {/* Active badge */}
                           {isActive && (
                             <View style={s.activeBadge}>
-                              <Text style={{ fontSize: 7, color: '#fff', fontWeight: '800' }}>✓ ON</Text>
+                              <Text style={{ fontSize: 7, color: '#fff', fontWeight: '800' }}>{t('engagement.my_cosmetics.on_badge')}</Text>
                             </View>
                           )}
 
@@ -254,7 +256,7 @@ const MyCosmeticsScreen = ({ navigation }) => {
                             {item.name}
                           </Text>
                           <Text style={[s.itemRarity, { color: rc?.color }]}>
-                            {rc?.emoji} {rc?.label}
+                            {rc?.emoji} {getRarityLabel(item.rarity)}
                           </Text>
                           <Text style={[s.itemTime, { color: isDark ? '#64748b' : '#94a3b8' }]}>
                             {formatTimeRemaining(item.expiresAt)}
@@ -275,8 +277,8 @@ const MyCosmeticsScreen = ({ navigation }) => {
             >
               <Text style={{ fontSize: 22 }}>🍈</Text>
               <View style={{ flex: 1 }}>
-                <Text style={[s.getMoreTitle, { color: isDark ? '#e2e8f0' : '#0f172a' }]}>Want more?</Text>
-                <Text style={[s.getMoreSub, { color: isDark ? '#64748b' : '#94a3b8' }]}>Open Mystery Fruits to win cosmetics!</Text>
+                <Text style={[s.getMoreTitle, { color: isDark ? '#e2e8f0' : '#0f172a' }]}>{t('engagement.my_cosmetics.want_more')}</Text>
+                <Text style={[s.getMoreSub, { color: isDark ? '#64748b' : '#94a3b8' }]}>{t('engagement.my_cosmetics.want_more_sub')}</Text>
               </View>
               <Icon name="chevron-forward" size={18} color={isDark ? '#64748b' : '#94a3b8'} />
             </TouchableOpacity>
@@ -338,7 +340,7 @@ const MyCosmeticsScreen = ({ navigation }) => {
                   backgroundColor: isDark ? rc?.bgDark : rc?.bgLight,
                 }}>
                   <Text style={{ fontSize: 11, fontWeight: '700', color: rc?.color }}>
-                    {rc?.emoji} {rc?.label}
+                    {rc?.emoji} {getRarityLabel(item.rarity)}
                   </Text>
                 </View>
 
@@ -367,7 +369,7 @@ const MyCosmeticsScreen = ({ navigation }) => {
                 >
                   <Icon name={isActive ? 'close-circle' : 'checkmark-circle'} size={18} color="#fff" />
                   <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>
-                    {isActive ? 'Remove' : 'Equip'}
+                    {isActive ? t('engagement.my_cosmetics.remove') : t('engagement.my_cosmetics.equip')}
                   </Text>
                 </TouchableOpacity>
               </TouchableOpacity>

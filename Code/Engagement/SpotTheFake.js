@@ -28,6 +28,7 @@ import { useGlobalState } from '../GlobelStats';
 import config from '../Helper/Environment';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { loadGameStats, saveGameStats, submitLeaderboardScore } from './gameScores';
 import GameRoundActions from './GameRoundActions';
 
@@ -64,6 +65,7 @@ const SpotTheFake = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
   const { triggerHapticFeedback } = useHaptic();
   const isDarkMode = theme === 'dark';
   const uid = user?.id;
+  const { t } = useTranslation();
 
   const [phase, setPhase] = useState('loading'); // loading | rules | playing | paused | gameover
   const [bestScore, setBestScore] = useState(0);
@@ -340,7 +342,7 @@ const SpotTheFake = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
         <TouchableOpacity onPress={onClose} style={styles.backBtn} hitSlop={8}>
           <Icon name="chevron-back" size={24} color={c.text} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: c.text }]}>🍎 Fruit Smash</Text>
+        <Text style={[styles.title, { color: c.text }]}>🍎 {t('engagement.game_hub.spot_name')}</Text>
         {phase === 'playing' ? (
           <TouchableOpacity onPress={pauseGame} style={styles.backBtn} hitSlop={8}>
             <Icon name="pause" size={22} color={c.text} />
@@ -357,17 +359,17 @@ const SpotTheFake = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
       {phase === 'rules' && (
         <ScrollView contentContainerStyle={styles.rulesContent} showsVerticalScrollIndicator={false}>
           <Text style={{ fontSize: 64, textAlign: 'center' }}>🍎</Text>
-          <Text style={[styles.bigTitle, { color: c.text, textAlign: 'center' }]}>Fruit Smash</Text>
+          <Text style={[styles.bigTitle, { color: c.text, textAlign: 'center' }]}>{t('engagement.game_hub.spot_name')}</Text>
           <Text style={[styles.subText, { color: c.textSecondary, textAlign: 'center', marginBottom: 20 }]}>
-            Smash the rotten fruits before they escape!
+            {t('engagement.spot_the_fake.tagline')}
           </Text>
 
           <View style={[styles.ruleCard, { backgroundColor: isDarkMode ? config.colors.surfaceDark : '#FEE2E2' }]}>
             <View style={styles.ruleRow}>
               <Text style={styles.ruleEmoji}>🍎</Text>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.ruleTitle, { color: c.text }]}>Smash Rotten Fruits!</Text>
-                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>Tap the red rotten fruits quickly! Letting one escape costs 1 life.</Text>
+                <Text style={[styles.ruleTitle, { color: c.text }]}>{t('engagement.spot_the_fake.rule1_title')}</Text>
+                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>{t('engagement.spot_the_fake.rule1_desc')}</Text>
               </View>
             </View>
           </View>
@@ -376,8 +378,8 @@ const SpotTheFake = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
             <View style={styles.ruleRow}>
               <Text style={styles.ruleEmoji}>🍏</Text>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.ruleTitle, { color: c.text }]}>Don't Tap Fresh Fruits!</Text>
-                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>Tapping a green fresh fruit costs 1 life. You only have 3!</Text>
+                <Text style={[styles.ruleTitle, { color: c.text }]}>{t('engagement.spot_the_fake.rule2_title')}</Text>
+                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>{t('engagement.spot_the_fake.rule2_desc')}</Text>
               </View>
             </View>
           </View>
@@ -386,15 +388,15 @@ const SpotTheFake = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
             <View style={styles.ruleRow}>
               <Text style={styles.ruleEmoji}>⭐</Text>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.ruleTitle, { color: c.text }]}>Golden Star & Combos</Text>
-                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>Stars are worth +25. Smash 3+ in a row for combo bonus points!</Text>
+                <Text style={[styles.ruleTitle, { color: c.text }]}>{t('engagement.spot_the_fake.rule3_title')}</Text>
+                <Text style={[styles.ruleDesc, { color: c.textSecondary }]}>{t('engagement.spot_the_fake.rule3_desc')}</Text>
               </View>
             </View>
           </View>
 
           {bestScore > 0 && (
             <Text style={[styles.bestScoreLabel, { color: ACCENT }]}>
-              🏆 High Score: {bestScore}
+              {t('engagement.games.high_score', { score: bestScore })}
             </Text>
           )}
 
@@ -404,7 +406,7 @@ const SpotTheFake = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
             onWatchAd={onWatchAd}
             adLoading={adLoading}
             color={ACCENT}
-            playLabel="LET'S GO! 🎮"
+            playLabel={t('engagement.games.lets_go')}
             playIcon="play"
             textColor={c.textSecondary}
             style={{ marginTop: 16 }}
@@ -416,15 +418,15 @@ const SpotTheFake = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
         <View style={{ flex: 1, alignItems: 'center' }}>
           <View style={[styles.hud, { backgroundColor: surface, borderColor: border }]}>
             <View style={styles.hudItem}>
-              <Text style={[styles.hudLabel, { color: c.textSecondary }]}>Score</Text>
+              <Text style={[styles.hudLabel, { color: c.textSecondary }]}>{t('engagement.games.score')}</Text>
               <Text style={[styles.hudVal, { color: c.text }]}>{score}</Text>
             </View>
             <View style={styles.hudItem}>
-              <Text style={[styles.hudLabel, { color: c.textSecondary }]}>Combo</Text>
+              <Text style={[styles.hudLabel, { color: c.textSecondary }]}>{t('engagement.spot_the_fake.combo')}</Text>
               <Text style={[styles.hudVal, { color: comboCount >= 3 ? '#F59E0B' : c.textSecondary }]}>x{comboCount}</Text>
             </View>
             <View style={[styles.hudItem, { alignItems: 'flex-end' }]}>
-              <Text style={[styles.hudLabel, { color: c.textSecondary }]}>Lives</Text>
+              <Text style={[styles.hudLabel, { color: c.textSecondary }]}>{t('engagement.spot_the_fake.lives')}</Text>
               <View style={{ flexDirection: 'row' }}>
                 {Array.from({ length: START_LIVES }).map((_, i) => (
                   <Icon key={i} name="heart" size={18} color={i < lives ? '#DC2626' : (isDarkMode ? '#334155' : '#cbd5e1')} style={{ marginLeft: 2 }} />
@@ -455,7 +457,7 @@ const SpotTheFake = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
                         {fb.type === 'hit' && <Text style={[styles.feedbackText, { color: '#10B981' }]}>+{fb.points}</Text>}
                         {fb.type === 'golden' && <Text style={[styles.feedbackText, { color: '#F59E0B' }]}>+{fb.points}</Text>}
                         {fb.type === 'wrong' && <Text style={[styles.feedbackText, { color: '#EF4444' }]}>❌</Text>}
-                        {fb.type === 'miss' && <Text style={[styles.feedbackText, { color: '#EF4444', fontSize: 16 }]}>Missed!</Text>}
+                        {fb.type === 'miss' && <Text style={[styles.feedbackText, { color: '#EF4444', fontSize: 16 }]}>{t('engagement.spot_the_fake.missed')}</Text>}
                       </View>
                     )}
                   </Pressable>
@@ -466,10 +468,10 @@ const SpotTheFake = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
             {phase === 'paused' && (
               <View style={[styles.pauseOverlay, { backgroundColor: isDarkMode ? 'rgba(15,23,42,0.92)' : 'rgba(248,250,252,0.92)' }]}>
                 <Text style={{ fontSize: 48 }}>⏸️</Text>
-                <Text style={[styles.bigTitle, { color: c.text }]}>Paused</Text>
+                <Text style={[styles.bigTitle, { color: c.text }]}>{t('engagement.games.paused')}</Text>
                 <TouchableOpacity style={[styles.actionBtn, { backgroundColor: ACCENT, marginTop: 20 }]} onPress={resumeGame}>
                   <Icon name="play" size={22} color="#fff" />
-                  <Text style={styles.actionBtnText}>Resume</Text>
+                  <Text style={styles.actionBtnText}>{t('engagement.games.resume')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -480,30 +482,30 @@ const SpotTheFake = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
       {phase === 'gameover' && (
         <ScrollView contentContainerStyle={styles.centerContent} showsVerticalScrollIndicator={false}>
           <Text style={{ fontSize: 64 }}>{isNewBest ? '🏆' : '💥'}</Text>
-          <Text style={[styles.bigTitle, { color: ACCENT }]}>{isNewBest ? 'New High Score!' : 'Game Over!'}</Text>
+          <Text style={[styles.bigTitle, { color: ACCENT }]}>{isNewBest ? t('engagement.games.new_high_score') : t('engagement.games.game_over')}</Text>
 
           <View style={[styles.statsCard, { backgroundColor: surface, borderColor: border }]}>
             <View style={styles.statRow}>
-              <Text style={[styles.statLabel, { color: c.textSecondary }]}>Score</Text>
+              <Text style={[styles.statLabel, { color: c.textSecondary }]}>{t('engagement.games.score')}</Text>
               <Text style={[styles.statVal, { color: ACCENT }]}>{score}</Text>
             </View>
             <View style={styles.statRow}>
-              <Text style={[styles.statLabel, { color: c.textSecondary }]}>Smashed</Text>
+              <Text style={[styles.statLabel, { color: c.textSecondary }]}>{t('engagement.spot_the_fake.smashed')}</Text>
               <Text style={[styles.statVal, { color: c.text }]}>{catches}</Text>
             </View>
             <View style={[styles.statRow, { borderBottomWidth: 0 }]}>
-              <Text style={[styles.statLabel, { color: c.textSecondary }]}>Best Combo</Text>
+              <Text style={[styles.statLabel, { color: c.textSecondary }]}>{t('engagement.spot_the_fake.best_combo')}</Text>
               <Text style={[styles.statVal, { color: '#F59E0B' }]}>x{bestCombo}</Text>
             </View>
           </View>
 
           {isNewBest ? (
             <Text style={[styles.bestScoreLabel, { color: ACCENT, marginTop: 16 }]}>
-              🎉 NEW HIGH SCORE! 🎉{prevBest > 0 ? `\nPrevious best: ${prevBest}` : ''}
+              {t('engagement.games.new_high_score_banner')}{prevBest > 0 ? `\n${t('engagement.games.previous_best', { score: prevBest })}` : ''}
             </Text>
           ) : bestScore > 0 ? (
             <Text style={[styles.bestScoreLabel, { color: ACCENT, marginTop: 16 }]}>
-              Best Score: {bestScore}
+              {t('engagement.games.best_score', { score: bestScore })}
             </Text>
           ) : null}
 
@@ -513,11 +515,11 @@ const SpotTheFake = ({ onClose, roundInfo, onRoundStart, onWatchAd, adLoading })
             onWatchAd={onWatchAd}
             adLoading={adLoading}
             color={ACCENT}
-            playLabel="Play Again"
+            playLabel={t('engagement.games.play_again')}
             textColor={c.textSecondary}
           />
           <TouchableOpacity style={[styles.actionBtn, styles.doneBtn]} onPress={onClose}>
-            <Text style={styles.actionBtnText}>Done</Text>
+            <Text style={styles.actionBtnText}>{t('engagement.games.done')}</Text>
           </TouchableOpacity>
         </ScrollView>
       )}

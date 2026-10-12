@@ -533,7 +533,7 @@ const OnlineUsersList = ({
   // ✅ Handle create group or add members button
   const handleCreateOrAddMembers = useCallback(async () => {
     if (selectedUserIds.size === 0) {
-      showErrorMessage('No Selection', 'Please select at least one user');
+      showErrorMessage(t('chat.online_users_list.no_selection_title'), t('chat.online_users_list.no_selection_body'));
       return;
     }
 
@@ -586,15 +586,15 @@ const OnlineUsersList = ({
         );
 
         if (result.success) {
-          showSuccessMessage('Success', `Invitations sent to ${result.invitedCount || selectedIds.length} user(s)!`);
+          showSuccessMessage(t('home.alert.success'), t('chat.online_users_list.invitations_sent', { count: result.invitedCount || selectedIds.length }));
           setSelectedUserIds(new Set());
           setIsSelectionMode(false);
         } else {
-          showErrorMessage('Error', result.error || 'Failed to send invitations');
+          showErrorMessage(t('chat.error'), result.error || t('chat.online_users_list.invitations_failed'));
         }
       } catch (error) {
         console.error('Error adding members:', error);
-        showErrorMessage('Error', 'Failed to add members. Please try again.');
+        showErrorMessage(t('chat.error'), t('chat.online_users_list.add_members_failed'));
       } finally {
         setLoading(false);
       }
@@ -634,7 +634,7 @@ const OnlineUsersList = ({
     if (mode !== 'gameInvite' || !roomId || !firestoreDB || !appdatabase || !user?.id) {
       if (!firestoreDB) {
         console.error('FirestoreDB is required for game invitations');
-        showErrorMessage('Error', 'Unable to send invitation. Please try again.');
+        showErrorMessage(t('chat.error'), t('chat.online_users_list.invitation_unavailable'));
       }
       return;
     }
@@ -648,7 +648,7 @@ const OnlineUsersList = ({
       // Check if user is in active game
       const isInActiveGame = await isUserInActiveGame(firestoreDB, selectedUser.id);
       if (isInActiveGame) {
-        showErrorMessage('Error', 'This user is already in a game');
+        showErrorMessage(t('chat.error'), t('chat.online_users_list.already_in_game'));
         setInvitingIds((prev) => {
           const next = new Set(prev);
           next.delete(selectedUser.id);
@@ -671,17 +671,17 @@ const OnlineUsersList = ({
 
       if (success) {
         setInvitedIds((prev) => new Set([...prev, selectedUser.id]));
-        showSuccessMessage('Invite Sent', `Invited ${selectedUser.displayName} to play!`);
+        showSuccessMessage(t('chat.online_users_list.invite_sent_title'), t('chat.online_users_list.invite_sent_body', { name: selectedUser.displayName }));
         // ✅ Notify parent component that invite was sent
         if (onInviteSent && typeof onInviteSent === 'function') {
           onInviteSent(selectedUser);
         }
       } else {
-        showErrorMessage('Error', 'Failed to send invite. Please try again.');
+        showErrorMessage(t('chat.error'), t('chat.online_users_list.invite_failed_retry'));
       }
     } catch (error) {
       console.error('Error inviting user to game:', error);
-      showErrorMessage('Error', 'Failed to send invite.');
+      showErrorMessage(t('chat.error'), t('chat.online_users_list.invite_failed'));
     } finally {
       setInvitingIds((prev) => {
         const next = new Set(prev);
@@ -689,7 +689,7 @@ const OnlineUsersList = ({
         return next;
       });
     }
-  }, [mode, roomId, firestoreDB, appdatabase, user, invitingIds, invitedIds, onInviteSent]);
+  }, [mode, roomId, firestoreDB, appdatabase, user, invitingIds, invitedIds, onInviteSent, t]);
 
   // ✅ Handle start private chat (only in 'view' mode)
   const handleStartChat = useCallback((selectedUser) => {
@@ -779,7 +779,7 @@ const OnlineUsersList = ({
 
             {/* Pro badge */}
             {item?.isPro && (
-              <Image
+              <Image resizeMethod="resize"
                 source={require('../../../assets/pro.png')}
                 style={{ width: 10, height: 10, marginRight: 5 }}
               />
@@ -787,7 +787,7 @@ const OnlineUsersList = ({
 
             {/* Verified badge */}
             {item?.robloxUsernameVerified && (
-              <Image
+              <Image resizeMethod="resize"
                 source={require('../../../assets/verification.png')}
                 style={{ width: 10, height: 10, marginRight: 5 }}
               />
@@ -797,7 +797,7 @@ const OnlineUsersList = ({
             {(item?.hasRecentGameWin ||
               (typeof item?.lastGameWinAt === 'number' &&
                 Date.now() - item.lastGameWinAt <= 24 * 60 * 60 * 1000)) && (
-                <Image
+                <Image resizeMethod="resize"
                   source={require('../../../assets/trophy.webp')}
                   style={{ width: 10, height: 10, marginLeft: 4 }}
                 />
@@ -824,7 +824,7 @@ const OnlineUsersList = ({
           </View>
           {mode === 'gameInvite' && (
             <Text style={[styles.statusText, { color: isDarkMode ? '#9CA3AF' : '#6B7280' }]}>
-              {isPlaying ? 'Currently Playing' : 'Online'}
+              {isPlaying ? t('chat.online_users_list.currently_playing') : t('chat.online_users_list.online')}
             </Text>
           )}
         </View>
@@ -855,7 +855,7 @@ const OnlineUsersList = ({
         )}
       </TouchableOpacity>
     );
-  }, [styles, handleStartChat, isDarkMode, isSelectionMode, selectedUserIds, mode, invitingIds, invitedIds, handleGameInvite]);
+  }, [styles, handleStartChat, isDarkMode, isSelectionMode, selectedUserIds, mode, invitingIds, invitedIds, handleGameInvite, t]);
 
   // ✅ Memoize key extractor. NEVER use Math.random() as a fallback — it makes
   // the same item produce a different key on every render, forcing FlatList to
@@ -899,7 +899,7 @@ const OnlineUsersList = ({
             {/* Header */}
             <View style={styles.header}>
               <Text style={styles.headerTitle}>
-                {mode === 'select' ? 'Select Members' : mode === 'gameInvite' ? 'Invite Friends to Play' : 'Online Users'}
+                {mode === 'select' ? t('chat.online_users_list.select_members') : mode === 'gameInvite' ? t('chat.online_users_list.invite_friends') : t('chat.online_users_list.online_users')}
               </Text>
               <View style={styles.headerRight}>
                 {mode === 'select' ? (
@@ -909,7 +909,7 @@ const OnlineUsersList = ({
                       onPress={onClose}
                       style={styles.headerButton}
                     >
-                      <Text style={styles.cancelText}>Cancel</Text>
+                      <Text style={styles.cancelText}>{t('common.cancel')}</Text>
                     </TouchableOpacity>
                     {selectedUserIds.size > 0 && (
                       <TouchableOpacity
@@ -918,7 +918,7 @@ const OnlineUsersList = ({
                         disabled={loading}
                       >
                         <Text style={styles.createGroupText}>
-                          {userGroups.length ? `Add (${selectedUserIds.size})` : `Create (${selectedUserIds.size})`}
+                          {userGroups.length ? t('chat.online_users_list.add_count', { count: selectedUserIds.size }) : t('chat.online_users_list.create_count', { count: selectedUserIds.size })}
                         </Text>
                       </TouchableOpacity>
                     )}
@@ -964,7 +964,7 @@ const OnlineUsersList = ({
                     fontWeight: activeTab === 'online' ? '600' : '400',
                     color: isDarkMode ? '#FFFFFF' : '#111827',
                   }}>
-                    Online Users
+                    {t('chat.online_users_list.online_users')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -984,7 +984,7 @@ const OnlineUsersList = ({
                     fontWeight: activeTab === 'search' ? '600' : '400',
                     color: isDarkMode ? '#FFFFFF' : '#111827',
                   }}>
-                    Search & Invite
+                    {t('chat.online_users_list.search_invite_tab')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1006,7 +1006,7 @@ const OnlineUsersList = ({
                   <TextInput
                     value={searchQuery}
                     onChangeText={setSearchQuery}
-                    placeholder={canSearchByEmail ? 'Search by name, email, or ID' : 'Search by name or ID'}
+                    placeholder={canSearchByEmail ? t('chat.online_users_list.search_placeholder_email') : t('chat.online_users_list.search_placeholder')}
                     placeholderTextColor={isDarkMode ? '#6B7280' : '#9CA3AF'}
                     style={{
                       flex: 1,
@@ -1038,7 +1038,7 @@ const OnlineUsersList = ({
                     {searching ? (
                       <ActivityIndicator size="small" color="#FFFFFF" />
                     ) : (
-                      <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 13 }}>Search</Text>
+                      <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 13 }}>{t('chat.online_users_list.search_button')}</Text>
                     )}
                   </TouchableOpacity>
                 </View>
@@ -1058,7 +1058,7 @@ const OnlineUsersList = ({
                   color={isDarkMode ? '#4B5563' : '#D1D5DB'}
                 />
                 <Text style={styles.emptyText}>
-                  No online users
+                  {t('chat.online_users_list.no_online_users')}
                 </Text>
               </View>
             ) : displayUsers.length === 0 && activeTab === 'search' ? (
@@ -1069,7 +1069,7 @@ const OnlineUsersList = ({
                   color={isDarkMode ? '#4B5563' : '#D1D5DB'}
                 />
                 <Text style={styles.emptyText}>
-                  {searchQuery.trim().length === 0 ? (canSearchByEmail ? 'Search users by name, email, or ID' : 'Search users by name or ID') : 'No users found'}
+                  {searchQuery.trim().length === 0 ? (canSearchByEmail ? t('chat.online_users_list.search_hint_email') : t('chat.online_users_list.search_hint')) : t('chat.online_users_list.no_users_found')}
                 </Text>
               </View>
             ) : (
@@ -1096,7 +1096,7 @@ const OnlineUsersList = ({
                         <ActivityIndicator size="small" color={config.colors.primary} />
                       ) : (
                         <Text style={styles.loadMoreText}>
-                          {allOnlineUserIds.length - loadedUserIds.size} more users available
+                          {t('chat.online_users_list.more_users_available', { count: allOnlineUserIds.length - loadedUserIds.size })}
                         </Text>
                       )}
                     </View>
@@ -1110,9 +1110,11 @@ const OnlineUsersList = ({
               <Text style={styles.footerText}>
                 {mode === 'select'
                   ? selectedUserIds.size > 0
-                    ? `${selectedUserIds.size} selected (max ${MAX_GROUP_MEMBERS - 1})`
-                    : 'Select users to create a group'
-                  : `${allOnlineUserIds.length} ${allOnlineUserIds.length === 1 ? 'user' : 'users'} online${allOnlineUsers.length < allOnlineUserIds.length ? ` (loaded ${allOnlineUsers.length})` : ''}`
+                    ? t('chat.online_users_list.selected_max', { count: selectedUserIds.size, max: MAX_GROUP_MEMBERS - 1 })
+                    : t('chat.online_users_list.select_hint')
+                  : allOnlineUsers.length < allOnlineUserIds.length
+                    ? t('chat.online_users_list.users_online_loaded', { count: allOnlineUserIds.length, loaded: allOnlineUsers.length })
+                    : t('chat.online_users_list.users_online', { count: allOnlineUserIds.length })
                 }
               </Text>
             </View>

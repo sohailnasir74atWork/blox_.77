@@ -6,6 +6,8 @@
  *   node scripts/more-hub/make-icons.mjs
  *
  *   more       the hub header (four app tiles)
+ *   stock      Stock          (a purple devil fruit with a timer badge; 2026-10-08,
+ *                             when Stock moved from its own tab into the hub)
  *   codes      Codes          (a golden gift ticket)
  *   wallpaper  HD Wallpapers  (a phone showing a sunny scene with a fruit)
  *   scammer    Scammer DB     (a red warning shield under a magnifier)
@@ -76,6 +78,27 @@ const serverUnit = (y) => `
   <circle cx="44.5" cy="${y + 9.5}" r="2.6" fill="#FDE047" stroke="rgba(0,0,0,0.25)" stroke-width="0.6"/>`;
 
 const ICONS = {
+  // A swirled purple devil fruit with a curly stem and a white timer badge:
+  // the dealer's stock and its reset countdown.
+  stock: svg(
+    `<radialGradient id="sbody" cx="0.35" cy="0.3" r="0.75"><stop offset="0" stop-color="#F3E8FF"/><stop offset="0.45" stop-color="#A855F7"/><stop offset="1" stop-color="#6B21A8"/></radialGradient>`
+      + grad('sleaf', [[0, '#86EFAC'], [1, '#16A34A']])
+      + grad('sclock', [[0, '#FFFFFF'], [1, '#E0E7FF']]),
+    `<ellipse cx="29" cy="37" rx="21" ry="19.5" fill="#4C1D95" transform="translate(0 2)"/>
+     <ellipse cx="29" cy="37" rx="21" ry="19.5" fill="url(#sbody)" stroke="${OUTLINE}" stroke-width="1.6"/>
+     <g fill="none" stroke="#5B21B6" stroke-width="2.6" stroke-linecap="round">
+       <path d="M17 33 c0-5 7-6 7-1 c0 3-4 3-4 1"/><path d="M30 29 c0-5 7-6 7-1 c0 3-4 3-4 1"/>
+       <path d="M21 44 c0-5 7-6 7-1 c0 3-4 3-4 1"/>
+     </g>
+     <ellipse cx="21" cy="26" rx="7" ry="3.6" fill="rgba(255,255,255,0.5)" transform="rotate(-25 21 26)"/>
+     <path d="M29 18 C28 12 31 8 35 7 C33 10 32 13 33 17" fill="#15803D" stroke="${OUTLINE}" stroke-width="1.2" stroke-linejoin="round"/>
+     <path d="M30 17 C35 11 42 12 44 15 C40 14 36 16 33 19 Z" fill="url(#sleaf)" stroke="${OUTLINE}" stroke-width="1.2" stroke-linejoin="round"/>
+     <circle cx="47" cy="47" r="12" fill="#312E81" transform="translate(0 1.5)"/>
+     <circle cx="47" cy="47" r="12" fill="url(#sclock)" stroke="${OUTLINE}" stroke-width="1.5"/>
+     <circle cx="47" cy="47" r="8.6" fill="none" stroke="#7C3AED" stroke-width="2.2"/>
+     <path d="M47 41.5 V47 L51 49.5" fill="none" stroke="#4C1D95" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+     ${sparkle(55, 11, 5, '#FDE68A')}${sparkle(8, 14, 3.6, '#E9D5FF')}`),
+
   // Four candy app tiles: the "everything else lives here" mark.
   more: svg(
     grad('tPink', [[0, '#FBCFE8'], [1, '#DB2777']]) + grad('tBlue', [[0, '#BAE6FD'], [1, '#2563EB']])

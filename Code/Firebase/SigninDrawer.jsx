@@ -116,12 +116,12 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
         return appleAuth.onCredentialRevoked(async () => {
             try {
                 await signOut(auth);
-                showWarningMessage('Session Expired', 'Please sign in again.');
+                showWarningMessage(t('app.signin_drawer.session_expired_title'), t('app.signin_drawer.session_expired_body'));
             } catch (e) {
                 console.error('Error during signOut on Apple revoke:', e);
             }
         });
-    }, [auth]);
+    }, [auth, t]);
 
     // const validateRobloxUsername = () => {
     //     if (Platform.OS === 'ios') return true; // ✅ Skip validation on iOS
@@ -150,7 +150,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
     const handleSendOtp = async () => {
         const cleaned = phoneNumber.trim();
         if (!cleaned || cleaned.length < 7) {
-            Alert.alert(t("home.alert.error"), 'Please enter a valid phone number with country code (e.g. +1234567890)');
+            Alert.alert(t("home.alert.error"), t('app.signin_drawer.invalid_phone'));
             return;
         }
         setIsSendingOtp(true);
@@ -158,9 +158,9 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
             const result = await signInWithPhoneNumber(auth, cleaned);
             setConfirmationResult(result);
             setOtpSent(true);
-            showSuccessMessage('Code Sent', `Verification code sent to ${cleaned}`);
+            showSuccessMessage(t('app.signin_drawer.code_sent_title'), t('app.signin_drawer.code_sent_body', { phone: cleaned }));
         } catch (error) {
-            showErrorMessage(t("home.alert.error"), error?.message || 'Failed to send SMS. Check the number and try again.');
+            showErrorMessage(t("home.alert.error"), error?.message || t('app.signin_drawer.sms_failed'));
         } finally {
             setIsSendingOtp(false);
         }
@@ -168,7 +168,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
 
     const handleForgotPassword = async () => {
         if (!email) {
-            Alert.alert(t("home.alert.error"), 'Enter valid email address');
+            Alert.alert(t("home.alert.error"), t('app.signin_drawer.enter_valid_email'));
             return;
         }
 
@@ -280,7 +280,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
             if (TEMP_EMAIL_DOMAINS.has(emailDomain)) {
                 Alert.alert(
                     t("home.alert.error"),
-                    "Temporary or disposable email addresses are not allowed. Please use a real email address (Gmail, Outlook, Yahoo, etc.)."
+                    t('app.signin_drawer.disposable_email')
                 );
                 return;
             }
@@ -292,14 +292,14 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
             if (isRegisterMode) {
                 // Step 1: Verify phone OTP first
                 if (!confirmationResult || !otpSent) {
-                    Alert.alert(t("home.alert.error"), 'Please verify your phone number first.');
+                    Alert.alert(t("home.alert.error"), t('app.signin_drawer.verify_phone_first'));
                     setIsLoadingSecondary(false);
                     return;
                 }
                 try {
                     await confirmationResult.confirm(otpCode.trim());
                 } catch {
-                    Alert.alert(t("home.alert.error"), 'Invalid verification code. Please try again.');
+                    Alert.alert(t("home.alert.error"), t('app.signin_drawer.invalid_code'));
                     setIsLoadingSecondary(false);
                     return;
                 }
@@ -315,8 +315,8 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                 await signOut(auth);
 
                 Alert.alert(
-                    '✅ Account Created',
-                    'Please check your inbox to verify your email. If you don\'t see it, check the Spam or Promotions folder.'
+                    t('app.signin_drawer.account_created_title'),
+                    t('app.signin_drawer.account_created_body')
                 );
                 resetPhoneState();
                 return;
@@ -333,8 +333,8 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                     await signOut(auth);
 
                     Alert.alert(
-                        "📩 Email Not Verified",
-                        "A new verification link has been sent to your email. Please check your inbox or spam folder before signing in."
+                        t('app.signin_drawer.email_not_verified_title'),
+                        t('app.signin_drawer.email_not_verified_body')
                     );
                     return;
                 }
@@ -384,7 +384,15 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
             const idToken = signInResult?.idToken || signInResult?.data?.idToken;
             if (!idToken) throw new Error(t("signin.error_signin_message"));
 
-            const googleCredential = GoogleAuthProvider.credential(idToken);
+            // Pass the access token too. @react-native-firebase 25 sends a
+            // missing one as '' and Firebase Android rejects that ("accessToken
+            // cannot be empty"), so an ID-token-only credential fails every
+            // Google sign-in. getTokens() can't fail the sign-in: without it
+            // we fall back to the ID token alone.
+            const accessToken = await GoogleSignin.getTokens()
+                .then((tk) => tk?.accessToken || null)
+                .catch(() => null);
+            const googleCredential = GoogleAuthProvider.credential(idToken, accessToken);
             await signInWithCredential(auth, googleCredential);
 
             showSuccessMessage(
@@ -438,7 +446,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                 <Pressable onPress={() => { }}>
                     <View style={[styles.drawer, { backgroundColor: isDarkMode ? '#3B404C' : 'white', paddingBottom: insets.bottom + 16 }]}>
                         <Text style={[styles.title, { color: selectedTheme.colors.text }]}>
-                            {isRegisterMode ? t("signin.title_register") : isForgotPasswordMode ? 'Forget Password' : t("signin.title_signin")}
+                            {isRegisterMode ? t("signin.title_register") : isForgotPasswordMode ? t('app.signin_drawer.forget_password') : t("signin.title_signin")}
                         </Text>
                         <View>
                             <Text style={[styles.text, { color: selectedTheme.colors.text }]}>
@@ -527,7 +535,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                                                 borderColor: otpSent ? '#29AB87' : 'grey'
                                             },
                                         ]}
-                                        placeholder="+1234567890 (with country code)"
+                                        placeholder={t('app.signin_drawer.phone_placeholder')}
                                         value={phoneNumber}
                                         onChangeText={setPhoneNumber}
                                         keyboardType="phone-pad"
@@ -546,7 +554,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                                         {isSendingOtp
                                             ? <ActivityIndicator size="small" color="white" />
                                             : <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
-                                                {otpSent ? 'Resend' : 'Send Code'}
+                                                {otpSent ? t('app.signin_drawer.resend') : t('app.signin_drawer.send_code')}
                                             </Text>
                                         }
                                     </TouchableOpacity>
@@ -556,7 +564,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                                     <View style={{ marginTop: 8 }}>
                                         <TextInput
                                             style={[styles.input, { marginTop: 0, color: selectedTheme.colors.text, borderColor: '#29AB87' }]}
-                                            placeholder="Enter 6-digit code"
+                                            placeholder={t('app.signin_drawer.code_placeholder')}
                                             value={otpCode}
                                             onChangeText={setOtpCode}
                                             keyboardType="number-pad"
@@ -564,7 +572,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                                             placeholderTextColor={selectedTheme.colors.text}
                                         />
                                         <Text style={{ fontSize: 11, color: '#29AB87', marginTop: 4 }}>
-                                            ✅ Code sent! Enter it above then tap Register.
+                                            {t('app.signin_drawer.code_sent_hint')}
                                         </Text>
                                     </View>
                                 )}
@@ -586,7 +594,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                             onPress={() => setIsForgotPasswordMode(!isForgotPasswordMode)} // Toggle mode
                         >
                             <Text style={styles.secondaryButtonText}>
-                                {isForgotPasswordMode ? 'Signin Mode' : 'Forgetpassword Mode'}
+                                {isForgotPasswordMode ? t('app.signin_drawer.signin_mode') : t('app.signin_drawer.forget_password_mode')}
                             </Text>
                         </TouchableOpacity>
 
@@ -616,7 +624,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                                 {isLoading ? (
                                     <ActivityIndicator size="small" color="white" />
                                 ) : (
-                                    <Text style={styles.primaryButtonText}>Send Reset Link</Text>
+                                    <Text style={styles.primaryButtonText}>{t('app.signin_drawer.send_reset_link')}</Text>
                                 )}
                             </TouchableOpacity>
                         ) : (
@@ -690,7 +698,7 @@ const SignInDrawer = ({ visible, onClose, selectedTheme, message, screen }) => {
                             <Text style={styles.legalLink} onPress={handleOpenPrivacy}>
                                 {t('signin.legal_privacy', { defaultValue: 'Privacy Policy' })}
                             </Text>
-                            .
+                            {t('signin.legal_suffix', { defaultValue: '.' })}
                         </Text>
                     </View>
                 </Pressable>

@@ -40,7 +40,7 @@ import {
   limitToLast,
   onValue,
 } from '@react-native-firebase/database';
-import { loadPrivateMessages as sbLoadPrivateMessages } from '../Supabase/privateMessagesBackend';
+import { modLoadPrivateChat as sbLoadPrivateMessages } from '../Supabase/privateMessagesBackend';
 import {
   fetchAllPolls as sbFetchAllPolls,
   createPoll as sbCreatePoll,
@@ -76,7 +76,6 @@ import {
   fetchUserRoles,
   outranksUser,
   isCurrentUserOwner,
-  isOwnerEmail,
   isMuteRecordCompat,
   getStaffRank,
   STAFF_RANK,
@@ -200,6 +199,33 @@ const timeAgo = (v) => {
   return `${d}d ago`;
 };
 
+const ACCENT = '#0A84FF';
+
+// Dashboard sections. `admin`: admins only; `staffAdmin`: staff managers only.
+const SECTIONS = [
+  { key: 'queue', label: 'Reports', icon: 'flag', tabs: [
+    { key: 'reports', label: 'Queue' },
+    { key: 'chatViewer', label: 'Chat viewer' },
+  ] },
+  { key: 'users', label: 'Users', icon: 'people', tabs: [
+    { key: 'search', label: 'Find user' },
+    { key: 'banned', label: 'Banned' },
+    { key: 'banStats', label: 'Ban stats' },
+  ] },
+  { key: 'content', label: 'Content', icon: 'albums', tabs: [
+    { key: 'polls', label: 'Polls' },
+    { key: 'statusFeed', label: 'Statuses' },
+    { key: 'news', label: 'News', admin: true },
+  ] },
+  { key: 'audit', label: 'Audit', icon: 'document-text', tabs: [
+    { key: 'modLog', label: 'Mod log' },
+    { key: 'reviewIntegrity', label: 'Reviews' },
+  ] },
+  { key: 'staff', label: 'Staff', icon: 'key', tabs: [
+    { key: 'staffAccess', label: 'Staff access', staffAdmin: true },
+  ] },
+];
+
 const AdminDashboard = () => {
   const { theme, user: currentUser, isAdmin, isSeniorMod, isModerator, isBabyMod, isUserBlocked, currentUserEmail } = useGlobalState();
   const isDark = theme === 'dark';
@@ -211,8 +237,8 @@ const AdminDashboard = () => {
   const callerEmailLc = (currentUserEmail || currentUser?.email || '').toLowerCase().trim();
   const isSelf = (e) => !!e && callerEmailLc && e.toLowerCase().trim() === callerEmailLc;
 
-  // Tabs
-  const [activeTab, setActiveTab] = useState('banned');
+  // Tabs — grouped into sections (see SECTIONS); the report queue opens first.
+  const [activeTab, setActiveTab] = useState('reports');
 
   // ── Status Feed (admin moderation) ──
   const STATUS_PAGE_SIZE = 10;
@@ -309,7 +335,16 @@ const AdminDashboard = () => {
 
   // Ban Summary Stats (computed from allBannedUsers)
   const [banSummary, setBanSummary] = useState(null); // { total, muted, byMod: { modName: count } }
-  const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const banStats = useMemo(() => {
+    const out = { muted: 0, s1: 0, s2: 0, perm: 0 };
+    allBannedUsers.forEach((u) => {
+      if (u.type === 'mute') out.muted += 1;
+      else if (u.strikeCount === 1) out.s1 += 1;
+      else if (u.strikeCount === 2) out.s2 += 1;
+      else if (u.strikeCount >= 3) out.perm += 1;
+    });
+    return out;
+  }, [allBannedUsers]);
 
   // ─────────────────────────────────────────────
   // Helper: check if a string looks like a Firebase user ID (not a display name)
@@ -780,6 +815,30 @@ const AdminDashboard = () => {
   }), [isAdmin, isSeniorMod, isModerator, isBabyMod]);
   const canManageStaffAccess = getStaffRank(callerRoles) >= STAFF_RANK.admin;
 
+  // ── Layout: 5 sections, each with its own sub-tabs ──
+  const ui = useMemo(() => (isDark
+    ? { bg: '#000', surface: '#111113', chip: '#1C1C1E', border: '#232326', text: '#FFF', sub: '#8E8E93' }
+    : { bg: '#F2F2F7', surface: '#FFF', chip: '#E9E9EE', border: '#E5E5EA', text: '#000', sub: '#6B6B70' }), [isDark]);
+  const roleBadge = isAdmin
+    ? { label: 'Admin', color: '#FF3B30' }
+    : isSeniorMod
+      ? { label: 'Sr Mod', color: '#5E5CE6' }
+      : isModerator
+        ? { label: 'Mod', color: '#0A84FF' }
+        : { label: 'JMod', color: '#BF5AF2' };
+  const visibleSections = useMemo(() => SECTIONS
+    .map((sec) => ({ ...sec, tabs: sec.tabs.filter((t) => (!t.admin || isAdmin) && (!t.staffAdmin || canManageStaffAccess)) }))
+    .filter((sec) => sec.tabs.length > 0), [isAdmin, canManageStaffAccess]);
+  const currentSection = visibleSections.find((sec) => sec.tabs.some((t) => t.key === activeTab)) || visibleSections[0];
+  const currentSubTabs = currentSection.tabs;
+  // Each section remembers the sub-tab you were on.
+  const lastSubTabRef = React.useRef({});
+  useEffect(() => { lastSubTabRef.current[currentSection.key] = activeTab; }, [activeTab, currentSection.key]);
+  const selectSection = useCallback((sec) => {
+    const remembered = lastSubTabRef.current[sec.key];
+    setActiveTab(sec.tabs.some((t) => t.key === remembered) ? remembered : sec.tabs[0].key);
+  }, []);
+
   const [selectedRoles, setSelectedRoles] = useState(null);
   const [selectedSanction, setSelectedSanction] = useState(null);
   const [selectedBannerRoles, setSelectedBannerRoles] = useState(null);
@@ -796,7 +855,7 @@ const AdminDashboard = () => {
     if (!key) return;
     try {
       const [roles, status] = await Promise.all([
-        userItem?.id ? fetchUserRoles(userItem.id, email) : Promise.resolve(null),
+        userItem?.id ? fetchUserRoles(userItem.id) : Promise.resolve(null),
         getSanctionStatus(userItem?.id || null, email || null),
       ]);
       const bannerRoles = status.active && status.bannedByUid ? await fetchUserRoles(status.bannedByUid) : null;
@@ -806,14 +865,14 @@ const AdminDashboard = () => {
         isSeniorMod: !!userItem?.isSeniorMod,
         isModerator: !!userItem?.isModerator,
         isBabyMod: !!userItem?.isBabyMod,
-        isOwner: isOwnerEmail(email),
+        isOwner: userItem?.owner === true,
       });
       setSelectedSanction(status);
       setSelectedBannerRoles(bannerRoles);
     } catch (err) {
       console.warn('[AdminDashboard] load moderation status failed:', err?.message);
       if (selectedIdRef.current === key) {
-        setSelectedRoles({ isOwner: isOwnerEmail(email) });
+        setSelectedRoles({ isOwner: userItem?.owner === true });
         setSelectedSanction({ active: false, type: null, strikeCount: 0 });
       }
     }
@@ -1277,7 +1336,7 @@ const AdminDashboard = () => {
       setChatMessages(msgs);
     } catch (err) {
       console.error('Chat load error:', err);
-      Alert.alert('Error', 'Could not load chat. Check selections and try again.');
+      Alert.alert('Error', `Could not load chat: ${err?.message || 'unknown error'}`);
     } finally {
       setLoadingChat(false);
     }
@@ -1333,7 +1392,7 @@ const AdminDashboard = () => {
       setChatMessages(msgs);
     } catch (err) {
       console.error('Chat load from report error:', err);
-      Alert.alert('Error', 'Could not load reported chat.');
+      Alert.alert('Error', `Could not load reported chat: ${err?.message || 'unknown error'}`);
     } finally {
       setLoadingChat(false);
     }
@@ -1564,7 +1623,7 @@ const AdminDashboard = () => {
           { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF', borderColor: isDark ? '#2C2C2E' : '#F2F2F7' }
         ]}
       >
-        <Image source={{ uri: avatarUri }} style={styles.avatar} />
+        <Image resizeMethod="resize" source={{ uri: avatarUri }} style={styles.avatar} />
         <View style={styles.cardContent}>
           <Text style={[styles.name, { color: isDark ? '#FFF' : '#000' }]} numberOfLines={1}>
             {merged.displayName}
@@ -1615,109 +1674,67 @@ const AdminDashboard = () => {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? '#000' : '#F2F2F7', paddingTop: insets.top }]}>
-      {/* Tabs */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ flexGrow: 0, flexShrink: 0 }}
-        contentContainerStyle={styles.tabContainer}
-      >
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'banned' && styles.activeTab, { borderColor: isDark ? '#333' : '#E5E5EA' }]}
-          onPress={() => setActiveTab('banned')}
-        >
-          <Text style={[styles.tabText, activeTab === 'banned' && styles.activeTabText, { color: activeTab === 'banned' ? '#007AFF' : (isDark ? '#888' : '#666') }]}>
-            Banned List
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'reports' && styles.activeTab, { borderColor: isDark ? '#333' : '#E5E5EA' }]}
-          onPress={() => setActiveTab('reports')}
-        >
-          <Text style={[styles.tabText, activeTab === 'reports' && styles.activeTabText, { color: activeTab === 'reports' ? '#007AFF' : (isDark ? '#888' : '#666') }]}>
-            Reports
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'search' && styles.activeTab, { borderColor: isDark ? '#333' : '#E5E5EA' }]}
-          onPress={() => setActiveTab('search')}
-        >
-          <Text style={[styles.tabText, activeTab === 'search' && styles.activeTabText, { color: activeTab === 'search' ? '#007AFF' : (isDark ? '#888' : '#666') }]}>
-            Search DB
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'chatViewer' && styles.activeTab, { borderColor: isDark ? '#333' : '#E5E5EA' }]}
-          onPress={() => setActiveTab('chatViewer')}
-        >
-          <Text style={[styles.tabText, activeTab === 'chatViewer' && styles.activeTabText, { color: activeTab === 'chatViewer' ? '#007AFF' : (isDark ? '#888' : '#666') }]}>
-            Chat Viewer
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'polls' && styles.activeTab, { borderColor: isDark ? '#333' : '#E5E5EA' }]}
-          onPress={() => setActiveTab('polls')}
-        >
-          <Text style={[styles.tabText, activeTab === 'polls' && styles.activeTabText, { color: activeTab === 'polls' ? '#007AFF' : (isDark ? '#888' : '#666') }]}>
-            Polls
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'statusFeed' && styles.activeTab, { borderColor: isDark ? '#333' : '#E5E5EA' }]}
-          onPress={() => setActiveTab('statusFeed')}
-        >
-          <Text style={[styles.tabText, activeTab === 'statusFeed' && styles.activeTabText, { color: activeTab === 'statusFeed' ? '#007AFF' : (isDark ? '#888' : '#666') }]}>
-            Statuses
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'reviewIntegrity' && styles.activeTab, { borderColor: isDark ? '#333' : '#E5E5EA' }]}
-          onPress={() => setActiveTab('reviewIntegrity')}
-        >
-          <Text style={[styles.tabText, activeTab === 'reviewIntegrity' && styles.activeTabText, { color: activeTab === 'reviewIntegrity' ? '#007AFF' : (isDark ? '#888' : '#666') }]}>
-            Reviews
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'modLog' && styles.activeTab, { borderColor: isDark ? '#333' : '#E5E5EA' }]}
-          onPress={() => setActiveTab('modLog')}
-        >
-          <Text style={[styles.tabText, activeTab === 'modLog' && styles.activeTabText, { color: activeTab === 'modLog' ? '#007AFF' : (isDark ? '#888' : '#666') }]}>
-            Mod Log
-          </Text>
-        </TouchableOpacity>
-
-        {canManageStaffAccess && (
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'staffAccess' && styles.activeTab, { borderColor: isDark ? '#333' : '#E5E5EA' }]}
-            onPress={() => setActiveTab('staffAccess')}
-          >
-            <Text style={[styles.tabText, activeTab === 'staffAccess' && styles.activeTabText, { color: activeTab === 'staffAccess' ? '#007AFF' : (isDark ? '#888' : '#666') }]}>
-              Staff Access
-            </Text>
+    <View style={[styles.container, { backgroundColor: ui.bg }]}>
+      {/* Header: back, title, role */}
+      <View style={[styles.header, { borderBottomColor: ui.border, backgroundColor: ui.surface, paddingTop: insets.top + 6 }]}>
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.headerBack, { backgroundColor: ui.chip }]} hitSlop={8}>
+            <Ionicons name="chevron-back" size={20} color={ui.text} />
           </TouchableOpacity>
-        )}
-
-        {/* More hub ▸ News posts (AdminNewsTab), admins only. */}
-        {isAdmin && (
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'news' && styles.activeTab, { borderColor: isDark ? '#333' : '#E5E5EA' }]}
-            onPress={() => setActiveTab('news')}
-          >
-            <Text style={[styles.tabText, activeTab === 'news' && styles.activeTabText, { color: activeTab === 'news' ? '#007AFF' : (isDark ? '#888' : '#666') }]}>
-              News
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={[styles.headerTitle, { color: ui.text }]} numberOfLines={1}>Mod Panel</Text>
+            <Text style={{ color: ui.sub, fontSize: 11.5 }} numberOfLines={1}>
+              {currentSection.label} · {currentSubTabs.find((x) => x.key === activeTab)?.label || ''}
             </Text>
-          </TouchableOpacity>
-        )}
-      </ScrollView>
+          </View>
+          <View style={[styles.roleChip, { backgroundColor: `${roleBadge.color}22` }]}>
+            <Ionicons name="shield-checkmark" size={12} color={roleBadge.color} />
+            <Text style={{ color: roleBadge.color, fontSize: 11.5, fontWeight: '800', marginLeft: 4 }}>{roleBadge.label}</Text>
+          </View>
+        </View>
+
+        {/* Sections — every one fits on screen, no sideways scrolling */}
+        <View style={styles.sectionBar}>
+          {visibleSections.map((sec) => {
+            const on = sec.key === currentSection.key;
+            return (
+              <TouchableOpacity
+                key={sec.key}
+                onPress={() => selectSection(sec)}
+                activeOpacity={0.8}
+                style={[styles.sectionItem, on && { backgroundColor: `${ACCENT}1F` }]}
+              >
+                <Ionicons name={on ? sec.icon : `${sec.icon}-outline`} size={19} color={on ? ACCENT : ui.sub} />
+                <Text style={{ fontSize: 11, fontWeight: on ? '800' : '600', color: on ? ACCENT : ui.sub, marginTop: 2 }} numberOfLines={1}>
+                  {sec.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Sub-tabs of the current section (segmented control) */}
+      {currentSubTabs.length > 1 && (
+        <View style={[styles.segment, { backgroundColor: ui.chip }]}>
+          {currentSubTabs.map((tab) => {
+            const on = tab.key === activeTab;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                onPress={() => setActiveTab(tab.key)}
+                activeOpacity={0.8}
+                style={[styles.segmentItem, on && [styles.segmentItemOn, { backgroundColor: ui.surface }]]}
+              >
+                <Text style={{ fontSize: 12.5, fontWeight: on ? '800' : '600', color: on ? ui.text : ui.sub }} numberOfLines={1}>
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+      {currentSubTabs.length <= 1 && <View style={{ height: 10 }} />}
 
       {activeTab === 'search' && (
         <View style={styles.searchContainer}>
@@ -1739,61 +1756,6 @@ const AdminDashboard = () => {
       {/* Content */}
       {activeTab === 'banned' ? (
         <View style={{ flex: 1 }}>
-          {/* Ban Summary Card */}
-          {banSummary && (
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => setSummaryExpanded(!summaryExpanded)}
-              style={{
-                marginHorizontal: 16, marginBottom: 10, padding: 14, borderRadius: 14,
-                backgroundColor: isDark ? '#1C1C1E' : '#FFF',
-                borderWidth: 1, borderColor: isDark ? '#2C2C2E' : '#E5E5EA',
-              }}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#FF3B3015', justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
-                    <Ionicons name="shield" size={18} color="#FF3B30" />
-                  </View>
-                  <View>
-                    <Text style={{ fontSize: 20, fontWeight: '800', color: isDark ? '#FFF' : '#000' }}>
-                      {banSummary.total}
-                    </Text>
-                    <Text style={{ fontSize: 11, color: isDark ? '#888' : '#666', fontWeight: '500' }}>
-                      Total Banned Users{banSummary.muted ? ` · ${banSummary.muted} muted` : ''}
-                    </Text>
-                  </View>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 11, color: '#007AFF', fontWeight: '600', marginRight: 4 }}>
-                    {Object.keys(banSummary.byMod).length} Mods
-                  </Text>
-                  <Ionicons name={summaryExpanded ? 'chevron-up' : 'chevron-down'} size={16} color={isDark ? '#666' : '#999'} />
-                </View>
-              </View>
-
-              {summaryExpanded && (
-                <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: isDark ? '#2C2C2E' : '#F2F2F7' }}>
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: isDark ? '#888' : '#666', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
-                    Actions by Moderator
-                  </Text>
-                  {Object.entries(banSummary.byMod)
-                    .sort(([, a], [, b]) => b - a)
-                    .map(([modName, count]) => (
-                      <View key={modName} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <Ionicons name="person-circle" size={20} color={isDark ? '#555' : '#CCC'} style={{ marginRight: 8 }} />
-                          <Text style={{ color: isDark ? '#CCC' : '#333', fontSize: 14, fontWeight: '500' }}>{modName}</Text>
-                        </View>
-                        <View style={{ backgroundColor: '#FF3B3015', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10 }}>
-                          <Text style={{ color: '#FF3B30', fontSize: 13, fontWeight: '700' }}>{count}</Text>
-                        </View>
-                      </View>
-                    ))}
-                </View>
-              )}
-            </TouchableOpacity>
-          )}
           {loadingBanned && !banSummary && allBannedUsers.length === 0 && (
             <ActivityIndicator size="small" color="#007AFF" style={{ marginBottom: 10 }} />
           )}
@@ -1862,6 +1824,59 @@ const AdminDashboard = () => {
             />
           )}
         </View>
+      ) : activeTab === 'banStats' ? (
+        <ScrollView
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ui.text} />}
+        >
+          {!banSummary ? (
+            <ActivityIndicator size="small" color={ACCENT} style={{ marginTop: 30 }} />
+          ) : (
+            <>
+              <View style={styles.statGrid}>
+                {[
+                  { label: 'Restricted', value: banSummary.total, color: '#FF3B30', icon: 'shield' },
+                  { label: 'Muted', value: banStats.muted, color: '#BF5AF2', icon: 'volume-mute' },
+                  { label: 'Strike 1', value: banStats.s1, color: '#FF9F0A', icon: 'alert-circle' },
+                  { label: 'Strike 2', value: banStats.s2, color: '#FF6B00', icon: 'warning' },
+                  { label: 'Permanent', value: banStats.perm, color: '#FF3B30', icon: 'ban' },
+                  { label: 'Moderators', value: Object.keys(banSummary.byMod).length, color: ACCENT, icon: 'people' },
+                ].map((c) => (
+                  <View key={c.label} style={[styles.statCard, { backgroundColor: ui.surface, borderColor: ui.border }]}>
+                    <View style={[styles.statIcon, { backgroundColor: `${c.color}1F` }]}>
+                      <Ionicons name={c.icon} size={16} color={c.color} />
+                    </View>
+                    <Text style={{ fontSize: 22, fontWeight: '800', color: ui.text, marginTop: 8 }}>{c.value}</Text>
+                    <Text style={{ fontSize: 11.5, color: ui.sub, fontWeight: '600' }}>{c.label}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <Text style={[styles.sectionLabel, { color: ui.sub }]}>Actions by moderator</Text>
+              <View style={[styles.listCard, { backgroundColor: ui.surface, borderColor: ui.border }]}>
+                {Object.entries(banSummary.byMod).length === 0 ? (
+                  <Text style={{ color: ui.sub, padding: 14 }}>No actions yet.</Text>
+                ) : Object.entries(banSummary.byMod)
+                  .sort(([, x], [, y]) => y - x)
+                  .map(([modName, count], i, arr) => (
+                    <View
+                      key={modName}
+                      style={{
+                        flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11,
+                        borderBottomWidth: i === arr.length - 1 ? 0 : StyleSheet.hairlineWidth, borderBottomColor: ui.border,
+                      }}
+                    >
+                      <Text style={{ width: 22, color: ui.sub, fontSize: 12, fontWeight: '700' }}>{i + 1}</Text>
+                      <Text style={{ flex: 1, color: ui.text, fontSize: 14, fontWeight: '600' }} numberOfLines={1}>{modName}</Text>
+                      <View style={{ backgroundColor: '#FF3B301A', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10 }}>
+                        <Text style={{ color: '#FF3B30', fontSize: 13, fontWeight: '800' }}>{count}</Text>
+                      </View>
+                    </View>
+                  ))}
+              </View>
+            </>
+          )}
+        </ScrollView>
       ) : activeTab === 'search' ? (
         <View style={{ flex: 1 }}>
           {loadingSearch ? (
@@ -1909,7 +1924,7 @@ const AdminDashboard = () => {
                             setChatMessages([]);
                           }}
                         >
-                          <Image source={{ uri: p.avatar }} style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: '#DDD' }} />
+                          <Image resizeMethod="resize" source={{ uri: p.avatar }} style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: '#DDD' }} />
                           <Text style={{ color: isDark ? '#FFF' : '#000', fontSize: 13.5, fontWeight: '600', marginLeft: 6, flexShrink: 1 }} numberOfLines={1}>{p.displayName}</Text>
                         </TouchableOpacity>
                       </React.Fragment>
@@ -1926,7 +1941,7 @@ const AdminDashboard = () => {
                     <Text style={{ color: isDark ? '#888' : '#666', fontSize: 11, fontWeight: '600', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>Person 1</Text>
                     {chatPerson1 ? (
                       <View style={[styles.selectedPersonCard, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', borderColor: isDark ? '#2C2C2E' : '#E5E5EA' }]}>
-                        <Image source={{ uri: chatPerson1.avatar }} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#DDD' }} />
+                        <Image resizeMethod="resize" source={{ uri: chatPerson1.avatar }} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#DDD' }} />
                         <View style={{ flex: 1, marginLeft: 10 }}>
                           <Text style={{ color: isDark ? '#FFF' : '#000', fontSize: 15, fontWeight: '600' }} numberOfLines={1}>{chatPerson1.displayName}</Text>
                           <Text style={{ color: isDark ? '#666' : '#999', fontSize: 11 }} numberOfLines={1}>{chatPerson1.email || chatPerson1.id}</Text>
@@ -1965,7 +1980,7 @@ const AdminDashboard = () => {
                                 onPress={() => { setChatPerson1(u); setChatSearch1(''); setChatResults1([]); }}
                                 style={[styles.chatDropdownItem, { borderBottomColor: isDark ? '#2C2C2E' : '#F2F2F7' }]}
                               >
-                                <Image source={{ uri: u.avatar }} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: '#DDD' }} />
+                                <Image resizeMethod="resize" source={{ uri: u.avatar }} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: '#DDD' }} />
                                 <View style={{ flex: 1, marginLeft: 8 }}>
                                   <Text style={{ color: isDark ? '#FFF' : '#000', fontSize: 14, fontWeight: '500' }} numberOfLines={1}>{u.displayName}</Text>
                                   <Text style={{ color: isDark ? '#666' : '#999', fontSize: 11 }} numberOfLines={1}>{u.email || u.id}</Text>
@@ -1983,7 +1998,7 @@ const AdminDashboard = () => {
                     <Text style={{ color: isDark ? '#888' : '#666', fontSize: 11, fontWeight: '600', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>Person 2</Text>
                     {chatPerson2 ? (
                       <View style={[styles.selectedPersonCard, { backgroundColor: isDark ? '#1C1C1E' : '#FFF', borderColor: isDark ? '#2C2C2E' : '#E5E5EA' }]}>
-                        <Image source={{ uri: chatPerson2.avatar }} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#DDD' }} />
+                        <Image resizeMethod="resize" source={{ uri: chatPerson2.avatar }} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#DDD' }} />
                         <View style={{ flex: 1, marginLeft: 10 }}>
                           <Text style={{ color: isDark ? '#FFF' : '#000', fontSize: 15, fontWeight: '600' }} numberOfLines={1}>{chatPerson2.displayName}</Text>
                           <Text style={{ color: isDark ? '#666' : '#999', fontSize: 11 }} numberOfLines={1}>{chatPerson2.email || chatPerson2.id}</Text>
@@ -2022,7 +2037,7 @@ const AdminDashboard = () => {
                                 onPress={() => { setChatPerson2(u); setChatSearch2(''); setChatResults2([]); }}
                                 style={[styles.chatDropdownItem, { borderBottomColor: isDark ? '#2C2C2E' : '#F2F2F7' }]}
                               >
-                                <Image source={{ uri: u.avatar }} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: '#DDD' }} />
+                                <Image resizeMethod="resize" source={{ uri: u.avatar }} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: '#DDD' }} />
                                 <View style={{ flex: 1, marginLeft: 8 }}>
                                   <Text style={{ color: isDark ? '#FFF' : '#000', fontSize: 14, fontWeight: '500' }} numberOfLines={1}>{u.displayName}</Text>
                                   <Text style={{ color: isDark ? '#666' : '#999', fontSize: 11 }} numberOfLines={1}>{u.email || u.id}</Text>
@@ -2289,7 +2304,7 @@ const AdminDashboard = () => {
               )}
             </TouchableOpacity>
             {pollImageUrl ? (
-              <Image source={{ uri: pollImageUrl }} style={{ width: '100%', height: 120, borderRadius: 10, marginBottom: 6, backgroundColor: '#DDD' }} resizeMode="cover" />
+              <Image resizeMethod="resize" source={{ uri: pollImageUrl }} style={{ width: '100%', height: 120, borderRadius: 10, marginBottom: 6, backgroundColor: '#DDD' }} resizeMode="cover" />
             ) : null}
 
             <TouchableOpacity
@@ -2408,7 +2423,7 @@ const AdminDashboard = () => {
                       })}
                       style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}
                     >
-                      <Image
+                      <Image resizeMethod="resize"
                         source={{ uri: item.userAvatar || DEFAULT_AVATAR }}
                         style={{ width: 36, height: 36, borderRadius: 18, marginRight: 10 }}
                       />
@@ -2432,7 +2447,7 @@ const AdminDashboard = () => {
 
                     {/* Image */}
                     {!!item.imageUrl && (
-                      <Image
+                      <Image resizeMethod="resize"
                         source={{ uri: item.imageUrl }}
                         style={{ width: '100%', height: 160, borderRadius: 8, marginBottom: 8, backgroundColor: isDark ? '#000' : '#EEE' }}
                         resizeMode="cover"
@@ -2513,7 +2528,16 @@ const AdminDashboard = () => {
       <ProfileBottomDrawer
         isVisible={!!statusProfileUser}
         toggleModal={() => setStatusProfileUser(null)}
-        startChat={() => {}}
+        startChat={() => {
+          // Lets staff DM either side of a report (reported user or reporter).
+          const u = statusProfileUser;
+          setStatusProfileUser(null);
+          const uid = u?.senderId || u?.id;
+          if (!uid) return;
+          navigation.navigate('PrivateChat', {
+            selectedUser: { senderId: uid, sender: u?.sender || u?.displayName || 'User', avatar: u?.avatar || null },
+          });
+        }}
         selectedUser={statusProfileUser || {}}
         isOnline={false}
         bannedUsers={[]}
@@ -2540,7 +2564,7 @@ const AdminDashboard = () => {
 
               {/* Header */}
               <View style={{ alignItems: 'center', marginVertical: 20 }}>
-                <Image source={{ uri: getAvatarSafe(selectedUser) }} style={styles.avatarLarge} />
+                <Image resizeMethod="resize" source={{ uri: getAvatarSafe(selectedUser) }} style={styles.avatarLarge} />
                 <Text style={[styles.modalName, { color: isDark ? '#FFF' : '#000' }]}>{selectedUser.displayName}</Text>
                 <Text style={[styles.modalEmail, { color: isDark ? '#AAA' : '#666' }]}>{selectedUser.email || selectedUser.decodedEmail}</Text>
 
@@ -2822,11 +2846,21 @@ const AdminDashboard = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  tabContainer: { flexDirection: 'row', paddingHorizontal: 16, marginBottom: 16 },
-  tab: { marginRight: 16, paddingBottom: 8, borderBottomWidth: 2, borderColor: 'transparent' },
-  activeTab: { borderColor: '#007AFF' },
-  tabText: { fontSize: 16, fontWeight: '600' },
-  activeTabText: { color: '#007AFF' },
+  header: { paddingHorizontal: 12, paddingBottom: 6, borderBottomWidth: StyleSheet.hairlineWidth },
+  headerRow: { flexDirection: 'row', alignItems: 'center', minHeight: 40 },
+  headerBack: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 18, fontWeight: '800', letterSpacing: -0.2 },
+  roleChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999 },
+  sectionBar: { flexDirection: 'row', marginTop: 8, gap: 4 },
+  sectionItem: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 6, borderRadius: 10 },
+  segment: { flexDirection: 'row', marginHorizontal: 12, marginTop: 10, marginBottom: 10, padding: 3, borderRadius: 10 },
+  segmentItem: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 7, borderRadius: 8 },
+  segmentItemOn: { shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  statGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  statCard: { width: '31.5%', borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, padding: 12, marginBottom: 10 },
+  statIcon: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  sectionLabel: { fontSize: 11.5, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 10, marginBottom: 8, marginLeft: 4 },
+  listCard: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
 
   searchContainer: { flexDirection: 'row', paddingHorizontal: 16, marginBottom: 10 },
   searchInput: { flex: 1, height: 44, borderRadius: 10, paddingHorizontal: 12, fontSize: 16 },

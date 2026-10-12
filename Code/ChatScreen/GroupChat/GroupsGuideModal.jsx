@@ -10,9 +10,11 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useGlobalState } from '../../GlobelStats';
 import config from '../../Helper/Environment';
+import { useTranslation } from 'react-i18next';
 
 const GroupsGuideModal = ({ visible, onClose }) => {
   const { theme } = useGlobalState();
+  const { t } = useTranslation();
   const isDarkMode = theme === 'dark';
 
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
@@ -29,7 +31,7 @@ const GroupsGuideModal = ({ visible, onClose }) => {
           {/* Header */}
           <View style={styles.modalHeader}>
             <Text style={[styles.modalTitle, { color: isDarkMode ? '#fff' : '#000' }]}>
-              Groups Guide
+              {t('chat.groups_guide.title')}
             </Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Icon name="close-circle" size={28} color={isDarkMode ? '#9CA3AF' : '#6B7280'} />
@@ -47,15 +49,10 @@ const GroupsGuideModal = ({ visible, onClose }) => {
                 <Icon name="people" size={24} color={config.colors.primary} />
               </View>
               <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : '#000' }]}>
-                How to Create a Group
+                {t('chat.groups_guide.how_to_create_title')}
               </Text>
               <Text style={[styles.sectionText, { color: isDarkMode ? '#D1D5DB' : '#4B5563' }]}>
-                1. Go to the main Chat screen and tap the plus icon (+) in the header.{'\n\n'}
-                2. Select members from the online users list (you can select multiple users by tapping on them).{'\n\n'}
-                3. Tap "Create" or "Add" button at the top (it will show "Create" if you don't have a group, or "Add" if you already have a group). With a group already, you then pick which group they join (or start a new one while you have fewer than two).{'\n\n'}
-                4. If creating a new group, enter a group name (required, max 50 characters) in the modal that appears.{'\n\n'}
-                5. Tap "Create Group" to finalize.{'\n\n'}
-                6. Selected members will receive invitations to join your group.
+                {t('chat.groups_guide.how_to_create_body')}
               </Text>
             </View>
 
@@ -66,16 +63,16 @@ const GroupsGuideModal = ({ visible, onClose }) => {
                 <Icon name="information-circle" size={24} color={config.colors.primary} />
               </View>
               <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : '#000' }]}>
-                Important Rules
+                {t('chat.groups_guide.rules_title')}
               </Text>
               <Text style={[styles.sectionText, { color: isDarkMode ? '#D1D5DB' : '#4B5563' }]}>
-                • <Text style={styles.boldText}>Group Limit:</Text> Each user can be the admin/creator of up to two groups at a time.{'\n\n'}
-                • <Text style={styles.boldText}>Minimum Members:</Text> A group must have at least 2 members (including yourself).{'\n\n'}
-                • <Text style={styles.boldText}>Maximum Members:</Text> Each group can have up to 15 members.{'\n\n'}
-                • <Text style={styles.boldText}>Group Admin:</Text> The creator is the admin. Admins can remove members and make other members admin.{'\n\n'}
-                • <Text style={styles.boldText}>Admin Transfer:</Text> If an admin (not creator) makes another member admin, they will revert to a regular member. The creator always remains admin.{'\n\n'}
-                • <Text style={styles.boldText}>Leaving Groups:</Text> Members can leave at any time. If an admin/creator leaves, a new admin is randomly selected. If the last member leaves, the group is deleted.{'\n\n'}
-                • <Text style={styles.boldText}>Invitations:</Text> Members must accept invitations before they can join.
+                • <Text style={styles.boldText}>{t('chat.groups_guide.rule_group_limit_label')}</Text> {t('chat.groups_guide.rule_group_limit_body')}{'\n\n'}
+                • <Text style={styles.boldText}>{t('chat.groups_guide.rule_min_members_label')}</Text> {t('chat.groups_guide.rule_min_members_body')}{'\n\n'}
+                • <Text style={styles.boldText}>{t('chat.groups_guide.rule_max_members_label')}</Text> {t('chat.groups_guide.rule_max_members_body')}{'\n\n'}
+                • <Text style={styles.boldText}>{t('chat.groups_guide.rule_group_admin_label')}</Text> {t('chat.groups_guide.rule_group_admin_body')}{'\n\n'}
+                • <Text style={styles.boldText}>{t('chat.groups_guide.rule_admin_transfer_label')}</Text> {t('chat.groups_guide.rule_admin_transfer_body')}{'\n\n'}
+                • <Text style={styles.boldText}>{t('chat.groups_guide.rule_leaving_label')}</Text> {t('chat.groups_guide.rule_leaving_body')}{'\n\n'}
+                • <Text style={styles.boldText}>{t('chat.groups_guide.rule_invitations_label')}</Text> {t('chat.groups_guide.rule_invitations_body')}
               </Text>
             </View>
 
@@ -86,13 +83,10 @@ const GroupsGuideModal = ({ visible, onClose }) => {
                 <Icon name="chatbubbles" size={24} color={config.colors.primary} />
               </View>
               <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : '#000' }]}>
-                Group Features
+                {t('chat.groups_guide.features_title')}
               </Text>
               <Text style={[styles.sectionText, { color: isDarkMode ? '#D1D5DB' : '#4B5563' }]}>
-                • Send text messages, images, and pets (up to 18 pets per message).{'\n\n'}
-                • See who's online in your group.{'\n\n'}
-                • View group members and their roles.{'\n\n'}
-                • Receive notifications for new messages when you're not active in the chat.
+                {t('chat.groups_guide.features_body')}
               </Text>
             </View>
           </ScrollView>
@@ -102,7 +96,7 @@ const GroupsGuideModal = ({ visible, onClose }) => {
             style={[styles.gotItButton, { backgroundColor: config.colors.primary }]}
             onPress={onClose}
           >
-            <Text style={styles.gotItButtonText}>Got It!</Text>
+            <Text style={styles.gotItButtonText}>{t('chat.groups_guide.got_it')}</Text>
           </TouchableOpacity>
         </View>
       </View>

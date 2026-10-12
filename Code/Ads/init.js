@@ -31,6 +31,12 @@ const adsGate = new Promise((resolve) => { releaseAdsGate = resolve; });
 // Called by App.js once the consent flow has finished (or failed). Idempotent.
 export const openAdsGate = () => releaseAdsGate();
 
+// Resolves once the gate above opens: App.js mounts (and so starts the UMP →
+// iOS ATT chain) only after onboarding, so this is also "onboarding done".
+// For other first-launch prompts that must not stack on those screens
+// (Code/Helper/valueUpdateAlerts.js). Never rejects.
+export const whenAdsGateOpen = () => adsGate;
+
 // Show the UMP form if this user needs it, and return the resulting consent
 // info. Never throws: offline / SDK errors fall back to the SDK's cached info,
 // or null when even that is unavailable.

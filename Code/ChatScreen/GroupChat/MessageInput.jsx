@@ -109,7 +109,7 @@ const MessageInput = ({
       if (elapsed < COOLDOWN_MS) {
         const secondsLeft = Math.ceil((COOLDOWN_MS - elapsed) / 1000);
         showMessage({
-          message: `Please wait ${secondsLeft}s before sending another message.`,
+          message: t('chat.message_input.cooldown', { seconds: secondsLeft }),
           type: 'warning',
           duration: 2000,
         });
@@ -122,7 +122,7 @@ const MessageInput = ({
       const validation = validateContent(trimmedInput, { skipLinkCheck: canBypassModeration, skipAll: canBypassModeration });
       if (!validation.isValid) {
         showMessage({
-          message: validation.reason || "Inappropriate content detected.",
+          message: validation.reason || t('chat.message_common.inappropriate'),
           type: "danger",
           duration: 3000,
         });
@@ -193,7 +193,7 @@ const MessageInput = ({
       setShowEmojiPopup(false);   // close picker
     } else {
       showMessage({
-        message: "You need to purchase this item from the store in the reward section.",
+        message: t('chat.message_input.gif_locked'),
         type: "info",
         duration: 3000,
       });
@@ -317,10 +317,10 @@ const MessageInput = ({
           }}
         >
           <Text style={{ color: isDark ? '#ccc' : '#555', fontSize: 12 }}>
-            {selectedFruits.length}/4 fruit(s) selected
+            {t('chat.message_input.fruits_selected', { count: selectedFruits.length })}
             {maxFruitsReached && (
               <Text style={{ color: '#e74c3c', fontSize: 11, marginLeft: 4 }}>
-                (Max reached)
+                {t('chat.message_input.max_reached')}
               </Text>
             )}
           </Text>
@@ -349,7 +349,7 @@ const MessageInput = ({
                   onPress={() => selectEmoji(`https://bloxfruitscalc.com/wp-content/uploads/2025/Emojies/${item}`)}
                   style={modalStyles.emojiContainer}
                 >
-                  <Image
+                  <Image resizeMethod="resize"
                     source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2025/Emojies/${item}` }}
                     style={modalStyles.emojiImage}
                   />

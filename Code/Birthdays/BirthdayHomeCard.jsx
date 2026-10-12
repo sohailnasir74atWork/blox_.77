@@ -85,7 +85,7 @@ export default function BirthdayHomeCard({ userId, userName }) {
         />
         <HomeCardArt name="cake" />
         <View style={{ flex: 1 }}>
-          <Text style={styles.title} numberOfLines={1}>{t('birthdays.home_happy', { name: userName || t('birthdays.you') })}</Text>
+          <Text style={styles.title} numberOfLines={1}>{userName ? t('birthdays.home_happy', { name: userName }) : t('birthdays.home_happy_noname')}</Text>
           <Text style={styles.sub} numberOfLines={2}>
             {mine.giftReady
               ? t('birthdays.home_gift_stars', { stars: BIRTHDAY_GIFT_STARS })

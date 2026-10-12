@@ -149,7 +149,7 @@ export default function ReportScreen() {
       <View style={styles.thumbs}>
         {images.map((uri) => (
           <View key={uri}>
-            <Image source={{ uri }} style={styles.thumb} />
+            <Image resizeMethod="resize" source={{ uri }} style={styles.thumb} />
             <TouchableOpacity onPress={() => setImages((p) => p.filter((u) => u !== uri))} style={styles.thumbX} hitSlop={8}>
               <Icon name="close" size={14} color="#FFF" />
             </TouchableOpacity>

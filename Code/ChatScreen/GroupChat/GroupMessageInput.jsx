@@ -149,13 +149,13 @@ const GroupMessageInput = ({
       // If the message contains a link, only YouTube and TikTok are allowed for
       // everyone; block everything else (admins/mods bypass entirely).
       if (containsLink(textToSend) && !isAllowedLink(textToSend) && !canBypassModeration) {
-        Alert.alert('Error', 'Only YouTube and TikTok links are allowed.');
+        Alert.alert(t('chat.error'), t('chat.message_common.only_yt_tiktok'));
         return;
       }
       // Remaining checks (profanity, spam, NSFW) — link check handled above.
       const validation = validateContent(textToSend, { skipLinkCheck: true, skipAll: canBypassModeration });
       if (!validation.isValid) {
-        Alert.alert('Error', validation.reason || 'Inappropriate content detected.');
+        Alert.alert(t('chat.error'), validation.reason || t('chat.message_common.inappropriate'));
         return;
       }
     }
@@ -187,7 +187,7 @@ const GroupMessageInput = ({
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      Alert.alert('Error', 'Failed to send message.');
+      Alert.alert(t('chat.error'), t('chat.message_common.send_failed'));
     } finally {
       setIsSending(false);
     }
@@ -201,6 +201,7 @@ const GroupMessageInput = ({
     uploadToBunny,
     replyTo,
     onCancelReply,
+    t,
   ]);
 
   const hasFruits = useMemo(
@@ -215,18 +216,18 @@ const GroupMessageInput = ({
 
   // Get reply preview text
   const getReplyPreview = (replyTo) => {
-    if (!replyTo) return '[Deleted message]';
+    if (!replyTo) return t('chat.message_common.reply_deleted');
     if (replyTo.text && replyTo.text.trim().length > 0) {
       return replyTo.text;
     }
     if (replyTo.imageUrl) {
-      return '[Image]';
+      return t('chat.message_common.reply_image');
     }
     if (replyTo.hasFruits || (Array.isArray(replyTo.fruits) && replyTo.fruits.length > 0)) {
       const count = replyTo.fruitsCount || (Array.isArray(replyTo.fruits) ? replyTo.fruits.length : 0);
-      return count > 0 ? `[${count} pet(s) message]` : '[Pets message]';
+      return count > 0 ? t('chat.message_common.reply_pets_count', { count }) : t('chat.message_common.reply_pets');
     }
-    return '[Deleted message]';
+    return t('chat.message_common.reply_deleted');
   };
 
   return (
@@ -311,7 +312,7 @@ const GroupMessageInput = ({
             alignItems: 'center',
           }}
         >
-          <Text style={{ color: isDark ? '#ccc' : '#555', fontSize: 12 }}>1 image attached</Text>
+          <Text style={{ color: isDark ? '#ccc' : '#555', fontSize: 12 }}>{t('chat.message_common.image_attached')}</Text>
           <TouchableOpacity onPress={() => setImageUri(null)} style={{ marginLeft: 8 }}>
             <Icon name="close-circle" size={18} color={isDark ? '#ccc' : '#555'} />
           </TouchableOpacity>
@@ -329,7 +330,7 @@ const GroupMessageInput = ({
           }}
         >
           <Text style={{ color: isDark ? '#ccc' : '#555', fontSize: 12 }}>
-            {selectedFruits.length} pet(s) selected
+            {t('chat.message_common.pets_selected', { count: selectedFruits.length })}
           </Text>
           <TouchableOpacity
             onPress={() => {

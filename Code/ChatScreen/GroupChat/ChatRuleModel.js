@@ -9,8 +9,10 @@ import {
 } from 'react-native';
 import { rulesen } from '../utils';
 import config from '../../Helper/Environment';
+import { useTranslation } from 'react-i18next';
 
 const ChatRulesModal = ({ visible, onClose, isDarkMode }) => {
+  const { t } = useTranslation();
   // ✅ Safety check and memoize rules array
   const rules = useMemo(() => {
     return Array.isArray(rulesen) ? rulesen : [];
@@ -44,7 +46,7 @@ const ChatRulesModal = ({ visible, onClose, isDarkMode }) => {
     <Modal animationType="slide" transparent={true} visible={visible} onRequestClose={handleClose}>
       <View style={styles.overlay}>
         <View style={[styles.modalContent, { backgroundColor: modalBgColor }]}>
-          <Text style={[styles.title, { color: titleColor }]}>Community Chat Rules</Text>
+          <Text style={[styles.title, { color: titleColor }]}>{t('chat.chat_rules_modal.title')}</Text>
           <ScrollView style={styles.scroll}>
             {rules.map((rule, index) => {
               // ✅ Safety check for rule
@@ -55,13 +57,13 @@ const ChatRulesModal = ({ visible, onClose, isDarkMode }) => {
                   key={index}
                   style={[styles.ruleText, { color: ruleTextColor }]}
                 >
-                  {index + 1}. {rule}
+                  {index + 1}. {t(`chat.chat_rules_modal.rule_${index + 1}`, { defaultValue: rule })}
                 </Text>
               );
             })}
           </ScrollView>
           <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-            <Text style={styles.closeButtonText}>Got it</Text>
+            <Text style={styles.closeButtonText}>{t('chat.chat_rules_modal.got_it')}</Text>
           </TouchableOpacity>
         </View>
       </View>

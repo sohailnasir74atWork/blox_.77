@@ -11,6 +11,7 @@ import { ref, get, update, push, set, increment } from '@react-native-firebase/d
 import { updateMyCosmeticType } from '../Helper/cosmeticsCache';
 import { EGGS, ALL_ITEMS, COSMETIC_TYPE, getItemsByRarity } from './shopItems';
 import { spendStars } from './starUtils';
+import i18next from 'i18next';
 
 // ════════════════════════════════════════════════════════════
 //  SPEND XP — Atomic decrement with balance check (UNUSED NOW, but kept for legacy)
@@ -308,19 +309,19 @@ export const isItemExpired = (item) => {
 //  HELPER: Format remaining time for UI
 // ════════════════════════════════════════════════════════════
 export const formatTimeRemaining = (expiresAt) => {
-  if (expiresAt === -1) return 'Permanent ✨';
+  if (expiresAt === -1) return i18next.t('engagement.shop_utils.permanent');
 
   const remaining = expiresAt - Date.now();
-  if (remaining <= 0) return 'Expired';
+  if (remaining <= 0) return i18next.t('engagement.shop_utils.expired');
 
   const hours = Math.floor(remaining / (1000 * 60 * 60));
   const days = Math.floor(hours / 24);
   const remainingHours = hours % 24;
 
-  if (days > 0) return `${days}d ${remainingHours}h`;
-  if (hours > 0) return `${hours}h`;
+  if (days > 0) return i18next.t('engagement.shop_utils.days_hours', { d: days, h: remainingHours });
+  if (hours > 0) return i18next.t('engagement.shop_utils.hours', { h: hours });
   const minutes = Math.floor(remaining / (1000 * 60));
-  return `${minutes}m`;
+  return i18next.t('engagement.shop_utils.minutes', { m: minutes });
 };
 
 // ════════════════════════════════════════════════════════════

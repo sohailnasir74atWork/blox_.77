@@ -1,18 +1,28 @@
 /**
- * MoreNavigator.js — what the Home "Values" tile opens (root route
- * FruitValuesStack). Replaces the old top tabs (Code/ValuesScreen/TopTabs.js),
- * owner decision 2026-10-07:
+ * MoreNavigator.js — one stack, mounted in two places:
+ *
+ *   root route FruitValuesStack (App.js), what the Home "Values" tile opens:
+ *   starts on ValuesHome. Replaces the old top tabs (Code/ValuesScreen/TopTabs.js),
+ *   owner decision 2026-10-07.
+ *
+ *   the More bottom tab (MainTabs.js, `inTab`), which replaced the Stock tab
+ *   (owner decision 2026-10-08): starts on MoreHub with no back button, and
+ *   every hub card pushes inside the tab, so the tab bar stays visible (same
+ *   as adoptme-jan7's More tab). ValuesHome is not registered there.
+ *
+ * Screens:
  *
  *   ValuesHome   the values list, as fast as before, with a "More" button in
  *                its header that opens…
- *   MoreHub      the card hub (MoreHubScreen) and the pages it opens: Codes,
- *                Scammer DB, HD Wallpapers, News, Complaints & ideas and the
- *                staff-only reports inbox. Analytics and Birthdays live in the
- *                root stack and are navigated to by name.
+ *   MoreHub      the card hub (MoreHubScreen) and the pages it opens: Stock,
+ *                Codes, Scammer DB, HD Wallpapers, News, Complaints & ideas and
+ *                the staff-only reports inbox. Analytics and Birthdays live in
+ *                the root stack and are navigated to by name.
  *
- * Every page is full-screen (no tab bar), so each ends with ScreenBottomBanner
- * (banner + nav-bar spacer). The values list keeps the collapsible banner the
- * owner chose for main screens; the rest are plain.
+ * Every page ends with ScreenBottomBanner (banner + nav-bar spacer; the spacer
+ * is skipped by itself inside the tab, where the tab bar already clears the nav
+ * bar). The values list and Stock keep the collapsible banner the owner chose
+ * for main screens; the rest are plain.
  */
 
 import React, { createContext, useContext, useMemo } from 'react';
@@ -31,6 +41,7 @@ import ScammerDatabaseScreen from '../ValuesScreen/ScammerDatabaseScreen';
 import NewsScreen from '../ValuesScreen/News';
 import AdminReportsInbox from '../ValuesScreen/AdminReport';
 import ReportScreen from '../Reports/ReportScreen';
+import TopLevelStockComponent from '../StockScreen/StockNavigator';
 
 const Stack = createNativeStackNavigator();
 const MemoValueScreen = React.memo(ValueScreen);
@@ -62,7 +73,20 @@ const MoreButton = ({ onPress, label }) => (
 // reading it from context, not `{() => …}` render callbacks: a callback skips
 // React Navigation's StaticContainer, so every MoreStack render (isAdmin,
 // language, theme) re-rendered every mounted screen and its banner.
-const MoreThemeContext = createContext({ selectedTheme: undefined });
+const MoreThemeContext = createContext({ selectedTheme: undefined, inTab: false });
+
+// The hub is the tab's first screen: nothing to go back to there.
+const HubPage = (props) => {
+  const { inTab } = useContext(MoreThemeContext);
+  return <MoreHubScreen {...props} showBack={!inTab} />;
+};
+
+// The Stock page is the same component the old Stock tab rendered, with the
+// same props, plus a back button.
+const StockPage = () => {
+  const { selectedTheme } = useContext(MoreThemeContext);
+  return <TopLevelStockComponent selectedTheme={selectedTheme} showBack />;
+};
 
 const ValuesHomeScreen = ({ navigation }) => {
   const { t } = useTranslation();
@@ -103,15 +127,16 @@ const AdminPage = () => <Page title="Reports inbox" ad={false}><AdminReportsInbo
 
 const SCREEN_OPTIONS = { headerShown: false, animation: 'slide_from_right' };
 
-export const MoreStack = ({ selectedTheme }) => {
+export const MoreStack = ({ selectedTheme, inTab = false }) => {
   const { isAdmin, isModerator } = useGlobalState();
-  const themeValue = useMemo(() => ({ selectedTheme }), [selectedTheme]);
+  const themeValue = useMemo(() => ({ selectedTheme, inTab }), [selectedTheme, inTab]);
 
   return (
     <MoreThemeContext.Provider value={themeValue}>
-      <Stack.Navigator screenOptions={SCREEN_OPTIONS}>
-        <Stack.Screen name="ValuesHome" component={ValuesHomeScreen} />
-        <Stack.Screen name="MoreHub" component={MoreHubScreen} />
+      <Stack.Navigator screenOptions={SCREEN_OPTIONS} initialRouteName={inTab ? 'MoreHub' : 'ValuesHome'}>
+        {!inTab && <Stack.Screen name="ValuesHome" component={ValuesHomeScreen} />}
+        <Stack.Screen name="MoreHub" component={HubPage} />
+        <Stack.Screen name="MoreStock" component={StockPage} />
         <Stack.Screen name="MoreCodes" component={CodesPage} />
         <Stack.Screen name="MoreScammers" component={ScammersPage} />
         <Stack.Screen name="MoreWallpapers" component={WallpapersPage} />

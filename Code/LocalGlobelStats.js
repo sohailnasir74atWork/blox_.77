@@ -6,7 +6,6 @@ import React, {
   useMemo,
   useCallback,
 } from 'react';
-import { Appearance } from 'react-native';
 import { createMMKV } from 'react-native-mmkv';
 import Purchases from 'react-native-purchases';
 import config from './Helper/Environment';
@@ -27,6 +26,10 @@ export const LocalStateProvider = ({ children }) => {
     }
   };
 
+  // TEMP (screenshots, 2026-10-11): force Pro so no ads show. __DEV__ only,
+  // so a release build can never get it. Remove after the screenshots.
+  const DEV_FORCE_PRO = __DEV__ && true;
+
   const [localState, setLocalState] = useState(() => ({
     localKey: storage.getString('localKey') || 'defaultValue',
     reviewCount: Number(storage.getString('reviewCount')) || 0,
@@ -36,7 +39,7 @@ export const LocalStateProvider = ({ children }) => {
     isHaptic: storage.getBoolean('isHaptic') ?? true,
     theme: storage.getString('theme') || 'system',
     consentStatus: storage.getString('consentStatus') || 'UNKNOWN',
-    isPro: storage.getBoolean('isPro') ?? false,
+    isPro: DEV_FORCE_PRO || (storage.getBoolean('isPro') ?? false),
     fetchDataTime: storage.getString('fetchDataTime') || null,
     data: safeParseJSON('data', {}),
     codes: safeParseJSON('codes', {}),
@@ -72,6 +75,9 @@ export const LocalStateProvider = ({ children }) => {
     raiderRoster: safeParseJSON('raiderRoster', { data: [], timestamp: null }),
     pollVotes: safeParseJSON('pollVotes', {}), // ✅ Store user's poll votes (pollId -> optionLabel)
     showReadReceipts: storage.getBoolean('showReadReceipts') ?? true, // ✅ Default ON
+    // Settings → Value Update Notifications: the FCM topic `value-updates`
+    // (Code/Helper/valueUpdateAlerts.js). Default ON, guests included.
+    valueUpdateNotifications: storage.getBoolean('valueUpdateNotifications') ?? true,
     gameAdDays: safeParseJSON('gameAdDays', {}), // Per-game free play tracking { gameId: "YYYY-MM-DD" }
     // User inventory (My Stuff). Source of truth is Firestore user_profiles;
     // TradeJournal/TradeCompletion mirror it here so the calculator's "My Items"
@@ -83,15 +89,10 @@ export const LocalStateProvider = ({ children }) => {
   // RevenueCat subscriptions (for info/expiry)
   const [mySubscriptions, setMySubscriptions] = useState([]);
 
-  // Theme system listener
-  useEffect(() => {
-    if (localState.theme === 'system') {
-      const listener = Appearance.addChangeListener(({ colorScheme }) => {
-        updateLocalState('theme', colorScheme);
-      });
-      return () => listener.remove();
-    }
-  }, [localState.theme]);
+  // No Appearance listener here: 'system' must stay in storage. GlobelStats
+  // resolves it to 'light'/'dark' with useColorScheme(). The old listener
+  // wrote the resolved scheme back as the preference, so one device theme
+  // change pinned the app to that theme for good.
 
   useEffect(() => {
     if (localState.data) {
@@ -149,7 +150,7 @@ export const LocalStateProvider = ({ children }) => {
     const proKey = Object.keys(entitlements).find(
       key => key.toLowerCase() === 'pro'
     );
-    const proStatus = !!(proKey && entitlements[proKey]);
+    const proStatus = DEV_FORCE_PRO || !!(proKey && entitlements[proKey]);
 
     // console.log(proStatus, 'pro')
 

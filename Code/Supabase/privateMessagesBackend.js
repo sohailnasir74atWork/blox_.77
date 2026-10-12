@@ -133,6 +133,26 @@ export async function loadPrivateMessages(chatId, { limit = PAGE_SIZE_DEFAULT, b
 // Rows newer than `since` ({ createdAt: ISO, id }), newest-first. Used to
 // gap-fill after a realtime (re)subscribe: realtime never replays what it
 // missed while the channel was down or the screen was blurred.
+// Staff read of a private chat (Mod Panel → Chat Viewer). The table's SELECT
+// policy is participant-only, so a plain select returns 0 rows for a mod who
+// isn't in the chat. The 039 rpc lets admins read any chat and other staff
+// only a reported one; a refusal is thrown so the viewer shows the reason.
+// Falls back to the plain select only while the rpc isn't deployed yet.
+export async function modLoadPrivateChat(chatId, { limit = 50 } = {}) {
+  if (!chatId) return [];
+  const { data, error } = await supabase.rpc('mod_read_private_chat', {
+    p_chat_id: chatId,
+    p_limit: limit,
+  });
+  if (error) {
+    if (error.code === 'PGRST202' || error.code === '42883') {
+      return loadPrivateMessages(chatId, { limit });
+    }
+    throw new Error(error.message || 'Could not load chat');
+  }
+  return (data || []).map(fromPrivateMessageRow);
+}
+
 export async function loadPrivateMessagesSince(chatId, since = null, { limit = 200 } = {}) {
   if (!chatId) return [];
   let q = supabase

@@ -15,6 +15,7 @@ import { useGlobalState } from '../../GlobelStats';
 import { canSaveToGallery, saveImageToGallery } from '../../Helper/saveImageToGallery';
 import { showErrorMessage, showSuccessMessage } from '../../Helper/MessageHelper';
 import { trackGrowthEvent } from '../../Helper/growthAnalytics';
+import { useTranslation } from 'react-i18next';
 
 const { width, height } = Dimensions.get('window');
 
@@ -24,6 +25,7 @@ const ImageViewerScreen = ({ route }) => {
   const { theme } = useGlobalState();
   const insets = useSafeAreaInsets();
   const isDarkMode = theme === 'dark';
+  const { t } = useTranslation();
   const [index, setIndex] = useState(initialIndex);
   const [saving, setSaving] = useState(false);
 
@@ -53,18 +55,18 @@ const ImageViewerScreen = ({ route }) => {
     setSaving(true);
     try {
       if (!(await canSaveToGallery())) {
-        showErrorMessage('Error', 'Allow storage access to save images.');
+        showErrorMessage(t('home.alert.error'), t('feed.image_viewer.storage_denied'));
         return;
       }
       await saveImageToGallery(url);
       trackGrowthEvent('feed_image_save', { source: 'viewer', count: 1 });
-      showSuccessMessage('Saved', 'Image saved to your gallery.');
+      showSuccessMessage(t('feed.image_viewer.saved'), t('feed.image_viewer.saved_body'));
     } catch (e) {
-      showErrorMessage('Error', 'Could not save the image. Try again.');
+      showErrorMessage(t('home.alert.error'), t('feed.image_viewer.save_failed'));
     } finally {
       setSaving(false);
     }
-  }, [images, index, saving]);
+  }, [images, index, saving, t]);
 
   return (
     <View style={{ flex: 1, backgroundColor }}>
@@ -98,7 +100,7 @@ const ImageViewerScreen = ({ route }) => {
           {saving
             ? <ActivityIndicator size="small" color="#fff" />
             : <Ionicons name="download-outline" size={18} color="#fff" />}
-          <Text style={styles.saveText}>Save image</Text>
+          <Text style={styles.saveText}>{t('feed.image_viewer.save_image')}</Text>
         </TouchableOpacity>
       </View>
     </View>

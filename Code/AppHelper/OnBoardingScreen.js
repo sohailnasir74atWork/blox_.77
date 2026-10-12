@@ -59,9 +59,12 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
     }
   };
 
+  // Every first-run path ends on the offer wall, signed in or not:
+  // welcome → sign in (or guest) → offer wall → home. The wall's own close
+  // button is what calls onFinish.
   const handleGuest = () => {
     trackGrowthEvent("onboarding_guest_continue");
-    onFinish(); // Let users try values and the calculator before an offer.
+    setScreenIndex(2);
   };
 
   const handleLoginSuccess = () => {
@@ -111,7 +114,7 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
       case 0:
         return (
           <View style={styles.slide}>
-            <Image source={icon} style={styles.iconmain} />
+            <Image resizeMethod="resize" source={icon} style={styles.iconmain} />
             {/* <View>
               <View style={styles.sliderContainer}>{renderSlider(translateX1, firstSliderImages)}</View>
               <View style={styles.sliderContainer}>{renderSlider(translateX2, secondSliderImages)}</View>
@@ -129,7 +132,7 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
       case 1:
         return (
           <View style={styles.slide}>
-            <Image source={icon} style={styles.iconmain} />
+            <Image resizeMethod="resize" source={icon} style={styles.iconmain} />
             {/* <View>
               <View style={styles.sliderContainer}>{renderSlider(translateX1, firstSliderImages)}</View>
               <View style={styles.sliderContainer}>{renderSlider(translateX2, secondSliderImages)}</View>
@@ -140,7 +143,7 @@ const OnboardingScreen = ({ onFinish, selectedTheme }) => {
               {!user.id && <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>{t("first.signin_or_guest")}</Text>}
               {user?.id && (
                 <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>
-                  {`Welcome ${user?.displayName || 'Anonymous'}`}
+                  {t('app.onboarding.welcome_user', { name: user?.displayName || t('app.onboarding.anonymous') })}
 
                 </Text>
               )}

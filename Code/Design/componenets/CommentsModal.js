@@ -35,6 +35,8 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { validateContent } from '../../Helper/ContentModeration';
 import RoleBadges from './RoleBadges';
+import i18next from 'i18next';
+import { useTranslation } from 'react-i18next';
 
 dayjs.extend(relativeTime);
 
@@ -47,11 +49,17 @@ const CommentModal = ({ visible, onClose, postId }) => {
   const [loadingMore, setLoadingMore] = useState(false);
   const lastDocRef = useRef(null);
   const inputRef = useRef(null);
+  // Rapid taps used to post the same comment several times: the button stayed
+  // enabled until both awaits finished. The ref blocks taps that land before
+  // React re-renders; the state greys the button out.
+  const submittingRef = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
   const { user, theme, firestoreDB, getModGate } = useGlobalState();
   const { localState } = useLocalState();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const isDarkMode = theme === 'dark';
+  const { t } = useTranslation();
 
   // Load comments only while the modal is open (CommentModal is mounted by
   // every PostCard). One page of COMMENTS_PAGE_SIZE per read instead of a live
@@ -92,7 +100,7 @@ const CommentModal = ({ visible, onClose, postId }) => {
   const handleChatNavigation = useCallback((comment) => {
     const callback = () => {
       if (!user?.id) {
-        Alert.alert('Sign In Required', 'Please sign in to message');
+        Alert.alert(i18next.t('feed.comments_modal.sign_in_required'), i18next.t('feed.comments_modal.sign_in_to_message'));
         return;
       }
 
@@ -109,13 +117,13 @@ const CommentModal = ({ visible, onClose, postId }) => {
       callback();
     } catch (error) {
       console.error('Navigation Error:', error);
-      Alert.alert('Error', 'Failed to navigate to chat.');
+      Alert.alert(i18next.t('home.alert.error'), i18next.t('feed.comments_modal.nav_failed'));
     }
   }, [user?.id, navigation, localState?.isPro]);
 
   const handleAddComment = useCallback(async () => {
     const text = commentText.trim();
-    if (!text || !firestoreDB || !user?.id) return;
+    if (!text || !firestoreDB || !user?.id || submittingRef.current) return;
 
     // Block banned users from commenting (admins exempt; comments are
     // content, so a mute doesn't apply). getModGate is stable and reads live,
@@ -130,9 +138,13 @@ const CommentModal = ({ visible, onClose, postId }) => {
     // ✅ Content moderation: Check comment for inappropriate content
     const contentValidation = validateContent(text);
     if (!contentValidation.isValid) {
-      Alert.alert('Content Not Allowed', contentValidation.reason || 'Your comment contains inappropriate content.');
+      Alert.alert(i18next.t('feed.comments_modal.content_not_allowed'), contentValidation.reason || i18next.t('feed.comments_modal.inappropriate'));
       return;
     }
+
+    submittingRef.current = true;
+    setSubmitting(true);
+    setCommentText('');
 
     const comment = {
       userId: user.id,
@@ -149,15 +161,20 @@ const CommentModal = ({ visible, onClose, postId }) => {
       const added = await addDoc(commentsRef, comment);
       // No live listener any more: show the new comment straight away.
       setComments(prev => [{ ...comment, id: added.id, createdAt: { seconds: Math.floor(Date.now() / 1000) } }, ...prev]);
-      await updateDoc(postRef, {
+      // The comment is already posted; a failed counter bump must not put the
+      // text back in the box (a retry would post it twice).
+      updateDoc(postRef, {
         commentCount: increment(1),
-      });
+      }).catch((e) => console.warn('commentCount update failed:', e?.message));
 
-      setCommentText('');
       inputRef.current?.focus();
     } catch (error) {
+      setCommentText(text);
       console.error('Add Comment Error:', error);
-      Alert.alert('Error', 'Failed to post comment. Please try again.');
+      Alert.alert(i18next.t('home.alert.error'), i18next.t('feed.comments_modal.post_failed'));
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   }, [commentText, user, postId, firestoreDB, getModGate]);
 
@@ -167,14 +184,14 @@ const CommentModal = ({ visible, onClose, postId }) => {
       style={[styles.comment, isDarkMode && styles.commentDark]}
       activeOpacity={0.7}
     >
-      <Image
+      <Image resizeMethod="resize"
         source={{ uri: item.avatar || 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png' }}
         style={styles.avatar}
       />
       <View style={styles.commentContent}>
         <View style={styles.commentHeader}>
           <Text style={[styles.name, isDarkMode && styles.textDark]} numberOfLines={1}>
-            {item.displayName || 'Anonymous'}
+            {item.displayName || t('chat.anonymous')}
           </Text>
           <RoleBadges userItem={item} />
           {item.createdAt?.seconds && (
@@ -186,15 +203,15 @@ const CommentModal = ({ visible, onClose, postId }) => {
         <Text style={[styles.text, isDarkMode && styles.textDark]}>{item.text}</Text>
       </View>
     </TouchableOpacity>
-  ), [isDarkMode, handleChatNavigation]);
+  ), [isDarkMode, handleChatNavigation, t]);
 
   const ListEmptyComponent = useMemo(() => (
     <View style={styles.emptyContainer}>
       <Text style={[styles.emptyText, isDarkMode && styles.textDark]}>
-        No comments yet. Be the first to comment!
+        {t('feed.comments_modal.empty')}
       </Text>
     </View>
-  ), [isDarkMode]);
+  ), [isDarkMode, t]);
 
   return (
     <Modal
@@ -218,7 +235,7 @@ const CommentModal = ({ visible, onClose, postId }) => {
           {/* Header */}
           <View style={[styles.header, isDarkMode && styles.headerDark]}>
             <Text style={[styles.headerTitle, isDarkMode && styles.textDark]}>
-              Comments ({comments.length})
+              {t('feed.comments_modal.header', { n: comments.length })}
             </Text>
             <TouchableOpacity
               onPress={onClose}
@@ -247,7 +264,7 @@ const CommentModal = ({ visible, onClose, postId }) => {
           <View style={[styles.inputContainer, isDarkMode && styles.inputContainerDark]}>
             <TextInput
               ref={inputRef}
-              placeholder="Write a comment..."
+              placeholder={t('feed.comments_modal.placeholder')}
               placeholderTextColor={isDarkMode ? '#9CA3AF' : '#6B7280'}
               value={commentText}
               onChangeText={setCommentText}
@@ -266,12 +283,12 @@ const CommentModal = ({ visible, onClose, postId }) => {
               }}
               style={[
                 styles.sendBtn,
-                (!commentText.trim() || !user?.id) && styles.sendBtnDisabled
+                (submitting || !commentText.trim() || !user?.id) && styles.sendBtnDisabled
               ]}
-              disabled={!commentText.trim() || !user?.id}
+              disabled={submitting || !commentText.trim() || !user?.id}
               activeOpacity={0.7}
             >
-              <Text style={styles.sendText}>Send</Text>
+              <Text style={styles.sendText}>{t('chat.send')}</Text>
             </TouchableOpacity>
           </View>
         </View>

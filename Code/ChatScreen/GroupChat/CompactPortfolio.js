@@ -42,7 +42,7 @@ const CompactPortfolio = ({ ownedPets, wishlistPets, isDarkMode, t, loadingPets,
             paddingHorizontal: 6, paddingVertical: 1, borderRadius: 999,
           }}>
             <Text style={{ fontSize: 9, fontWeight: '700', color: c.textSecondary }}>
-              {(ownedPets?.length || 0) + (wishlistPets?.length || 0)} items
+              {t("chat.compact_portfolio.items_count", { count: (ownedPets?.length || 0) + (wishlistPets?.length || 0) })}
             </Text>
           </View>
         )}

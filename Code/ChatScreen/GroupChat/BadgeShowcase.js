@@ -67,12 +67,12 @@ const BadgeShowcase = ({ isDarkMode, t, earnedBadges = {}, activeFrame, avatarUr
               }}
             >
               {BADGE_IMAGES[id] ? (
-                <Image source={BADGE_IMAGES[id]} resizeMode="contain" style={[{ width: 12, height: 12 }, isDarkMode && badge.tier === 1 && { tintColor: '#e2e8f0' }]} />
+                <Image resizeMethod="resize" source={BADGE_IMAGES[id]} resizeMode="contain" style={[{ width: 12, height: 12 }, isDarkMode && badge.tier === 1 && { tintColor: '#e2e8f0' }]} />
               ) : (
                 <Text style={{ fontSize: 10 }}>{badge.emoji}</Text>
               )}
               <Text style={{ fontSize: 9, fontWeight: '700', color: badge.color }}>
-                {badge.name}
+                {t(`chat.badge_showcase.badge_${id}`, { defaultValue: badge.name })}
               </Text>
             </View>
           );
@@ -114,7 +114,7 @@ const BadgeShowcase = ({ isDarkMode, t, earnedBadges = {}, activeFrame, avatarUr
                 fontSize: 9, fontWeight: '700',
                 color: RARITY_CONFIG[FRAMES[activeFrame].rarity]?.color,
               }}>
-                {RARITY_CONFIG[FRAMES[activeFrame].rarity]?.emoji} {RARITY_CONFIG[FRAMES[activeFrame].rarity]?.label}
+                {RARITY_CONFIG[FRAMES[activeFrame].rarity]?.emoji} {t(`chat.badge_showcase.rarity_${FRAMES[activeFrame].rarity}`, { defaultValue: RARITY_CONFIG[FRAMES[activeFrame].rarity]?.label })}
               </Text>
             </View>
           </View>

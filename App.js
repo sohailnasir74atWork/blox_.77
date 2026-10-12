@@ -9,6 +9,7 @@ import {
 
 } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
+import { navigationRef, onNavigationReady, trackCurrentScreen } from './Code/Helper/navigationService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import SettingsScreen from './Code/SettingScreen/Setting';
@@ -307,7 +308,9 @@ function App() {
   return (
     <View style={{ flex: 1 }} onTouchStartCapture={AppOpenAdManager.noteUserTouch}>
       <Animated.View style={{ flex: 1 }}>
-        <NavigationContainer theme={selectedTheme}>
+        {/* ref + onReady: lets a tapped push (Code/Firebase/FrontendNotificationHandling.js)
+            open its screen, including a tap that cold-started the app. */}
+        <NavigationContainer ref={navigationRef} onReady={onNavigationReady} onStateChange={trackCurrentScreen} theme={selectedTheme}>
           {/* Edge-to-edge: backgroundColor/translucent are ignored by the OS here, and
               forcing them conflicted with the window on some older devices (whole-screen
               shift / wrong header inset). Only barStyle (icon color) is set; all spacing
@@ -372,7 +375,7 @@ function App() {
             <Stack.Screen
               name="Analytics"
               options={{
-                title: 'Market Analytics',
+                title: t('home.app.analytics_title'),
                 headerStyle: { backgroundColor: selectedTheme.colors.background },
                 headerTintColor: selectedTheme.colors.text,
                 headerTitleStyle: { fontWeight: 'bold' },
@@ -384,7 +387,7 @@ function App() {
             <Stack.Screen
               name="SocialDashboardScreen"
               options={{
-                title: 'Friends',
+                title: t('home.app.friends_title'),
                 headerStyle: { backgroundColor: selectedTheme.colors.background },
                 headerTintColor: selectedTheme.colors.text,
                 headerTitleStyle: { fontWeight: 'bold' },

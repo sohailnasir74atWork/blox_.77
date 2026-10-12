@@ -8,12 +8,14 @@ import { doc, collection, runTransaction } from '@react-native-firebase/firestor
 import { useLocalState } from '../../LocalGlobelStats';
 import { useGlobalState, modGateText } from '../../GlobelStats';
 import { submitUserReport } from '../../Helper/userReports';
+import { useTranslation } from 'react-i18next';
 
 const ReportModal = ({ visible, onClose, item }) => {
   const [reportText, setReportText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { updateLocalState, localState } = useLocalState()
   const { user, firestoreDB, getModGate } = useGlobalState();
+  const { t } = useTranslation();
 
   // const handleBanToggle = async () => {
   //   const action = isBlock ? t("chat.unblock") : t("chat.block");
@@ -63,15 +65,15 @@ const ReportModal = ({ visible, onClose, item }) => {
     if (submitting) return;
 
     if (!item || !item.id) {
-      showMessage({ message: 'Invalid post.', type: 'danger' });
+      showMessage({ message: t('feed.report_modal.invalid_post'), type: 'danger' });
       return;
     }
     if (!reportText.trim()) {
-      showMessage({ message: 'Please enter a reason.', type: 'warning' });
+      showMessage({ message: t('feed.report_modal.enter_reason'), type: 'warning' });
       return;
     }
     if (!user?.id) {
-      showMessage({ message: 'Please sign in to report a post.', type: 'warning' });
+      showMessage({ message: t('feed.report_modal.sign_in'), type: 'warning' });
       return;
     }
     // Banned users can't file reports (admins exempt; a mute is chat-only).
@@ -121,7 +123,7 @@ const ReportModal = ({ visible, onClose, item }) => {
       });
 
       if (txResult.status === 'missing') {
-        showMessage({ message: 'Post not found.', type: 'danger' });
+        showMessage({ message: t('feed.report_modal.not_found'), type: 'danger' });
         return;
       }
 
@@ -151,7 +153,7 @@ const ReportModal = ({ visible, onClose, item }) => {
       onClose();
     } catch (e) {
       console.error('Report submit error:', e);
-      showMessage({ message: 'Could not submit report. Please try again.', type: 'danger' });
+      showMessage({ message: t('feed.report_modal.submit_failed'), type: 'danger' });
     } finally {
       setSubmitting(false);
     }
@@ -163,10 +165,10 @@ const ReportModal = ({ visible, onClose, item }) => {
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.overlay}>
           <View style={styles.modal}>
-            <Text style={styles.title}>Report Post</Text>
+            <Text style={styles.title}>{t('feed.report_modal.title')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="Why are you reporting this post?"
+              placeholder={t('feed.report_modal.placeholder')}
               placeholderTextColor="#888"
               value={reportText}
               onChangeText={setReportText}
@@ -181,10 +183,10 @@ const ReportModal = ({ visible, onClose, item }) => {
                 style={[styles.submitButton, submitting && { opacity: 0.8 }]}
                 disabled={submitting}
               >
-                <Text style={styles.buttonText}>{submitting ? 'Submitting…' : 'Submit'}</Text>
+                <Text style={styles.buttonText}>{submitting ? t('feed.report_modal.submitting') : t('chat.submit')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={onClose} style={styles.cancelButton} disabled={submitting}>
-                <Text style={styles.buttonText}>Cancel</Text>
+                <Text style={styles.buttonText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
             </View>
           </View>

@@ -14,6 +14,7 @@ import config from "../Helper/Environment";
 import { ref, push } from "@react-native-firebase/database";
 import { doc, getDoc, updateDoc } from "@react-native-firebase/firestore";
 import { submitUserReport } from "../Helper/userReports";
+import { useTranslation } from "react-i18next";
 
 const ReportTradePopup = ({ visible, trade, onClose }) => {
   const [selectedReason, setSelectedReason] = useState("Inappropriate");
@@ -22,10 +23,12 @@ const ReportTradePopup = ({ visible, trade, onClose }) => {
   const [loading, setLoading] = useState(false);
   const { theme, user, appdatabase, firestoreDB, getModGate } = useGlobalState();
   const isDarkMode = theme === "dark";
+  const { t } = useTranslation();
+  const reasonLabel = (reason) => (reason === "Fraud" ? t('trade.report_trade_popup.reason_fraud') : reason === "Inappropriate" ? t('trade.report_trade_popup.reason_inappropriate') : reason);
 
   const handleSubmit = async () => {
     if (showCustomInput && !customReason.trim()) {
-      Alert.alert("Error", "Please enter a reason for reporting.");
+      Alert.alert(t('trade.report_trade_popup.error'), t('trade.report_trade_popup.enter_reason'));
       return;
     }
 
@@ -39,12 +42,12 @@ const ReportTradePopup = ({ visible, trade, onClose }) => {
     }
 
     if (!user?.id) {
-      Alert.alert("Error", "Please sign in to report a trade.");
+      Alert.alert(t('trade.report_trade_popup.error'), t('trade.report_trade_popup.signin_required'));
       return;
     }
 
     if (!trade?.id) {
-      Alert.alert("Error", "Invalid trade. Unable to report.");
+      Alert.alert(t('trade.report_trade_popup.error'), t('trade.report_trade_popup.invalid_trade'));
       return;
     }
 
@@ -90,16 +93,15 @@ const ReportTradePopup = ({ visible, trade, onClose }) => {
 
       setLoading(false);
       Alert.alert(
-        "Report Submitted",
-        `Trade ID: ${trade.id}\nReason: ${showCustomInput ? customReason : selectedReason
-        }\nThank you for reporting this trade.`
+        t('trade.report_trade_popup.submitted_title'),
+        t("trade.report_trade_popup.submitted_body", { id: trade.id, reason: showCustomInput ? customReason : reasonLabel(selectedReason) })
       );
       onClose(true);
 
     } catch (error) {
       console.error("Error reporting trade:", error);
       setLoading(false);
-      Alert.alert("Error", "Failed to submit the report. Please try again.");
+      Alert.alert(t('trade.report_trade_popup.error'), t('trade.report_trade_popup.submit_failed'));
     }
   };
 
@@ -109,9 +111,9 @@ const ReportTradePopup = ({ visible, trade, onClose }) => {
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.popup}>
-          <Text style={styles.title}>Report Trade</Text>
-          <Text style={styles.messageText}>{`Trade ID: ${trade?.id || "Anonymous"}`}</Text>
-          <Text style={styles.messageText}>{`Trader: ${trade?.traderName || "Anonymous"}`}</Text>
+          <Text style={styles.title}>{t('trade.report_trade_popup.title')}</Text>
+          <Text style={styles.messageText}>{t("trade.report_trade_popup.trade_id", { id: trade?.id || t('trade.report_trade_popup.anonymous') })}</Text>
+          <Text style={styles.messageText}>{t("trade.report_trade_popup.trader", { name: trade?.traderName || t('trade.report_trade_popup.anonymous') })}</Text>
 
           <View style={styles.optionsContainer}>
             {["Inappropriate", "Fraud"].map((reason) => (
@@ -132,7 +134,7 @@ const ReportTradePopup = ({ visible, trade, onClose }) => {
                     selectedReason === reason && styles.selectedOptionText,
                   ]}
                 >
-                  {reason}
+                  {reasonLabel(reason)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -150,7 +152,7 @@ const ReportTradePopup = ({ visible, trade, onClose }) => {
                   showCustomInput && styles.selectedOptionText,
                 ]}
               >
-                Other
+                {t('trade.report_trade_popup.reason_other')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -158,7 +160,7 @@ const ReportTradePopup = ({ visible, trade, onClose }) => {
           {showCustomInput && (
             <TextInput
               style={styles.input}
-              placeholder="Enter custom reason"
+              placeholder={t('trade.report_trade_popup.custom_reason_placeholder')}
               placeholderTextColor="#888"
               value={customReason}
               onChangeText={setCustomReason}
@@ -167,7 +169,7 @@ const ReportTradePopup = ({ visible, trade, onClose }) => {
 
           <View style={styles.actions}>
             <TouchableOpacity style={styles.button} onPress={onClose}>
-              <Text style={styles.buttonText}>Cancel</Text>
+              <Text style={styles.buttonText}>{t("common.cancel")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
@@ -180,7 +182,7 @@ const ReportTradePopup = ({ visible, trade, onClose }) => {
               {loading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.buttonText}>Submit</Text>
+                <Text style={styles.buttonText}>{t('trade.report_trade_popup.submit')}</Text>
               )}
             </TouchableOpacity>
           </View>

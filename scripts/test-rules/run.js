@@ -674,6 +674,10 @@ async function firestoreTests() {
     const ref = await addDoc(c(U2, 'chat_reports'), chatReport(U2, U1));
     return updateDoc(d(M, 'chat_reports', ref.id), { status: 'reviewed' });
   });
+  await no('staff points a chat report at another chat', async () => {
+    const ref = await addDoc(c(U2, 'chat_reports'), chatReport(U2, U1));
+    return updateDoc(d(M, 'chat_reports', ref.id), { chatKey: [U1, U3].sort().join('_'), reportedBy: U1 });
+  });
   await no('reporter dismisses own chat report', async () => {
     const ref = await addDoc(c(U2, 'chat_reports'), chatReport(U2, U3));
     return updateDoc(d(U2, 'chat_reports', ref.id), { status: 'reviewed' });

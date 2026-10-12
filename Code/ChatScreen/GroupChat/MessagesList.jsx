@@ -139,7 +139,7 @@ const MessagesList = ({
   const handleCopy = (message) => {
     Clipboard.setString(message?.text);
     triggerHapticFeedback('impactLight');
-    showSuccessMessage('Success', 'Message Copied');
+    showSuccessMessage(t('chat.message_common.success'), t('chat.message_common.message_copied'));
   };
 
   const scrollToMessage = useCallback(
@@ -239,7 +239,7 @@ const MessagesList = ({
 
     // ✅ Check limit BEFORE translation (reads from storage for real-time accuracy)
     if (!isUnlimited && !canTranslate()) {
-      Alert.alert('Limit Reached', 'You can only translate 5 messages per day.');
+      Alert.alert(t('chat.message_common.limit_reached'), t('chat.message_common.translate_limit'));
       return;
     }
 
@@ -251,17 +251,17 @@ const MessagesList = ({
       if (!isUnlimited) incrementTranslationCount();
 
       // ✅ Get remaining tries (reads from storage for real-time accuracy)
-      const remaining = isUnlimited ? 'Unlimited' : `${getRemainingTranslationTries()} remaining`;
+      const remaining = isUnlimited ? t('chat.message_common.unlimited') : t('chat.message_common.remaining', { count: getRemainingTranslationTries() });
 
       Alert.alert(
-        'Translated Message',
-        `${translated}\n\n🧠 Daily Limit: ${remaining}${isUnlimited
+        t('chat.message_common.translated_title'),
+        `${translated}\n\n${t('chat.message_common.daily_limit', { remaining })}${isUnlimited
           ? ''
-          : '\n\n🔓 Want more? Upgrade to Pro for unlimited translations.'
+          : `\n\n${t('chat.message_common.upgrade_more')}`
         }`
       );
     } else {
-      Alert.alert('Error', 'Translation failed. Please try again later.');
+      Alert.alert(t('chat.error'), t('chat.message_common.translate_failed'));
     }
   };
 
@@ -300,24 +300,24 @@ const MessagesList = ({
     });
   };
   const getReplyPreview = (replyTo) => {
-    if (!replyTo) return '[Deleted message]';
+    if (!replyTo) return t('chat.message_common.reply_deleted');
 
     if (replyTo.text && replyTo.text.trim().length > 0) {
       return replyTo.text;
     }
 
     if (replyTo.gif) {
-      return '[Emoji]';
+      return t('chat.message_common.reply_emoji');
     }
 
     if (replyTo.hasFruits) {
       const count = replyTo.fruitsCount || 0;
       return count > 0
-        ? `[${count} pet(s) message]`
-        : '[Pets message]';
+        ? t('chat.message_common.reply_pets_count', { count })
+        : t('chat.message_common.reply_pets');
     }
 
-    return '[Deleted message]';
+    return t('chat.message_common.reply_deleted');
   };
 
 
@@ -473,7 +473,7 @@ const MessagesList = ({
                 onPress={() => scrollToMessage(item.replyTo.id)}
               >
                 <Text style={styles.replyText} numberOfLines={2}>
-                  Replying to: {'\n'}
+                  {t('chat.replying_to')} {'\n'}
                   {getReplyPreview(item.replyTo)}
                 </Text>
               </TouchableOpacity>
@@ -497,7 +497,7 @@ const MessagesList = ({
                   <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
                     {item?.style ? (
                       <StyledUsernamePreview
-                        text={profile.displayName || item.sender || 'Anonymous'}
+                        text={profile.displayName || item.sender || t('chat.anonymous')}
                         variant={item.style.variant}
                         options={item.style}
                         fontSize={14}
@@ -507,36 +507,36 @@ const MessagesList = ({
                     ) : (
                       <Text style={[
                         styles.userName,
-                      ]}>{profile.displayName || item.sender || 'Anonymous'}</Text>
+                      ]}>{profile.displayName || item.sender || t('chat.anonymous')}</Text>
                     )}
                     <BirthdayCake uid={item.senderId} />
                     {(profile.isPro || item?.isPro) && (
-                      <Image
+                      <Image resizeMethod="resize"
                         source={require('../../../assets/pro.png')}
                         style={styles.icon}
                       />
                     )}
                     {item?.proGranted && (
-                      <Image
+                      <Image resizeMethod="resize"
                         source={require('../../../assets/progranted.png')}
                         style={{ width: 16, height: 16, marginLeft: 2 }}
                       />
                     )}
                     {Array.isArray(item.icons) && item.icons.slice(0, 4).map(iconKey => (
-                      <Image
+                      <Image resizeMethod="resize"
                         key={iconKey}
                         source={iconMap[iconKey]}
                         style={{ width: 16, height: 16, marginLeft: 2, resizeMode: 'contain' }}
                       />
                     ))}
                     {(profile.robloxUsernameVerified || item?.robloxUsernameVerified) && (
-                      <Image
+                      <Image resizeMethod="resize"
                         source={require('../../../assets/verification.png')}
                         style={styles.icon}
                       />
                     )}
                     {hasRecentWin && (
-                      <Image
+                      <Image resizeMethod="resize"
                         source={require('../../../assets/trophy.webp')}
                         style={{ width: 10, height: 10, marginLeft: 4 }}
                       />
@@ -564,7 +564,7 @@ const MessagesList = ({
 
                   {/* {'\n'} */}
 
-                  {item.gif && <View><Image src={item.gif} style={{ height: 50, width: 50, resizeMode: 'contain' }} /></View>}
+                  {item.gif && <View><Image resizeMethod="resize" src={item.gif} style={{ height: 50, width: 50, resizeMode: 'contain' }} /></View>}
                   {item?.text && (
                     isMultiColorText(profile.chatTextColor)
                       ? <RainbowText
@@ -595,7 +595,7 @@ const MessagesList = ({
                             key={`${fruit.id || fruit.name}-${index}`}
                             style={fruitStyles.fruitCard}
                           >
-                            <Image
+                            <Image resizeMethod="resize"
                               source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/${fruit.type === 'n' ? '09' : '08'}/${formatName(fruit.name)}_Icon.webp` }}
                               style={fruitStyles.fruitImage}
                             />
@@ -617,7 +617,7 @@ const MessagesList = ({
                                   { color: fruitColors.valueColor },
                                 ]}
                               >
-                                · Value: {Number(fruit.value || 0).toLocaleString()}
+                                {t('chat.message_common.fruit_value', { value: Number(fruit.value || 0).toLocaleString() })}
                               </Text>
                             </View>
                           </View>
@@ -638,7 +638,7 @@ const MessagesList = ({
                               { color: fruitColors.totalLabel },
                             ]}
                           >
-                            Total:
+                            {t('chat.message_common.total')}
                           </Text>
                           <Text
                             style={[
@@ -711,7 +711,7 @@ const MessagesList = ({
 
       </View>
     );
-  }, [dateHeaderById, highlightedMessageId, user?.id, profileCacheVersion, isDarkMode]);
+  }, [dateHeaderById, highlightedMessageId, user?.id, profileCacheVersion, isDarkMode, t]);
 
   return (
     <>

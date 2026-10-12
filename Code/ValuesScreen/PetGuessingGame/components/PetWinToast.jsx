@@ -120,7 +120,7 @@ const PetWinToast = ({ visible, petName, petValue, petImage, onDismiss }) => {
             </Text>
           </View>
           {petImage && (
-            <Image
+            <Image resizeMethod="resize"
               source={{ uri: petImage }}
               style={styles.petImage}
               resizeMode="contain"

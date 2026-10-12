@@ -21,6 +21,7 @@ import {
 import ViewShot from 'react-native-view-shot';
 import Share from 'react-native-share';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { getThemeColors } from '../Helper/themeColors';
 import config from '../Helper/Environment';
@@ -33,10 +34,10 @@ const CACHE_DURATION_MS = 2 * 24 * 60 * 60 * 1000; // 2 days
 const INITIAL_LIST_SIZE = 7;
 
 const GAMES_CONFIG = [
-  { id: 'whack',  name: 'Fruit Smash',     emoji: '🍎', color: '#EF4444', gradient: ['#EF4444', '#B91C1C'], order: 'desc', label: 'pts' },
-  { id: 'safe',   name: 'Crack the Chest',  emoji: '🔐', color: '#F59E0B', gradient: ['#F59E0B', '#D97706'], order: 'desc', label: 'pts' },
-  { id: 'draw',   name: 'Fruit Slash',      emoji: '⚡', color: '#8B5CF6', gradient: ['#8B5CF6', '#6D28D9'], order: 'asc',  label: 'ms' },
-  { id: 'memory', name: 'Memory Match',     emoji: '🃏', color: '#3B82F6', gradient: ['#3B82F6', '#1D4ED8'], order: 'asc',  label: 'moves' },
+  { id: 'whack',  nameKey: 'engagement.game_hub.spot_name',   emoji: '🍎', color: '#EF4444', gradient: ['#EF4444', '#B91C1C'], order: 'desc', labelKey: 'engagement.game_leaderboard.unit_pts' },
+  { id: 'safe',   nameKey: 'engagement.game_hub.safe_name',   emoji: '🔐', color: '#F59E0B', gradient: ['#F59E0B', '#D97706'], order: 'desc', labelKey: 'engagement.game_leaderboard.unit_pts' },
+  { id: 'draw',   nameKey: 'engagement.game_hub.draw_name',   emoji: '⚡', color: '#8B5CF6', gradient: ['#8B5CF6', '#6D28D9'], order: 'asc',  labelKey: 'engagement.game_leaderboard.unit_ms' },
+  { id: 'memory', nameKey: 'engagement.game_hub.memory_name', emoji: '🃏', color: '#3B82F6', gradient: ['#3B82F6', '#1D4ED8'], order: 'asc',  labelKey: 'engagement.game_leaderboard.unit_moves' },
 ];
 
 const RANK_CONFIG = {
@@ -47,6 +48,7 @@ const RANK_CONFIG = {
 
 const GameLeaderboard = ({ visible, onClose }) => {
   const { firestoreDB, user, theme } = useGlobalState();
+  const { t } = useTranslation();
   const { localState, updateLocalState } = useLocalState();
   const insets = useSafeAreaInsets();
   const isDarkMode = theme === 'dark';
@@ -227,7 +229,7 @@ const GameLeaderboard = ({ visible, onClose }) => {
             borderRadius: rankCfg.size / 2,
           }]}>
             {player.avatar ? (
-              <Image
+              <Image resizeMethod="resize"
                 source={{ uri: player.avatar }}
                 style={[styles.premiumAvatar, {
                   width: rankCfg.size - 6,
@@ -265,7 +267,7 @@ const GameLeaderboard = ({ visible, onClose }) => {
               {player.score}
             </Text>
             <Text style={[styles.premiumScoreLabel, { color: activeTab.color + '90' }]}>
-              {activeTab.label}
+              {t(activeTab.labelKey)}
             </Text>
           </View>
         </View>
@@ -280,11 +282,11 @@ const GameLeaderboard = ({ visible, onClose }) => {
     return { rank: idx + 1, score: leaderboardData[idx].score, username: leaderboardData[idx].username, avatar: leaderboardData[idx].avatar };
   }, [user?.id, leaderboardData]);
 
-  const getRankSuffix = (rank) => {
-    if (rank === 1) return 'st';
-    if (rank === 2) return 'nd';
-    if (rank === 3) return 'rd';
-    return 'th';
+  const formatRank = (rank) => {
+    if (rank === 1) return t('engagement.game_leaderboard.rank_st', { rank });
+    if (rank === 2) return t('engagement.game_leaderboard.rank_nd', { rank });
+    if (rank === 3) return t('engagement.game_leaderboard.rank_rd', { rank });
+    return t('engagement.game_leaderboard.rank_th', { rank });
   };
 
   const handleShareAchievement = useCallback(async () => {
@@ -299,7 +301,7 @@ const GameLeaderboard = ({ visible, onClose }) => {
             url: uri,
             type: 'image/png',
             failOnCancel: false,
-            title: `My ${activeTab.name} Rank on Blox Fruit Values!`,
+            title: t('engagement.game_leaderboard.share_title', { game: t(activeTab.nameKey) }),
           });
         } catch (shareErr) {
           // silent
@@ -310,13 +312,13 @@ const GameLeaderboard = ({ visible, onClose }) => {
     } catch (err) {
       setIsSharing(false);
     }
-  }, [activeTab, userRankInfo, isSharing, onClose]);
+  }, [activeTab, userRankInfo, isSharing, onClose, t]);
 
   const renderOffScreenShareCard = () => {
     const info = userRankInfo;
     if (!info) return null;
 
-    const gameName = activeTab.name;
+    const gameName = t(activeTab.nameKey);
     const gameEmoji = activeTab.emoji;
     const gameColor = activeTab.color;
     const rankNum = info.rank;
@@ -347,7 +349,7 @@ const GameLeaderboard = ({ visible, onClose }) => {
                 {gameName}
               </Text>
               <Text style={{ fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>
-                🏆 GAME LEADERBOARD
+                {t('engagement.game_leaderboard.card_header')}
               </Text>
             </View>
 
@@ -360,7 +362,7 @@ const GameLeaderboard = ({ visible, onClose }) => {
                 overflow: 'hidden',
               }}>
                 {info.avatar ? (
-                  <Image source={{ uri: info.avatar }} style={{ width: 68, height: 68, borderRadius: 34 }} />
+                  <Image resizeMethod="resize" source={{ uri: info.avatar }} style={{ width: 68, height: 68, borderRadius: 34 }} />
                 ) : (
                   <Icon name="person" size={32} color={isDarkMode ? '#64748b' : '#94a3b8'} />
                 )}
@@ -369,7 +371,7 @@ const GameLeaderboard = ({ visible, onClose }) => {
 
             <View style={{ alignItems: 'center', paddingTop: 14, paddingHorizontal: 20 }}>
               <Text style={{ fontSize: 18, fontWeight: '800', color: isDarkMode ? '#f1f5f9' : '#1e293b', textAlign: 'center' }} numberOfLines={1}>
-                {info.username || 'Player'}
+                {info.username || t('engagement.game_leaderboard.player')}
               </Text>
             </View>
 
@@ -381,10 +383,10 @@ const GameLeaderboard = ({ visible, onClose }) => {
                 alignItems: 'center',
               }}>
                 <Text style={{ fontSize: 11, fontWeight: '700', color: isDarkMode ? '#94a3b8' : '#64748b', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>
-                  Rank
+                  {t('engagement.game_leaderboard.rank')}
                 </Text>
                 <Text style={{ fontSize: 32, fontWeight: '900', color: gameColor }}>
-                  {rankMedal || ''} {rankNum}{getRankSuffix(rankNum)}
+                  {rankMedal || ''} {formatRank(rankNum)}
                 </Text>
               </View>
               <View style={{
@@ -394,20 +396,20 @@ const GameLeaderboard = ({ visible, onClose }) => {
                 alignItems: 'center',
               }}>
                 <Text style={{ fontSize: 11, fontWeight: '700', color: isDarkMode ? '#94a3b8' : '#64748b', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>
-                  Score
+                  {t('engagement.game_leaderboard.score')}
                 </Text>
                 <Text style={{ fontSize: 32, fontWeight: '900', color: isDarkMode ? '#f1f5f9' : '#1e293b' }}>
                   {scoreNum}
                 </Text>
                 <Text style={{ fontSize: 11, fontWeight: '600', color: isDarkMode ? '#64748b' : '#94a3b8', marginTop: 2 }}>
-                  {activeTab.label}
+                  {t(activeTab.labelKey)}
                 </Text>
               </View>
             </View>
 
             <View style={{ alignItems: 'center', paddingVertical: 14 }}>
               <Text style={{ fontSize: 13, fontWeight: '700', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
-                {isTop3 ? '🔥 Top 3 Player!' : rankNum <= 10 ? '⭐ Top 10!' : '💪 Keep Climbing!'}
+                {isTop3 ? t('engagement.game_leaderboard.top3') : rankNum <= 10 ? t('engagement.game_leaderboard.top10') : t('engagement.game_leaderboard.keep_climbing')}
               </Text>
             </View>
 
@@ -466,7 +468,7 @@ const GameLeaderboard = ({ visible, onClose }) => {
         </View>
 
         {item.avatar ? (
-          <Image source={{ uri: item.avatar }} style={styles.listAvatar} />
+          <Image resizeMethod="resize" source={{ uri: item.avatar }} style={styles.listAvatar} />
         ) : (
           <View style={[styles.listAvatar, {
             backgroundColor: isDarkMode ? '#334155' : '#e2e8f0',
@@ -482,13 +484,13 @@ const GameLeaderboard = ({ visible, onClose }) => {
             {item.username}
           </Text>
           {isCurrentUser && (
-            <Text style={[styles.youBadge, { color: activeTab.color }]}>You ⭐</Text>
+            <Text style={[styles.youBadge, { color: activeTab.color }]}>{t('engagement.game_leaderboard.you')}</Text>
           )}
         </View>
 
         <View style={[styles.listScoreBadge, { backgroundColor: activeTab.color + '15' }]}>
           <Text style={[styles.listScore, { color: activeTab.color }]}>
-            {item.score} {activeTab.label}
+            {item.score} {t(activeTab.labelKey)}
           </Text>
         </View>
       </View>
@@ -510,7 +512,7 @@ const GameLeaderboard = ({ visible, onClose }) => {
       >
         <Icon name="chevron-down" size={18} color={activeTab.color} />
         <Text style={[styles.loadMoreText, { color: activeTab.color }]}>
-          Show {remaining} more
+          {t('engagement.game_leaderboard.show_more', { count: remaining })}
         </Text>
       </TouchableOpacity>
     );
@@ -528,7 +530,7 @@ const GameLeaderboard = ({ visible, onClose }) => {
           </View>
 
           <View style={styles.header}>
-            <Text style={[styles.title, { color: c.text }]}>Game Leaders 🏆</Text>
+            <Text style={[styles.title, { color: c.text }]}>{t('engagement.game_leaderboard.title')}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <Icon name="close" size={22} color={c.textSecondary} />
             </TouchableOpacity>
@@ -555,7 +557,7 @@ const GameLeaderboard = ({ visible, onClose }) => {
                   >
                     <Text style={{ fontSize: 16 }}>{item.emoji}</Text>
                     <Text style={[styles.tabText, { color: isActive ? '#fff' : c.textSecondary }]}>
-                      {item.name}
+                      {t(item.nameKey)}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -565,7 +567,7 @@ const GameLeaderboard = ({ visible, onClose }) => {
 
           <View style={styles.subHeader}>
             <Text style={[styles.subHeaderText, { color: c.textSecondary }]}>
-              Top 20 — Updated daily
+              {t('engagement.game_leaderboard.top20')}
             </Text>
           </View>
 
@@ -573,14 +575,14 @@ const GameLeaderboard = ({ visible, onClose }) => {
           {loading ? (
             <View style={styles.centerContent}>
               <ActivityIndicator size="large" color={activeTab.color} />
-              <Text style={[styles.loadingText, { color: c.textSecondary }]}>Loading ranks...</Text>
+              <Text style={[styles.loadingText, { color: c.textSecondary }]}>{t('engagement.game_leaderboard.loading')}</Text>
             </View>
           ) : leaderboardData.length === 0 ? (
             <View style={styles.centerContent}>
               <Text style={{ fontSize: 48, opacity: 0.5 }}>🤷‍♂️</Text>
-              <Text style={[styles.emptyText, { color: c.textSecondary }]}>No scores yet</Text>
+              <Text style={[styles.emptyText, { color: c.textSecondary }]}>{t('engagement.game_leaderboard.empty_title')}</Text>
               <Text style={[styles.emptySub, { color: c.textSecondary }]}>
-                Play a game to get ranked!
+                {t('engagement.game_leaderboard.empty_sub')}
               </Text>
             </View>
           ) : (
@@ -604,7 +606,7 @@ const GameLeaderboard = ({ visible, onClose }) => {
             >
               <Icon name="share-outline" size={20} color="#fff" />
               <Text style={styles.shareBtnText}>
-                {isSharing ? 'Sharing...' : userRankInfo ? 'Share Achievement' : 'Not Ranked Yet'}
+                {isSharing ? t('engagement.game_leaderboard.sharing') : userRankInfo ? t('engagement.game_leaderboard.share') : t('engagement.game_leaderboard.not_ranked')}
               </Text>
             </TouchableOpacity>
           </View>

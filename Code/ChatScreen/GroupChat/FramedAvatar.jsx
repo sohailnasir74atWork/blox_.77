@@ -653,7 +653,7 @@ const FramedAvatar = ({
           alignItems: 'center', justifyContent: 'center',
         }}>
           {avatarUri ? (
-            <Image
+            <Image resizeMethod="resize"
               source={{ uri: avatarUri }}
               style={{ width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2 }}
             />

@@ -335,7 +335,7 @@ const InviteUsersModal = ({ visible, onClose, roomId, currentUser, onInviteSent 
                       onPress={() => !isInvited && !isPlaying && handleInvite(item)}
                       disabled={isInviting || isInvited || isPlaying}
                     >
-                      <Image
+                      <Image resizeMethod="resize"
                         source={{
                           uri:
                             item.avatar ||

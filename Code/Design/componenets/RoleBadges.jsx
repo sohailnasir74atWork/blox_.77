@@ -4,10 +4,12 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { getUserData } from '../../Helper/UserDataCache';
 import { getCachedProfile } from '../../Helper/profileCache';
 import { useGlobalState } from '../../GlobelStats';
+import { useTranslation } from 'react-i18next';
 
 // eslint-disable-next-line no-unused-vars
 const RoleBadges = ({ userItem, style, cacheVersion }) => {
   const globalState = useGlobalState() || {};
+  const { t } = useTranslation();
   const { user: currentUser, isAdmin: isGlobalAdmin, isModerator: isGlobalModerator, isSeniorMod: isGlobalSeniorMod } = globalState;
 
   if (!userItem) return null;
@@ -36,44 +38,44 @@ const RoleBadges = ({ userItem, style, cacheVersion }) => {
       {isAdmin && (
         <View style={styles.roleBadge_admin}>
           <Ionicons name="shield" size={8} color="#fff" />
-          <Text style={styles.roleBadgeText}>Admin</Text>
+          <Text style={styles.roleBadgeText}>{t('feed.role_badges.admin')}</Text>
         </View>
       )}
       {/* Senior Mod ranks above Mod — show it instead of the Mod badge. */}
       {!isAdmin && isSeniorMod && (
         <View style={styles.roleBadge_seniorMod}>
           <Ionicons name="shield-half" size={8} color="#fff" />
-          <Text style={styles.roleBadgeText}>Sr Mod</Text>
+          <Text style={styles.roleBadgeText}>{t('feed.role_badges.sr_mod')}</Text>
         </View>
       )}
       {!isAdmin && !isSeniorMod && isModerator && (
         <View style={styles.roleBadge_mod}>
           <Ionicons name="shield-checkmark" size={8} color="#fff" />
-          <Text style={styles.roleBadgeText}>Mod</Text>
+          <Text style={styles.roleBadgeText}>{t('feed.role_badges.mod')}</Text>
         </View>
       )}
       {!isAdmin && !isSeniorMod && !isModerator && isJMD && (
         <View style={styles.roleBadge_jmd}>
           <Ionicons name="paw" size={8} color="#fff" />
-          <Text style={styles.roleBadgeText}>JMD</Text>
+          <Text style={styles.roleBadgeText}>{t('feed.role_badges.jmd')}</Text>
         </View>
       )}
       {isTrusted && (
         <View style={styles.roleBadge_trusted}>
           <Ionicons name="checkmark-circle" size={8} color="#fff" />
-          <Text style={styles.roleBadgeText}>Trusted</Text>
+          <Text style={styles.roleBadgeText}>{t('feed.role_badges.trusted')}</Text>
         </View>
       )}
       {isGrinder && (
         <View style={styles.roleBadge_grinder}>
           <Ionicons name="barbell" size={8} color="#fff" />
-          <Text style={styles.roleBadgeText}>Grinder</Text>
+          <Text style={styles.roleBadgeText}>{t('feed.role_badges.grinder')}</Text>
         </View>
       )}
       {isRaider && (
         <View style={styles.roleBadge_raider}>
           <Ionicons name="flash" size={8} color="#fff" />
-          <Text style={styles.roleBadgeText}>Raider</Text>
+          <Text style={styles.roleBadgeText}>{t('feed.role_badges.raider')}</Text>
         </View>
       )}
     </View>

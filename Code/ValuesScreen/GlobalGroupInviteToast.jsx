@@ -5,6 +5,7 @@ import { collection, query, where, getDocs, doc, deleteDoc, onSnapshot } from '@
 import { showInfoMessage } from '../Helper/MessageHelper';
 import GroupInviteToast from './GroupInviteToast';
 import { AppState } from 'react-native';
+import i18next from 'i18next';
 
 const INVITE_EXPIRY_MS = 60000; // 1 minute for game invites
 // Invites arrive over ONE real-time listener per query, attached only while the
@@ -88,8 +89,8 @@ const GlobalGroupInviteToast = () => {
       
       const isGameInvite = latestInvite.type === 'game';
       const fromUserName = isGameInvite 
-        ? (latestInvite.fromUserName || 'Someone')
-        : (latestInvite.invitedByDisplayName || 'Someone');
+        ? (latestInvite.fromUserName || i18next.t('values.group_invite_toast.someone'))
+        : (latestInvite.invitedByDisplayName || i18next.t('values.group_invite_toast.someone'));
       
       // console.log(`🎮👥 Showing ${isGameInvite ? 'game' : 'group'} invitation toast:`, {
       //   inviteId: latestInvite.id || latestInvite.roomId,
@@ -102,10 +103,10 @@ const GlobalGroupInviteToast = () => {
       
       // ✅ Show FlashMessage toast (auto-hides after 3 seconds)
       showInfoMessage(
-        isGameInvite ? 'Game Invitation' : 'Group Invitation',
+        isGameInvite ? i18next.t('values.global_group_invite_toast.game_invitation') : i18next.t('values.global_group_invite_toast.group_invitation'),
         isGameInvite
-          ? `${fromUserName} invites you to play now`
-          : `${fromUserName} invited you to join "${latestInvite.groupName || 'Group'}"`
+          ? i18next.t('values.group_invite_toast.game_invite_body', { name: fromUserName })
+          : i18next.t('values.group_invite_toast.group_invite_body', { name: fromUserName, group: latestInvite.groupName || i18next.t('values.group_invite_toast.group') })
       );
       
       setToastData({
@@ -113,7 +114,7 @@ const GlobalGroupInviteToast = () => {
         fromUserAvatar: isGameInvite 
           ? (latestInvite.fromUserAvatar || null)
           : (latestInvite.invitedByAvatar || null),
-        groupName: latestInvite.groupName || 'Group',
+        groupName: latestInvite.groupName || i18next.t('values.group_invite_toast.group'),
         groupId: latestInvite.groupId,
         roomId: latestInvite.roomId,
         inviteId: latestInvite.id || latestInvite.roomId,

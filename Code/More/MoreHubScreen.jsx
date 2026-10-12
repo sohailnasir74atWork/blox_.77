@@ -5,8 +5,11 @@
  * opens the values list straight away, and its header's More button opens
  * this hub (owner decision, 2026-10-07).
  *
- * Codes gets the full-width card; the rest share a two-column grid. Icons
- * come from scripts/more-hub/make-icons.mjs.
+ * Since 2026-10-08 it is also the More bottom tab (it replaced the Stock tab),
+ * so Stock leads with the first full-width card (it is why most players open
+ * the app), then Codes; the rest share a two-column grid. Icons come from
+ * scripts/more-hub/make-icons.mjs. `showBack` is false when the hub is the
+ * tab's first screen.
  */
 
 import React, { useMemo } from 'react';
@@ -22,6 +25,7 @@ import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
 
 export const MORE_ICONS = {
   more: require('../../assets/more-hub/more.png'),
+  stock: require('../../assets/more-hub/stock.png'),
   codes: require('../../assets/more-hub/codes.png'),
   wallpaper: require('../../assets/more-hub/wallpaper.png'),
   scammer: require('../../assets/more-hub/scammer.png'),
@@ -38,7 +42,25 @@ const chunkPairs = (items) => {
   return rows;
 };
 
-const MoreHubScreen = ({ navigation }) => {
+// A full-width gradient card. `tone` picks the palette (styles.hero_<tone>).
+const HeroCard = ({ tone, title, sub, button, icon, onPress }) => (
+  <TouchableOpacity style={[styles.hero, styles[`hero_${tone}`]]} onPress={onPress} activeOpacity={0.88}>
+    <View style={styles.heroGlow} />
+    <View style={styles.flex1}>
+      <Text style={styles.heroTitle}>{title}</Text>
+      <Text style={styles.heroSub} numberOfLines={2}>{sub}</Text>
+      <View style={styles.heroBtn}>
+        <Text style={[styles.heroBtnText, styles[`heroInk_${tone}`]]}>{button}</Text>
+        <Icon name="arrow-forward" size={13} color={HERO_INK[tone]} />
+      </View>
+    </View>
+    <Image resizeMethod="resize" source={icon} style={styles.heroIcon} resizeMode="contain" />
+  </TouchableOpacity>
+);
+
+const HERO_INK = { stock: '#6D28D9', codes: '#B45309' };
+
+const MoreHubScreen = ({ navigation, showBack = true }) => {
   const { t } = useTranslation();
   const { theme, isAdmin, isModerator } = useGlobalState();
   const { triggerHapticFeedback } = useHaptic();
@@ -66,20 +88,24 @@ const MoreHubScreen = ({ navigation }) => {
 
   return (
     <View style={[styles.flex1, { backgroundColor: c.bg }]}>
-      <ThemeHeader title={t('more_hub.title')} showBack />
+      <ThemeHeader title={t('more_hub.title')} showBack={showBack} />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <TouchableOpacity style={styles.hero} onPress={() => open('MoreCodes')} activeOpacity={0.88}>
-          <View style={styles.heroGlow} />
-          <View style={styles.flex1}>
-            <Text style={styles.heroTitle}>{t('more_hub.codes_title')}</Text>
-            <Text style={styles.heroSub} numberOfLines={2}>{t('more_hub.codes_desc')}</Text>
-            <View style={styles.heroBtn}>
-              <Text style={styles.heroBtnText}>{t('more_hub.browse')}</Text>
-              <Icon name="arrow-forward" size={13} color="#B45309" />
-            </View>
-          </View>
-          <Image source={MORE_ICONS.codes} style={styles.heroIcon} resizeMode="contain" />
-        </TouchableOpacity>
+        <HeroCard
+          tone="stock"
+          title={t('tabs.stock', { defaultValue: 'Stock' })}
+          sub={t('more_hub.stock_desc')}
+          button={t('more_hub.stock_button')}
+          icon={MORE_ICONS.stock}
+          onPress={() => open('MoreStock')}
+        />
+        <HeroCard
+          tone="codes"
+          title={t('more_hub.codes_title')}
+          sub={t('more_hub.codes_desc')}
+          button={t('more_hub.browse')}
+          icon={MORE_ICONS.codes}
+          onPress={() => open('MoreCodes')}
+        />
 
         {chunkPairs(cards).map((row) => (
           <View key={row[0].key} style={styles.row}>
@@ -92,7 +118,7 @@ const MoreHubScreen = ({ navigation }) => {
               >
                 <View style={[styles.cardWash, { backgroundColor: card.color + (isDarkMode ? '24' : '14') }]} />
                 <View style={styles.cardTop}>
-                  <Image source={MORE_ICONS[card.key]} style={styles.cardIcon} resizeMode="contain" />
+                  <Image resizeMethod="resize" source={MORE_ICONS[card.key]} style={styles.cardIcon} resizeMode="contain" />
                   <View style={[styles.chevron, { backgroundColor: card.color }]}>
                     <Icon name="chevron-forward" size={14} color="#fff" />
                   </View>
@@ -117,6 +143,12 @@ const styles = StyleSheet.create({
   hero: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     padding: 18, paddingRight: 10, borderRadius: 22, marginBottom: 12, overflow: 'hidden',
+  },
+  hero_stock: {
+    backgroundColor: '#7C3AED',
+    backgroundImage: 'linear-gradient(135deg, #A855F7 0%, #7C3AED 45%, #4338CA 100%)',
+  },
+  hero_codes: {
     backgroundColor: '#F59E0B',
     backgroundImage: 'linear-gradient(135deg, #FBBF24 0%, #F59E0B 45%, #EA580C 100%)',
   },
@@ -130,7 +162,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start',
     marginTop: 12, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, backgroundColor: '#fff',
   },
-  heroBtnText: { color: '#B45309', fontSize: 12.5, fontWeight: '800' },
+  heroBtnText: { fontSize: 12.5, fontWeight: '800' },
+  heroInk_stock: { color: HERO_INK.stock },
+  heroInk_codes: { color: HERO_INK.codes },
   heroIcon: { width: 96, height: 96 },
 
   row: { flexDirection: 'row', gap: 12, marginBottom: 12 },

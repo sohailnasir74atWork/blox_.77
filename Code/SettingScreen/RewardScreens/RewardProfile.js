@@ -39,7 +39,7 @@ const UserProfileSection = ({
 
   return (
     <View style={styles.userSection}>
-      <Image
+      <Image resizeMethod="resize"
         source={{
           uri:
             currentUser?.avatar ||
@@ -79,7 +79,7 @@ const UserProfileSection = ({
 
       <TouchableOpacity style={styles.claimButton} disabled={true}>
         <Text style={styles.claimText}>{user?.coins || 0}</Text>
-        <Image source={require('../../../assets/money-bag.png')} style={{ width: 15, height: 15, marginLeft:5 }} />
+        <Image resizeMethod="resize" source={require('../../../assets/money-bag.png')} style={{ width: 15, height: 15, marginLeft:5 }} />
       </TouchableOpacity>
     </View>
   );

@@ -12,6 +12,8 @@
  *   trade       two swap arrows
  *   feed        a photo card with a heart
  *   chat        a speech bubble
+ *   more        four candy tiles (the More tab, 2026-10-08; replaced Stock,
+ *               whose icon is kept for reuse)
  *   Every tab icon gets an "-off" twin (soft grey) for the unselected state.
  *
  * Quick actions (assets/home-actions/<name>.png, 32 pt base):
@@ -80,6 +82,12 @@ const devilFruit = (body, swirl, prefix) => `
   <path d="M32 19 C31 13 34 9 38 8 C36 11 35 14 36 18" fill="#15803D" stroke="${OUTLINE}" stroke-width="1.2" stroke-linejoin="round"/>
   <path d="M33 18 C38 12 45 13 47 16 C43 15 39 17 36 20 Z" fill="url(#${prefix}leaf)" stroke="${OUTLINE}" stroke-width="1.2" stroke-linejoin="round"/>`;
 
+/** A glossy rounded tile for the More tab (same as adoptme-jan7's tab icon). */
+const tile = (x, y, id) => `
+  <rect x="${x}" y="${y + 2}" width="25" height="25" rx="8" fill="rgba(16,24,48,0.25)"/>
+  <rect x="${x}" y="${y}" width="25" height="25" rx="8" fill="url(#${id})" stroke="${OUTLINE}" stroke-width="1.4"/>
+  <path d="M${x + 4.5} ${y + 3.2} H${x + 20.5} C${x + 22.5} ${y + 3.2} ${x + 22.5} ${y + 7.5} ${x + 20.5} ${y + 8} C${x + 15} ${y + 6.5} ${x + 10} ${y + 6.5} ${x + 4.5} ${y + 8} C${x + 2.5} ${y + 7.5} ${x + 2.5} ${y + 3.2} ${x + 4.5} ${y + 3.2} Z" fill="rgba(255,255,255,0.5)"/>`;
+
 // ─────────────────────────────── Tabs ───────────────────────────────
 const TABS = {
   home: svg(
@@ -145,6 +153,12 @@ const TABS = {
      <path d="M32 9 C46 9 57 18 57 30 C57 42 46 51 32 51 C29 51 26 50.6 23.4 49.8 L12 56 L14.8 45.6 C10 41.8 7 36.2 7 30 C7 18 18 9 32 9 Z" fill="url(#bub)" stroke="${OUTLINE}" stroke-width="1.6" stroke-linejoin="round"/>
      <path d="M17 20 C21 15.5 26 14 31 14" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="2.4" stroke-linecap="round"/>
      <circle cx="21" cy="31" r="4" fill="#FFFFFF"/><circle cx="32" cy="31" r="4" fill="#FFFFFF"/><circle cx="43" cy="31" r="4" fill="#FFFFFF"/>`
+  ),
+  // Four candy tiles: Stock, Codes and everything else live here.
+  more: svg(
+    grad('tPurple', [[0, '#E9D5FF'], [1, '#7C3AED']]) + grad('tBlue', [[0, '#BAE6FD'], [1, '#2563EB']])
+      + grad('tAmber', [[0, '#FEF3C7'], [1, '#F59E0B']]) + grad('tGreen', [[0, '#BBF7D0'], [1, '#16A34A']]),
+    `${tile(5, 5, 'tPurple')}${tile(34, 5, 'tBlue')}${tile(5, 34, 'tAmber')}${tile(34, 34, 'tGreen')}`
   ),
 };
 

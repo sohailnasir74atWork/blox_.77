@@ -35,7 +35,11 @@ exports.notifyTradeAccept = require('./notifyTradeAccept').notifyTradeAccept;
 // --- Stock scraper + stock push topics -----------------------------------
 exports.checkStockUpdates = require('./checkStockUpdates').checkStockUpdates;
 exports.sendStockNotifications = require('./sendStockNotifications').sendStockNotifications;
-exports.backupAndClearCalcData = require('./backupAndClearCalcData').backupAndClearCalcData;
+// backupAndClearCalcData retired 2026-10-08 (scheduler paused the same day):
+// it ran at even PKT hours, an hour AFTER each rotation, copied the live stock
+// to /previousStock and deleted /calcData, so the Stock screen was empty for
+// half of every window. checkStockUpdates already archives /previousStock when
+// it commits a rotation. The next deploy will offer to delete it — say yes.
 const topics = require('./stockTopics');
 exports.syncTopicsOnTokenChange = topics.syncTopicsOnTokenChange;
 exports.syncTopicsOnReminderToggle = topics.syncTopicsOnReminderToggle;
@@ -86,6 +90,9 @@ const bans = require('./banEnforcement');
 exports.modSanction = bans.modSanction;
 // Staff evidence screenshots → Bunny, key held server-side. See modEvidenceUpload.js.
 exports.modEvidenceUpload = require('./modEvidenceUpload').modEvidenceUpload;
+const chatReports = require('./mirrorChatReport');
+exports.mirrorChatReport = chatReports.mirrorChatReport;
+exports.reconcileReportedChats = chatReports.reconcileReportedChats;
 exports.syncEmailBan = bans.syncEmailBan;
 exports.indexDeviceAccount = bans.indexDeviceAccount;
 exports.indexLegacyDeviceAccount = bans.indexLegacyDeviceAccount;

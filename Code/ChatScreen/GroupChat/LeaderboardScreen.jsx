@@ -236,37 +236,37 @@ const LeaderboardScreen = ({ route }) => {
         <View style={[styles.rankBadge, { backgroundColor: rankColor }]}>
           <Text style={styles.rankText}>{rank}</Text>
         </View>
-        <Image source={{ uri: item.avatar || DEFAULT_AVATAR }} style={styles.avatar} />
+        <Image resizeMethod="resize" source={{ uri: item.avatar || DEFAULT_AVATAR }} style={styles.avatar} />
         <View style={styles.userInfo}>
-          <Text style={styles.userName} numberOfLines={1}>{item.displayName || 'Anonymous'}</Text>
+          <Text style={styles.userName} numberOfLines={1}>{item.displayName || t('chat.anonymous')}</Text>
           <View style={styles.ratingInfo}>
             <Icon name="star" size={12} color="#FFD700" />
             <Text style={styles.ratingText}>
-              {item.averageRating.toFixed(1)} ({item.ratingCount} {item.ratingCount === 1 ? 'rating' : 'ratings'})
+              {t('chat.leaderboard_screen.rating_summary', { avg: item.averageRating.toFixed(1), count: item.ratingCount })}
             </Text>
           </View>
         </View>
         <Icon name="chatbubble-outline" size={20} color={config.colors.primary} />
       </TouchableOpacity>
     );
-  }, [styles, handleUserClick]);
+  }, [styles, handleUserClick, t]);
 
   const renderRosterItem = useCallback(({ item }) => {
     const tabMeta = TABS.find(tab => tab.key === activeTab);
     return (
       <TouchableOpacity style={styles.userItem} onPress={() => handleUserClick(item)} activeOpacity={0.7}>
-        <Image source={{ uri: item.avatar || DEFAULT_AVATAR }} style={styles.avatar} />
+        <Image resizeMethod="resize" source={{ uri: item.avatar || DEFAULT_AVATAR }} style={styles.avatar} />
         <View style={styles.userInfo}>
-          <Text style={styles.userName} numberOfLines={1}>{item.displayName || 'Unknown'}</Text>
+          <Text style={styles.userName} numberOfLines={1}>{item.displayName || t('chat.unknown_time')}</Text>
           <View style={[styles.rolePill, { backgroundColor: tabMeta.color + '20' }]}>
             <Icon name={tabMeta.icon} size={10} color={tabMeta.color} />
-            <Text style={[styles.rolePillText, { color: tabMeta.color }]}>{tabMeta.label}</Text>
+            <Text style={[styles.rolePillText, { color: tabMeta.color }]}>{t(`chat.leaderboard_screen.tab_${tabMeta.key}`)}</Text>
           </View>
         </View>
         <Icon name="chatbubble-outline" size={20} color={config.colors.primary} />
       </TouchableOpacity>
     );
-  }, [styles, handleUserClick, activeTab]);
+  }, [styles, handleUserClick, activeTab, t]);
 
   // ── Active state ──
   const activeData = activeTab === 'topRated' ? topRatedData : (rosterData[activeTab] || []);
@@ -274,8 +274,8 @@ const LeaderboardScreen = ({ route }) => {
   const activeMeta = TABS.find(tab => tab.key === activeTab);
 
   const emptyText =
-    activeTab === 'topRated' ? 'No users found with 3.7+ rating' :
-    `No ${activeMeta.label} users yet`;
+    activeTab === 'topRated' ? t('chat.leaderboard_screen.empty_topRated') :
+    t(`chat.leaderboard_screen.empty_${activeMeta.key}`);
 
   return (
     <View style={{ flex: 1, backgroundColor: isDarkMode ? '#111827' : '#f8fafc' }}>
@@ -302,7 +302,7 @@ const LeaderboardScreen = ({ route }) => {
                   color: isActive ? tab.color : (isDarkMode ? '#94a3b8' : '#64748b'),
                   fontWeight: isActive ? '700' : '500',
                 }]}>
-                  {tab.label}
+                  {t(`chat.leaderboard_screen.tab_${tab.key}`)}
                 </Text>
               </TouchableOpacity>
             );
@@ -313,9 +313,9 @@ const LeaderboardScreen = ({ route }) => {
         {loading && activeData.length === 0 ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={config.colors.primary} />
-            <Text style={styles.loadingText}>Loading {activeMeta.label}...</Text>
+            <Text style={styles.loadingText}>{t(`chat.leaderboard_screen.loading_${activeMeta.key}`)}</Text>
             {activeTab === 'topRated' && (
-              <Text style={styles.loadingSubtext}>Showing most reviewed users with 3.7+ rating...</Text>
+              <Text style={styles.loadingSubtext}>{t('chat.leaderboard_screen.loading_subtext')}</Text>
             )}
           </View>
         ) : activeData.length === 0 ? (
@@ -323,7 +323,7 @@ const LeaderboardScreen = ({ route }) => {
             <Icon name={activeMeta.icon} size={48} color={config.colors.primary} />
             <Text style={styles.emptyText}>{emptyText}</Text>
             {activeTab === 'topRated' && (
-              <Text style={styles.emptySubtext}>Leaderboard is updated daily</Text>
+              <Text style={styles.emptySubtext}>{t('chat.leaderboard_screen.updated_daily')}</Text>
             )}
           </View>
         ) : (
@@ -345,7 +345,7 @@ const LeaderboardScreen = ({ route }) => {
 
         {activeTab === 'topRated' && localState.leaderboardTop50?.lastFetched && !loading && (
           <Text style={styles.cacheInfo}>
-            Last updated: {new Date(localState.leaderboardTop50.lastFetched).toLocaleDateString()}
+            {t('chat.leaderboard_screen.last_updated', { date: new Date(localState.leaderboardTop50.lastFetched).toLocaleDateString() })}
           </Text>
         )}
 

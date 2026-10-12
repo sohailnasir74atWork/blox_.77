@@ -24,7 +24,7 @@ const colorFor = (name) => INITIAL_COLORS[[...String(name || '?')].reduce((a, ch
 export const BirthdayAvatar = ({ uri, name, size = 40, ring = false }) => {
   const box = { width: size, height: size, borderRadius: size / 2 };
   const ringStyle = ring ? { borderWidth: 2, borderColor: BIRTHDAY_PINK } : null;
-  if (uri) return <Image source={{ uri }} style={[box, ringStyle]} />;
+  if (uri) return <Image resizeMethod="resize" source={{ uri }} style={[box, ringStyle]} />;
   return (
     <View style={[box, ringStyle, { backgroundColor: colorFor(name), alignItems: 'center', justifyContent: 'center' }]}>
       <Text style={{ color: '#fff', fontWeight: '900', fontSize: size * 0.42 }}>
@@ -36,6 +36,7 @@ export const BirthdayAvatar = ({ uri, name, size = 40, ring = false }) => {
 
 /** 🎂 after a name in chat when that player (opted in) has a birthday today. */
 export const BirthdayCake = React.memo(({ uid, size = 12 }) => {
+  const { t } = useTranslation();
   const [today, setToday] = useState(() => isBirthdayTodayUid(uid));
   useEffect(() => {
     ensureBirthdaysTodayLoaded();
@@ -45,7 +46,7 @@ export const BirthdayCake = React.memo(({ uid, size = 12 }) => {
     return onBirthdaysChange(() => setToday(isBirthdayTodayUid(uid)));
   }, [uid]);
   if (!today) return null;
-  return <Text style={{ fontSize: size, marginLeft: 3 }} accessibilityLabel="Birthday today">🎂</Text>;
+  return <Text style={{ fontSize: size, marginLeft: 3 }} accessibilityLabel={t('birthdays.bits.birthday_today')}>🎂</Text>;
 });
 
 /** "🎂 12 Oct" on a profile, when the player shows their birthday. */

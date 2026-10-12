@@ -22,6 +22,7 @@ import {
   StyleSheet, Alert, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { ref, get, set, push, serverTimestamp } from '@react-native-firebase/database';
 import { doc, getDoc, setDoc } from '@react-native-firebase/firestore';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
@@ -34,9 +35,9 @@ import { checkThresholdBadges, TRADE_BADGE_THRESHOLDS, checkNightOwlTrade } from
 import InterstitialAdManager from '../Ads/IntAd';
 
 const TRADE_RATINGS = [
-  { key: 'win', label: 'Win', emoji: '🏆', color: '#10B981', desc: 'I got more value' },
-  { key: 'fair', label: 'Fair', emoji: '🤝', color: '#F59E0B', desc: 'Equal trade' },
-  { key: 'loss', label: 'Loss', emoji: '📉', color: '#EF4444', desc: 'I gave more value' },
+  { key: 'win', labelKey: 'engagement.trade_completion.rating_win', emoji: '🏆', color: '#10B981', descKey: 'engagement.trade_completion.rating_win_desc' },
+  { key: 'fair', labelKey: 'engagement.trade_completion.rating_fair', emoji: '🤝', color: '#F59E0B', descKey: 'engagement.trade_completion.rating_fair_desc' },
+  { key: 'loss', labelKey: 'engagement.trade_completion.rating_loss', emoji: '📉', color: '#EF4444', descKey: 'engagement.trade_completion.rating_loss_desc' },
 ];
 
 // Calculator item or inventory item → the one shape stored in the journal.
@@ -63,6 +64,7 @@ const TradeCompletion = ({
   firestoreDB,
 }) => {
   const { localState, updateLocalState } = useLocalState();
+  const { t } = useTranslation();
   // This app's SwipeableBottomDrawer doesn't apply the bottom safe-area inset
   // (the Adopt Me copy does), so pad here or the Save button sits under the
   // system nav bar.
@@ -87,7 +89,7 @@ const TradeCompletion = ({
     const gave = hasItems.filter(i => i).map(normalizeItem);
     const got = wantsItems.filter(i => i).map(normalizeItem);
     if (gave.length === 0 || got.length === 0) {
-      Alert.alert('Add items on both sides!', 'You need items in both "I Gave" and "I Got" to save a trade.');
+      Alert.alert(t('engagement.trade_completion.both_sides_title'), t('engagement.trade_completion.both_sides_msg'));
       return;
     }
     setSaving(true);
@@ -194,17 +196,17 @@ const TradeCompletion = ({
       }
 
       // Build success message
-      let msg = `+${XP_ACTIONS.COMPLETE_TRADE} XP earned\n`;
-      if (addedNames.length > 0) msg += `✅ Added: ${addedNames.join(', ')}\n`;
-      if (removedNames.length > 0) msg += `🔄 Removed: ${removedNames.join(', ')}\n`;
-      if (notOwnedNames.length > 0) msg += `⚠️ Not in your list: ${notOwnedNames.join(', ')}`;
+      let msg = `${t('engagement.trade_completion.xp_earned', { xp: XP_ACTIONS.COMPLETE_TRADE })}\n`;
+      if (addedNames.length > 0) msg += `${t('engagement.trade_completion.added', { names: addedNames.join(', ') })}\n`;
+      if (removedNames.length > 0) msg += `${t('engagement.trade_completion.removed', { names: removedNames.join(', ') })}\n`;
+      if (notOwnedNames.length > 0) msg += t('engagement.trade_completion.not_in_list', { names: notOwnedNames.join(', ') });
       setInventoryMsg(msg.trim());
 
       // Warn if items weren't in owned list
       if (notOwnedNames.length > 0) {
         Alert.alert(
-          'Heads up! 🍋',
-          `You traded away ${notOwnedNames.join(', ')}, but ${notOwnedNames.length > 1 ? 'they were' : 'it was'} not in your My Stuff list, so we couldn't remove ${notOwnedNames.length > 1 ? 'them' : 'it'} from the list.\n\nHowever, your trade was saved successfully! ✅`
+          t('engagement.trade_completion.heads_up_title'),
+          t('engagement.trade_completion.heads_up_msg', { count: notOwnedNames.length, names: notOwnedNames.join(', ') })
         );
       }
 
@@ -225,10 +227,10 @@ const TradeCompletion = ({
       }
     } catch (err) {
       console.warn('[TradeCompletion] save error:', err?.message);
-      Alert.alert('Error', 'Could not save trade. Try again.');
+      Alert.alert(t('home.alert.error'), t('engagement.trade_completion.save_error'));
     }
     setSaving(false);
-  }, [db, uid, hasItems, wantsItems, selectedRating, notes, partnerName, didScam, firestoreDB, updateLocalState, localState?.isPro]);
+  }, [db, uid, hasItems, wantsItems, selectedRating, notes, partnerName, didScam, firestoreDB, updateLocalState, localState?.isPro, t]);
 
   const handleClose = useCallback(() => {
     setSelectedRating(tradeResult);
@@ -258,11 +260,11 @@ const TradeCompletion = ({
           {/* Header */}
           <View style={styles.header}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={[styles.title, { color: textColor }]}>📓 I Traded!</Text>
+              <Text style={[styles.title, { color: textColor }]}>{t('engagement.trade_completion.title')}</Text>
               <TouchableOpacity
                 onPress={() => Alert.alert(
-                  '📓 I Traded!',
-                  'Record a trade you just did in Blox Fruits!\n\n🍋 Add the fruits you gave & got\n⭐ Rate how the trade went (Win/Fair/Loss)\n✅ Save it to your My Stuff history\n\n🎒 Your inventory updates automatically — fruits you traded away are removed and fruits you got are added!'
+                  t('engagement.trade_completion.title'),
+                  t('engagement.trade_completion.info_msg')
                 )}
               >
                 <FontAwesome name="circle-info" size={16} color={config.colors.primary} />
@@ -277,12 +279,12 @@ const TradeCompletion = ({
             /* Success state */
             <View style={styles.successWrap}>
               <Text style={{ fontSize: 48 }}>🎉</Text>
-              <Text style={[styles.successTitle, { color: textColor }]}>Trade Saved!</Text>
+              <Text style={[styles.successTitle, { color: textColor }]}>{t('engagement.trade_completion.saved_title')}</Text>
               <Text style={[styles.successSub, { color: subtextColor, textAlign: 'center' }]}>
-                {inventoryMsg || `+${XP_ACTIONS.COMPLETE_TRADE} XP earned • Added to My Stuff`}
+                {inventoryMsg || t('engagement.trade_completion.saved_sub', { xp: XP_ACTIONS.COMPLETE_TRADE })}
               </Text>
               <TouchableOpacity style={styles.doneBtn} onPress={handleClose}>
-                <Text style={styles.doneBtnText}>Done</Text>
+                <Text style={styles.doneBtnText}>{t('engagement.trade_completion.done')}</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -291,23 +293,23 @@ const TradeCompletion = ({
               <View style={[styles.summaryCard, { backgroundColor: cardBg }]}>
                 <View style={styles.summaryRow}>
                   <View style={styles.summaryCol}>
-                    <Text style={[styles.summaryLabel, { color: subtextColor }]}>I Gave</Text>
+                    <Text style={[styles.summaryLabel, { color: subtextColor }]}>{t('engagement.trade_completion.i_gave')}</Text>
                     <Text style={[styles.summaryCount, { color: textColor }]}>
-                      {hasItems.filter(i => i).length} item(s)
+                      {t('engagement.trade_completion.items_count', { count: hasItems.filter(i => i).length })}
                     </Text>
                   </View>
                   <FontAwesome name="arrow-right-arrow-left" size={16} color={subtextColor} />
                   <View style={styles.summaryCol}>
-                    <Text style={[styles.summaryLabel, { color: subtextColor }]}>I Got</Text>
+                    <Text style={[styles.summaryLabel, { color: subtextColor }]}>{t('engagement.trade_completion.i_got')}</Text>
                     <Text style={[styles.summaryCount, { color: textColor }]}>
-                      {wantsItems.filter(i => i).length} item(s)
+                      {t('engagement.trade_completion.items_count', { count: wantsItems.filter(i => i).length })}
                     </Text>
                   </View>
                 </View>
               </View>
 
               {/* Rate trade */}
-              <Text style={[styles.sectionTitle, { color: textColor }]}>How did it go?</Text>
+              <Text style={[styles.sectionTitle, { color: textColor }]}>{t('engagement.trade_completion.how_did_it_go')}</Text>
               <View style={styles.ratingRow}>
                 {TRADE_RATINGS.map((r) => (
                   <TouchableOpacity
@@ -325,8 +327,8 @@ const TradeCompletion = ({
                     activeOpacity={0.7}
                   >
                     <Text style={{ fontSize: 24 }}>{r.emoji}</Text>
-                    <Text style={[styles.ratingLabel, { color: textColor }]}>{r.label}</Text>
-                    <Text style={[styles.ratingDesc, { color: subtextColor }]}>{r.desc}</Text>
+                    <Text style={[styles.ratingLabel, { color: textColor }]}>{t(r.labelKey)}</Text>
+                    <Text style={[styles.ratingDesc, { color: subtextColor }]}>{t(r.descKey)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -338,7 +340,7 @@ const TradeCompletion = ({
                   backgroundColor: cardBg,
                   borderColor: c.border,
                 }]}
-                placeholder="Notes (optional)"
+                placeholder={t('engagement.trade_completion.notes_placeholder')}
                 placeholderTextColor={subtextColor}
                 value={notes}
                 onChangeText={setNotes}
@@ -361,7 +363,7 @@ const TradeCompletion = ({
                   solid={didScam}
                 />
                 <Text style={[styles.scamText, { color: didScam ? '#EF4444' : subtextColor }]}>
-                  ⚠️ The other person scammed me
+                  {t('engagement.trade_completion.scammed_me')}
                 </Text>
               </TouchableOpacity>
 
@@ -374,10 +376,10 @@ const TradeCompletion = ({
                 {saving ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <ActivityIndicator size="small" color="#FFF" />
-                    <Text style={styles.saveBtnText}>Saving...</Text>
+                    <Text style={styles.saveBtnText}>{t('engagement.trade_completion.saving')}</Text>
                   </View>
                 ) : (
-                  <Text style={styles.saveBtnText}>Save in My Stuff ✨</Text>
+                  <Text style={styles.saveBtnText}>{t('engagement.trade_completion.save_btn')}</Text>
                 )}
               </TouchableOpacity>
             </>

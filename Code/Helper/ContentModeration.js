@@ -1,4 +1,5 @@
 import Filter from 'leo-profanity';
+import i18next from 'i18next';
 
 /**
  * Comprehensive Content Moderation Utility
@@ -210,7 +211,7 @@ export const validateContent = (text, options = {}) => {
   if (containsProfanity(text)) {
     return {
       isValid: false,
-      reason: 'Inappropriate language is not allowed.',
+      reason: i18next.t('app.content_moderation.profanity'),
     };
   }
 
@@ -218,7 +219,7 @@ export const validateContent = (text, options = {}) => {
   if (containsSpam(text)) {
     return {
       isValid: false,
-      reason: 'Spam content is not allowed.',
+      reason: i18next.t('app.content_moderation.spam'),
     };
   }
 
@@ -226,7 +227,7 @@ export const validateContent = (text, options = {}) => {
   if (containsInappropriateContent(text)) {
     return {
       isValid: false,
-      reason: 'Inappropriate content is not allowed.',
+      reason: i18next.t('app.content_moderation.inappropriate'),
     };
   }
 
@@ -234,7 +235,7 @@ export const validateContent = (text, options = {}) => {
   if (!options.skipLinkCheck && containsLink(text)) {
     return {
       isValid: false,
-      reason: 'Links are not allowed in messages.',
+      reason: i18next.t('app.content_moderation.links'),
     };
   }
 

@@ -9,6 +9,7 @@ import { useGlobalState } from '../GlobelStats';
 import { useLocalState } from '../LocalGlobelStats';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
 import InterstitialAdManager from '../Ads/IntAd';
+import { useTranslation } from 'react-i18next';
 
 const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const viewRef = useRef();
@@ -29,6 +30,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
     const { localState } = useLocalState()
     const [showofferwall, setShowofferwall] = useState(false);
+    const { t } = useTranslation();
 
     if (!tradeData) return null;
     // console.log(tradeData)
@@ -92,11 +94,11 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const handleRemoveAttribute = () => {
         if (!localState?.isPro) {
             Alert.alert(
-                "Pro Feature",
-                "Only Pro users can remove this. Do you want to upgrade?",
+                t('trade.sharetrade_model.pro_feature_title'),
+                t('trade.sharetrade_model.pro_feature_body'),
                 [
-                    { text: "Cancel", style: "cancel" },
-                    { text: "Upgrade", onPress: () => setShowofferwall(true) }
+                    { text: t('common.cancel'), style: "cancel" },
+                    { text: t('trade.upgrade'), onPress: () => setShowofferwall(true) }
                 ]
             );
             return;
@@ -142,9 +144,9 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                                     <View key={`${item.name}-${item.type}-${index}`} style={styles.gridItem}>
                                                         <View style={item.name !== '' && styles.top}>
                                                             <Text style={styles.itemText}>
-                                                                {item.name !== '' ? (item.value === 0 || item.value === "N/A" ? 'Special' : item.value) : ''}
+                                                                {item.name !== '' ? (item.value === 0 || item.value === "N/A" ? t('trade.sharetrade_model.special') : item.value) : ''}
                                                             </Text></View>
-                                                        <Image
+                                                        <Image resizeMethod="resize"
                                                             source={{
                                                                 uri: item.type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.name)}_Icon.webp`,
                                                             }}
@@ -164,7 +166,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                 {/* Transfer Icon */}
                                 {showLeftGrid && showRightGrid && (
                                     <View style={styles.transfer}>
-                                        <Image source={require('../../assets/transfer.png')} style={styles.transferImage} />
+                                        <Image resizeMethod="resize" source={require('../../assets/transfer.png')} style={styles.transferImage} />
                                     </View>
                                 )}
 
@@ -177,9 +179,9 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                                     <View key={`${item.name}-${item.type}-${index}`} style={styles.gridItem}>
                                                         <View style={item.name !== '' && styles.top}>
                                                             <Text style={styles.itemText}>
-                                                                {item.name !== '' ? (item.value === 0 || item.value === "N/A" ? 'Special' : item.value) : ''}
+                                                                {item.name !== '' ? (item.value === 0 || item.value === "N/A" ? t('trade.sharetrade_model.special') : item.value) : ''}
                                                             </Text></View>
-                                                        <Image
+                                                        <Image resizeMethod="resize"
                                                             source={{
                                                                 uri: item.type !== 'p' ? `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(item.name)}_Icon.webp` : `https://bloxfruitscalc.com/wp-content/uploads/2024/08/${formatName(item.name)}_Icon.webp`,
                                                             }}
@@ -204,16 +206,16 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                             <View style={styles.tradeTotals}>
                                 {showLeftGrid && (
                                     <View style={[styles.hasBackground, !showRightGrid && styles.fullWidthSummary]}>
-                                        <Text style={[styles.priceText]}>Has</Text>
-                                        {includeValue && <Text style={[styles.priceText, { borderTopWidth: 1, borderTopColor: 'lightgrey' }]}>Value: {hasTotal.value.toLocaleString()}</Text>}
-                                        {includePrice && <Text style={[styles.priceText]}>Price: {hasTotal.price.toLocaleString()}</Text>}
+                                        <Text style={[styles.priceText]}>{t('trade.sharetrade_model.has')}</Text>
+                                        {includeValue && <Text style={[styles.priceText, { borderTopWidth: 1, borderTopColor: 'lightgrey' }]}>{t('trade.sharetrade_model.value', { value: hasTotal.value.toLocaleString() })}</Text>}
+                                        {includePrice && <Text style={[styles.priceText]}>{t('trade.sharetrade_model.price', { value: hasTotal.price.toLocaleString() })}</Text>}
                                     </View>
                                 )}
                                 {showRightGrid && (
                                     <View style={[styles.wantBackground, !showLeftGrid && styles.fullWidthSummary]}>
-                                        <Text style={[styles.priceText]}>Want</Text>
-                                        {includeValue && <Text style={[styles.priceText, { borderTopWidth: 1, borderTopColor: 'lightgrey' }]}>Value: {wantsTotal.value.toLocaleString()}</Text>}
-                                        {includePrice && <Text style={[styles.priceText]}>Price: {wantsTotal.price.toLocaleString()}</Text>}
+                                        <Text style={[styles.priceText]}>{t('trade.sharetrade_model.want')}</Text>
+                                        {includeValue && <Text style={[styles.priceText, { borderTopWidth: 1, borderTopColor: 'lightgrey' }]}>{t('trade.sharetrade_model.value', { value: wantsTotal.value.toLocaleString() })}</Text>}
+                                        {includePrice && <Text style={[styles.priceText]}>{t('trade.sharetrade_model.price', { value: wantsTotal.price.toLocaleString() })}</Text>}
                                     </View>
                                 )}
                             </View>
@@ -221,7 +223,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                         {includePercentage && showLeftGrid && showRightGrid && (
                             <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', width: '100%', paddingVertical: 10 }}>
                                 <Text style={[styles.priceTextProfit, { color: !isProfit ? 'green' : 'red' }]}>
-                                    {!isProfit ? 'Profit :' : 'Loss :'} {tradePercentage}%{!neutral && (
+                                    {!isProfit ? t('trade.sharetrade_model.profit_pct', { pct: tradePercentage }) : t('trade.sharetrade_model.loss_pct', { pct: tradePercentage })}{!neutral && (
                                         <Icon
                                             name={isProfit ? 'arrow-down-outline' : 'arrow-up-outline'}
                                             size={12}
@@ -232,13 +234,13 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                             </View>
                         )}
                         {/* Description (Optional) */}
-                        {includeDescription && description && <Text style={styles.description}>Note: {description}</Text>}
+                        {includeDescription && description && <Text style={styles.description}>{t('trade.sharetrade_model.note', { description })}</Text>}
 
                         {includeAppTag &&
                             <View style={styles.footer}>
-                                <Text style={styles.footerText}>Created with {config.appName}</Text>
+                                <Text style={styles.footerText}>{t('trade.sharetrade_model.created_with', { app: config.appName })}</Text>
 
-                                <Image
+                                <Image resizeMethod="resize"
                                     source={require('../../assets/logo.png')} // Replace with the actual local image path
                                     style={styles.footerImage}
                                 />
@@ -251,7 +253,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                     <View style={styles.badgesContainer}>
                         <View style={styles.badgesWrapper}>
                             <Badge
-                                label="Left Grid"
+                                label={t('trade.sharetrade_model.left_grid')}
                                 icon="grid"
                                 isSelected={showLeftGrid}
                                 onPress={() => {
@@ -263,7 +265,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                 }}
                             />
                             <Badge
-                                label="Right Grid"
+                                label={t('trade.sharetrade_model.right_grid')}
                                 icon="grid"
                                 isSelected={showRightGrid}
                                 onPress={() => {
@@ -275,37 +277,37 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                                 }}
                             />
                             <Badge
-                                label="Percentage"
+                                label={t('trade.sharetrade_model.percentage')}
                                 icon="trending-up"
                                 isSelected={includePercentage}
                                 onPress={() => setIncludePercentage(!includePercentage)}
                             />
                             <Badge
-                                label="Values"
+                                label={t('trade.sharetrade_model.values')}
                                 icon="analytics"
                                 isSelected={includeValue}
                                 onPress={() => setIncludeValue(!includeValue)}
                             />
                             <Badge
-                                label="Prices"
+                                label={t('trade.sharetrade_model.prices')}
                                 icon="pricetag"
                                 isSelected={includePrice}
                                 onPress={() => setIncludePrice(!includePrice)}
                             />
                             <Badge
-                                label="Description"
+                                label={t('trade.sharetrade_model.description')}
                                 icon="create"
                                 isSelected={includeDescription}
                                 onPress={() => setIncludeDescription(!includeDescription)}
                             />
                             <Badge
-                                label="Items"
+                                label={t('trade.sharetrade_model.items')}
                                 icon="list"
                                 isSelected={includeHasWants}
                                 onPress={() => setIncludeHasWants(!includeHasWants)}
                             />
                             <Badge
-                                label="App Tag"
+                                label={t('trade.sharetrade_model.app_tag')}
                                 icon="information-circle"
                                 isSelected={includeAppTag}
                                 onPress={handleRemoveAttribute}
@@ -316,11 +318,11 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                     {/* Buttons */}
                     <View style={[styles.buttonContainer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
                         <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-                            <Text style={styles.cancelText}>Cancel</Text>
+                            <Text style={styles.cancelText}>{t('common.cancel')}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.shareButton} onPress={sharewithAds}>
                             <Icon name="share-social" size={20} color="#fff" />
-                            <Text style={styles.shareButtonText}>Share</Text>
+                            <Text style={styles.shareButtonText}>{t('trade.sharetrade_model.share')}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>

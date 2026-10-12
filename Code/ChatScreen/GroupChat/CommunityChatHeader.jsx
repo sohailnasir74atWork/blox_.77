@@ -219,7 +219,7 @@ const CommunityChatHeader = ({
                 <Icon name="people-outline" size={20} color={config.colors.primary} style={{ marginRight: 10 }} />
                 <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                   <Text style={{ fontSize: 16, color: config.colors.text || '#000' }}>
-                    Online Users
+                    {t("chat.community_chat_header.online_users")}
                   </Text>
                 </View>
               </View>

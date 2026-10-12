@@ -20,6 +20,7 @@ import {
   Animated, StatusBar, ScrollView, FlatList, Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
@@ -77,6 +78,7 @@ const CrashPill = ({ value }) => {
 
 // ─── Live cashout feed row ────────────────────────────────
 const CashoutRow = ({ item, isMe, c }) => {
+  const { t } = useTranslation();
   const slideAnim = useRef(new Animated.Value(-40)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
@@ -99,14 +101,14 @@ const CashoutRow = ({ item, isMe, c }) => {
       },
     ]}>
       {item.avatar ? (
-        <Image source={{ uri: item.avatar }} style={st.cashoutAvatar} />
+        <Image resizeMethod="resize" source={{ uri: item.avatar }} style={st.cashoutAvatar} />
       ) : (
         <View style={[st.cashoutAvatarPlaceholder, { backgroundColor: c.bgElevated }]}>
           <Text style={{ fontSize: 10 }}>👤</Text>
         </View>
       )}
       <Text style={[st.cashoutName, { color: c.text }]} numberOfLines={1}>
-        {isMe ? 'You' : item.name}
+        {isMe ? t('engagement.fruit_crash.you') : item.name}
       </Text>
       <View style={[st.cashoutMultPill, { backgroundColor: color + '25', borderColor: color + '60' }]}>
         <Text style={[st.cashoutMult, { color }]}>{item.multiplier?.toFixed(2)}x</Text>
@@ -117,6 +119,7 @@ const CashoutRow = ({ item, isMe, c }) => {
 
 // ─── Leaderboard row ──────────────────────────────────────
 const LeaderboardRow = ({ item, rank, isMe, c }) => {
+  const { t } = useTranslation();
   const rankColors = ['#F59E0B', '#94A3B8', '#CD7C2F'];
   const rankEmojis = ['🥇', '🥈', '🥉'];
   const color = getMultColor(item.best);
@@ -131,7 +134,7 @@ const LeaderboardRow = ({ item, rank, isMe, c }) => {
         {rank <= 3 ? rankEmojis[rank - 1] : `#${rank}`}
       </Text>
       {item.avatar ? (
-        <Image source={{ uri: item.avatar }} style={st.lbAvatar} />
+        <Image resizeMethod="resize" source={{ uri: item.avatar }} style={st.lbAvatar} />
       ) : (
         <View style={[st.lbAvatarPlaceholder, { backgroundColor: c.bgElevated }]}>
           <Text style={{ fontSize: 12 }}>👤</Text>
@@ -139,9 +142,9 @@ const LeaderboardRow = ({ item, rank, isMe, c }) => {
       )}
       <View style={{ flex: 1 }}>
         <Text style={[st.lbName, { color: c.text }]} numberOfLines={1}>
-          {isMe ? `${item.name} (You)` : item.name}
+          {isMe ? t('engagement.fruit_crash.name_you', { name: item.name }) : item.name}
         </Text>
-        <Text style={[st.lbRounds, { color: c.textMuted }]}>{item.totalRounds || 0} rounds</Text>
+        <Text style={[st.lbRounds, { color: c.textMuted }]}>{t('engagement.fruit_crash.rounds_count', { count: item.totalRounds || 0 })}</Text>
       </View>
       <Text style={[st.lbBest, { color }]}>{item.best?.toFixed(2)}x</Text>
     </View>
@@ -153,6 +156,7 @@ const LeaderboardRow = ({ item, rank, isMe, c }) => {
 // ═════════════════════════════════════════════════════════
 export default function FruitCrash({ navigation }) {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const { appdatabase, user, theme } = useGlobalState();
   const isDark = theme === 'dark';
   const c = useThemeColors();
@@ -379,11 +383,11 @@ export default function FruitCrash({ navigation }) {
             <Ionicons name="chevron-back" size={24} color={textMain} />
           </TouchableOpacity>
           <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={[st.headerTitle, { color: textMain }]}>Fruit Crash</Text>
+            <Text style={[st.headerTitle, { color: textMain }]}>{t('engagement.fruit_crash.title')}</Text>
             <View style={st.playersBadge}>
               <View style={st.liveIndicator} />
               <Text style={[st.playersText, { color: textDim }]}>
-                {cashoutsArray.length > 0 ? `${cashoutsArray.length}${cashoutsArray.length >= 12 ? '+' : ''} cashed out` : 'Live'}
+                {cashoutsArray.length > 0 ? t('engagement.fruit_crash.cashed_out_count', { n: `${cashoutsArray.length}${cashoutsArray.length >= 12 ? '+' : ''}` }) : t('engagement.fruit_crash.live')}
               </Text>
             </View>
           </View>
@@ -402,14 +406,14 @@ export default function FruitCrash({ navigation }) {
             onPress={() => setTab('game')}
             activeOpacity={0.7}
           >
-            <Text style={[st.tabLabel, { color: textDim }, tab === 'game' && { color: textMain }]}>Game</Text>
+            <Text style={[st.tabLabel, { color: textDim }, tab === 'game' && { color: textMain }]}>{t('engagement.fruit_crash.tab_game')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[st.tabBtn, tab === 'leaderboard' && [st.tabBtnActive, { backgroundColor: c.bgElevated }]]}
             onPress={() => setTab('leaderboard')}
             activeOpacity={0.7}
           >
-            <Text style={[st.tabLabel, { color: textDim }, tab === 'leaderboard' && { color: textMain }]}>All-Time Board</Text>
+            <Text style={[st.tabLabel, { color: textDim }, tab === 'leaderboard' && { color: textMain }]}>{t('engagement.fruit_crash.tab_board')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -423,7 +427,7 @@ export default function FruitCrash({ navigation }) {
               style={st.historyScroll}
             >
               {history.length === 0
-                ? <Text style={[st.historyEmpty, { color: textDim }]}>Crash history will appear here</Text>
+                ? <Text style={[st.historyEmpty, { color: textDim }]}>{t('engagement.fruit_crash.history_empty')}</Text>
                 : history.map((v, i) => <CrashPill key={i} value={v} />)
               }
             </ScrollView>
@@ -434,9 +438,9 @@ export default function FruitCrash({ navigation }) {
               <Animated.View style={{ transform: [{ scale: multScale }], alignItems: 'center' }}>
                 {isWaiting ? (
                   <View style={{ alignItems: 'center' }}>
-                    <Text style={[st.waitingLabel, { color: textDim }]}>Next round in</Text>
+                    <Text style={[st.waitingLabel, { color: textDim }]}>{t('engagement.fruit_crash.next_round_in')}</Text>
                     <Text style={[st.countdownText, { color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)' }]}>
-                      {countdown}s
+                      {t('engagement.fruit_crash.seconds', { s: countdown })}
                     </Text>
                   </View>
                 ) : (
@@ -444,7 +448,7 @@ export default function FruitCrash({ navigation }) {
                     <Text style={[st.multValue, { color: hasCrashed ? '#EF4444' : multColor }]}>
                       {displayMult.toFixed(2)}x
                     </Text>
-                    {hasCrashed && <Text style={st.crashedLabel}>CRASHED!</Text>}
+                    {hasCrashed && <Text style={st.crashedLabel}>{t('engagement.fruit_crash.crashed')}</Text>}
                   </>
                 )}
               </Animated.View>
@@ -459,17 +463,17 @@ export default function FruitCrash({ navigation }) {
                   {hasCashedOut ? (
                     <View style={[st.resultCard, { backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.1)' }]}>
                       <Text style={st.resultEmoji}>💰</Text>
-                      <Text style={st.resultTitle}>Cashed Out!</Text>
+                      <Text style={st.resultTitle}>{t('engagement.fruit_crash.cashed_out')}</Text>
                       <Text style={[st.resultMult, { color: textMain }]}>{myCashout?.toFixed(2)}x</Text>
                       <Text style={st.resultXp}>+{XP_FOR_MULTIPLIER(myCashout || 1)} XP</Text>
                       {myCashout > bestMultiplier && (
                         <View style={st.newBestBadge}>
-                          <Text style={st.newBestText}>NEW BEST!</Text>
+                          <Text style={st.newBestText}>{t('engagement.fruit_crash.new_best')}</Text>
                         </View>
                       )}
                       {hasCrashed && round?.crashPoint && (
                         <Text style={[st.resultSub, { color: textDim }]}>
-                          Crashed at {round.crashPoint.toFixed(2)}x — nice timing!
+                          {t('engagement.fruit_crash.crashed_nice_timing', { mult: round.crashPoint.toFixed(2) })}
                         </Text>
                       )}
                     </View>
@@ -477,9 +481,9 @@ export default function FruitCrash({ navigation }) {
                     <View style={[st.resultCard, { backgroundColor: isDark ? 'rgba(239,68,68,0.12)' : 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.35)' }]}>
                       <Text style={st.resultEmoji}>💥</Text>
                       <Text style={[st.resultTitle, { color: '#EF4444' }]}>
-                        Crashed at {round?.crashPoint?.toFixed(2)}x
+                        {t('engagement.fruit_crash.crashed_at', { mult: round?.crashPoint?.toFixed(2) })}
                       </Text>
-                      <Text style={[st.resultSub, { color: textDim }]}>Cash out faster next time!</Text>
+                      <Text style={[st.resultSub, { color: textDim }]}>{t('engagement.fruit_crash.faster_next_time')}</Text>
                     </View>
                   )}
                 </Animated.View>
@@ -489,7 +493,7 @@ export default function FruitCrash({ navigation }) {
             {/* ── Live cashout feed ── */}
             {cashoutsArray.length > 0 && (
               <View style={st.feedWrap}>
-                <Text style={[st.feedTitle, { color: textDim }]}>Live Cashouts</Text>
+                <Text style={[st.feedTitle, { color: textDim }]}>{t('engagement.fruit_crash.live_cashouts')}</Text>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -505,19 +509,19 @@ export default function FruitCrash({ navigation }) {
             {/* ── Stats row ── */}
             <View style={[st.statsRow, { backgroundColor: cardBg }]}>
               <View style={st.statBox}>
-                <Text style={[st.statLabel, { color: textDim }]}>My Best</Text>
+                <Text style={[st.statLabel, { color: textDim }]}>{t('engagement.fruit_crash.my_best')}</Text>
                 <Text style={[st.statValue, { color: '#F59E0B' }]}>
                   {bestMultiplier > 0 ? bestMultiplier.toFixed(2) + 'x' : '—'}
                 </Text>
               </View>
               <View style={[st.statDivider, { backgroundColor: divColor }]} />
               <View style={st.statBox}>
-                <Text style={[st.statLabel, { color: textDim }]}>Rounds</Text>
+                <Text style={[st.statLabel, { color: textDim }]}>{t('engagement.fruit_crash.rounds')}</Text>
                 <Text style={[st.statValue, { color: '#60A5FA' }]}>{totalRounds}</Text>
               </View>
               <View style={[st.statDivider, { backgroundColor: divColor }]} />
               <View style={st.statBox}>
-                <Text style={[st.statLabel, { color: textDim }]}>Players</Text>
+                <Text style={[st.statLabel, { color: textDim }]}>{t('engagement.fruit_crash.players')}</Text>
                 <Text style={[st.statValue, { color: '#10B981' }]}>
                   {leaderboard.length > 0 ? leaderboard.length + '+' : '—'}
                 </Text>
@@ -529,7 +533,7 @@ export default function FruitCrash({ navigation }) {
               {isWaiting && (
                 <View style={[st.mainBtn, { backgroundColor: cardBg }]}>
                   <Text style={[st.mainBtnText, { color: textSub }]}>
-                    Waiting for next round... {countdown}s
+                    {t('engagement.fruit_crash.waiting_next', { s: countdown })}
                   </Text>
                 </View>
               )}
@@ -543,7 +547,7 @@ export default function FruitCrash({ navigation }) {
                     style={[st.mainBtn, st.cashBtn]}
                   >
                     <Text style={[st.mainBtnText, { fontSize: 22, color: '#fff' }]}>
-                      CASH OUT  {multiplier.toFixed(2)}x
+                      {t('engagement.fruit_crash.cash_out_btn', { mult: multiplier.toFixed(2) })}
                     </Text>
                   </LinearGradient>
                 </TouchableOpacity>
@@ -552,14 +556,14 @@ export default function FruitCrash({ navigation }) {
               {isRunning && hasCashedOut && (
                 <View style={[st.mainBtn, { backgroundColor: 'rgba(16,185,129,0.15)', borderWidth: 1, borderColor: 'rgba(16,185,129,0.3)' }]}>
                   <Text style={[st.mainBtnText, { color: '#10B981' }]}>
-                    Cashed at {myCashout?.toFixed(2)}x ✓
+                    {t('engagement.fruit_crash.cashed_at', { mult: myCashout?.toFixed(2) })}
                   </Text>
                 </View>
               )}
 
               {hasCrashed && (
                 <View style={[st.mainBtn, { backgroundColor: cardBg }]}>
-                  <Text style={[st.mainBtnText, { color: textSub }]}>Next round starting soon...</Text>
+                  <Text style={[st.mainBtnText, { color: textSub }]}>{t('engagement.fruit_crash.next_soon')}</Text>
                 </View>
               )}
             </View>
@@ -570,12 +574,12 @@ export default function FruitCrash({ navigation }) {
           // scroll under the buttons; the gradient still fills behind it.
           <View style={{ flex: 1, paddingBottom: insets.bottom }}>
             <View style={st.lbHeader}>
-              <Text style={[st.lbHeaderTitle, { color: textMain }]}>All-Time Best Multipliers</Text>
-              <Text style={[st.lbHeaderSub, { color: textDim }]}>Best single cash-out ever</Text>
+              <Text style={[st.lbHeaderTitle, { color: textMain }]}>{t('engagement.fruit_crash.board_title')}</Text>
+              <Text style={[st.lbHeaderSub, { color: textDim }]}>{t('engagement.fruit_crash.board_sub')}</Text>
             </View>
             {leaderboard.length === 0 ? (
               <View style={st.lbEmpty}>
-                <Text style={[st.lbEmptyText, { color: textDim }]}>No data yet — play to appear!</Text>
+                <Text style={[st.lbEmptyText, { color: textDim }]}>{t('engagement.fruit_crash.board_empty')}</Text>
               </View>
             ) : (
               <FlatList
@@ -590,8 +594,8 @@ export default function FruitCrash({ navigation }) {
 
             {user?.id && leaderboard.findIndex(x => x.uid === user.id) === -1 && bestMultiplier > 0 && (
               <View style={[st.myRankCard, { backgroundColor: cardBg, marginBottom: 16 }]}>
-                <Text style={[st.myRankLabel, { color: textMain }]}>Your best: {bestMultiplier.toFixed(2)}x</Text>
-                <Text style={[st.myRankSub, { color: textDim }]}>Keep playing to climb the board!</Text>
+                <Text style={[st.myRankLabel, { color: textMain }]}>{t('engagement.fruit_crash.your_best', { mult: bestMultiplier.toFixed(2) })}</Text>
+                <Text style={[st.myRankSub, { color: textDim }]}>{t('engagement.fruit_crash.keep_playing')}</Text>
               </View>
             )}
           </View>

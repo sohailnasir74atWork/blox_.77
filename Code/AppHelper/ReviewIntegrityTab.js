@@ -82,7 +82,7 @@ const TraderRow = ({ who, subtitle, c, onPress }) => (
     onPress={onPress}
     style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderRadius: 12, padding: 12, marginBottom: 8 }}
   >
-    <Image source={{ uri: who.avatar }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }} />
+    <Image resizeMethod="resize" source={{ uri: who.avatar }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }} />
     <View style={{ flex: 1 }}>
       <Text style={{ color: c.text, fontWeight: '600', fontSize: 15 }} numberOfLines={1}>{who.displayName}</Text>
       {!!subtitle && <Text style={{ color: c.sub, fontSize: 12, marginTop: 2 }}>{subtitle}</Text>}
@@ -292,7 +292,7 @@ const ReviewIntegrityTab = ({ isDark, currentUser }) => {
           <TouchableOpacity onPress={() => setTrader(null)} style={{ paddingRight: 12 }}>
             <Ionicons name="arrow-back" size={22} color="#007AFF" />
           </TouchableOpacity>
-          <Image source={{ uri: trader.avatar }} style={{ width: 36, height: 36, borderRadius: 18, marginRight: 10 }} />
+          <Image resizeMethod="resize" source={{ uri: trader.avatar }} style={{ width: 36, height: 36, borderRadius: 18, marginRight: 10 }} />
           <Text style={{ color: c.text, fontWeight: '700', fontSize: 17, flex: 1 }} numberOfLines={1}>{trader.displayName}</Text>
         </View>
 

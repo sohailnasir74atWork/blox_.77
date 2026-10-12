@@ -17,7 +17,7 @@ const ART = {
 
 const HomeCardArt = ({ name }) => (
   <View style={styles.disc}>
-    <Image source={ART[name]} style={styles.art} resizeMode="contain" />
+    <Image resizeMethod="resize" source={ART[name]} style={styles.art} resizeMode="contain" />
   </View>
 );
 

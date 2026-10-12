@@ -88,24 +88,24 @@ const PrivateMessageList = ({
   const handleCopy = (message) => {
     Clipboard.setString(message?.text ?? '');
     triggerHapticFeedback('impactLight');
-    showSuccessMessage('Success', 'Message Copied');
+    showSuccessMessage(t('chat.message_common.success'), t('chat.message_common.message_copied'));
   };
 
   // Get reply preview text (matching adoptme/group chat pattern)
   const getReplyPreview = useCallback((replyTo) => {
-    if (!replyTo || typeof replyTo !== 'object') return '[Deleted message]';
+    if (!replyTo || typeof replyTo !== 'object') return t('chat.message_common.reply_deleted');
     if (replyTo.text && typeof replyTo.text === 'string' && replyTo.text.trim().length > 0) {
       return replyTo.text;
     }
     if (replyTo.imageUrl || (Array.isArray(replyTo.imageUrls) && replyTo.imageUrls.length > 0)) {
-      return '[Image]';
+      return t('chat.message_common.reply_image');
     }
     if (replyTo.hasFruits || (Array.isArray(replyTo.fruits) && replyTo.fruits.length > 0)) {
       const count = replyTo.fruitsCount || (Array.isArray(replyTo.fruits) ? replyTo.fruits.length : 0);
-      return count > 0 ? `[${count} pet(s) message]` : '[Pets message]';
+      return count > 0 ? t('chat.message_common.reply_pets_count', { count }) : t('chat.message_common.reply_pets');
     }
-    return '[Deleted message]';
-  }, []);
+    return t('chat.message_common.reply_deleted');
+  }, [t]);
 
   // Scroll-to-message for reply tap
   const flatListRef = useRef(null);
@@ -130,9 +130,9 @@ const PrivateMessageList = ({
         setHighlightedMessageId(null);
       }, 2000);
     } else {
-      Alert.alert('Message not found', 'Message not found or too old.');
+      Alert.alert(t('chat.private_message_list.not_found_title'), t('chat.private_message_list.not_found_body'));
     }
-  }, [messages]);
+  }, [messages, t]);
 
   // Filter messages: Keep only user's messages if `isBanned` is true
   // const filteredMessages = isBanned
@@ -204,7 +204,7 @@ const PrivateMessageList = ({
 
     // ✅ Check limit BEFORE translation (reads from storage for real-time accuracy)
     if (!isUnlimited && !canTranslate()) {
-      Alert.alert('Limit Reached', 'You can only translate 5 messages per day.');
+      Alert.alert(t('chat.message_common.limit_reached'), t('chat.message_common.translate_limit'));
       return;
     }
 
@@ -216,17 +216,17 @@ const PrivateMessageList = ({
       if (!isUnlimited) incrementTranslationCount();
 
       // ✅ Get remaining tries (reads from storage for real-time accuracy)
-      const remaining = isUnlimited ? 'Unlimited' : `${getRemainingTranslationTries()} remaining`;
+      const remaining = isUnlimited ? t('chat.message_common.unlimited') : t('chat.message_common.remaining', { count: getRemainingTranslationTries() });
 
       Alert.alert(
-        'Translated Message',
-        `${translated}\n\n🧠 Daily Limit: ${remaining}${isUnlimited
+        t('chat.message_common.translated_title'),
+        `${translated}\n\n${t('chat.message_common.daily_limit', { remaining })}${isUnlimited
           ? ''
-          : '\n\n🔓 Want more? Upgrade to Pro for unlimited translations.'
+          : `\n\n${t('chat.message_common.upgrade_more')}`
         }`
       );
     } else {
-      Alert.alert('Error', 'Translation failed. Please try again later.');
+      Alert.alert(t('chat.error'), t('chat.message_common.translate_failed'));
     }
   };
 
@@ -237,8 +237,8 @@ const PrivateMessageList = ({
     const today = new Date();
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    if (msgDate.toDateString() === today.toDateString()) return 'Today';
-    if (msgDate.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    if (msgDate.toDateString() === today.toDateString()) return t('chat.private_message_list.today');
+    if (msgDate.toDateString() === yesterday.toDateString()) return t('chat.private_message_list.yesterday');
     return msgDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
@@ -339,7 +339,7 @@ const PrivateMessageList = ({
                 }
                 style={{ marginBottom: 6 }}
               >
-                <Image
+                <Image resizeMethod="resize"
                   source={{ uri: item.imageUrl }}
                   style={styles.chatImage}
                 />
@@ -366,7 +366,7 @@ const PrivateMessageList = ({
                         key={`${fruit.id || fruit.name}-${index}`}
                         style={fruitStyles.fruitCard}
                       >
-                        <Image
+                        <Image resizeMethod="resize"
                           source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2024/${fruit.type === 'n' ? '09' : '08'}/${formatName(fruit.name)}_Icon.webp` }}
                           style={fruitStyles.fruitImage}
                         />
@@ -378,7 +378,7 @@ const PrivateMessageList = ({
                             {`${fruit.name || fruit.Name || ''}  `}
                           </Text>
                           <Text style={[fruitStyles.fruitValue, { color: fruitColors.valueColor }]}>
-                            · Value: {Number(fruit.value || 0).toLocaleString()}{' '}
+                            {t('chat.message_common.fruit_value', { value: Number(fruit.value || 0).toLocaleString() })}{' '}
                           </Text>
                         </View>
                       </View>
@@ -386,7 +386,7 @@ const PrivateMessageList = ({
                   })}
                   {fruits.length > 1 && (
                     <View style={[fruitStyles.totalRow, { borderTopColor: fruitColors.divider }]}>
-                      <Text style={[fruitStyles.totalLabel, { color: fruitColors.totalLabel }]}>Total:</Text>
+                      <Text style={[fruitStyles.totalLabel, { color: fruitColors.totalLabel }]}>{t('chat.message_common.total')}</Text>
                       <Text style={[fruitStyles.totalValue, { color: fruitColors.totalValue }]}>{totalFruitValue.toLocaleString()}</Text>
                     </View>
                   )}
@@ -405,17 +405,17 @@ const PrivateMessageList = ({
                       )}
                       {(!isSenderAdmin && isSenderSeniorMod) && (
                         <View style={[styles.moderatorContainer, { marginBottom: 2 }]}>
-                          <Text style={styles.moderator}>SR MOD</Text>
+                          <Text style={styles.moderator}>{t('chat.private_message_list.badge_sr_mod')}</Text>
                         </View>
                       )}
                       {(!isSenderAdmin && !isSenderSeniorMod && isSenderMod) && (
                         <View style={[styles.moderatorContainer, { marginBottom: 2 }]}>
-                          <Text style={styles.moderator}>MOD</Text>
+                          <Text style={styles.moderator}>{t('chat.private_message_list.badge_mod')}</Text>
                         </View>
                       )}
                       {(!isSenderAdmin && !isSenderSeniorMod && !isSenderMod && isSenderJMD) && (
                         <View style={[styles.moderatorContainer, { marginBottom: 2 }]}>
-                          <Text style={styles.moderator}>JMD</Text>
+                          <Text style={styles.moderator}>{t('chat.private_message_list.badge_jmd')}</Text>
                         </View>
                       )}
                     </View>
@@ -443,10 +443,10 @@ const PrivateMessageList = ({
               optionText: styles.menuOptionText,
             }}>
               <MenuOption onSelect={() => handleCopy(item)}>
-                <Text style={styles.menuOptionText}>Copy</Text>
+                <Text style={styles.menuOptionText}>{t('chat.copy')}</Text>
               </MenuOption>
               <MenuOption onSelect={() => handleTranslate(item)}>
-                <Text style={styles.menuOptionText}>Translate</Text>
+                <Text style={styles.menuOptionText}>{t('chat.translate')}</Text>
               </MenuOption>
               <MenuOption onSelect={() => {
                 if (onReply) {

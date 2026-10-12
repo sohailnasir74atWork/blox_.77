@@ -47,6 +47,9 @@ const db = admin.database();
 // sources means even analyzing 10,000 rounds reveals no exploitable pattern.
 const crypto = require('crypto');
 
+// No round crashes above this; also the bound the leaderboard is checked against.
+const MAX_CRASH_POINT = 150;
+
 const generateCrashPoint = () => {
   // 1. Crypto-random float [0, 1) — not Math.random, unpredictable
   const bytes = crypto.randomBytes(4);
@@ -71,7 +74,7 @@ const generateCrashPoint = () => {
   let crash = base * jitter;
 
   // 6. Soft cap at 150x (prevent absurd outliers eating attention)
-  crash = Math.min(crash, 150);
+  crash = Math.min(crash, MAX_CRASH_POINT);
 
   // 7. Floor at 1.01 (must always be possible to cash out)
   crash = Math.max(crash, 1.01);
@@ -165,13 +168,22 @@ async function updateLeaderboard(roundCrashPoint) {
   const updates = {};
 
   for (const [uid, data] of Object.entries(cashouts)) {
+    // Cashouts are written by the app (rules: own uid only, any value). Count
+    // only a multiplier the rocket reached this round; anything above the
+    // crash point was typed in, not played (2026-10-11 audit).
+    const mult = Number(data?.multiplier);
+    if (!Number.isFinite(mult) || mult < 1 || mult > roundCrashPoint) {
+      console.warn(`[FruitCrash] ignored cashout ${uid}: ${data?.multiplier}x (crashed at ${roundCrashPoint}x)`);
+      continue;
+    }
+
     const lbRef = db.ref(`fruitCrash/leaderboard/${uid}`);
     const lbSnap = await lbRef.once('value');
     const existing = lbSnap.val() || {};
 
-    const newBest = Math.max(existing.best || 0, data.multiplier || 0);
+    const newBest = Math.max(existing.best || 0, mult);
     updates[`fruitCrash/leaderboard/${uid}`] = {
-      name: data.name || 'Trader',
+      name: String(data.name || 'Trader').slice(0, 40),
       avatar: data.avatar || null,
       best: newBest,
       totalRounds: (existing.totalRounds || 0) + 1,
@@ -183,18 +195,25 @@ async function updateLeaderboard(roundCrashPoint) {
     await db.ref().update(updates);
   }
 
-  // ── Prune: keep only top 30 entries ──
+  // ── Prune: keep only top 30 entries, and drop impossible ones (above the
+  // 150x cap generateCrashPoint never exceeds — entries saved before the
+  // check above).
   const fullSnap = await db.ref('fruitCrash/leaderboard').once('value');
   if (!fullSnap.exists()) return;
+  const pruneUpdates = {};
   const all = Object.entries(fullSnap.val())
-    .map(([uid, d]) => ({ uid, best: d.best || 0 }))
+    .map(([uid, d]) => ({ uid, best: Number(d?.best) || 0 }))
+    .filter(({ uid, best }) => {
+      if (best <= MAX_CRASH_POINT) return true;
+      pruneUpdates[`fruitCrash/leaderboard/${uid}`] = null;
+      return false;
+    })
     .sort((a, b) => b.best - a.best);
 
-  if (all.length > 30) {
-    const pruneUpdates = {};
-    all.slice(30).forEach(({ uid }) => {
-      pruneUpdates[`fruitCrash/leaderboard/${uid}`] = null;
-    });
+  all.slice(30).forEach(({ uid }) => {
+    pruneUpdates[`fruitCrash/leaderboard/${uid}`] = null;
+  });
+  if (Object.keys(pruneUpdates).length > 0) {
     await db.ref().update(pruneUpdates);
   }
 }
@@ -212,3 +231,5 @@ exports.resetFruitCrashRound = onRequest(async (req, res) => {
   await db.ref('fruitCrash/cashouts').remove();
   res.send('Round reset. Next scheduler tick will start a new round.');
 });
+
+exports._internal = { updateLeaderboard, MAX_CRASH_POINT };

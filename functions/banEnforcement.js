@@ -76,7 +76,9 @@ const firestore = () => admin.firestore();
 
 const SECRETS = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
 
-// Mirrors the email allowlist in database.rules.json.
+// Mirrors the email allowlist in database.rules.json. Server-side only: the
+// app learns who the owners are from users/{uid}/owner, which
+// reconcileRolesMirror sets from this list.
 const OWNER_EMAILS = new Set([
   'thesolanalabs@gmail.com',
   'sohailnasir74business@gmail.com',
@@ -1693,6 +1695,7 @@ exports.reconcileBanMirrors = functions
 
 // Exposed for tests and scripts.
 exports._internal = {
+  OWNER_EMAILS,
   RANK,
   UID_RE,
   DEVICE_KEY_RE,

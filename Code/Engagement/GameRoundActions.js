@@ -10,6 +10,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { useTranslation } from 'react-i18next';
 
 const GameRoundActions = ({
   roundInfo,
@@ -22,12 +23,13 @@ const GameRoundActions = ({
   textColor = '#94a3b8',
   style,
 }) => {
+  const { t } = useTranslation();
   if (roundInfo?.maxedOut) {
     return (
       <View style={[styles.wrap, style]}>
         <Text style={styles.doneEmoji}>🌙</Text>
         <Text style={[styles.note, { color: textColor }]}>
-          That's all {roundInfo.maxRounds} rounds for today.{'\n'}Come back tomorrow for more!
+          {t('engagement.game_rounds.maxed_out', { count: roundInfo.maxRounds })}
         </Text>
       </View>
     );
@@ -46,10 +48,10 @@ const GameRoundActions = ({
             ? <ActivityIndicator color="#fff" />
             : <Icon name="play-circle" size={22} color="#fff" />}
           <Text style={styles.btnText} numberOfLines={1} adjustsFontSizeToFit>
-            {adLoading ? 'Loading ad…' : 'Watch Ad — 3 More Rounds'}
+            {adLoading ? t('engagement.game_rounds.loading_ad') : t('engagement.game_rounds.watch_ad')}
           </Text>
         </TouchableOpacity>
-        <Text style={[styles.hint, { color: textColor }]}>You've used today's free round</Text>
+        <Text style={[styles.hint, { color: textColor }]}>{t('engagement.game_rounds.free_used')}</Text>
       </View>
     );
   }
@@ -63,7 +65,7 @@ const GameRoundActions = ({
       </TouchableOpacity>
       {left > 0 && (
         <Text style={[styles.hint, { color: textColor }]}>
-          {!roundInfo.unlocked ? 'Free daily round' : left === 1 ? '1 round left today' : `${left} rounds left today`}
+          {!roundInfo.unlocked ? t('engagement.game_rounds.free_daily') : t('engagement.game_rounds.rounds_left', { count: left })}
         </Text>
       )}
     </View>

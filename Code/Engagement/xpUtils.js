@@ -11,6 +11,7 @@
  */
 
 import { ref, increment, update, get } from '@react-native-firebase/database';
+import i18next from 'i18next';
 
 // ────────────────────────────────────────────────────────
 //  LEVEL TABLE
@@ -31,6 +32,10 @@ const LEVELS = [
   { level: 28, xp: 75000,   title: 'Elite',        emoji: '🦅' },
   { level: 30, xp: 100000,  title: 'Mythic',       emoji: '🐉',  unlock: 'mythic_aura' },
 ];
+
+// Localized level title — translate at call time (LEVELS is module-level).
+export const getLevelTitle = (lvl) =>
+  lvl ? i18next.t(`engagement.xp_levels.l${lvl.level}`, { defaultValue: lvl.title }) : '';
 
 // ────────────────────────────────────────────────────────
 //  XP ACTIONS & AMOUNTS

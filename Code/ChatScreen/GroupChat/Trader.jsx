@@ -56,6 +56,7 @@ import {
   supabaseMessageId,
 } from '../../Supabase/chatBackend';
 import { SUPABASE_PUBLIC_CHAT_ENABLED, CHAT_REACTIONS_ENABLED } from '../../Supabase/featureFlags';
+import i18next from 'i18next';
 // getMyCosmetics no longer needed — cosmetics resolved from profileCache on render
 
 leoProfanity.add(['hell', 'shit']);
@@ -63,10 +64,10 @@ leoProfanity.loadDictionary('en');
 
 const CHANNELS = [
   // ── Core channels ──────────────────────────────────────────────────────────
-  { id: 'chat', label: 'English', icon: 'handshake', path: 'chat_new_upgrade' },
-  { id: 'raid', label: 'Raids', icon: 'bolt', path: 'chat_raid_upgrade' },
-  { id: 'help', label: 'Help', icon: 'circle-question', path: 'chat_help_upgrade' },
-  { id: 'playing', label: 'Playing', icon: 'gamepad', path: 'chat_playing_upgrade' },
+  { id: 'chat', label: 'English', labelKey: 'chat.trader.channel_chat', icon: 'handshake', path: 'chat_new_upgrade' },
+  { id: 'raid', label: 'Raids', labelKey: 'chat.trader.channel_raid', icon: 'bolt', path: 'chat_raid_upgrade' },
+  { id: 'help', label: 'Help', labelKey: 'chat.trader.channel_help', icon: 'circle-question', path: 'chat_help_upgrade' },
+  { id: 'playing', label: 'Playing', labelKey: 'chat.trader.channel_playing', icon: 'gamepad', path: 'chat_playing_upgrade' },
   // ── Language channels ──────────────────────────────────────────────────────
   { id: 'es', label: '🇪🇸 Español', icon: 'globe', path: 'chat_es_upgrade' },
   { id: 'ar', label: '🇸🇦 Arabic', icon: 'globe', path: 'chat_ar_upgrade' },
@@ -782,7 +783,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       Alert.alert(
         t('misc.loginToStartChat'),
         t('misc.loginRequired'),
-        [{ text: 'OK', onPress: () => setIsSigninDrawerVisible(true) }]
+        [{ text: t('chat.message_common.ok'), onPress: () => setIsSigninDrawerVisible(true) }]
       );
       setSigninMessage(true);
       return;
@@ -872,10 +873,10 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       const isBlocked = snapshot.val();
       if (isBlocked === true) {
         Alert.alert(
-          'Blocked',
-          'You have been blocked by the admin. Logging you out.',
+          i18next.t('chat.trader.blocked_title'),
+          i18next.t('chat.trader.blocked_body'),
           [{
-            text: 'OK', onPress: () => {
+            text: i18next.t('chat.message_common.ok'), onPress: () => {
               logoutUser(setUser)
             }
           }]
@@ -1073,8 +1074,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     const LINK_REGEX = /((?:https?:\/\/|www\.)[^\s]+)/i; // no "g" flag
     if (!user?.id || !currentUserEmail) {
       showMessage({
-        message: 'You are not loggedin',
-        description: 'You must be logged in to send Messages',
+        message: t('chat.trader.not_logged_in'),
+        description: t('chat.trader.must_login'),
         type: 'danger',
       });
       return false;
@@ -1101,13 +1102,13 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
 
     // ✅ Validate fruits count - maximum 18 fruits allowed
     if (hasFruits && fruits.length > 18) {
-      showMessage({ message: t('home.alert.error'), description: 'You can only send up to 18 pets in a message.', type: 'danger' });
+      showMessage({ message: t('home.alert.error'), description: t('chat.message_common.max_pets'), type: 'danger' });
       return false;
     }
 
     // Disallow empty text + no fruits
     if (!trimmedInput && !hasFruits && !emojiUrl) {
-      showMessage({ message: t('home.alert.error'), description: 'Message cannot be empty.', type: 'danger' });
+      showMessage({ message: t('home.alert.error'), description: t('chat.trader.empty_message'), type: 'danger' });
       return false;
     }
 
@@ -1132,7 +1133,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     // Cooldown check
     if (isCooldown) {
       const secondsLeft = Math.ceil((cooldownEndRef.current - Date.now()) / 1000);
-      showMessage({ message: `Please wait ${secondsLeft > 0 ? secondsLeft : 1}s before sending another message.`, type: 'warning', duration: 2000 });
+      showMessage({ message: t('chat.message_input.cooldown', { seconds: secondsLeft > 0 ? secondsLeft : 1 }), type: 'warning', duration: 2000 });
       return false;
     }
 
@@ -1151,7 +1152,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
         lastMessage.emoji === currentMessage.emoji;
 
       if (isDuplicate) {
-        showMessage({ message: t('home.alert.error'), description: 'You cannot send the same message twice. Please modify your message.', type: 'warning' });
+        showMessage({ message: t('home.alert.error'), description: t('chat.trader.duplicate_message'), type: 'warning' });
         return false;
       }
     }
@@ -1159,7 +1160,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     // Link check: only admins (not mods) may post links in public chat.
     const containsLink = trimmedInput ? LINK_REGEX.test(trimmedInput) : false;
     if (containsLink && !isAdmin) {
-      showMessage({ message: t('home.alert.error'), description: 'Links are not allowed in messages.', type: 'danger' });
+      showMessage({ message: t('home.alert.error'), description: t('chat.trader.links_not_allowed'), type: 'danger' });
       return false;
     }
 
@@ -1217,8 +1218,8 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       setInput('');
       setReplyTo(null);
       showMessage({
-        message: 'Offline',
-        description: "Your message will send automatically when you're back online.",
+        message: t('chat.trader.offline_title'),
+        description: t('chat.trader.offline_body'),
         type: 'warning',
         duration: 3000,
       });
@@ -1342,7 +1343,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                     ]}
                     numberOfLines={1}
                   >
-                    {channel.label}
+                    {channel.labelKey ? t(channel.labelKey) : channel.label}
                   </Text>
                 </TouchableOpacity>
               );

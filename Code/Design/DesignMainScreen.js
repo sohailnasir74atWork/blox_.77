@@ -43,6 +43,8 @@ import { Platform } from 'react-native';
 import { getMyCosmetics } from '../Helper/cosmeticsCache';
 import { getCachedFollowingIds, setCachedFollowingIds } from '../Helper/followingCache';
 import { showMessage } from 'react-native-flash-message';
+import i18next from 'i18next';
+import { useTranslation } from 'react-i18next';
 import FeedBannerAd from '../Ads/FeedBannerAd';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
@@ -58,6 +60,7 @@ const DesignFeedScreen = ({ route }) => {
   const { localState } = useLocalState();
   const isDarkMode = theme === 'dark';
   const navigation = useNavigation();
+  const { t } = useTranslation();
 
   // Scroll-to-top. The Feed had no such control while Trades and group chat
   // both did — same kind of list, same need.
@@ -155,7 +158,7 @@ const DesignFeedScreen = ({ route }) => {
       setHasMore(snapshot.docs.length > 0);
     } catch (err) {
       console.error('Error fetching my posts:', err);
-      showMessage({ message: 'Failed to fetch your posts', type: 'danger' });
+      showMessage({ message: i18next.t('feed.design_main.fetch_my_failed'), type: 'danger' });
     } finally {
       setInitialLoading(false);
       setRefreshing(false);
@@ -218,7 +221,7 @@ const DesignFeedScreen = ({ route }) => {
       setHasMore(snapshot.docs.length === 5);
     } catch (err) {
       console.error('Error fetching posts by tag:', err);
-      showMessage({ message: 'Failed to fetch posts', type: 'danger' });
+      showMessage({ message: i18next.t('feed.design_main.fetch_failed'), type: 'danger' });
     } finally {
       setInitialLoading(false);
     }
@@ -230,9 +233,9 @@ const DesignFeedScreen = ({ route }) => {
     try {
       await deleteDoc(doc(firestoreDB, 'designPosts_upgrade', postId));
       setPosts(prev => prev.filter(p => p.id !== postId));
-      showMessage({ message: 'Post deleted', type: 'success' });
+      showMessage({ message: i18next.t('feed.design_main.post_deleted'), type: 'success' });
     } catch (err) {
-      showMessage({ message: 'Failed to delete post', type: 'danger' });
+      showMessage({ message: i18next.t('feed.design_main.delete_failed'), type: 'danger' });
     }
   }, [firestoreDB]);
 
@@ -527,8 +530,8 @@ const DesignFeedScreen = ({ route }) => {
       setMyPosts(prev => prev.map(p => p.id === post.id ? post : p));
       setRankedPosts(prev => prev.map(p => p.id === post.id ? post : p));
       showMessage({
-        message: 'Error',
-        description: 'Failed to update reaction. Please try again.',
+        message: i18next.t('home.alert.error'),
+        description: i18next.t('feed.design_main.reaction_failed'),
         type: 'danger',
       });
     }
@@ -562,10 +565,13 @@ const DesignFeedScreen = ({ route }) => {
         const minutesLeft = Math.floor(secondsLeft / 60);
         const remainingSeconds = secondsLeft % 60;
         const timeMessage = minutesLeft > 0
-          ? `${minutesLeft} minute${minutesLeft === 1 ? '' : 's'} and ${remainingSeconds} second${remainingSeconds === 1 ? '' : 's'}`
-          : `${secondsLeft} second${secondsLeft === 1 ? '' : 's'}`;
+          ? i18next.t('feed.design_main.time_min_sec', {
+              minutes: i18next.t('feed.design_main.minutes', { count: minutesLeft }),
+              seconds: i18next.t('feed.design_main.seconds', { count: remainingSeconds }),
+            })
+          : i18next.t('feed.design_main.seconds', { count: secondsLeft });
         showMessage({
-          message: `Please wait ${timeMessage} before posting again.`,
+          message: i18next.t('feed.design_main.cooldown', { time: timeMessage }),
           type: 'danger',
           duration: 3000
         });
@@ -575,8 +581,8 @@ const DesignFeedScreen = ({ route }) => {
       // ✅ Tags are mandatory
       if (!selectedTags || (Array.isArray(selectedTags) && selectedTags.length === 0)) {
         showMessage({
-          message: 'Missing Tag',
-          description: 'Please select at least one tag.',
+          message: i18next.t('feed.design_main.missing_tag'),
+          description: i18next.t('feed.design_main.select_tag'),
           type: 'danger',
         });
         setIsSubmittingPost(false);
@@ -627,8 +633,8 @@ const DesignFeedScreen = ({ route }) => {
       await fetchInitialPosts();
 
       showMessage({
-        message: 'Success',
-        description: 'Post created successfully',
+        message: i18next.t('home.alert.success'),
+        description: i18next.t('feed.design_main.post_created'),
         type: 'success',
       });
     } catch (error) {
@@ -636,8 +642,8 @@ const DesignFeedScreen = ({ route }) => {
       // ✅ Only show error message if it's not a validation error (cooldown/tags)
       if (!error.message || (!error.message.includes('Cooldown') && !error.message.includes('tags'))) {
         showMessage({
-          message: 'Upload Failed',
-          description: 'Something went wrong. Please try again.',
+          message: i18next.t('feed.design_main.upload_failed'),
+          description: i18next.t('feed.design_main.upload_failed_body'),
           type: 'danger',
         });
       }
@@ -774,9 +780,9 @@ const DesignFeedScreen = ({ route }) => {
               <View style={styles.emptyState}>
                 <FontAwesome name="newspaper" size={48} color={isDarkMode ? '#334155' : '#cbd5e1'} />
                 <Text style={styles.emptyTitle}>
-                  {filterMyPosts ? "You have no posts yet." : filterFollowing ? "No posts from people you follow." : "No posts found."}
+                  {filterMyPosts ? t('feed.design_main.empty_mine') : filterFollowing ? t('feed.design_main.empty_following') : t('feed.design_main.empty_all')}
                 </Text>
-                <Text style={styles.emptySubtitle}>Be the first to post!</Text>
+                <Text style={styles.emptySubtitle}>{t('feed.design_main.empty_subtitle')}</Text>
               </View>
             )
           }
@@ -822,7 +828,7 @@ const DesignFeedScreen = ({ route }) => {
           onClose={() => setSigninDrawerVisible(false)}
           selectedTheme={selectedTheme}
           screen="Design"
-          message="Sign in to upload designs"
+          message={t('feed.design_main.signin_message')}
         />
         {!(localState.isPro || proGranted) && <BannerAdComponent collapsible />}
 

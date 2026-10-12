@@ -37,6 +37,7 @@ import { safeCompressImage } from '../Helper/safeCompressImage';
 import RNFS from 'react-native-fs';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import { useTranslation } from 'react-i18next';
+import i18next from 'i18next';
 import { addXP, XP_ACTIONS } from '../Engagement/xpUtils';
 import InterstitialAdManager from '../Ads/IntAd';
 import SwipeableBottomDrawer from '../Helper/SwipeableBottomDrawer';
@@ -109,7 +110,7 @@ const STORY_DURATION = 5000;
 
 // ── Background themes for text-only statuses ──
 const STATUS_THEMES = [
-  { id: 'none', label: 'None', colors: null, textColor: null },
+  { id: 'none', label: 'None', labelKey: 'feed.status_feed.theme_none', colors: null, textColor: null },
   { id: 'sunset', label: '🌅', colors: ['#F97316', '#EC4899'], textColor: '#fff' },
   { id: 'ocean', label: '🌊', colors: ['#0EA5E9', '#6366F1'], textColor: '#fff' },
   { id: 'forest', label: '🌲', colors: ['#10B981', '#065F46'], textColor: '#fff' },
@@ -156,7 +157,7 @@ const LoadingImage = ({ source, style, resizeMode = 'cover', borderRadius }) => 
           style={[StyleSheet.absoluteFill, { borderRadius: borderRadius || style?.borderRadius || 0 }]}
         />
       )}
-      <Image
+      <Image resizeMethod="resize"
         source={source}
         style={[style, { position: loaded ? 'relative' : 'absolute', opacity: loaded ? 1 : 0 }]}
         resizeMode={resizeMode}
@@ -579,7 +580,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
       });
       if (result.didCancel) return;
       if (result.errorCode) {
-        Alert.alert('Error', result.errorMessage || 'Failed to pick image');
+        Alert.alert(i18next.t('home.alert.error'), result.errorMessage || i18next.t('feed.status_feed.pick_failed'));
         return;
       }
       const asset = result.assets?.[0];
@@ -604,7 +605,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
       setShowCreator(true);
     } catch (err) {
       console.error('[StatusFeed] Image picker crash:', err);
-      Alert.alert('Error', 'Failed to pick image');
+      Alert.alert(i18next.t('home.alert.error'), i18next.t('feed.status_feed.pick_failed'));
     }
   }, [user?.id, onRequireSignIn]);
 
@@ -618,7 +619,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
     // one is the same broadcast a ban is meant to stop. UploadModal already
     // gates posts this way; this path had no check at all.
     if (!currentUserEmail) {
-      Alert.alert('Missing Email', 'Could not detect your account email. Please re-login.');
+      Alert.alert(i18next.t('feed.upload_modal.missing_email'), i18next.t('feed.upload_modal.missing_email_body'));
       return;
     }
     // Global ban gate: email, device and uid bans (server-time checked in
@@ -633,7 +634,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
     const hasContent = caption.trim() || selectedImage;
     const hasValidPoll = isPollMode && pollOptions.filter(o => o.trim()).length >= 2;
     if (!hasContent && !hasValidPoll) {
-      Alert.alert('Empty Status', 'Please add some text, an image, or create a poll.');
+      Alert.alert(i18next.t('feed.status_feed.empty_title'), i18next.t('feed.status_feed.empty_body'));
       return;
     }
 
@@ -644,7 +645,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
         if (selectedImage?.uri) {
           imageUrl = await uploadToBunny(selectedImage.uri);
           if (!imageUrl) {
-            Alert.alert('Upload Failed', 'Could not upload image. Please try again.');
+            Alert.alert(i18next.t('feed.design_main.upload_failed'), i18next.t('feed.status_feed.image_upload_failed'));
             setUploading(false);
             return;
           }
@@ -725,7 +726,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
         setShowCreator(false);
       } catch (err) {
         console.warn('[StatusFeed] post error:', err?.message);
-        Alert.alert('Error', 'Failed to post status');
+        Alert.alert(i18next.t('home.alert.error'), i18next.t('feed.status_feed.post_failed'));
       }
       setUploading(false);
     };
@@ -744,10 +745,10 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
   // ── Delete status ──
   const handleDeleteStatus = useCallback(async (statusId) => {
     if (!firestoreDB || !statusId) return;
-    Alert.alert('Delete Status', 'Are you sure you want to delete this status?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(i18next.t('feed.status_feed.delete_title'), i18next.t('feed.status_feed.delete_confirm'), [
+      { text: i18next.t('common.cancel'), style: 'cancel' },
       {
-        text: 'Delete', style: 'destructive',
+        text: i18next.t('common.delete'), style: 'destructive',
         onPress: async () => {
           try {
             await deleteDoc(doc(firestoreDB, 'statuses', statusId));
@@ -766,7 +767,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
               return updated;
             });
           } catch (err) {
-            Alert.alert('Error', 'Failed to delete status');
+            Alert.alert(i18next.t('home.alert.error'), i18next.t('feed.status_feed.delete_failed'));
           }
         },
       },
@@ -1085,11 +1086,11 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
           </View>
         )}
         <Text style={[styles.bubbleName, { color: subtextColor }]} numberOfLines={1}>
-          {isMe ? 'You' : (item.userName || '').split(' ')[0]}
+          {isMe ? t('home.you') : (item.userName || '').split(' ')[0]}
         </Text>
       </TouchableOpacity>
     );
-  }, [user?.id, isDarkMode, handleViewStatus, subtextColor]);
+  }, [user?.id, isDarkMode, handleViewStatus, subtextColor, t]);
 
   // Build data
   const feedData = useMemo(() => {
@@ -1180,7 +1181,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
 
             {/* Header */}
             <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8, zIndex: 20 }}>
-              <Image
+              <Image resizeMethod="resize"
                 source={{ uri: viewingStatus.userAvatar || DEFAULT_AVATAR }}
                 style={{ width: 36, height: 36, borderRadius: 18, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.4)' }}
               />
@@ -1205,7 +1206,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
                   }}
                 >
                   <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff' }}>
-                    {followingIds.includes(viewingStatus.userId) ? 'Following' : 'Follow'}
+                    {followingIds.includes(viewingStatus.userId) ? t('feed.following') : t('chat.follow')}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -1302,7 +1303,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
                   })}
                   {pollTotalVotes > 0 && (
                     <Text style={{ textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>
-                      {pollTotalVotes} {pollTotalVotes === 1 ? 'vote' : 'votes'}
+                      {t('poll.votes', { count: pollTotalVotes })}
                     </Text>
                   )}
                 </View>
@@ -1371,7 +1372,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
                     }}
                   >
                     <FontAwesome name="paper-plane" size={12} color="#fff" solid />
-                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>Chat</Text>
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>{t('tabs.chat')}</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -1380,7 +1381,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
                 <View style={{ gap: 8 }}>
                   {(currentStatus.viewedBy?.length > 0 || reactionEntries.length > 0) && (
                     <Text style={{ fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.5)' }}>
-                      👁 {currentStatus.viewedBy?.length || 0} views  •  {reactionEntries.length} reactions
+                      {t('feed.status_feed.views_reactions', { views: currentStatus.viewedBy?.length || 0, reactions: reactionEntries.length })}
                     </Text>
                   )}
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 10 }}>
@@ -1389,14 +1390,14 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
                       style={[styles.deleteBtn, { backgroundColor: 'rgba(59,130,246,0.2)' }]}
                     >
                       <FontAwesome name="plus" size={12} color="#3B82F6" solid />
-                      <Text style={[styles.deleteText, { color: '#3B82F6' }]}>New</Text>
+                      <Text style={[styles.deleteText, { color: '#3B82F6' }]}>{t('feed.status_feed.new')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => { stopStoryTimer(); handleDeleteStatus(currentStatus.id); }}
                       style={styles.deleteBtn}
                     >
                       <FontAwesome name="trash" size={12} color="#EF4444" />
-                      <Text style={styles.deleteText}>Delete</Text>
+                      <Text style={styles.deleteText}>{t('common.delete')}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1428,7 +1429,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
         >
           <SwipeableBottomDrawer onClose={() => { setShowCreator(false); setCaption(''); setSelectedImage(null); setSelectedThemeId('none'); setIsPollMode(false); setPollOptions(['', '']); }} isDarkMode={isDarkMode} style={[styles.creatorCard, { backgroundColor: isDarkMode ? '#1e293b' : '#FFF', paddingBottom: Math.max(insets.bottom, 20) + 10 }]}>
             <View style={styles.creatorHeader}>
-              <Text style={[styles.creatorTitle, { color: textColor }]}>New Status</Text>
+              <Text style={[styles.creatorTitle, { color: textColor }]}>{t('feed.status_feed.new_status')}</Text>
               <TouchableOpacity onPress={() => { setShowCreator(false); setCaption(''); setSelectedImage(null); setSelectedThemeId('none'); setIsPollMode(false); setPollOptions(['', '']); }}>
                 <Text style={{ fontSize: 18, color: subtextColor }}>✕</Text>
               </TouchableOpacity>
@@ -1437,7 +1438,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
             {/* Image preview */}
             {selectedImage?.uri && (
               <View style={styles.imagePreviewWrap}>
-                <Image source={{ uri: selectedImage.uri }} style={styles.imagePreview} resizeMode="cover" />
+                <Image resizeMethod="resize" source={{ uri: selectedImage.uri }} style={styles.imagePreview} resizeMode="cover" />
                 <TouchableOpacity style={styles.removeImageBtn} onPress={() => setSelectedImage(null)}>
                   <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '700' }}>✕</Text>
                 </TouchableOpacity>
@@ -1452,7 +1453,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
                   onPress={handlePickImage}
                 >
                   <FontAwesome name="image" size={16} color={subtextColor} />
-                  <Text style={{ color: subtextColor, fontSize: 12, marginLeft: 6 }}>Add Photo</Text>
+                  <Text style={{ color: subtextColor, fontSize: 12, marginLeft: 6 }}>{t('feed.status_feed.add_photo')}</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity
@@ -1464,7 +1465,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
                 onPress={() => { setIsPollMode(!isPollMode); if (!isPollMode) { setSelectedImage(null); setSelectedThemeId('none'); } }}
               >
                 <Text style={{ fontSize: 16 }}>📊</Text>
-                <Text style={{ color: isPollMode ? '#3B82F6' : subtextColor, fontSize: 12, fontWeight: isPollMode ? '700' : '500', marginLeft: 6 }}>Poll</Text>
+                <Text style={{ color: isPollMode ? '#3B82F6' : subtextColor, fontSize: 12, fontWeight: isPollMode ? '700' : '500', marginLeft: 6 }}>{t('feed.status_feed.poll')}</Text>
               </TouchableOpacity>
             </View>
 
@@ -1480,7 +1481,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
                         backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc',
                         borderColor: isDarkMode ? '#334155' : '#e2e8f0',
                       }]}
-                      placeholder={`Option ${i + 1}`}
+                      placeholder={t('feed.status_feed.option_n', { n: i + 1 })}
                       placeholderTextColor={subtextColor}
                       maxLength={60}
                       value={opt}
@@ -1505,7 +1506,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
                     onPress={() => setPollOptions([...pollOptions, ''])}
                     style={{ alignSelf: 'center', paddingVertical: 6, paddingHorizontal: 14, borderRadius: 20, backgroundColor: isDarkMode ? '#0f172a' : '#f1f5f9', borderWidth: 1, borderColor: isDarkMode ? '#334155' : '#e2e8f0' }}
                   >
-                    <Text style={{ color: subtextColor, fontSize: 12, fontWeight: '600' }}>+ Add Option</Text>
+                    <Text style={{ color: subtextColor, fontSize: 12, fontWeight: '600' }}>{t('feed.status_feed.add_option')}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -1514,7 +1515,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
             {/* Theme selector */}
             {!selectedImage && !isPollMode && (
               <View style={{ marginBottom: 12 }}>
-                <Text style={{ fontSize: 12, fontWeight: '600', color: subtextColor, marginBottom: 8 }}>Background Theme</Text>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: subtextColor, marginBottom: 8 }}>{t('feed.status_feed.background_theme')}</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                   {STATUS_THEMES.map((thm) => (
                     <TouchableOpacity
@@ -1530,7 +1531,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
                       }}
                     >
                       <Text style={{ fontSize: thm.colors ? 16 : 11, color: thm.colors ? '#fff' : subtextColor }}>
-                        {thm.label}
+                        {thm.labelKey ? t(thm.labelKey) : thm.label}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -1546,7 +1547,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
                 selectedThemeId,
                 <View style={{ paddingVertical: 24, paddingHorizontal: 16, alignItems: 'center' }}>
                   <Text style={{ fontSize: 15, fontWeight: '600', color: previewTheme.textColor, textAlign: 'center' }}>
-                    {caption.trim() || "What's on your mind?"}
+                    {caption.trim() || t('feed.status_feed.whats_on_your_mind')}
                   </Text>
                 </View>,
                 { marginBottom: 12 }
@@ -1559,7 +1560,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
                 backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc',
                 borderColor: isDarkMode ? '#334155' : '#e2e8f0',
               }]}
-              placeholder={isPollMode ? 'Ask a question...' : "What's on your mind?"}
+              placeholder={isPollMode ? t('feed.status_feed.ask_question') : t('feed.status_feed.whats_on_your_mind')}
               placeholderTextColor={subtextColor}
               multiline
               maxLength={200}
@@ -1575,10 +1576,10 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
               {uploading ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <ActivityIndicator size="small" color="#FFF" />
-                  <Text style={styles.creatorPostText}>Uploading...</Text>
+                  <Text style={styles.creatorPostText}>{t('feed.status_feed.uploading')}</Text>
                 </View>
               ) : (
-                <Text style={styles.creatorPostText}>Post Status</Text>
+                <Text style={styles.creatorPostText}>{t('feed.status_feed.post_status')}</Text>
               )}
             </TouchableOpacity>
           </SwipeableBottomDrawer>
@@ -1599,11 +1600,11 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
 
 const getTimeAgo = (date) => {
   const mins = Math.floor((Date.now() - date.getTime()) / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return i18next.t('chat.just_now');
+  if (mins < 60) return i18next.t('feed.status_feed.mins_ago_short', { n: mins });
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
+  if (hrs < 24) return i18next.t('feed.status_feed.hours_ago_short', { n: hrs });
+  return i18next.t('feed.status_feed.days_ago_short', { n: Math.floor(hrs / 24) });
 };
 
 const styles = StyleSheet.create({

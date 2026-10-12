@@ -23,6 +23,8 @@ import LeaderboardScreen from './GroupChat/LeaderboardScreen';
 import AdminDashboard from '../AppHelper/AdminDashboard';
 import SocialDashboard from '../AppHelper/SocialDashboard';
 import ThemeHeader from '../Design/componenets/ThemeHeader';
+import { useTranslation } from 'react-i18next';
+import i18next from 'i18next';
 
 const Stack = createNativeStackNavigator();
 
@@ -30,6 +32,7 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
   const { user, unreadMessagesCount, appdatabase, onlineMembersCount } = useGlobalState();
   const [bannedUsers, setBannedUsers] = useState([]);
   const { triggerHapticFeedback } = useHaptic();
+  const { t } = useTranslation();
   const [unreadcount, setunreadcount] = useState(0);
   const { localState, updateLocalState } = useLocalState()
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
@@ -204,9 +207,9 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
         if (!row || !row.groupId) return;
         groupsMap.set(row.groupId, {
           groupId: row.groupId,
-          groupName: row.groupName || 'Group',
+          groupName: row.groupName || i18next.t('chat.chat_navigator.group_fallback'),
           groupAvatar: row.groupAvatar || null,
-          lastMessage: row.lastMessage || 'No messages yet',
+          lastMessage: row.lastMessage || i18next.t('chat.message_common.no_messages'),
           lastMessageTimestamp: row.lastMessageTimestamp || 0,
           unreadCount: row.unreadCount || 0,
           memberCount: row.memberCount || 0,
@@ -239,9 +242,9 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
       if (!groupData || typeof groupData !== 'object') return null;
       return {
         groupId,
-        groupName: groupData.groupName || 'Group',
+        groupName: groupData.groupName || i18next.t('chat.chat_navigator.group_fallback'),
         groupAvatar: groupData.groupAvatar || null,
-        lastMessage: groupData.lastMessage || 'No messages yet',
+        lastMessage: groupData.lastMessage || i18next.t('chat.message_common.no_messages'),
         lastMessageTimestamp: groupData.lastMessageTimestamp || 0,
         unreadCount: groupData.unreadCount || 0,
         memberCount: groupData.memberCount || 0,
@@ -361,14 +364,14 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
       {/* ✅ Optimized: InboxScreen manages its own state — only needs bannedUsers */}
       <Stack.Screen
         name="Inbox"
-        options={{ title: 'Inbox' }}
+        options={{ title: t('misc.inbox') }}
       >
         {props => <InboxScreen {...props} bannedUsers={bannedUsers} />}
       </Stack.Screen>
 
       <Stack.Screen
         name="Groups"
-        options={{ title: 'Groups' }}
+        options={{ title: t('chat.chat_navigator.title_groups') }}
       >
         {props => <GroupsScreen {...props} groups={groups} setGroups={setGroups} groupsLoading={groupsLoading} />}
       </Stack.Screen>
@@ -392,7 +395,7 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
 
       <Stack.Screen
         name="BlockedUsers"
-        options={{ title: 'Blocked Users' }} >
+        options={{ title: t('chat.blocked_users') }} >
         {props => <BlockedUsersScreen {...props} bannedUsers={bannedUsers} />}
       </Stack.Screen>
 
@@ -423,12 +426,12 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
       <Stack.Screen
         name="ImageViewerScreenChat"
         component={ImageViewerScreenChat}
-        options={{ title: 'Image' }}
+        options={{ title: t('chat.chat_navigator.title_image') }}
       />
 
       <Stack.Screen
         name="Leaderboard"
-        options={{ title: 'Top Rated Users' }}
+        options={{ title: t('chat.chat_navigator.title_top_rated') }}
       >
         {props => <LeaderboardScreen {...props} />}
       </Stack.Screen>
@@ -442,7 +445,7 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
       <Stack.Screen
         name="SocialDashboard"
         component={SocialDashboard}
-        options={{ title: 'Friends' }}
+        options={{ title: t('chat.chat_navigator.title_friends') }}
       />
     </Stack.Navigator>
 

@@ -55,27 +55,28 @@ const base64ToBytes = (base64) => {
 };
 
 // ✅ Quick message templates for Blox Fruits trading
+// Translation keys, resolved with t() at render/send time.
 const QUICK_MESSAGE_TEMPLATES = [
-  "Interested in your trade!",
-  "Can we negotiate?",
-  "What's your best offer?",
-  "I'm ready to trade!",
-  "Let me check my inventory",
-  "Deal accepted!",
-  "Can you add more?",
-  "Meet me at the trading hub",
-  "What fruits do you have?",
-  "Is this still available?",
-  "I'll add more fruits",
-  "Fair trade, let's do it!",
-  "Can you change something?",
-  "I'm interested, let's discuss",
-  "Thanks for the trade!",
-  "Are you online?",
-  "When can you trade?",
-  "I have what you need",
-  "Let's make a deal!",
-  "Can we do this trade?",
+  'chat.private_message_input.quick_1', // Interested in your trade!
+  'chat.private_message_input.quick_2', // Can we negotiate?
+  'chat.private_message_input.quick_3', // What's your best offer?
+  'chat.private_message_input.quick_4', // I'm ready to trade!
+  'chat.private_message_input.quick_5', // Let me check my inventory
+  'chat.private_message_input.quick_6', // Deal accepted!
+  'chat.private_message_input.quick_7', // Can you add more?
+  'chat.private_message_input.quick_8', // Meet me at the trading hub
+  'chat.private_message_input.quick_9', // What fruits do you have?
+  'chat.private_message_input.quick_10', // Is this still available?
+  'chat.private_message_input.quick_11', // I'll add more fruits
+  'chat.private_message_input.quick_12', // Fair trade, let's do it!
+  'chat.private_message_input.quick_13', // Can you change something?
+  'chat.private_message_input.quick_14', // I'm interested, let's discuss
+  'chat.private_message_input.quick_15', // Thanks for the trade!
+  'chat.private_message_input.quick_16', // Are you online?
+  'chat.private_message_input.quick_17', // When can you trade?
+  'chat.private_message_input.quick_18', // I have what you need
+  'chat.private_message_input.quick_19', // Let's make a deal!
+  'chat.private_message_input.quick_20', // Can we do this trade?
 ];
 
 const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetModalVisible,
@@ -122,7 +123,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
           );
 
           if (response.errorCode !== 'activity') {
-            Alert.alert('Error', 'Could not open gallery.');
+            Alert.alert(t('chat.error'), t('chat.private_message_input.gallery_error'));
           }
           return;
         }
@@ -172,18 +173,18 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
         const txt = await res.text().catch(() => '');
         if (!res.ok) {
           console.warn('Bunny upload failed', res.status, txt);
-          Alert.alert('Error', 'Image upload failed, sending message without image.');
+          Alert.alert(t('chat.error'), t('chat.private_message_input.upload_failed'));
           return null;
         }
 
         return `${BUNNY_CDN_BASE}/${decodeURIComponent(remotePath)}`;
       } catch (e) {
         console.warn('[Bunny ERROR]', e?.message || e);
-        Alert.alert('Error', 'Image upload failed, sending message without image.');
+        Alert.alert(t('chat.error'), t('chat.private_message_input.upload_failed'));
         return null;
       }
     },
-    [user?.id],
+    [user?.id, t],
   );
 
 
@@ -201,7 +202,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
     if (trimmedInput) {
       const validation = validateContent(trimmedInput, { skipAll: canBypassModeration });
       if (!validation.isValid) {
-        Alert.alert('Error', validation.reason || 'Inappropriate content detected.');
+        Alert.alert(t('chat.error'), validation.reason || t('chat.message_common.inappropriate'));
         return;
       }
     }
@@ -251,14 +252,14 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
       {replyTo && (
         <View style={styles.replyContainer}>
           <Text style={styles.replyText} numberOfLines={1}>
-            Replying to: {
+            {t('chat.replying_to')} {
               replyTo.text && replyTo.text.trim().length > 0
                 ? replyTo.text
                 : replyTo.imageUrl
-                  ? '[Image]'
+                  ? t('chat.message_common.reply_image')
                   : (Array.isArray(replyTo.fruits) && replyTo.fruits.length > 0)
-                    ? `[${replyTo.fruits.length} pet(s)]`
-                    : '[Message]'
+                    ? t('chat.private_message_input.reply_pets', { count: replyTo.fruits.length })
+                    : t('chat.private_message_input.reply_message')
             }
           </Text>
           <TouchableOpacity onPress={onCancelReply} style={styles.cancelReplyButton}>
@@ -309,7 +310,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
 
         <TextInput
           style={[styles.input, { color: isDark ? '#FFF' : '#000' }]}
-          placeholder={isBanned ? 'Blocked User' : t("chat.type_message")}
+          placeholder={isBanned ? t('chat.private_message_input.blocked_user') : t("chat.type_message")}
           placeholderTextColor="#888"
           value={input}
           onChangeText={setInput}
@@ -342,7 +343,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
           }}
         >
           <Text style={{ color: isDark ? '#ccc' : '#555', fontSize: 12 }}>
-            1 image attached
+            {t('chat.message_common.image_attached')}
           </Text>
 
           <TouchableOpacity
@@ -369,7 +370,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
           }}
         >
           <Text style={{ color: isDark ? '#ccc' : '#555', fontSize: 12 }}>
-            {selectedFruits.length} pet(s) selected
+            {t('chat.message_common.pets_selected', { count: selectedFruits.length })}
           </Text>
 
           <TouchableOpacity
@@ -431,7 +432,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
                   color: isDark ? '#FFF' : '#000',
                 }}
               >
-                Quick Messages
+                {t('chat.private_message_input.quick_title')}
               </Text>
               <TouchableOpacity onPress={() => setShowTemplates(false)}>
                 <Icon name="close" size={24} color={isDark ? '#FFF' : '#000'} />
@@ -451,13 +452,13 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
                     setShowTemplates(false);
 
                     // Auto-send the template message
-                    const trimmedInput = item.trim();
+                    const trimmedInput = t(item).trim();
                     if (!trimmedInput || isSending) return;
 
                     // ✅ Comprehensive content moderation check (safety check for templates)
                     const validation = validateContent(trimmedInput, { skipAll: canBypassModeration });
                     if (!validation.isValid) {
-                      Alert.alert('Error', validation.reason || 'Inappropriate content detected.');
+                      Alert.alert(t('chat.error'), validation.reason || t('chat.message_common.inappropriate'));
                       return;
                     }
 
@@ -488,7 +489,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
                       color: isDark ? '#FFF' : '#000',
                     }}
                   >
-                    {item}
+                    {t(item)}
                   </Text>
                 </TouchableOpacity>
               )}

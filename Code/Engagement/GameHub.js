@@ -15,6 +15,7 @@ import {
   Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { useTranslation } from 'react-i18next';
 import { useGlobalState } from '../GlobelStats';
 import config from '../Helper/Environment';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,14 +24,15 @@ import GameLeaderboard from './GameLeaderboard';
 import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
 
 const GAMES = [
-  { id: 'spot',   emoji: '🍎', name: 'Fruit Smash',      desc: 'Smash the rotten fruits!', color: '#B91C1C' },
-  { id: 'safe',   emoji: '🔐', name: 'Crack the Chest',   desc: 'Stop the dial!',           color: '#D97706' },
-  { id: 'draw',   emoji: '⚡', name: 'Fruit Slash',       desc: 'Test your reflexes!',      color: '#DC2626' },
-  { id: 'memory', emoji: '🃏', name: 'Memory Match',      desc: 'Find all the pairs!',      color: '#6366F1' },
+  { id: 'spot',   emoji: '🍎', nameKey: 'engagement.game_hub.spot_name',   descKey: 'engagement.game_hub.spot_desc',   color: '#B91C1C' },
+  { id: 'safe',   emoji: '🔐', nameKey: 'engagement.game_hub.safe_name',   descKey: 'engagement.game_hub.safe_desc',   color: '#D97706' },
+  { id: 'draw',   emoji: '⚡', nameKey: 'engagement.game_hub.draw_name',   descKey: 'engagement.game_hub.draw_desc',   color: '#DC2626' },
+  { id: 'memory', emoji: '🃏', nameKey: 'engagement.game_hub.memory_name', descKey: 'engagement.game_hub.memory_desc', color: '#6366F1' },
 ];
 
 const GameHub = ({ navigation }) => {
   const { theme } = useGlobalState();
+  const { t } = useTranslation();
   const isDarkMode = theme === 'dark';
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const insets = useSafeAreaInsets();
@@ -47,16 +49,16 @@ const GameHub = ({ navigation }) => {
         <View style={styles.header}>
           <Text style={{ fontSize: 32 }}>🎮</Text>
           <View style={{ marginLeft: 12, flex: 1 }}>
-            <Text style={[styles.h1, { color: c.text }]}>Game Hub</Text>
-            <Text style={[styles.sub, { color: c.textSecondary }]}>Play games & compete! 🏆</Text>
+            <Text style={[styles.h1, { color: c.text }]}>{t('engagement.game_hub.title')}</Text>
+            <Text style={[styles.sub, { color: c.textSecondary }]}>{t('engagement.game_hub.subtitle')}</Text>
           </View>
         </View>
 
         {/* ── GAMES GRID ── */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14 }}>
           <View>
-            <Text style={[styles.sectionTitle, { color: c.text }]}>Mini Games 🎯</Text>
-            <Text style={[styles.sectionSub, { color: c.textSecondary, marginBottom: 0 }]}>1 free round a day — beat your best!</Text>
+            <Text style={[styles.sectionTitle, { color: c.text }]}>{t('engagement.game_hub.mini_games')}</Text>
+            <Text style={[styles.sectionSub, { color: c.textSecondary, marginBottom: 0 }]}>{t('engagement.game_hub.mini_games_sub')}</Text>
           </View>
           <TouchableOpacity
             style={[styles.lbBtn, { backgroundColor: isDarkMode ? config.colors.surfaceDark : '#fff', borderColor: '#F59E0B' }]}
@@ -64,7 +66,7 @@ const GameHub = ({ navigation }) => {
             activeOpacity={0.7}
           >
             <Text style={styles.lbBtnEmoji}>🏆</Text>
-            <Text style={[styles.lbBtnText, { color: c.text }]}>Ranks</Text>
+            <Text style={[styles.lbBtnText, { color: c.text }]}>{t('engagement.game_hub.ranks')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -73,14 +75,14 @@ const GameHub = ({ navigation }) => {
             <TouchableOpacity
               key={game.id}
               style={[styles.gameCard, { backgroundColor: game.color }]}
-              onPress={() => navigation.navigate('GameScreen', { gameId: game.id, title: `${game.emoji} ${game.name}`, color: game.color })}
+              onPress={() => navigation.navigate('GameScreen', { gameId: game.id, title: `${game.emoji} ${t(game.nameKey)}`, color: game.color })}
               activeOpacity={0.85}
             >
               <Text style={styles.gameEmoji}>{game.emoji}</Text>
-              <Text style={styles.gameName}>{game.name}</Text>
-              <Text style={styles.gameInfo}>{game.desc}</Text>
+              <Text style={styles.gameName}>{t(game.nameKey)}</Text>
+              <Text style={styles.gameInfo}>{t(game.descKey)}</Text>
               <View style={styles.gameTag}>
-                <Text style={styles.gameTagText}>Daily</Text>
+                <Text style={styles.gameTagText}>{t('engagement.game_hub.daily_tag')}</Text>
               </View>
             </TouchableOpacity>
           ))}
@@ -89,7 +91,7 @@ const GameHub = ({ navigation }) => {
         <View style={[styles.tipCard, { backgroundColor: isDarkMode ? config.colors.surfaceDark : '#EFF6FF' }]}>
           <Icon name="information-circle" size={18} color="#4A7FB5" />
           <Text style={[styles.tipText, { color: c.textSecondary }]}>
-            Your best scores are saved! Compete with friends! 🚀
+            {t('engagement.game_hub.tip')}
           </Text>
         </View>
 

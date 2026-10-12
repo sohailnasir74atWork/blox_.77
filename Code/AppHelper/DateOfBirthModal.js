@@ -8,11 +8,13 @@ import {
   Dimensions,
   StatusBar,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
+// Translation keys; translated where rendered.
 const MONTHS = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-];
+  'jan', 'feb', 'mar', 'apr', 'may', 'jun',
+  'jul', 'aug', 'sep', 'oct', 'nov', 'dec',
+].map((m) => `app.dob_modal.month_${m}`);
 
 const MONTH_EMOJIS = [
   '⛄', '💝', '🌷', '🌸', '🌻', '☀️',
@@ -103,6 +105,7 @@ const gridStyles = StyleSheet.create({
 // `subtitle` / `onCancel` are optional: the mandatory DOB gate uses neither;
 // the email opt-in flow passes both so the user can back out.
 const DateOfBirthModal = ({ visible, onSubmit, isDarkMode, subtitle, onCancel }) => {
+  const { t } = useTranslation();
   const [month, setMonth] = useState(null);
   const [day, setDay] = useState(null);
   const [year, setYear] = useState(null);
@@ -125,8 +128,8 @@ const DateOfBirthModal = ({ visible, onSubmit, isDarkMode, subtitle, onCancel })
   }, []);
 
   const monthItems = useMemo(() =>
-    MONTHS.map((m, i) => ({ label: m, value: i + 1, emoji: MONTH_EMOJIS[i] }))
-  , []);
+    MONTHS.map((m, i) => ({ label: t(m), value: i + 1, emoji: MONTH_EMOJIS[i] }))
+  , [t]);
 
   const dayItems = useMemo(() => {
     const arr = [];
@@ -156,7 +159,7 @@ const DateOfBirthModal = ({ visible, onSubmit, isDarkMode, subtitle, onCancel })
     setError('');
 
     if (!year || !month || !day) {
-      setError('Pick your full birthday first!');
+      setError('app.dob_modal.error_incomplete');
       return;
     }
 
@@ -164,7 +167,7 @@ const DateOfBirthModal = ({ visible, onSubmit, isDarkMode, subtitle, onCancel })
     const now = new Date();
 
     if (dobDate > now) {
-      setError("That date hasn't happened yet!");
+      setError('app.dob_modal.error_future');
       return;
     }
 
@@ -172,7 +175,7 @@ const DateOfBirthModal = ({ visible, onSubmit, isDarkMode, subtitle, onCancel })
     const ageYears = ageMs / (1000 * 60 * 60 * 24 * 365.25);
 
     if (ageYears < 4) {
-      setError('Please enter a valid date of birth.');
+      setError('app.dob_modal.error_invalid');
       return;
     }
 
@@ -181,9 +184,9 @@ const DateOfBirthModal = ({ visible, onSubmit, isDarkMode, subtitle, onCancel })
   };
 
   const stepTitles = [
-    'What year were you born?',
-    'What month?',
-    'And what day?',
+    t('app.dob_modal.step_year'),
+    t('app.dob_modal.step_month'),
+    t('app.dob_modal.step_day'),
   ];
 
   if (!visible) return null;
@@ -193,9 +196,9 @@ const DateOfBirthModal = ({ visible, onSubmit, isDarkMode, subtitle, onCancel })
         <View style={[styles.card, { backgroundColor: bgColor }]}>
 
           <Text style={styles.icon}>🎂</Text>
-          <Text style={[styles.title, { color: textColor }]}>When's your birthday?</Text>
+          <Text style={[styles.title, { color: textColor }]}>{t('app.dob_modal.title')}</Text>
           <Text style={[styles.subtitle, { color: subColor }]}>
-            {subtitle || 'We need this to keep everyone safe. You only do this once!'}
+            {subtitle || t('app.dob_modal.subtitle')}
           </Text>
 
           <StepDots current={step} total={3} />
@@ -217,7 +220,7 @@ const DateOfBirthModal = ({ visible, onSubmit, isDarkMode, subtitle, onCancel })
                   style={[styles.chip, step === 1 && styles.chipActive, { backgroundColor: isDarkMode ? '#2D2640' : '#F5F3FF' }]}
                 >
                   <Text style={[styles.chipText, { color: step === 1 ? ACCENT : textColor }]}>
-                    {MONTH_EMOJIS[month - 1]} {MONTHS[month - 1]}
+                    {MONTH_EMOJIS[month - 1]} {t(MONTHS[month - 1])}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -250,25 +253,25 @@ const DateOfBirthModal = ({ visible, onSubmit, isDarkMode, subtitle, onCancel })
 
           {!!error && (
             <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{error}</Text>
+              <Text style={styles.errorText}>{t(error)}</Text>
             </View>
           )}
 
           {/* Submit */}
           {year && month && day && (
             <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} activeOpacity={0.8}>
-              <Text style={styles.submitText}>Let's Go! 🚀</Text>
+              <Text style={styles.submitText}>{t('app.dob_modal.submit')}</Text>
             </TouchableOpacity>
           )}
 
           {!!onCancel && (
             <TouchableOpacity style={styles.cancelBtn} onPress={onCancel} activeOpacity={0.6}>
-              <Text style={[styles.cancelText, { color: subColor }]}>Not now</Text>
+              <Text style={[styles.cancelText, { color: subColor }]}>{t('app.dob_modal.not_now')}</Text>
             </TouchableOpacity>
           )}
 
           <Text style={[styles.disclaimer, { color: subColor }]}>
-            🔒 Your birthday is stored safely and securely.
+            {t('app.dob_modal.disclaimer')}
           </Text>
         </View>
       </View>
