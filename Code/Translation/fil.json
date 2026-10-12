@@ -1689,6 +1689,21 @@
     "hero_title_noname": "Maligayang kaarawan! 🎉",
     "bits": {
       "birthday_today": "Birthday ngayon"
+    },
+    "wish_all": "Batiin lahat ({{count}})",
+    "wished_all": "Nabati mo na ang lahat ngayon",
+    "see_all": "Tingnan lahat ng {{count}}",
+    "thank_all": "Pasalamatan lahat ({{count}})",
+    "thanked_all": "Napasalamatan mo na ang lahat ng bumati sa iyo",
+    "thank_sent": "Naipadala ang pasasalamat 💖",
+    "wish_all_sent_one": "Naipadala ang {{count}} pagbati sa kaarawan 🎉",
+    "wish_all_sent_other": "Naipadala ang {{count}} pagbati sa kaarawan 🎉",
+    "tomorrow_line_one": "{{count}} kaarawan bukas. Bumalik para bumati!",
+    "tomorrow_line_other": "{{count}} kaarawan bukas. Bumalik para bumati!",
+    "reason": {
+      "dm": "Nag-chat na kayo",
+      "group": "Nasa grupo mo",
+      "wished_you": "Bumati sa iyo dati"
     }
   },
   "trade_journal": {

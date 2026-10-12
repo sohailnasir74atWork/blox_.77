@@ -1692,6 +1692,21 @@
     "hero_title_noname": "Feliz aniversário! 🎉",
     "bits": {
       "birthday_today": "Aniversário hoje"
+    },
+    "wish_all": "Parabenizar todos ({{count}})",
+    "wished_all": "Você parabenizou todos hoje",
+    "see_all": "Ver todos os {{count}}",
+    "thank_all": "Agradecer a todos ({{count}})",
+    "thanked_all": "Você agradeceu a todos que te parabenizaram",
+    "thank_sent": "Agradecimento enviado 💖",
+    "wish_all_sent_one": "{{count}} parabéns enviado 🎉",
+    "wish_all_sent_other": "{{count}} parabéns enviados 🎉",
+    "tomorrow_line_one": "{{count}} aniversário amanhã. Volte para dar os parabéns!",
+    "tomorrow_line_other": "{{count}} aniversários amanhã. Volte para dar os parabéns!",
+    "reason": {
+      "dm": "Vocês já conversaram",
+      "group": "No seu grupo",
+      "wished_you": "Já te parabenizou"
     }
   },
   "trade_journal": {

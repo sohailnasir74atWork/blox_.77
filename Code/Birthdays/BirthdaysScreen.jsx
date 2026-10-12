@@ -9,8 +9,14 @@
  * enforces both (supabase/036–037). On your own birthday this is the
  * celebration: the once-a-year stars gift and the wishes you got.
  *
- * The list comes 20 players at a time ("Load more"), today first (037). A
- * wish is one tap: the button spins while the request is in flight, and
+ * Short by design (owner, 2026-10-12; ~60 birthdays a day made the full
+ * list a chore; port of Adopt Me's 056 screen): today's top 6, the people
+ * you know first (041), a "Wish everyone" button that wishes the rest in one
+ * call, "See all" for the full list (20 at a time, "Load more"), and
+ * tomorrow as a single line. On your own birthday, "Thank everyone" sends
+ * one thank-you push to each wisher.
+ *
+ * A wish is one tap: the button spins while the request is in flight, and
  * other buttons can be tapped meanwhile; each wish is sent on its own.
  */
 
@@ -32,15 +38,20 @@ import {
   setBirthdayUser, getMyBirthday, peekMyBirthday, peekBirthdayList, setBirthdayVisibility, listBirthdays,
   loadMoreBirthdays, sendBirthdayWish, markWished, birthdayErrorKey, invalidateBirthdays, isBirthdayMockActive,
   getBirthdayMock, enableBirthdayPreview, claimBirthdayGift, flushBirthdayStars, getKnownDob, loadKnownDob,
-  BIRTHDAY_GIFT_STARS,
+  BIRTHDAY_GIFT_STARS, listBirthdaysTop, peekBirthdayTop, wishAllBirthdays, thankBirthdayWishers,
 } from './birthdayApi';
 import { daysUntilBirthday, formatMonthDay, formatUpcoming } from './birthdayDate';
 import { BirthdayAvatar, wishLine, BIRTHDAY_PINK, BIRTHDAY_GRADIENT } from './BirthdayBits';
 import EditBirthdaySheet from './EditBirthdaySheet';
 import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
 
-// Every wish from this screen uses the plain "Happy birthday!" message.
+// A wish from a row uses the plain "Happy birthday!" message; "Wish
+// everyone" sends "Have an awesome day!" so the two read differently.
 const WISH_TEMPLATE = 'hbd';
+const WISH_ALL_TEMPLATE = 'party';
+
+// Why a player is near the top of the short list (041 `reason`).
+const REASON_ICON = { dm: '💬', group: '👥', wished_you: '🎂' };
 
 // A soft pulse for the loading placeholders (native driver, stops on unmount).
 const usePulse = () => {
@@ -103,7 +114,10 @@ const BirthdayRow = memo(({ b, kind, first, last, self, pending, c, lang, t, onW
       <View style={{ flex: 1, marginLeft: 12 }}>
         <Text style={[styles.rowName, { color: c.text }]} numberOfLines={1}>{b.name}</Text>
         <Text style={[styles.rowSub, { color: c.textSecondary }]} numberOfLines={1}>
-          {kind === 'today' ? t('birthdays.wish_count', { count: b.wishes || 0 }) : formatUpcoming(b.month, b.day, lang)}
+          {kind === 'today'
+            ? [b.reason && REASON_ICON[b.reason] ? `${REASON_ICON[b.reason]} ${t(`birthdays.reason.${b.reason}`)}` : null,
+              t('birthdays.wish_count', { count: b.wishes || 0 })].filter(Boolean).join('  ·  ')
+            : formatUpcoming(b.month, b.day, lang)}
         </Text>
       </View>
       {kind !== 'today' ? null : self ? (
@@ -142,7 +156,12 @@ export default function BirthdaysScreen() {
 
   // Instant first paint from the phone's saved copy; load() refreshes it.
   const [mine, setMine] = useState(peekMyBirthday());
-  const [list, setList] = useState(peekBirthdayList());
+  const [top, setTop] = useState(peekBirthdayTop());
+  // "See all": the full paged list (037), loaded only when asked for.
+  const [showAll, setShowAll] = useState(false);
+  const [list, setList] = useState(null);
+  const [wishingAll, setWishingAll] = useState(false);
+  const [thanking, setThanking] = useState(false);
   const [loading, setLoading] = useState(true);
   const [listFailed, setListFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -159,17 +178,37 @@ export default function BirthdaysScreen() {
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
 
+  const showAllRef = useRef(false);
   const load = useCallback(async (force = false) => {
     setBirthdayUser(uid);
     // Stars granted earlier that never reached RTDB (an MMKV read; usually nothing).
     flushBirthdayStars(appdatabase, uid).catch(() => {});
-    const [m, l] = await Promise.allSettled([getMyBirthday({ force }), listBirthdays({ force })]);
+    const [m, tp, l] = await Promise.allSettled([
+      getMyBirthday({ force }),
+      listBirthdaysTop({ force }),
+      showAllRef.current ? listBirthdays({ force }) : Promise.resolve(null),
+    ]);
     if (!alive.current) return;
     if (m.status === 'fulfilled') setMine(m.value);
-    if (l.status === 'fulfilled') { setList(l.value); setListFailed(false); } else setListFailed(true);
+    if (tp.status === 'fulfilled') { setTop(tp.value); setListFailed(false); } else setListFailed(true);
+    if (showAllRef.current && l.status === 'fulfilled') setList(l.value);
     if (isBirthdayMockActive()) setPreview(getBirthdayMock().getPreview());
     setLoading(false);
   }, [uid, appdatabase]);
+
+  const openAll = useCallback(async () => {
+    showAllRef.current = true;
+    setShowAll(true);
+    trackGrowthEvent('birthday_see_all', {});
+    const cached = peekBirthdayList();
+    if (cached) { setList(cached); return; }
+    try {
+      const l = await listBirthdays();
+      if (alive.current) setList(l);
+    } catch (e) {
+      showErrorMessage(t('home.alert.error'), t('birthdays.err.generic'));
+    }
+  }, [t]);
 
   useFocusEffect(useCallback(() => {
     if (!uid && !__DEV__) { setLoading(false); return; }
@@ -222,7 +261,46 @@ export default function BirthdaysScreen() {
       ...l,
       rows: l.rows.map((b) => (b.uid === who ? { ...b, wished: true, wishes: wishes ?? (b.wished ? b.wishes : (b.wishes || 0) + 1) } : b)),
     } : l));
+    // birthdayApi already patched the saved top list (rows and unwished).
+    setTop(peekBirthdayTop());
   }, []);
+
+  const wishAll = useCallback(async () => {
+    if (wishingAll) return;
+    setWishingAll(true);
+    triggerHapticFeedback('impactMedium');
+    try {
+      const res = await wishAllBirthdays(WISH_ALL_TEMPLATE);
+      trackGrowthEvent('birthday_wish_all', { sent: res?.sent || 0, left: res?.left || 0 });
+      if (!alive.current) return;
+      setTop(peekBirthdayTop());
+      if (res?.sent) showSuccessMessage(t('birthdays.wish_all_sent', { count: res.sent }), '');
+      if (res?.limited) showErrorMessage(t('home.alert.error'), t('birthdays.err.limit'));
+      // Exact wish states for every row (and the full list, if open).
+      load(true);
+    } catch (e) {
+      showErrorMessage(t('home.alert.error'), t(`birthdays.err.${birthdayErrorKey(e)}`));
+    } finally {
+      if (alive.current) setWishingAll(false);
+    }
+  }, [wishingAll, triggerHapticFeedback, t, load]);
+
+  const thankAll = useCallback(async () => {
+    if (thanking) return;
+    setThanking(true);
+    triggerHapticFeedback('impactLight');
+    try {
+      const res = await thankBirthdayWishers();
+      trackGrowthEvent('birthday_thank', { count: res?.thanked || 0 });
+      if (!alive.current) return;
+      setMine((m) => (m ? { ...m, thankPending: 0 } : m));
+      showSuccessMessage(t('birthdays.thank_sent'), '');
+    } catch (e) {
+      showErrorMessage(t('home.alert.error'), t(`birthdays.err.${birthdayErrorKey(e)}`));
+    } finally {
+      if (alive.current) setThanking(false);
+    }
+  }, [thanking, triggerHapticFeedback, t]);
 
   const wish = useCallback(async (b) => {
     if (pendingRef.current.has(b.uid)) return;
@@ -295,6 +373,7 @@ export default function BirthdaysScreen() {
   const switchPreview = useCallback((which) => {
     getBirthdayMock()?.setPreview(which);
     invalidateBirthdays();
+    setTop(null);
     setList(null);
     load(true);
   }, [load]);
@@ -311,24 +390,24 @@ export default function BirthdaysScreen() {
   const editDob = (!isBirthdayMockActive() && knownDob)
     || (__DEV__ && mine?.month ? `${new Date().getFullYear() - 20}-${pad2(mine.month)}-${pad2(mine.day)}` : null);
 
-  // Section titles, rows and empty lines, flattened for one FlatList.
+  // Title, Wish everyone, rows, See all and tomorrow's line, flattened for one FlatList.
   const items = useMemo(() => {
-    if (!list) return [];
-    const out = [];
-    const section = (kind, title, rows, emptyText, count) => {
-      out.push({ type: 'title', key: `t-${kind}`, title, count });
-      if (!rows.length) out.push({ type: 'empty', key: `e-${kind}`, text: emptyText });
-      rows.forEach((b, i) => out.push({ type: 'row', key: `${kind}-${b.uid}`, b, kind, first: i === 0, last: i === rows.length - 1 }));
-    };
-    const rows = list.rows || [];
-    const tomorrow = rows.filter((b) => b.daysUntil === 1);
-    section('today', `🎉 ${t('birthdays.today')}`, rows.filter((b) => b.daysUntil === 0), t('birthdays.none_today'), list.counts?.[0]);
-    // Pages run today first: tomorrow's section appears once its players do.
-    if (tomorrow.length || !list.next) {
-      section('tomorrow', `📅 ${t('birthdays.tomorrow')}`, tomorrow, t('birthdays.none_tomorrow'), list.counts?.[1]);
+    if (!top) return [];
+    const out = [{ type: 'title', key: 't-today', title: `🎉 ${t('birthdays.today')}`, count: top.total }];
+    if (!top.total) {
+      out.push({ type: 'empty', key: 'e-today', text: t('birthdays.none_today') });
+    } else if (!top.legacy) {
+      out.push({ type: 'wishAll', key: 'wish-all' });
     }
+    const rows = showAll && list
+      ? (list.rows || []).filter((b) => b.daysUntil === 0 && b.uid !== uid)
+      : top.rows || [];
+    rows.forEach((b, i) => out.push({ type: 'row', key: `today-${b.uid}`, b, kind: 'today', first: i === 0, last: i === rows.length - 1 }));
+    if (!showAll && top.total > rows.length) out.push({ type: 'seeAll', key: 'see-all' });
+    // In "See all", tomorrow's line waits for the last page (it sits above "Load more" otherwise).
+    if (top.tomorrow && !(showAll && list?.next)) out.push({ type: 'tomorrow', key: 'tomorrow' });
     return out;
-  }, [list, t]);
+  }, [top, list, showAll, uid, t]);
 
   const renderItem = useCallback(({ item }) => {
     if (item.type === 'title') {
@@ -340,6 +419,35 @@ export default function BirthdaysScreen() {
       );
     }
     if (item.type === 'empty') return <Text style={[styles.empty, { color: c.textSecondary }]}>{item.text}</Text>;
+    if (item.type === 'wishAll') {
+      return top?.unwished ? (
+        <TouchableOpacity style={styles.wishAllBtn} onPress={wishAll} disabled={wishingAll} activeOpacity={0.9}>
+          {wishingAll
+            ? <ActivityIndicator size="small" color="#fff" />
+            : <Text style={styles.wishAllText}>🎉 {t('birthdays.wish_all', { count: top.unwished })}</Text>}
+        </TouchableOpacity>
+      ) : (
+        <View style={[styles.wishAllDone, { borderColor: c.border, backgroundColor: c.bgAlt }]}>
+          <Icon name="checkmark-circle" size={18} color={BIRTHDAY_PINK} />
+          <Text style={[styles.wishAllDoneText, { color: c.text }]}>{t('birthdays.wished_all')}</Text>
+        </View>
+      );
+    }
+    if (item.type === 'seeAll') {
+      return (
+        <TouchableOpacity onPress={openAll} style={styles.seeAll} activeOpacity={0.7}>
+          <Text style={[styles.seeAllText, { color: BIRTHDAY_PINK }]}>{t('birthdays.see_all', { count: top.total })}</Text>
+          <Icon name="chevron-forward" size={16} color={BIRTHDAY_PINK} />
+        </TouchableOpacity>
+      );
+    }
+    if (item.type === 'tomorrow') {
+      return (
+        <Text style={[styles.tomorrowLine, { color: c.textSecondary }]}>
+          📅 {t('birthdays.tomorrow_line', { count: top.tomorrow })}
+        </Text>
+      );
+    }
     return (
       <BirthdayRow
         b={item.b}
@@ -354,7 +462,7 @@ export default function BirthdaysScreen() {
         onWish={wish}
       />
     );
-  }, [c, uid, pending, lang, t, wish]);
+  }, [c, uid, pending, lang, t, wish, top, wishAll, wishingAll, openAll]);
 
   const header = (
     <View style={[styles.header, { borderBottomColor: c.border }]}>
@@ -368,7 +476,7 @@ export default function BirthdaysScreen() {
       {/* Debug builds: long-press for the sample data (every state, no real account changes). */}
       <TouchableOpacity
         disabled={!__DEV__}
-        onLongPress={() => { enableBirthdayPreview(); setList(null); load(true); }}
+        onLongPress={() => { enableBirthdayPreview(); setTop(null); setList(null); load(true); }}
         style={{ marginRight: 10 }}
       >
         <Text style={{ fontSize: 24 }}>🎂</Text>
@@ -388,7 +496,7 @@ export default function BirthdaysScreen() {
     );
   }
 
-  const top = (
+  const topSection = (
     <View>
       {/* ═══ YOUR BIRTHDAY ═══ */}
       {!mine && loading ? <Placeholder c={c} isDark={isDark} /> : null}
@@ -440,6 +548,15 @@ export default function BirthdaysScreen() {
       {myToday && mine?.wishes?.length ? (
         <View style={[styles.card, { backgroundColor: c.bgAlt, borderColor: c.border }]}>
           <Text style={[styles.cardTitle, { color: c.text }]}>{t('birthdays.wishes_for_you', { count: mine.wishCount || mine.wishes.length })}</Text>
+          {mine.thankPending > 0 ? (
+            <TouchableOpacity style={styles.thankBtn} onPress={thankAll} disabled={thanking} activeOpacity={0.9}>
+              {thanking
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Text style={styles.thankText}>💖 {t('birthdays.thank_all', { count: mine.thankPending })}</Text>}
+            </TouchableOpacity>
+          ) : mine.thankPending === 0 ? (
+            <Text style={[styles.thankedLine, { color: c.textSecondary }]}>💖 {t('birthdays.thanked_all')}</Text>
+          ) : null}
           {mine.wishes.map((w, i) => (
             <View key={`${w.name}-${i}`} style={[styles.wishRow, { borderTopColor: c.border, borderTopWidth: i ? StyleSheet.hairlineWidth : 0 }]}>
               <BirthdayAvatar uri={w.avatar} name={w.name} size={30} />
@@ -483,7 +600,7 @@ export default function BirthdaysScreen() {
     </View>
   );
 
-  const waiting = !list && (listFailed ? (
+  const waiting = !top && (listFailed ? (
     <View style={styles.failBox}>
       <Text style={[styles.empty, { color: c.textSecondary, textAlign: 'center' }]}>{t('birthdays.err.generic')}</Text>
       <TouchableOpacity onPress={retryList} style={[styles.moreBtn, { borderColor: c.border, backgroundColor: c.bgAlt }]} activeOpacity={0.8}>
@@ -499,7 +616,7 @@ export default function BirthdaysScreen() {
 
   const footer = (
     <>
-      {list?.next ? (
+      {showAll && list?.next ? (
         <TouchableOpacity
           onPress={loadMore}
           disabled={loadingMore}
@@ -539,7 +656,7 @@ export default function BirthdaysScreen() {
         data={items}
         keyExtractor={(item) => item.key}
         renderItem={renderItem}
-        ListHeaderComponent={top}
+        ListHeaderComponent={topSection}
         ListEmptyComponent={waiting || null}
         ListFooterComponent={footer}
         contentContainerStyle={styles.listContent}
@@ -612,6 +729,25 @@ const styles = StyleSheet.create({
   },
   moreText: { fontSize: 14, fontWeight: '800' },
   failBox: { paddingTop: 28, alignItems: 'stretch' },
+  wishAllBtn: {
+    backgroundColor: BIRTHDAY_PINK, borderRadius: 14, height: 50, marginBottom: 12,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  wishAllText: { color: '#fff', fontWeight: '900', fontSize: 16 },
+  wishAllDone: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    borderWidth: 1, borderRadius: 14, height: 46, marginBottom: 12,
+  },
+  wishAllDoneText: { fontSize: 14, fontWeight: '800' },
+  seeAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 14 },
+  seeAllText: { fontSize: 14, fontWeight: '800' },
+  tomorrowLine: { fontSize: 13, fontWeight: '600', textAlign: 'center', marginTop: 6 },
+  thankBtn: {
+    backgroundColor: BIRTHDAY_PINK, borderRadius: 999, height: 40, marginTop: 4, marginBottom: 8,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  thankText: { color: '#fff', fontWeight: '900', fontSize: 14 },
+  thankedLine: { fontSize: 12, fontWeight: '700', marginBottom: 6 },
   wishRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9 },
   wishFrom: { fontSize: 14, fontWeight: '800' },
   devPanel: { marginTop: 28, borderWidth: 1, borderStyle: 'dashed', borderRadius: 12, padding: 12 },

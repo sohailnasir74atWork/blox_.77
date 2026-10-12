@@ -1687,7 +1687,22 @@
       "birthday_today": "今日が誕生日"
     },
     "home_happy_noname": "お誕生日おめでとう！",
-    "hero_title_noname": "お誕生日おめでとう！🎉"
+    "hero_title_noname": "お誕生日おめでとう！🎉",
+    "wish_all": "みんなをお祝い（{{count}}）",
+    "wished_all": "今日はみんなをお祝いしました",
+    "see_all": "{{count}}人をすべて見る",
+    "thank_all": "みんなにお礼（{{count}}）",
+    "thanked_all": "お祝いしてくれた全員にお礼しました",
+    "thank_sent": "お礼を送りました 💖",
+    "wish_all_sent_one": "お祝いを{{count}}件送りました 🎉",
+    "wish_all_sent_other": "お祝いを{{count}}件送りました 🎉",
+    "tomorrow_line_one": "明日は{{count}}人の誕生日。また来てお祝いしよう！",
+    "tomorrow_line_other": "明日は{{count}}人の誕生日。また来てお祝いしよう！",
+    "reason": {
+      "dm": "チャットしたことがある",
+      "group": "同じグループ",
+      "wished_you": "前にお祝いしてくれた"
+    }
   },
   "trade_journal": {
     "my_fruits": {

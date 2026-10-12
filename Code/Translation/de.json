@@ -1689,6 +1689,21 @@
     "hero_title_noname": "Alles Gute zum Geburtstag! 🎉",
     "bits": {
       "birthday_today": "Hat heute Geburtstag"
+    },
+    "wish_all": "Allen gratulieren ({{count}})",
+    "wished_all": "Du hast heute allen gratuliert",
+    "see_all": "Alle {{count}} ansehen",
+    "thank_all": "Allen danken ({{count}})",
+    "thanked_all": "Du hast allen gedankt, die dir gratuliert haben",
+    "thank_sent": "Danke gesendet 💖",
+    "wish_all_sent_one": "{{count}} Geburtstagsgruß gesendet 🎉",
+    "wish_all_sent_other": "{{count}} Geburtstagsgrüße gesendet 🎉",
+    "tomorrow_line_one": "Morgen hat {{count}} Spieler Geburtstag. Komm wieder und gratuliere!",
+    "tomorrow_line_other": "Morgen haben {{count}} Spieler Geburtstag. Komm wieder und gratuliere!",
+    "reason": {
+      "dm": "Ihr habt gechattet",
+      "group": "In deiner Gruppe",
+      "wished_you": "Hat dir schon gratuliert"
     }
   },
   "trade_journal": {

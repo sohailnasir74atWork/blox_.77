@@ -11,10 +11,14 @@
  *     your birthday plus [uid, month, day] for today's birthdays — a few KB,
  *     no names or photos. Kept on the phone (MMKV) for the local day and
  *     refreshed at most every HOME_TTL_MS, so a cold start reads nothing.
- *   - list_birthdays_page (037; names, photos, wish counts) only when the
- *     Birthdays screen opens: today and tomorrow only, PAGE_SIZE players at a
- *     time, more on "Load more" (owner, 2026-10-08). The pages loaded so far
- *     are kept on the phone for LIST_TTL_MS and shown instantly from there.
+ *   - list_birthdays_top (041) when the Birthdays screen opens: today's
+ *     TOP_LIMIT players, the people you know first (DMs, groups, who wished
+ *     you before), plus the day's counts. Kept for LIST_TTL_MS.
+ *     Owner, 2026-10-12: ~60 birthdays a day made the full list a chore;
+ *     "Wish everyone" (wish_all_birthdays) covers the rest in one call.
+ *   - list_birthdays_page (037; names, photos, wish counts) only behind
+ *     "See all": today only, PAGE_SIZE players at a time, more on "Load
+ *     more". The pages loaded so far are kept like the top list.
  *   - Neither cache crosses midnight: each day's birthdays are different.
  *     New players or a changed birthday appear within one refresh window.
  *   - Your own actions (a wish, Show/Hide, a correction, the gift) update
@@ -43,7 +47,8 @@ const LIST_TTL_MS = 30 * 60 * 1000;
 const PUBLIC_TTL_MS = 12 * 60 * 60 * 1000;
 const RETRY_AFTER_FAIL_MS = 10 * 60 * 1000;
 const PAGE_SIZE = 20;
-const LIST_DAYS = 1;               // today and tomorrow
+const LIST_DAYS = 0;               // "See all": today only (tomorrow is a count on the top list)
+const TOP_LIMIT = 6;
 
 // Blox has no `cloudFunctionsUrl` in Helper/Environment.js (other callers
 // hardcode the fruiteblocks base too, e.g. Helper/modSanction.js).
@@ -79,6 +84,7 @@ try {
 let currentUid = null;
 let homeCache = null;              // { at, uid, day, data }   data = my birthday + today
 let listCache = null;              // { at, uid, day, rows, next, counts }  pages loaded so far
+let topCache = null;               // { at, uid, day, rows, total, unwished, tomorrow, legacy }
 let listGen = 0;                   // bumped when the list restarts, so a late page is dropped
 let moreLoad = null;               // the "Load more" in flight
 let pagedMissing = false;          // server without 037: the old list, paged on the phone
@@ -119,6 +125,7 @@ const save = (key, value) => {
 const forget = (key) => { try { storage.remove(key); } catch (_) {} };
 const homeKey = () => `home:${currentUid}`;
 const listKey = () => `page:${currentUid}`;
+const topKey = () => `top:${currentUid}`;
 const pendingStarsKey = (uid) => `gift_stars:${uid}`;
 
 const isMissingFunction = (error) =>
@@ -134,7 +141,7 @@ const switchToMock = (why) => {
 
 // These fall back to older server calls themselves, so a missing one never
 // switches the session to the mock.
-const OWN_FALLBACK = new Set(['birthday_home', 'list_birthdays_page']);
+const OWN_FALLBACK = new Set(['birthday_home', 'list_birthdays_page', 'list_birthdays_top']);
 
 async function call(fn, args) {
   if (mock) return mock[fn](args);
@@ -165,6 +172,7 @@ export const enableBirthdayPreview = () => {
 
 const resetList = () => {
   listCache = null;
+  topCache = null;
   legacyRows = null;
   moreLoad = null;
   listGen++;
@@ -195,6 +203,8 @@ export const setBirthdayUser = (uid) => {
     }
     const l = readSaved(listKey());
     if (l && l.day === localDay() && Array.isArray(l.rows)) listCache = { ...l, uid: currentUid };
+    const tp = readSaved(topKey());
+    if (tp && tp.day === localDay() && Array.isArray(tp.rows)) topCache = { ...tp, uid: currentUid };
     forget(`list:${currentUid}`); // the old 7-day list (up to 200 rows)
   }
   emit();
@@ -205,7 +215,7 @@ export const invalidateBirthdays = () => {
   homeCache = null;
   resetList();
   publicCache.clear();
-  if (currentUid) { forget(homeKey()); forget(listKey()); }
+  if (currentUid) { forget(homeKey()); forget(listKey()); forget(topKey()); }
   emit();
 };
 
@@ -273,9 +283,9 @@ export async function setBirthdayVisibility(show) {
   patchHome({ show: !!data?.show, asked: true });
   // Your own row joins or leaves the list when your birthday is today or tomorrow.
   const me = homeCache?.data;
-  if (me?.month && daysUntilBirthday(me.month, me.day) <= LIST_DAYS) {
+  if (me?.month && daysUntilBirthday(me.month, me.day) <= 1) {
     resetList();
-    if (currentUid) forget(listKey());
+    if (currentUid) { forget(listKey()); forget(topKey()); }
   }
   homeCache = homeCache ? { ...homeCache, at: 0 } : null;
   emit();
@@ -358,6 +368,74 @@ export function loadMoreBirthdays() {
 export const peekBirthdayList = () =>
   (listCache && listCache.uid === currentUid && listCache.day === localDay() ? listCache : null);
 
+// list_birthdays_top, or — on a server without 041 — the first page of 037
+// (today + tomorrow), cut to today's TOP_LIMIT by activity. `legacy` hides
+// "Wish everyone", which needs 041.
+async function fetchTop() {
+  try {
+    const res = await call('list_birthdays_top', { p_local_date: localISO(), p_limit: TOP_LIMIT });
+    const rows = (res?.rows || []).map((b) => ({ ...b, daysUntil: 0 }));
+    return { rows, total: res?.total ?? rows.length, unwished: res?.unwished ?? 0, tomorrow: res?.tomorrow ?? 0, legacy: false };
+  } catch (e) {
+    if (!isMissingFunction(e)) throw e;
+    const res = await call('list_birthdays_page', { p_local_date: localISO(), p_days: 1, p_limit: 50, p_cursor: null });
+    const today = inWindow(res?.rows).filter((b) => b.daysUntil === 0 && b.uid !== currentUid);
+    return {
+      rows: today.slice(0, TOP_LIMIT),
+      total: res?.counts?.[0] ?? today.length,
+      unwished: today.filter((b) => !b.wished).length,
+      tomorrow: res?.counts?.[1] ?? 0,
+      legacy: true,
+    };
+  }
+}
+
+/**
+ * The Birthdays screen's short list: today's TOP_LIMIT players, people you
+ * know first. Resolves { rows: [{ uid, name, avatar, month, day, daysUntil,
+ * wishes, wished, reason }], total, unwished, tomorrow, legacy }.
+ */
+export async function listBirthdaysTop({ force = false } = {}) {
+  if (!force && fresh(topCache, LIST_TTL_MS)) return topCache;
+  const data = await fetchTop();
+  topCache = { at: Date.now(), uid: currentUid, day: localDay(), ...data };
+  save(topKey(), topCache);
+  return topCache;
+}
+
+/** The saved top list for an instant first paint, or null. */
+export const peekBirthdayTop = () =>
+  (topCache && topCache.uid === currentUid && topCache.day === localDay() ? topCache : null);
+
+/**
+ * "Wish everyone": every one of today's players you haven't wished yet, one
+ * call, up to the daily limit. Resolves { sent, left, limited }.
+ */
+export async function wishAllBirthdays(template = 'party') {
+  const data = await call('wish_all_birthdays', { p_local_date: localISO(), p_template: template });
+  const left = data?.left ?? 0;
+  if (topCache) {
+    // Who got wished beyond the top rows isn't known here: when nobody is
+    // left, every row was; otherwise the next refresh tells.
+    const rows = left ? topCache.rows : topCache.rows.map((b) => (b.wished ? b : { ...b, wished: true, wishes: (b.wishes || 0) + 1 }));
+    topCache = { ...topCache, rows, unwished: left, at: left ? 0 : topCache.at };
+    save(topKey(), topCache);
+  }
+  // The full list's wish states are stale now; "See all" reloads it.
+  listCache = null;
+  legacyRows = null;
+  if (currentUid) forget(listKey());
+  return data;
+}
+
+/** On your birthday: thank everyone who wished you so far. Resolves { thanked }. */
+export async function thankBirthdayWishers() {
+  const data = await call('thank_birthday_wishers');
+  patchHome({ thankPending: 0 });
+  emit();
+  return data;
+}
+
 /** { month, day } for a profile, or null (hidden / under 13 / unknown). */
 export async function getPublicBirthday(uid) {
   if (!uid) return null;
@@ -375,6 +453,17 @@ export const markWished = (toUid, wishes) => {
   if (listCache) {
     listCache = { ...listCache, rows: listCache.rows.map(patch) };
     save(listKey(), listCache);
+  }
+  if (topCache) {
+    const was = topCache.rows.find((b) => b.uid === toUid);
+    // A wish from "See all" to someone outside the top rows also counts down.
+    const newly = !was || !was.wished;
+    topCache = {
+      ...topCache,
+      rows: topCache.rows.map(patch),
+      unwished: Math.max(0, (topCache.unwished || 0) - (newly ? 1 : 0)),
+    };
+    save(topKey(), topCache);
   }
 };
 
@@ -457,7 +546,7 @@ export async function updateMyBirthday(year, month, day) {
   homeCache = null;
   resetList();
   publicCache.clear();
-  if (currentUid) { forget(homeKey()); forget(listKey()); }
+  if (currentUid) { forget(homeKey()); forget(listKey()); forget(topKey()); }
   emit();
   return data;
 }

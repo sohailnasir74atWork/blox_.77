@@ -8,10 +8,11 @@
  * the dev panel on the Birthdays screen shows every Home card state.
  */
 
+// `reason`: why 041 would rank them first ('dm' | 'group' | 'wished_you').
 const PLAYERS = [
-  { uid: 'm1', name: 'KitsuneHunter', avatar: null, offset: 0, wishes: 14 },
-  { uid: 'm2', name: 'DragonTalonFan', avatar: null, offset: 0, wishes: 6 },
-  { uid: 'm3', name: 'dough_master22', avatar: null, offset: 0, wishes: 2 },
+  { uid: 'm1', name: 'KitsuneHunter', avatar: null, offset: 0, wishes: 14, reason: 'dm' },
+  { uid: 'm2', name: 'DragonTalonFan', avatar: null, offset: 0, wishes: 6, reason: 'group' },
+  { uid: 'm3', name: 'dough_master22', avatar: null, offset: 0, wishes: 2, reason: 'wished_you' },
   { uid: 'm4', name: 'ShadowTrader', avatar: null, offset: 1, wishes: 0 },
   { uid: 'm5', name: 'leopard_luna', avatar: null, offset: 3, wishes: 0 },
   { uid: 'm6', name: 'Sea_Beast_King', avatar: null, offset: 5, wishes: 0 },
@@ -46,8 +47,11 @@ const state = {
   edited: null,        // { month, day } after the one correction
   asked: false,
   giftOpened: false,
+  thanked: false,
   wished: new Set(),
 };
+
+const RANK = { dm: 4, group: 2, wished_you: 1 };
 
 const fail = (msg) => { throw new Error(msg); };
 const wait = (v, ms = 250) => new Promise((r) => setTimeout(() => r(v), ms));
@@ -64,6 +68,7 @@ const mine = () => {
     giftReady: today && !state.giftOpened,
     giftOpened: today && state.giftOpened,
     wishCount: today ? RECEIVED.length : 0,
+    thankPending: today && !state.thanked ? RECEIVED.length : 0,
     wishes: today ? RECEIVED : [],
     canEdit: !state.edited,
   };
@@ -75,6 +80,7 @@ const mock = {
     state.preview = which;
     state.asked = false;
     state.giftOpened = false;
+    state.thanked = false;
     state.edited = null;
   },
   getPreview: () => state.preview,
@@ -139,6 +145,41 @@ const mock = {
       next: end < all.length ? end : null,
       counts: start ? null : Array.from({ length: p_days + 1 }, (_, d) => all.filter((p) => p.offset === d).length),
     }, 700);
+  },
+
+  // 041: today's top p_limit, people you know first, plus the day's counts.
+  async list_birthdays_top({ p_limit = 6 }) {
+    const today = PLAYERS.filter((p) => p.offset === 0)
+      .sort((a, b) => (RANK[b.reason] || 0) - (RANK[a.reason] || 0));
+    const rows = today.slice(0, p_limit).map((p) => ({
+      uid: p.uid,
+      name: p.name,
+      avatar: p.avatar,
+      ...monthDayIn(0),
+      until: 0,
+      wishes: p.wishes + (state.wished.has(p.uid) ? 1 : 0),
+      wished: state.wished.has(p.uid),
+      reason: p.reason || null,
+    }));
+    return wait({
+      rows,
+      total: today.length,
+      unwished: today.filter((p) => !state.wished.has(p.uid)).length,
+      tomorrow: PLAYERS.filter((p) => p.offset === 1).length,
+    }, 500);
+  },
+
+  async wish_all_birthdays() {
+    const todo = PLAYERS.filter((p) => p.offset === 0 && !state.wished.has(p.uid));
+    todo.forEach((p) => state.wished.add(p.uid));
+    return wait({ sent: todo.length, left: 0, limited: false }, 900);
+  },
+
+  async thank_birthday_wishers() {
+    if (state.preview !== 'today') fail('not their birthday');
+    const n = state.thanked ? 0 : RECEIVED.length;
+    state.thanked = true;
+    return wait({ thanked: n }, 600);
   },
 
   async update_my_birthday({ year, month, day }) {

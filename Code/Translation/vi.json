@@ -1688,6 +1688,21 @@
     "hero_title_noname": "Chúc mừng sinh nhật! 🎉",
     "bits": {
       "birthday_today": "Hôm nay sinh nhật"
+    },
+    "wish_all": "Chúc mừng tất cả ({{count}})",
+    "wished_all": "Hôm nay bạn đã chúc mừng tất cả",
+    "see_all": "Xem tất cả {{count}}",
+    "thank_all": "Cảm ơn tất cả ({{count}})",
+    "thanked_all": "Bạn đã cảm ơn tất cả những người chúc mừng bạn",
+    "thank_sent": "Đã gửi lời cảm ơn 💖",
+    "wish_all_sent_one": "Đã gửi {{count}} lời chúc sinh nhật 🎉",
+    "wish_all_sent_other": "Đã gửi {{count}} lời chúc sinh nhật 🎉",
+    "tomorrow_line_one": "Ngày mai có {{count}} sinh nhật. Quay lại để chúc nhé!",
+    "tomorrow_line_other": "Ngày mai có {{count}} sinh nhật. Quay lại để chúc nhé!",
+    "reason": {
+      "dm": "Đã từng trò chuyện",
+      "group": "Trong nhóm của bạn",
+      "wished_you": "Từng chúc mừng bạn"
     }
   },
   "trade_journal": {

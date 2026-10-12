@@ -1692,6 +1692,21 @@
     "hero_title_noname": "¡Feliz cumpleaños! 🎉",
     "bits": {
       "birthday_today": "Cumpleaños hoy"
+    },
+    "wish_all": "Felicitar a todos ({{count}})",
+    "wished_all": "Hoy felicitaste a todos",
+    "see_all": "Ver los {{count}}",
+    "thank_all": "Agradecer a todos ({{count}})",
+    "thanked_all": "Agradeciste a todos los que te felicitaron",
+    "thank_sent": "Gracias enviadas 💖",
+    "wish_all_sent_one": "{{count}} felicitación enviada 🎉",
+    "wish_all_sent_other": "{{count}} felicitaciones enviadas 🎉",
+    "tomorrow_line_one": "Mañana hay {{count}} cumpleaños. ¡Vuelve para felicitarlo!",
+    "tomorrow_line_other": "Mañana hay {{count}} cumpleaños. ¡Vuelve para felicitarlos!",
+    "reason": {
+      "dm": "Habéis chateado",
+      "group": "En tu grupo",
+      "wished_you": "Ya te felicitó"
     }
   },
   "trade_journal": {

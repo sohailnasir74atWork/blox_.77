@@ -1692,6 +1692,21 @@
         "hero_title_noname": "Joyeux anniversaire ! 🎉",
         "bits": {
             "birthday_today": "C’est son anniversaire aujourd’hui"
+        },
+        "wish_all": "Souhaiter à tous ({{count}})",
+        "wished_all": "Tu as souhaité à tout le monde aujourd'hui",
+        "see_all": "Voir les {{count}}",
+        "thank_all": "Remercier tout le monde ({{count}})",
+        "thanked_all": "Tu as remercié tous ceux qui t'ont souhaité",
+        "thank_sent": "Merci envoyé 💖",
+        "wish_all_sent_one": "{{count}} vœu d'anniversaire envoyé 🎉",
+        "wish_all_sent_other": "{{count}} vœux d'anniversaire envoyés 🎉",
+        "tomorrow_line_one": "{{count}} anniversaire demain. Reviens pour le souhaiter !",
+        "tomorrow_line_other": "{{count}} anniversaires demain. Reviens pour les souhaiter !",
+        "reason": {
+            "dm": "Vous avez discuté",
+            "group": "Dans ton groupe",
+            "wished_you": "T'a déjà souhaité"
         }
     },
     "trade_journal": {

@@ -1848,6 +1848,29 @@
     "hero_title_noname": "عيد ميلاد سعيد! 🎉",
     "bits": {
       "birthday_today": "عيد ميلاده اليوم"
+    },
+    "wish_all": "هنّئ الجميع ({{count}})",
+    "wished_all": "هنّأت الجميع اليوم",
+    "see_all": "عرض الكل ({{count}})",
+    "thank_all": "اشكر الجميع ({{count}})",
+    "thanked_all": "شكرت كل من هنّأك",
+    "thank_sent": "تم إرسال الشكر 💖",
+    "wish_all_sent_zero": "لم تُرسل أي تهنئة",
+    "wish_all_sent_one": "تم إرسال تهنئة واحدة 🎉",
+    "wish_all_sent_two": "تم إرسال تهنئتين 🎉",
+    "wish_all_sent_few": "تم إرسال {{count}} تهانٍ 🎉",
+    "wish_all_sent_many": "تم إرسال {{count}} تهنئة 🎉",
+    "wish_all_sent_other": "تم إرسال {{count}} تهنئة 🎉",
+    "tomorrow_line_zero": "لا أعياد ميلاد غدًا.",
+    "tomorrow_line_one": "عيد ميلاد واحد غدًا. عد لتهنئته!",
+    "tomorrow_line_two": "عيدا ميلاد غدًا. عد لتهنئتهما!",
+    "tomorrow_line_few": "{{count}} أعياد ميلاد غدًا. عد لتهنئتهم!",
+    "tomorrow_line_many": "{{count}} عيد ميلاد غدًا. عد لتهنئتهم!",
+    "tomorrow_line_other": "{{count}} عيد ميلاد غدًا. عد لتهنئتهم!",
+    "reason": {
+      "dm": "تحدثتما من قبل",
+      "group": "في مجموعتك",
+      "wished_you": "هنّأك من قبل"
     }
   },
   "trade_journal": {

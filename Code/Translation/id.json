@@ -1688,6 +1688,21 @@
     "hero_title_noname": "Selamat ulang tahun! 🎉",
     "bits": {
       "birthday_today": "Ulang tahun hari ini"
+    },
+    "wish_all": "Ucapkan ke semua ({{count}})",
+    "wished_all": "Kamu sudah mengucapkan ke semua hari ini",
+    "see_all": "Lihat semua {{count}}",
+    "thank_all": "Terima kasih ke semua ({{count}})",
+    "thanked_all": "Kamu sudah berterima kasih ke semua yang mengucapkan",
+    "thank_sent": "Terima kasih terkirim 💖",
+    "wish_all_sent_one": "{{count}} ucapan ulang tahun terkirim 🎉",
+    "wish_all_sent_other": "{{count}} ucapan ulang tahun terkirim 🎉",
+    "tomorrow_line_one": "{{count}} ulang tahun besok. Kembali lagi untuk mengucapkan!",
+    "tomorrow_line_other": "{{count}} ulang tahun besok. Kembali lagi untuk mengucapkan!",
+    "reason": {
+      "dm": "Pernah chat",
+      "group": "Di grupmu",
+      "wished_you": "Pernah mengucapkanmu"
     }
   },
   "trade_journal": {
