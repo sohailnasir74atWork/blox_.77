@@ -15,6 +15,7 @@ import { trackGrowthEvent } from '../Helper/growthAnalytics';
 
 // One line in the next crash report's logs. Cheap; never throws.
 export function adLog(message) {
+  if (__DEV__) console.log(`[ads] ${message}`);
   try {
     crashlyticsLog(getCrashlytics(), `ads: ${message}`);
   } catch (_) {}
