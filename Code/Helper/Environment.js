@@ -19,17 +19,23 @@ const config = {
   andriodOpenApp: isNoman ? 'ca-app-pub-5740215782746766/9015676434' : 'ca-app-pub-3701208411582706/2295931822',
   andriodNative: isNoman ? 'ca-app-pub-5740215782746766/2941106105' : 'ca-app-pub-3701208411582706/5457520430',
   IOsIntestial: isNoman ? 'ca-app-pub-5740215782746766/3209373499' : '',
-  // Game-specific interstitial ad IDs
-  gameInterstitialAndroid: isNoman ? 'ca-app-pub-5740215782746766/7231966561' : 'ca-app-pub-3701208411582706/2820664136',
-  gameInterstitialIOS: isNoman ? 'ca-app-pub-5740215782746766/5126152752' : '',
   IOsBanner: isNoman ? 'ca-app-pub-5740215782746766/4522455164' : '',
   IOsRewarded: isNoman ? 'ca-app-pub-5740215782746766/9755679519' : '',
   IOsOpenApp: isNoman ? 'ca-app-pub-5740215782746766/1499878996' : '',
   IOsNative: isNoman ? 'ca-app-pub-5740215782746766/8838394066' : '',
-  andriodRewarded_int_ios: isNoman ? 'ca-app-pub-5740215782746766/8838394066' : '',
+  // Blox iOS has no rewarded-interstitial unit in AdMob (this held the iOS
+  // native unit 8838394066 by mistake). reward_int is not used anywhere.
+  andriodRewarded_int_ios: null,
   // In-feed inline banner units (Code/Ads/FeedBannerAd.jsx); null = fall back to the anchored banner unit until the dedicated AdMob units are filled in.
   andriodFeedBanner: 'ca-app-pub-5740215782746766/9555186655', // feed_inline_banner
   IOsFeedBanner: 'ca-app-pub-5740215782746766/2842352924', // feed_inline_banner
+  // Post interstitials (Code/Ads/PostAd.js): own units so AdMob reports the
+  // trade-post and feed-post placements apart; no AdMob frequency cap on them
+  // (created 2026-10-13).
+  andriodTradePostInterstitial: 'ca-app-pub-5740215782746766/5902079770', // int_trade_post
+  andriodFeedPostInterstitial: 'ca-app-pub-5740215782746766/1583560811', // int_feed_post
+  IOsTradePostInterstitial: 'ca-app-pub-5740215782746766/1150200569', // int_trade_post
+  IOsFeedPostInterstitial: 'ca-app-pub-5740215782746766/2889078637', // int_feed_post
 
   apiKey: isNoman ? rev_cat_id : 'goog_hNbzYuzixIbRtuJzgHltVeZzYos',
 

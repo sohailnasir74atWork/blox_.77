@@ -294,9 +294,17 @@ class InterstitialAdManager {
     source.prepare(true);
   }
 
+  // The Pro gate, shared with PostAd.js (the post placements).
+  static isAdFree() {
+    return noAdsForUser();
+  }
+
   // Pro bought / ads turned off: drop the warm ad and its timers.
   static cleanup() {
     source.reset('cleanup');
+    // The post placements keep their own warm ads (lazy require: PostAd.js
+    // imports this module).
+    try { require('./PostAd').default.cleanup(); } catch (_) {}
     this.hasInitialized = false;
     this.isShowing = false;
   }

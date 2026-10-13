@@ -16,6 +16,8 @@ const adUnits = {
     native:'ca-app-pub-3940256099942544/2247696110',
     reward_int:TestIds.REWARDED_INTERSTITIAL,
     feedBanner: TestIds.BANNER,
+    tradePost: TestIds.INTERSTITIAL,
+    feedPost: TestIds.INTERSTITIAL,
   },
   android: {
     banner: config.andriodBanner,       
@@ -28,6 +30,11 @@ const adUnits = {
     // banner unit until a dedicated unit exists for this platform — any
     // banner-format unit serves inline sizes; only the reporting differs.
     feedBanner: config.andriodFeedBanner || config.andriodBanner,
+    // Dedicated interstitial units for the post placements (PostAd.js), so
+    // AdMob reports them apart from the shared interstitial. Fall back to
+    // the shared unit until a dedicated one is filled in.
+    tradePost: config.andriodTradePostInterstitial || config.andriodIntestial,
+    feedPost: config.andriodFeedPostInterstitial || config.andriodIntestial,
   },
   ios: {
     banner: config.IOsBanner,      
@@ -37,6 +44,8 @@ const adUnits = {
     native:config.IOsNative,
     reward_int:config.andriodRewarded_int_ios,
     feedBanner: config.IOsFeedBanner || config.IOsBanner,
+    tradePost: config.IOsTradePostInterstitial || config.IOsIntestial,
+    feedPost: config.IOsFeedPostInterstitial || config.IOsIntestial,
   },
   
 };

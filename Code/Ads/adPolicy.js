@@ -10,6 +10,11 @@
 // nothing. The natural-break placement below turns tab switches into the
 // standard "between screens" interstitial moment, under caps strict enough
 // that a user can never see more than one every few minutes.
+//
+// Not covered here: the trade-post and feed-post interstitials (PostAd.js).
+// They always show after a successful post (owner decision, 2026-10-13), on
+// their own AdMob units, outside every cap in this file. They still count as
+// the last full-screen ad, so the next natural-break ad waits MIN_GAP_MS.
 
 export const NATURAL_BREAK = {
   ENABLED: true,
@@ -35,7 +40,10 @@ export const INTERSTITIAL_COOLDOWN_MS = 30 * 1000;
 export const CHAT_MESSAGES_PER_AD = 10;
 // App-open on a return from background: at most once per this window
 // (and only after APP_OPEN_MIN_BACKGROUND_MS away).
-export const APP_OPEN_MIN_INTERVAL_MS = 5 * 60 * 1000;
+// 2 min, not 5 (owner decision, 2026-10-13): app-open is the top-earning
+// format, and 5 min skipped most returns of users who hop to Roblox and back.
+// Still above the AdMob unit cap (1 per minute), which stays the backstop.
+export const APP_OPEN_MIN_INTERVAL_MS = 2 * 60 * 1000;
 // Launch (cold-start) app-open ad: returning users only, shown from the splash
 // or not at all. Every launch is eligible (owner decision, 2026-10-07): the
 // 4 h gap cut app-open impressions per session by 26–54% in the 2026-10-04

@@ -17,7 +17,7 @@ import { safeCompressImage } from '../../Helper/safeCompressImage';
 import config from '../../Helper/Environment';
 import { useGlobalState, modGateText } from '../../GlobelStats';
 import { useLocalState } from '../../LocalGlobelStats';
-import InterstitialAdManager from '../../Ads/IntAd';
+import PostAdManager from '../../Ads/PostAd';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 // import { onValue, ref } from '@react-native-firebase/database';
 import { showMessage } from 'react-native-flash-message';
@@ -248,6 +248,12 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
   }, [imageUris, user?.id]);
 
 
+  // Warm the feed-post ad while the user writes, so it is ready when the
+  // post lands (PostAd.js).
+  useEffect(() => {
+    if (visible) PostAdManager.prepare('feed');
+  }, [visible]);
+
   const handleSubmit = useCallback(async () => {
     // ✅ Guard: Prevent multiple simultaneous submissions
     if (loading) return;
@@ -324,32 +330,29 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
           description: i18next.t('feed.design_main.post_created'),
           type: 'success',
         });
+        return true;
       } catch (err) {
         Alert.alert(i18next.t('feed.design_main.upload_failed'), i18next.t('feed.upload_modal.upload_failed_body'), err);
         console.log(err);
         // ✅ Reset loading on error so user can retry
         setLoading(false);
+        return false;
       }
     };
 
-    // Show ad if not Pro, then execute
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        if (!localState.isPro) {
-          requestAnimationFrame(() => {
-            setTimeout(() => {
-              try {
-                InterstitialAdManager.showAd(callbackfunction);
-              } catch (err) {
-                console.warn('[AdManager] Failed to show ad:', err);
-                callbackfunction();
-              }
-            }, 400);
-          });
-        } else {
-          callbackfunction();
-        }
-      }, 500);
+    // Upload first; the feed-post ad (PostAd.js) shows only once the post is
+    // live — never before it, never on a failed upload.
+    callbackfunction().then((posted) => {
+      if (!posted || localState.isPro) return;
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          try {
+            PostAdManager.show('feed');
+          } catch (err) {
+            console.warn('[AdManager] Failed to show ad:', err);
+          }
+        }, 400);
+      });
     });
 
   }, [loading, user?.id, desc, imageUris, selectedTags, uploadToBunny, onUpload, onClose, localState.isPro, currentUserEmail, lastPostTime, getModGate]);

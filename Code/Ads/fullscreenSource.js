@@ -87,8 +87,12 @@ const safeDestroy = (ad) => {
 const sources = new Set();
 
 class FullscreenSource {
-  constructor(format, adUnitId, requestOptions) {
+  // `key` names the source in logs and its SDK pool; it defaults to the
+  // format. Two sources of one format (the post placements in PostAd.js)
+  // need distinct keys, or they would share one Google preload pool.
+  constructor(format, adUnitId, requestOptions, key = format) {
     this.format = format;
+    this.key = key;
     this.spec = FORMATS[format];
     this.adUnitId = adUnitId;
     this.requestOptions = requestOptions;
@@ -172,7 +176,7 @@ class FullscreenSource {
     this._unsubAll();
     this.ad = null;
     this.ready = false;
-    adLog(`${this.format} take instance`);
+    adLog(`${this.key} take instance`);
     return ad;
   }
 
@@ -185,7 +189,7 @@ class FullscreenSource {
   // Drop everything (Pro bought, audience changed). The next prepare() starts
   // over under the current request configuration.
   reset(reason = 'reset') {
-    adLog(`${this.format} reset ${reason}`);
+    adLog(`${this.key} reset ${reason}`);
     this.epoch += 1;
     this.timers.forEach(clearTimeout);
     this.timers.clear();
@@ -208,7 +212,7 @@ class FullscreenSource {
     const stale = () => epoch !== this.epoch;
     const promise = ensureAdsInitialized()
       .then(() => (stale() ? null : AdPools.create({
-        poolId: `blox-${this.format}`,
+        poolId: `blox-${this.key}`,
         formats: [this.spec.adFormat],
         adUnitId: this.adUnitId,
         requestOptions: this.requestOptions,
@@ -226,7 +230,7 @@ class FullscreenSource {
           return null;
         }
         this.pool = pool;
-        adLog(`${this.format} pool created`);
+        adLog(`${this.key} pool created`);
         this.poolUnsub = pool.addListener((e) => this._onPoolEvent(e));
         pool.getAvailability()
           .then(({ available }) => { if (available) this._markReady(); })
@@ -239,7 +243,7 @@ class FullscreenSource {
         // the instance path for the rest of the session.
         if (this.poolPromise === promise) this.poolPromise = null;
         if (stale() || String(err?.message || '').includes('ads-consent-not-ready')) return null;
-        adLog(`${this.format} pool failed ${err?.reason || err?.message || err}; instance mode`);
+        adLog(`${this.key} pool failed ${err?.reason || err?.message || err}; instance mode`);
         this.mode = 'instance';
         this.prepare();
         return null;
@@ -250,7 +254,7 @@ class FullscreenSource {
 
   _onPoolEvent(e) {
     if (!e) return;
-    if (__DEV__) console.log(`[ads] ${this.format} pool ${e.type} ${e.error ? `${e.error.reason || ''} ${e.error.message || ''}` : ''}`);
+    if (__DEV__) console.log(`[ads] ${this.key} pool ${e.type} ${e.error ? `${e.error.reason || ''} ${e.error.message || ''}` : ''}`);
     if (e.type === 'available') {
       this._markReady();
     } else if (e.type === 'exhausted') {
@@ -259,7 +263,7 @@ class FullscreenSource {
       if (isNoFillError(e.error) || /no-fill/.test(String(e.error?.reason || ''))) {
         this.lastNoFillAt = Date.now();
       }
-      adLog(`${this.format} pool error ${e.error?.reason || e.error?.code || ''}`);
+      adLog(`${this.key} pool error ${e.error?.reason || e.error?.code || ''}`);
     }
   }
 
@@ -279,16 +283,16 @@ class FullscreenSource {
       .then(({ available }) => { if (available) this._markReady(); })
       .catch(() => {});
     if (result?.status !== 'filled' || !result.ad) {
-      adLog(`${this.format} poll ${result?.status}`);
+      adLog(`${this.key} poll ${result?.status}`);
       return null;
     }
     const ad = result.ad;
     if (typeof ad.isStaleByPolicy === 'function' && ad.isStaleByPolicy()) {
       safeDestroy(ad);
-      adLog(`${this.format} poll stale`);
+      adLog(`${this.key} poll stale`);
       return null;
     }
-    adLog(`${this.format} take pooled`);
+    adLog(`${this.key} take pooled`);
     return ad;
   }
 
@@ -300,7 +304,7 @@ class FullscreenSource {
     try {
       ad = this.spec.create(this.adUnitId, this.requestOptions);
     } catch (err) {
-      adLog(`${this.format} create failed ${err?.message || err}`);
+      adLog(`${this.key} create failed ${err?.message || err}`);
       return;
     }
     this.ad = ad;
@@ -311,22 +315,22 @@ class FullscreenSource {
         this.loadedAt = Date.now();
         this.retryCount = 0;
         this.noFillRetried = false;
-        adLog(`${this.format} loaded`);
-        if (__DEV__) console.log(`[ads] ${this.format} instance loaded`);
+        adLog(`${this.key} loaded`);
+        if (__DEV__) console.log(`[ads] ${this.key} instance loaded`);
         this._markReady();
       }),
       ad.addAdEventListener(AdEventType.ERROR, (error) => {
         if (ad !== this.ad) return;
         const noFill = isNoFillError(error) || /no-fill/.test(String(error?.reason || ''));
         if (noFill) this.lastNoFillAt = Date.now();
-        adLog(`${this.format} load error ${error?.reason || error?.code || ''}`);
-        if (__DEV__) console.log(`[ads] ${this.format} instance error ${error?.reason || ''} ${error?.message || ''}`);
+        adLog(`${this.key} load error ${error?.reason || error?.code || ''}`);
+        if (__DEV__) console.log(`[ads] ${this.key} instance error ${error?.reason || ''} ${error?.message || ''}`);
         this._dropInstance();
         this._retry(noFill);
       }),
     ];
     this.loading = true;
-    adLog(`${this.format} load`);
+    adLog(`${this.key} load`);
     try {
       ad.load();
     } catch (_) {
@@ -365,7 +369,7 @@ class FullscreenSource {
   _dropInstance(why) {
     this._unsubAll();
     if (this.ad) {
-      if (why) adLog(`${this.format} drop ${why}`);
+      if (why) adLog(`${this.key} drop ${why}`);
       safeDestroy(this.ad);
     }
     this.ad = null;
@@ -380,8 +384,8 @@ class FullscreenSource {
   }
 }
 
-export function createFullscreenSource(format, adUnitId, requestOptions) {
-  return new FullscreenSource(format, adUnitId, requestOptions);
+export function createFullscreenSource(format, adUnitId, requestOptions, key) {
+  return new FullscreenSource(format, adUnitId, requestOptions, key);
 }
 
 export function resetAllFullscreenSources(reason) {

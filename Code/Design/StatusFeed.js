@@ -39,7 +39,7 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import { useTranslation } from 'react-i18next';
 import i18next from 'i18next';
 import { addXP, XP_ACTIONS } from '../Engagement/xpUtils';
-import InterstitialAdManager from '../Ads/IntAd';
+import PostAdManager from '../Ads/PostAd';
 import SwipeableBottomDrawer from '../Helper/SwipeableBottomDrawer';
 import { useLocalState } from '../LocalGlobelStats';
 import { useGlobalState, modGateText } from '../GlobelStats';
@@ -612,6 +612,11 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
   // ── Post status (local-first) ──
   const { localState } = useLocalState();
 
+  // Warm the feed-post ad while the status composer is open (PostAd.js).
+  useEffect(() => {
+    if (showCreator) PostAdManager.prepare('feed');
+  }, [showCreator]);
+
   const handlePostStatus = useCallback(async () => {
     if (!user?.id || !firestoreDB) return;
 
@@ -638,6 +643,9 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
       return;
     }
 
+    // The feed-post ad (PostAd.js) shows only once the status is live —
+    // never before it, never on a failed upload.
+    let posted = false;
     const doUpload = async () => {
       setUploading(true);
       try {
@@ -724,6 +732,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
         setIsPollMode(false);
         setPollOptions(['', '']);
         setShowCreator(false);
+        posted = true;
       } catch (err) {
         console.warn('[StatusFeed] post error:', err?.message);
         Alert.alert(i18next.t('home.alert.error'), i18next.t('feed.status_feed.post_failed'));
@@ -733,10 +742,14 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
 
     await doUpload();
 
-    if (!localState.isPro) {
+    if (posted && !localState.isPro) {
       requestAnimationFrame(() => {
         setTimeout(() => {
-          try { InterstitialAdManager.showAd(() => {}); } catch (err) {}
+          try {
+            PostAdManager.show('feed');
+          } catch (err) {
+            console.warn('[StatusFeed] Ad failed:', err);
+          }
         }, 400);
       });
     }

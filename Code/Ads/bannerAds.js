@@ -9,8 +9,8 @@ import { useAdsReady } from './init';
 import useIsAdFree from './useIsAdFree';
 import { logAdRevenue } from './adTelemetry';
 
-// Bottom banners are the standard fixed 320x50 BANNER (owner decision,
-// 2026-10-05): no anchored-adaptive height.
+// Bottom banners are anchored adaptive (owner decision, 2026-10-13; they were
+// a fixed 320x50 BANNER from 2026-10-05).
 const BannerAdComponent = ({
   adType = 'banner',
   visible = true,
@@ -130,7 +130,12 @@ const BannerAdComponent = ({
       <BannerAd
         key={reloadKey}
         unitId={unitId}
-        size={BannerAdSize.BANNER}
+        // Anchored adaptive, full screen width (owner decision, 2026-10-13,
+        // reversing the fixed 320x50 of 2026-10-05): the SDK picks the height per
+        // device (about 50-60dp on phones), and adaptive banners usually earn
+        // more per impression than the fixed size. The banner sits in normal
+        // layout flow, so a taller slot pushes content up instead of covering it.
+        size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
         requestOptions={requestOptions}
         onAdLoaded={handleAdLoaded}
         onAdFailedToLoad={handleAdFailedToLoad}

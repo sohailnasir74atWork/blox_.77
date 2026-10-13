@@ -15,7 +15,7 @@ import { useLanguage } from '../Translation/LanguageProvider';
 import { showSuccessMessage, showErrorMessage } from '../Helper/MessageHelper';
 import ShareTradeModal from '../Trades/SharetradeModel';
 import TradeCompletion from '../Engagement/TradeCompletion';
-import InterstitialAdManager from '../Ads/IntAd';
+import PostAdManager from '../Ads/PostAd';
 import BannerAdComponent from '../Ads/bannerAds';
 import { addDoc, collection, serverTimestamp, doc, getDoc } from '@react-native-firebase/firestore';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
@@ -176,6 +176,7 @@ const HomeScreen = ({ selectedTheme }) => {
     }
     setRobloxUsername(user?.robloxUsername || '');
     setModalVisible(true);
+    if (type === 'create') PostAdManager.prepare('trade');
   };
 
   const handleCreateTrade = async () => {
@@ -382,7 +383,7 @@ const HomeScreen = ({ selectedTheme }) => {
                   if (!isMountedRef.current) return;
 
                   try {
-                    InterstitialAdManager.showAd(callbackfunction);
+                    PostAdManager.show('trade', callbackfunction);
                   } catch (err) {
                     console.warn('[AdManager] Failed to show ad:', err);
                     callbackfunction();
