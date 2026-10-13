@@ -319,6 +319,29 @@ Next-Gen 1.4.0, test ad units:**
   iOS system log. Attach to Metro's `/json/list` debugger socket (send
   `Origin: http://localhost:<port>`) and enable `Runtime` to read them.
 
+**2026-10-13, Adopt Me + MM2 ports (Android emulator, debug, test units):**
+- Adopt Me: branch `ads-v17-nextgen` (540c4b8, 122b37a). MM2: branch
+  `ads-v17-nextgen` (a7dbd30, 6b1cee3, b41e967), on top of a baseline commit
+  of MM2's pending Oct 7-11 work (aa15c80).
+- ✅ Both: Next-Gen pools for app_open and interstitial; bottom banner test
+  ad after consent; leave-app guard wraps 12 functions.
+- ✅ Adopt Me: return app-open after 15 s away ("app_open opened return");
+  an app_open pool no-fill retried and refilled on its own.
+- ❌→✅ Found on MM2's first launch: the Android notification-permission
+  dialog pauses the app, so declining it after >10 s produced an app-open ad.
+  The guard now also wraps PermissionsAndroid.request/requestMultiple,
+  notifee.requestPermission and RNFB messaging requestPermission (all three
+  apps, Blox 76df715). Re-tested on MM2 and Adopt Me: no ad.
+- ⚠️ Launch ad on cold start: on these debug builds the pool filled at
+  +8-14 s (debug JS startup + emulator ad latency), past LAUNCH_AD_MAX_MS
+  (7 s), so it was held for the next return as designed. One Adopt Me run
+  took the ad at +2.4 s but no ad appeared and the source refilled ~11 s
+  later (looks like the 10 s show watchdog); not reproduced after adLog was
+  echoed to the console in __DEV__ (all three apps). Watch GA4 `launch_ad`
+  outcomes and Crashlytics `ads: app_open failed` after release.
+- MM2 consent: App.js now uses UMP gatherConsent (gatherAdsConsent), then
+  openAdsGate → init → markAdsReady for banners.
+
 ### 4.3 Release gates
 
 1. Section 0 decision 1 made.
