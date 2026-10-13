@@ -6,6 +6,9 @@
 // 'background'), and a return after 10 s or more got an app-open ad — shown
 // to someone who had just tapped a button in the app (2026-10-12 ads audit).
 // Only the store purchase and the notification-permission prompt opted out.
+// Runtime permission dialogs (notifications, storage) pause the app on
+// Android too: an MM2 first launch on 2026-10-13 got an app-open ad the moment
+// the notification prompt closed, so those are wrapped as well.
 //
 // About 50 call sites use these APIs, so instead of touching each one, the
 // functions themselves are wrapped once at startup: every call first tells
@@ -58,6 +61,11 @@ export function installLeaveAppGuard() {
   wrapModule('react-native-share', () => require('react-native-share').default, ['open', 'shareSingle']);
   wrapModule('google-signin', () => require('@react-native-google-signin/google-signin').GoogleSignin, ['signIn']);
   wrapModule('apple-auth', () => require('@invertase/react-native-apple-authentication').default, ['performRequest']);
+  // Permission dialogs. RNFB's modular requestPermission(messaging) calls the
+  // instance method, so wrapping the prototype covers both API styles.
+  wrapModule('PermissionsAndroid', () => require('react-native').PermissionsAndroid, ['request', 'requestMultiple']);
+  wrapModule('notifee', () => require('@notifee/react-native').default, ['requestPermission']);
+  wrapModule('messaging', () => Object.getPrototypeOf(require('@react-native-firebase/messaging').getMessaging()), ['requestPermission']);
   // The Play in-app update screen is an instance method; InAppUpdateCheck.js
   // calls AppOpenAdManager.skipNextForeground() itself.
   if (__DEV__) console.log(`[ads] leave-app guard wrapped: ${wrappedLabels.join(', ')}`);
