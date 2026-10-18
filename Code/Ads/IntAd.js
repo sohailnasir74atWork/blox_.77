@@ -181,7 +181,11 @@ class InterstitialAdManager {
     if (now - APP_START_AT < NATURAL_BREAK.SESSION_WARMUP_MS) return false;
     if (this.naturalBreakShows >= NATURAL_BREAK.MAX_PER_SESSION) return false;
     if (now - this.lastShownAt < NATURAL_BREAK.MIN_GAP_MS) return false;
-    if (msSinceAnyFullScreenAd() < NATURAL_BREAK.MIN_GAP_MS) return false;
+    // Android: 3 min after ANY full-screen ad. iOS: only the line above (last
+    // interstitial) plus the cross-format gap after an app-open/rewarded.
+    if (NATURAL_BREAK.GAP_FROM_ANY_FULLSCREEN
+      ? msSinceAnyFullScreenAd() < NATURAL_BREAK.MIN_GAP_MS
+      : this._blockedByOtherFormat()) return false;
     if (this.isShowing || isFullScreenAdVisible()) return false;
 
     if (!source.isReady()) {

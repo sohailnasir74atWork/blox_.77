@@ -44,6 +44,7 @@ import SwipeableBottomDrawer from '../Helper/SwipeableBottomDrawer';
 import { useLocalState } from '../LocalGlobelStats';
 import { useGlobalState, modGateText } from '../GlobelStats';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
+import ReportModal from './componenets/ReportModal';
 import { clearFollowingCache } from '../Helper/followingCache';
 
 
@@ -262,6 +263,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
     return isCacheValid('following_ids', FOLLOWING_CACHE_TTL) && Array.isArray(cached) && cached.length > 0;
   });
   const [viewingStatus, setViewingStatus] = useState(null);
+  const [reportingStatus, setReportingStatus] = useState(null); // status being reported from the viewer
   const [drawerUser, setDrawerUser] = useState(null);
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
   const [showCreator, setShowCreator] = useState(false);
@@ -1237,6 +1239,18 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
                   </Text>
                 </TouchableOpacity>
               )}
+              {/* Report (2026-10-18): someone else's status → staff Reports queue. */}
+              {user?.id && !isMyStatus && (
+                <TouchableOpacity
+                  onPress={() => { stopStoryTimer(); setReportingStatus(currentStatus); }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
+                  style={styles.statusReportBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('feed.report_modal.status_title')}
+                >
+                  <FontAwesome name="flag" size={14} color="#fff" />
+                </TouchableOpacity>
+              )}
               <TouchableOpacity onPress={() => { stopStoryTimer(); setViewingStatus(null); }} style={{ padding: 6 }}>
                 <Text style={{ fontSize: 20, color: '#fff', fontWeight: '300' }}>✕</Text>
               </TouchableOpacity>
@@ -1443,6 +1457,13 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
                 </View>
               )}
             </View>
+            {/* Inside the viewer so it stacks over it; the story resumes on close. */}
+            <ReportModal
+              visible={!!reportingStatus}
+              kind="status"
+              item={reportingStatus}
+              onClose={() => { setReportingStatus(null); startStoryTimer(storyIndex, totalStatuses); }}
+            />
           </View>
         </Modal>
         );
@@ -1635,6 +1656,7 @@ const getTimeAgo = (date) => {
 };
 
 const styles = StyleSheet.create({
+  statusReportBtn: { padding: 6, marginRight: 2 },
   container: {
     paddingVertical: 10,
     borderBottomWidth: 1,

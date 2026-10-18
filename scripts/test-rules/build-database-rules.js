@@ -427,6 +427,9 @@ const OVERRIDES = {
         $i: { '.validate': "$i.matches(/^[0-2]$/) && newData.isString() && newData.val().beginsWith('https://pull-gag.b-cdn.net/report-images/') && newData.val().length <= 120" },
       },
       app: { '.validate': 'newData.isString() && newData.val().length <= 60' },
+      // "Report review" (2026-10-18): the review reported and whose profile it is on.
+      reviewId: { '.validate': 'newData.isString() && newData.val().length > 0 && newData.val().length <= 128' },
+      reviewedUserId: { '.validate': 'newData.isString() && newData.val().length > 0 && newData.val().length <= 128' },
       createdAt: { '.validate': 'data.exists() ? newData.val() === data.val() : newData.val() === now' },
       status: { '.validate': "data.exists() ? (newData.val() === 'open' || newData.val() === 'done') : newData.val() === 'open'" },
       $other: { '.validate': false },

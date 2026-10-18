@@ -1,16 +1,47 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { View, Platform } from 'react-native';
-import { useIsFocused } from '@react-navigation/native';
+import React, { useState, useMemo, useRef, useEffect, useCallback, useContext } from 'react';
+import { View, Platform, useWindowDimensions } from 'react-native';
+import { NavigationContext } from '@react-navigation/native';
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 import getAdUnitId from './ads';
 import { npaRequiredFor } from './consent';
 import { useLocalState } from '../LocalGlobelStats';
 import { useAdsReady } from './init';
+import { reportBannerHeight } from './bannerHeight';
 import useIsAdFree from './useIsAdFree';
 import { logAdRevenue } from './adTelemetry';
 
 // Bottom banners are anchored adaptive (owner decision, 2026-10-13; they were
 // a fixed 320x50 BANNER from 2026-10-05).
+
+// Focus of the screen this banner sits in, from the focus/blur events (port of
+// Adopt Me / MM2). useIsFocused() flipped in the same render that brings a tab
+// back, so the collapsible banner re-mounted while react-native-screens was
+// re-attaching the screen — and the adaptive banner resizes right after mount.
+// That is the suspected cause of 4.0.25 (174)'s top crash, Fabric addViewAt
+// "Unable to find view for viewState" on HomeTab (Ops/bugs/LOG.md, 2026-10-17).
+// The 'focus' event fires once the tab is back, so the banner mounts one commit
+// later. Without a navigation context the banner counts as focused.
+const useScreenFocused = () => {
+  const navigation = useContext(NavigationContext);
+  const [focused, setFocused] = useState(() => (navigation ? navigation.isFocused() : true));
+  useEffect(() => {
+    if (!navigation) return undefined;
+    setFocused(navigation.isFocused());
+    const offFocus = navigation.addListener('focus', () => setFocused(true));
+    const offBlur = navigation.addListener('blur', () => setFocused(false));
+    return () => { offFocus(); offBlur(); };
+  }, [navigation]);
+  return focused;
+};
+
+
+// Bottom banner size (owner, 2026-10-18). The Android Next-Gen SDK in
+// react-native-google-mobile-ads 17.3.0 only offers the LARGE anchored size
+// (~128dp on a Pixel 9), which covered too much of the screen. Android asks
+// for a full-width inline adaptive banner capped at BANNER_MAX_HEIGHT instead,
+// about the old anchored height. Collapsible still works: Google shows the
+// requested size in the collapsed state. iOS keeps the anchored adaptive size.
+const BANNER_MAX_HEIGHT = 60;
 const BannerAdComponent = ({
   adType = 'banner',
   visible = true,
@@ -19,6 +50,7 @@ const BannerAdComponent = ({
   // impression would cover it). See requestOptions below.
   collapsible = false,
 }) => {
+  const { width: screenWidth } = useWindowDimensions();
   const [isAdLoaded, setIsAdLoaded] = useState(false);
   const { localState } = useLocalState();
   const adFree = useIsAdFree();
@@ -85,7 +117,7 @@ const BannerAdComponent = ({
   // overlay, and once its screen has been left it comes back as a plain
   // banner: it can expand only on the first visit.
   const wantsCollapsible = collapsible && Platform.OS === 'android';
-  const isFocused = useIsFocused();
+  const isFocused = useScreenFocused();
   const [expandSpent, setExpandSpent] = useState(false);
   useEffect(() => {
     if (wantsCollapsible && !isFocused) {
@@ -126,7 +158,12 @@ const BannerAdComponent = ({
     // collapsable={false}: the loaded style is layout-only, so Fabric would
     // flatten this View once the ad loads and re-parent the native ad view —
     // a known trigger for the addViewAt IndexOutOfBounds crash.
-    <View style={containerStyle} collapsable={false}>
+    <View
+      style={containerStyle}
+      collapsable={false}
+      // Floating buttons sit above the real height (Ads/bannerHeight.js).
+      onLayout={isAdLoaded ? (e) => reportBannerHeight(e.nativeEvent.layout.height) : undefined}
+    >
       <BannerAd
         key={reloadKey}
         unitId={unitId}
@@ -135,7 +172,13 @@ const BannerAdComponent = ({
         // device (about 50-60dp on phones), and adaptive banners usually earn
         // more per impression than the fixed size. The banner sits in normal
         // layout flow, so a taller slot pushes content up instead of covering it.
-        size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+        {...(Platform.OS === 'android'
+          ? {
+              size: BannerAdSize.INLINE_ADAPTIVE_BANNER,
+              width: Math.floor(screenWidth),
+              maxHeight: BANNER_MAX_HEIGHT,
+            }
+          : { size: BannerAdSize.ANCHORED_ADAPTIVE_BANNER })}
         requestOptions={requestOptions}
         onAdLoaded={handleAdLoaded}
         onAdFailedToLoad={handleAdFailedToLoad}

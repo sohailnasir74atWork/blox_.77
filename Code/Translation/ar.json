@@ -169,6 +169,10 @@
       "please_try_again": "حاول مرة أخرى.",
       "roblox_code_not_found": "لم نعثر على رمز التحقق في وصف ملفك الشخصي على Roblox.",
       "roblox_check_failed": "تعذّر التحقق. حاول مرة أخرى.",
+      "roblox_busy": "روبلوكس مشغول الآن. انتظر دقيقة ثم اضغط توثيق مرة أخرى.",
+      "roblox_copy_code": "نسخ الرمز",
+      "roblox_code_copied_title": "تم نسخ الرمز",
+      "roblox_code_copied": "تم نسخ {{code}}. الصقه في قسم «نبذة» في ملفك على روبلوكس واحفظ، ثم ارجع واضغط توثيق مرة أخرى.",
       "login_first": "سجّل الدخول أولًا.",
       "enter_roblox_username": "أدخل اسم المستخدم في Roblox.",
       "invalid_username": "اسم مستخدم غير صالح",
@@ -1396,7 +1400,9 @@
       "only_creator_update_icon": "يمكن لمنشئ المجموعة فقط تحديث أيقونتها"
     },
     "confirm_block": "هل تريد حظر {{name}}؟",
-    "confirm_unblock": "هل تريد إلغاء حظر {{name}}؟"
+    "confirm_unblock": "هل تريد إلغاء حظر {{name}}؟",
+    "translate_tip_long": "نصيحة: اضغط مطولًا على أي رسالة لترجمتها.",
+    "translate_tip_tap": "نصيحة: اضغط على أي رسالة لترجمتها."
   },
   "first": {
     "welcome_title": "مرحبًا بك في قيم الفواكه",
@@ -1684,7 +1690,9 @@
     "ban_time_days": "متبقٍ {{days}} يوم و{{hours}} ساعة",
     "ban_time_hours": "متبقٍ {{hours}} ساعة و{{minutes}} دقيقة",
     "ban_time_minutes": "متبقٍ {{minutes}} دقيقة",
-    "ban_associated_with_email": "هذا الجهاز مرتبط بحساب محظور ({{email}}). لن يؤدي تسجيل الدخول ببريد إلكتروني آخر إلى استعادة الوصول."
+    "ban_associated_with_email": "هذا الجهاز مرتبط بحساب محظور ({{email}}). لن يؤدي تسجيل الدخول ببريد إلكتروني آخر إلى استعادة الوصول.",
+    "ban_appeal_question": "تظن أن هذا خطأ؟",
+    "ban_appeal_button": "أرسل طلب استئناف"
   },
   "more_hub": {
     "title": "المزيد",
@@ -1724,7 +1732,8 @@
       "moderation": "الإشراف",
       "scam": "احتيال أو تبادل",
       "bug": "مشكلة في التطبيق",
-      "other": "شيء آخر"
+      "other": "شيء آخر",
+      "ban_appeal": "استئناف الحظر"
     },
     "details": "التفاصيل",
     "placeholder_complaint": "احكِ لنا ما حدث. أسماء المستخدمين والتواريخ ولقطات الشاشة تساعد كثيرًا.",
@@ -1745,7 +1754,11 @@
     "sign_in": "سجّل الدخول لإرسال شكوى أو فكرة.",
     "mine_title": "رسائلك",
     "status_open": "تم الاستلام",
-    "status_done": "تمت المراجعة"
+    "status_done": "تمت المراجعة",
+    "placeholder_ban_appeal": "احكِ لنا ما حدث ولماذا تظن أن الحظر خطأ. لقطات الشاشة تساعد.",
+    "placeholder_false_review": "لماذا هذا التقييم مزيّف؟ لقطات شاشة من محادثتكم تساعد.",
+    "reported_review": "التقييم الذي تبلّغ عنه",
+    "report_review": "الإبلاغ عن التقييم"
   },
   "groups": {
     "errors": {
@@ -2712,7 +2725,9 @@
       "submit_failed": "تعذّر إرسال البلاغ. حاول مرة أخرى.",
       "title": "الإبلاغ عن المنشور",
       "placeholder": "لماذا تريد الإبلاغ عن هذا المنشور؟",
-      "submitting": "جارٍ الإرسال…"
+      "submitting": "جارٍ الإرسال…",
+      "status_title": "الإبلاغ عن الحالة",
+      "status_placeholder": "لماذا تبلّغ عن هذه الحالة؟"
     },
     "comments_modal": {
       "sign_in_required": "يلزم تسجيل الدخول",

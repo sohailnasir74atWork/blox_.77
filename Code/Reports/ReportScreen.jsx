@@ -5,6 +5,10 @@
  * Their user ID goes with it; admins read everything in More ▸ Admin
  * (ValuesScreen/AdminReport.js, the More hub's Admin card). "Your reports" below shows whether an admin
  * has looked at each one. Data rules: Code/Reports/reportsApi.js.
+ *
+ * Opened by openReportForm (./openReportForm.js) it arrives with a category
+ * picked — the ban card's appeal, a review's flag — and for a review, the
+ * review itself, shown above the details and sent as reviewId/reviewedUserId.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -13,6 +17,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
+import { useRoute } from '@react-navigation/native';
 import { useGlobalState } from '../GlobelStats';
 import { getThemeColors } from '../Helper/themeColors';
 import { showErrorMessage, showSuccessMessage } from '../Helper/MessageHelper';
@@ -26,12 +31,15 @@ const TYPES = [
   { key: 'complaint', icon: 'alert-circle' },
   { key: 'suggestion', icon: 'bulb' },
 ];
+// Categories with their own placeholder in reports.placeholder_<category>.
+const OWN_PLACEHOLDER = ['ban_appeal', 'false_review'];
 
 export default function ReportScreen() {
   const { t, i18n } = useTranslation();
   const { user, appdatabase, theme } = useGlobalState();
   const c = getThemeColors(theme === 'dark');
   const uid = user?.id || null;
+  const params = useRoute()?.params;
 
   const [type, setType] = useState('complaint');
   const [category, setCategory] = useState(null);
@@ -42,6 +50,15 @@ export default function ReportScreen() {
   const [progress, setProgress] = useState(null);
   const [mine, setMine] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [review, setReview] = useState(null);
+
+  // A fresh open from the ban card or a review flag (params.at changes each time).
+  useEffect(() => {
+    if (!params?.at || !params.category) return;
+    setType('complaint');
+    setCategory(params.category);
+    setReview(params.review?.id ? params.review : null);
+  }, [params?.at, params?.category, params?.review]);
 
   const loadMine = useCallback(async () => {
     if (!uid || !appdatabase) return;
@@ -72,9 +89,9 @@ export default function ReportScreen() {
     sendingRef.current = true;
     setSending(true);
     try {
-      await sendReport(appdatabase, user, { type, category, text, imageUris: images }, (done, total) => setProgress({ done, total }));
+      await sendReport(appdatabase, user, { type, category, text, imageUris: images, review: type === 'complaint' ? review : null }, (done, total) => setProgress({ done, total }));
       showSuccessMessage(t('reports.sent_title'), t('reports.sent_body'));
-      setText(''); setImages([]); setCategory(null);
+      setText(''); setImages([]); setCategory(null); setReview(null);
       loadMine();
     } catch (e) {
       const key = e?.code === 'too_soon' ? 'err_too_soon'
@@ -132,6 +149,32 @@ export default function ReportScreen() {
         </>
       ) : null}
 
+      {type === 'complaint' && review ? (
+        <>
+          <Text style={[styles.label, { color: c.textSecondary }]}>{t('reports.reported_review')}</Text>
+          <View style={[styles.review, { backgroundColor: c.bgAlt, borderColor: c.border }]}>
+            <View style={styles.flex1}>
+              <View style={styles.reviewTop}>
+                <Text style={[styles.reviewName, { color: c.text }]} numberOfLines={1}>
+                  {review.userName || t('chat.anonymous')}
+                </Text>
+                <View style={styles.stars}>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <Icon key={n} name={n <= review.rating ? 'star' : 'star-outline'} size={11} color="#FBBF24" />
+                  ))}
+                </View>
+              </View>
+              {review.review ? (
+                <Text style={[styles.reviewText, { color: c.textSecondary }]} numberOfLines={3}>{review.review}</Text>
+              ) : null}
+            </View>
+            <TouchableOpacity onPress={() => setReview(null)} hitSlop={10} style={styles.reviewX}>
+              <Icon name="close" size={18} color={c.textMuted} />
+            </TouchableOpacity>
+          </View>
+        </>
+      ) : null}
+
       <Text style={[styles.label, { color: c.textSecondary }]}>{t('reports.details')}</Text>
       <TextInput
         value={text}
@@ -139,7 +182,7 @@ export default function ReportScreen() {
         multiline
         maxLength={REPORT_TEXT_MAX}
         textAlignVertical="top"
-        placeholder={t(`reports.placeholder_${type}`)}
+        placeholder={t(`reports.placeholder_${type === 'complaint' && OWN_PLACEHOLDER.includes(category) ? category : type}`)}
         placeholderTextColor={c.textMuted}
         style={[styles.input, { backgroundColor: c.bgAlt, borderColor: c.border, color: c.text }]}
       />
@@ -235,4 +278,11 @@ const styles = StyleSheet.create({
   mineTitle: { fontSize: 15, fontWeight: '800', marginTop: 26, marginBottom: 8 },
   mineRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 8 },
   status: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  flex1: { flex: 1 },
+  review: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 12, padding: 12 },
+  reviewTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  stars: { flexDirection: 'row', gap: 1 },
+  reviewName: { fontSize: 13.5, fontWeight: '700', flexShrink: 1 },
+  reviewText: { fontSize: 12.5, marginTop: 2 },
+  reviewX: { marginLeft: 8 },
 });

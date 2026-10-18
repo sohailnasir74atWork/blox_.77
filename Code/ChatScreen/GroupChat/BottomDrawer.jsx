@@ -68,6 +68,7 @@ import {
 } from '../../Helper/modSanction';
 import ModActionModal from '../../AppHelper/ModActionModal';
 import ModHistoryList from '../../AppHelper/ModHistoryList';
+import { openReportForm, reviewForReport } from '../../Reports/openReportForm';
 
 // Initialize dayjs plugins
 dayjs.extend(relativeTime);
@@ -1283,6 +1284,14 @@ const ProfileBottomDrawer = ({
   };
   // console.log(selectedUser)
   // ─────────────────────────────────────────────
+  // A review's flag: close the drawer, then open Complaints & ideas with the
+  // review attached (Reports/openReportForm).
+  const reportReview = (rev) => {
+    const payload = reviewForReport(rev, selectedUserId);
+    toggleModal?.();
+    setTimeout(() => openReportForm({ category: 'false_review', review: payload }), 300);
+  };
+
   // Start chat
   //
   // Shows one interstitial per session before entering a DM — skipped for the
@@ -2697,6 +2706,16 @@ const ProfileBottomDrawer = ({
                               </Text>
                             )}
                             {renderStars(rev?.rating || 0)}
+                            {!!user?.id && rev.fromUserId !== user.id && (
+                              <TouchableOpacity
+                                onPress={() => reportReview(rev)}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('reports.report_review')}
+                              >
+                                <Icon name="flag-outline" size={13} color={isDarkMode ? '#6b7280' : '#9ca3af'} />
+                              </TouchableOpacity>
+                            )}
                             {(isAdmin || isGlobalSenior || isGlobalModerator) && selectedUserId !== user?.id && (
                               <TouchableOpacity
                                 onPress={() => handleDeleteReview(rev)}

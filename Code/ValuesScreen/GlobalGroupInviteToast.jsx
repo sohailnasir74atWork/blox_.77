@@ -5,7 +5,36 @@ import { collection, query, where, getDocs, doc, deleteDoc, onSnapshot } from '@
 import { showInfoMessage } from '../Helper/MessageHelper';
 import GroupInviteToast from './GroupInviteToast';
 import { AppState } from 'react-native';
+import { createMMKV } from 'react-native-mmkv';
 import i18next from 'i18next';
+
+// Invites that already popped up on this device ({ "group-<id>": expiresAt }).
+// The pop-up used to remember this only in memory, so the same invite came
+// back on every app open for its whole 7 days (owner report, 2026-10-18).
+// Each invite now pops up once; it stays listed in Groups ▸ Invitations until
+// it is answered or expires.
+const SHOWN_INVITES_KEY = 'shownInviteToasts';
+const inviteStorage = createMMKV();
+const readShownInvites = () => {
+  try {
+    const parsed = JSON.parse(inviteStorage.getString(SHOWN_INVITES_KEY) || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+};
+const rememberShownInvite = (inviteKey, expiresAt) => {
+  const now = Date.now();
+  const shown = readShownInvites();
+  // Drop entries for invites that have expired anyway.
+  Object.keys(shown).forEach((key) => {
+    if (!(shown[key] > now)) delete shown[key];
+  });
+  shown[inviteKey] = expiresAt || now + 7 * 24 * 60 * 60 * 1000;
+  try {
+    inviteStorage.set(SHOWN_INVITES_KEY, JSON.stringify(shown));
+  } catch (_) {}
+};
 
 const INVITE_EXPIRY_MS = 60000; // 1 minute for game invites
 // Invites arrive over ONE real-time listener per query, attached only while the
@@ -60,15 +89,23 @@ const GlobalGroupInviteToast = () => {
       });
     }
 
+    // Each invite pops up once per device. The one on screen right now stays
+    // eligible, so a later snapshot doesn't hide it while it is being read.
+    const shownInvites = readShownInvites();
+    const unseenInvites = allInvites.filter((invite) => {
+      const key = `${invite.type}-${invite.id || invite.roomId}`;
+      return !shownInvites[key] || key === lastInviteIdRef.current;
+    });
+
     // Sort by timestamp (newest first)
-    allInvites.sort((a, b) => {
+    unseenInvites.sort((a, b) => {
       const aTime = a.timestamp || a.createdAt?.toMillis?.() || a.createdAt || 0;
       const bTime = b.timestamp || b.createdAt?.toMillis?.() || b.createdAt || 0;
       return bTime - aTime;
     });
 
     // Hide toast if no valid invites
-    if (allInvites.length === 0) {
+    if (unseenInvites.length === 0) {
       setToastVisible(false);
       setToastData(null);
       lastInviteIdRef.current = null;
@@ -80,12 +117,13 @@ const GlobalGroupInviteToast = () => {
     }
 
     // Show toast for newest valid invite
-    const latestInvite = allInvites[0];
+    const latestInvite = unseenInvites[0];
     const inviteId = `${latestInvite.type}-${latestInvite.id || latestInvite.roomId}`;
 
     // Only show if it's a new invite (not the same one)
     if (inviteId !== lastInviteIdRef.current) {
       lastInviteIdRef.current = inviteId;
+      rememberShownInvite(inviteId, latestInvite.expiresAt);
       
       const isGameInvite = latestInvite.type === 'game';
       const fromUserName = isGameInvite 
@@ -166,6 +204,7 @@ const GlobalGroupInviteToast = () => {
     const handleGroupInviteDocs = (docs) => {
       const now = Date.now();
       const validInvites = [];
+      const expiredInviteIds = [];
 
       (docs || []).forEach((docSnap) => {
         const data = docSnap.data();
@@ -191,6 +230,19 @@ const GlobalGroupInviteToast = () => {
             expiresAt: expiresAt,
             timestamp: timestamp,
           });
+        } else if (data.status === 'pending') {
+          expiredInviteIds.push(docSnap.id);
+        }
+      });
+
+      // Expired invites were never deleted (1,901 of 1,923 pending ones on
+      // 2026-10-18), so every listener kept downloading them. The invited player
+      // may delete their own invite (firestore.rules group_invitations).
+      expiredInviteIds.forEach(async (inviteId) => {
+        try {
+          await deleteDoc(doc(firestoreDB, 'group_invitations', inviteId));
+        } catch (error) {
+          console.warn('Error deleting expired group invite:', error?.message || error);
         }
       });
 

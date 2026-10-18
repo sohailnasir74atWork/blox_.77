@@ -165,6 +165,10 @@
       "please_try_again": "もう一度お試しください。",
       "roblox_code_not_found": "Robloxのプロフィール説明に確認コードが見つかりません",
       "roblox_check_failed": "確認できませんでした。もう一度お試しください。",
+      "roblox_busy": "Robloxが混み合っています。1分待ってから、もう一度「認証」をタップしてください。",
+      "roblox_copy_code": "コードをコピー",
+      "roblox_code_copied_title": "コードをコピーしました",
+      "roblox_code_copied": "{{code}}をコピーしました。Robloxプロフィールの自己紹介に貼り付けて保存し、戻ってもう一度「認証」をタップしてください。",
       "login_first": "先にログインしてください",
       "enter_roblox_username": "Robloxのユーザー名を入力してください",
       "invalid_username": "ユーザー名が正しくありません",
@@ -1284,7 +1288,9 @@
       "only_creator_update_icon": "グループアイコンを変更できるのはグループの作成者だけです"
     },
     "confirm_block": "{{name}}さんをブロックしますか？",
-    "confirm_unblock": "{{name}}さんのブロックを解除しますか？"
+    "confirm_unblock": "{{name}}さんのブロックを解除しますか？",
+    "translate_tip_long": "ヒント：メッセージを長押しすると翻訳できます。",
+    "translate_tip_tap": "ヒント：メッセージをタップすると翻訳できます。"
   },
   "first": {
     "continue_guest": "ゲストで続ける",
@@ -1547,7 +1553,9 @@
     "ban_time_days": "残り{{days}}日{{hours}}時間",
     "ban_time_hours": "残り{{hours}}時間{{minutes}}分",
     "ban_time_minutes": "残り{{minutes}}分",
-    "ban_associated_with_email": "この端末はBANされたアカウント（{{email}}）に紐づいています。別のメールアドレスでログインしても利用は再開できません。"
+    "ban_associated_with_email": "この端末はBANされたアカウント（{{email}}）に紐づいています。別のメールアドレスでログインしても利用は再開できません。",
+    "ban_appeal_question": "間違いだと思いますか？",
+    "ban_appeal_button": "異議を申し立てる"
   },
   "more_hub": {
     "title": "その他",
@@ -1587,7 +1595,8 @@
       "moderation": "モデレーション",
       "scam": "詐欺・トレード",
       "bug": "アプリの不具合",
-      "other": "その他"
+      "other": "その他",
+      "ban_appeal": "BANへの異議"
     },
     "details": "詳細",
     "placeholder_complaint": "何があったか教えてください。ユーザー名・日付・スクリーンショットがあるととても助かります。",
@@ -1608,7 +1617,11 @@
     "sign_in": "問題の報告やアイデアを送るにはログインしてください。",
     "mine_title": "自分の報告",
     "status_open": "受付済み",
-    "status_done": "確認済み"
+    "status_done": "確認済み",
+    "placeholder_ban_appeal": "何があったのか、なぜBANが間違いだと思うのかを教えてください。スクリーンショットがあると助かります。",
+    "placeholder_false_review": "このレビューのどこが事実と違いますか？チャットのスクリーンショットがあると助かります。",
+    "reported_review": "報告するレビュー",
+    "report_review": "レビューを報告"
   },
   "groups": {
     "errors": {
@@ -2483,7 +2496,9 @@
       "submit_failed": "通報を送信できませんでした。もう一度お試しください。",
       "title": "投稿を通報",
       "placeholder": "通報する理由を入力してください",
-      "submitting": "送信中…"
+      "submitting": "送信中…",
+      "status_title": "ステータスを通報",
+      "status_placeholder": "このステータスを通報する理由は？"
     },
     "comments_modal": {
       "sign_in_required": "ログインが必要です",

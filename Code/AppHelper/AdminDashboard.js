@@ -41,6 +41,7 @@ import {
   onValue,
 } from '@react-native-firebase/database';
 import { modLoadPrivateChat as sbLoadPrivateMessages } from '../Supabase/privateMessagesBackend';
+import { adminListUserChats } from '../Supabase/chatMetaBackend';
 import {
   fetchAllPolls as sbFetchAllPolls,
   createPoll as sbCreatePoll,
@@ -60,7 +61,6 @@ import {
   doc,
   getDoc,
   deleteDoc,
-  setDoc,
   addDoc,
   Timestamp,
   updateDoc,
@@ -74,13 +74,13 @@ import {
   getModPermissions,
   canLiftSanction,
   fetchUserRoles,
-  outranksUser,
   isCurrentUserOwner,
   isMuteRecordCompat,
   getStaffRank,
   STAFF_RANK,
 } from '../ChatScreen/utils';
 import { getUserEmail, findUsersByEmail, normalizeEmail } from '../Helper/privateProfile';
+import { canRemoveReview, canDeleteReviews, deleteReviewAndSummary } from '../Helper/reviewModeration';
 import {
   sanctionErrorText,
   describeSanctionResult,
@@ -209,6 +209,7 @@ const SECTIONS = [
   ] },
   { key: 'users', label: 'Users', icon: 'people', tabs: [
     { key: 'search', label: 'Find user' },
+    { key: 'userChats', label: 'User chats', admin: true },
     { key: 'banned', label: 'Banned' },
     { key: 'banStats', label: 'Ban stats' },
   ] },
@@ -579,6 +580,20 @@ const AdminDashboard = () => {
   const [chatSearching2, setChatSearching2] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [loadingChat, setLoadingChat] = useState(false);
+  const autoLoadedChatRef = React.useRef(null);
+
+  // Admin-only inbox lookup for one user (ported from Adopt Me).
+  const USER_CHATS_PAGE_SIZE = 20;
+  const [userChatsInput, setUserChatsInput] = useState('');
+  const [userChatsTarget, setUserChatsTarget] = useState(null);
+  const [userChatsResults, setUserChatsResults] = useState([]);
+  const [userChatsList, setUserChatsList] = useState([]);
+  const [userChatsSearching, setUserChatsSearching] = useState(false);
+  const [userChatsLoading, setUserChatsLoading] = useState(false);
+  const [userChatsLoadingMore, setUserChatsLoadingMore] = useState(false);
+  const [userChatsHasMore, setUserChatsHasMore] = useState(true);
+  const [userChatsBulkLoading, setUserChatsBulkLoading] = useState(false);
+  const userChatsOffsetRef = React.useRef(0);
 
   // Reported Chats (for mods — consent-based viewing)
   const [chatReports, setChatReports] = useState([]);
@@ -1124,12 +1139,9 @@ const AdminDashboard = () => {
 
     // Staff may only delete a review left by someone STRICTLY below them
     // (same ladder as every other moderation action, fresh RTDB roles).
-    if (review.fromUserId && review.fromUserId !== currentUser?.id) {
-      const allowed = await outranksUser(review.fromUserId, callerRoles);
-      if (!allowed) {
-        Alert.alert('Restricted', 'You cannot delete reviews left by staff at or above your rank.');
-        return;
-      }
+    if (!(await canRemoveReview(review.fromUserId, callerRoles, currentUser?.id))) {
+      Alert.alert('Restricted', 'Only admins can delete reviews, and not reviews left by staff at or above your rank.');
+      return;
     }
 
     Alert.alert(
@@ -1142,36 +1154,15 @@ const AdminDashboard = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              const firestoreDB = getFirestore();
-              const reviewRef = doc(firestoreDB, 'reviews', review.id);
-
               // Get the rating before deleting so we can update the summary
               const ratingToRemove = parseRatingSafe(review?.rating);
 
-              // Delete the review document
-              await deleteDoc(reviewRef);
-
-              // Update the ratings summary
-              const summaryRef = doc(firestoreDB, 'user_ratings_summary', selectedUser.id);
-              const summarySnap = await getDoc(summaryRef);
-
-              if (summarySnap.exists()) {
-                const s = summarySnap.data();
-                const oldAvg = s?.averageRating || 0;
-                const oldCount = s?.count || 0;
-
-                if (oldCount <= 1) {
-                  // Last review — reset summary
-                  await setDoc(summaryRef, { averageRating: 0, count: 0 }, { merge: true });
-                } else {
-                  const newCount = oldCount - 1;
-                  const newAvg = ((oldAvg * oldCount) - ratingToRemove) / newCount;
-                  await setDoc(summaryRef, {
-                    averageRating: parseFloat(newAvg.toFixed(2)),
-                    count: newCount,
-                  }, { merge: true });
-                }
-              }
+              // Delete the review and update the ratings summary
+              await deleteReviewAndSummary(getFirestore(), {
+                id: review.id,
+                toUserId: selectedUser.id,
+                rating: ratingToRemove,
+              });
 
               // Remove from local state
               setReviews((prev) => prev.filter((r) => r.id !== review.id));
@@ -1302,13 +1293,158 @@ const AdminDashboard = () => {
         }
       }
 
-      setResults(results.slice(0, 8));
+      const matches = results.slice(0, 8);
+      setResults(matches);
+      return matches;
     } catch (err) {
       console.error('Chat user search error:', err);
+      setResults([]);
+      return [];
     } finally {
       setSearching(false);
     }
   }, [db]);
+
+  const fetchUserChats = useCallback(async (target, reset = false) => {
+    if (!isAdmin || !target?.id) return;
+    if (reset) {
+      setUserChatsLoading(true);
+      userChatsOffsetRef.current = 0;
+      setUserChatsHasMore(true);
+    } else {
+      if (!userChatsHasMore || userChatsLoadingMore || userChatsLoading) return;
+      setUserChatsLoadingMore(true);
+    }
+    try {
+      const rows = await adminListUserChats(target.id, reset ? 0 : userChatsOffsetRef.current, USER_CHATS_PAGE_SIZE);
+      const items = (rows || []).map((row) => ({
+        partnerId: row.partnerId,
+        chatId: row.chatId,
+        lastMessage: row.lastMessage || '',
+        timestamp: row.timestamp || 0,
+        unreadCount: row.unreadCount || 0,
+        partnerName: row.receiverName || 'Unknown',
+        partnerAvatar: row.receiverAvatar || DEFAULT_AVATAR,
+      })).filter((row) => row.partnerId);
+      userChatsOffsetRef.current = (reset ? 0 : userChatsOffsetRef.current) + (rows || []).length;
+      setUserChatsHasMore((rows || []).length === USER_CHATS_PAGE_SIZE);
+      setUserChatsList((previous) => reset ? items : [...previous, ...items]);
+    } catch (err) {
+      console.warn('[AdminDashboard] fetchUserChats failed:', err?.message);
+      Alert.alert('Could not load chats', err?.message || 'The admin chat lookup failed.');
+    } finally {
+      setUserChatsLoading(false);
+      setUserChatsLoadingMore(false);
+    }
+  }, [isAdmin, userChatsHasMore, userChatsLoadingMore, userChatsLoading]);
+
+  // Temporary admin audit path: bulk-read recent messages for the first 50
+  // conversations and write them only to the app cache for local review.
+  const exportRecentUserChatsForReview = useCallback(async () => {
+    if (!isAdmin || !userChatsTarget?.id || userChatsBulkLoading) return;
+    setUserChatsBulkLoading(true);
+    const pageSize = 20;
+    try {
+      const rows = [];
+      for (let offset = 0; offset < 60 && rows.length < 50; offset += pageSize) {
+        const page = await adminListUserChats(userChatsTarget.id, offset, pageSize);
+        if (!page.length) break;
+        rows.push(...page);
+        if (page.length < pageSize) break;
+      }
+      const targets = rows.slice(0, 50).filter((row) => row.partnerId);
+      const conversations = [];
+      for (let start = 0; start < targets.length; start += 4) {
+        const chunk = targets.slice(start, start + 4);
+        conversations.push(...await Promise.all(chunk.map(async (row) => {
+          const chatId = row.chatId || [userChatsTarget.id, row.partnerId].sort().join('_');
+          const messages = await sbLoadPrivateMessages(chatId, { limit: 200 });
+          return {
+            partnerId: row.partnerId,
+            partnerName: row.receiverName || null,
+            chatId,
+            lastMessage: row.lastMessage || null,
+            timestamp: row.timestamp || 0,
+            messages: (messages || []).map((message) => ({
+              senderId: message.senderId,
+              timestamp: message.timestamp || null,
+              text: message.text || '',
+              imageUrl: message.imageUrl || null,
+              fruits: message.fruits || null,
+              deleted: !!message.deleted,
+            })),
+          };
+        })));
+      }
+      const path = `${RNFS.CachesDirectoryPath}/blox_admin_dm_review.json`;
+      await RNFS.writeFile(path, JSON.stringify({
+        target: { id: userChatsTarget.id, displayName: userChatsTarget.displayName },
+        exportedAt: new Date().toISOString(),
+        conversationCount: conversations.length,
+        conversations,
+      }), 'utf8');
+      Alert.alert('Review data ready', `Loaded ${conversations.length} conversations for local review.`);
+    } catch (err) {
+      console.warn('[AdminDashboard] bulk DM review export failed:', err?.message);
+      Alert.alert('Could not load review data', err?.message || 'The bulk chat read failed.');
+    } finally {
+      setUserChatsBulkLoading(false);
+    }
+  }, [isAdmin, userChatsTarget, userChatsBulkLoading]);
+
+  const selectUserChatsTarget = useCallback((target) => {
+    setUserChatsResults([]);
+    setUserChatsInput('');
+    setUserChatsTarget(target);
+    setUserChatsList([]);
+    userChatsOffsetRef.current = 0;
+    fetchUserChats(target, true);
+  }, [fetchUserChats]);
+
+  const loadUserChatsForInput = useCallback(async () => {
+    const raw = userChatsInput.trim();
+    if (!raw) { Alert.alert('Search user', 'Enter a name, email, or user ID.'); return; }
+    Keyboard.dismiss();
+    setUserChatsSearching(true);
+    try {
+      const matches = await searchChatUser(raw, 1);
+      if (!matches.length) {
+        setUserChatsResults([]);
+        Alert.alert('Not found', 'No user matches that name, email, or ID.');
+      } else if (matches.length === 1) {
+        selectUserChatsTarget(matches[0]);
+      } else {
+        setUserChatsResults(matches);
+      }
+    } finally {
+      setUserChatsSearching(false);
+    }
+  }, [userChatsInput, searchChatUser, selectUserChatsTarget]);
+
+  const clearUserChatsTarget = useCallback(() => {
+    setUserChatsTarget(null);
+    setUserChatsInput('');
+    setUserChatsResults([]);
+    setUserChatsList([]);
+    userChatsOffsetRef.current = 0;
+    setUserChatsHasMore(true);
+  }, []);
+
+  const openChatFromUserChats = useCallback((entry) => {
+    if (!userChatsTarget?.id || !entry?.partnerId) return;
+    setChatPerson1(userChatsTarget);
+    setChatPerson2({
+      id: entry.partnerId,
+      displayName: entry.partnerName || 'Unknown',
+      avatar: entry.partnerAvatar || DEFAULT_AVATAR,
+    });
+    setChatSearch1(''); setChatSearch2('');
+    setChatResults1([]); setChatResults2([]);
+    setSelectedReport(null);
+    setChatMessages([]);
+    autoLoadedChatRef.current = null;
+    setActiveTab('chatViewer');
+  }, [userChatsTarget]);
 
   // Load Private Chat between two selected users
   const loadChat = useCallback(async () => {
@@ -1341,6 +1477,16 @@ const AdminDashboard = () => {
       setLoadingChat(false);
     }
   }, [chatPerson1, chatPerson2]);
+
+  useEffect(() => {
+    const chatKey = chatPerson1?.id && chatPerson2?.id
+      ? [chatPerson1.id, chatPerson2.id].sort().join('_')
+      : null;
+    if (activeTab === 'chatViewer' && isAdmin && !selectedReport && chatKey && !chatMessages.length && !loadingChat && autoLoadedChatRef.current !== chatKey) {
+      autoLoadedChatRef.current = chatKey;
+      loadChat();
+    }
+  }, [activeTab, isAdmin, selectedReport, chatPerson1?.id, chatPerson2?.id, chatMessages.length, loadingChat, loadChat]);
 
   // ─────────────────────────────────────────────
   // Reported Chats — fetch from Firestore (for mods)
@@ -1899,6 +2045,95 @@ const AdminDashboard = () => {
                   </View>
                 )
               }
+            />
+          )}
+        </View>
+      ) : activeTab === 'userChats' && isAdmin ? (
+        <View style={{ flex: 1 }}>
+          <View style={{ paddingHorizontal: 16, marginBottom: 10 }}>
+            <Text style={{ color: ui.sub, fontSize: 11, fontWeight: '600', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>Target user</Text>
+            {userChatsTarget ? (
+              <>
+                <View style={[styles.selectedPersonCard, { backgroundColor: ui.surface, borderColor: ui.border }]}>
+                  <Image resizeMethod="resize" source={{ uri: userChatsTarget.avatar }} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#DDD' }} />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={{ color: ui.text, fontSize: 15, fontWeight: '600' }} numberOfLines={1}>{userChatsTarget.displayName}</Text>
+                    <Text style={{ color: ui.sub, fontSize: 11 }} numberOfLines={1}>{userChatsTarget.email || userChatsTarget.id}</Text>
+                  </View>
+                  <TouchableOpacity onPress={clearUserChatsTarget} style={{ padding: 4 }}>
+                    <Ionicons name="close-circle" size={22} color={ui.sub} />
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                  onPress={exportRecentUserChatsForReview}
+                  disabled={userChatsBulkLoading}
+                  style={{ alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', backgroundColor: '#5856D6', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, marginTop: 8 }}
+                >
+                  {userChatsBulkLoading ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="download-outline" size={16} color="#FFF" />}
+                  <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '700', marginLeft: 5 }}>{userChatsBulkLoading ? 'Loading 50 chats…' : 'Load 50 chats for review'}</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <View style={styles.searchContainer}>
+                <TextInput
+                  value={userChatsInput}
+                  onChangeText={setUserChatsInput}
+                  placeholder="Name, email, or user ID..."
+                  placeholderTextColor={ui.sub}
+                  style={[styles.searchInput, { backgroundColor: ui.surface, color: ui.text, borderColor: ui.border }]}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="search"
+                  onSubmitEditing={loadUserChatsForInput}
+                />
+                <TouchableOpacity style={[styles.searchBtn, { backgroundColor: '#34C759' }]} onPress={loadUserChatsForInput} disabled={userChatsSearching}>
+                  {userChatsSearching ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="search" size={20} color="#FFF" />}
+                </TouchableOpacity>
+              </View>
+            )}
+            {userChatsResults.length > 0 && (
+              <View style={[styles.chatDropdown, { backgroundColor: ui.surface, borderColor: ui.border }]}>
+                {userChatsResults.map((u) => (
+                  <TouchableOpacity key={u.id} onPress={() => selectUserChatsTarget(u)} style={[styles.chatDropdownItem, { borderBottomColor: ui.border }]}>
+                    <Image resizeMethod="resize" source={{ uri: u.avatar }} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: '#DDD' }} />
+                    <View style={{ flex: 1, marginLeft: 8 }}>
+                      <Text style={{ color: ui.text, fontSize: 14, fontWeight: '500' }} numberOfLines={1}>{u.displayName}</Text>
+                      <Text style={{ color: ui.sub, fontSize: 11 }} numberOfLines={1}>{u.email || u.id}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+          {userChatsLoading && userChatsList.length === 0 ? (
+            <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 40 }} />
+          ) : (
+            <FlatList
+              data={userChatsList}
+              keyExtractor={(item) => item.partnerId}
+              contentContainerStyle={styles.listContent}
+              onEndReachedThreshold={0.3}
+              onEndReached={() => {
+                if (userChatsTarget && userChatsHasMore && !userChatsLoadingMore && !userChatsLoading) fetchUserChats(userChatsTarget, false);
+              }}
+              ListEmptyComponent={(
+                <View style={styles.emptyState}>
+                  <Ionicons name="chatbubbles-outline" size={48} color={ui.sub} />
+                  <Text style={[styles.emptyText, { color: ui.sub }]}>{userChatsTarget ? 'No private chats for this user' : 'Search a name, email, or user ID to view their private chats'}</Text>
+                </View>
+              )}
+              ListFooterComponent={userChatsLoadingMore ? <ActivityIndicator size="small" color="#007AFF" style={{ marginVertical: 12 }} /> : null}
+              renderItem={({ item }) => (
+                <TouchableOpacity onPress={() => openChatFromUserChats(item)} style={[styles.listCard, { backgroundColor: ui.surface, borderColor: ui.border, flexDirection: 'row', alignItems: 'center', padding: 12, marginHorizontal: 16, marginBottom: 8 }]}>
+                  <Image resizeMethod="resize" source={{ uri: item.partnerAvatar }} style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#DDD' }} />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={{ color: ui.text, fontSize: 15, fontWeight: '600' }} numberOfLines={1}>{item.partnerName}</Text>
+                    <Text style={{ color: ui.sub, fontSize: 13, marginTop: 3 }} numberOfLines={1}>{item.lastMessage || '—'}</Text>
+                    <Text style={{ color: ui.sub, fontSize: 11, marginTop: 3 }}>{item.timestamp ? timeAgo(item.timestamp) : ''}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={ui.sub} />
+                </TouchableOpacity>
+              )}
             />
           )}
         </View>
@@ -2498,7 +2733,7 @@ const AdminDashboard = () => {
           )}
         </View>
       ) : activeTab === 'reviewIntegrity' ? (
-        <ReviewIntegrityTab isDark={isDark} currentUser={currentUser} />
+        <ReviewIntegrityTab isDark={isDark} currentUser={currentUser} callerRoles={callerRoles} />
       ) : activeTab === 'modLog' ? (
         <ModLogTab isDark={isDark} />
       ) : activeTab === 'reports' ? (
@@ -2708,12 +2943,14 @@ const AdminDashboard = () => {
                           <Text style={{ color: isDark ? '#666' : '#999', marginLeft: 'auto', fontSize: 11 }}>
                             {dateText || '—'}
                           </Text>
-                          <TouchableOpacity
-                            onPress={() => handleDeleteReview(review)}
-                            style={{ marginLeft: 10, padding: 4 }}
-                          >
-                            <Ionicons name="trash-outline" size={16} color="#FF3B30" />
-                          </TouchableOpacity>
+                          {canDeleteReviews(callerRoles) && (
+                            <TouchableOpacity
+                              onPress={() => handleDeleteReview(review)}
+                              style={{ marginLeft: 10, padding: 4 }}
+                            >
+                              <Ionicons name="trash-outline" size={16} color="#FF3B30" />
+                            </TouchableOpacity>
+                          )}
                         </View>
 
                         <Text style={{ color: isDark ? '#CCC' : '#333' }}>

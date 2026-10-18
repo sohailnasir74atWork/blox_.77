@@ -10,7 +10,11 @@ import { useGlobalState, modGateText } from '../../GlobelStats';
 import { submitUserReport } from '../../Helper/userReports';
 import { useTranslation } from 'react-i18next';
 
-const ReportModal = ({ visible, onClose, item }) => {
+// kind 'status' (2026-10-18): a status from the Home status viewer. It only
+// files a user_reports row of type 'status' (staff Reports queue); the
+// designPosts_upgrade count and the local hide are for feed posts.
+const ReportModal = ({ visible, onClose, item, kind = 'post' }) => {
+  const isStatus = kind === 'status';
   const [reportText, setReportText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { updateLocalState, localState } = useLocalState()
@@ -85,6 +89,27 @@ const ReportModal = ({ visible, onClose, item }) => {
     }
 
     setSubmitting(true);
+    if (isStatus) {
+      try {
+        await submitUserReport(firestoreDB, {
+          type: 'status',
+          targetId: item.id,
+          targetUid: item.userId || null,
+          reporterUid: user.id,
+          reason: reportText,
+          text: reportText,
+        });
+        showMessage({ message: t('reports.sent_title'), description: t('reports.sent_body'), type: 'success' });
+        setReportText('');
+        onClose();
+      } catch (e) {
+        console.error('Status report error:', e);
+        showMessage({ message: t('feed.report_modal.submit_failed'), type: 'danger' });
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
     const postRef = doc(firestoreDB, 'designPosts_upgrade', item.id);
 
     try {
@@ -165,10 +190,10 @@ const ReportModal = ({ visible, onClose, item }) => {
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.overlay}>
           <View style={styles.modal}>
-            <Text style={styles.title}>{t('feed.report_modal.title')}</Text>
+            <Text style={styles.title}>{t(isStatus ? 'feed.report_modal.status_title' : 'feed.report_modal.title')}</Text>
             <TextInput
               style={styles.input}
-              placeholder={t('feed.report_modal.placeholder')}
+              placeholder={t(isStatus ? 'feed.report_modal.status_placeholder' : 'feed.report_modal.placeholder')}
               placeholderTextColor="#888"
               value={reportText}
               onChangeText={setReportText}

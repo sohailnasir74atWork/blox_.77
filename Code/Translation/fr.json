@@ -165,6 +165,10 @@
             "please_try_again": "Réessayez.",
             "roblox_code_not_found": "Code de vérification introuvable dans la description de votre profil Roblox.",
             "roblox_check_failed": "Échec de la vérification. Réessayez.",
+            "roblox_busy": "Roblox est occupé pour le moment. Attends une minute, puis touche à nouveau Vérifier.",
+            "roblox_copy_code": "Copier le code",
+            "roblox_code_copied_title": "Code copié",
+            "roblox_code_copied": "{{code}} est copié. Colle-le dans « À propos » de ton profil Roblox, enregistre, puis reviens et touche à nouveau Vérifier.",
             "login_first": "Connectez-vous d’abord.",
             "enter_roblox_username": "Saisissez votre nom d’utilisateur Roblox.",
             "invalid_username": "Nom d’utilisateur invalide",
@@ -1285,7 +1289,9 @@
             "only_creator_update_icon": "Seul le créateur du groupe peut modifier son icône"
         },
         "confirm_block": "Veux-tu vraiment bloquer {{name}} ?",
-        "confirm_unblock": "Veux-tu vraiment débloquer {{name}} ?"
+        "confirm_unblock": "Veux-tu vraiment débloquer {{name}} ?",
+        "translate_tip_long": "Astuce : appuie longuement sur un message pour le traduire.",
+        "translate_tip_tap": "Astuce : touche un message pour le traduire."
     },
     "first": {
         "welcome_title": "Bienvenue sur Fruit Values",
@@ -1552,7 +1558,9 @@
         "ban_time_days": "Il reste {{days}} j et {{hours}} h",
         "ban_time_hours": "Il reste {{hours}} h et {{minutes}} min",
         "ban_time_minutes": "Il reste {{minutes}} min",
-        "ban_associated_with_email": "Cet appareil est associé à un compte banni ({{email}}). Se connecter avec une autre adresse e-mail ne rétablira pas l’accès."
+        "ban_associated_with_email": "Cet appareil est associé à un compte banni ({{email}}). Se connecter avec une autre adresse e-mail ne rétablira pas l’accès.",
+        "ban_appeal_question": "Tu penses que c'est une erreur ?",
+        "ban_appeal_button": "Faire appel"
     },
     "more_hub": {
         "title": "Plus",
@@ -1592,7 +1600,8 @@
             "moderation": "Modération",
             "scam": "Arnaque ou trade",
             "bug": "Problème avec l’appli",
-            "other": "Autre"
+            "other": "Autre",
+            "ban_appeal": "Contester un bannissement"
         },
         "details": "Détails",
         "placeholder_complaint": "Expliquez ce qui s’est passé. Les pseudos, dates et captures nous aident beaucoup.",
@@ -1613,7 +1622,11 @@
         "sign_in": "Connectez-vous pour envoyer un signalement ou une idée.",
         "mine_title": "Mes signalements",
         "status_open": "Reçu",
-        "status_done": "Examiné"
+        "status_done": "Examiné",
+        "placeholder_ban_appeal": "Raconte ce qui s'est passé et pourquoi tu penses que le bannissement est une erreur. Les captures d'écran aident.",
+        "placeholder_false_review": "Pourquoi cet avis est-il faux ? Les captures de ta discussion aident.",
+        "reported_review": "Avis que tu signales",
+        "report_review": "Signaler l'avis"
     },
     "groups": {
         "errors": {
@@ -2492,7 +2505,9 @@
             "submit_failed": "Impossible d’envoyer le signalement. Réessaie.",
             "title": "Signaler la publication",
             "placeholder": "Pourquoi signales-tu cette publication ?",
-            "submitting": "Envoi…"
+            "submitting": "Envoi…",
+            "status_title": "Signaler le statut",
+            "status_placeholder": "Pourquoi signales-tu ce statut ?"
         },
         "comments_modal": {
             "sign_in_required": "Connexion requise",

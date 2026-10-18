@@ -32,6 +32,7 @@ import database, { onValue, ref, get, query as dbQuery, orderByKey, limitToLast,
 import { useTranslation } from 'react-i18next';
 import InterstitialAdManager from '../../Ads/IntAd';
 import BannerAdComponent from '../../Ads/bannerAds';
+import TranslateTip from '../TranslateTip';
 import { logoutUser } from '../../Firebase/UserLogics';
 import { showMessage } from 'react-native-flash-message';
 import PetModal from '../PrivateChat/PetsModel';
@@ -1362,6 +1363,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
           />
 
           <ConditionalKeyboardWrapper style={{ flex: 1 }} chatscreen={true}>
+            {!loading && messages.length > 0 && <TranslateTip gesture="long" />}
             {loading ? (
               <ActivityIndicator size="large" color="#1E88E5" style={{ flex: 1 }} />
             ) : (

@@ -165,6 +165,10 @@
       "please_try_again": "Subukan ulit.",
       "roblox_code_not_found": "Hindi nakita ang verification code sa description ng Roblox profile mo.",
       "roblox_check_failed": "Hindi na-verify. Subukan ulit.",
+      "roblox_busy": "Busy ang Roblox ngayon. Maghintay ng isang minuto, tapos i-tap ulit ang Verify.",
+      "roblox_copy_code": "Kopyahin ang code",
+      "roblox_code_copied_title": "Nakopya ang code",
+      "roblox_code_copied": "Nakopya ang {{code}}. I-paste ito sa About ng Roblox profile mo, i-save, bumalik dito at i-tap ulit ang Verify.",
       "login_first": "Mag-sign in muna.",
       "enter_roblox_username": "Ilagay ang Roblox username mo.",
       "invalid_username": "Invalid na username",
@@ -1284,7 +1288,9 @@
       "only_creator_update_icon": "Gumawa lang ng grupo ang puwedeng magpalit ng icon nito"
     },
     "confirm_block": "Sigurado ka bang i-block si {{name}}?",
-    "confirm_unblock": "Sigurado ka bang i-unblock si {{name}}?"
+    "confirm_unblock": "Sigurado ka bang i-unblock si {{name}}?",
+    "translate_tip_long": "Tip: pindutin nang matagal ang anumang mensahe para isalin ito.",
+    "translate_tip_tap": "Tip: i-tap ang anumang mensahe para isalin ito."
   },
   "first": {
     "welcome_title": "Maligayang pagdating sa Fruit Values",
@@ -1549,7 +1555,9 @@
     "ban_time_days": "May natitirang {{days}} araw at {{hours}} oras",
     "ban_time_hours": "May natitirang {{hours}} oras at {{minutes}} minuto",
     "ban_time_minutes": "May natitirang {{minutes}} minuto",
-    "ban_associated_with_email": "Naka-link ang device na ito sa banned na account ({{email}}). Hindi maibabalik ang access sa pag-sign in gamit ang ibang email."
+    "ban_associated_with_email": "Naka-link ang device na ito sa banned na account ({{email}}). Hindi maibabalik ang access sa pag-sign in gamit ang ibang email.",
+    "ban_appeal_question": "Sa tingin mo ba ay pagkakamali ito?",
+    "ban_appeal_button": "Magpadala ng apela"
   },
   "more_hub": {
     "title": "Iba pa",
@@ -1589,7 +1597,8 @@
       "moderation": "Moderasyon",
       "scam": "Scam o trade",
       "bug": "Problema sa app",
-      "other": "Iba pa"
+      "other": "Iba pa",
+      "ban_appeal": "Apela sa ban"
     },
     "details": "Detalye",
     "placeholder_complaint": "Ikuwento kung ano'ng nangyari. Malaking tulong ang username, petsa at screenshot.",
@@ -1610,7 +1619,11 @@
     "sign_in": "Mag-sign in para magpadala ng reklamo o ideya.",
     "mine_title": "Mga report mo",
     "status_open": "Natanggap",
-    "status_done": "Nasuri na"
+    "status_done": "Nasuri na",
+    "placeholder_ban_appeal": "Ikuwento kung ano ang nangyari at bakit sa tingin mo ay mali ang ban. Makakatulong ang mga screenshot.",
+    "placeholder_false_review": "Bakit peke ang review na ito? Makakatulong ang mga screenshot ng chat ninyo.",
+    "reported_review": "Review na inirereport mo",
+    "report_review": "I-report ang review"
   },
   "groups": {
     "errors": {
@@ -2489,7 +2502,9 @@
       "submit_failed": "Hindi naipadala ang report. Subukan ulit.",
       "title": "I-report ang Post",
       "placeholder": "Bakit mo inire-report ang post na ito?",
-      "submitting": "Ipinapadala…"
+      "submitting": "Ipinapadala…",
+      "status_title": "I-report ang status",
+      "status_placeholder": "Bakit mo inirereport ang status na ito?"
     },
     "comments_modal": {
       "sign_in_required": "Kailangan Mag-sign In",

@@ -185,7 +185,8 @@ service cloud.firestore {
       allow read: if true;                      // web profile pages (signed out)
       allow create, update: if !isBanned() && (isOwnReview(docId)
         || (signedIn() && docId == request.auth.uid && !('fromUserId' in request.resource.data)));
-      allow delete: if isStaff();
+      // Admins only (owner decision 2026-10-18; moderators could before).
+      allow delete: if isAdmin();
     }
 
     // Display summary (profile rating). The reviewer recomputes the REVIEWEE's

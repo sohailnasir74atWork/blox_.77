@@ -26,7 +26,9 @@ import { uploadReportImages } from '../Helper/reportImageUpload';
 
 export const REPORT_TEXT_MAX = 2000;
 export const MAX_REPORT_IMAGES = 3;
-export const COMPLAINT_CATEGORIES = ['false_review', 'moderation', 'scam', 'bug', 'other'];
+// ban_appeal (2026-10-18): the ban card's "Send an appeal" opens the form with
+// it picked; the rule takes any category string up to 30 characters.
+export const COMPLAINT_CATEGORIES = ['false_review', 'moderation', 'ban_appeal', 'scam', 'bug', 'other'];
 
 const appLabel = () => {
   try {
@@ -41,12 +43,22 @@ const toList = (val) =>
     .map(([id, v]) => ({ id, ...v, images: Array.isArray(v?.images) ? v.images.filter(Boolean) : Object.values(v?.images || {}) }))
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
+const write = (db, uid, key, report) => update(ref(db), {
+  [`player_feedback/${key}`]: report,
+  [`player_feedback_last/${uid}`]: serverTimestamp(),
+});
+
 /**
  * Upload the images, then write the report and the rate-limit stamp in one
  * update. Throws { code: 'too_soon' } when the rule refuses it inside a minute
  * of the last one (the only refusal a valid form can hit).
+ *
+ * `review` ({ id, toUserId }) is set by "Report review": the report carries
+ * reviewId + reviewedUserId so the inbox can show the review and remove it in
+ * one tap. Those two fields need the 2026-10-18 rules; until they are live the
+ * write is refused, so it is retried once with the ids in the text instead.
  */
-export async function sendReport(db, user, { type, category, text, imageUris = [] }, onProgress) {
+export async function sendReport(db, user, { type, category, text, imageUris = [], review = null }, onProgress) {
   const uid = user?.id;
   if (!uid) throw Object.assign(new Error('sign in'), { code: 'sign_in' });
   const images = await uploadReportImages(imageUris.slice(0, MAX_REPORT_IMAGES), onProgress);
@@ -63,16 +75,23 @@ export async function sendReport(db, user, { type, category, text, imageUris = [
   if (type === 'complaint' && category) report.category = category;
   if (user.avatar && String(user.avatar).length <= 500) report.avatar = String(user.avatar);
   if (images.length) report.images = images;
+  const reviewId = review?.id ? String(review.id).slice(0, 128) : null;
+  const reviewedUserId = review?.toUserId ? String(review.toUserId).slice(0, 128) : null;
+  if (reviewId) report.reviewId = reviewId;
+  if (reviewedUserId) report.reviewedUserId = reviewedUserId;
   try {
-    await update(ref(db), {
-      [`player_feedback/${key}`]: report,
-      [`player_feedback_last/${uid}`]: serverTimestamp(),
-    });
+    await write(db, uid, key, report);
   } catch (e) {
     // The only rule a well-formed report can trip is the one-a-minute stamp.
     const last = await get(ref(db, `player_feedback_last/${uid}`)).then((s) => s.val()).catch(() => null);
     if (last && Date.now() - last < 120000) throw Object.assign(new Error('too soon'), { code: 'too_soon' });
-    throw e;
+    if (!reviewId) throw e;
+    const plain = { ...report };
+    delete plain.reviewId;
+    delete plain.reviewedUserId;
+    const tag = `\n\n[review ${reviewId}${reviewedUserId ? ` · user ${reviewedUserId}` : ''}]`;
+    plain.text = `${plain.text.slice(0, REPORT_TEXT_MAX - tag.length)}${tag}`;
+    await write(db, uid, key, plain);
   }
   return key;
 }

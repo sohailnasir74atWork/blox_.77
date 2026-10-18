@@ -33,7 +33,6 @@ import {
   getDoc,
   getDocs,
   setDoc,
-  deleteDoc,
   collection,
   query as fsQuery,
   where,
@@ -50,6 +49,8 @@ import {
   limitToFirst,
 } from '@react-native-firebase/database';
 import { getIdentityBatch } from '../Supabase/userBackend';
+import { canRemoveReview, canDeleteReviews, deleteReviewAndSummary } from '../Helper/reviewModeration';
+import { logModAction } from '../Helper/modSanction';
 
 const DEFAULT_AVATAR = 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png';
 
@@ -91,7 +92,7 @@ const TraderRow = ({ who, subtitle, c, onPress }) => (
   </TouchableOpacity>
 );
 
-const ReviewIntegrityTab = ({ isDark, currentUser }) => {
+const ReviewIntegrityTab = ({ isDark, currentUser, callerRoles }) => {
   const c = useMemo(() => ({
     bg: isDark ? '#000' : '#F2F2F7',
     card: isDark ? '#1C1C1E' : '#fff',
@@ -203,10 +204,16 @@ const ReviewIntegrityTab = ({ isDark, currentUser }) => {
     }
   }, [lookupText]);
 
-  // Same flow as the Search DB tab: delete the review, then refresh the
-  // client-side display summary. The verified summary updates itself
-  // (scoreReviewOnWrite handles the delete).
-  const deleteReview = useCallback((row) => {
+  // Same flow and rule as the Find user ▸ Reviews delete (AdminDashboard):
+  // staff may only remove a review left by someone strictly below them, and
+  // the removal goes to the mod action feed. The verified summary updates
+  // itself (scoreReviewOnWrite handles the delete).
+  const deleteReview = useCallback(async (row) => {
+    const fromUserId = row.review?.fromUserId || row.score?.fromUserId || null;
+    if (!(await canRemoveReview(fromUserId, callerRoles || {}, currentUser?.id))) {
+      Alert.alert('Restricted', 'Only admins can delete reviews, and not reviews left by staff at or above your rank.');
+      return;
+    }
     Alert.alert(
       'Delete review',
       `Delete this ${row.score.rating}★ review by ${row.reviewerName}?`,
@@ -218,24 +225,17 @@ const ReviewIntegrityTab = ({ isDark, currentUser }) => {
           onPress: async () => {
             setBusy(true);
             try {
-              const fs = getFirestore();
-              await deleteDoc(doc(fs, 'reviews', row.id));
-              const summaryRef = doc(fs, 'user_ratings_summary', trader.userId);
-              const s = await getDoc(summaryRef);
-              if (s.exists()) {
-                const oldCount = s.data()?.count || 0;
-                const oldAvg = s.data()?.averageRating || 0;
-                const rating = Number(row.score.rating) || 0;
-                if (oldCount <= 1) {
-                  await setDoc(summaryRef, { averageRating: 0, count: 0 }, { merge: true });
-                } else {
-                  const newCount = oldCount - 1;
-                  await setDoc(summaryRef, {
-                    averageRating: parseFloat((((oldAvg * oldCount) - rating) / newCount).toFixed(2)),
-                    count: newCount,
-                  }, { merge: true });
-                }
-              }
+              const rating = Number(row.score.rating) || 0;
+              await deleteReviewAndSummary(getFirestore(), {
+                id: row.id,
+                toUserId: trader.userId,
+                rating,
+              });
+              logModAction('review_delete', trader.userId, {
+                reviewId: row.id,
+                reviewerUid: fromUserId,
+                rating,
+              });
               setRows((prev) => prev.filter((r) => r.id !== row.id));
             } catch (e) {
               Alert.alert('Error', `Could not delete: ${e?.message || e}`);
@@ -246,7 +246,7 @@ const ReviewIntegrityTab = ({ isDark, currentUser }) => {
         },
       ],
     );
-  }, [trader]);
+  }, [trader, callerRoles, currentUser?.id]);
 
   const toggleHold = useCallback(() => {
     const holding = !(summary?.leaderboardHold === true);
@@ -352,7 +352,7 @@ const ReviewIntegrityTab = ({ isDark, currentUser }) => {
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
                   <Text style={{ color: c.sub, fontSize: 12, flex: 1 }}>{dateOf(r.createdAtMs)}</Text>
-                  {r.review && (
+                  {r.review && canDeleteReviews(callerRoles) && (
                     <TouchableOpacity disabled={busy} onPress={() => deleteReview(r)}>
                       <Text style={{ color: '#FF3B30', fontWeight: '600', fontSize: 13 }}>Delete review</Text>
                     </TouchableOpacity>

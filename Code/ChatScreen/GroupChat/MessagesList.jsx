@@ -12,7 +12,8 @@ import {
   Animated,
 } from 'react-native';
 import { getStyles } from './../Style';
-import { bannerAware, ABOVE_CHAT_INPUT_AND_BANNER, FLOATING_BUTTON_ICON_SIZE } from '../../Helper/floatingButtonLayout';
+import { bannerAware, FLOATING_BUTTON_ICON_SIZE, aboveChatInputAndBanner } from '../../Helper/floatingButtonLayout';
+import { useBannerHeight } from '../../Ads/bannerHeight';
 import ReportPopup from './../ReportPopUp';
 import MessageActionDrawer from './MessageActionDrawer';
 import { supabaseMessageId } from '../../Supabase/chatBackend';
@@ -36,6 +37,7 @@ import { resolveProfile, seedFromMessage, warmProfileCache, getCachedProfile } f
 import { getSafeTextColor, RainbowText, isMultiColorText, getMultiColorPalette } from '../../Helper/contrastHelper';
 import FramedAvatar from './FramedAvatar';
 import { BirthdayCake } from '../../Birthdays/BirthdayBits';
+import { hideTranslateTip } from '../TranslateTip';
 
 const FRUIT_KEYWORDS = [
   'rocket', 'spin', 'chop', 'spring', 'bomb', 'spike', 'blade',
@@ -87,6 +89,8 @@ const MessagesList = ({
   pendingCount = 0,
   onReaction, // (message, emoji) — toggles the current user's reaction
 }) => {
+  // Floating buttons clear the real banner height (Ads/bannerHeight.js).
+  const bannerHeight = useBannerHeight();
   const styles = getStyles(isDarkMode);
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [showReportPopup, setShowReportPopup] = useState(false);
@@ -133,7 +137,7 @@ const MessagesList = ({
       await onDeleteAllMessage?.(item?.senderId);
     },
   };
-  const { canTranslate, incrementTranslationCount, getRemainingTranslationTries, localState } = useLocalState();
+  const { canTranslate, incrementTranslationCount, getRemainingTranslationTries, localState, updateLocalState } = useLocalState();
   const deviceLanguage = useMemo(() => getDeviceLanguage(), []);
 
   const handleCopy = (message) => {
@@ -234,6 +238,10 @@ const MessagesList = ({
   };
 
   const handleTranslate = async (item) => {
+    // They found Translate: the one-time tip (ChatScreen/TranslateTip) is done.
+    hideTranslateTip();
+    if (localState.showTranslateTip) updateLocalState('showTranslateTip', false);
+
     // ✅ Check unlimited status
     const isUnlimited = freeTranslation || localState.isPro;
 
@@ -755,7 +763,7 @@ const MessagesList = ({
             styles.scrollToBottomButton,
             // hasComposer: group chat has a message input bar beneath this,
             // which Trades and the Feed do not.
-            { bottom: bannerAware(ABOVE_CHAT_INPUT_AND_BANNER, !!localState?.isPro) },
+            { bottom: bannerAware(aboveChatInputAndBanner(bannerHeight), !!localState?.isPro, bannerHeight) },
             {
               opacity: scrollButtonOpacity,
               transform: [

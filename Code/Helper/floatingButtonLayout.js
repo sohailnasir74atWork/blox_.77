@@ -90,8 +90,14 @@ export const FLOATING_BUTTON_RIGHT = 8;
  * does NOT contain the banner, there is nothing to subtract and the base
  * offset is already correct.
  */
-export const bannerAware = (base, isPro) =>
-  isPro ? Math.max(FLOATING_BUTTON_GAP, base - BANNER_HEIGHT) : base;
+// `bannerHeight`: the measured banner (Ads/bannerHeight.js useBannerHeight());
+// omitted, the fixed BANNER_HEIGHT as before.
+export const bannerAware = (base, isPro, bannerHeight = BANNER_HEIGHT) =>
+  isPro ? Math.max(FLOATING_BUTTON_GAP, base - bannerHeight) : base;
+
+// ABOVE_BANNER for a measured banner height (Android's large anchored banner
+// is ~128dp since react-native-google-mobile-ads 17.3.0).
+export const aboveBanner = (bannerHeight = BANNER_HEIGHT) => bannerHeight + FLOATING_BUTTON_GAP;
 
 /**
  * Offset for the group chat's scroll button on apps where the button's wrapper
@@ -104,6 +110,9 @@ export const bannerAware = (base, isPro) =>
  * composer height put it ~23px too high.
  */
 export const ABOVE_CHAT_INPUT_AND_BANNER = 106;
+// Same, grown by however much taller than BANNER_HEIGHT the measured banner is.
+export const aboveChatInputAndBanner = (bannerHeight = BANNER_HEIGHT) =>
+  ABOVE_CHAT_INPUT_AND_BANNER + (bannerHeight - BANNER_HEIGHT);
 
 export default {
   BANNER_HEIGHT,

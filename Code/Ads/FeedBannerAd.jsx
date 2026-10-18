@@ -21,6 +21,7 @@ import { npaRequiredFor } from './consent';
 import { useAdsReady } from './init';
 import useIsAdFree from './useIsAdFree';
 import { logAdRevenue } from './adTelemetry';
+import { useFeedAdActive } from './feedAdGate';
 
 // Horizontal gutter the feed cards use, so the ad lines up with content.
 const CARD_GUTTER = 12;
@@ -30,7 +31,11 @@ const MAX_HEIGHT = 250;
 // One fresh request after a failed first load, then leave the slot alone.
 const RETRY_MS = 30000;
 
-const FeedBannerAd = ({ adKey, isDarkMode = false }) => {
+// `gate` (feedAdGate.js): the feed list's visibility gate. Without one the
+// slot behaves as before and requests as soon as it renders.
+const FeedBannerAd = ({ adKey, isDarkMode = false, gate = null }) => {
+  // No request until the player is about to reach this row.
+  const nearScreen = useFeedAdActive(gate, adKey);
   const { width: screenWidth } = useWindowDimensions();
   const { localState } = useLocalState();
   const adFree = useIsAdFree();
@@ -75,7 +80,7 @@ const FeedBannerAd = ({ adKey, isDarkMode = false }) => {
     retriedRef.current = false;
   }, [adKey]);
 
-  if (adFree || !adsReady) return null;
+  if (adFree || !adsReady || !nearScreen) return null;
 
   return (
     <View

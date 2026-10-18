@@ -11,6 +11,7 @@ import { useFocusEffect, useIsFocused, useRoute } from '@react-navigation/native
 import { getStyles } from '../Style';
 import PrivateMessageInput from './PrivateMessageInput';
 import PrivateMessageList from './PrivateMessageList';
+import TranslateTip from '../TranslateTip';
 import { useGlobalState, modGateText, chatSendErrorCode, chatSendErrorText } from '../../GlobelStats';
 import ChatRestrictedBar from '../ChatRestrictedBar';
 import { chatTypeForRoute, fetchChatAvailability, resolveChatBlock } from '../chatAvailability';
@@ -1040,6 +1041,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
               </View>
             )}
 
+            {messages.length > 0 && <TranslateTip gesture="tap" />}
             {messages.length === 0 ? (
               loading ? (
                 <ActivityIndicator

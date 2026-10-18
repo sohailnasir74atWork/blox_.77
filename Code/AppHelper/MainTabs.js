@@ -182,6 +182,11 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
     },
     headerTintColor: selectedTheme.colors.text,
     headerTitleStyle: { fontWeight: 'bold', fontSize: 24 },
+    // Tabs stay mounted; frozen while hidden so they stop re-rendering on every
+    // global/local state change and catch up the moment they are focused again
+    // (MM2 does the same). Fewer view-tree changes queued behind a hidden tab
+    // when it comes back (Ops/bugs/LOG.md, 174 HomeTab addViewAt, 2026-10-17).
+    freezeOnBlur: true,
   }), [selectedTheme, getTabIcon]);
 
   // Memoize Calculator tab options

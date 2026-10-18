@@ -2,6 +2,7 @@
 // full-screen ad and how the managers behave when AdMob has nothing to serve.
 // One file, no logic, so the caps can be tuned (or an experiment run) without
 // touching IntAd.js / openApp.js / RewardedAdManager.js. All times in ms.
+// A few knobs differ per platform (Platform.OS) — still values, not logic.
 //
 // Why these exist (AdMob report, Sep 4 – Oct 3 2026): interstitials earn
 // $2–5 eCPM against $0.15–0.45 for banners, yet only 4–20% of the
@@ -16,6 +17,8 @@
 // their own AdMob units, outside every cap in this file. They still count as
 // the last full-screen ad, so the next natural-break ad waits MIN_GAP_MS.
 
+import { Platform } from 'react-native';
+
 export const NATURAL_BREAK = {
   ENABLED: true,
   // Minimum gap since ANY full-screen ad (interstitial, app open, rewarded) —
@@ -29,6 +32,11 @@ export const NATURAL_BREAK = {
   // Tabs that never trigger a natural-break ad when pressed: an ad in front
   // of a conversation is the one placement users consistently report.
   EXCLUDED_TABS: ['Chat'],
+  // true: MIN_GAP_MS runs from ANY full-screen ad, so an app-open blocks the
+  // next natural break for 3 min. iOS (revenue LOG 2026-10-18) counts it from
+  // the last interstitial only; CROSS_FORMAT_GAP_MS still applies after an
+  // app-open or rewarded.
+  GAP_FROM_ANY_FULLSCREEN: Platform.OS !== 'ios',
 };
 
 // ── Full-screen ad cadence (one policy for all four apps, 2026-10-04) ──────
@@ -43,7 +51,11 @@ export const CHAT_MESSAGES_PER_AD = 10;
 // 2 min, not 5 (owner decision, 2026-10-13): app-open is the top-earning
 // format, and 5 min skipped most returns of users who hop to Roblox and back.
 // Still above the AdMob unit cap (1 per minute), which stays the backstop.
-export const APP_OPEN_MIN_INTERVAL_MS = 2 * 60 * 1000;
+// iOS 5 min (revenue LOG 2026-10-18, iOS full-screen mix): an iOS app-open
+// earned ~$0.81 eCPM against ~$4.02 for an interstitial, and returns came
+// ~2.2 times per user per day. Fewer return app-opens leave room for the
+// natural-break interstitial (see NATURAL_BREAK.GAP_FROM_ANY_FULLSCREEN).
+export const APP_OPEN_MIN_INTERVAL_MS = Platform.OS === 'ios' ? 5 * 60 * 1000 : 2 * 60 * 1000;
 // Launch (cold-start) app-open ad: returning users only, shown from the splash
 // or not at all. Every launch is eligible (owner decision, 2026-10-07): the
 // 4 h gap cut app-open impressions per session by 26–54% in the 2026-10-04

@@ -45,6 +45,19 @@ export function fromChatMetaRow(row) {
   };
 }
 
+// Admin-only paginated lookup of one user's inbox. The RPC enforces the
+// admin check in Postgres; never replace this with a client-side table query.
+export async function adminListUserChats(ownerUid, offset = 0, pageSize = 20) {
+  if (!ownerUid) return [];
+  const { data, error } = await supabase.rpc('admin_list_user_chats', {
+    p_owner_uid: ownerUid,
+    p_offset: Math.max(0, Number(offset) || 0),
+    p_limit: pageSize,
+  });
+  if (error) throw error;
+  return (data || []).map(fromChatMetaRow);
+}
+
 // -----------------------------------------------------------------
 // Initial load — Supabase realtime doesn't replay history, so the
 // caller fetches once on attach and then keeps state in sync via the

@@ -34,7 +34,8 @@ import { useGlobalState, modGateText } from '../GlobelStats';
 import { useLocalState } from '../LocalGlobelStats';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { bannerAware, ABOVE_BANNER, FLOATING_BUTTON_ICON_SIZE, FLOATING_BUTTON_RIGHT } from '../Helper/floatingButtonLayout';
+import { bannerAware, FLOATING_BUTTON_ICON_SIZE, FLOATING_BUTTON_RIGHT, aboveBanner } from '../Helper/floatingButtonLayout';
+import { useBannerHeight } from '../Ads/bannerHeight';
 import PostCard from './componenets/PostCard';
 import UploadModal from './componenets/UploadModal';
 import SignInDrawer from '../Firebase/SigninDrawer';
@@ -46,6 +47,7 @@ import { showMessage } from 'react-native-flash-message';
 import i18next from 'i18next';
 import { useTranslation } from 'react-i18next';
 import FeedBannerAd from '../Ads/FeedBannerAd';
+import { useFeedAdGate, FEED_AD_VIEWABILITY } from '../Ads/feedAdGate';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
 import PostsHeader from './componenets/PostsHeader';
@@ -55,6 +57,8 @@ import { awardBadge, incrementAndCheckBadge, REACTION_BADGE_THRESHOLDS } from '.
 
 
 const DesignFeedScreen = ({ route }) => {
+  // Floating buttons clear the real banner height (Ads/bannerHeight.js).
+  const bannerHeight = useBannerHeight();
   const { selectedTheme } = route.params;
   const { appdatabase, user, theme, firestoreDB, isBabyMod, isTrusted, isGrinder, isRaider, proGranted, getModGate } = useGlobalState();
   const { localState } = useLocalState();
@@ -655,6 +659,8 @@ const DesignFeedScreen = ({ route }) => {
     }
   };
 
+  // Feed ad rows load only near the screen (Ads/feedAdGate.js).
+  const feedAdGate = useFeedAdGate();
   const renderItem = useCallback(({ item, index }) => {
     if (initialLoading) {
       return <View style={[styles.skeletonPost, isDarkMode && { backgroundColor: '#444' }]} />;
@@ -662,7 +668,7 @@ const DesignFeedScreen = ({ route }) => {
     if (item?.__type === 'ad') {
       // In-feed ad keyed by the stable interleave id (`ad-N`); the slot
       // collapses to zero height until an ad fills.
-      return <FeedBannerAd adKey={item.id} isDarkMode={isDarkMode} />;
+      return <FeedBannerAd adKey={item.id} isDarkMode={isDarkMode} gate={feedAdGate} />;
     }
 
     return (
@@ -677,7 +683,7 @@ const DesignFeedScreen = ({ route }) => {
 
       />
     );
-  }, [initialLoading, isDarkMode, user?.id, handleReaction, localState, appdatabase, handleDeletePost, deleteUsersLatestPosts]);
+  }, [feedAdGate, initialLoading, isDarkMode, user?.id, handleReaction, localState, appdatabase, handleDeletePost, deleteUsersLatestPosts]);
 
   // const dataToRender = initialLoading
   //   ? skeletonArray
@@ -706,6 +712,7 @@ const DesignFeedScreen = ({ route }) => {
     // Interleave an in-feed ad every AD_FREQUENCY posts for non-Pro users
     // (matches adoptme). Was hardcoded `false`, so no feed ad ever rendered.
     : interleaveAds(filteredBase, !(localState?.isPro || proGranted));
+  feedAdGate.setData(dataToRender);
 
   const keyExtractor = useCallback((item, index) =>
     // initialLoading ? `skeleton-${index}` : item?.id || `post-${index}`;
@@ -740,6 +747,8 @@ const DesignFeedScreen = ({ route }) => {
           onScroll={handleFeedScroll}
           scrollEventThrottle={16}
           data={dataToRender}
+          onViewableItemsChanged={feedAdGate.onViewableItemsChanged}
+          viewabilityConfig={FEED_AD_VIEWABILITY}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
           contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }}
@@ -792,7 +801,7 @@ const DesignFeedScreen = ({ route }) => {
             blue and position, all from Helper/floatingButtonLayout. */}
         {showScrollTop && (
           <TouchableOpacity
-            style={[styles.feedScrollTop, { bottom: bannerAware(ABOVE_BANNER, !!(localState?.isPro || proGranted)) }]}
+            style={[styles.feedScrollTop, { bottom: bannerAware(aboveBanner(bannerHeight), !!(localState?.isPro || proGranted), bannerHeight) }]}
             onPress={handleFeedScrollToTop}
             activeOpacity={0.8}
           >
@@ -806,7 +815,7 @@ const DesignFeedScreen = ({ route }) => {
         <TouchableOpacity
           style={[
             styles.fab,
-            { bottom: bannerAware(ABOVE_BANNER, !!(localState?.isPro || proGranted)) + (showScrollTop ? FLOATING_BUTTON_ICON_SIZE + 12 : 0) },
+            { bottom: bannerAware(aboveBanner(bannerHeight), !!(localState?.isPro || proGranted), bannerHeight) + (showScrollTop ? FLOATING_BUTTON_ICON_SIZE + 12 : 0) },
           ]}
           onPress={() => user?.id ? setModalVisible(true) : setSigninDrawerVisible(true)}
           activeOpacity={0.85}

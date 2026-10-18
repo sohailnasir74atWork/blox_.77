@@ -278,18 +278,55 @@ export async function updateGroupIdentityForMembers({
 // -----------------------------------------------------------------
 // Realtime subscription. Drop-in replacement for the group-list
 // listeners in ChatNavigator.js (the userGroupsRef onChildAdded path).
+//   * onReady fires once, when the initial load lands. It used to also wait
+//     for the first SUBSCRIBED, so whenever realtime could not join (slow or
+//     failing connection) the groups list sat on its spinner forever although
+//     the rows were already loaded (port of Adopt Me b369893, 2026-10-14; a
+//     join there took 5 min on a bad network). A SUBSCRIBED that lands after
+//     the load gap-fills (see .subscribe below), so nothing is lost.
 // -----------------------------------------------------------------
 export function subscribeToGroupMeta(userId, { onUpsert, onRemove, onReady, onStatus } = {}) {
   if (!userId) return () => {};
 
   let cancelled = false;
   let initialDone = false;
-  let subscribedOnce = false;
+  let readyFired = false;
+  let prevStatus = null;   // last channel status (reconnect detection)
+  let maxKnownTs = 0;      // newest last_message_timestamp_ms delivered
+  let gapFillInFlight = false;
 
   const tryReady = () => {
-    if (initialDone && subscribedOnce && !cancelled) {
+    if (initialDone && !readyFired && !cancelled) {
+      readyFired = true;
       onReady?.();
     }
+  };
+
+  const deliver = (row) => {
+    if (!row || cancelled) return;
+    if (row.lastMessageTimestamp > maxKnownTs) maxKnownTs = row.lastMessageTimestamp;
+    onUpsert?.(row);
+  };
+
+  // Gap-fill: realtime doesn't replay what fired while the socket was down
+  // (or before a slow first join), so fetch only rows newer than the newest
+  // seen — usually 0–few. Same as Adopt Me's groupMetaBackend.
+  const runGapFill = () => {
+    if (cancelled || gapFillInFlight) return;
+    gapFillInFlight = true;
+    supabase
+      .from('group_meta_data')
+      .select(GROUP_META_COLS)
+      .eq('user_id', userId)
+      .gt('last_message_timestamp_ms', maxKnownTs || 0)
+      .order('last_message_timestamp_ms', { ascending: false, nullsFirst: false })
+      .limit(GROUP_META_PAGE)
+      .then(({ data, error }) => {
+        if (error) throw error;
+        if (!cancelled) (data || []).forEach((r) => deliver(fromGroupMetaRow(r)));
+      })
+      .catch((e) => console.warn('[groupMetaBackend] gap-fill failed:', e?.message))
+      .finally(() => { gapFillInFlight = false; });
   };
 
   const topic = `group-meta:${userId}:${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -311,7 +348,7 @@ export function subscribeToGroupMeta(userId, { onUpsert, onRemove, onReady, onSt
             const groupId = payload.old?.group_id;
             if (groupId) onRemove?.(groupId);
           } else if (payload?.new) {
-            onUpsert?.(fromGroupMetaRow(payload.new));
+            deliver(fromGroupMetaRow(payload.new));
           }
         } catch (e) {
           console.warn('[groupMetaBackend] realtime handler failed:', e?.message);
@@ -321,15 +358,18 @@ export function subscribeToGroupMeta(userId, { onUpsert, onRemove, onReady, onSt
     .subscribe((status, err) => {
       onStatus?.(status, err);
       if (status === 'SUBSCRIBED') {
-        subscribedOnce = true;
-        tryReady();
+        // SUBSCRIBED after a non-SUBSCRIBED status = reconnect. A first
+        // subscribe that lands after the initial load (slow join) also
+        // gap-fills: changes in between were in neither the load nor the stream.
+        if (prevStatus ? prevStatus !== 'SUBSCRIBED' : initialDone) runGapFill();
       }
+      prevStatus = status;
     });
 
   loadGroupMeta(userId)
     .then((rows) => {
       if (cancelled) return;
-      rows.forEach((r) => onUpsert?.(r));
+      rows.forEach(deliver);
       initialDone = true;
       tryReady();
     })

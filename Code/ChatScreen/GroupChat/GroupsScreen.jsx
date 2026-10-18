@@ -159,6 +159,10 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
     }
 
     setInvitationsLoading(true);
+    // Invitations only add a section above the list; never let a listener
+    // that hasn't answered yet hold the whole groups list on the spinner
+    // (Adopt Me b369893).
+    const invitationsFallback = setTimeout(() => setInvitationsLoading(false), 4000);
     const invitationsQuery = query(
       collection(firestoreDB, 'group_invitations'),
       where('invitedUserId', '==', user.id),
@@ -181,15 +185,20 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
           }
         });
         setPendingInvitations(invitations);
+        clearTimeout(invitationsFallback);
         setInvitationsLoading(false);
       },
       (error) => {
         console.error('Error loading invitations:', error);
+        clearTimeout(invitationsFallback);
         setInvitationsLoading(false);
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(invitationsFallback);
+      unsubscribe();
+    };
   }, [firestoreDB, user?.id]);
 
   // ✅ OPTIMIZED: pending join requests (groups I created) — one listener per

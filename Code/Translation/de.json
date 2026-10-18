@@ -165,6 +165,10 @@
       "please_try_again": "Bitte versuche es erneut.",
       "roblox_code_not_found": "Bestätigungscode nicht in der Beschreibung deines Roblox-Profils gefunden.",
       "roblox_check_failed": "Bestätigung fehlgeschlagen. Bitte versuche es erneut.",
+      "roblox_busy": "Roblox ist gerade ausgelastet. Warte eine Minute und tippe dann noch mal auf Verifizieren.",
+      "roblox_copy_code": "Code kopieren",
+      "roblox_code_copied_title": "Code kopiert",
+      "roblox_code_copied": "{{code}} ist kopiert. Füge ihn bei „Über mich“ in deinem Roblox-Profil ein, speichere, komm zurück und tippe noch mal auf Verifizieren.",
       "login_first": "Bitte melde dich zuerst an.",
       "enter_roblox_username": "Bitte gib deinen Roblox-Benutzernamen ein.",
       "invalid_username": "Ungültiger Benutzername",
@@ -1284,7 +1288,9 @@
       "only_creator_update_icon": "Nur der Gruppenersteller kann das Gruppenbild ändern"
     },
     "confirm_block": "Möchtest du {{name}} wirklich blockieren?",
-    "confirm_unblock": "Möchtest du {{name}} wirklich entsperren?"
+    "confirm_unblock": "Möchtest du {{name}} wirklich entsperren?",
+    "translate_tip_long": "Tipp: Halte eine Nachricht gedrückt, um sie zu übersetzen.",
+    "translate_tip_tap": "Tipp: Tippe auf eine Nachricht, um sie zu übersetzen."
   },
   "first": {
     "welcome_title": "Willkommen bei Fruit Values",
@@ -1549,7 +1555,9 @@
     "ban_time_days": "Noch {{days}} T. und {{hours}} Std.",
     "ban_time_hours": "Noch {{hours}} Std. und {{minutes}} Min.",
     "ban_time_minutes": "Noch {{minutes}} Min.",
-    "ban_associated_with_email": "Dieses Gerät ist mit einem gesperrten Konto ({{email}}) verknüpft. Die Anmeldung mit einer anderen E-Mail-Adresse stellt den Zugriff nicht wieder her."
+    "ban_associated_with_email": "Dieses Gerät ist mit einem gesperrten Konto ({{email}}) verknüpft. Die Anmeldung mit einer anderen E-Mail-Adresse stellt den Zugriff nicht wieder her.",
+    "ban_appeal_question": "Denkst du, das ist ein Fehler?",
+    "ban_appeal_button": "Einspruch senden"
   },
   "more_hub": {
     "title": "Mehr",
@@ -1589,7 +1597,8 @@
       "moderation": "Moderation",
       "scam": "Betrug oder Trade",
       "bug": "Problem mit der App",
-      "other": "Etwas anderes"
+      "other": "Etwas anderes",
+      "ban_appeal": "Einspruch gegen Sperre"
     },
     "details": "Details",
     "placeholder_complaint": "Erzähl, was passiert ist. Nutzernamen, Daten und Screenshots helfen sehr.",
@@ -1610,7 +1619,11 @@
     "sign_in": "Melde dich an, um eine Beschwerde oder Idee zu senden.",
     "mine_title": "Deine Meldungen",
     "status_open": "Erhalten",
-    "status_done": "Geprüft"
+    "status_done": "Geprüft",
+    "placeholder_ban_appeal": "Erzähl, was passiert ist und warum du die Sperre für einen Fehler hältst. Screenshots helfen.",
+    "placeholder_false_review": "Warum ist diese Bewertung falsch? Screenshots von eurem Chat helfen.",
+    "reported_review": "Bewertung, die du meldest",
+    "report_review": "Bewertung melden"
   },
   "groups": {
     "errors": {
@@ -2489,7 +2502,9 @@
       "submit_failed": "Meldung konnte nicht gesendet werden. Versuch es erneut.",
       "title": "Beitrag melden",
       "placeholder": "Warum meldest du diesen Beitrag?",
-      "submitting": "Wird gesendet…"
+      "submitting": "Wird gesendet…",
+      "status_title": "Status melden",
+      "status_placeholder": "Warum meldest du diesen Status?"
     },
     "comments_modal": {
       "sign_in_required": "Anmeldung erforderlich",

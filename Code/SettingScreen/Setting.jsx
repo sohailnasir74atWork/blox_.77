@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
+import Clipboard from '@react-native-clipboard/clipboard';
 import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
 import { getMyCosmetics } from '../Helper/cosmeticsCache';
 import { useGlobalState, modGateText } from '../GlobelStats';
@@ -75,6 +76,7 @@ import {
   writeBatch,
 } from '@react-native-firebase/firestore';
 import PetModal from '../ChatScreen/PrivateChat/PetsModel';
+import { openReportForm, reviewForReport } from '../Reports/openReportForm';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -179,6 +181,32 @@ const getTradeDeal = (hasTotal, wantsTotal) => {
   }
 
   return { deal, tradeRatio };
+};
+
+// Roblox bio code for this account. Derived from the uid so it never changes
+// between attempts. Consonants only: Roblox's filter can hashtag digit runs
+// and letter combos that spell words.
+const ROBLOX_CODE_LETTERS = 'BCDFGHJKLMNPQRSTVWXZ';
+const robloxVerificationCode = (uid) => {
+  let h = 2166136261;
+  for (let i = 0; i < uid.length; i++) {
+    h = Math.imul(h ^ uid.charCodeAt(i), 16777619);
+  }
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += ROBLOX_CODE_LETTERS[(h >>> 0) % ROBLOX_CODE_LETTERS.length];
+    h = Math.imul(h ^ (h >>> 15), 2246822507) + i;
+  }
+  return `BFV-${code}`;
+};
+
+// users.roblox.com rate-limits per IP (shared school/mobile IPs hit it fast):
+// wait once and retry before giving up.
+const fetchRoblox = async (url, options) => {
+  const response = await fetch(url, options);
+  if (response.status !== 429) return response;
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+  return fetch(url, options);
 };
 
 // Modern Minimalist Edit Profile Drawer Component
@@ -541,7 +569,6 @@ export default function SettingsScreen({ selectedTheme }) {
   const [isDeletingAll, setIsDeletingAll] = useState(false); // Track if deleting all trades
   const [robloxUsername, setRobloxUsername] = useState('');
   const [robloxUsernameVerified, setRobloxUsernameVerified] = useState(false);
-  const [verificationCode, setVerificationCode] = useState('');
   const [isVerifyingRoblox, setIsVerifyingRoblox] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [bio, setBio] = useState('');
@@ -785,13 +812,6 @@ export default function SettingsScreen({ selectedTheme }) {
     updateLocalState('showOnlineStatus', value);
   };
 
-  // ✅ Generate verification code for Roblox username
-  const generateVerificationCode = () => {
-    const code = `BFV-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-    setVerificationCode(code);
-    return code;
-  };
-
   // ✅ Verify Roblox username exists and get user ID
   const verifyRobloxUsername = async (username) => {
     if (!username || username.trim().length < 3) {
@@ -800,7 +820,7 @@ export default function SettingsScreen({ selectedTheme }) {
 
     try {
       // ✅ Use POST request with JSON body (correct Roblox API format)
-      const response = await fetch(
+      const response = await fetchRoblox(
         'https://users.roblox.com/v1/usernames/users',
         {
           method: 'POST',
@@ -814,6 +834,9 @@ export default function SettingsScreen({ selectedTheme }) {
         }
       );
 
+      if (response.status === 429) {
+        return { valid: false, error: t('settings.setting.roblox_busy') };
+      }
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
       }
@@ -841,31 +864,35 @@ export default function SettingsScreen({ selectedTheme }) {
     }
   };
 
-  // ✅ Check if verification code exists in Roblox profile description
-  const checkVerificationCode = async (username, code) => {
+  // ✅ Check if verification code exists in Roblox profile description.
+  // userId comes from the lookup the caller already made — a second username
+  // lookup only spent more of Roblox's per-IP rate limit.
+  const checkVerificationCode = async (userId, code) => {
     try {
-      // Get user ID from username
-      const verifyResult = await verifyRobloxUsername(username);
-      if (!verifyResult.valid) {
-        return { verified: false, error: verifyResult.error };
-      }
-
       // Get user profile (description is publicly accessible)
-      const profileResponse = await fetch(
-        `https://users.roblox.com/v1/users/${verifyResult.userId}`
+      const profileResponse = await fetchRoblox(
+        `https://users.roblox.com/v1/users/${userId}`
       );
+      // A 429 body has no description, which used to read as "code not found"
+      // even when the code was in the bio.
+      if (profileResponse.status === 429) {
+        return { verified: false, retry: true, error: t('settings.setting.roblox_busy') };
+      }
+      if (!profileResponse.ok) {
+        return { verified: false, retry: true, error: t('settings.setting.roblox_check_failed') };
+      }
       const profileData = await profileResponse.json();
 
-      // Check if verification code exists in description
-      const description = profileData.description || '';
+      // Case and spaces don't matter: players retype the code by hand.
+      const description = (profileData.description || '').toUpperCase().replace(/\s+/g, '');
       if (description.includes(code)) {
-        return { verified: true, userId: verifyResult.userId };
+        return { verified: true, userId };
       } else {
         return { verified: false, error: t('settings.setting.roblox_code_not_found') };
       }
     } catch (error) {
       console.error('Error checking verification code:', error);
-      return { verified: false, error: t('settings.setting.roblox_check_failed') };
+      return { verified: false, retry: true, error: t('settings.setting.roblox_check_failed') };
     }
   };
 
@@ -893,8 +920,10 @@ export default function SettingsScreen({ selectedTheme }) {
       return;
     }
 
-    // Generate verification code
-    const code = generateVerificationCode();
+    // Same code every time for this account, so the one already in the bio
+    // still matches after a retry or after Android kills the app while the
+    // player is in Roblox.
+    const code = robloxVerificationCode(user.id);
     setIsVerifyingRoblox(false);
 
     // Show instructions
@@ -904,10 +933,24 @@ export default function SettingsScreen({ selectedTheme }) {
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
+          text: t('settings.setting.roblox_copy_code'),
+          onPress: () => {
+            Clipboard.setString(code);
+            showSuccessMessage(t('settings.setting.roblox_code_copied_title'), t('settings.setting.roblox_code_copied', { code }));
+          },
+        },
+        {
           text: t('settings.setting.i_added_it'),
           onPress: async () => {
             setIsVerifyingRoblox(true);
-            const result = await checkVerificationCode(trimmedUsername, code);
+            const result = await checkVerificationCode(verifyResult.userId, code);
+
+            // Roblox busy or unreachable: nothing was checked, so keep what is saved.
+            if (result.retry) {
+              setIsVerifyingRoblox(false);
+              showErrorMessage(t('home.alert.error'), result.error);
+              return;
+            }
 
             // ✅ Save username to database regardless of verification status
             const isVerified = result.verified;
@@ -935,7 +978,7 @@ export default function SettingsScreen({ selectedTheme }) {
             if (isVerified) {
               showSuccessMessage(t('home.alert.success'), t('settings.setting.roblox_verified_saved'));
             } else {
-              showSuccessMessage(t('settings.setting.username_saved'), t('settings.setting.username_saved_unverified'));
+              showErrorMessage(t('settings.setting.username_saved'), `${result.error}\n${t('settings.setting.username_saved_unverified')}`);
             }
             setIsVerifyingRoblox(false);
           },
@@ -3477,13 +3520,31 @@ export default function SettingsScreen({ selectedTheme }) {
                               )}
                             </View>
                           </View>
-                          {review.updatedAt && (
-                            <Text style={{ fontSize: 10, color: isDarkMode ? '#9ca3af' : '#9ca3af' }}>
-                              {review.updatedAt.toDate ?
-                                new Date(review.updatedAt.toDate()).toLocaleDateString() :
-                                new Date(review.updatedAt).toLocaleDateString()}
-                            </Text>
-                          )}
+                          <View style={styles.reviewSide}>
+                            {review.updatedAt && (
+                              <Text style={{ fontSize: 10, color: isDarkMode ? '#9ca3af' : '#9ca3af' }}>
+                                {review.updatedAt.toDate ?
+                                  new Date(review.updatedAt.toDate()).toLocaleDateString() :
+                                  new Date(review.updatedAt).toLocaleDateString()}
+                              </Text>
+                            )}
+                            {/* Report a false review: Complaints & ideas with it attached. */}
+                            <TouchableOpacity
+                              onPress={() => {
+                                const payload = reviewForReport(review, user?.id);
+                                setShowReceivedReviewsModal(false);
+                                setModalReceivedReviews([]);
+                                setModalLastReceivedDoc(null);
+                                setModalHasMoreReceived(false);
+                                openReportForm({ category: 'false_review', review: payload });
+                              }}
+                              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                              accessibilityRole="button"
+                              accessibilityLabel={t('reports.report_review')}
+                            >
+                              <Icon name="flag-outline" size={15} color={isDarkMode ? '#9ca3af' : '#6b7280'} />
+                            </TouchableOpacity>
+                          </View>
                         </View>
                         <Text style={{ fontSize: 13, color: isDarkMode ? '#d1d5db' : '#4b5563', lineHeight: 18 }}>
                           {review.review}

@@ -364,6 +364,13 @@ async function rtdbTests() {
   await no('JMD marks done', () => D.update(r(J, 'player_feedback/f8'), { status: 'done' }));
   await no('mod rewrites the sender', () => D.update(r(M, 'player_feedback/f1'), { userId: U2 }));
   await ok('mod deletes', () => D.set(r(M, 'player_feedback/f8'), null));
+  // 2026-10-18: ban appeals and "Report review" (reviewId + reviewedUserId).
+  await no('review report with an empty reviewId', () => send(U3, 'f9', { category: 'false_review', reviewId: '', reviewedUserId: U2 }));
+  await no('review report with a 129-char reviewId', () => send(U3, 'f10', { category: 'false_review', reviewId: 'x'.repeat(129) }));
+  await no('review report with a numeric reviewedUserId', () => send(U3, 'f11', { category: 'false_review', reviewId: `${U2}_${U3}`, reviewedUserId: 5 }));
+  await ok('review report with reviewId + reviewedUserId', () => send(U3, 'f12', { category: 'false_review', reviewId: `${U2}_${U3}`, reviewedUserId: U2 }));
+  await ok('banned player sends a ban appeal', () => send(B, 'f13', { category: 'ban_appeal' }));
+  await ok('mod marks a review report done', () => D.update(r(M, 'player_feedback/f12'), { status: 'done' }));
   await ok('wallpaper like counter (guest)', () => D.update(r(null, 'like_counter/12'), { likes: 4, dislikes: 0, downloads: 9 }));
   await no('wallpaper counter junk field', () => D.update(r(null, 'like_counter/12'), { evil: 'x' }));
   await no('wallpaper counter delete', () => D.set(r(null, 'like_counter/12'), null));
@@ -595,7 +602,9 @@ async function firestoreTests() {
   await no('edit someone else\'s profile doc', () => setDoc(d(U1, 'reviews', U2), { bio: 'x' }, { merge: true }));
   await ok('reviews query by toUserId (guest/web)', () => getDocs(query(c(null, 'reviews'), where('toUserId', '==', U2))));
   await no('user deletes review', () => deleteDoc(d(U1, 'reviews', `${U2}_${U1}`)));
-  await ok('mod deletes review', () => deleteDoc(d(M, 'reviews', `${U2}_${U1}`)));
+  // Admins only since 2026-10-18 (owner decision); moderators used to delete reviews.
+  await no('mod deletes review', () => deleteDoc(d(M, 'reviews', `${U2}_${U1}`)));
+  await ok('admin deletes review', () => deleteDoc(d(A, 'reviews', `${U2}_${U1}`)));
   await ok('staff toggles Top Rated hold', () => updateDoc(d(M, 'review_verified_summary', U2), { leaderboardHold: true, holdBy: M, holdByName: 'm', holdAt: serverTimestamp() }));
   await no('user toggles hold', () => updateDoc(d(U1, 'review_verified_summary', U2), { leaderboardHold: true }));
   await ok('user_profiles own (TradeJournal)', () => setDoc(d(U1, 'user_profiles', U1), { ownedFruits: ['a'] }, { merge: true }));

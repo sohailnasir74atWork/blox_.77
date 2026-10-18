@@ -7,10 +7,23 @@ import React, {
   useCallback,
 } from 'react';
 import { createMMKV } from 'react-native-mmkv';
+import { AppState } from 'react-native';
 import Purchases from 'react-native-purchases';
 import config from './Helper/Environment';
 
 const storage = createMMKV();
+
+// Store billing messages ("update your payment method") are shown by us, a few
+// seconds after start, not by RevenueCat inside configure: its automatic call
+// ran before the Activity had a window and crashed Adopt Me at startup
+// (Crashlytics 684f078f, 1.15.55, Android 14–16). Same RevenueCat setup here.
+const BILLING_MESSAGES_DELAY_MS = 5000;
+const showBillingMessagesLater = () => {
+  setTimeout(() => {
+    if (AppState.currentState !== 'active') return;
+    Purchases.showInAppMessages().catch(() => {});
+  }, BILLING_MESSAGES_DELAY_MS);
+};
 const LocalStateContext = createContext();
 
 export const useLocalState = () => useContext(LocalStateContext);
@@ -59,6 +72,10 @@ export const LocalStateProvider = ({ children }) => {
     // Supabase heartbeat to ~once/6h across restarts (see GlobelStats).
     lastActivitySyncedAt: storage.getString('lastActivitySyncedAt') || null,
     showOnBoardingScreen: storage.getBoolean('showOnBoardingScreen') ?? true,
+    // One-time "long-press a message to translate it" tip in the chats
+    // (2026-10-18: players asked for a translator that already exists).
+    // ChatScreen/TranslateTip clears it the first time it is on screen.
+    showTranslateTip: storage.getBoolean('showTranslateTip') ?? true,
     user_name: storage.getString('user_name') || 'Anonymous',
     translationUsage: safeParseJSON('translationUsage', {
       count: 0,
@@ -214,7 +231,9 @@ export const LocalStateProvider = ({ children }) => {
       await Purchases.configure({
         apiKey: config.apiKey,
         usesStoreKit2IfAvailable: false,
+        shouldShowInAppMessagesAutomatically: false,
       });
+      showBillingMessagesLater();
 
       await checkEntitlements().catch(error => {
         console.error('❌ Error checking entitlements:', error.message);

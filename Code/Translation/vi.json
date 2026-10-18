@@ -165,6 +165,10 @@
       "please_try_again": "Vui lòng thử lại.",
       "roblox_code_not_found": "Không tìm thấy mã xác minh trong phần mô tả hồ sơ Roblox của bạn.",
       "roblox_check_failed": "Xác minh thất bại. Vui lòng thử lại.",
+      "roblox_busy": "Roblox đang bận. Đợi một phút rồi nhấn Xác minh lại.",
+      "roblox_copy_code": "Sao chép mã",
+      "roblox_code_copied_title": "Đã sao chép mã",
+      "roblox_code_copied": "Đã sao chép {{code}}. Dán vào phần Giới thiệu trong hồ sơ Roblox, lưu lại, rồi quay lại và nhấn Xác minh lần nữa.",
       "login_first": "Vui lòng đăng nhập trước.",
       "enter_roblox_username": "Nhập tên người dùng Roblox.",
       "invalid_username": "Tên người dùng không hợp lệ",
@@ -1284,7 +1288,9 @@
       "only_creator_update_icon": "Chỉ người tạo nhóm mới có thể đổi biểu tượng nhóm"
     },
     "confirm_block": "Bạn có chắc muốn chặn {{name}} không?",
-    "confirm_unblock": "Bạn có chắc muốn bỏ chặn {{name}} không?"
+    "confirm_unblock": "Bạn có chắc muốn bỏ chặn {{name}} không?",
+    "translate_tip_long": "Mẹo: nhấn giữ một tin nhắn bất kỳ để dịch.",
+    "translate_tip_tap": "Mẹo: chạm vào một tin nhắn bất kỳ để dịch."
   },
   "first": {
     "welcome_title": "Chào mừng đến với Fruit Values",
@@ -1548,7 +1554,9 @@
     "ban_time_days": "Còn {{days}} ngày {{hours}} giờ",
     "ban_time_hours": "Còn {{hours}} giờ {{minutes}} phút",
     "ban_time_minutes": "Còn {{minutes}} phút",
-    "ban_associated_with_email": "Thiết bị này liên kết với tài khoản bị cấm ({{email}}). Đăng nhập bằng email khác sẽ không khôi phục quyền truy cập."
+    "ban_associated_with_email": "Thiết bị này liên kết với tài khoản bị cấm ({{email}}). Đăng nhập bằng email khác sẽ không khôi phục quyền truy cập.",
+    "ban_appeal_question": "Bạn nghĩ đây là nhầm lẫn?",
+    "ban_appeal_button": "Gửi kháng nghị"
   },
   "more_hub": {
     "title": "Thêm",
@@ -1588,7 +1596,8 @@
       "moderation": "Kiểm duyệt",
       "scam": "Lừa đảo hoặc trade",
       "bug": "Lỗi app",
-      "other": "Khác"
+      "other": "Khác",
+      "ban_appeal": "Kháng nghị lệnh cấm"
     },
     "details": "Chi tiết",
     "placeholder_complaint": "Kể lại chuyện gì đã xảy ra. Tên người dùng, ngày giờ và ảnh chụp màn hình rất hữu ích.",
@@ -1609,7 +1618,11 @@
     "sign_in": "Đăng nhập để gửi khiếu nại hoặc ý tưởng.",
     "mine_title": "Báo cáo của bạn",
     "status_open": "Đã nhận",
-    "status_done": "Đã xem xét"
+    "status_done": "Đã xem xét",
+    "placeholder_ban_appeal": "Kể cho chúng tôi chuyện gì đã xảy ra và vì sao bạn nghĩ lệnh cấm là nhầm lẫn. Ảnh chụp màn hình sẽ giúp ích.",
+    "placeholder_false_review": "Vì sao đánh giá này là sai? Ảnh chụp đoạn chat sẽ giúp ích.",
+    "reported_review": "Đánh giá bạn đang báo cáo",
+    "report_review": "Báo cáo đánh giá"
   },
   "groups": {
     "errors": {
@@ -2487,7 +2500,9 @@
       "submit_failed": "Không thể gửi báo cáo. Thử lại nhé.",
       "title": "Báo cáo bài viết",
       "placeholder": "Vì sao bạn báo cáo bài viết này?",
-      "submitting": "Đang gửi…"
+      "submitting": "Đang gửi…",
+      "status_title": "Báo cáo trạng thái",
+      "status_placeholder": "Vì sao bạn báo cáo trạng thái này?"
     },
     "comments_modal": {
       "sign_in_required": "Yêu cầu đăng nhập",

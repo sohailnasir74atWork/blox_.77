@@ -165,6 +165,10 @@
       "please_try_again": "Please try again.",
       "roblox_code_not_found": "Verification code not found in your Roblox profile description",
       "roblox_check_failed": "Failed to verify. Please try again.",
+      "roblox_busy": "Roblox is busy right now. Wait a minute, then tap Verify again.",
+      "roblox_copy_code": "Copy code",
+      "roblox_code_copied_title": "Code copied",
+      "roblox_code_copied": "{{code}} is copied. Paste it into your Roblox profile About, save, then come back and tap Verify again.",
       "login_first": "Please login first",
       "enter_roblox_username": "Please enter a Roblox username",
       "invalid_username": "Invalid Username",
@@ -1284,7 +1288,9 @@
       "only_creator_update_icon": "Only the group creator can update the group icon"
     },
     "confirm_block": "Are you sure you want to block {{name}}?",
-    "confirm_unblock": "Are you sure you want to unblock {{name}}?"
+    "confirm_unblock": "Are you sure you want to unblock {{name}}?",
+    "translate_tip_long": "Tip: long-press any message to translate it.",
+    "translate_tip_tap": "Tip: tap any message to translate it."
   },
   "first": {
     "continue_guest": "Continue as Guest",
@@ -1547,7 +1553,9 @@
     "ban_time_days": "{{days}}d {{hours}}h remaining",
     "ban_time_hours": "{{hours}}h {{minutes}}m remaining",
     "ban_time_minutes": "{{minutes}}m remaining",
-    "ban_associated_with_email": "This device is linked to a banned account ({{email}}). Signing in with a different email won't restore access."
+    "ban_associated_with_email": "This device is linked to a banned account ({{email}}). Signing in with a different email won't restore access.",
+    "ban_appeal_question": "Think this is a mistake?",
+    "ban_appeal_button": "Send an appeal"
   },
   "more_hub": {
     "title": "More",
@@ -1587,7 +1595,8 @@
       "moderation": "Moderation",
       "scam": "Scam or trade",
       "bug": "App problem",
-      "other": "Something else"
+      "other": "Something else",
+      "ban_appeal": "Ban appeal"
     },
     "details": "Details",
     "placeholder_complaint": "Tell us what happened. Usernames, dates and screenshots help a lot.",
@@ -1608,7 +1617,11 @@
     "sign_in": "Sign in to send a complaint or an idea.",
     "mine_title": "Your reports",
     "status_open": "Received",
-    "status_done": "Reviewed"
+    "status_done": "Reviewed",
+    "placeholder_ban_appeal": "Tell us what happened and why you think the ban is a mistake. Screenshots help.",
+    "placeholder_false_review": "Why is this review false? Screenshots of your chat help.",
+    "reported_review": "Review you're reporting",
+    "report_review": "Report review"
   },
   "groups": {
     "errors": {
@@ -2484,7 +2497,9 @@
       "submit_failed": "Could not submit report. Please try again.",
       "title": "Report Post",
       "placeholder": "Why are you reporting this post?",
-      "submitting": "Submitting…"
+      "submitting": "Submitting…",
+      "status_title": "Report status",
+      "status_placeholder": "Why are you reporting this status?"
     },
     "comments_modal": {
       "sign_in_required": "Sign In Required",

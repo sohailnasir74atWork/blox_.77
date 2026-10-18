@@ -227,12 +227,23 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
         updateGroupsList();
       };
 
+      // Backstop: the initial load waits on a Firebase token + one Supabase
+      // request, and nothing may hold the spinner forever (Adopt Me b369893,
+      // 2026-10-14 reports). Rows already in hand stay on screen.
+      const loadingFallback = setTimeout(() => setGroupsLoading(false), 5000);
+
       const unsub = subscribeToGroupMeta(user.id, {
         onUpsert: handleSupaUpsert,
         onRemove: handleSupaRemove,
-        onReady: () => setGroupsLoading(false),
+        onReady: () => {
+          clearTimeout(loadingFallback);
+          setGroupsLoading(false);
+        },
       });
-      return () => { unsub(); };
+      return () => {
+        unsub();
+        clearTimeout(loadingFallback);
+      };
     }
 
     // ── RTDB fallback (original code) ────────────────────────────────

@@ -24,7 +24,8 @@ const BOOST_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 // `now - WINDOW` directly counts a boost as recent for WINDOW + DURATION.
 const BOOST_WINDOW_START_OFFSET_MS = BOOST_LIMIT_WINDOW_MS - FEATURE_DURATION_MS;
 
-import { bannerAware, ABOVE_BANNER, FLOATING_BUTTON_ICON_SIZE, FLOATING_BUTTON_RIGHT } from '../Helper/floatingButtonLayout';
+import { bannerAware, FLOATING_BUTTON_ICON_SIZE, FLOATING_BUTTON_RIGHT, aboveBanner } from '../Helper/floatingButtonLayout';
+import { useBannerHeight } from '../Ads/bannerHeight';
 import RewardedAdManager from '../Ads/RewardedAdManager';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -42,6 +43,7 @@ import SubscriptionScreen from '../SettingScreen/OfferWall';
 import InterstitialAdManager from '../Ads/IntAd';
 import BannerAdComponent from '../Ads/bannerAds';
 import FeedBannerAd from '../Ads/FeedBannerAd';
+import { useFeedAdGate, FEED_AD_VIEWABILITY } from '../Ads/feedAdGate';
 import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import StyledUsernamePreview from '../SettingScreen/Store/StyledName';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
@@ -104,6 +106,8 @@ const TRADE_HEADER_IMAGES = {
 const TRADE_HEADER_IMAGE = { width: 16, height: 16 };
 
 const TradeList = ({ route }) => {
+  // Floating buttons clear the real banner height (Ads/bannerHeight.js).
+  const bannerHeight = useBannerHeight();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchInHas, setSearchInHas] = useState(true); // ✅ Search in "ME" side (hasItems)
   const [searchInWants, setSearchInWants] = useState(true); // ✅ Search in "YOU" side (wantsItems)
@@ -294,6 +298,8 @@ const TradeList = ({ route }) => {
     }
     return out;
   }, [isSearchMode, trades, filteredTrades, isProStatus]);
+  // Feed ad rows load only near the screen (Ads/feedAdGate.js).
+  const feedAdGate = useFeedAdGate(tradesWithAds);
 
   // ✅ Client-side filtering for non-search scenarios (filters, banned users)
   useEffect(() => {
@@ -1567,7 +1573,7 @@ const TradeList = ({ route }) => {
   // ── Alternate trade card renderer (non-Noman) ──
   const renderTradeAlt = ({ item, index }) => {
     if (item?.__type === 'ad') {
-      return <FeedBannerAd adKey={item.id} isDarkMode={isDarkMode} />;
+      return <FeedBannerAd adKey={item.id} isDarkMode={isDarkMode} gate={feedAdGate} />;
     }
     const { deal, tradeRatio } = getTradeDeal(item.hasTotal, item.wantsTotal);
     const tradePercentage = Math.abs(((tradeRatio - 1) * 100).toFixed(0));
@@ -1773,7 +1779,7 @@ const TradeList = ({ route }) => {
 
   const renderTrade = ({ item, index }) => {
     if (item?.__type === 'ad') {
-      return <FeedBannerAd adKey={item.id} isDarkMode={isDarkMode} />;
+      return <FeedBannerAd adKey={item.id} isDarkMode={isDarkMode} gate={feedAdGate} />;
     }
     const { deal, tradeRatio } = getTradeDeal(item.hasTotal, item.wantsTotal);
     const tradePercentage = Math.abs(((tradeRatio - 1) * 100).toFixed(0));
@@ -2198,6 +2204,8 @@ const TradeList = ({ route }) => {
       <FlatList
         ref={flatListRef}
         data={tradesWithAds}
+        onViewableItemsChanged={feedAdGate.onViewableItemsChanged}
+        viewabilityConfig={FEED_AD_VIEWABILITY}
         renderItem={config.isNoman ? renderTrade : renderTradeAlt}
         extraData={analyticsMaps}
         keyExtractor={(item, index) => {
@@ -2249,7 +2257,7 @@ const TradeList = ({ route }) => {
         <Animated.View
           style={[
             styles.scrollToTopButton,
-            { bottom: bannerAware(ABOVE_BANNER, !!isProStatus) },
+            { bottom: bannerAware(aboveBanner(bannerHeight), !!isProStatus, bannerHeight) },
             {
               opacity: scrollButtonOpacity,
               transform: [

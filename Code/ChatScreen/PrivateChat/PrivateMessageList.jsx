@@ -39,6 +39,7 @@ import ScamSafetyBox from './Scamwarning';
 import { useNavigation } from '@react-navigation/native';
 import config from '../../Helper/Environment';
 import { parseMessageText } from '../ChatHelper';
+import { hideTranslateTip } from '../TranslateTip';
 
 const PrivateMessageList = ({
   messages,
@@ -81,7 +82,7 @@ const PrivateMessageList = ({
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [showReportPopup, setShowReportPopup] = useState(false);
   const { triggerHapticFeedback } = useHaptic();
-  const { canTranslate, incrementTranslationCount, getRemainingTranslationTries, localState } = useLocalState();
+  const { canTranslate, incrementTranslationCount, getRemainingTranslationTries, localState, updateLocalState } = useLocalState();
 
   const navigation = useNavigation()
 
@@ -199,6 +200,10 @@ const PrivateMessageList = ({
   };
 
   const handleTranslate = async (item) => {
+    // They found Translate: the one-time tip (ChatScreen/TranslateTip) is done.
+    hideTranslateTip();
+    if (localState.showTranslateTip) updateLocalState('showTranslateTip', false);
+
     // ✅ FIXED: Correct unlimited check (Pro users OR proGranted users have unlimited)
     const isUnlimited = freeTranslation || localState.isPro || proGranted;
 
