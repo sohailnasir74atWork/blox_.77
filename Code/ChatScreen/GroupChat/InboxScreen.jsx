@@ -9,7 +9,7 @@ import {
   Image,
   Alert,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useGlobalState } from '../../GlobelStats';
 import { getThemeColors } from '../../Helper/themeColors';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -448,7 +448,17 @@ const InboxScreen = ({ bannedUsers }) => {
   }, [user?.id, t]);
 
   // ✅ Memoize handleOpenChat with useCallback
+  // One chat at a time: a second tap before the first chat had opened changed
+  // the open chat's person mid-navigation, so the header showed one player over
+  // another player's messages (owner report, 2026-10-18). Released when the
+  // inbox is focused again, or after 1.5 s if the navigation never happened.
+  const openingChatRef = useRef(false);
+  useFocusEffect(useCallback(() => { openingChatRef.current = false; }, []));
+
   const handleOpenChat = useCallback(async (chatId, otherUserId, otherUserName, otherUserAvatar) => {
+    if (openingChatRef.current) return;
+    openingChatRef.current = true;
+    setTimeout(() => { openingChatRef.current = false; }, 1500);
     if (!user?.id) {
       console.error('❌ User ID not available');
       return;

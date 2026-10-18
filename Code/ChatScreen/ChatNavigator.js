@@ -415,6 +415,8 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
         options={({ route }) => ({
           headerTitle: () => (
             <PrivateChatHeader
+              // New header per player, so nothing from the previous chat carries over.
+              key={route.params?.selectedUser?.senderId || 'none'}
               selectedUser={route.params?.selectedUser}
               selectedTheme={selectedTheme}
               bannedUsers={bannedUsers}
@@ -426,6 +428,9 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
       >
         {(props) => (
           <PrivateChatScreen
+            // New screen per player: params changing in place (a quick second tap)
+            // left the previous player's state behind.
+            key={props.route?.params?.selectedUser?.senderId || 'none'}
             {...props}
             bannedUsers={bannedUsers}
             isDrawerVisible={isDrawerVisible}

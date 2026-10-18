@@ -151,6 +151,7 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
     // Defined before the call below (const in the effect body).
     function setAndCacheUserData(data) {
       headerUserCache.set(selectedUserId, { data, at: Date.now() });
+      if (!isMounted) return; // a reply for a player we already left
       setUserData(data);
     }
 
