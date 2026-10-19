@@ -906,6 +906,7 @@
       "waiting_for_you_other": "{{count}} menunggumu",
       "no_groups_yet": "Kamu belum punya grup",
       "no_groups_found": "Grup tidak ditemukan",
+      "search_groups_placeholder": "Cari grup berdasarkan nama",
       "no_groups_available": "Tidak ada grup yang tersedia",
       "created_by_name": "Dibuat oleh {{name}}",
       "joined_badge": "Bergabung",
@@ -1643,7 +1644,8 @@
   },
   "groups": {
     "errors": {
-      "group_limit": "Kamu bisa jadi admin maksimal {{max}} grup sekaligus. Hapus satu untuk membuat yang baru."
+      "group_limit": "Kamu bisa jadi admin maksimal {{max}} grup sekaligus. Hapus satu untuk membuat yang baru.",
+      "transfer_limit": "Pemain ini sudah memiliki jumlah grup maksimum ({{max}}). Mereka harus menghapus satu dulu sebelum bisa mengambil alih grup ini."
     }
   },
   "birthdays": {

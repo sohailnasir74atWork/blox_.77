@@ -27,7 +27,7 @@ import config from '../../Helper/Environment';
 import RoleBadges from '../../Design/componenets/RoleBadges';
 import CreateGroupModal from './CreateGroupModal';
 import { useHaptic } from '../../Helper/HepticFeedBack';
-import { getUserAdminGroups, addMembersToGroup, MAX_GROUPS_PER_USER } from '../utils/groupUtils';
+import { getUserAdminGroups, addMembersToGroup, getGroupCap } from '../utils/groupUtils';
 import { getCachedProfile } from '../../Helper/profileCache';
 import FramedAvatar from './FramedAvatar';
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
@@ -607,22 +607,38 @@ const OnlineUsersList = ({
       }
     };
 
-    const options = userGroups.slice(0, MAX_GROUPS_PER_USER).map((g) => ({
+    // Own groups up to the cap (2; 10 for Senior Mod+, groupUtils.getGroupCap).
+    const cap = getGroupCap({ isAdmin, isSeniorMod, isModerator, isBabyMod });
+    const choices = userGroups.slice(0, cap).map((g) => ({
       text: t('chat.add_to_named_group', {
         name: g.groupData?.name || g.groupData?.groupName || '—',
         defaultValue: 'Add to {{name}}',
       }),
       onPress: () => addToGroup(g.groupId),
     }));
-    if (userGroups.length < MAX_GROUPS_PER_USER) {
-      options.push({
+    if (userGroups.length < cap) {
+      choices.push({
         text: t('chat.create_new_group', { defaultValue: 'Create a new group' }),
         onPress: () => setShowCreateGroupModal(true),
       });
     }
-    options.push({ text: t('chat.cancel', { defaultValue: 'Cancel' }), style: 'cancel' });
-    Alert.alert(t('chat.choose_group_title', { defaultValue: 'Which group?' }), undefined, options);
-  }, [selectedUserIds, userGroups, user, appdatabase, firestoreDB, allOnlineUsers, searchResults, triggerHapticFeedback, getModGate, t]);
+    const cancel = { text: t('chat.cancel', { defaultValue: 'Cancel' }), style: 'cancel' };
+    const title = t('chat.choose_group_title', { defaultValue: 'Which group?' });
+    // Android alerts show 3 buttons at most: staff with more groups page
+    // through them two at a time (tap outside to cancel).
+    const showPage = (start) => {
+      if (Platform.OS !== 'android' || choices.length <= 2) {
+        Alert.alert(title, undefined, [...choices, cancel]);
+        return;
+      }
+      const page = choices.slice(start, start + 2);
+      const more = start + 2 < choices.length;
+      Alert.alert(title, undefined,
+        more ? [...page, { text: 'More groups…', onPress: () => showPage(start + 2) }] : [...page, cancel],
+        { cancelable: true });
+    };
+    showPage(0);
+  }, [selectedUserIds, userGroups, user, appdatabase, firestoreDB, allOnlineUsers, searchResults, triggerHapticFeedback, getModGate, t, isAdmin, isSeniorMod, isModerator, isBabyMod]);
 
   // ✅ Handle group created (navigate to group chat)
   const handleGroupCreated = useCallback((groupId) => {

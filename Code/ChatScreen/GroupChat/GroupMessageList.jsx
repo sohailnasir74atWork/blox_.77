@@ -47,10 +47,11 @@ const GroupMessageList = ({
   highlightedMessageId, // ID of highlighted message
   flatListRef, // Ref for FlatList
   onPinMessage = null, // Callback to pin / unpin a message
-  canPin = false, // The group's creator may pin too (staff always can)
+  canPin = false, // The group's creator or Senior Mod+ (groupUtils.getGroupPermissions)
+  canModerate = false, // Same people: Delete / Delete All on other people's messages
   pinnedIds = null, // Set of pinned message ids (the menu then offers Unpin)
 }) => {
-  const { theme, isAdmin, isModerator, appdatabase } = useGlobalState();
+  const { theme, appdatabase } = useGlobalState();
 
   // Group messages carry no role fields, so staff/role badges come from the
   // profile cache (Supabase user_roles), same as the public chat.
@@ -501,7 +502,7 @@ const GroupMessageList = ({
                     <Text style={styles.menuOptionText}>{t('chat.reply')}</Text>
                   </MenuOption>
                 )}
-                {onPinMessage && (isAdmin || isModerator || canPin) && (
+                {onPinMessage && canPin && (
                   <MenuOption onSelect={() => onPinMessage(item)}>
                     <Text style={styles.menuOptionText}>
                       {pinnedIds?.has(item.id)
@@ -510,12 +511,12 @@ const GroupMessageList = ({
                     </Text>
                   </MenuOption>
                 )}
-                {(isAdmin || isModerator) && onDeleteMessage && (
+                {canModerate && onDeleteMessage && (
                   <MenuOption onSelect={() => onDeleteMessage(item.id)}>
                     <Text style={[styles.menuOptionText, { color: '#FF3B30' }]}>Delete</Text>
                   </MenuOption>
                 )}
-                {(isAdmin || isModerator) && onDeleteAllMessage && (
+                {canModerate && onDeleteAllMessage && (
                   <MenuOption onSelect={() => onDeleteAllMessage(item?.senderId)}>
                     <Text style={[styles.menuOptionText, { color: '#FF3B30' }]}>Delete All</Text>
                   </MenuOption>
@@ -535,7 +536,7 @@ const GroupMessageList = ({
         </View>
       );
     },
-    [userId, user, groupData, styles, fruitColors, myFruitColors, handleCopy, navigation, triggerHapticFeedback, onUserPress, isDarkMode, onReply, scrollToMessage, highlightedMessageId, getReplyPreview, t, onPinMessage, canPin, pinnedIds, isAdmin, isModerator, profileCacheVersion]
+    [userId, user, groupData, styles, fruitColors, myFruitColors, handleCopy, navigation, triggerHapticFeedback, onUserPress, isDarkMode, onReply, scrollToMessage, highlightedMessageId, getReplyPreview, t, onPinMessage, canPin, canModerate, pinnedIds, profileCacheVersion]
   );
 
   const keyExtractor = useCallback((item, index) => {

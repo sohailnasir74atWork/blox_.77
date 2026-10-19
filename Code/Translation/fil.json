@@ -906,6 +906,7 @@
       "waiting_for_you_other": "May {{count}} naghihintay sa iyo",
       "no_groups_yet": "Wala ka pang grupo",
       "no_groups_found": "Walang nakitang grupo",
+      "search_groups_placeholder": "Maghanap ng grupo ayon sa pangalan",
       "no_groups_available": "Walang available na grupo",
       "created_by_name": "Ginawa ni {{name}}",
       "joined_badge": "Sumali",
@@ -1644,7 +1645,8 @@
   },
   "groups": {
     "errors": {
-      "group_limit": "Puwede kang maging admin ng hanggang {{max}} group nang sabay. Mag-delete ng isa para gumawa ng bago."
+      "group_limit": "Puwede kang maging admin ng hanggang {{max}} group nang sabay. Mag-delete ng isa para gumawa ng bago.",
+      "transfer_limit": "Ang player na ito ay may pinakamaraming grupo na pwede na ({{max}}). Kailangan muna niyang mag-delete ng isa bago niya makuha ang grupong ito."
     }
   },
   "birthdays": {

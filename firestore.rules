@@ -320,9 +320,49 @@ service cloud.firestore {
     }
 
     // ── Groups (membership here; group chat itself is Supabase) ──
+    // 2026-10-19 (supabase/044, functions/groupMembership.js): an invitee
+    // joins by adding THEMSELVES, and the rules can't look up the invitation
+    // behind it (random doc id). So memberIds is a claim: the server checks
+    // every add against a live invitation or an approved join request, undoes
+    // the rest, and only verified members can read the chat (Supabase
+    // group_members). These rules keep every build's real writes and refuse
+    // what they can check alone: someone else's entry, giving yourself admin
+    // or unmuting yourself, a full group, inviting into a group you aren't in,
+    // approving your own request, the server's fields.
+    // Staff powers on groups: Senior Mod / Admin / owner only (owner decision
+    // 2026-10-19). Moderators and JMDs act like any member.
+    function isSeniorStaff() {
+      return isAdminEmail()
+        || (signedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid))
+            && get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.get('roles', []).hasAny(['admin', 'isAdmin', 'isSeniorMod']));
+    }
     function groupAdmin() {
       return signedIn() && (resource.data.get('createdBy', null) == me()
         || resource.data.get('members', {}).get(me(), {}).get('role', '') == 'admin');
+    }
+    // searchKeys / ownerCap are written by functions/groupMembership.js only.
+    // isActive can't be switched off by a client: inactive groups don't count
+    // toward the group cap, so that would be a way around it.
+    function noGroupServerFields() {
+      return !changed().hasAny(['searchKeys', 'ownerCap'])
+        && (!('isActive' in changed()) || request.resource.data.isActive == true);
+    }
+    // A group can only be handed to one of its members, by its current
+    // creator or Senior Mod+ (not a leftover role 'admin'), and never in the
+    // same write that adds people (an add must be backed by an invite).
+    function ownerStaysMember() {
+      return !('createdBy' in changed())
+        || (request.resource.data.get('createdBy', null) in request.resource.data.get('memberIds', [])
+            && (resource.data.get('createdBy', null) == me() || isSeniorStaff())
+            && request.resource.data.get('memberIds', []).toSet()
+                 .difference(resource.data.get('memberIds', []).toSet()).size() == 0);
+    }
+    // Your own members entry can't promote or unmute you.
+    function ownEntryKeepsRole() {
+      let was = resource.data.get('members', {}).get(me(), {});
+      let now = request.resource.data.get('members', {}).get(me(), {});
+      return now.get('role', 'member') == was.get('role', 'member')
+        && now.get('muted', false) == was.get('muted', false);
     }
     // Joining (accepting an invite) or leaving changes only your own membership.
     function ownMembershipOnly() {
@@ -330,7 +370,9 @@ service cloud.firestore {
       let after = request.resource.data.get('memberIds', []).toSet();
       return changed().hasOnly(['memberIds', 'members', 'memberCount', 'updatedAt'])
         && after.difference(before).union(before.difference(after)).hasOnly([me()])
-        && ownEntryOnly('members');
+        && ownEntryOnly('members')
+        && (!(me() in after)
+            || (ownEntryKeepsRole() && request.resource.data.get('memberIds', []).size() <= 100));
     }
     function groupGone(groupId) {
       return !exists(/databases/$(database)/documents/groups/$(groupId));
@@ -340,32 +382,58 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/groups/$(groupId)).data.get('createdBy', null) == me();
     }
     match /groups/{groupId} {
+      // Public: the All groups tab lists every group (old builds query this
+      // collection directly), so it can't be narrowed without breaking them.
       allow read: if true;
       allow create: if createsAs('createdBy') && !isBanned()
-        && me() in request.resource.data.get('memberIds', [me()]);
-      allow update: if groupAdmin() || isStaff()
-        || (signedIn() && ownMembershipOnly()
-            // joining needs an unbanned account; leaving never does
-            && (request.resource.data.get('memberIds', []).size() < resource.data.get('memberIds', []).size() || !isBanned()));
-      allow delete: if groupAdmin() || isStaff()
+        && request.resource.data.get('memberIds', [me()]).toSet() == [me()].toSet()
+        && request.resource.data.get('isActive', true) == true
+        && !request.resource.data.keys().hasAny(['searchKeys', 'ownerCap']);
+      allow update: if noGroupServerFields() && (
+          ((groupAdmin() || isSeniorStaff()) && ownerStaysMember())
+          || (signedIn() && ownMembershipOnly()
+              // joining needs an unbanned account; leaving never does
+              && (request.resource.data.get('memberIds', []).size() < resource.data.get('memberIds', []).size() || !isBanned())));
+      allow delete: if groupAdmin() || isSeniorStaff()
         || (signedIn() && resource.data.get('memberIds', []) == [me()]);
     }
     match /group_invitations/{id} {
       // Creators check pending invites of other users before inviting.
       allow read: if signedIn();
-      allow create: if createsAs('invitedBy') && !isBanned();
-      allow update: if isStaff() || ownerIs('invitedBy')
-        || (ownerIs('invitedUserId') && changed().hasOnly(['status', 'updatedAt', 'respondedAt']));
+      // A pending invite from the group's creator (the only one the app and
+      // the website let invite; memberIds alone can be self-added), for someone else.
+      allow create: if createsAs('invitedBy') && !isBanned()
+        && request.resource.data.get('status', '') == 'pending'
+        && request.resource.data.get('invitedUserId', null) is string
+        && request.resource.data.invitedUserId != me()
+        && request.resource.data.get('groupId', null) is string
+        && !('revokedAt' in request.resource.data)
+        && isGroupCreator(request.resource.data.groupId);
+      allow update: if isSeniorStaff()
+        || (ownerIs('invitedBy') && !changed().hasAny(['groupId', 'invitedUserId', 'invitedBy', 'revokedAt']))
+        || (ownerIs('invitedUserId') && changed().hasOnly(['status', 'updatedAt', 'respondedAt'])
+            && request.resource.data.get('status', '') in ['pending', 'accepted', 'declined']);
       // Deleting a group sweeps every invite for it (after the group doc is gone).
       allow delete: if ownerIs('invitedBy') || ownerIs('invitedUserId') || isStaff()
         || (signedIn() && (groupGone(resource.data.get('groupId', '')) || isGroupCreator(resource.data.get('groupId', ''))));
     }
     match /group_join_requests/{id} {
       allow read: if signedIn();
-      allow create: if createsAs('requesterId') && !isBanned();
-      allow update: if isStaff() || ownerIs('creatorId') || ownerIs('requesterId')
-        || (signedIn() && isGroupCreator(resource.data.get('groupId', ''))
-            && changed().hasOnly(['status', 'approvedAt', 'rejectedAt', 'rejectionReason', 'updatedAt']));
+      // Pending, and addressed to the group's real creator.
+      allow create: if createsAs('requesterId') && !isBanned()
+        && request.resource.data.get('status', '') == 'pending'
+        && request.resource.data.get('groupId', null) is string
+        && !('revokedAt' in request.resource.data)
+        && exists(/databases/$(database)/documents/groups/$(request.resource.data.groupId))
+        && request.resource.data.get('creatorId', null)
+           == get(/databases/$(database)/documents/groups/$(request.resource.data.groupId)).data.get('createdBy', null);
+      // Only the group's current creator (or Senior Mod+) approves.
+      allow update: if isSeniorStaff()
+        || (!changed().hasAny(['groupId', 'requesterId', 'creatorId', 'revokedAt']) && (
+            (signedIn() && isGroupCreator(resource.data.get('groupId', ''))
+              && changed().hasOnly(['status', 'approvedAt', 'rejectedAt', 'rejectionReason', 'updatedAt']))
+            || ((ownerIs('creatorId') || ownerIs('requesterId'))
+              && request.resource.data.get('status', '') != 'approved')));
       allow delete: if ownerIs('requesterId') || ownerIs('creatorId') || isStaff()
         || (signedIn() && (groupGone(resource.data.get('groupId', '')) || isGroupCreator(resource.data.get('groupId', ''))));
     }

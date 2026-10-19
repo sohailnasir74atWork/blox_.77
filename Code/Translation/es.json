@@ -907,6 +907,7 @@
       "waiting_for_you_other": "{{count}} te esperan",
       "no_groups_yet": "Aún no tienes grupos",
       "no_groups_found": "No se encontraron grupos",
+      "search_groups_placeholder": "Buscar grupos por nombre",
       "no_groups_available": "No hay grupos disponibles",
       "created_by_name": "Creado por {{name}}",
       "joined_badge": "Te uniste",
@@ -1647,7 +1648,8 @@
   },
   "groups": {
     "errors": {
-      "group_limit": "Puedes ser admin de hasta {{max}} grupos a la vez. Elimina uno para crear otro nuevo."
+      "group_limit": "Puedes ser admin de hasta {{max}} grupos a la vez. Elimina uno para crear otro nuevo.",
+      "transfer_limit": "Este jugador ya tiene el máximo de grupos que puede tener ({{max}}). Tiene que eliminar uno antes de poder quedarse con este grupo."
     }
   },
   "birthdays": {

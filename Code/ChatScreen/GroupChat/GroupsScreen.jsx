@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useState, useEffect } from 'react';
+import React, { useMemo, useCallback, useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -20,7 +20,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
 import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
 import { useTranslation } from 'react-i18next';
-import { leaveGroup, acceptGroupInvite, declineGroupInvite, updateGroupAvatar, approveJoinRequest, rejectJoinRequest, getAllGroups, sendJoinRequest, deleteGroup, MAX_GROUPS_PER_USER } from '../utils/groupUtils';
+import { leaveGroup, acceptGroupInvite, declineGroupInvite, updateGroupAvatar, approveJoinRequest, rejectJoinRequest, getAllGroups, sendJoinRequest, deleteGroup, getGroupPermissions, isGroupStaff, getGroupCap } from '../utils/groupUtils';
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
 import { collection, query, where, onSnapshot, doc, getDoc, getCountFromServer, limit } from '@react-native-firebase/firestore';
 import { ref, get, set } from '@react-native-firebase/database';
@@ -31,6 +31,28 @@ import OnlineUsersList from './OnlineUsersList';
 import CreateGroupModal from './CreateGroupModal';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { uploadImage, UPLOAD_KIND } from '../../Helper/imageUpload';
+import { createMMKV } from 'react-native-mmkv';
+
+// The All groups count, cached for an hour (it was a count query on every
+// mount of this screen).
+const GROUP_COUNT_TTL_MS = 60 * 60 * 1000;
+let groupCountStore = null;
+try {
+  groupCountStore = createMMKV({ id: 'groups-screen' });
+} catch (_) { /* no MMKV: count every mount, as before */ }
+const readCachedGroupCount = () => {
+  try {
+    const raw = groupCountStore?.getString('allGroupsCount');
+    if (!raw) return null;
+    const { count, at } = JSON.parse(raw);
+    return typeof count === 'number' && Date.now() - at < GROUP_COUNT_TTL_MS ? count : null;
+  } catch (_) {
+    return null;
+  }
+};
+const writeCachedGroupCount = (count) => {
+  try { groupCountStore?.set('allGroupsCount', JSON.stringify({ count, at: Date.now() })); } catch (_) {}
+};
 
 // Helper function to truncate group names
 const truncateGroupName = (name, maxLength = 25) => {
@@ -41,7 +63,11 @@ const truncateGroupName = (name, maxLength = 25) => {
 
 const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
   const navigation = useNavigation();
-  const { user, theme, appdatabase, firestoreDB, isAdmin, isModerator } = useGlobalState();
+  const { user, theme, appdatabase, firestoreDB, isAdmin, isSeniorMod, isModerator, isBabyMod } = useGlobalState();
+  // Group powers: the creator, and Senior Mod / Admin / owner in any group;
+  // Mods and JMDs are members like anyone (groupUtils.getGroupPermissions).
+  const roles = useMemo(() => ({ isAdmin, isSeniorMod, isModerator, isBabyMod }), [isAdmin, isSeniorMod, isModerator, isBabyMod]);
+  const groupStaff = isGroupStaff(roles);
   const { localState } = useLocalState();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -57,6 +83,8 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
   const [allGroupsLoading, setAllGroupsLoading] = useState(false);
   const [allGroupsLoadingMore, setAllGroupsLoadingMore] = useState(false);
   const [allGroupsSearchQuery, setAllGroupsSearchQuery] = useState('');
+  const [allGroupsSearchText, setAllGroupsSearchText] = useState(''); // typed; the query follows after a pause
+  const allGroupsLoadSeq = useRef(0);
   const [creatorNames, setCreatorNames] = useState({}); // Cache creator names
   const [allGroupsHasMore, setAllGroupsHasMore] = useState(true);
   const [allGroupsLastDoc, setAllGroupsLastDoc] = useState(null);
@@ -73,15 +101,22 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
   const isDarkMode = theme === 'dark';
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
 
-  // ✅ Fetch total group count (same as adoptme pattern)
+  // Total active groups: one count query an hour, not one per mount.
   useEffect(() => {
     if (!firestoreDB) return;
+    const cached = readCachedGroupCount();
+    if (cached !== null) {
+      setTotalGroupCount(cached);
+      return;
+    }
     const fetchCount = async () => {
       try {
         const coll = collection(firestoreDB, 'groups');
         const q = query(coll, where('isActive', '==', true));
         const snapshot = await getCountFromServer(q);
-        setTotalGroupCount(snapshot.data().count);
+        const count = snapshot.data().count;
+        setTotalGroupCount(count);
+        writeCachedGroupCount(count);
       } catch (err) {
         console.error('Error fetching group count:', err);
       }
@@ -316,12 +351,8 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
       return;
     }
 
-    // Check if user is admin in this specific group
     const group = groups.find(g => g.groupId === groupId);
-    const isCreator = group?.createdBy === user.id;
-    const isGroupAdmin = isCreator || (group?.members?.[user.id]?.role === 'admin') || ((isAdmin || isModerator) && group?.members?.[user.id]);
-
-    if (!isGroupAdmin) {
+    if (!getGroupPermissions(group, user.id, roles).canManage) {
       showErrorMessage(t('chat.error'), t('chat.groups_screen.only_admins_delete'));
       return;
     }
@@ -336,7 +367,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              const result = await deleteGroup(firestoreDB, appdatabase, groupId, user?.id ?? null);
+              const result = await deleteGroup(firestoreDB, appdatabase, groupId, user?.id ?? null, roles);
               if (result.success) {
                 showSuccessMessage(t('home.alert.success'), t('chat.groups_screen.group_deleted'));
                 // Update local state
@@ -357,7 +388,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
         },
       ]
     );
-  }, [user?.id, isAdmin, isModerator, firestoreDB, appdatabase, setGroups, groups, t]);
+  }, [user?.id, roles, firestoreDB, appdatabase, setGroups, groups, t]);
 
   // Handle leave group
   const handleLeaveGroup = useCallback((groupId, groupName) => {
@@ -419,12 +450,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
       return;
     }
 
-    // Check if user has permission to edit (group creator, group admin, or global admin)
-    const isCreator = group.createdBy === user.id;
-    const isGroupAdmin = group.members?.[user.id]?.role === 'admin';
-    const canEdit = isCreator || isGroupAdmin || ((isAdmin || isModerator) && group.members?.[user.id]);
-
-    if (!canEdit) {
+    if (!getGroupPermissions(group, user.id, roles).canManage) {
       showErrorMessage(t('chat.error'), t('chat.groups_screen.only_admins_edit'));
       return;
     }
@@ -436,7 +462,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
       avatar: group.groupAvatar || group.avatar || null,
     });
     setEditGroupModalVisible(true);
-  }, [isAdmin, isModerator, groups, user?.id, showErrorMessage, t]);
+  }, [roles, groups, user?.id, showErrorMessage, t]);
 
   // Handle group updated callback
   const handleGroupUpdated = useCallback(() => {
@@ -577,10 +603,8 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
   const handleUpdateGroupIcon = useCallback(async (groupId) => {
     if (!groupId || !user?.id || !firestoreDB || !appdatabase) return;
 
-    // Check if user is admin or creator
     const group = groups.find(g => g.groupId === groupId);
-    const isCreator = group?.createdBy === user.id;
-    if (!isAdmin && !isModerator && !isCreator) {
+    if (!getGroupPermissions(group, user.id, roles).canManage) {
       showErrorMessage(t('chat.error'), t('chat.groups_screen.only_admins_icon'));
       return;
     }
@@ -603,7 +627,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
             const avatarUrl = await uploadToBunny(asset.uri);
 
             // Update group avatar
-            const result = await updateGroupAvatar(firestoreDB, appdatabase, groupId, user.id, avatarUrl, isAdmin);
+            const result = await updateGroupAvatar(firestoreDB, appdatabase, groupId, user.id, avatarUrl, roles);
 
             if (result.success) {
               showSuccessMessage(t('home.alert.success'), t('chat.groups_screen.icon_updated'));
@@ -628,7 +652,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
         }
       }
     );
-  }, [user?.id, firestoreDB, appdatabase, uploadToBunny, setGroups, isAdmin, groups, t]);
+  }, [user?.id, firestoreDB, appdatabase, uploadToBunny, setGroups, roles, groups, t]);
 
   // Render group item
   const renderGroupItem = useCallback(({ item }) => {
@@ -647,8 +671,8 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
     const unreadCount = item.unreadCount || 0;
     const memberCount = item.memberCount || 0;
     const isMyGroup = item.createdBy === user?.id;
-    // Check if user is admin in this specific group (creator or has admin role)
-    const isGroupAdmin = isMyGroup || (item.members?.[user?.id]?.role === 'admin') || ((isAdmin || isModerator) && item.members?.[user?.id]); // Global admin/moderator can also delete if they're a member
+    // Edit / Delete: the creator, or Senior Mod+.
+    const isGroupAdmin = getGroupPermissions(item, user?.id, roles).canManage;
 
     return (
       <View style={styles.itemContainer}>
@@ -750,7 +774,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
         </Menu>
       </View>
     );
-  }, [styles, handleOpenGroup, handleLeaveGroup, handleUpdateGroupIcon, handleEditGroup, handleDeleteGroup, handleToggleMute, user?.id, isDarkMode, isAdmin, isModerator, groups, mutedGroups, t]);
+  }, [styles, handleOpenGroup, handleLeaveGroup, handleUpdateGroupIcon, handleEditGroup, handleDeleteGroup, handleToggleMute, user?.id, isDarkMode, roles, groups, mutedGroups, t]);
 
   const filteredGroups = useMemo(() => {
     if (!Array.isArray(groups)) return [];
@@ -760,22 +784,25 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
       .sort((a, b) => (b?.lastMessageTimestamp || 0) - (a?.lastMessageTimestamp || 0));
   }, [groups]);
 
-  // Up to MAX_GROUPS_PER_USER own groups: below that the button still
-  // creates (the picker then offers "Add to <group>" too); at the limit it
-  // only adds players.
+  // Up to getGroupCap() own groups (2; 10 for Senior Mod+): below that the
+  // button still creates (the picker then offers "Add to <group>" too); at
+  // the limit it only adds players.
   const atGroupLimit = useMemo(() => {
-    return filteredGroups.filter(g => g.createdBy === user?.id).length >= MAX_GROUPS_PER_USER;
-  }, [filteredGroups, user?.id]);
+    return filteredGroups.filter(g => g.createdBy === user?.id).length >= getGroupCap(roles);
+  }, [filteredGroups, user?.id, roles]);
 
   // ✅ Load initial 10 groups when "All Groups" tab is active
   useEffect(() => {
-    if (activeTab === 'all' && firestoreDB && appdatabase && !allGroupsLoading) {
+    if (activeTab === 'all' && firestoreDB && appdatabase) {
+      // The newest search wins: a slower earlier load must not overwrite it.
+      const seq = ++allGroupsLoadSeq.current;
       const loadAllGroups = async () => {
         setAllGroupsLoading(true);
         setAllGroupsHasMore(true);
         setAllGroupsLastDoc(null);
         try {
           const result = await getAllGroups(firestoreDB, 'all', allGroupsSearchQuery, 10, null);
+          if (seq !== allGroupsLoadSeq.current) return;
           if (result.success) {
             // Show all groups (including user's own groups)
             const availableGroups = (result.groups || []).filter(group => {
@@ -786,8 +813,10 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
             setAllGroupsHasMore(result.hasMore || false);
             setAllGroupsLastDoc(result.lastDoc || null);
 
-            // ✅ OPTIMIZED: Fetch only displayName instead of full user object
-            const creatorIds = [...new Set(availableGroups.map(g => g.createdBy).filter(Boolean))];
+            // Creator names come with the group doc (creatorDisplayName); one
+            // RTDB read only for old groups that don't carry it.
+            const creatorIds = [...new Set(availableGroups.filter(g => !g.creatorDisplayName).map(g => g.createdBy).filter(Boolean))];
+            const storedNames = Object.fromEntries(availableGroups.filter(g => g.createdBy && g.creatorDisplayName).map(g => [g.createdBy, g.creatorDisplayName]));
             const creatorPromises = creatorIds.map(async (creatorId) => {
               try {
                 const { ref, get } = await import('@react-native-firebase/database');
@@ -803,18 +832,20 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
             });
 
             const creatorResults = await Promise.all(creatorPromises);
-            const namesMap = creatorResults.reduce((acc, curr) => ({ ...acc, ...curr }), {});
-            setCreatorNames(namesMap);
+            const namesMap = creatorResults.reduce((acc, curr) => ({ ...acc, ...curr }), storedNames);
+            if (seq === allGroupsLoadSeq.current) setCreatorNames(namesMap);
           } else {
             setAllGroups([]);
             setAllGroupsHasMore(false);
           }
         } catch (error) {
           console.error('Error loading all groups:', error);
-          setAllGroups([]);
-          setAllGroupsHasMore(false);
+          if (seq === allGroupsLoadSeq.current) {
+            setAllGroups([]);
+            setAllGroupsHasMore(false);
+          }
         } finally {
-          setAllGroupsLoading(false);
+          if (seq === allGroupsLoadSeq.current) setAllGroupsLoading(false);
         }
       };
 
@@ -839,8 +870,9 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
           return groupId; // Only filter out groups without valid ID
         });
 
-        // ✅ OPTIMIZED: Fetch only displayName instead of full user object
-        const creatorIds = [...new Set(newGroups.map(g => g.createdBy).filter(Boolean))];
+        // Stored creatorDisplayName first; RTDB only for groups without it.
+        const creatorIds = [...new Set(newGroups.filter(g => !g.creatorDisplayName).map(g => g.createdBy).filter(Boolean))];
+        const storedNames = Object.fromEntries(newGroups.filter(g => g.createdBy && g.creatorDisplayName).map(g => [g.createdBy, g.creatorDisplayName]));
         const creatorPromises = creatorIds.map(async (creatorId) => {
           try {
             const { ref, get } = await import('@react-native-firebase/database');
@@ -856,7 +888,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
         });
 
         const creatorResults = await Promise.all(creatorPromises);
-        const namesMap = creatorResults.reduce((acc, curr) => ({ ...acc, ...curr }), {});
+        const namesMap = creatorResults.reduce((acc, curr) => ({ ...acc, ...curr }), storedNames);
 
         setAllGroups(prev => [...prev, ...newGroups]);
         setCreatorNames(prev => ({ ...prev, ...namesMap }));
@@ -873,11 +905,18 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
     }
   }, [allGroupsHasMore, allGroupsLoadingMore, firestoreDB, appdatabase, activeTab, allGroupsSearchQuery, allGroupsLastDoc, t]);
 
+  // Search the server once typing pauses (groupUtils.searchGroups).
+  useEffect(() => {
+    const timer = setTimeout(() => setAllGroupsSearchQuery(allGroupsSearchText.trim()), 400);
+    return () => clearTimeout(timer);
+  }, [allGroupsSearchText]);
+
   // ✅ Reset all groups when switching to joined tab
   useEffect(() => {
     if (activeTab === 'joined') {
       setAllGroups([]);
       setAllGroupsSearchQuery('');
+      setAllGroupsSearchText('');
       setCreatorNames({});
       setAllGroupsHasMore(true);
       setAllGroupsLastDoc(null);
@@ -1359,8 +1398,28 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
           />
         )
       ) : (
-        // All Groups Tab
-        allGroupsLoading ? (
+        // All Groups Tab: name search (server side, groupUtils.searchGroups), then the list.
+        <View style={styles.allGroupsTab}>
+        <View style={styles.allGroupsSearchBar}>
+          <Icon name="search" size={16} color={isDarkMode ? '#9CA3AF' : '#6B7280'} />
+          <TextInput
+            value={allGroupsSearchText}
+            onChangeText={setAllGroupsSearchText}
+            placeholder={t('chat.groups_screen.search_groups_placeholder')}
+            placeholderTextColor={isDarkMode ? '#6B7280' : '#9CA3AF'}
+            style={styles.allGroupsSearchInput}
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+            maxLength={50}
+          />
+          {allGroupsSearchText.length > 0 && (
+            <TouchableOpacity onPress={() => setAllGroupsSearchText('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Icon name="close-circle" size={16} color={isDarkMode ? '#9CA3AF' : '#6B7280'} />
+            </TouchableOpacity>
+          )}
+        </View>
+        {allGroupsLoading ? (
           <View style={styles.emptyContainer}>
             <ActivityIndicator size="large" color="#8B5CF6" />
           </View>
@@ -1483,7 +1542,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                             {t('chat.groups_screen.joined_badge')}
                           </Text>
                         </View>
-                      ) : (isAdmin || !!user?.isModerator) ? (
+                      ) : groupStaff ? (
                         <TouchableOpacity
                           onPress={() => handleOpenGroup(groupId, groupName)}
                           style={{
@@ -1583,7 +1642,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                           </Text>
                         </TouchableOpacity>
                       )}
-                      {(isAdmin || isModerator) && (
+                      {groupStaff && (
                         <TouchableOpacity
                           onPress={() => {
                             Alert.alert(
@@ -1596,7 +1655,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                                   style: 'destructive',
                                   onPress: async () => {
                                     try {
-                                      const result = await deleteGroup(firestoreDB, appdatabase, groupId, user?.id ?? null);
+                                      const result = await deleteGroup(firestoreDB, appdatabase, groupId, user?.id ?? null, roles);
                                       if (result.success) {
                                         showSuccessMessage('Success', 'Group deleted successfully');
                                         // Remove from allGroups list
@@ -1637,7 +1696,8 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
               );
             }}
           />
-        )
+        )}
+        </View>
       )}
 
       {/* Create Group / Add Members Button (Only show in Joined Groups tab) */}
@@ -1986,6 +2046,25 @@ const getStyles = (isDarkMode) =>
     unreadBadgeText: {
       color: '#fff',
       fontSize: 12,
+    },
+    allGroupsTab: { flex: 1 },
+    allGroupsSearchBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginHorizontal: 12,
+      marginBottom: 8,
+      paddingHorizontal: 10,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: isDarkMode ? '#374151' : '#E5E7EB',
+      backgroundColor: isDarkMode ? '#1F2937' : '#FFFFFF',
+    },
+    allGroupsSearchInput: {
+      flex: 1,
+      paddingVertical: 8,
+      paddingHorizontal: 8,
+      fontSize: 13,
+      color: isDarkMode ? '#FFFFFF' : '#111827',
     },
     emptyContainer: {
       flex: 1,

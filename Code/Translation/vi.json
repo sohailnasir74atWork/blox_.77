@@ -906,6 +906,7 @@
       "waiting_for_you_other": "{{count}} đang chờ bạn",
       "no_groups_yet": "Bạn chưa có nhóm nào",
       "no_groups_found": "Không tìm thấy nhóm nào",
+      "search_groups_placeholder": "Tìm nhóm theo tên",
       "no_groups_available": "Hiện không có nhóm nào",
       "created_by_name": "Được tạo bởi {{name}}",
       "joined_badge": "Đã tham gia",
@@ -1643,7 +1644,8 @@
   },
   "groups": {
     "errors": {
-      "group_limit": "Bạn chỉ có thể làm admin tối đa {{max}} nhóm cùng lúc. Xóa một nhóm để tạo nhóm mới."
+      "group_limit": "Bạn chỉ có thể làm admin tối đa {{max}} nhóm cùng lúc. Xóa một nhóm để tạo nhóm mới.",
+      "transfer_limit": "Người chơi này đã sở hữu số nhóm tối đa ({{max}}). Họ cần xóa một nhóm trước khi nhận nhóm này."
     }
   },
   "birthdays": {

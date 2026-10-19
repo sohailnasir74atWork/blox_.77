@@ -113,6 +113,15 @@ exports.tombstoneDeletedAccount = bans.tombstoneDeletedAccount;
 // RTDB banned_uids (the per-ban mirror writes are best-effort).
 exports.reconcileBanMirrors = bans.reconcileBanMirrors;
 
+// Group privacy (supabase/044, 2026-10-19): verified membership → Supabase
+// group_members, unbacked self-joins undone, group cap, delete purge, search keys.
+const groups = require('./groupMembership');
+exports.onGroupWrite = groups.onGroupWrite;
+exports.groupSync = groups.groupSync;
+// Daily inactive-group cleanup: no message for 15 days → deleted (purged
+// first, backup in groups_deleted). Dry run until server_config/groupCleanup.apply = true.
+exports.cleanupInactiveGroups = groups.cleanupInactiveGroups;
+
 // Birthdays (supabase/036_birthdays.sql; ported from Adopt Me 2026-10-07).
 // Deploy the schedulers PAUSED until an app build with Birthdays ships.
 exports.notifyBirthdays = require('./notifyBirthdays').notifyBirthdays;

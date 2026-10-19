@@ -179,117 +179,146 @@ exports.notifyPrivateMessage = functions
 
 // =====================================================================
 // notifyGroupNewMessage — group fan-out push
+//
+// Per message (2026-10-19, group lag): one Firestore read (memberIds), one
+// group_members + one group_meta_data query and the activeGroupChats node,
+// then fcmTokens from a per-instance cache, so a busy group re-reads none.
+// Every message pushes (so the last one in a burst always arrives), and the
+// Android `tag` / iOS `apns-collapse-id` replace the group's previous
+// notification in the tray instead of stacking a pile of them.
 // =====================================================================
+const TOKEN_TTL_MS = 10 * 60 * 1000;
+const TOKEN_CACHE_MAX = 5000;
+const _tokenCache = new Map(); // uid → { token | null, at }
+
+// fcmTokens for `uids`, cached per instance for TOKEN_TTL_MS.
+async function tokensFor(uids, { rtdb, now, cache }) {
+  const out = new Map();
+  const miss = [];
+  for (const uid of uids) {
+    const c = cache.get(uid);
+    if (c && now - c.at < TOKEN_TTL_MS) {
+      if (c.token) out.set(uid, c.token);
+    } else {
+      miss.push(uid);
+    }
+  }
+  if (cache.size + miss.length > TOKEN_CACHE_MAX) cache.clear();
+  const snaps = await Promise.all(
+    miss.map((uid) => rtdb.ref(`/users/${uid}/fcmToken`).once('value').catch(() => null)),
+  );
+  miss.forEach((uid, i) => {
+    const v = snaps[i]?.val?.();
+    const token = typeof v === 'string' && v ? v : null;
+    cache.set(uid, { token, at: now });
+    if (token) out.set(uid, token);
+  });
+  return out;
+}
+
+async function handleGroupPush(record, deps) {
+  const { firestore, rtdb, supabase, messaging, now = Date.now(), cache = _tokenCache } = deps;
+  const groupId = record.group_id;
+  const senderId = record.sender_id;
+  const senderName = record.sender_name || 'Someone';
+  if (!groupId || !senderId) return 'Skipped: missing group/sender';
+
+  const groupSnap = await firestore.doc(`groups/${groupId}`).get();
+  if (!groupSnap.exists) return 'Skipped: group not found';
+  const group = groupSnap.data() || {};
+
+  let memberIds = [...new Set((group.memberIds || []).filter((id) => id && id !== senderId))];
+  if (memberIds.length === 0) return 'Skipped: no other members';
+
+  // Parallel: verified members (supabase/044), mute flags + group name, and
+  // who's on this group's chat screen right now (they see it inline).
+  const [verifiedResult, metaResult, activeGroupSnap] = await Promise.all([
+    supabase.from('group_members').select('user_id, role').eq('group_id', groupId),
+    supabase.from('group_meta_data').select('user_id, muted, group_name').eq('group_id', groupId).in('user_id', memberIds),
+    rtdb.ref(`/activeGroupChats/${groupId}`).once('value'),
+  ]);
+
+  // Only server-verified members get the push, so an account that added
+  // itself to memberIds sees no preview. Groups not synced yet (no creator
+  // row) keep the memberIds list.
+  const verifiedRows = verifiedResult?.data || [];
+  if (verifiedRows.some((r) => r.role === 'creator')) {
+    const verified = new Set(verifiedRows.map((r) => r.user_id));
+    memberIds = memberIds.filter((id) => verified.has(id));
+    if (memberIds.length === 0) return 'Skipped: no other verified members';
+  }
+
+  const mutedSet = new Set();
+  let groupName = 'Group Chat';
+  for (const r of metaResult?.data || []) {
+    if (r.muted) mutedSet.add(r.user_id);
+    if (r.group_name) groupName = r.group_name;
+  }
+  const activeMap = activeGroupSnap?.val?.() || {};
+  const wanted = memberIds.filter((id) => !mutedSet.has(id) && activeMap[id] !== true);
+  if (wanted.length === 0) return 'Skipped: all muted or active in chat';
+
+  const tokens = await tokensFor(wanted, { rtdb, now, cache });
+  const preview = previewFor(record);
+  const collapseId = String(groupId).slice(0, 64);
+  const sendTo = wanted.filter((uid) => tokens.has(uid));
+  const messages = sendTo.map((uid) => {
+    return {
+      token: tokens.get(uid),
+      notification: {
+        title: `${senderName} • ${groupName}`,
+        body: preview,
+      },
+      data: {
+        type: 'group_message',
+        groupId: String(groupId),
+        senderId: String(senderId),
+        messageId: String(record.id || ''),
+      },
+      android: {
+        priority: 'high',
+        notification: { sound: 'default', channelId: 'messages', tag: `group_${collapseId}` },
+      },
+      apns: {
+        headers: { 'apns-collapse-id': collapseId },
+        payload: { aps: { sound: 'default', 'thread-id': collapseId } },
+      },
+    };
+  });
+
+  for (let i = 0; i < messages.length; i += 500) {
+    const res = await messaging.sendEach(messages.slice(i, i + 500));
+    (res?.responses || []).forEach((r, j) => {
+      const code = r?.error?.code || '';
+      if (!r?.success && /registration-token-not-registered|invalid-registration-token|invalid-argument/.test(code)) {
+        cache.delete(sendTo[i + j]); // re-read that token next time
+      }
+    });
+  }
+
+  if (sendTo.length === 0) return 'Skipped: no fcm tokens';
+  return `OK: ${sendTo.length} sent`;
+}
+
 exports.notifyGroupNewMessage = functions
   .runWith({ ...RUN_OPTIONS, timeoutSeconds: 60 })
   .https.onRequest(async (req, res) => {
     const record = validateWebhookOr401(req, res);
     if (!record) return;
-
-    const groupId = record.group_id;
-    const senderId = record.sender_id;
-    const senderName = record.sender_name || 'Someone';
-
-    if (!groupId || !senderId) {
-      res.status(200).send('Skipped: missing group/sender');
-      return;
-    }
-
     try {
-      // memberIds come from Firestore; the migration leaves group
-      // membership where it lives today.
-      const groupSnap = await admin.firestore().doc(`groups/${groupId}`).get();
-      if (!groupSnap.exists) {
-        res.status(200).send('Skipped: group not found');
-        return;
-      }
-      const memberIds = (groupSnap.data().memberIds || [])
-        .filter((id) => id && id !== senderId);
-      if (memberIds.length === 0) {
-        res.status(200).send('Skipped: no other members');
-        return;
-      }
-
-      // Parallel: mute flags + group name (Supabase) AND who's currently
-      // viewing this group's chat (RTDB /activeGroupChats/{groupId}).
-      // Members on the chat screen see the message inline — push would
-      // be redundant + spammy.
-      const supabase = getSupabase();
-      const [metaResult, activeGroupSnap] = await Promise.all([
-        supabase
-          .from('group_meta_data')
-          .select('user_id, muted, group_name')
-          .eq('group_id', groupId)
-          .in('user_id', memberIds),
-        admin.database().ref(`/activeGroupChats/${groupId}`).once('value'),
-      ]);
-      const metaRows = metaResult?.data;
-
-      const mutedSet = new Set();
-      let groupName = 'Group Chat';
-      for (const r of metaRows || []) {
-        if (r.muted) mutedSet.add(r.user_id);
-        if (r.group_name) groupName = r.group_name;
-      }
-
-      const activeMap = activeGroupSnap.val() || {};
-      const activeSet = new Set(
-        Object.keys(activeMap).filter((uid) => activeMap[uid] === true),
-      );
-
-      const wantTokenFor = memberIds.filter(
-        (id) => !mutedSet.has(id) && !activeSet.has(id),
-      );
-      if (wantTokenFor.length === 0) {
-        res.status(200).send('Skipped: all muted or active in chat');
-        return;
-      }
-
-      // Parallel fcmToken reads. Per-token failures don't kill the rest.
-      const tokenSnaps = await Promise.all(
-        wantTokenFor.map((uid) =>
-          admin.database()
-            .ref(`/users/${uid}/fcmToken`)
-            .once('value')
-            .catch(() => null),
-        ),
-      );
-      const tokens = [];
-      for (const snap of tokenSnaps) {
-        const v = snap?.val();
-        if (v && typeof v === 'string') tokens.push(v);
-      }
-      if (tokens.length === 0) {
-        res.status(200).send('Skipped: no fcm tokens');
-        return;
-      }
-
-      // sendEachForMulticast handles per-token errors so one bad
-      // token doesn't tank the rest.
-      await admin.messaging().sendEachForMulticast({
-        tokens,
-        notification: {
-          title: `${senderName} • ${groupName}`,
-          body: previewFor(record),
-        },
-        data: {
-          type: 'group_message',
-          groupId: String(groupId),
-          senderId: String(senderId),
-          messageId: String(record.id || ''),
-        },
-        android: {
-          priority: 'high',
-          notification: { sound: 'default', channelId: 'messages' },
-        },
-        apns: {
-          payload: { aps: { sound: 'default' } },
-        },
+      const db = admin.database();
+      const result = await handleGroupPush(record, {
+        firestore: admin.firestore(),
+        rtdb: { ref: (p) => db.ref(p) },
+        supabase: getSupabase(),
+        messaging: admin.messaging(),
+        now: Date.now(),
       });
-
-      res.status(200).send('OK');
+      res.status(200).send(result);
     } catch (err) {
       console.error('[notifyGroupNewMessage] error:', err);
       res.status(500).send('Error');
     }
   });
+
+exports._internal = { handleGroupPush, tokensFor };

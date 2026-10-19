@@ -23,7 +23,7 @@ import { useActiveChatLifecycle } from '../utils';
 import { get, ref, update } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
-import { sendGroupMessage, removeMemberFromGroup, hasGroupPermission, getPendingInviteForGroup, acceptGroupInvite, declineGroupInvite, leaveGroup, makeMemberCreator } from '../utils/groupUtils';
+import { sendGroupMessage, removeMemberFromGroup, hasGroupPermission, getPendingInviteForGroup, acceptGroupInvite, declineGroupInvite, leaveGroup, makeMemberCreator, getGroupPermissions, isGroupStaff } from '../utils/groupUtils';
 import { doc, getDoc, onSnapshot, collection, query, where, getDocs, updateDoc } from '@react-native-firebase/firestore';
 import GroupPinnedBar, { MAX_GROUP_PINS } from './GroupPinnedBar';
 import { getThemeColors } from '../../Helper/themeColors';
@@ -57,7 +57,11 @@ const GroupChatScreen = () => {
   const navigation = useNavigation();
   const { groupId } = route.params || {};
 
-  const { user, theme, appdatabase, firestoreDB, currentUserEmail, isAdmin, isSeniorMod, isModerator, isUserBlocked, isUserMuted, getModGate } = useGlobalState();
+  const { user, theme, appdatabase, firestoreDB, currentUserEmail, isAdmin, isSeniorMod, isModerator, isBabyMod, isUserBlocked, isUserMuted, getModGate } = useGlobalState();
+  // Group powers: the creator, and Senior Mod / Admin / owner in any group;
+  // Mods and JMDs are members like anyone (groupUtils.getGroupPermissions).
+  const roles = useMemo(() => ({ isAdmin, isSeniorMod, isModerator, isBabyMod }), [isAdmin, isSeniorMod, isModerator, isBabyMod]);
+  const groupStaff = isGroupStaff(roles);
   // Declared up here with the other context hooks because `localState` is read
   // during render further down (the sendMessage dep array) and inside effects
   // that run before its old declaration site near the bottom of the file.
@@ -150,9 +154,10 @@ const GroupChatScreen = () => {
           const data = snapshot.data();
           setGroupData(data);
 
-          // Check if user is a member (admin/moderator bypass for monitoring)
+          // Members, plus Senior Mod / Admin / owner in any group (the server
+          // lets only them read a group they're not in, supabase/044).
           const memberIds = data.memberIds || [];
-          const userIsMember = memberIds.includes(user.id) || isAdmin || !!user?.isModerator;
+          const userIsMember = memberIds.includes(user.id) || groupStaff;
           setIsMember(userIsMember);
 
           // ✅ OPTIMIZED: Only update invite state if membership status changed
@@ -174,7 +179,7 @@ const GroupChatScreen = () => {
     );
 
     return () => unsubscribe();
-  }, [groupId, firestoreDB, user?.id, t]);
+  }, [groupId, firestoreDB, user?.id, t, groupStaff]);
 
   // ✅ Function to load a batch of member statuses
   const loadMemberStatusesBatch = useCallback(async (memberIds) => {
@@ -697,7 +702,8 @@ const GroupChatScreen = () => {
     [groupData?.pinnedMessages],
   );
   const pinnedIds = useMemo(() => new Set(pins.map((p) => p.id)), [pins]);
-  const canManagePins = !!user?.id && (groupData?.createdBy === user.id || !!isAdmin || !!isSeniorMod || !!isModerator);
+  const groupPerms = useMemo(() => getGroupPermissions(groupData, user?.id, roles), [groupData, user?.id, roles]);
+  const canManagePins = groupPerms.canManage;
 
   const writePins = useCallback(async (next) => {
     await updateDoc(doc(firestoreDB, 'groups', groupId), { pinnedMessages: next });
@@ -834,9 +840,9 @@ const GroupChatScreen = () => {
         return;
       }
 
-      // Check if user is member and not muted (admin/moderator bypass for monitoring)
+      // Members who aren't muted; Senior Mod+ may post in any group.
       if (groupData) {
-        const isMemberOrAdmin = groupData.memberIds?.includes(user.id) || isAdmin || !!user?.isModerator;
+        const isMemberOrAdmin = groupData.memberIds?.includes(user.id) || groupStaff;
         const isMuted = groupData.members?.[user.id]?.muted;
 
         if (!isMemberOrAdmin) {
@@ -933,7 +939,7 @@ const GroupChatScreen = () => {
         else Alert.alert(t('chat.error'), t('chat.group_chat_screen.send_failed_retry'));
       }
     },
-    [user, groupId, appdatabase, firestoreDB, groupData, t, localState?.isPro, currentUserEmail, getModGate, isAdmin]
+    [user, groupId, appdatabase, firestoreDB, groupData, t, localState?.isPro, currentUserEmail, getModGate, groupStaff]
   );
 
   // Handle remove member (admin action)
@@ -955,7 +961,8 @@ const GroupChatScreen = () => {
                 appdatabase,
                 groupId,
                 memberId,
-                user.id
+                user.id,
+                roles
               );
 
               if (result.success) {
@@ -971,7 +978,7 @@ const GroupChatScreen = () => {
         },
       ]
     );
-  }, [user?.id, groupId, firestoreDB, appdatabase, t]);
+  }, [user?.id, groupId, firestoreDB, appdatabase, t, roles]);
 
   // ✅ Handle making a member creator (with warning)
   // ✅ iOS Fix: Close members modal first, then show Alert (nested modals cause freezing on iOS)
@@ -1350,6 +1357,7 @@ const GroupChatScreen = () => {
                 flatListRef={flatListRef}
                 onPinMessage={canManagePins ? handleTogglePin : null}
                 canPin={canManagePins}
+                canModerate={groupPerms.canManage}
                 pinnedIds={pinnedIds}
               />
             )}
@@ -1454,7 +1462,7 @@ const GroupChatScreen = () => {
                   const isOnline = onlineMembers.includes(memberId);
                   const isCurrentUser = memberId === user?.id;
                   const isMemberCreator = groupData?.createdBy === memberId;
-                  const canRemove = isCreator && !isCurrentUser && !isMemberCreator;
+                  const canRemove = groupPerms.canManage && !isCurrentUser && !isMemberCreator;
                   const canMakeCreator = isCreator && !isCurrentUser && !isMemberCreator;
 
                   return (

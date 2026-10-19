@@ -741,12 +741,44 @@ async function firestoreTests() {
   await ok('user_activity (web + pre-May builds)', () => addDoc(c(U1, 'user_activity'), { userId: U1, type: 'trade_post', referenceId: 'x', createdAt: serverTimestamp() }));
   await no('user_activity as someone else', () => addDoc(c(U1, 'user_activity'), { userId: U2, type: 'x' }));
 
-  sec('fs groups');
-  await ok('create group (groupUtils)', () => setDoc(d(U1, 'groups', 'g2'), { id: 'g2', name: 'G2', groupName: 'G2', createdBy: U1, memberCount: 1, memberIds: [U1], members: { [U1]: { id: U1, displayName: 'n', joinedAt: serverTimestamp() } }, isActive: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+  // ── blox-groups (2026-10-19): groups, invitations, join requests ──
+  // Every legitimate write is the exact shape groupUtils.js (all builds since
+  // 2026-05) or blox-web groups.ts makes; the server-side check of who may
+  // join is functions/test/groupMembership.test.js.
+  sec('fs groups (blox-groups 2026-10-19)');
+  const crew = Array.from({ length: 99 }, (_, i) => `crewUid${String(i).padStart(5, '0')}`);
+  await seed(async (f) => {
+    await F.setDoc(F.doc(f, 'groups', 'gFull'), { createdBy: U2, memberIds: [U2, ...crew], members: {}, memberCount: 100 });
+    await F.setDoc(F.doc(f, 'groups', 'gMuted'), { createdBy: U2, memberIds: [U2, U3], members: { [U2]: { id: U2 }, [U3]: { id: U3, role: 'member', muted: true } } });
+    await F.setDoc(F.doc(f, 'groups', 'gS'), { createdBy: U3, memberIds: [U3, M, J], members: { [U3]: { id: U3 }, [M]: { id: M }, [J]: { id: J } }, name: 'S' });
+    await F.setDoc(F.doc(f, 'groups', 'gLast'), { createdBy: U3, memberIds: [U1], members: { [U1]: { id: U1 } } });
+    await F.setDoc(F.doc(f, 'group_invitations', 'invD'), { groupId: 'g1', invitedBy: U2, invitedUserId: U3, status: 'pending' });
+    await F.setDoc(F.doc(f, 'group_join_requests', 'jr2'), { groupId: 'g1', requesterId: U1, creatorId: U2, status: 'pending' });
+    await F.setDoc(F.doc(f, 'group_join_requests', 'jr3'), { groupId: 'g1', requesterId: U3, creatorId: U1, status: 'pending' });
+  });
+  const groupDoc = (id, owner) => ({ id, name: 'G2', groupName: 'G2', description: 'd', createdBy: owner, creatorDisplayName: 'n', memberCount: 1, memberIds: [owner], members: { [owner]: { id: owner, displayName: 'n', avatar: null, joinedAt: serverTimestamp() } }, isPrivate: false, allowDirectJoin: false, allowMemberInvites: true, maxMembers: 100, lastMessage: null, isActive: true, avatar: null, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  const inviteDoc = (groupId, by, to, extra = {}) => ({ groupId, invitedBy: by, invitedUserId: to, status: 'pending', timestamp: serverTimestamp(), expiresAt: now() + 7 * 24 * H, groupName: 'G2', groupAvatar: null, invitedByDisplayName: 'n', invitedByAvatar: null, invitedUserDisplayName: 'n', invitedUserAvatar: null, ...extra });
+  const joinUpdate = (uid, data, entry = {}) => ({ memberIds: [...data.memberIds, uid], [`members.${uid}`]: { id: uid, displayName: 'n', avatar: null, role: 'member', joinedAt: serverTimestamp(), ...entry }, memberCount: data.memberIds.length + 1, updatedAt: serverTimestamp() });
+
+  // Create.
+  await ok('create group (groupUtils + blox-web shape)', () => setDoc(d(U1, 'groups', 'g2'), groupDoc('g2', U1)));
+  await no('create a group with other people already in it', () => setDoc(d(U1, 'groups', 'g4'), { ...groupDoc('g4', U1), memberIds: [U1, U2] }));
+  await no('create a group carrying server fields', () => setDoc(d(U1, 'groups', 'g4'), { ...groupDoc('g4', U1), searchKeys: ['a'] }));
   await no('banned creates group', () => setDoc(d(B, 'groups', 'g3'), { createdBy: B, memberIds: [B] }));
-  await ok('invite (groupUtils)', () => addDoc(c(U1, 'group_invitations'), { groupId: 'g2', invitedBy: U1, invitedUserId: U3, status: 'pending', timestamp: serverTimestamp(), groupName: 'G2' }));
-  await no('invite as someone else', () => addDoc(c(U1, 'group_invitations'), { groupId: 'g2', invitedBy: U2, invitedUserId: U3, status: 'pending' }));
+  await no('create a group with isActive false (would not count toward the cap)', () => setDoc(d(U1, 'groups', 'g4'), { ...groupDoc('g4', U1), isActive: false }));
+
+  // Invitations.
+  await ok('invite (groupUtils createGroup / addMembersToGroup)', () => addDoc(c(U1, 'group_invitations'), inviteDoc('g2', U1, U3)));
   await ok('pending-invite check query (other users)', () => getDocs(query(c(U1, 'group_invitations'), where('groupId', '==', 'g2'), where('invitedUserId', '==', U3), where('status', '==', 'pending'))));
+  await no('invite as someone else', () => addDoc(c(U1, 'group_invitations'), inviteDoc('g2', U2, U3)));
+  await no('invite into a group you are not in', () => addDoc(c(U3, 'group_invitations'), inviteDoc('g2', U3, U2)));
+  await no('invite yourself', () => addDoc(c(U1, 'group_invitations'), inviteDoc('g2', U1, U1)));
+  await no('invite created as already accepted', () => addDoc(c(U1, 'group_invitations'), inviteDoc('g2', U1, U2, { status: 'accepted' })));
+  await no('invite carrying revokedAt', () => addDoc(c(U1, 'group_invitations'), inviteDoc('g2', U1, U2, { revokedAt: null })));
+  await no('invite into a group that does not exist', () => addDoc(c(U1, 'group_invitations'), inviteDoc('gNone', U1, U2)));
+  await no('a member who is not the creator invites (memberIds can be self-added)', () => addDoc(c(M, 'group_invitations'), inviteDoc('gS', M, U2)));
+
+  // Accepting.
   await ok('accept invite: join + mark accepted (transaction)', () => runTransaction(fsOf(U1), async (tx) => {
     const gRef = d(U1, 'groups', 'g1'); const g = await tx.get(gRef); const data = g.data();
     tx.update(gRef, { memberIds: [...data.memberIds, U1], members: { ...data.members, [U1]: { id: U1, displayName: 'n', avatar: null, role: 'member', joinedAt: serverTimestamp() } }, memberCount: data.memberIds.length + 1, updatedAt: serverTimestamp() });
@@ -754,30 +786,95 @@ async function firestoreTests() {
   }));
   await no('add someone else to a group', () => updateDoc(d(U3, 'groups', 'g1'), { memberIds: [U2, U1, B], memberCount: 3 }));
   await no('invitee rewrites invite target', () => updateDoc(d(U1, 'group_invitations', 'inv1'), { invitedUserId: U3 }));
+  await no('invitee moves the invite to another group', () => updateDoc(d(U1, 'group_invitations', 'inv1'), { groupId: 'gS' }));
+  await no('invitee sets an unknown status', () => updateDoc(d(U1, 'group_invitations', 'inv1'), { status: 'revoked' }));
+  await no('invitee clears revokedAt', () => updateDoc(d(U1, 'group_invitations', 'inv1'), { revokedAt: null }));
   await no('third party declines invite', () => updateDoc(d(U3, 'group_invitations', 'inv1'), { status: 'declined' }));
+  await ok('invitee declines (declineGroupInvite)', () => updateDoc(d(U3, 'group_invitations', 'invD'), { status: 'declined' }));
   await no('banned user joins via invite', async () => {
     await seed(async (f) => F.setDoc(F.doc(f, 'group_invitations', 'invB'), { groupId: 'g1', invitedBy: U2, invitedUserId: B, status: 'pending' }));
     const g = (await getDoc(d(B, 'groups', 'g1'))).data();
     return updateDoc(d(B, 'groups', 'g1'), { memberIds: [...g.memberIds, B], [`members.${B}`]: { id: B }, memberCount: g.memberIds.length + 1, updatedAt: serverTimestamp() });
   });
-  await ok('join request', () => addDoc(c(U1, 'group_join_requests'), { groupId: 'g2', requesterId: U1, requesterDisplayName: 'n', status: 'pending', createdAt: serverTimestamp(), groupName: 'G2', creatorId: U2 }));
+  await no('join while giving yourself the admin role', async () => {
+    const g = (await getDoc(d(U3, 'groups', 'g1'))).data();
+    return updateDoc(d(U3, 'groups', 'g1'), joinUpdate(U3, g, { role: 'admin' }));
+  });
+  await no('member promotes themself to admin', () => updateDoc(d(U1, 'groups', 'g1'), { [`members.${U1}.role`]: 'admin' }));
+  await no('muted member unmutes themself', () => updateDoc(d(U3, 'groups', 'gMuted'), { [`members.${U3}.muted`]: false }));
+  await ok('muted member can still leave', async () => {
+    const g = (await getDoc(d(U3, 'groups', 'gMuted'))).data(); const members = { ...g.members }; delete members[U3];
+    return updateDoc(d(U3, 'groups', 'gMuted'), { memberIds: g.memberIds.filter((x) => x !== U3), members, memberCount: 1, updatedAt: serverTimestamp() });
+  });
+  await no('join a full group (100 members)', async () => {
+    const g = (await getDoc(d(U3, 'groups', 'gFull'))).data();
+    return updateDoc(d(U3, 'groups', 'gFull'), joinUpdate(U3, g));
+  });
+
+  // Join requests.
+  await ok('join request (sendJoinRequest)', () => addDoc(c(U2, 'group_join_requests'), { groupId: 'g2', requesterId: U2, requesterDisplayName: 'n', requesterAvatar: null, status: 'pending', createdAt: serverTimestamp(), groupName: 'G2', creatorId: U1 }));
   await no('join request as someone else', () => addDoc(c(U1, 'group_join_requests'), { groupId: 'g2', requesterId: U3, status: 'pending', creatorId: U1 }));
+  await no('join request addressed to a fake creator', () => addDoc(c(U3, 'group_join_requests'), { groupId: 'g1', requesterId: U3, status: 'pending', creatorId: U3 }));
+  await no('join request created as approved', () => addDoc(c(U3, 'group_join_requests'), { groupId: 'g1', requesterId: U3, status: 'approved', creatorId: U2 }));
+  await no('join request for a group that does not exist', () => addDoc(c(U3, 'group_join_requests'), { groupId: 'gNone', requesterId: U3, status: 'pending', creatorId: U2 }));
+  await no('requester approves their own request', () => updateDoc(d(U3, 'group_join_requests', 'jr1'), { status: 'approved' }));
+  await no('a stale creatorId approves (not the creator any more)', () => updateDoc(d(U1, 'group_join_requests', 'jr3'), { status: 'approved', approvedAt: serverTimestamp() }));
   await ok('creator approves request', () => runTransaction(fsOf(U2), async (tx) => {
     const gRef = d(U2, 'groups', 'g1'); const g = (await tx.get(gRef)).data();
     tx.update(gRef, { memberIds: [...g.memberIds, U3], [`members.${U3}`]: { id: U3, role: 'member' }, memberCount: g.memberIds.length + 1, updatedAt: serverTimestamp() });
     tx.update(d(U2, 'group_join_requests', 'jr1'), { status: 'approved', approvedAt: serverTimestamp() });
   }));
+  await ok('creator rejects request (group full)', () => updateDoc(d(U2, 'group_join_requests', 'jr2'), { status: 'rejected', rejectedAt: serverTimestamp(), rejectionReason: 'Group is now full' }));
   await no('outsider approves request', () => updateDoc(d(M2, 'group_join_requests', 'jr1'), { status: 'rejected' }));
+  await no('creator moves a request to another group', () => updateDoc(d(U2, 'group_join_requests', 'jr2'), { groupId: 'gS' }));
+
+  // Leaving, managing.
   await ok('member leaves group', async () => {
     const g = (await getDoc(d(U3, 'groups', 'g1'))).data(); const members = { ...g.members }; delete members[U3];
     return updateDoc(d(U3, 'groups', 'g1'), { memberIds: g.memberIds.filter((x) => x !== U3), members, memberCount: g.memberIds.length - 1, updatedAt: serverTimestamp() });
   });
   await no('non-member renames group', () => updateDoc(d(U3, 'groups', 'g1'), { groupName: 'pwn', name: 'pwn' }));
   await ok('creator renames group', () => updateDoc(d(U2, 'groups', 'g1'), { groupName: 'G1', name: 'G1', updatedAt: serverTimestamp() }));
-  await ok('creator transfers ownership', () => updateDoc(d(U2, 'groups', 'g1'), { createdBy: U1, updatedAt: serverTimestamp() }));
+  await ok('creator pins a message', () => updateDoc(d(U2, 'groups', 'g1'), { pinnedMessages: [{ id: 'm1', text: 't', pinnedBy: U2, pinnedAt: now() }] }));
+  await no('creator writes searchKeys (server field)', () => updateDoc(d(U2, 'groups', 'g1'), { searchKeys: ['a', 'b'] }));
+  await no('creator writes ownerCap (server field)', () => updateDoc(d(U2, 'groups', 'g1'), { ownerCap: null }));
+  await no('creator hands the group to a non-member', () => updateDoc(d(U2, 'groups', 'g1'), { createdBy: U3, updatedAt: serverTimestamp() }));
+  await no('hand the group over and add someone in the same write', () => updateDoc(d(U2, 'groups', 'g1'), { createdBy: U1, memberIds: [U2, U1, U3], updatedAt: serverTimestamp() }));
+  await ok('creator transfers ownership to a member (makeMemberCreator)', () => updateDoc(d(U2, 'groups', 'g1'), { createdBy: U1, updatedAt: serverTimestamp() }));
+  await ok('creator leaves: random member becomes owner with role admin (leaveGroup)', async () => {
+    const g = (await getDoc(d(U1, 'groups', 'g1'))).data(); const members = { ...g.members }; delete members[U1];
+    members[U2] = { ...members[U2], role: 'admin' };
+    return updateDoc(d(U1, 'groups', 'g1'), { createdBy: U2, memberIds: g.memberIds.filter((x) => x !== U1), members, memberCount: g.memberIds.length - 1, updatedAt: serverTimestamp() });
+  });
+
+  await no('creator switches isActive off (would dodge the group cap)', () => updateDoc(d(U2, 'groups', 'g1'), { isActive: false }));
+
+  await seed(async (f) => F.setDoc(F.doc(f, 'groups', 'gRole'), { createdBy: U2, memberIds: [U2, U3], members: { [U2]: { id: U2 }, [U3]: { id: U3, role: 'admin' } } }));
+  await no('a leftover role-admin member (not the creator) moves createdBy', () => updateDoc(d(U3, 'groups', 'gRole'), { createdBy: U3 }));
+  await ok('a role-admin member can still rename (old builds)', () => updateDoc(d(U3, 'groups', 'gRole'), { name: 'R', groupName: 'R' }));
+
+  // Staff: Moderators and JMDs are members like anyone; Senior Mod+ manage any group.
+  await no('Moderator (member) renames a group they do not own', () => updateDoc(d(M, 'groups', 'gS'), { name: 'mod', groupName: 'mod' }));
+  await no('Moderator (member) pins in a group they do not own', () => updateDoc(d(M, 'groups', 'gS'), { pinnedMessages: [] }));
+  await no('Moderator (member) removes another member', () => updateDoc(d(M, 'groups', 'gS'), { memberIds: [U3, M], [`members.${J}`]: deleteField(), memberCount: 2 }));
+  await no('JMD (member) renames a group they do not own', () => updateDoc(d(J, 'groups', 'gS'), { description: 'jmd' }));
+  await no('Moderator deletes a group they do not own (All groups tab)', () => deleteDoc(d(M, 'groups', 'gS')));
+  await no('Moderator updates someone else\'s invitation', () => updateDoc(d(M, 'group_invitations', 'invD'), { status: 'pending' }));
+  await ok('Senior Mod renames any group', () => updateDoc(d(S, 'groups', 'gS'), { name: 'S2', groupName: 'S2', updatedAt: serverTimestamp() }));
+  await ok('Senior Mod pins in any group', () => updateDoc(d(S, 'groups', 'gS'), { pinnedMessages: [] }));
+  await ok('Admin removes a member from any group', () => updateDoc(d(A, 'groups', 'gS'), { memberIds: [U3, M], [`members.${J}`]: deleteField(), memberCount: 2, updatedAt: serverTimestamp() }));
+  await ok('verified owner email edits any group', () => updateDoc(d(O, 'groups', 'gS'), { description: 'owner' }));
+  await no('UNVERIFIED owner email edits a group', () => updateDoc(d(OU, 'groups', 'gS'), { description: 'x' }));
+  await no('Senior Mod hands a group to a non-member', () => updateDoc(d(S, 'groups', 'gS'), { createdBy: S }));
+  await ok('Senior Mod deletes any group', () => deleteDoc(d(S, 'groups', 'gS')));
+
+  // Deleting.
   await no('third party deletes live invite', () => deleteDoc(d(U3, 'group_invitations', 'inv1')));
+  await ok('invitee deletes their own expired invite (GlobalGroupInviteToast)', () => deleteDoc(d(U3, 'group_invitations', 'invD')));
   await ok('orphan invite sweep after group deletion', () => deleteDoc(d(U1, 'group_invitations', 'invGone')));
-  await ok('creator deletes group', () => deleteDoc(d(U1, 'groups', 'g1')));
+  await ok('last member deletes the group', () => deleteDoc(d(U1, 'groups', 'gLast')));
+  await ok('creator deletes group', () => deleteDoc(d(U2, 'groups', 'g1')));
+  // ── end blox-groups ──
 
   sec('fs reports');
   const chatReport = (by, other) => ({ chatKey: [by, other].sort().join('_'), reportedBy: by, reporterName: 'n', reportedUser: other, reportedUserName: 'o', reason: 'Scam', chatConsent: true, status: 'pending', createdAt: Timestamp.now() });
