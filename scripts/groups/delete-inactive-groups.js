@@ -37,6 +37,7 @@ const chunks = (list, n) => Array.from({ length: Math.ceil(list.length / n) }, (
 // ── Supabase through supabase-js (service role key) ──
 function serviceRoleStore(sb) {
   return {
+    kind: 'service-role key',
     async activeGroupIds(cutoffIso) {
       const ids = new Set();
       // Page by what came back: the API may cap a page below 1,000 rows.
@@ -85,6 +86,7 @@ const sqlArray = (ids) => `array[${ids.map(sqlText).join(',')}]::text[]`;
 function cliStore(runSql) {
   let hasMembers = null;
   return {
+    kind: 'supabase cli',
     async activeGroupIds(cutoffIso) {
       const rows = await runSql(`select distinct group_id from public.group_messages where created_at >= ${sqlText(cutoffIso)}::timestamptz;`);
       return new Set(rows.map((r) => r.group_id));
@@ -178,7 +180,8 @@ async function run({ db, store, now = Date.now(), days = 15, apply = false, conf
   };
   if (!apply) return report;
   if (Number(confirm) !== p.remove.length) {
-    throw new Error(`refusing to delete: --confirm=${confirm} but ${p.remove.length} groups would be deleted. Run the dry run again and pass that number.`);
+    throw new Error(`refusing to delete: --confirm=${confirm} but ${p.remove.length} groups would be deleted `
+      + `(groups ${p.total}, active ${p.keepActive.length}, new ${p.keepNew.length}, store ${store.kind || '?'}). Run the dry run again and pass that number.`);
   }
 
   // Backup first: every group doc, its invitations / join requests, inbox rows.
