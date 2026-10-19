@@ -16,43 +16,8 @@ import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { safeCompressImage } from '../../Helper/safeCompressImage';
-import RNFS from 'react-native-fs';
+import { uploadImage, UPLOAD_KIND } from '../../Helper/imageUpload';
 import { validateContent } from '../../Helper/ContentModeration';
-
-const BUNNY_STORAGE_HOST = 'storage.bunnycdn.com';
-const BUNNY_STORAGE_ZONE = 'post-gag';
-const BUNNY_ACCESS_KEY = '1b7e1a85-dff7-4a98-ba701fc7f9b9-6542-46e2';
-const BUNNY_CDN_BASE = 'https://pull-gag.b-cdn.net';
-
-// 🔹 simple inline base64 → Uint8Array decoder (no atob / extra libs)
-const base64ToBytes = (base64) => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
-  let str = base64.replace(/[\r\n]+/g, '');
-  let output = [];
-
-  let i = 0;
-  while (i < str.length) {
-    const enc1 = chars.indexOf(str.charAt(i++));
-    const enc2 = chars.indexOf(str.charAt(i++));
-    const enc3 = chars.indexOf(str.charAt(i++));
-    const enc4 = chars.indexOf(str.charAt(i++));
-
-    const chr1 = (enc1 << 2) | (enc2 >> 4);
-    const chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
-    const chr3 = ((enc3 & 3) << 6) | enc4;
-
-    if (enc3 !== 64) {
-      output.push(chr1, chr2);
-    } else {
-      output.push(chr1);
-    }
-    if (enc4 !== 64 && enc3 !== 64) {
-      output.push(chr3);
-    }
-  }
-
-  return Uint8Array.from(output);
-};
 
 // ✅ Quick message templates for Blox Fruits trading
 // Translation keys, resolved with t() at render/send time.
@@ -143,48 +108,20 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
     );
   };
 
-  // 🐰 Upload ONE image to Bunny (no atob)
+  // 🐰 Upload ONE image (server-side, Helper/imageUpload.js → uploads/<uid>/)
   const uploadToBunny = useCallback(
     async uri => {
       if (!uri) return null;
 
-      const userId = user?.id ?? 'anon';
-
       try {
-        const filename = `${Date.now()}-${Math.floor(Math.random() * 1e6)}.jpg`;
-        const remotePath = `uploads/${encodeURIComponent(userId)}/${encodeURIComponent(filename)}`;
-        const uploadUrl = `https://${BUNNY_STORAGE_HOST}/${BUNNY_STORAGE_ZONE}/${remotePath}`;
-
-        // read file as base64
-        const base64 = await RNFS.readFile(uri.replace('file://', ''), 'base64');
-
-        // convert to bytes without atob
-        const binary = base64ToBytes(base64);
-
-        const res = await fetch(uploadUrl, {
-          method: 'PUT',
-          headers: {
-            AccessKey: BUNNY_ACCESS_KEY,
-            'Content-Type': 'application/octet-stream',
-          },
-          body: binary,
-        });
-
-        const txt = await res.text().catch(() => '');
-        if (!res.ok) {
-          console.warn('Bunny upload failed', res.status, txt);
-          Alert.alert(t('chat.error'), t('chat.private_message_input.upload_failed'));
-          return null;
-        }
-
-        return `${BUNNY_CDN_BASE}/${decodeURIComponent(remotePath)}`;
+        return await uploadImage(uri, UPLOAD_KIND.dm);
       } catch (e) {
         console.warn('[Bunny ERROR]', e?.message || e);
         Alert.alert(t('chat.error'), t('chat.private_message_input.upload_failed'));
         return null;
       }
     },
-    [user?.id, t],
+    [t],
   );
 
 

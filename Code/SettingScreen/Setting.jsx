@@ -79,6 +79,8 @@ import PetModal from '../ChatScreen/PrivateChat/PetsModel';
 import { openReportForm, reviewForReport } from '../Reports/openReportForm';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+// Avatars upload through the server (uploadImage); the app holds no storage key.
+import { uploadImage, UPLOAD_KIND } from '../Helper/imageUpload';
 
 // Glossy row tiles from scripts/app-icons/make-icons.mjs (same 28 pt box the
 // padded font icons used).
@@ -99,11 +101,6 @@ const SETTINGS_IMAGES = {
   logout: require('../../assets/settings-icons/logout.png'),
 };
 const SETTINGS_IMAGE = { width: 28, height: 28 };
-
-const BUNNY_STORAGE_HOST = 'storage.bunnycdn.com';
-const BUNNY_STORAGE_ZONE = 'post-gag';
-const BUNNY_ACCESS_KEY = '1b7e1a85-dff7-4a98-ba701fc7f9b9-6542-46e2';
-const BUNNY_CDN_BASE = 'https://pull-gag.b-cdn.net';
 
 // ~500 KB max for avatar (small, DP-friendly)
 const MAX_AVATAR_SIZE_BYTES = 500 * 1024;
@@ -729,33 +726,16 @@ export default function SettingsScreen({ selectedTheme }) {
         return;
       }
 
-      const userId = user?.id ?? 'anon';
-      const filename = `${Date.now()}-${Math.floor(Math.random() * 1e6)}.jpg`;
-      const remotePath = `avatars/${encodeURIComponent(userId)}/${encodeURIComponent(filename)}`;
-      const uploadUrl = `https://${BUNNY_STORAGE_HOST}/${BUNNY_STORAGE_ZONE}/${remotePath}`;
-
-      const base64 = await RNFS.readFile(filePath, 'base64');
-      const binary = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-
-      const res = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: {
-          AccessKey: BUNNY_ACCESS_KEY,
-          'Content-Type': 'application/octet-stream',
-        },
-        body: binary,
-      });
-
-      const txt = await res.text().catch(() => '');
-
-      if (!res.ok) {
-        console.warn('[Bunny avatar ERROR]', res.status, txt?.slice(0, 200));
+      // Stored under avatars/<uid>/ as before; the server checks the token.
+      let publicUrl;
+      try {
+        publicUrl = await uploadImage(compressedUri, UPLOAD_KIND.avatar);
+      } catch (err) {
+        console.warn('[Bunny avatar ERROR]', err?.code || err?.message);
         Alert.alert(t('settings.setting.upload_failed'), t('settings.setting.upload_failed_body'));
         setUploadingAvatar(false);
         return;
       }
-
-      const publicUrl = `${BUNNY_CDN_BASE}/${decodeURIComponent(remotePath)}`;
 
       // ✅ Set as current selected profile image
       setSelectedImage(publicUrl);
@@ -765,7 +745,7 @@ export default function SettingsScreen({ selectedTheme }) {
     } finally {
       setUploadingAvatar(false);
     }
-  }, [user?.id, t]);
+  }, [t]);
 
 
 

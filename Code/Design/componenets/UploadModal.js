@@ -23,6 +23,7 @@ import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 import { showMessage } from 'react-native-flash-message';
 import RNFS from 'react-native-fs';
 import { validateContent } from '../../Helper/ContentModeration';
+import { uploadImage, UPLOAD_KIND } from '../../Helper/imageUpload';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import i18next from 'i18next';
@@ -43,32 +44,6 @@ const POST_TAGS = [
   { value: 'Need Help', labelKey: 'feed.tags.need_help' },
   { value: 'Misc', labelKey: 'feed.tags.misc' },
 ];
-
-const BUNNY_STORAGE_HOST = 'storage.bunnycdn.com';     // or your regional host
-const BUNNY_STORAGE_ZONE = 'post-gag';
-const BUNNY_ACCESS_KEY = '1b7e1a85-dff7-4a98-ba701fc7f9b9-6542-46e2'; // ← rotate this later
-const BUNNY_CDN_BASE = 'https://pull-gag.b-cdn.net';
-
-// 🔹 Safe base64 → Uint8Array decoder (atob crashes on large strings in RN)
-const base64ToBytes = (base64) => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
-  const str = base64.replace(/[\r\n]+/g, '');
-  const output = [];
-  let i = 0;
-  while (i < str.length) {
-    const enc1 = chars.indexOf(str.charAt(i++));
-    const enc2 = chars.indexOf(str.charAt(i++));
-    const enc3 = chars.indexOf(str.charAt(i++));
-    const enc4 = chars.indexOf(str.charAt(i++));
-    const chr1 = (enc1 << 2) | (enc2 >> 4);
-    const chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
-    const chr3 = ((enc3 & 3) << 6) | enc4;
-    if (enc3 !== 64) output.push(chr1, chr2);
-    else output.push(chr1);
-    if (enc4 !== 64 && enc3 !== 64) output.push(chr3);
-  }
-  return Uint8Array.from(output);
-};
 
 const UploadModal = ({ visible, onClose, onUpload, user }) => {
   const [desc, setDesc] = useState('');
@@ -203,41 +178,14 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
 
   //   return urls;
   // }, [imageUris]);
+  // Server-side upload (Helper/imageUpload.js → uploadImage); the server
+  // stores feed images under uploads/<uid>/ as before.
   const uploadToBunny = useCallback(async () => {
     const urls = [];
-    const userId = user?.id ?? 'anon';
 
     for (const uri of imageUris) {
       try {
-        const filename = `${Date.now()}-${Math.floor(Math.random() * 1e6)}.jpg`;
-        const remotePath = `uploads/${encodeURIComponent(userId)}/${encodeURIComponent(filename)}`;
-        const uploadUrl = `https://${BUNNY_STORAGE_HOST}/${BUNNY_STORAGE_ZONE}/${remotePath}`;
-
-        // Read file as base64 then convert to raw bytes via safe manual decoder
-        // (atob crashes / OOMs on large base64 strings in RN, especially with 2+ images)
-        const base64 = await RNFS.readFile(uri.replace('file://', ''), 'base64');
-        const binary = base64ToBytes(base64);
-
-        // PUT raw bytes
-        const res = await fetch(uploadUrl, {
-          method: 'PUT',
-          headers: {
-            'AccessKey': BUNNY_ACCESS_KEY,
-            'Content-Type': 'application/octet-stream',
-            // Content-Length is optional; let fetch set it
-          },
-          body: binary,
-        });
-
-        const txt = await res.text().catch(() => '');
-        // console.log('[Bunny PUT]', res.status, txt?.slice(0, 200));
-
-        if (!res.ok) {
-          throw new Error(`Bunny upload failed ${res.status}: ${txt}`);
-        }
-
-        // Public CDN URL to display
-        urls.push(`${BUNNY_CDN_BASE}/${decodeURIComponent(remotePath)}`);
+        urls.push(await uploadImage(uri, UPLOAD_KIND.post));
       } catch (e) {
         console.warn('[Bunny ERROR]', e?.message || e);
         throw e; // bubble up so your Alert shows
@@ -245,7 +193,7 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
     }
 
     return urls;
-  }, [imageUris, user?.id]);
+  }, [imageUris]);
 
 
   // Warm the feed-post ad while the user writes, so it is ready when the

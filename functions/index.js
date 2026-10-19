@@ -90,6 +90,8 @@ const bans = require('./banEnforcement');
 exports.modSanction = bans.modSanction;
 // Staff evidence screenshots → Bunny, key held server-side. See modEvidenceUpload.js.
 exports.modEvidenceUpload = require('./modEvidenceUpload').modEvidenceUpload;
+// Every player image upload → Bunny, key held server-side. See uploadImage.js.
+exports.uploadImage = require('./uploadImage').uploadImage;
 const chatReports = require('./mirrorChatReport');
 exports.mirrorChatReport = chatReports.mirrorChatReport;
 exports.reconcileReportedChats = chatReports.reconcileReportedChats;
