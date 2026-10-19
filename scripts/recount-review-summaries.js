@@ -153,7 +153,7 @@ async function main() {
   }
   console.log(`${uids.length} users to recount${WRITE ? '' : ' (DRY RUN)'}`);
 
-  const totals = { scoresToExcluded: 0, scoresFlagDropped: 0, verifiedWrites: 0, profileCreated: 0, profileChanged: 0, profileZeroed: 0, profileSame: 0, gapsScored: 0 };
+  const totals = { scoresToExcluded: 0, scoresFlagDropped: 0, verifiedWrites: 0, profileCreated: 0, profileChanged: 0, profileZeroed: 0, profileSame: 0, gapsScored: 0, gapsGone: 0 };
   const moves = [];
   const gaps = [];
   let done = 0;
@@ -189,9 +189,15 @@ async function main() {
       let r = await attempt();
       if (r.unscored && WRITE) {
         // Score them with the trigger's own code, then recount this user.
+        // A review deleted since the scan is just dropped from the list.
         let failed = 0;
         for (const id of r.unscored) {
           try {
+            if (!(await fs.collection('reviews').doc(id).get()).exists) {
+              reviewIds.set(uid, (reviewIds.get(uid) || []).filter((x) => x !== id));
+              totals.gapsGone++;
+              continue;
+            }
             await RI.scoreReviewById(id);
             totals.gapsScored++;
           } catch (e) {
@@ -225,7 +231,9 @@ async function main() {
   console.log(`\r${done}/${uids.length} users in ${((Date.now() - t0) / 1000).toFixed(0)}s\n`);
   const gapReviews = gaps.reduce((n, g) => n + g.unscored, 0);
   if (WRITE) {
-    console.log(`unscored reviews: ${totals.gapsScored} scored (scoreReviewById); ${gaps.length} user(s) left unchanged because scoring failed`);
+    const failedUsers = gaps.filter((g) => g.failed).length;
+    console.log(`unscored reviews: ${totals.gapsScored} scored (scoreReviewById), ${totals.gapsGone} deleted since the scan (skipped); `
+      + `${failedUsers} user(s) left unchanged because scoring failed, ${gaps.length - failedUsers} still unscored (re-run)`);
   } else {
     console.log(`unscored reviews: ${gapReviews} across ${gaps.length} user(s) — --write scores them first, then recounts those users (not in the numbers below)`);
   }

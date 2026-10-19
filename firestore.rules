@@ -217,9 +217,17 @@ service cloud.firestore {
     // try and ignore the refusal. Staff writes stay allowed because old
     // builds' review delete writes it (else they'd show "Could not delete
     // review"); guardRatingSummary then restores the server value.
+    // serverValue is the server's stamp, which the guard trusts: staff may
+    // keep or drop it, never add or change it (old builds' set() never
+    // sends it). A kept stamp no longer matches changed values, so the guard
+    // still recounts.
     match /user_ratings_summary/{uid} {
       allow read: if true;
-      allow create, update, delete: if isStaff();
+      allow create: if isStaff() && !('serverValue' in request.resource.data);
+      allow update: if isStaff()
+        && (!('serverValue' in request.resource.data)
+            || request.resource.data.serverValue == resource.data.get('serverValue', null));
+      allow delete: if isStaff();
     }
 
     // user_profiles/{uid}: owned fruits / trade journal profile (TradeJournal,

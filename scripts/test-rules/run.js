@@ -646,6 +646,19 @@ async function firestoreTests() {
   await ok('admin deletes a senior mod\'s review', () => deleteDoc(d(A, 'reviews', `${U2}_${S2}`)));
   await ok('senior mod writes the summary after a delete (old builds)', () => setDoc(d(S, 'user_ratings_summary', U2), { averageRating: 1, count: 1 }, { merge: true }));
 
+  // serverValue marks the server's own summary writes (guardRatingSummary
+  // skips them): staff may keep or drop it, never add or change it.
+  sec('fs rating summary stamp (blox-ratings 2026-10-19)');
+  await seed(async (f) => F.setDoc(F.doc(f, 'user_ratings_summary', U3), { count: 2, averageRating: 4, serverValue: '2|4' }));
+  await no('JMD writes a forged rating with a matching stamp', () => setDoc(d(J, 'user_ratings_summary', U3), { count: 50, averageRating: 5, serverValue: '50|5' }, { merge: true }));
+  await no('admin writes a forged rating with a matching stamp', () => setDoc(d(A, 'user_ratings_summary', U3), { count: 50, averageRating: 5, serverValue: '50|5' }, { merge: true }));
+  await no('staff creates a stamped summary', () => setDoc(d(M, 'user_ratings_summary', 'stampNew0001'), { count: 9, averageRating: 5, serverValue: '9|5' }));
+  await ok('old build: staff decrement keeps the old stamp (merge)', () => setDoc(d(S, 'user_ratings_summary', U3), { averageRating: 3, count: 1 }, { merge: true }));
+  await ok('staff write sending the unchanged stamp', () => setDoc(d(M, 'user_ratings_summary', U3), { averageRating: 3, count: 1, serverValue: '2|4' }, { merge: true }));
+  await ok('old build: plain set() drops the stamp', () => setDoc(d(M, 'user_ratings_summary', U3), { averageRating: 0, count: 0 }));
+  await no('staff adds a stamp back', () => setDoc(d(M, 'user_ratings_summary', U3), { serverValue: '0|0' }, { merge: true }));
+  await ok('staff creates a summary without a stamp', () => setDoc(d(M, 'user_ratings_summary', 'stampNew0001'), { count: 0, averageRating: 0 }));
+
   sec('fs social');
   await ok('follow', () => addDoc(c(U1, 'following'), { followerId: U1, followingId: U2, createdAt: serverTimestamp() }));
   await ok('follow (setDoc auto-id, BottomDrawer)', () => setDoc(doc(c(U3, 'following')), { followerId: U3, followingId: U1, createdAt: serverTimestamp() }));
