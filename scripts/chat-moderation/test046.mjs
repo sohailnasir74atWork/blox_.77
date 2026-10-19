@@ -315,5 +315,21 @@ ok(g2.messages === 'https://x/pub.gif' && g2.private_messages === 'https://x/dm.
 const after = await readChat('A', 'chat2');
 ok(after.length === 1 && 'gif' in after[0], 'mod_read_private_chat after 050 returns the gif column');
 
+// 046 refuses without 040 even when _jwt_is_owner exists (044 creates it too).
+const db2 = new PGlite();
+await db2.exec(`create role anon; create role authenticated; create role service_role; create publication supabase_realtime;`);
+for (const f of ['000_init.sql', '001_public_chat.sql', '002_chat_metadata.sql', '003_users_split.sql',
+  '004_fix_messages_unique_index.sql', '005_client_msg_id.sql', '006_message_moderation.sql',
+  '009_private_messages.sql', '010_group_messages.sql', '030_banned_senders.sql', '031_mod_actions.sql',
+  '033_mod_actions_evidence.sql', '034_steps/1_functions.sql', '034_steps/2_messages.sql',
+  '039_mod_read_private_chat.sql']) {
+  await db2.exec(read(f));
+}
+await db2.exec(`create function public._jwt_is_owner() returns boolean language sql stable as $$ select false $$;`);
+await db2.exec(read('046_chat_slowmode_index.sql'));
+let no040 = null;
+try { await db2.exec(MAIN); } catch (e) { no040 = e.message; }
+ok(no040 && no040.startsWith('046 needs 040 applied first'), `without 040 (only 044's _jwt_is_owner): refused (got ${no040})`);
+
 console.log(`046: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

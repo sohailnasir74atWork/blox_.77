@@ -120,7 +120,10 @@ const chatReportItem = (source, d) => {
     key: `${source}:${d.id}`, source, kind: 'chat', id: d.id,
     targetUid: r.reportedUser || null, targetName: r.reportedUserName || null,
     reporterUid: r.reportedBy || null, reporterName: r.reporterName || null,
-    reason: r.reason || null, status: r.status || 'open', createdAt: toMs(r.createdAt), raw: { id: d.id, ...r },
+    reason: r.reason || null, status: r.status || 'open', createdAt: toMs(r.createdAt),
+    // "View chat" hands raw to the Chat Viewer, whose Mark reviewed / Delete
+    // pick chat_reports_restricted when movedFrom is set.
+    raw: { id: d.id, ...r, ...(source === 'chat_reports_restricted' ? { movedFrom: r.movedFrom || 'chat_reports' } : {}) },
   };
 };
 

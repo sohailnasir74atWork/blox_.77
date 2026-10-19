@@ -6,7 +6,7 @@
 const assert = require('assert');
 const {
   RESTRICTED, minRankFor, rankFromRoles, loadStaffRanks, viewersFor, userReportTargets,
-  chatReportTargets, routeReport, cachedDeps, reconcile,
+  chatReportTargets, routeReport, routeTradeReport, cachedDeps, reconcile,
 } = require('../reportRouting')._internal;
 const { RANK, OWNER_EMAILS } = require('../banEnforcement')._internal;
 
@@ -27,7 +27,7 @@ const STAFF = new Map(Object.entries(RANKS));
 const key = (x, y) => [x, y].sort().join('_');
 
 // Firestore: collection(c).doc(id).get(), collection(c).get(),
-// collection(c).orderBy().limit().get(), batch(), doc.ref.update().
+// collection(c).orderBy().limit().get(), runTransaction(), doc.ref.update().
 // `colls` = { name: { id: data } } (mutated in place).
 const fakeFirestore = (colls) => {
   const writes = [];
@@ -53,16 +53,44 @@ const fakeFirestore = (colls) => {
         }),
       }),
     }),
-    batch: () => {
+    runTransaction: async (fn) => {
       const ops = [];
-      return {
-        set: (ref, data) => ops.push(() => { col(ref._path[0])[ref._path[1]] = { ...data }; writes.push(['set', ...ref._path]); }),
+      const tx = {
+        get: async (ref) => {
+          const d = col(ref._path[0])[ref._path[1]];
+          return { exists: !!d, data: () => ({ ...d }) };
+        },
+        create: (ref, data) => ops.push(() => {
+          if (col(ref._path[0])[ref._path[1]]) throw new Error('ALREADY_EXISTS');
+          col(ref._path[0])[ref._path[1]] = { ...data };
+          writes.push(['create', ...ref._path]);
+        }),
         delete: (ref) => ops.push(() => { delete col(ref._path[0])[ref._path[1]]; writes.push(['delete', ...ref._path]); }),
-        commit: async () => ops.forEach((op) => op()),
       };
+      const result = await fn(tx);
+      ops.forEach((op) => op());
+      return result;
     },
   };
 };
+// RTDB: ref('tradeReports/<key>').once/remove, ref('tradeReports').orderByKey().limitToLast(n).once.
+const fakeRtdb = (nodes) => ({
+  nodes,
+  ref: (p) => {
+    const nodeKey = p.split('/')[1];
+    return {
+      once: async () => ({ val: () => (nodeKey ? nodes[nodeKey] ?? null : nodes) }),
+      remove: async () => { delete nodes[nodeKey]; },
+      orderByKey: () => ({
+        limitToLast: (n) => ({
+          once: async () => ({
+            forEach: (fn) => Object.keys(nodes).sort().slice(-n).forEach((k) => fn({ key: k, val: () => nodes[k] })),
+          }),
+        }),
+      }),
+    };
+  },
+});
 const deps = () => cachedDeps(rankOf, async () => STAFF);
 
 (async () => {
@@ -79,6 +107,7 @@ const deps = () => cachedDeps(rankOf, async () => STAFF);
   assert.strictEqual(rankFromRoles(['isModerator', 'isBabyMod']), RANK.moderator);
   assert.strictEqual(rankFromRoles(['isBabyMod']), RANK.babyMod);
   assert.strictEqual(rankFromRoles(undefined), RANK.user);
+  assert.strictEqual(rankFromRoles(['owner']), RANK.owner, "staffMirror's 'owner' role (blox-badges)");
 
   // Viewers: rank ≥ minRank, never a target.
   assert.deepStrictEqual(viewersFor(STAFF, RANK.seniorMod, [M]), [A, A2, O, S, S2].sort());
@@ -108,6 +137,10 @@ const deps = () => cachedDeps(rankOf, async () => STAFF);
   assert.deepStrictEqual(await userReportTargets(fsT, { type: 'user', targetId: S2 }), [S2]);
   assert.deepStrictEqual(chatReportTargets('c1', { chatKey: key(U, M), reportedBy: U, reportedUser: U2 }), [M]);
   assert.deepStrictEqual(chatReportTargets('c2', { chatKey: key(U, M), reportedBy: U2 }), [], 'reporter not in the chat');
+  // Malformed uids are dropped before any rank lookup (readRank would throw on the RTDB path).
+  assert.deepStrictEqual(await userReportTargets(fsT, { type: 'user', targetId: 'x#y', targetUid: 'x#y' }), []);
+  assert.deepStrictEqual(await userReportTargets(fsT, { type: 'status', targetId: 's1', targetUid: 'bad/uid' }), [M]);
+  assert.deepStrictEqual(chatReportTargets('c3', { chatKey: `${U}_a.b`, reportedBy: U }), []);
 
   // routeReport: player report stays; staff reports move with viewers, in one batch.
   const colls = {
@@ -140,8 +173,54 @@ const deps = () => cachedDeps(rankOf, async () => STAFF);
   await routeReport(fs, 'chat_reports', 'ca', colls.chat_reports.ca, deps());
   assert.deepStrictEqual(colls.chat_reports_restricted.ca.viewers, [A2, O].sort(), 'DM report about an Admin: other Admins + owner');
   assert.strictEqual(colls.chat_reports_restricted.ca.reportedBy, U);
-  const setThenDelete = fs.writes.filter(([op, c, id]) => id === 'ca' && op !== 'update').map(([op, c]) => `${op}:${c}`);
-  assert.deepStrictEqual(setThenDelete, ['set:chat_reports_restricted', 'delete:chat_reports'], 'create before delete, one batch');
+  const createThenDelete = fs.writes.filter(([op, c, id]) => id === 'ca' && op !== 'update').map(([op, c]) => `${op}:${c}`);
+  assert.deepStrictEqual(createThenDelete, ['create:chat_reports_restricted', 'delete:chat_reports'], 'create + delete in one transaction');
+
+  // Idempotent, fresh data: a repeated trigger / racing reconcile never undoes a viewer's work.
+  const colls4 = { user_reports: { q1: { type: 'user', targetId: M, targetUid: M, reporterUid: U, status: 'open', createdAt: 1 } } };
+  const fs4 = fakeFirestore(colls4);
+  const stale = { ...colls4.user_reports.q1 };
+  colls4.user_reports.q1.status = 'reviewed'; // dismissed during the window, before the move
+  await routeReport(fs4, 'user_reports', 'q1', stale, deps());
+  assert.strictEqual(colls4.user_reports_restricted.q1.status, 'reviewed', 'copied from the fresh doc, not the trigger snapshot');
+  colls4.user_reports_restricted.q1.status = 'open';
+  colls4.user_reports_restricted.q1.reviewedBy = S;
+  assert.strictEqual((await routeReport(fs4, 'user_reports', 'q1', stale, deps())).moved, false, 'repeat delivery: nothing to move');
+  assert.strictEqual(colls4.user_reports_restricted.q1.reviewedBy, S, "a viewer's later change is kept");
+  delete colls4.user_reports_restricted.q1; // a viewer deleted it
+  await routeReport(fs4, 'user_reports', 'q1', stale, deps());
+  assert.ok(!colls4.user_reports_restricted.q1, 'a deleted restricted report is not brought back');
+  colls4.user_reports.q2 = { type: 'user', targetId: M, targetUid: M, createdAt: 2 };
+  colls4.user_reports_restricted.q2 = { already: true };
+  assert.strictEqual((await routeReport(fs4, 'user_reports', 'q2', colls4.user_reports.q2, deps())).moved, false);
+  assert.ok(colls4.user_reports_restricted.q2.already, 'an existing restricted doc is never overwritten');
+
+  // Old builds' RTDB tradeReports: a staff member's trade → user_reports_restricted/rtdb_<key>, node removed.
+  const colls5 = { trades_new_upgrade: { tS: { userId: S }, tP: { userId: U2 } } };
+  const fs5 = fakeFirestore(colls5);
+  const rt = fakeRtdb({
+    k1: { tradeId: 'tS', reportedBy: U, reason: 'Scam', timestamp: 1700000000000 },
+    k2: { tradeId: 'tP', reportedBy: U, reason: 'Scam', timestamp: 1700000000001 },
+  });
+  const t1 = await routeTradeReport(fs5, rt, 'k1', rt.nodes.k1, deps());
+  assert.strictEqual(t1.moved, true);
+  assert.ok(!rt.nodes.k1, 'RTDB node removed');
+  const tr = colls5.user_reports_restricted.rtdb_k1;
+  assert.strictEqual(tr.type, 'trade');
+  assert.strictEqual(tr.targetId, 'tS');
+  assert.strictEqual(tr.reporterUid, U);
+  assert.strictEqual(tr.status, 'open');
+  assert.strictEqual(tr.minRank, RANK.admin);
+  assert.deepStrictEqual(tr.viewers, [A, A2, O].sort());
+  assert.strictEqual(tr.movedFrom, 'tradeReports');
+  assert.strictEqual(tr.createdAt.getTime(), 1700000000000);
+  assert.strictEqual((await routeTradeReport(fs5, rt, 'k2', rt.nodes.k2, deps())).moved, false);
+  assert.ok(rt.nodes.k2 && !colls5.user_reports_restricted.rtdb_k2, "a player's trade report stays in RTDB");
+  assert.strictEqual((await routeTradeReport(fs5, rt, 'k1', { tradeId: 'tS', reportedBy: U }, deps())).moved, false, 'node already gone: nothing');
+  rt.nodes.k3 = { tradeId: 'tS', reportedBy: U, reason: 'x', timestamp: 2 };
+  colls5.user_reports_restricted.rtdb_k3 = { kept: true };
+  await routeTradeReport(fs5, rt, 'k3', rt.nodes.k3, deps());
+  assert.ok(colls5.user_reports_restricted.rtdb_k3.kept && !rt.nodes.k3, 'half-done move: copy kept, node removed');
 
   // reconcile: moves a missed / promoted report, re-stamps viewers after staff changes.
   const colls2 = {
@@ -159,21 +238,24 @@ const deps = () => cachedDeps(rankOf, async () => STAFF);
     },
   };
   const fs2 = fakeFirestore(colls2);
+  colls2.trades_new_upgrade = { tM: { userId: M } };
+  const rt2 = fakeRtdb({ k9: { tradeId: 'tM', reportedBy: U2, reason: 'x', timestamp: 9 } });
   const promoted = async (uid) => (uid === U ? RANK.moderator : uid === M2 ? RANK.user : rankOf(uid));
-  const r = await reconcile(fs2, promoted, async () => STAFF);
-  // 2 public + 3 restricted (p2 is re-checked right after its move) + 1 chat.
-  assert.deepStrictEqual(r, { checked: 6, moved: 1, restamped: 2, failed: 0 }, JSON.stringify(r));
+  const r = await reconcile(fs2, rt2, promoted, async () => STAFF);
+  // 1 RTDB + 2 public + 4 restricted (p2 and the trade copy re-checked right after their move) + 1 chat.
+  assert.deepStrictEqual(r, { checked: 8, moved: 2, restamped: 2, failed: 0 }, JSON.stringify(r));
+  assert.ok(!rt2.nodes.k9 && colls2.user_reports_restricted.rtdb_k9, 'reconcile routes old-build trade reports too');
   assert.ok(colls2.user_reports.p1 && !colls2.user_reports.p2 && colls2.user_reports_restricted.p2, 'promoted target: moved');
   assert.deepStrictEqual(colls2.user_reports_restricted.r1.viewers, [A, A2, O].sort(), 'new Admin added to viewers');
   assert.strictEqual(colls2.user_reports_restricted.r2.minRank, RANK.babyMod, 'demoted target: all staff but them');
   assert.ok(!colls2.user_reports_restricted.r2.viewers.includes(M2) && colls2.user_reports_restricted.r2.viewers.includes(J));
   assert.ok(!fs2.writes.some(([, c, id]) => c === 'chat_reports_restricted' && id === 'c1'), 'correct doc untouched');
-  const again = await reconcile(fs2, promoted, async () => STAFF);
+  const again = await reconcile(fs2, rt2, promoted, async () => STAFF);
   assert.strictEqual(again.moved + again.restamped, 0, 'second run writes nothing');
 
   // A failing rank lookup counts as failed and moves nothing.
   const fs3 = fakeFirestore({ user_reports: { x: { type: 'user', targetId: S, targetUid: S, createdAt: 1 } } });
-  const r3 = await reconcile(fs3, async () => { throw new Error('rtdb down'); }, async () => STAFF);
+  const r3 = await reconcile(fs3, fakeRtdb({}), async () => { throw new Error('rtdb down'); }, async () => STAFF);
   assert.strictEqual(r3.failed, 1);
   assert.strictEqual(r3.moved, 0);
 

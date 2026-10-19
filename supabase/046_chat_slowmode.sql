@@ -46,12 +46,13 @@
 --   * 4.0.12–4.0.14: the catch-all path → toast "Offline · Your message will
 --     send automatically…", the box is cleared and the send is queued. The
 --     queue is replayed only when the realtime channel (re)subscribes, never
---     on a timer, and a send that keeps failing is dropped after 3 replays
---     (Trader.jsx flushRetryQueue `attempts < 3`, present since 4.0.10), so
---     it cannot loop: at most 4 inserts per message. A replay that lands
---     after the gap goes through (the message shows up late); otherwise the
---     message silently disappears. Switching rooms clears the queue.
---     SENDER_BANNED takes the same path on those builds today.
+--     on a timer, and a send that keeps failing is dropped after its 4th
+--     failed replay (Trader.jsx flushRetryQueue: attempts start at 0 and are
+--     re-queued while `attempts < 3`; present since 4.0.10), so it cannot
+--     loop: at most 5 inserts per message (the send + 4 replays). A replay
+--     that lands after the gap goes through (the message shows up late);
+--     otherwise the message silently disappears. Switching rooms clears the
+--     queue. SENDER_BANNED takes the same path on those builds today.
 --   No build crashes. Every build also has its own 10 s client cooldown in
 --   public chat (Trader.jsx MESSAGE_COOLDOWN, all users), so 5 s / 10 s only
 --   bite crafted clients; 30 s and up are felt by everyone.
@@ -83,6 +84,9 @@
 --   *_restricted collections that only the allowed staff can read.
 --
 -- HOW TO RUN (owner)
+--   0. 040_owner_email_verified.sql must already be applied, and it must run
+--      BEFORE 047 (blox-mod-powers): 040 re-creates is_mod_staff(), so
+--      running it after 047 would drop 047's ban check from is_mod_staff.
 --   1. supabase/046_chat_slowmode_index.sql — ON ITS OWN, not in begin/commit.
 --   2. This file, STEP 1–3. One transaction is fine. STEP 2 refuses to arm
 --      the trigger until the index from step 1 exists and is valid; STEP 2
@@ -118,8 +122,12 @@ set lock_timeout = '5s';
 
 do $$
 begin
-  if to_regprocedure('public._jwt_is_owner()') is null then
-    raise exception '046 needs 040 applied first: run supabase/040_owner_email_verified.sql, then run 046 again (public._jwt_is_owner() is missing)';
+  -- Only 040 rewrites _chat_caller_link_tier() to use _jwt_is_owner()
+  -- (044 also creates _jwt_is_owner, and 047 rewrites is_mod_staff).
+  if to_regprocedure('public._jwt_is_owner()') is null
+     or to_regprocedure('public._chat_caller_link_tier()') is null
+     or pg_get_functiondef('public._chat_caller_link_tier()'::regprocedure) not like '%_jwt_is_owner%' then
+    raise exception '046 needs 040 applied first: run supabase/040_owner_email_verified.sql, then run 046 again';
   end if;
   if to_regprocedure('public._chat_end_user_uid()') is null
      or to_regclass('public.message_reports') is null then

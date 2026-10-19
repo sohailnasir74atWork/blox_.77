@@ -1,17 +1,19 @@
 // One-off backfill: move EXISTING reports about staff out of user_reports /
-// chat_reports into user_reports_restricted / chat_reports_restricted, which
-// only the staff above the target can read (never the target). New reports
-// are moved by functions/reportRouting.js as they are created; this does the
-// ones filed before it was deployed. Same code path (routeReport), so a doc
-// moves exactly as the trigger would move it.
+// chat_reports (and old builds' RTDB tradeReports) into
+// user_reports_restricted / chat_reports_restricted, which only the staff
+// above the target can read (never the target). New reports are moved by
+// functions/reportRouting.js as they are created; this does the ones filed
+// before it was deployed. Same code path (routeReport /
+// routeTradeReport), so a report moves exactly as the trigger would move it.
 //
 // Run (from the Blox_Fruit directory, after deploying the functions):
 //   node scripts/reports/backfill-restricted-reports.js           # DRY RUN — lists what would move
 //   APPLY=1 node scripts/reports/backfill-restricted-reports.js   # moves them
 //
-// Reads every doc of both collections once (a few hundred to a few thousand
-// reads) plus a rank lookup per distinct target. Safe to run again: moved
-// docs are gone from the public collections, reports about players stay.
+// Reads every doc of both collections and every tradeReports node once (a
+// few hundred to a few thousand reads) plus a rank lookup per distinct
+// target. Safe to run again: moved reports are gone from the public
+// collections / RTDB, reports about players stay where they are.
 //
 // Prereqs: serviceAccount.json at project root (same as the other backfill
 // scripts).
@@ -35,7 +37,7 @@ try {
 const RTDB_URL = process.env.RTDB_URL || `https://${serviceAccount.project_id}-default-rtdb.firebaseio.com`;
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount), databaseURL: RTDB_URL });
 
-const { RESTRICTED, routeReport, cachedDeps, loadStaffRanks, rankOfUid } = require(path.join(FUNCTIONS_DIR, 'reportRouting'))._internal;
+const { RESTRICTED, routeReport, routeTradeReport, cachedDeps, loadStaffRanks, rankOfUid } = require(path.join(FUNCTIONS_DIR, 'reportRouting'))._internal;
 
 const APPLY = process.env.APPLY === '1';
 const PAGE = 300;
@@ -72,6 +74,34 @@ const RANK_NAME = { 3: 'Senior Mod+', 4: 'Admin+' };
       last = snap.docs[snap.docs.length - 1];
       if (snap.size < PAGE) break;
     }
+  }
+
+  // Old builds' RTDB trade reports, paged by push key.
+  totals.tradeReports = { scanned: 0, moved: 0, failed: 0 };
+  const rtdb = admin.database();
+  let lastKey = null;
+  for (;;) {
+    let q = rtdb.ref('tradeReports').orderByKey().limitToFirst(PAGE + (lastKey ? 1 : 0));
+    if (lastKey) q = q.startAt(lastKey);
+    const nodes = [];
+    (await q.once('value')).forEach((child) => { if (child.key !== lastKey) nodes.push([child.key, child.val()]); return false; });
+    if (!nodes.length) break;
+    for (const [key, val] of nodes) {
+      totals.tradeReports.scanned++;
+      try {
+        const plan = await routeTradeReport(firestore, rtdb, key, val || {}, deps, { dryRun: !APPLY });
+        if (plan.moved) {
+          totals.tradeReports.moved++;
+          console.log(`${APPLY ? 'moved' : 'would move'} tradeReports/${key} → ${plan.to}/rtdb_${key}`
+            + ` (${RANK_NAME[plan.minRank]}, targets ${plan.targetUids.join(',')}, ${plan.viewers.length} viewers)`);
+        }
+      } catch (e) {
+        totals.tradeReports.failed++;
+        console.error(`failed tradeReports/${key}: ${e?.message || e}`);
+      }
+    }
+    lastKey = nodes[nodes.length - 1][0];
+    if (nodes.length < PAGE) break;
   }
 
   console.log('\nSummary:', JSON.stringify(totals));

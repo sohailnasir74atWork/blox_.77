@@ -14,8 +14,10 @@
  * list user_reports / chat_reports with no filter, and Firestore denies a
  * whole list when any doc could be hidden (rules are not filters). So those
  * two collections keep their plain isStaff() reads, and a report about a
- * staff member is MOVED out of them, same doc id, in one batch (create +
- * delete), into user_reports_restricted / chat_reports_restricted with:
+ * staff member is MOVED out of them, same doc id, in one transaction (read
+ * the public doc fresh, create the restricted one only if it doesn't exist,
+ * delete the public one), into user_reports_restricted /
+ * chat_reports_restricted with:
  *   targetUids  every uid the report may be about (below)
  *   minRank     3 (Senior Mod+) or 4 (Admin+)
  *   viewers     staff uids allowed to read it: staff/{uid} mirror rank
@@ -29,7 +31,8 @@
  * create until the trigger below moves it — normally a second or two. A
  * staff member who loads the queue in that instant can see it.
  *
- * Whose rank — never only what the client wrote:
+ * Whose rank — never only what the client wrote (and only well-formed uids,
+ * banEnforcement UID_RE; anything else could not be a staff account):
  *   user_reports  the client's targetUid AND the owner (`userId`,
  *                 rules-protected) of the reported trade / post / status doc;
  *                 the highest rank decides. A reporter who names someone else
@@ -41,9 +44,17 @@
  *
  *   routeUserReport          onCreate user_reports/{id}
  *   routeChatReport          onCreate chat_reports/{id}
+ *   routeTradeReport         onCreate RTDB tradeReports/{key}: old builds
+ *                            (4.0.12–4.0.14, and newer ones when the
+ *                            user_reports write fails) push trade reports
+ *                            there; one about a staff member's trade is
+ *                            copied into user_reports_restricted (type
+ *                            'trade', doc id rtdb_<key>) and the RTDB node
+ *                            removed. Admin SDK only: no RTDB rules change.
  *   reconcileReportRouting   every 6 h: moves any report about staff among
- *                            the newest 300 of each public collection (a
- *                            missed trigger, or a target promoted since), and
+ *                            the newest 300 of each public collection and of
+ *                            tradeReports (a missed trigger, or a target
+ *                            promoted since), and
  *                            re-stamps viewers / minRank on the restricted
  *                            ones (staff added, removed, promoted, demoted).
  *   scripts/reports/backfill-restricted-reports.js moves the older ones once.
@@ -52,7 +63,7 @@
  * additive) → these functions (with mirrorRestrictedChatReport) → the backfill
  * → the app build. Until staff run that build, a moved report is visible only
  * in the new build (or the console), not in old builds' queues:
- *   firebase deploy --only functions:routeUserReport,functions:routeChatReport,functions:reconcileReportRouting,functions:mirrorChatReport,functions:mirrorRestrictedChatReport,functions:reconcileReportedChats --project fruiteblocks
+ *   firebase deploy --only functions:routeUserReport,functions:routeChatReport,functions:routeTradeReport,functions:reconcileReportRouting,functions:mirrorChatReport,functions:mirrorRestrictedChatReport,functions:reconcileReportedChats --project fruiteblocks
  */
 const functions = require('firebase-functions/v1');
 const admin = require('firebase-admin');
@@ -74,6 +85,7 @@ const minRankFor = (targetRank) => {
 // staff/{uid}.roles (functions/staffMirror.js) → rank, same ladder as RANK.
 const rankFromRoles = (roles) => {
   const r = Array.isArray(roles) ? roles : [];
+  if (r.includes('owner')) return RANK.owner;
   if (r.includes('admin') || r.includes('isAdmin')) return RANK.admin;
   if (r.includes('isSeniorMod')) return RANK.seniorMod;
   if (r.includes('isModerator')) return RANK.moderator;
@@ -130,20 +142,36 @@ async function contentOwner(firestore, type, targetId) {
   return null;
 }
 
+const isUid = (v) => typeof v === 'string' && UID_RE.test(v);
+
 // Every uid a user_reports doc may be about.
 async function userReportTargets(firestore, data) {
   const out = new Set();
-  if (typeof data?.targetUid === 'string' && data.targetUid) out.add(data.targetUid);
-  if (data?.type === 'user' && typeof data.targetId === 'string' && UID_RE.test(data.targetId)) out.add(data.targetId);
+  if (isUid(data?.targetUid)) out.add(data.targetUid);
+  if (data?.type === 'user' && isUid(data.targetId)) out.add(data.targetId);
   const owner = await contentOwner(firestore, data?.type, data?.targetId);
-  if (owner) out.add(owner);
+  if (isUid(owner)) out.add(owner);
   return [...out];
 }
 
 function chatReportTargets(id, data) {
   const row = chatReportRow(id, data);
-  return row?.reported_uid ? [row.reported_uid] : [];
+  return isUid(row?.reported_uid) ? [row.reported_uid] : [];
 }
+
+// An RTDB tradeReports node as a user_reports-shaped doc (type 'trade').
+// Old nodes carry { tradeId, reportedBy, reason, timestamp } and sometimes
+// targetUid / status.
+const tradeReportAsUserReport = (data) => ({
+  type: 'trade',
+  targetId: typeof data?.tradeId === 'string' ? data.tradeId : '',
+  targetUid: isUid(data?.targetUid) ? data.targetUid : null,
+  reporterUid: typeof data?.reportedBy === 'string' ? data.reportedBy : null,
+  reason: String(data?.reason || 'Other').trim().slice(0, 200),
+  text: '',
+  createdAt: new Date(Number(data?.timestamp) || Date.now()),
+  status: data?.status === 'reviewed' ? 'reviewed' : 'open',
+});
 
 const targetsOf = (firestore, collection, id, data) => (collection === 'user_reports'
   ? userReportTargets(firestore, data)
@@ -157,7 +185,13 @@ async function topRank(uids, rankOf) {
 
 // Moves one public report when it is about staff. deps = { rankOf, staff }
 // (staff: () => Promise<Map uid→rank>, called only when a move is needed).
-// dryRun returns the plan without writing.
+// dryRun returns the plan without writing. The fields that decide the
+// targets never change after create (rules: staff may only touch status /
+// reviewedBy / reviewedAt), so the plan can come from `data`; the copy is
+// made from the doc as it is inside the transaction. Idempotent: a repeated
+// trigger or a reconcile racing it finds the public doc gone (or the
+// restricted one there) and writes nothing, so a viewer's status change or
+// delete is never undone.
 async function routeReport(firestore, collection, id, data, deps, { dryRun = false } = {}) {
   const targetUids = await targetsOf(firestore, collection, id, data);
   const minRank = minRankFor(await topRank(targetUids, deps.rankOf));
@@ -165,13 +199,46 @@ async function routeReport(firestore, collection, id, data, deps, { dryRun = fal
   const viewers = viewersFor(await deps.staff(), minRank, targetUids);
   const plan = { moved: true, collection, id, to: RESTRICTED[collection], minRank, targetUids, viewers };
   if (dryRun) return plan;
-  const batch = firestore.batch();
-  batch.set(firestore.collection(RESTRICTED[collection]).doc(id), {
-    ...data, targetUids, minRank, viewers, movedFrom: collection, movedAt: new Date(),
+  const publicRef = firestore.collection(collection).doc(id);
+  const restrictedRef = firestore.collection(RESTRICTED[collection]).doc(id);
+  const moved = await firestore.runTransaction(async (tx) => {
+    const [fresh, existing] = await Promise.all([tx.get(publicRef), tx.get(restrictedRef)]);
+    if (!fresh.exists || existing.exists) return false;
+    tx.create(restrictedRef, {
+      ...fresh.data(), targetUids, minRank, viewers, movedFrom: collection, movedAt: new Date(),
+    });
+    tx.delete(publicRef);
+    return true;
   });
-  batch.delete(firestore.collection(collection).doc(id));
-  await batch.commit();
-  return plan;
+  return moved ? plan : { moved: false, reason: 'already moved or gone' };
+}
+
+// Copies one RTDB tradeReports node into user_reports_restricted when the
+// reported trade belongs to staff, then removes the node. The Firestore
+// create is transactional (never overwrites an existing copy); the RTDB
+// remove follows it, so a crash in between leaves both and the next run only
+// removes the node.
+async function routeTradeReport(firestore, rtdb, key, data, deps, { dryRun = false } = {}) {
+  const asReport = tradeReportAsUserReport(data);
+  const targetUids = await userReportTargets(firestore, asReport);
+  const minRank = minRankFor(await topRank(targetUids, deps.rankOf));
+  if (!minRank) return { moved: false };
+  const viewers = viewersFor(await deps.staff(), minRank, targetUids);
+  const id = `rtdb_${key}`;
+  const plan = { moved: true, collection: 'tradeReports', id: key, to: RESTRICTED.user_reports, minRank, targetUids, viewers };
+  if (dryRun) return plan;
+  const nodeRef = rtdb.ref(`tradeReports/${key}`);
+  const fresh = (await nodeRef.once('value')).val();
+  if (!fresh) return { moved: false, reason: 'gone' };
+  const restrictedRef = firestore.collection(RESTRICTED.user_reports).doc(id);
+  await firestore.runTransaction(async (tx) => {
+    if ((await tx.get(restrictedRef)).exists) return;
+    tx.create(restrictedRef, {
+      ...tradeReportAsUserReport(fresh), targetUids, minRank, viewers, movedFrom: 'tradeReports', movedAt: new Date(),
+    });
+  });
+  await nodeRef.remove();
+  return { ...plan, id };
 }
 
 // Recomputes targetUids / minRank / viewers of a restricted report. A target
@@ -181,7 +248,7 @@ async function restampRestricted(firestore, restrictedCol, doc, deps) {
   const data = doc.data() || {};
   const publicCol = restrictedCol === RESTRICTED.chat_reports ? 'chat_reports' : 'user_reports';
   const now = await targetsOf(firestore, publicCol, doc.id, data);
-  const stored = Array.isArray(data.targetUids) ? data.targetUids : [];
+  const stored = Array.isArray(data.targetUids) ? data.targetUids.filter(isUid) : [];
   const targetUids = [...new Set([...stored, ...now])].sort();
   const minRank = Math.max(RANK.babyMod, minRankFor(await topRank(targetUids, deps.rankOf)));
   const viewers = viewersFor(await deps.staff(), minRank, targetUids);
@@ -215,10 +282,23 @@ function cachedDeps(rankOf, loadStaff) {
   };
 }
 
-// `firestore`, `rankOf` and `loadStaff` are passed in so tests can use fakes.
-async function reconcile(firestore, rankOf, loadStaff, { publicScan = PUBLIC_SCAN, restrictedScan = RESTRICTED_SCAN } = {}) {
+// `firestore`, `rtdb`, `rankOf` and `loadStaff` are passed in so tests can use fakes.
+async function reconcile(firestore, rtdb, rankOf, loadStaff, { publicScan = PUBLIC_SCAN, restrictedScan = RESTRICTED_SCAN } = {}) {
   const deps = cachedDeps(rankOf, loadStaff);
   const result = { checked: 0, moved: 0, restamped: 0, failed: 0 };
+  // Old builds' RTDB trade reports (push keys sort by time).
+  const trades = [];
+  (await rtdb.ref('tradeReports').orderByKey().limitToLast(publicScan).once('value'))
+    .forEach((child) => { trades.push([child.key, child.val()]); return false; });
+  await inChunks(trades, async ([key, val]) => {
+    result.checked++;
+    try {
+      if ((await routeTradeReport(firestore, rtdb, key, val || {}, deps)).moved) result.moved++;
+    } catch (e) {
+      result.failed++;
+      console.error('[reconcileReportRouting] tradeReports', key, e?.message || e);
+    }
+  });
   for (const collection of Object.keys(RESTRICTED)) {
     const snap = await firestore.collection(collection).orderBy('createdAt', 'desc').limit(publicScan).get();
     await inChunks(snap.docs || [], async (doc) => {
@@ -273,11 +353,23 @@ const routeTrigger = (collection) => functions
 const routeUserReport = routeTrigger('user_reports');
 const routeChatReport = routeTrigger('chat_reports');
 
+const routeTradeReportTrigger = functions
+  .runWith({ memory: '256MB', timeoutSeconds: 60 })
+  .database.ref('tradeReports/{key}')
+  .onCreate(async (snap, context) => {
+    try {
+      await routeTradeReport(admin.firestore(), admin.database(), context.params.key, snap.val() || {}, liveDeps());
+    } catch (e) {
+      console.error('[routeTradeReport]', context.params.key, e?.message || e);
+    }
+    return null;
+  });
+
 const reconcileReportRouting = functions
   .runWith({ memory: '256MB', timeoutSeconds: 300 })
   .pubsub.schedule('every 6 hours')
   .onRun(async () => {
-    const r = await reconcile(admin.firestore(), rankOfUid, () => loadStaffRanks(admin.firestore(), admin.auth()));
+    const r = await reconcile(admin.firestore(), admin.database(), rankOfUid, () => loadStaffRanks(admin.firestore(), admin.auth()));
     console.log(`[reconcileReportRouting] ${r.checked} checked, ${r.moved} moved, ${r.restamped} re-stamped, ${r.failed} failed`);
     return null;
   });
@@ -285,6 +377,7 @@ const reconcileReportRouting = functions
 module.exports = {
   routeUserReport,
   routeChatReport,
+  routeTradeReport: routeTradeReportTrigger,
   reconcileReportRouting,
   _internal: {
     RESTRICTED,
@@ -295,6 +388,8 @@ module.exports = {
     userReportTargets,
     chatReportTargets,
     routeReport,
+    routeTradeReport,
+    tradeReportAsUserReport,
     restampRestricted,
     cachedDeps,
     reconcile,

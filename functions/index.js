@@ -99,6 +99,7 @@ exports.mirrorRestrictedChatReport = chatReports.mirrorRestrictedChatReport;
 const reportRouting = require('./reportRouting');
 exports.routeUserReport = reportRouting.routeUserReport;
 exports.routeChatReport = reportRouting.routeChatReport;
+exports.routeTradeReport = reportRouting.routeTradeReport;
 exports.reconcileReportRouting = reportRouting.reconcileReportRouting;
 exports.syncEmailBan = bans.syncEmailBan;
 exports.indexDeviceAccount = bans.indexDeviceAccount;
