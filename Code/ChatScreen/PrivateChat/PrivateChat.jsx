@@ -35,8 +35,7 @@ import {
   setDoc,
   serverTimestamp,
 } from '@react-native-firebase/firestore';
-import { updateUserRatingSummary } from '../utils/ratingSummaryHelper';
-import { incrementAndCheckBadge, awardBadge, REVIEW_BADGE_THRESHOLDS } from '../GroupChat/badgeUtils';
+import { incrementAndCheckBadge, REVIEW_BADGE_THRESHOLDS } from '../GroupChat/badgeUtils';
 import { addXP, XP_ACTIONS } from '../../Engagement/xpUtils';
 import ProfileBottomDrawer from '../GroupChat/BottomDrawer';
 import {
@@ -211,7 +210,10 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     if (!Array.isArray(messages) || messages.length === 0) return;
     if (!myUserId || !selectedUserId) return;
 
-    const myMsgs = messages.filter(m => m?.senderId === myUserId);
+    // Same bar as the server (scoreReviewOnWrite): both sent 2+ messages that
+    // reached Supabase. An unsent bubble doesn't count, or the review would
+    // be stored but not counted.
+    const myMsgs = messages.filter(m => m?.senderId === myUserId && !m._optimistic);
     const theirMsgs = messages.filter(m => m?.senderId === selectedUserId);
 
     if (myMsgs.length > 1 && theirMsgs.length > 1) {
@@ -376,28 +378,10 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     try {
       setStartRating(true)
 
-      // ✅ MIGRATED: Get old rating from Firestore instead of RTDB
+      // An existing review is edited in place (keeps its createdAt).
       const reviewDocId = `${selectedUserId}_${myUserId}`;
       const reviewRef = doc(firestoreDB, "reviews", reviewDocId);
       const existingSnap = await getDoc(reviewRef);
-      const oldRating = existingSnap.exists() ? existingSnap.data()?.rating : undefined;
-
-      // ✅ Get current summary from Firestore to calculate new average
-      const summaryRef = doc(firestoreDB, 'user_ratings_summary', selectedUserId);
-      const summarySnap = await getDoc(summaryRef);
-      const summaryData = summarySnap.exists() ? summarySnap.data() : null;
-      const oldAverage = summaryData?.averageRating || 0;
-      const oldCount = summaryData?.count || 0;
-
-      let newAverage = 0;
-      let newCount = oldCount;
-
-      if (oldRating !== undefined) {
-        newAverage = ((oldAverage * oldCount) - oldRating + rating) / oldCount;
-      } else {
-        newCount = oldCount + 1;
-        newAverage = ((oldAverage * oldCount) + rating) / newCount;
-      }
 
       const trimmedReview = (reviewText || "").trim();
 
@@ -427,20 +411,9 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       reviewWasSaved = true;
       reviewWasUpdated = isUpdate;
 
-      // ✅ OPTIMIZED: Update user_ratings_summary collection (background update, doesn't block UI)
-      // This maintains aggregated data for efficient leaderboard queries.
-      // The returned aggregate also drives the reviewed user's 5-Star badge
-      // (4.5★ average with 50+ reviews received).
-      updateUserRatingSummary(firestoreDB, selectedUserId)
-        .then((summary) => {
-          if (summary && summary.count >= 50 && summary.averageRating >= 4.5) {
-            awardBadge(appdatabase, selectedUserId, 'fiveStar');
-          }
-        })
-        .catch((err) => {
-          console.error('Error updating rating summary:', err);
-          // Don't show error to user - this is a background operation
-        });
+      // user_ratings_summary and the reviewed user's 5-Star badge are kept by
+      // the server (functions/reviewIntegrity.js) since 2026-10-19; the rules
+      // refuse a recount from the phone.
 
       showSuccessMessage(
         t('chat.message_common.success'),

@@ -171,6 +171,9 @@ service cloud.firestore {
     // ── Profiles ──
     // reviews/{toUserId}_{fromUserId} — a review (one per pair, no self-review)
     // reviews/{uid}                    — that user's profile doc (bio, ownedPets, wishlistPets)
+    // Rules can't see Supabase chats, so "both sent 2+ messages" is checked by
+    // scoreReviewOnWrite: a review without that chat is stored but counts
+    // nowhere (Top Rated, profile rating). Old builds write reviews directly.
     function isOwnReview(docId) {
       let d = request.resource.data;
       return signedIn()
@@ -189,31 +192,15 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Display summary (profile rating). The reviewer recomputes the REVIEWEE's
-    // summary right after writing their review (app + website), so a writer
-    // must hold a review of that user; staff fix it after deleting reviews.
-    // The average itself can't be verified here (see INVENTORY.md).
-    function summaryShapeOK() {
-      return request.resource.data.count is number
-        && request.resource.data.count >= 0
-        && request.resource.data.averageRating is number
-        && request.resource.data.averageRating >= 0
-        && request.resource.data.averageRating <= 5;
-    }
-    function hasReviewed(uid) {
-      return exists(/databases/$(database)/documents/reviews/$(uid + '_' + request.auth.uid));
-    }
+    // Display summary (profile rating). Server-kept since 2026-10-19
+    // (scoreReviewOnWrite, from the scored reviews). Reviewers used to
+    // recount it on the phone/website after their review; old builds still
+    // try and ignore the refusal. Staff writes stay allowed because old
+    // builds' review delete writes it (else they'd show "Could not delete
+    // review"); guardRatingSummary then restores the server value.
     match /user_ratings_summary/{uid} {
       allow read: if true;
-      allow create: if isStaff() || (active()
-        && request.resource.data.keys().hasOnly(['count', 'averageRating', 'updatedAt'])
-        && summaryShapeOK() && hasReviewed(uid));
-      allow update: if isStaff() || (active()
-        && changed().hasOnly(['count', 'averageRating', 'updatedAt'])
-        && summaryShapeOK() && hasReviewed(uid)
-        && (request.resource.data.count == resource.data.get('count', 0)
-            || request.resource.data.count == resource.data.get('count', 0) + 1));
-      allow delete: if isStaff();
+      allow create, update, delete: if isStaff();
     }
 
     // user_profiles/{uid}: owned fruits / trade journal profile (TradeJournal,

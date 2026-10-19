@@ -54,6 +54,7 @@ exports.updateLeaderboardCache = require('./updateLeaderboardCache').updateLeade
 const reviewIntegrity = require('./reviewIntegrity');
 exports.scoreReviewOnWrite = reviewIntegrity.scoreReviewOnWrite;
 exports.voidReviewsOfDeletedUser = reviewIntegrity.voidReviewsOfDeletedUser;
+exports.guardRatingSummary = reviewIntegrity.guardRatingSummary;
 const staffMirror = require('./staffMirror');
 for (const flag of staffMirror.STAFF_FLAGS) exports[`syncStaff_${flag}`] = staffMirror[`syncStaff_${flag}`];
 const mods = require('./modRoster');

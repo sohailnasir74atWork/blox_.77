@@ -8,6 +8,10 @@
 // not count or reports a scam, with the reason, so a moderator can delete a
 // review or hold/release the trader.
 //
+// Since 2026-10-19 a review from someone who never chatted with the trader
+// (both 2+ private messages) is excluded ("Never chatted") and also left out
+// of the profile rating, which the server keeps (shownCount / shownSum).
+//
 // Reads: leaderboard_cache/holds (1 doc), review_verified_summary/{uid},
 // review_scores (only excluded + scam rows) and the matching reviews docs.
 // Names come from Supabase user_identity in one batch.
@@ -65,7 +69,7 @@ const FLAG_LABELS = {
   newAccount: 'New account',
   quickSwap: 'Swapped reviews',
   burst: 'Review burst',
-  noChat: 'No chat',
+  noChat: 'Never chatted',
 };
 
 const toMillis = (v) => (v && typeof v.toMillis === 'function' ? v.toMillis() : typeof v === 'number' ? v : 0);
@@ -320,6 +324,9 @@ const ReviewIntegrityTab = ({ isDark, currentUser, callerRoles }) => {
                 </View>
                 <Text style={{ color: c.sub, fontSize: 12, marginTop: 10 }}>
                   Average {Number(s.averageRating || 0).toFixed(2)}★ from verified reviews.
+                  {s.shownCount !== undefined
+                    ? ` Profile shows ${s.shownCount} at ${(s.shownCount ? s.shownSum / s.shownCount : 0).toFixed(2)}★.`
+                    : ''}
                   {held ? ` Held from Top Rated${s.holdByName ? ` by ${s.holdByName}` : ''}.` : ''}
                 </Text>
                 <TouchableOpacity
