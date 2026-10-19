@@ -38,13 +38,24 @@ const jmdPlusU = (x) => or(flag(x, 'admin'), flag(x, 'isAdmin'), flag(x, 'isSeni
 
 // Rank of the writer (owner email counts as admin, like the server's readRank).
 const ME = 'auth.uid';
-const wAdmin = and('auth != null', or(owner, adminU(ME)));
-const wSenior = and('auth != null', or(owner, seniorPlusU(ME)));
-const wMod = and('auth != null', or(owner, modPlusU(ME)));
-const wJMD = and('auth != null', or(owner, jmdPlusU(ME)));
-const isGranter = `root.child('jmd_granters').child(auth.uid).val() === true`;
+// Writer has an active BAN (not a mute) in banned_uids: staff rights stop
+// (2026-10-19, same as Firestore isStaff() and the modSanction function).
+// Records without `type` count as a ban when strikeCount >= 1, like the
+// server's recordType().
+const BME = `root.child('banned_uids').child(auth.uid)`;
+const meBanned = and(
+  `${BME}.exists()`,
+  or(`${BME}.child('type').val() === 'ban'`, and(not(`${BME}.child('type').exists()`), `${BME}.child('strikeCount').val() >= 1`)),
+  or(`${BME}.child('bannedUntil').val() === 'permanent'`, `${BME}.child('bannedUntil').val() > now`),
+);
+const notBanned = not(meBanned);
+const wAdmin = and('auth != null', or(owner, adminU(ME)), notBanned);
+const wSenior = and('auth != null', or(owner, seniorPlusU(ME)), notBanned);
+const wMod = and('auth != null', or(owner, modPlusU(ME)), notBanned);
+const wJMD = and('auth != null', or(owner, jmdPlusU(ME)), notBanned);
+const isGranter = and(`root.child('jmd_granters').child(auth.uid).val() === true`, notBanned);
 // Read access the dashboards already had (staff + JMD granters + owners).
-const staffRead = and('auth != null', or(owner, jmdPlusU(ME), `root.child('jmd_granters').child(auth.uid).exists()`));
+const staffRead = and('auth != null', or(owner, jmdPlusU(ME), `root.child('jmd_granters').child(auth.uid).exists()`), notBanned);
 
 const UID_RE = '/^[A-Za-z0-9]{10,128}$/';
 const validUid = (snap) => and(`${snap}.isString()`, `${snap}.val().matches(${UID_RE})`);

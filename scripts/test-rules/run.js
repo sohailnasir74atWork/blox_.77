@@ -1121,6 +1121,33 @@ async function quickWinsTests() {
   await ok('JMD deletes a hidden status', () => deleteDoc(d(J, 'statuses', 'qws1')));
 }
 
+// ── Banned staff lose staff rights in the rules (coordinator, 2026-10-19) ──
+async function bannedStaffTests() {
+  const BM = 'bannedMod0001';   // Moderator with an active ban
+  const MM = 'mutedMod00001';   // Moderator with only a mute
+  EMAIL[BM] = 'bannedmod@example.com'; EMAIL[MM] = 'mutedmod@example.com';
+  const H = 60 * 60 * 1000;
+  await seed(async (f, db) => {
+    for (const uid of [BM, MM]) {
+      await D.set(D.ref(db, `users/${uid}`), { displayName: `n_${uid}`, createdAt: 1700000000000, isModerator: true });
+      await F.setDoc(F.doc(f, 'staff', uid), { roles: ['isModerator'] });
+    }
+    await D.set(D.ref(db, `users/bsUser000001`), { displayName: 'bs', createdAt: 1700000000000 });
+    await D.set(D.ref(db, `banned_uids/${BM}`), { type: 'ban', bannedUntil: Date.now() + 3 * H, strikeCount: 1, userId: BM });
+    await D.set(D.ref(db, `banned_uids/${MM}`), { type: 'mute', bannedUntil: Date.now() + H, strikeCount: 0, userId: MM });
+    await F.setDoc(F.doc(f, 'banned_uids', BM), { type: 'ban', permanent: false, until: F.Timestamp.fromMillis(Date.now() + 3 * H) });
+    for (const id of ['bsp1', 'bsp2']) {
+      await F.setDoc(F.doc(f, 'designPosts_upgrade', id), { userId: 'bsUser000001', desc: 'x', createdAt: F.Timestamp.now() });
+    }
+  });
+  sec('banned staff (rtdb + fs)');
+  await no('banned Mod gives a Trusted badge (rtdb wMod)', () => D.set(D.ref(dbOf(BM), 'users/bsUser000001/isTrusted'), true));
+  await ok('muted Mod still gives a Trusted badge', () => D.set(D.ref(dbOf(MM), 'users/bsUser000001/isTrusted'), true));
+  await no('banned Mod deletes a post (fs isStaff)', () => F.deleteDoc(F.doc(fsOf(BM), 'designPosts_upgrade', 'bsp1')));
+  await ok('muted Mod still deletes a post', () => F.deleteDoc(F.doc(fsOf(MM), 'designPosts_upgrade', 'bsp2')));
+  await no('banned Mod lists user reports (fs isStaff)', () => F.getDocs(F.collection(fsOf(BM), 'user_reports')));
+}
+
 async function main() {
   const [fsHost, fsPort] = (process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080').split(':');
   const [dbHost, dbPort] = (process.env.FIREBASE_DATABASE_EMULATOR_HOST || '127.0.0.1:9000').split(':');
@@ -1134,6 +1161,7 @@ async function main() {
   await rtdbTests();
   await firestoreTests();
   await quickWinsTests();
+  await bannedStaffTests();
   await env.cleanup();
   console.log(`\n${results.pass} passed, ${results.fail} failed`);
   if (results.fail) { console.log('\nFAILURES:\n  ' + results.failures.join('\n  ')); process.exit(1); }

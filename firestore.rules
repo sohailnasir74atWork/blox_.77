@@ -31,14 +31,19 @@ service cloud.firestore {
         && request.auth.token.get('email_verified', false) == true
         && request.auth.token.get('email', '') in ['thesolanalabs@gmail.com', 'sohailnasir74@gmail.com', 'sohailnasir74business@gmail.com'];
     }
+    // A staff member with an active BAN (banned_uids, bans only, not mutes)
+    // loses staff rights here too, not just in the app (2026-10-19; the
+    // modSanction function refuses them as 'actor_banned').
     function isStaff() {
-      return isAdminEmail()
-        || (signedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid)));
+      return (isAdminEmail()
+        || (signedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid))))
+        && !isBanned();
     }
     function isAdmin() {
-      return isAdminEmail()
+      return (isAdminEmail()
         || (signedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid))
-            && get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.get('roles', []).hasAny(['admin', 'isAdmin']));
+            && get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.get('roles', []).hasAny(['admin', 'isAdmin'])))
+        && !isBanned();
     }
 
     function isBanned() {
@@ -227,6 +232,7 @@ service cloud.firestore {
     function seniorModRemovesReview() {
       let author = resource.data.get('fromUserId', null);
       return signedIn()
+        && !isBanned()
         && reviewStaffRoles(request.auth.uid).hasAny(['isSeniorMod'])
         && author is string
         && resource.data.get('toUserId', null) != request.auth.uid
