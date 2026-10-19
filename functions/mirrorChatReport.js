@@ -4,23 +4,28 @@
  * non-admin mod may read through mod_read_private_chat. Admins can read any
  * chat; mods only reported ones, enforced in the database.
  *
- *   onWrite chat_reports/{reportId}
+ *   onWrite chat_reports/{reportId} and chat_reports_restricted/{reportId}
  *     created/updated → upsert { report_id, chat_id, reporter_uid, reported_uid }
- *     deleted         → delete the row (the chat leaves mods' reach)
+ *     deleted         → delete the row (the chat leaves mods' reach), unless
+ *                       the same id now lives in the other collection:
+ *                       reportRouting.js MOVES reports about staff into
+ *                       chat_reports_restricted (same id, one batch).
+ *   Who may then open the chat is decided in Supabase (046
+ *   mod_read_private_chat) from reported_uid's rank, not here.
  *
  * Works for every app build, old ones too: they all write the same
  * chat_reports doc (Scamwarning.js). Firestore rules already require the
  * reporter to be one of the two uids in chatKey; checked again here.
  *
  *   reconcileReportedChats (every 6 h) makes reported_chats equal the valid
- *     chat_reports docs: mirrors reports older than the trigger and any write
- *     it missed, and drops rows whose report is gone.
+ *     docs of both collections: mirrors reports older than the trigger and
+ *     any write it missed, and drops rows whose report is gone.
  *
  * 2026-10-11: 039 was live but these functions were never deployed, so
  * reported_chats stayed empty and every non-admin mod got "chat not
  * reported" in Chat Viewer. Deploy both, then run the reconcile once by hand
  * so existing reports are readable at once:
- *   firebase deploy --only functions:mirrorChatReport,functions:reconcileReportedChats --project fruiteblocks
+ *   firebase deploy --only functions:mirrorChatReport,functions:mirrorRestrictedChatReport,functions:reconcileReportedChats --project fruiteblocks
  *   gcloud scheduler jobs run firebase-schedule-reconcileReportedChats-us-central1 --location us-central1 --project fruiteblocks
  */
 const functions = require('firebase-functions/v1');
@@ -46,40 +51,78 @@ function toRow(reportId, data) {
   };
 }
 
-const mirrorChatReport = functions
+const COLLECTIONS = ['chat_reports', 'chat_reports_restricted'];
+const ROUTING_FIELDS = new Set(['viewers', 'minRank', 'targetUids', 'movedFrom', 'movedAt']);
+
+// reportRouting.js re-stamps viewers / minRank on restricted reports; that
+// write changes nothing mirrored here, so it is skipped.
+function onlyRoutingChanged(before, after) {
+  if (!before || !after) return false;
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  let changed = false;
+  for (const k of keys) {
+    const same = JSON.stringify(before[k]) === JSON.stringify(after[k]);
+    if (same) continue;
+    if (!ROUTING_FIELDS.has(k)) return false;
+    changed = true;
+  }
+  return changed;
+}
+
+// One handler for both collections. `firestore` and `sb` are passed in so the
+// test can use fakes.
+async function mirrorWrite(collection, reportId, change, firestore, sb) {
+  if (change.before.exists && change.after.exists
+      && onlyRoutingChanged(change.before.data(), change.after.data())) {
+    return 'skipped';
+  }
+  if (!change.after.exists) {
+    // Moved, not deleted: the other collection's trigger owns the row now.
+    const other = COLLECTIONS.find((c) => c !== collection);
+    if ((await firestore.collection(other).doc(reportId).get()).exists) return 'moved';
+    const { error } = await sb.from('reported_chats').delete().eq('report_id', reportId);
+    if (error) throw error;
+    return 'deleted';
+  }
+  const row = toRow(reportId, change.after.data());
+  if (!row) return 'invalid';
+  const { error } = await sb.from('reported_chats').upsert(row, { onConflict: 'report_id' });
+  if (error) throw error;
+  return 'upserted';
+}
+
+const mirrorTrigger = (collection) => functions
   .runWith({ secrets: SECRETS, memory: '256MB', timeoutSeconds: 60 })
-  .firestore.document('chat_reports/{reportId}')
+  .firestore.document(`${collection}/{reportId}`)
   .onWrite(async (change, context) => {
     const { reportId } = context.params;
-    const sb = getSupabaseAdmin();
     try {
-      if (!change.after.exists) {
-        const { error } = await sb.from('reported_chats').delete().eq('report_id', reportId);
-        if (error) throw error;
-        return null;
-      }
-      const row = toRow(reportId, change.after.data());
-      if (!row) return null;
-      const { error } = await sb.from('reported_chats').upsert(row, { onConflict: 'report_id' });
-      if (error) throw error;
+      await mirrorWrite(collection, reportId, change, admin.firestore(), getSupabaseAdmin());
     } catch (e) {
-      console.error('[mirrorChatReport]', reportId, e.message);
+      console.error('[mirrorChatReport]', collection, reportId, e.message);
       throw e; // let Functions retry policy / logs surface it
     }
     return null;
   });
 
-// reported_chats := the valid chat_reports docs. `firestore` and `sb` are
-// passed in so the test can use fakes. Upserts every valid report (cheap: a
-// few hundred rows, 500 per request) so a row that drifted is rewritten too.
+const mirrorChatReport = mirrorTrigger('chat_reports');
+const mirrorRestrictedChatReport = mirrorTrigger('chat_reports_restricted');
+
+// reported_chats := the valid docs of both collections. `firestore` and `sb`
+// are passed in so the test can use fakes. Upserts every valid report (cheap:
+// a few hundred rows, 500 per request) so a row that drifted is rewritten too.
 async function reconcile(firestore, sb) {
-  const snap = await firestore.collection('chat_reports')
-    .select('chatKey', 'reportedBy', 'createdAt').get();
   const rows = [];
-  snap.forEach((d) => {
-    const row = toRow(d.id, d.data());
-    if (row) rows.push(row);
-  });
+  let reports = 0;
+  for (const col of COLLECTIONS) {
+    const snap = await firestore.collection(col)
+      .select('chatKey', 'reportedBy', 'createdAt').get();
+    reports += snap.size;
+    snap.forEach((d) => {
+      const row = toRow(d.id, d.data());
+      if (row) rows.push(row);
+    });
+  }
   const keep = new Set(rows.map((r) => r.report_id));
 
   // Ids already mirrored. PostgREST returns at most 1000 rows per select.
@@ -102,7 +145,7 @@ async function reconcile(firestore, sb) {
     const { error } = await sb.from('reported_chats').delete().in('report_id', stale.slice(i, i + 200));
     if (error) throw error;
   }
-  return { reports: snap.size, mirrored: rows.length, removed: stale.length };
+  return { reports, mirrored: rows.length, removed: stale.length };
 }
 
 const reconcileReportedChats = functions
@@ -114,4 +157,9 @@ const reconcileReportedChats = functions
     return null;
   });
 
-module.exports = { mirrorChatReport, reconcileReportedChats, _internal: { toRow, reconcile } };
+module.exports = {
+  mirrorChatReport,
+  mirrorRestrictedChatReport,
+  reconcileReportedChats,
+  _internal: { toRow, reconcile, onlyRoutingChanged, mirrorWrite },
+};

@@ -1558,10 +1558,11 @@ const AdminDashboardScreen = () => {
   }, []);
 
   // Mark report as reviewed
-  const markReportReviewed = useCallback(async (reportId) => {
+  // movedFrom = a report about staff, moved to chat_reports_restricted (functions/reportRouting.js).
+  const markReportReviewed = useCallback(async (reportId, movedFrom) => {
     try {
       const firestoreDB = getFirestore();
-      await updateDoc(doc(firestoreDB, 'chat_reports', reportId), { status: 'reviewed' });
+      await updateDoc(doc(firestoreDB, movedFrom ? 'chat_reports_restricted' : 'chat_reports', reportId), { status: 'reviewed' });
       setChatReports(prev => prev.map(r => r.id === reportId ? { ...r, status: 'reviewed' } : r));
       Alert.alert('Done', 'Report marked as reviewed.');
     } catch (err) {
@@ -1570,14 +1571,14 @@ const AdminDashboardScreen = () => {
   }, []);
 
   // Delete report
-  const deleteChatReport = useCallback(async (reportId) => {
+  const deleteChatReport = useCallback(async (reportId, movedFrom) => {
     Alert.alert('Delete Report', 'Are you sure you want to delete this report?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive', onPress: async () => {
           try {
             const firestoreDB = getFirestore();
-            await deleteDoc(doc(firestoreDB, 'chat_reports', reportId));
+            await deleteDoc(doc(firestoreDB, movedFrom ? 'chat_reports_restricted' : 'chat_reports', reportId));
             setChatReports(prev => prev.filter(r => r.id !== reportId));
             setSelectedReport(null);
             setChatMessages([]);
@@ -2375,7 +2376,7 @@ const AdminDashboardScreen = () => {
                     <View style={{ flex: 1 }} />
                     {selectedReport.status !== 'reviewed' && (
                       <TouchableOpacity
-                        onPress={() => markReportReviewed(selectedReport.id)}
+                        onPress={() => markReportReviewed(selectedReport.id, selectedReport.movedFrom)}
                         style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#34C759', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}
                       >
                         <Ionicons name="checkmark-circle" size={16} color="#FFF" />
@@ -2383,7 +2384,7 @@ const AdminDashboardScreen = () => {
                       </TouchableOpacity>
                     )}
                     <TouchableOpacity
-                      onPress={() => deleteChatReport(selectedReport.id)}
+                      onPress={() => deleteChatReport(selectedReport.id, selectedReport.movedFrom)}
                       style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FF3B30', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}
                     >
                       <Ionicons name="trash" size={16} color="#FFF" />

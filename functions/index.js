@@ -96,6 +96,14 @@ exports.uploadImage = require('./uploadImage').uploadImage;
 const chatReports = require('./mirrorChatReport');
 exports.mirrorChatReport = chatReports.mirrorChatReport;
 exports.reconcileReportedChats = chatReports.reconcileReportedChats;
+exports.mirrorRestrictedChatReport = chatReports.mirrorRestrictedChatReport;
+// Reports about staff move to *_restricted collections that only the staff
+// above the target can read (never the target). See reportRouting.js.
+const reportRouting = require('./reportRouting');
+exports.routeUserReport = reportRouting.routeUserReport;
+exports.routeChatReport = reportRouting.routeChatReport;
+exports.routeTradeReport = reportRouting.routeTradeReport;
+exports.reconcileReportRouting = reportRouting.reconcileReportRouting;
 exports.syncEmailBan = bans.syncEmailBan;
 exports.indexDeviceAccount = bans.indexDeviceAccount;
 exports.indexLegacyDeviceAccount = bans.indexLegacyDeviceAccount;

@@ -7,6 +7,9 @@ import config from '../../Helper/Environment';
 import { useTranslation } from 'react-i18next';
 import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
 import { collection, query, where, getDocs, getCountFromServer } from '@react-native-firebase/firestore';
+import SlowModeSheet from './SlowModeSheet';
+import { getActivePublicRoom } from '../../Supabase/chatSlowMode';
+import { getCurrentUserOwner } from '../../Helper/ownerFlag';
 // Focus re-fetch throttle for the two header badges (see the effects below).
 const BADGE_REFETCH_MS = 2 * 60 * 1000;
 let invitationsBadgeCache = { uid: null, ts: 0, count: 0 };
@@ -31,6 +34,10 @@ const CommunityChatHeader = ({
   const { t } = useTranslation();
   const [pendingGroupInvitationsCount, setPendingGroupInvitationsCount] = useState(0);
   const [pendingJoinRequestsCount, setPendingJoinRequestsCount] = useState(0);
+  // Slow mode (supabase/046): Senior Mod, Admin, owner. The rpc re-checks.
+  const canSetSlowMode = (!!(isAdmin || isSeniorMod) || getCurrentUserOwner(user?.id)) && !isUserBlocked;
+  const [slowModeOpen, setSlowModeOpen] = useState(false);
+  const [slowModeRoom, setSlowModeRoom] = useState(null);
 
   // ✅ Pending group-invitations badge — fetched ON FOCUS only. Was an always-on
   // onSnapshot that kept streaming Firestore reads to render a "!" badge even
@@ -224,6 +231,18 @@ const CommunityChatHeader = ({
                 </View>
               </View>
             </MenuOption>
+            {canSetSlowMode && (
+              <MenuOption onSelect={() => {
+                setSlowModeRoom(getActivePublicRoom());
+                setSlowModeOpen(true);
+                triggerHapticFeedback('impactLight');
+              }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', padding: 10 }}>
+                  <Icon name="time-outline" size={20} color={config.colors.primary} style={{ marginRight: 10 }} />
+                  <Text style={{ fontSize: 16, color: config.colors.text || '#000' }}>Slow mode</Text>
+                </View>
+              </MenuOption>
+            )}
             <MenuOption onSelect={() => navigation?.navigate('BlockedUsers')}>
               <View style={{ flexDirection: 'row', alignItems: 'center', padding: 10 }}>
                 <Icon name="ban-outline" size={20} color={config.colors.primary} style={{ marginRight: 10 }} />
@@ -234,6 +253,14 @@ const CommunityChatHeader = ({
             </MenuOption>
           </MenuOptions>
         </Menu>
+      )}
+      {canSetSlowMode && (
+        <SlowModeSheet
+          visible={slowModeOpen}
+          onClose={() => setSlowModeOpen(false)}
+          room={slowModeRoom}
+          isDark={theme === 'dark'}
+        />
       )}
 
     </View>

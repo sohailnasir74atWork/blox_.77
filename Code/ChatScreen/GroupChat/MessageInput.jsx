@@ -12,6 +12,13 @@ import { CHAT_MESSAGES_PER_AD } from '../../Ads/adPolicy';
 import { showMessage } from 'react-native-flash-message';
 import { useGlobalState } from '../../GlobelStats';
 import { validateContent } from '../../Helper/ContentModeration';
+import {
+  fetchSlowMode,
+  getCachedSlowMode,
+  subscribeSlowMode,
+  slowModeRemainingMs,
+  noteSlowModeSent,
+} from '../../Supabase/chatSlowMode';
 
 const Emojies = [
   'e1.png',
@@ -46,6 +53,7 @@ const MessageInput = ({
   selectedFruits,
   setSelectedFruits,
   activeChannelId, // ✅ Channel ID for cooldown control
+  slowModeRoomId, // public room id (rooms.id) for slow mode; unset = no slow mode
 }) => {
   const styles = getStyles(selectedTheme.colors.text === 'white');
   const insets = useSafeAreaInsets();
@@ -55,10 +63,14 @@ const MessageInput = ({
   const { t } = useTranslation();
   const { localState } = useLocalState();
   const [loadingImage, setLoadingImage] = useState(false);
-  const { theme, isAdmin, user } = useGlobalState();
+  const { theme, isAdmin, isSeniorMod, isModerator, isBabyMod, user } = useGlobalState();
   // Admins and full (non-baby) moderators bypass moderation so they can post
   // links, warnings, and quoted content the filter would otherwise block.
   const canBypassModeration = !!isAdmin || !!user?.isSeniorMod || (!!user?.isModerator && !user?.isBabyMod);
+  // Slow mode (supabase/046) exempts all staff, JMD and up. The server decides;
+  // this only skips starting a countdown after a staff member's own send.
+  const isChatStaff = !!(isAdmin || isSeniorMod || isModerator || isBabyMod
+    || user?.isSeniorMod || user?.isModerator || user?.isBabyMod);
   const isDark = theme === 'dark';
   // const gifAllowed = true
 
@@ -78,6 +90,34 @@ const MessageInput = ({
   useEffect(() => () => {
     if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current);
   }, []);
+
+  // Slow mode: read the room's setting on open (cached in chatSlowMode.js) and
+  // follow the shared per-room clock that Trader also moves on a server refusal.
+  const [slowMode, setSlowModeState] = useState(() => getCachedSlowMode(slowModeRoomId));
+  const [slowLeft, setSlowLeft] = useState(0); // whole seconds until a send is allowed here
+  useEffect(() => {
+    if (!slowModeRoomId) {
+      setSlowModeState(getCachedSlowMode(null));
+      setSlowLeft(0);
+      return undefined;
+    }
+    const sync = () => {
+      setSlowModeState(getCachedSlowMode(slowModeRoomId));
+      setSlowLeft(Math.ceil(slowModeRemainingMs(slowModeRoomId) / 1000));
+    };
+    sync();
+    fetchSlowMode(slowModeRoomId);
+    return subscribeSlowMode(sync);
+  }, [slowModeRoomId]);
+  const slowCounting = slowLeft > 0;
+  useEffect(() => {
+    if (!slowCounting || !slowModeRoomId) return undefined;
+    const id = setInterval(() => setSlowLeft(Math.ceil(slowModeRemainingMs(slowModeRoomId) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [slowCounting, slowModeRoomId]);
+  const slowDuration = (secs) => (secs >= 60
+    ? t('chat.slow_mode.dur_minutes', { n: secs / 60 })
+    : t('chat.slow_mode.dur_seconds', { n: secs }));
   const hasFruits = Array.isArray(selectedFruits) && selectedFruits.length > 0;
   const maxFruitsReached = Array.isArray(selectedFruits) && selectedFruits.length >= 4;
   const hasContent = (input || '').trim().length > 0 || hasFruits || selectedEmoji;
@@ -101,6 +141,19 @@ const MessageInput = ({
     // 1.5s floor applies everywhere, Pro included.
     if (sendLockRef.current) return;
     if (Date.now() - lastAnySendAtRef.current < MIN_SEND_GAP_MS) return;
+
+    // Slow mode: the server refuses an early send anyway (SLOW_MODE); this
+    // saves the round-trip and says how long to wait.
+    const slowWaitMs = slowModeRoomId ? slowModeRemainingMs(slowModeRoomId) : 0;
+    if (slowWaitMs > 0) {
+      showMessage({
+        message: t('chat.slow_mode.title'),
+        description: t('chat.slow_mode.wait', { seconds: Math.ceil(slowWaitMs / 1000) }),
+        type: 'warning',
+        duration: 2000,
+      });
+      return;
+    }
 
     // ✅ 25-sec cooldown for non-pro users (Trade Chat only)
     if (!localState?.isPro && activeChannelId === 'trade') {
@@ -145,6 +198,9 @@ const MessageInput = ({
       }
 
       lastSendTimeRef.current = Date.now(); // ✅ Update cooldown timer after successful send
+      if (slowModeRoomId && !isChatStaff) {
+        noteSlowModeSent(slowModeRoomId, getCachedSlowMode(slowModeRoomId).effective);
+      }
 
       setInput('');
       setSelectedFruits([]);
@@ -215,6 +271,16 @@ const MessageInput = ({
           <TouchableOpacity onPress={onCancelReply} style={styles.cancelReplyButton}>
             <Icon name="close-circle" size={24} color="#e74c3c" />
           </TouchableOpacity>
+        </View>
+      )}
+
+      {slowMode.effective > 0 && (
+        <View style={modalStyles.slowBanner}>
+          <Icon name="time-outline" size={13} color={isDark ? '#bbb' : '#666'} />
+          <Text style={[modalStyles.slowBannerText, { color: isDark ? '#bbb' : '#666' }]} numberOfLines={1}>
+            {t('chat.slow_mode.banner', { duration: slowDuration(slowMode.effective) })}
+            {isChatStaff ? ` · ${t('chat.slow_mode.staff_exempt')}` : ''}
+          </Text>
         </View>
       )}
 
@@ -296,13 +362,15 @@ const MessageInput = ({
             styles.sendButton,
             {
               backgroundColor:
-                hasContent && !isSending && !coolingDown ? '#1E88E5' : config.colors.primary,
+                hasContent && !isSending && !coolingDown && !slowCounting ? '#1E88E5' : config.colors.primary,
             },
           ]}
           onPress={() => handleSend()}
-          disabled={isSending || coolingDown || !hasContent}
+          disabled={isSending || coolingDown || slowCounting || !hasContent}
         >
-          <Text style={styles.sendButtonText}>{isSending ? t("chat.sending") : t("chat.send")}</Text>
+          <Text style={styles.sendButtonText}>
+            {slowCounting ? `${slowLeft}s` : isSending ? t("chat.sending") : t("chat.send")}
+          </Text>
         </TouchableOpacity>
 
       </View>
@@ -369,6 +437,17 @@ const MessageInput = ({
 };
 
 const modalStyles = StyleSheet.create({
+  slowBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingTop: 4,
+  },
+  slowBannerText: {
+    fontSize: 11,
+    marginLeft: 4,
+    flexShrink: 1,
+  },
   backdrop: {
     flex: 1,
     justifyContent: 'flex-end',

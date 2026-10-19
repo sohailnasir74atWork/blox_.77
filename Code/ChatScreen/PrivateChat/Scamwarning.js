@@ -85,18 +85,24 @@ export default function ScamSafetyBox({
     try {
       const db = getFirestore();
 
-      // Check if this user already reported this chat
-      const existing = await getDocs(
+      // Check if this user already reported this chat. A report about a staff
+      // member is moved to chat_reports_restricted (functions/reportRouting.js);
+      // the reporter can still read their own there.
+      const mine = (col) => getDocs(
         firestoreQuery(
-          collection(db, 'chat_reports'),
+          collection(db, col),
           where('chatKey', '==', chatKey),
           where('reportedBy', '==', userId),
           where('status', '==', 'pending'),
           firestoreLimit(20),
         ),
       );
+      const [existing, existingMoved] = await Promise.all([
+        mine('chat_reports'),
+        mine('chat_reports_restricted').catch(() => null),
+      ]);
 
-      if (!existing.empty) {
+      if (!existing.empty || (existingMoved && !existingMoved.empty)) {
         Alert.alert(t('chat.scam_warning.already_reported_title'), t('chat.scam_warning.already_reported_body'));
         setShowReportModal(false);
         setSubmitting(false);

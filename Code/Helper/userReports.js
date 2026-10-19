@@ -3,6 +3,11 @@
 // The rules accept exactly these fields, with reporterUid == auth.uid and
 // status 'open', from signed-in users who aren't banned
 // (MODERATION_CONTRACT §9) — don't add fields here without the rules.
+// A report about a staff member is then MOVED by functions/reportRouting.js
+// to user_reports_restricted, which only the staff above the target can read
+// (JMD / Mod → Senior Mod+, Senior Mod / Admin → Admin+, never the target).
+// targetUid is a hint only; for trades / posts / statuses the server also
+// checks the reported doc's owner.
 import { collection, addDoc, serverTimestamp } from '@react-native-firebase/firestore';
 
 export const REPORT_REASON_MAX = 200;

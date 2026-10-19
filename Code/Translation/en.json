@@ -1108,6 +1108,14 @@
       "fruits_selected": "{{count}}/4 fruit(s) selected",
       "max_reached": "(Max reached)"
     },
+    "slow_mode": {
+      "title": "Slow mode",
+      "banner": "Slow mode: 1 message every {{duration}}",
+      "wait": "Slow mode is on. You can send again in {{seconds}}s.",
+      "dur_seconds": "{{n}} sec",
+      "dur_minutes": "{{n}} min",
+      "staff_exempt": "staff exempt"
+    },
     "trader": {
       "channel_chat": "English",
       "channel_raid": "Raids",

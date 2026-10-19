@@ -1108,6 +1108,14 @@
       "fruits_selected": "{{count}}/4 buah dipilih",
       "max_reached": "(Batas tercapai)"
     },
+    "slow_mode": {
+      "title": "Mode lambat",
+      "banner": "Mode lambat: 1 pesan setiap {{duration}}",
+      "wait": "Mode lambat aktif. Kamu bisa mengirim lagi dalam {{seconds}} dtk.",
+      "dur_seconds": "{{n}} dtk",
+      "dur_minutes": "{{n}} mnt",
+      "staff_exempt": "staf dikecualikan"
+    },
     "trader": {
       "channel_chat": "Chat Bahasa Indonesia",
       "channel_raid": "Raid",

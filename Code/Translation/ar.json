@@ -1220,6 +1220,14 @@
       "fruits_selected": "تم تحديد {{count}}/4 فاكهة",
       "max_reached": "(تم بلوغ الحد الأقصى)"
     },
+    "slow_mode": {
+      "title": "الوضع البطيء",
+      "banner": "الوضع البطيء: رسالة واحدة كل {{duration}}",
+      "wait": "الوضع البطيء مفعّل. يمكنك الإرسال مجددًا بعد {{seconds}} ث.",
+      "dur_seconds": "{{n}} ث",
+      "dur_minutes": "{{n}} د",
+      "staff_exempt": "فريق الإشراف مستثنى"
+    },
     "trader": {
       "channel_chat": "الدردشة بالعربية",
       "channel_raid": "الغارات",

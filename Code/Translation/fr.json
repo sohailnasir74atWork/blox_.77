@@ -1109,6 +1109,14 @@
             "fruits_selected": "{{count}}/4 fruit(s) sélectionné(s)",
             "max_reached": "(Limite atteint)"
         },
+        "slow_mode": {
+            "title": "Mode lent",
+            "banner": "Mode lent : 1 message toutes les {{duration}}",
+            "wait": "Le mode lent est activé. Vous pourrez envoyer un message dans {{seconds}} s.",
+            "dur_seconds": "{{n}} s",
+            "dur_minutes": "{{n}} min",
+            "staff_exempt": "staff exempté"
+        },
         "trader": {
             "channel_chat": "Discussion en français",
             "channel_raid": "Raids",

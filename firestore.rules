@@ -404,6 +404,27 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Reports about staff (2026-10-19). functions/reportRouting.js MOVES a
+    // report whose target is a JMD / Mod (readers: Senior Mod+) or a Senior
+    // Mod / Admin / owner (readers: Admin+) out of the two collections above,
+    // same id, and stamps `viewers` = the staff allowed to read it, never the
+    // target. Server-written only; staff list them with
+    // where('viewers', 'array-contains', me). The reporter still reads their
+    // own report (duplicate check, "already reported").
+    function restrictedReportViewer() {
+      return isStaff() && me() in resource.data.get('viewers', []);
+    }
+    match /chat_reports_restricted/{id} {
+      allow read: if restrictedReportViewer() || (signedIn() && resource.data.get('reportedBy', null) == me());
+      allow update: if restrictedReportViewer() && changed().hasOnly(['status', 'reviewedBy', 'reviewedAt']);
+      allow delete: if restrictedReportViewer();
+    }
+    match /user_reports_restricted/{id} {
+      allow read: if restrictedReportViewer() || (signedIn() && resource.data.get('reporterUid', null) == me());
+      allow update: if restrictedReportViewer() && changed().hasOnly(['status', 'reviewedBy', 'reviewedAt']);
+      allow delete: if isAdmin() && restrictedReportViewer();
+    }
+
     // ── Scammer database (app + website) ──
     match /scammerSummaries/{id} {
       allow read: if true;
