@@ -2293,22 +2293,10 @@ export default function SettingsScreen({ selectedTheme }) {
         { merge: true }
       );
 
-      // ✅ OPTIMIZED: Update user_ratings_summary collection (background update)
-      const { updateUserRatingSummary } = require('../ChatScreen/utils/ratingSummaryHelper');
-      updateUserRatingSummary(firestoreDB, editingReview.toUserId)
-        .then((summary) => {
-          // Editing a review changes the target's average, which can be what
-          // finally pushes them over the 5-Star line (4.5★ with 50+ reviews).
-          // Only the DM rating path used to re-check this, so a user could sit
-          // at 50+/4.5+ indefinitely without the badge ever being granted.
-          if (summary && summary.count >= 50 && summary.averageRating >= 4.5) {
-            const { awardBadge } = require('../ChatScreen/GroupChat/badgeUtils');
-            awardBadge(appdatabase, editingReview.toUserId, 'fiveStar');
-          }
-        })
-        .catch((err) => {
-          console.error('Error updating rating summary:', err);
-        });
+      // The reviewed user's rating summary and 5-Star badge follow on the
+      // server (functions/reviewIntegrity.js), which also keeps the chat
+      // verdict taken when the review was written — editing can't make a
+      // no-chat review count.
 
       // Update local state
       setUserReviews((prev) =>

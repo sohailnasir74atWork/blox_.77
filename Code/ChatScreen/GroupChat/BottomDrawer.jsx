@@ -61,6 +61,8 @@ import {
   isCurrentUserOwner,
 } from '../utils'; // ✅ Import moderator utils
 import { getUserEmail } from '../../Helper/privateProfile';
+import { canDeleteReviews, canRemoveReview, deleteReviewAndSummary } from '../../Helper/reviewModeration';
+import { getRolesBatch } from '../../Supabase/userBackend';
 import { BirthdayProfileLine } from '../../Birthdays/BirthdayBits';
 import {
   callModSanction, sanctionErrorText, describeSanctionResult, logModAction,
@@ -1601,41 +1603,51 @@ const ProfileBottomDrawer = ({
   }, [hasMoreReviews, loadingReviews, loadReviews, starFilter]);
 
   // ─────────────────────────────────────────────
-  // Delete review (admin/mod only)
+  // Delete review. Who may, and whose reviews, is Helper/reviewModeration
+  // (canDeleteReviews + canRemoveReview: strictly below, fresh RTDB roles,
+  // fails closed) — the same rule as the Admin Dashboard and Reviews tab.
+  const reviewCallerRoles = useMemo(() => ({
+    isAdmin: !!isAdmin,
+    isSeniorMod: !!isGlobalSenior,
+    isModerator: !!isGlobalModerator,
+    isBabyMod: !!isGlobalBabyMod,
+    isOwner: isCurrentUserOwner(),
+  }), [isAdmin, isGlobalSenior, isGlobalModerator, isGlobalBabyMod]);
+  const mayDeleteReviews = canDeleteReviews(reviewCallerRoles);
+
+  // Loaded reviews whose trash button shows, never on the viewer's own
+  // profile. One Supabase user_roles query per page of reviews (the mirror can
+  // lag RTDB by a few hours, so this only hides buttons; the tap re-checks
+  // with fresh RTDB roles and the rules check again).
+  const [removableReviewIds, setRemovableReviewIds] = useState(() => new Set());
+  const checkedReviewIdsRef = useRef(new Set());
+  useEffect(() => {
+    checkedReviewIdsRef.current = new Set();
+    setRemovableReviewIds(new Set());
+  }, [selectedUserId, mayDeleteReviews]);
+  useEffect(() => {
+    if (!mayDeleteReviews || !selectedUserId || selectedUserId === user?.id) return;
+    const todo = reviews.filter((r) => r?.id && !checkedReviewIdsRef.current.has(r.id));
+    if (!todo.length) return;
+    todo.forEach((r) => checkedReviewIdsRef.current.add(r.id));
+    getRolesBatch(todo.map((r) => r.fromUserId))
+      .catch(() => new Map())
+      .then((roles) => {
+        const ok = todo
+          .filter((r) => !r.fromUserId || r.fromUserId === user?.id
+            || canModerate(reviewCallerRoles, roles.get(r.fromUserId) || {}))
+          .map((r) => r.id);
+        if (ok.length) setRemovableReviewIds((prev) => new Set([...prev, ...ok]));
+      });
+  }, [reviews, mayDeleteReviews, selectedUserId, user?.id, reviewCallerRoles]);
+
   const handleDeleteReview = useCallback(async (review) => {
     if (!review?.id || !selectedUserId) return;
 
-    // Staff may only delete a review left by someone STRICTLY below them.
-    // The old check ran only for plain Mods and never looked at isSeniorMod,
-    // so a Sr Mod's review was deletable by any Mod while a Sr Mod couldn't
-    // reach this code at all. canModerate is the same ladder used by ban/mute.
-    if (review.fromUserId) {
-      const callerRoles = {
-        isAdmin,
-        isSeniorMod: isGlobalSenior,
-        isModerator: isGlobalModerator,
-        isBabyMod: isGlobalBabyMod,
-      };
-      try {
-        const reviewerSnap = await get(ref(appdatabase, `users/${review.fromUserId}`));
-        const r = reviewerSnap.exists() ? (reviewerSnap.val() || {}) : {};
-        const reviewerRoles = {
-          isAdmin: !!(r.isAdmin || r.admin),
-          isSeniorMod: !!r.isSeniorMod,
-          isModerator: !!r.isModerator,
-          isBabyMod: !!r.isBabyMod,
-        };
-        if (!canModerate(callerRoles, reviewerRoles)) {
-          Alert.alert('Restricted', 'You cannot delete reviews left by staff at or above your rank.');
-          return;
-        }
-      } catch (err) {
-        // Fail closed — the old code warned and deleted anyway, so a flaky read
-        // was enough to bypass the rank check entirely.
-        console.warn('Error checking reviewer status:', err);
-        Alert.alert('Error', 'Could not verify the reviewer. Try again.');
-        return;
-      }
+    // Checked again with fresh roles: the button can be stale.
+    if (!(await canRemoveReview(review.fromUserId, reviewCallerRoles, user?.id, selectedUserId).catch(() => false))) {
+      Alert.alert('Restricted', 'Senior Mods and up can delete reviews, but not ones left by staff at or above their rank or ones about themselves.');
+      return;
     }
 
     Alert.alert(
@@ -1648,31 +1660,9 @@ const ProfileBottomDrawer = ({
           style: 'destructive',
           onPress: async () => {
             try {
-              const reviewRef = doc(firestoreDB, 'reviews', review.id);
               const ratingToRemove = Number(review?.rating) || 0;
-
-              await deleteDoc(reviewRef);
-
-              // Update ratings summary
-              const summaryRef = doc(firestoreDB, 'user_ratings_summary', selectedUserId);
-              const summarySnap = await getDoc(summaryRef);
-
-              if (summarySnap.exists()) {
-                const s = summarySnap.data();
-                const oldAvg = s?.averageRating || 0;
-                const oldCount = s?.count || 0;
-
-                if (oldCount <= 1) {
-                  await setDoc(summaryRef, { averageRating: 0, count: 0 }, { merge: true });
-                } else {
-                  const newCount = oldCount - 1;
-                  const newAvg = ((oldAvg * oldCount) - ratingToRemove) / newCount;
-                  await setDoc(summaryRef, {
-                    averageRating: parseFloat(newAvg.toFixed(2)),
-                    count: newCount,
-                  }, { merge: true });
-                }
-              }
+              // The rating summary follows on the server (scoreReviewOnWrite).
+              await deleteReviewAndSummary(firestoreDB, { id: review.id, toUserId: selectedUserId, rating: ratingToRemove });
 
               setReviews(prev => prev.filter(r => r.id !== review.id));
               logModAction('review_delete', selectedUserId, {
@@ -1688,7 +1678,7 @@ const ProfileBottomDrawer = ({
         },
       ]
     );
-  }, [selectedUserId, isAdmin, isGlobalSenior, isGlobalModerator, isGlobalBabyMod, appdatabase, firestoreDB]);
+  }, [selectedUserId, reviewCallerRoles, user?.id, firestoreDB]);
 
   // ─────────────────────────────────────────────
   // Load trades (paged) — ✅ Initially show 1, then load 2 by 2
@@ -2716,7 +2706,7 @@ const ProfileBottomDrawer = ({
                                 <Icon name="flag-outline" size={13} color={isDarkMode ? '#6b7280' : '#9ca3af'} />
                               </TouchableOpacity>
                             )}
-                            {(isAdmin || isGlobalSenior || isGlobalModerator) && selectedUserId !== user?.id && (
+                            {mayDeleteReviews && removableReviewIds.has(rev.id) && selectedUserId !== user?.id && (
                               <TouchableOpacity
                                 onPress={() => handleDeleteReview(rev)}
                                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}

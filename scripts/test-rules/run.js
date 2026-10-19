@@ -585,15 +585,22 @@ async function firestoreTests() {
 
   sec('fs reviews + summary');
   const review = (from, to) => ({ fromUserId: from, toUserId: to, rating: 4, userName: 'n', review: 'good', createdAt: serverTimestamp(), updatedAt: serverTimestamp(), edited: false });
+  // Old builds (app PrivateChat/Setting, website RateUserModal) write the review
+  // directly — still allowed; the chat check is server-side (scoreReviewOnWrite).
   await ok('write review', () => setDoc(d(U3, 'reviews', `${U2}_${U3}`), review(U3, U2), { merge: true }));
-  await ok('reviewer recomputes summary (+1)', () => setDoc(d(U3, 'user_ratings_summary', U2), { count: 4, averageRating: 4.4, updatedAt: serverTimestamp() }, { merge: true }));
-  await ok('edit review then recompute (same count)', async () => {
-    await setDoc(d(U3, 'reviews', `${U2}_${U3}`), { ...review(U3, U2), rating: 5, edited: true }, { merge: true });
-    return setDoc(d(U3, 'user_ratings_summary', U2), { count: 4, averageRating: 4.6, updatedAt: serverTimestamp() }, { merge: true });
-  });
+  await ok('edit review (Settings ▸ My reviews)', () => setDoc(d(U3, 'reviews', `${U2}_${U3}`), { ...review(U3, U2), rating: 5, edited: true }, { merge: true }));
+  await ok('web review shape', () => setDoc(d(U1, 'reviews', `${U3}_${U1}`), { fromUserId: U1, toUserId: U3, rating: 5, userName: null, review: null, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), edited: false }, { merge: true }));
+  // user_ratings_summary is server-kept since 2026-10-19: old builds' recount is
+  // refused (they swallow it), staff keep their delete-path write.
+  await no('old build: reviewer recomputes summary (+1)', () => setDoc(d(U3, 'user_ratings_summary', U2), { count: 4, averageRating: 4.4, updatedAt: serverTimestamp() }, { merge: true }));
+  await no('old build: recompute after edit (same count)', () => setDoc(d(U3, 'user_ratings_summary', U2), { count: 3, averageRating: 4.6, updatedAt: serverTimestamp() }, { merge: true }));
+  await no('old website: recount to the full total', () => setDoc(d(U1, 'user_ratings_summary', U3), { count: 1, averageRating: 5, updatedAt: serverTimestamp() }, { merge: true }));
   await no('non-reviewer rewrites summary', () => setDoc(d(M2, 'user_ratings_summary', U2), { count: 4, averageRating: 1, updatedAt: serverTimestamp() }, { merge: true }));
   await no('reviewer jumps count by 10', () => setDoc(d(U3, 'user_ratings_summary', U2), { count: 14, averageRating: 5, updatedAt: serverTimestamp() }, { merge: true }));
   await no('summary extra field', () => setDoc(d(U3, 'user_ratings_summary', U2), { count: 4, averageRating: 4, evil: 1 }, { merge: true }));
+  await no('user deletes a summary', () => deleteDoc(d(U3, 'user_ratings_summary', U2)));
+  await ok('guest reads summary (web profile)', () => getDoc(d(null, 'user_ratings_summary', U2)));
+  await ok('staff decrements summary after deleting review (old builds)', () => setDoc(d(M, 'user_ratings_summary', U2), { averageRating: 4.5, count: 2 }, { merge: true }));
   await ok('staff resets summary after deleting review', () => setDoc(d(M, 'user_ratings_summary', U2), { averageRating: 0, count: 0 }, { merge: true }));
   await no('self review', () => setDoc(d(U1, 'reviews', `${U1}_${U1}`), review(U1, U1)));
   await no('banned writes review', () => setDoc(d(B, 'reviews', `${U2}_${B}`), review(B, U2)));
@@ -610,6 +617,47 @@ async function firestoreTests() {
   await ok('user_profiles own (TradeJournal)', () => setDoc(d(U1, 'user_profiles', U1), { ownedFruits: ['a'] }, { merge: true }));
   await no('user_profiles other', () => setDoc(d(U1, 'user_profiles', U2), { ownedFruits: [] }, { merge: true }));
   await ok('user_profiles get other', () => getDoc(d(U1, 'user_profiles', U2)));
+
+  // Senior Mod, Admin and owner delete reviews (owner decision 2026-10-19);
+  // a Senior Mod only within their rank.
+  sec('fs review delete (blox-ratings 2026-10-19)');
+  const S2 = 'seniorUid0002';
+  const OW = 'ownerRoleUid1';   // staffMirror puts 'owner' in roles for users/{uid}/owner
+  await seed(async (f) => {
+    await F.setDoc(F.doc(f, 'staff', S2), { roles: ['isSeniorMod'] });
+    await F.setDoc(F.doc(f, 'staff', OW), { roles: ['owner'] });
+    for (const from of [U1, U3, A, A2, S, S2, M, OW]) await F.setDoc(F.doc(f, 'reviews', `${U2}_${from}`), { fromUserId: from, toUserId: U2, rating: 1 });
+    await F.setDoc(F.doc(f, 'reviews', `${S}_${U1}`), { fromUserId: U1, toUserId: S, rating: 1 });
+    await F.setDoc(F.doc(f, 'reviews', U3), { bio: 'profile doc' });
+  });
+  await no('mod deletes a player\'s review', () => deleteDoc(d(M, 'reviews', `${U2}_${U1}`)));
+  await no('JMD deletes a player\'s review', () => deleteDoc(d(J, 'reviews', `${U2}_${U1}`)));
+  await no('player deletes a review about someone else', () => deleteDoc(d(U3, 'reviews', `${U2}_${U1}`)));
+  await no('senior mod deletes an admin\'s review', () => deleteDoc(d(S, 'reviews', `${U2}_${A}`)));
+  await no('senior mod deletes a legacy-admin\'s review', () => deleteDoc(d(S, 'reviews', `${U2}_${A2}`)));
+  await no('senior mod deletes another senior mod\'s review', () => deleteDoc(d(S, 'reviews', `${U2}_${S2}`)));
+  await no('senior mod deletes the owner\'s review', () => deleteDoc(d(S, 'reviews', `${U2}_${OW}`)));
+  await no('senior mod deletes a review about themselves', () => deleteDoc(d(S, 'reviews', `${S}_${U1}`)));
+  await no('senior mod deletes a profile doc', () => deleteDoc(d(S, 'reviews', U3)));
+  await ok('senior mod deletes a player\'s review', () => deleteDoc(d(S, 'reviews', `${U2}_${U1}`)));
+  await ok('senior mod deletes a mod\'s review', () => deleteDoc(d(S, 'reviews', `${U2}_${M}`)));
+  await ok('senior mod deletes their own review', () => deleteDoc(d(S, 'reviews', `${U2}_${S}`)));
+  await ok('admin deletes a player\'s review', () => deleteDoc(d(A, 'reviews', `${U2}_${U3}`)));
+  await ok('admin deletes a senior mod\'s review', () => deleteDoc(d(A, 'reviews', `${U2}_${S2}`)));
+  await ok('senior mod writes the summary after a delete (old builds)', () => setDoc(d(S, 'user_ratings_summary', U2), { averageRating: 1, count: 1 }, { merge: true }));
+
+  // serverValue marks the server's own summary writes (guardRatingSummary
+  // skips them): staff may keep or drop it, never add or change it.
+  sec('fs rating summary stamp (blox-ratings 2026-10-19)');
+  await seed(async (f) => F.setDoc(F.doc(f, 'user_ratings_summary', U3), { count: 2, averageRating: 4, serverValue: '2|4' }));
+  await no('JMD writes a forged rating with a matching stamp', () => setDoc(d(J, 'user_ratings_summary', U3), { count: 50, averageRating: 5, serverValue: '50|5' }, { merge: true }));
+  await no('admin writes a forged rating with a matching stamp', () => setDoc(d(A, 'user_ratings_summary', U3), { count: 50, averageRating: 5, serverValue: '50|5' }, { merge: true }));
+  await no('staff creates a stamped summary', () => setDoc(d(M, 'user_ratings_summary', 'stampNew0001'), { count: 9, averageRating: 5, serverValue: '9|5' }));
+  await ok('old build: staff decrement keeps the old stamp (merge)', () => setDoc(d(S, 'user_ratings_summary', U3), { averageRating: 3, count: 1 }, { merge: true }));
+  await ok('staff write sending the unchanged stamp', () => setDoc(d(M, 'user_ratings_summary', U3), { averageRating: 3, count: 1, serverValue: '2|4' }, { merge: true }));
+  await ok('old build: plain set() drops the stamp', () => setDoc(d(M, 'user_ratings_summary', U3), { averageRating: 0, count: 0 }));
+  await no('staff adds a stamp back', () => setDoc(d(M, 'user_ratings_summary', U3), { serverValue: '0|0' }, { merge: true }));
+  await ok('staff creates a summary without a stamp', () => setDoc(d(M, 'user_ratings_summary', 'stampNew0001'), { count: 0, averageRating: 0 }));
 
   sec('fs social');
   await ok('follow', () => addDoc(c(U1, 'following'), { followerId: U1, followingId: U2, createdAt: serverTimestamp() }));

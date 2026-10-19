@@ -11,10 +11,11 @@
  * genuine accounts are held off the list (reviewSignals.isScamHold); a lower
  * share only puts them on a watch list. Both go to leaderboard_cache/holds
  * for moderators. A moderator can also set leaderboardHold: true on
- * review_verified_summary/{uid}.
+ * review_verified_summary/{uid}. Since 2026-10-19 a review from someone who
+ * never chatted with the trader (noChat) is one of the excluded ones.
  *
  * Until the backfill has populated review_verified_summary, it falls back to
- * the old client-maintained user_ratings_summary.
+ * user_ratings_summary (the profile rating; server-kept since 2026-10-19).
  *
  * Ranking: most reviews first, average rating breaks ties; average >= 3.7.
  * The top50 document keeps its original shape so every app build renders it.

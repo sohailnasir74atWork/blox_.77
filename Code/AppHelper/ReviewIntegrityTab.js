@@ -8,6 +8,10 @@
 // not count or reports a scam, with the reason, so a moderator can delete a
 // review or hold/release the trader.
 //
+// Since 2026-10-19 a review from someone who never chatted with the trader
+// (both 2+ private messages) is excluded ("Never chatted") and also left out
+// of the profile rating, which the server keeps (shownCount / shownSum).
+//
 // Reads: leaderboard_cache/holds (1 doc), review_verified_summary/{uid},
 // review_scores (only excluded + scam rows) and the matching reviews docs.
 // Names come from Supabase user_identity in one batch.
@@ -65,7 +69,7 @@ const FLAG_LABELS = {
   newAccount: 'New account',
   quickSwap: 'Swapped reviews',
   burst: 'Review burst',
-  noChat: 'No chat',
+  noChat: 'Never chatted',
 };
 
 const toMillis = (v) => (v && typeof v.toMillis === 'function' ? v.toMillis() : typeof v === 'number' ? v : 0);
@@ -205,13 +209,13 @@ const ReviewIntegrityTab = ({ isDark, currentUser, callerRoles }) => {
   }, [lookupText]);
 
   // Same flow and rule as the Find user ▸ Reviews delete (AdminDashboard):
-  // staff may only remove a review left by someone strictly below them, and
+  // Senior Mod and up, only a review left by someone strictly below them, and
   // the removal goes to the mod action feed. The verified summary updates
   // itself (scoreReviewOnWrite handles the delete).
   const deleteReview = useCallback(async (row) => {
     const fromUserId = row.review?.fromUserId || row.score?.fromUserId || null;
-    if (!(await canRemoveReview(fromUserId, callerRoles || {}, currentUser?.id))) {
-      Alert.alert('Restricted', 'Only admins can delete reviews, and not reviews left by staff at or above your rank.');
+    if (!(await canRemoveReview(fromUserId, callerRoles || {}, currentUser?.id, trader?.userId))) {
+      Alert.alert('Restricted', 'Senior Mods and up can delete reviews, but not ones left by staff at or above their rank or ones about themselves.');
       return;
     }
     Alert.alert(
@@ -320,6 +324,9 @@ const ReviewIntegrityTab = ({ isDark, currentUser, callerRoles }) => {
                 </View>
                 <Text style={{ color: c.sub, fontSize: 12, marginTop: 10 }}>
                   Average {Number(s.averageRating || 0).toFixed(2)}★ from verified reviews.
+                  {s.shownCount !== undefined
+                    ? ` Profile shows ${s.shownCount} at ${(s.shownCount ? s.shownSum / s.shownCount : 0).toFixed(2)}★.`
+                    : ''}
                   {held ? ` Held from Top Rated${s.holdByName ? ` by ${s.holdByName}` : ''}.` : ''}
                 </Text>
                 <TouchableOpacity

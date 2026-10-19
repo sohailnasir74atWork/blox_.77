@@ -1115,7 +1115,7 @@ const AdminDashboard = () => {
 
     // Staff may only delete a review left by someone STRICTLY below them
     // (same ladder as every other moderation action, fresh RTDB roles).
-    if (!(await canRemoveReview(review.fromUserId, callerRoles, currentUser?.id))) {
+    if (!(await canRemoveReview(review.fromUserId, callerRoles, currentUser?.id, selectedUser.id))) {
       Alert.alert('Restricted', 'Only admins can delete reviews, and not reviews left by staff at or above your rank.');
       return;
     }

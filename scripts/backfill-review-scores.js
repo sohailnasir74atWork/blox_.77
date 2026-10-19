@@ -5,8 +5,11 @@
 //
 // Everything is computed in memory from one pass over `reviews` (~113k docs),
 // Firebase Auth (account exists / created) and RTDB users/{uid}/deviceId.
-// The private-chat check is skipped here (historic chats may be gone), so
-// backfilled reviews never carry the noChat flag.
+// The private-chat check is skipped here (historic chats may be gone): a
+// review keeps the chat verdict already stored in review_scores (taken by
+// scoreReviewOnWrite when it was created), otherwise it is unknown.
+// After a --write run, run scripts/recount-review-summaries.js --write so
+// the profile ratings (user_ratings_summary) follow (2026-10-19).
 //
 // Idempotent: a full recompute that overwrites review_scores and
 // review_verified_summary. Run it once before deploying scoreReviewOnWrite and
@@ -20,7 +23,7 @@
 
 const path = require('path');
 const admin = require('firebase-admin');
-const { evaluateReview, contribution, isScamHold, isScamWatch, BURST_WINDOW_MS } =
+const { evaluateReview, storedChat, emptyTally, addScore, isScamHold, isScamWatch, BURST_WINDOW_MS } =
   require(path.join(__dirname, '..', 'functions', 'reviewSignals'));
 
 const serviceAccount = require(path.join(__dirname, '..', 'serviceAccount.json'));
@@ -57,6 +60,28 @@ async function loadReviews() {
     last = snap.docs[snap.docs.length - 1];
   }
   console.log();
+  return out;
+}
+
+// Chat verdicts taken when each review was created (see storedChat).
+async function loadChatVerdicts() {
+  const out = new Map();
+  let last = null;
+  for (;;) {
+    let q = fs.collection('review_scores')
+      .select('chat', 'hard', 'soft', 'scoredAt', 'reviewCreatedAt')
+      .orderBy(admin.firestore.FieldPath.documentId())
+      .limit(PAGE);
+    if (last) q = q.startAfter(last);
+    const snap = await q.get();
+    for (const d of snap.docs) {
+      const chat = storedChat(d.data());
+      if (chat !== null && chat !== undefined) out.set(d.id, chat);
+    }
+    if (snap.size < PAGE) break;
+    last = snap.docs[snap.docs.length - 1];
+  }
+  console.log(`stored chat verdicts: ${out.size}`);
   return out;
 }
 
@@ -100,6 +125,7 @@ async function loadDevices(uids) {
 async function main() {
   const t0 = Date.now();
   const reviews = await loadReviews();
+  const chats = await loadChatVerdicts();
   const uids = [...new Set(reviews.flatMap((r) => [r.fromUserId, r.toUserId]))];
   const accounts = await loadAccounts(uids);
   const devices = await loadDevices(uids);
@@ -146,17 +172,17 @@ async function main() {
       earlierSameDevice: duplicateDevice.has(r.id),
       reverseCreatedAtMs: reverse ? reverse.createdAtMs : null,
       recentReceivedCount: countBefore(timeline.get(r.toUserId), r.createdAtMs - BURST_WINDOW_MS, r.createdAtMs),
-      hasChat: null,
+      hasChat: chats.has(r.id) ? chats.get(r.id) : null,
     });
     const score = { fromUserId: r.fromUserId, toUserId: r.toUserId, rating: r.rating, ...verdict,
+      chat: chats.has(r.id) ? chats.get(r.id) : null,
       reviewerDevice: devices.get(r.fromUserId) || null, reviewCreatedAtMs: r.createdAtMs };
     scores.set(r.id, score);
     for (const f of [...verdict.hard, ...verdict.soft]) flagCounts[f] = (flagCounts[f] || 0) + 1;
 
-    const s = summaries.get(r.toUserId) || { count: 0, sum: 0, scamReports: 0, excludedCount: 0, flaggedCount: 0 };
-    const c = contribution(score);
-    for (const k of Object.keys(c)) s[k] += c[k];
-    summaries.set(r.toUserId, s);
+    // emptyTally has every key contribution() returns (incl. the profile
+    // tallies), so no field starts undefined and turns into NaN.
+    summaries.set(r.toUserId, addScore(summaries.get(r.toUserId) || emptyTally(), score));
   }
 
   // Report
@@ -193,7 +219,7 @@ async function main() {
       ...rest,
       reviewCreatedAt: admin.firestore.Timestamp.fromMillis(reviewCreatedAtMs || 0),
       scoredAt: now,
-      version: 1,
+      version: 2,
     });
   }
   for (const [uid, s] of summaries) {
