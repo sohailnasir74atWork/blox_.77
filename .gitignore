@@ -91,3 +91,6 @@ database-debug.log
 firestore-debug.log
 ui-debug.log
 pubsub-debug.log
+
+# Session worktrees symlink node_modules; a symlink is a file, so ignore that too
+node_modules
