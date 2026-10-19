@@ -66,7 +66,7 @@ import { getRolesBatch } from '../../Supabase/userBackend';
 import { BirthdayProfileLine } from '../../Birthdays/BirthdayBits';
 import {
   callModSanction, sanctionErrorText, describeSanctionResult, logModAction,
-  STRIKE_LADDER, strikeDurationLabel, formatMuteMinutes,
+  strikeStep, strikeDurationLabel, formatMuteMinutes, mutePresetsFor, PENDING_PERM_DAYS,
 } from '../../Helper/modSanction';
 import ModActionModal from '../../AppHelper/ModActionModal';
 import ModHistoryList from '../../AppHelper/ModHistoryList';
@@ -563,8 +563,9 @@ const ProfileBottomDrawer = ({
   // Moderation (staff). Every sanction and lift goes to the server by uid
   // (utils.applySanction / liftSanction → Helper/modSanction). The checks
   // below only decide which buttons to show; the server re-checks all of
-  // them (contract §2): strict rank, staff immunity (staff targets: admin /
-  // owner only), JMD = mute ≤ 2 h + unmute, lifts need the banner's rank.
+  // them (contract §2): strict rank, staff targets Senior Mod and up only,
+  // JMD = mute ≤ 1 day + unmute, strike 3 below Admin = 30 days + a
+  // permanent-ban request, lifts need the banner's rank.
   const callerRoles = useMemo(() => ({
     isAdmin: !!isAdmin,
     isSeniorMod: !!isGlobalSenior,
@@ -580,6 +581,7 @@ const ProfileBottomDrawer = ({
     isOwner: !!sanction?.targetOwner,
   }), [mergedUser?.isAdmin, mergedUser?.isSeniorMod, mergedUser?.isModerator, mergedUser?.isBabyMod, sanction?.targetOwner]);
   const modPerms = useMemo(() => getModPermissions(callerRoles, targetRoles), [callerRoles, targetRoles]);
+  const ladder = { permanentAllowed: modPerms.canPermaban };
   const canLiftCurrent = !!(sanction?.active && canLiftSanction(callerRoles, targetRoles, sanction.type, bannerRoles));
 
   // Close the drawer, then open the reason prompt with a snapshot of the target.
@@ -681,14 +683,14 @@ const ProfileBottomDrawer = ({
     if (a.kind === 'unban') Alert.alert('User Unbanned', 'Ban has been lifted.');
     else if (a.kind === 'unmute') Alert.alert('User Unmuted', 'Mute has been lifted.');
     else if (a.kind === 'mute') Alert.alert('User Muted', `Muted for ${formatMuteMinutes(a.value)}.`);
-    else if (a.kind === 'linked') Alert.alert('Banned', `${a.targetName} permanently banned. ${detail}`.trim());
-    else Alert.alert('Strike Applied', `Strike ${a.value} applied (${strikeDurationLabel(a.value)}). ${detail}`.trim());
+    else if (a.kind === 'linked') Alert.alert('Banned', `${a.targetName} ${r.pendingPermanent ? 'banned.' : 'permanently banned.'} ${detail}`.trim());
+    else Alert.alert('Strike Applied', `Strike ${a.value} applied (${strikeDurationLabel(a.value, ladder)}). ${detail}`.trim());
     return true;
   };
 
   const modActionTitle = (a) => {
     if (!a) return '';
-    if (a.kind === 'strike') return `Strike ${a.value} (${strikeDurationLabel(a.value)}) — ${a.targetName}`;
+    if (a.kind === 'strike') return `Strike ${a.value} (${strikeDurationLabel(a.value, ladder)}) — ${a.targetName}`;
     if (a.kind === 'mute') return `Mute ${a.targetName} for ${formatMuteMinutes(a.value)}`;
     if (a.kind === 'unban') return `Unban ${a.targetName}`;
     if (a.kind === 'unmute') return `Unmute ${a.targetName}`;
@@ -699,11 +701,17 @@ const ProfileBottomDrawer = ({
   const modActionSubtitle = (a) => {
     if (!a) return '';
     if (a.kind === 'linked') {
+      const s3 = `Strike 3 (${strikeDurationLabel(3, ladder)})`;
       return a.selectable === false
-        ? `${a.header}\nStrike 3 (permanent) on ${a.targetName} and every linked account you outrank.`
-        : `${a.header}\nStrike 3 (permanent) on ${a.targetName} and the accounts you tick. Staff accounts are never included.`;
+        ? `${a.header}\n${s3} on ${a.targetName} and every linked account you outrank.`
+        : `${a.header}\n${s3} on ${a.targetName} and the accounts you tick. Staff accounts are never included.`;
     }
-    if (a.kind === 'strike') return a.value === 3 ? 'Permanent ban: chat, trades, posts and everything else.' : 'Blocks the whole app for the duration and clears their recent public messages.';
+    if (a.kind === 'strike' && a.value === 3) {
+      return modPerms.canPermaban
+        ? 'Permanent ban: chat, trades, posts and everything else.'
+        : `Bans the whole app for ${PENDING_PERM_DAYS} days now. Admins get a request to make it permanent.`;
+    }
+    if (a.kind === 'strike') return 'Blocks the whole app for the duration and clears their recent public messages.';
     if (a.kind === 'mute') return 'Chat only — they can still trade and post. Their strike count is kept.';
     return 'Removes it everywhere (email, account, devices, chat).';
   };
@@ -3086,6 +3094,7 @@ const ProfileBottomDrawer = ({
                               Strikes: {sanction.strikeCount || 0}/3
                               {sanction.active && sanction.reason ? ` · ${sanction.reason}` : ''}
                               {sanction.active && sanction.bannedByName ? ` · by ${sanction.bannedByName}` : ''}
+                              {sanction.active && sanction.pendingPermanent ? ' · permanent ban waiting for an Admin' : ''}
                             </Text>
                           </>
                         )}
@@ -3097,7 +3106,7 @@ const ProfileBottomDrawer = ({
                         </Text>
                       ) : !modPerms.canMute ? (
                         <Text style={{ fontSize: 11, color: dimColor, marginBottom: 12 }}>
-                          Staff members can only be sanctioned by an admin.
+                          Staff members can only be sanctioned by a Senior Mod or higher.
                         </Text>
                       ) : null}
 
@@ -3108,8 +3117,7 @@ const ProfileBottomDrawer = ({
                             Mute{modPerms.maxMuteMinutes ? ` (max ${formatMuteMinutes(modPerms.maxMuteMinutes)})` : ''}
                           </Text>
                           <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                            {[5, 10, 20, 30, 60, 120, 1440]
-                              .filter((m) => !modPerms.maxMuteMinutes || m <= modPerms.maxMuteMinutes)
+                            {mutePresetsFor(modPerms)
                               .map(m => (
                                 <Chip
                                   key={m}
@@ -3130,7 +3138,7 @@ const ProfileBottomDrawer = ({
                             {[1, 2, 3].map((n) => (
                               <Chip
                                 key={n}
-                                label={`${t(`chat.strike_${n}`)} (${STRIKE_LADDER[n].short})`}
+                                label={`${t(`chat.strike_${n}`)} (${strikeStep(n, ladder).short})`}
                                 color={n === 1 ? '#f97316' : n === 2 ? '#ef4444' : '#dc2626'}
                                 onPress={() => handleSetStrike(n)}
                               />

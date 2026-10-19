@@ -36,9 +36,10 @@ const isSelfTargeting = (targetEmail, targetUid = null) => {
 // ─── Staff hierarchy ────────────────────────────────────────────────
 // Strict ladder: a staffer can only act on someone STRICTLY below them.
 // Owner (server-set owner flag) > Admin > Senior Mod > Mod > JMD > user.
-// Mods can't ban Mods. Admins can't ban Admins or owners. JMDs can only act
-// on regular users. Promote/demote rules: only Admins can manage Senior
-// Mods; Admins and Senior Mods can manage Mods and JMDs (Mods lost JMD
+// Mods can't ban Mods. Admins can't ban Admins or owners. Staff targets need
+// a Senior Mod or higher (so Mods and JMDs only sanction regular users).
+// Permanent bans need an Admin. Promote/demote rules: only Admins can manage
+// Senior Mods; Admins and Senior Mods can manage Mods and JMDs (Mods lost JMD
 // management 2026-10-19); Mods and up give the cosmetic badges (Trusted,
 // Grinder, Raider, Helper); Senior Mods and up give custom titles.
 //
@@ -70,17 +71,18 @@ export const canModerate = (caller, target) =>
 /** JMD and above. */
 export const isStaffRoles = (roles) => getStaffRank(roles) >= STAFF_RANK.babyMod;
 
-// Staff immunity: a staff target (JMD and up) can only be sanctioned by an
-// admin or owner, on top of the strict-rank rule.
+// Staff targets (JMD and up): only a Senior Mod or higher, on top of the
+// strict-rank rule (functions/banEnforcement.js checkActorOverTarget).
 export const canSanction = (caller, target) =>
   canModerate(caller, target) &&
-  (!isStaffRoles(target) || getStaffRank(caller) >= STAFF_RANK.admin);
+  (!isStaffRoles(target) || getStaffRank(caller) >= STAFF_RANK.seniorMod);
 
 /**
  * What the caller may do to the target — mirrors the server's checks so the UI
  * only offers actions it will accept (contract §2).
- *   JMD:   mute ≤ 2 h and unmute only.
- *   Mod+:  strike / ban / mute, unban, linked accounts.
+ *   JMD:   mute ≤ 1 day and unmute only.
+ *   Mod+:  strike / ban / mute, unban, linked accounts. Below Admin a strike 3
+ *          is a 30-day ban + a permanent-ban request (canPermaban false).
  * Lifting also needs rank ≥ the original banner's (admins always may), which
  * needs the record — see canLiftSanction.
  */
@@ -96,9 +98,10 @@ export const getModPermissions = (caller, target) => {
     canMute: sanction,
     maxMuteMinutes: isJmd ? JMD_MAX_MUTE_MINUTES : null,
     canStrike: sanction && !isJmd,
-    canUnmute: outranks,
-    canUnban: outranks && !isJmd,
-    canSeeLinked: outranks && rank >= STAFF_RANK.moderator,
+    canPermaban: rank >= STAFF_RANK.admin,
+    canUnmute: sanction,
+    canUnban: sanction && !isJmd,
+    canSeeLinked: sanction && rank >= STAFF_RANK.moderator,
   };
 };
 
@@ -844,7 +847,8 @@ const bannerUidOf = (by) => {
  * The target's current sanction, for the mod tools: the server's uid record
  * first, then the email record.
  * @returns {Promise<{active: boolean, type: 'ban'|'mute'|null, strikeCount: number,
- *   bannedUntil: any, reason: string|null, bannedByUid: string|null, bannedByName: string|null}>}
+ *   bannedUntil: any, reason: string|null, bannedByUid: string|null, bannedByName: string|null,
+ *   pendingPermanent: boolean}>} pendingPermanent: a non-admin's strike 3 waiting for an Admin
  */
 export const getSanctionStatus = async (userId, email = null) => {
   const db = getDatabase();
@@ -868,6 +872,7 @@ export const getSanctionStatus = async (userId, email = null) => {
     reason: activeRec.reason || null,
     bannedByUid: activeRec.bannedByUid || bannerUidOf(by),
     bannedByName: (by && typeof by === 'object' ? by.displayName : null) || null,
+    pendingPermanent: activeRec.pendingPermanent === true,
   };
 };
 
@@ -1016,8 +1021,9 @@ export const banUserwithEmail = async (email, isAdmin = false, senderId = null, 
 
   const strikeCount = nextStrikeCount(await getCurrentStrikeCount(targetUid, email));
   const name = userInfo?.displayName || email || 'this user';
+  const ladder = { permanentAllowed: getStaffRank(callerRoles) >= STAFF_RANK.admin };
   if (showConfirm) {
-    const ok = await confirmAsync('Confirm Ban', `Apply Strike ${strikeCount} (${strikeDurationLabel(strikeCount)}) to ${name}?`, 'Ban User');
+    const ok = await confirmAsync('Confirm Ban', `Apply Strike ${strikeCount} (${strikeDurationLabel(strikeCount, ladder)}) to ${name}?`, 'Ban User');
     if (!ok) return false;
   }
   const r = await applySanction({
@@ -1029,13 +1035,14 @@ export const banUserwithEmail = async (email, isAdmin = false, senderId = null, 
     if (showConfirm || showAlert) Alert.alert('Error', sanctionErrorText(r.error));
     return false;
   }
-  if (showAlert) Alert.alert('User Banned', `Strike ${strikeCount} applied (${strikeDurationLabel(strikeCount)}).\nUser: ${name}`);
+  if (showAlert) Alert.alert('User Banned', `Strike ${strikeCount} applied (${strikeDurationLabel(strikeCount, ladder)}).\nUser: ${name}`);
   return true;
 };
 
 /**
  * Set a specific strike level (1, 2, or 3) on a user.
- * Strike 1: 3 hours | Strike 2: 3 days | Strike 3: permanent (STRIKE_LADDER).
+ * Strike 1: 3 hours | Strike 2: 3 days | Strike 3: permanent (STRIKE_LADDER;
+ * below Admin: 30 days + a permanent-ban request, decided by the server).
  * @param {string} email - User email (only needed when there is no userId)
  * @param {number} strikeCount - 1, 2, or 3
  * @param {string} userId - target uid (preferred: goes through the server)
@@ -1066,8 +1073,9 @@ export const setUserStrike = async (email, strikeCount, userId = null, showAlert
     return false;
   }
   const userName = userInfo?.displayName || userInfo?.userName || email || 'this user';
+  const ladder = { permanentAllowed: getStaffRank(callerRoles) >= STAFF_RANK.admin };
   if (showConfirm) {
-    const ok = await confirmAsync('Confirm Strike', `Apply Strike ${strikeCount} to ${userName}? This bans them for ${strikeDurationLabel(strikeCount)}.`, 'Apply Strike');
+    const ok = await confirmAsync('Confirm Strike', `Apply Strike ${strikeCount} to ${userName}? This bans them for ${strikeDurationLabel(strikeCount, ladder)}.`, 'Apply Strike');
     if (!ok) return false;
   }
   const r = await applySanction({
@@ -1078,7 +1086,7 @@ export const setUserStrike = async (email, strikeCount, userId = null, showAlert
     if (showAlert) Alert.alert('Error', sanctionErrorText(r.error));
     return false;
   }
-  if (showAlert) Alert.alert('Strike Applied', `Strike ${strikeCount} applied (${strikeDurationLabel(strikeCount)}).\nUser: ${userName}`);
+  if (showAlert) Alert.alert('Strike Applied', `Strike ${strikeCount} applied (${strikeDurationLabel(strikeCount, ladder)}).\nUser: ${userName}`);
   return true;
 };
 
@@ -1596,7 +1604,7 @@ export const muteUser = async (email, minutes, userInfo = null, bannerInfo = nul
     if (showAlert) Alert.alert('Permission Denied', 'You cannot mute yourself.');
     return false;
   }
-  // UX pre-check (the server re-checks): strict rank, staff immunity, JMD ≤ 2 h.
+  // UX pre-check (the server re-checks): strict rank, staff targets, JMD ≤ 1 day.
   const callerRoles = callerRolesFromBanner(bannerInfo);
   const targetRoles = await resolveTargetRoles(targetUid, userInfo || {});
   const perms = getModPermissions(callerRoles, targetRoles);

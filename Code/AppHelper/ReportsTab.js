@@ -44,6 +44,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import * as chatBackend from '../Supabase/chatBackend';
 import { getIdentityBatch } from '../Supabase/userBackend';
+import TranslatableText from './TranslatableText';
 
 dayjs.extend(relativeTime);
 
@@ -277,7 +278,7 @@ const ReportsTab = ({ isDark, onViewUser, onSanctionUser, onViewChat }) => {
           <Text style={{ color: sub, fontSize: 11 }}>{r.createdAt ? dayjs(r.createdAt).fromNow() : ''}</Text>
         </View>
         {!!r.reason && <Text style={{ color: text, fontSize: 13, fontWeight: '600', marginTop: 4 }}>{r.reason}</Text>}
-        {!!r.text && <Text style={{ color: sub, fontSize: 12, marginTop: 2 }} numberOfLines={3}>{r.text}</Text>}
+        {!!r.text && <View style={{ marginTop: 2 }}><TranslatableText text={r.text} isDark={isDark} numberOfLines={3} style={{ color: sub, fontSize: 12 }} /></View>}
         <Text style={{ color: sub, fontSize: 11, marginTop: 4 }} numberOfLines={1}>
           Against: {r.targetName || r.targetUid || (r.targetId ? `${KIND_LABEL[r.kind] || 'item'} ${r.targetId}` : 'unknown')}
         </Text>

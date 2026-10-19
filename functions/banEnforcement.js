@@ -28,6 +28,9 @@
  *                                  trigger on every message table (030).
  *   Firestore banned_uids/{uid}    BANS only { type, permanent, until,
  *                                  updatedAt } — read by firestore.rules.
+ *   perm_ban_requests/{uid}        a non-admin's 3rd strike waiting for an
+ *                                  admin (server-only: no RTDB rule grants it;
+ *                                  read through modSanction 'perm_requests').
  *
  * TRUST
  * banned_users_by_email/{key} is written by staff phones. The server never
@@ -37,17 +40,21 @@
  * enforce it either. Admin-SDK writes are trusted; unauthenticated ones are
  * ignored.
  *
- * Hierarchy (MODERATION_CONTRACT §2):
+ * Hierarchy (MODERATION_CONTRACT §2, staff powers 2026-10-19):
  *   - actor strictly outranks the target, never self;
- *   - staff targets (JMD+) only by admin/owner;
- *   - JMD: mute ≤ 2 h and unmute only;
+ *   - staff targets (JMD+) only by Senior Mod and up (still strictly above);
+ *   - JMD: mute ≤ 1 day and unmute only;
+ *   - permanent bans need an admin/owner: a 3rd strike from a lower rank is a
+ *     30-day ban flagged pendingPermanent plus perm_ban_requests/{uid}, which
+ *     an admin confirms (→ permanent) or rejects (stays 30 days);
  *   - lifting or softening needs actor rank ≥ the original banner's rank.
  *
  * Mutes are chat-only: Supabase YES; devices, Auth disable, Firestore NO.
  *
  * applyBan / liftBan are the single core. Everything below calls them:
  *   modSanction              HTTPS (Bearer ID token) — strike/mute/unban/
- *                            unmute/linked/log by UID.
+ *                            unmute/linked/log by UID, perm_requests/
+ *                            perm_confirm/perm_reject (admin/owner).
  *   syncEmailBan             banned_users_by_email/{key} onWrite.
  *   indexDeviceAccount       users_private/{uid}/deviceId onWrite — device
  *                            index + ban-evasion check.
@@ -92,8 +99,11 @@ const isStaffRank = (r) => r >= RANK.babyMod;
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
-const STRIKE_DURATION_MS = { 1: 3 * HOUR, 2: 3 * 24 * HOUR }; // 3 → permanent
-const JMD_MAX_MUTE_MIN = 120;
+const STRIKE_DURATION_MS = { 1: 3 * HOUR, 2: 3 * 24 * HOUR }; // 3 → permanent (admin+)
+// Strike 3 from a Senior Mod / Mod: 30 days now, permanent once an admin
+// confirms the request (owner decision 2026-10-19).
+const PENDING_PERM_MS = 30 * 24 * HOUR;
+const JMD_MAX_MUTE_MIN = 24 * 60; // 5m / 30m / 2h / 6h / 1d in the app
 const MAX_MUTE_MIN = 60 * 24 * 30;
 
 // Device fingerprints are ANDROID_ID hex or an iOS UUID, already sanitised
@@ -134,8 +144,13 @@ const DETAILS_MAX_BYTES = 2048;
 const LOG_ACTIONS = new Set([
   'message_delete', 'delete_all', 'pin', 'unpin', 'role_change', 'review_delete', 'profile_delete',
   'title_change', // custom titles (2026-10-19; Supabase CHECK widened in 045)
+  'post_delete',
 ]);
-const ACTIONS = new Set(['strike', 'mute', 'unban', 'unmute', 'linked', 'log']);
+const ACTIONS = new Set([
+  'strike', 'mute', 'unban', 'unmute', 'linked', 'log', 'perm_requests', 'perm_confirm', 'perm_reject',
+]);
+const PERM_ACTIONS = new Set(['perm_requests', 'perm_confirm', 'perm_reject']);
+const PERM_REQUESTS_MAX = 100;
 
 // --------------------------------------------------------------------
 // Helpers
@@ -267,7 +282,8 @@ function checkActorOverTarget(actor, targetUid, targetRank) {
   if (!isStaffRank(actor.rank)) return 'not_staff';
   if (targetUid && actor.uid === targetUid) return 'self_target';
   if (actor.rank <= targetRank) return 'outranked';
-  if (isStaffRank(targetRank) && actor.rank < RANK.admin) return 'staff_immune';
+  // Staff targets: Senior Mod and up only (they still need to outrank them).
+  if (isStaffRank(targetRank) && actor.rank < RANK.seniorMod) return 'staff_immune';
   return null;
 }
 
@@ -278,6 +294,13 @@ function checkSanction(actor, targetUid, targetRank, { type, minutes, permanent 
     return 'rank_limit';
   }
   return null;
+}
+
+// A banned staff member keeps his Auth account (only permanent bans disable
+// it) but loses every staff power until the ban ends. Mutes don't count.
+async function isActorBanned(uid) {
+  const rec = asRecord((await db().ref(`banned_uids/${uid}`).get()).val());
+  return !!rec && recordType(rec) === 'ban' && isActive(rec.bannedUntil);
 }
 
 // Lifting or softening `rec`: JMD only touches mutes; otherwise the actor's
@@ -400,6 +423,10 @@ async function mirrorToFirestore(uid, rec) {
   }
 }
 
+// Actions newer than the mod_actions check constraint may be → what to log
+// them as until the migration that allows them is applied (033 / 047).
+const ACTION_FALLBACK = { unmute: 'unban', perm_confirm: 'ban', perm_reject: 'strike', post_delete: 'message_delete' };
+
 // ── Audit log (supabase/031_mod_actions.sql, + evidence/details in 032) ──
 // Best-effort and never throws: a failed log row must not fail a ban.
 // mod_actions.actor_role has no 'owner' (031 check constraint): logged as admin.
@@ -421,8 +448,9 @@ async function logModAction(row) {
   const r = {};
   for (const [k, v] of Object.entries(row)) if (v !== undefined) r[k] = v;
   if (Array.isArray(r.evidence) && r.evidence.length === 0) delete r.evidence;
+  let noNewColumns = false;
   try {
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 4; attempt++) {
       const { error } = await sb.from('mod_actions').insert(r);
       if (!error) return true;
       const msg = `${error.code || ''} ${error.message || ''}`;
@@ -431,11 +459,16 @@ async function logModAction(row) {
         /column|schema|PGRST204|42703/i.test(msg)) {
         delete r.evidence;
         delete r.details;
+        noNewColumns = true;
         continue;
       }
-      // Older action check constraint (031) has no 'unmute'.
-      if (r.action === 'unmute' && /23514|check/i.test(msg)) {
-        r.action = 'unban';
+      // Older action check constraint: 031 has no 'unmute', 033 none of the
+      // 047 actions. Keep the row under the nearest old action.
+      if (ACTION_FALLBACK[r.action] && /23514|check/i.test(msg)) {
+        if (r.action !== 'unmute' && !noNewColumns) {
+          r.details = { ...(asRecord(r.details) || {}), action: r.action };
+        }
+        r.action = ACTION_FALLBACK[r.action];
         continue;
       }
       throw error;
@@ -458,6 +491,8 @@ function banRowFields(ban, type = recordType(ban)) {
     duration_minutes: isMute && until ? Math.max(1, Math.round((until - (ban.bannedAt || Date.now())) / 60000)) : null,
     banned_until_ms: until,
     is_permanent: permanent,
+    // A non-admin's strike 3: 30 days, waiting for an admin (perm_ban_requests).
+    ...(ban.pendingPermanent === true && !isMute ? { details: { pending_permanent: true } } : {}),
   };
 }
 
@@ -488,6 +523,8 @@ const bannerEntry = (r) => ({
   reason: r.reason || null,
   strikeCount: r.strikeCount || 0,
   bannedByUid: r.bannedByUid || bannerUidOf(r) || null,
+  // Evasion bans copied from this entry follow an admin's confirm/reject.
+  pendingPermanent: r.pendingPermanent === true ? true : null,
 });
 
 // Legacy entries (client-written, no `banners`) keep their owner as a banner.
@@ -600,7 +637,8 @@ async function spreadToDevices(uid, rec, identity) {
  * Ban or mute `uid` everywhere we can reach.
  *
  * `ban` = { type ('ban'|'mute'), bannedUntil, strikeCount, reason, bannedAt,
- *           bannedByUid, bannedByRank, source, emailKey?, linkedFrom? }
+ *           bannedByUid, bannedByRank, source, emailKey?, linkedFrom?,
+ *           pendingPermanent?, requestedByUid? }
  *
  * Never replaces a stricter active record (a mute never replaces an active
  * ban) unless opts.allowSoften — callers pass it only after checking the
@@ -609,8 +647,14 @@ async function spreadToDevices(uid, rec, identity) {
  * Bans: banned_uids, devices, email/phone hashes (deleted accounts),
  * Supabase, Firestore, and (permanent, opts.disableAuth) the Auth account.
  * Mutes: banned_uids + Supabase only; the strikeCount is preserved.
+ * opts.permRequest writes perm_ban_requests/{uid} (a non-admin's strike 3);
+ * any other ban replacing a pending one removes it, and the accounts banned
+ * with the pending ban follow (settleDerived).
  */
-async function applyBan(uid, ban, identity = null, { disableAuth = true, allowSoften = false } = {}) {
+async function applyBan(uid, ban, identity = null, {
+  disableAuth = true, allowSoften = false, permRequest = null, visited = new Set(),
+} = {}) {
+  visited.add(uid);
   if (!uid || !isActive(ban.bannedUntil)) return { applied: false, reason: 'inactive' };
   const type = ban.type === 'mute' ? 'mute' : 'ban';
   identity = identity || (await resolveIdentity(uid));
@@ -642,6 +686,9 @@ async function applyBan(uid, ban, identity = null, { disableAuth = true, allowSo
     source: ban.source || 'server',
     emailKey: ban.emailKey ? canonicalBanKey(ban.emailKey) : null,
     linkedFrom: ban.linkedFrom || null,
+    // 30-day ban an admin may still make permanent (see PENDING_PERM_MS).
+    pendingPermanent: type === 'ban' && ban.pendingPermanent === true && ban.bannedUntil !== 'permanent' ? true : null,
+    requestedByUid: ban.requestedByUid || null, // the non-admin who asked for permanent
     authDisabledByBan: existing?.authDisabledByBan === true,
     updatedAt: now,
   };
@@ -654,6 +701,11 @@ async function applyBan(uid, ban, identity = null, { disableAuth = true, allowSo
   const willEnable = !isPermBan && record.authDisabledByBan && identity.exists;
   if (willDisable) record.authDisabledByBan = true;
   await ref.set(record);
+  if (permRequest && record.pendingPermanent) {
+    await db().ref(`perm_ban_requests/${uid}`).set({ ...permRequest, uid, bannedUntil: record.bannedUntil });
+  } else if (existing?.pendingPermanent === true && !record.pendingPermanent) {
+    await db().ref(`perm_ban_requests/${uid}`).remove();
+  }
   if (willDisable) {
     try {
       await admin.auth().updateUser(uid, { disabled: true });
@@ -688,7 +740,10 @@ async function applyBan(uid, ban, identity = null, { disableAuth = true, allowSo
   }
 
   if (!identity.exists) {
-    const h = { bannedUntil: record.bannedUntil, type, userId: uid, reason: record.reason, bannedAt: record.bannedAt };
+    const h = {
+      bannedUntil: record.bannedUntil, type, userId: uid, reason: record.reason, bannedAt: record.bannedAt,
+      pendingPermanent: record.pendingPermanent,
+    };
     const updates = {};
     if (identity.emailHash) updates[`banned_email_hashes/${identity.emailHash}`] = h;
     if (identity.phoneHash) updates[`banned_phone_hashes/${identity.phoneHash}`] = h;
@@ -697,6 +752,13 @@ async function applyBan(uid, ban, identity = null, { disableAuth = true, allowSo
 
   await mirrorToSupabase(uid, record);
   await mirrorToFirestore(uid, record);
+
+  // A pending ban settled (confirm, reject, or an admin's own strike 3):
+  // its linked / evasion accounts must not stay pending with no request.
+  const derivedUpdated = exActive && exType === 'ban' && existing.pendingPermanent === true &&
+    type === 'ban' && !record.pendingPermanent
+    ? await settleDerived(uid, record, visited)
+    : 0;
   return {
     applied: true,
     type,
@@ -704,7 +766,30 @@ async function applyBan(uid, ban, identity = null, { disableAuth = true, allowSo
     deviceSuspect: dev.suspect,
     devicesSkipped: dev.skipped.length,
     bannedUntil: record.bannedUntil,
+    pendingPermanent: record.pendingPermanent === true,
+    derivedUpdated,
   };
+}
+
+// The pending accounts banned because of `uid` (linked picks, device /
+// re-registration evasion: linkedFrom = uid) follow its settled ban:
+// permanent with the same banner, or the 30 days without the flag. Never
+// staff; transitive through applyBan, `visited` stops cycles.
+async function settleDerived(uid, record, visited) {
+  const permanent = record.bannedUntil === 'permanent';
+  const snap = await db().ref('banned_uids').orderByChild('linkedFrom').equalTo(uid)
+    .limitToFirst(LINKED_LIMIT * 2).get();
+  let n = 0;
+  for (const [altUid, alt] of Object.entries(snap.val() || {})) {
+    if (visited.has(altUid) || !isPendingBan(alt)) continue;
+    const altId = await resolveIdentity(altUid);
+    if (isStaffRank(await readRank(altUid, altId.authUser))) continue;
+    const next = permanent
+      ? { ...alt, bannedUntil: 'permanent', pendingPermanent: false, bannedByUid: record.bannedByUid, bannedByRank: record.bannedByRank }
+      : { ...alt, pendingPermanent: false };
+    if ((await applyBan(altUid, next, altId, { visited })).applied) n += 1;
+  }
+  return n;
 }
 
 /**
@@ -719,6 +804,7 @@ async function liftBan(uid, { cascade = true, visited = new Set() } = {}) {
   const identity = await resolveIdentity(uid);
 
   await ref.remove();
+  if (existing?.pendingPermanent === true) await db().ref(`perm_ban_requests/${uid}`).remove();
 
   for (const fp of identity.allDevices) await removeDeviceBanner(fp, uid);
 
@@ -811,6 +897,7 @@ function banFromEmailRecord(key, rec) {
     bannedByUid: bannerUidOf(rec),
     source: 'email',
     emailKey: canonicalBanKey(key),
+    pendingPermanent: rec.pendingPermanent === true,
   };
 }
 
@@ -842,8 +929,8 @@ function parseEvidence(ev) {
 const ERROR_STATUS = {
   bad_action: 400, bad_target: 400, bad_strike: 400, bad_minutes: 400, bad_reason: 400,
   bad_evidence: 400, bad_log: 400, unauthenticated: 401, not_staff: 403, self_target: 403,
-  outranked: 403, staff_immune: 403, rank_limit: 403, banner_outranks: 403,
-  stricter_ban_active: 409, not_muted: 409,
+  outranked: 403, staff_immune: 403, rank_limit: 403, banner_outranks: 403, admin_only: 403, actor_banned: 403,
+  stricter_ban_active: 409, not_muted: 409, not_pending: 409,
 };
 const fail = (res, code, extra = {}) => res.status(ERROR_STATUS[code] || 400).json({ error: code, ...extra });
 
@@ -852,12 +939,16 @@ const fail = (res, code, extra = {}) => res.status(ERROR_STATUS[code] || 400).js
  *        includeLinked?, linkedUids?, logAction?, details? }
  * Authorization: Bearer <Firebase ID token of a staff member>
  *
- *   'strike'  strikeCount 1 (3 h) | 2 (3 days) | 3 (permanent)
- *   'mute'    minutes 1…43200 (JMD ≤ 120)
+ *   'strike'  strikeCount 1 (3 h) | 2 (3 days) | 3 (permanent; below admin:
+ *             30 days + pendingPermanent, answer says pendingPermanent: true)
+ *   'mute'    minutes 1…43200 (JMD ≤ 1440)
  *   reason optional (≤ 500; old builds send none → "Strike N" / "Muted for N min")
  *   'unban'   lift a ban or mute       'unmute'  lift a mute only
  *   'linked'  other accounts on the same device(s) {uid, displayName, isStaff, banned}
  *   'log'     audit row for a non-sanction staff action (targetUid optional)
+ *   'perm_requests'  (admin/owner) open permanent-ban requests
+ *   'perm_confirm' / 'perm_reject'  (admin/owner) answer the target's request:
+ *             permanent ban (devices, Auth, linked picks) / stays 30 days
  */
 async function handleModSanction(req, res) {
   res.set('Access-Control-Allow-Origin', '*');
@@ -888,7 +979,15 @@ async function handleModSanction(req, res) {
 
   const callerRank = await readRank(caller.uid, caller);
   const actor = { uid: caller.uid, rank: callerRank };
+  if (isStaffRank(callerRank) && (await isActorBanned(caller.uid))) return fail(res, 'actor_banned');
   if (action === 'log') return handleLog(req, res, body, actor, ctx);
+  if (PERM_ACTIONS.has(action)) {
+    if (callerRank < RANK.admin) return fail(res, isStaffRank(callerRank) ? 'admin_only' : 'not_staff');
+    if (action === 'perm_requests') return handlePermRequests(res);
+    if (body.targetUid == null && typeof body.emailKey === 'string') {
+      return handlePermDecisionEmail(res, action, body.emailKey, actor, ctx);
+    }
+  }
 
   const { targetUid } = body;
   if (typeof targetUid !== 'string' || !UID_RE.test(targetUid)) return fail(res, 'bad_target');
@@ -918,6 +1017,9 @@ async function handleModSanction(req, res) {
   }
   if (action === 'unban' || action === 'unmute') {
     return handleLift(res, action, targetUid, identity, actor, ctx, summary);
+  }
+  if (action === 'perm_confirm' || action === 'perm_reject') {
+    return handlePermDecision(res, action, targetUid, identity, actor, ctx, summary);
   }
   return handleSanction(res, action, body, targetUid, identity, actor, ctx, summary);
 }
@@ -953,15 +1055,181 @@ async function handleLift(res, action, targetUid, identity, actor, ctx, summary)
   return res.json({ ok: true, ...summary, ...out, emailRecordsRemoved: emailRecs.length });
 }
 
+const isPendingBan = (rec) =>
+  !!rec && rec.pendingPermanent === true && recordType(rec) === 'ban' && isActive(rec.bannedUntil);
+
+const asList = (v) => (Array.isArray(v) ? v : Object.values(asRecord(v) || {})).filter((x) => typeof x === 'string');
+
+// perm_ban_requests keys: the target uid, or `email:<key>` for an email-only
+// strike with no account behind it (old builds / legacy rows).
+const EMAIL_REQ_PREFIX = 'email:';
+const emailRequestKey = (key) => `${EMAIL_REQ_PREFIX}${canonicalBanKey(key)}`;
+const displayLabel = (rec, email) =>
+  (rec?.displayName && rec.displayName !== 'Unknown' ? rec.displayName : null) || email || null;
+
+// Open requests, oldest first. A request whose ban was lifted, expired or
+// already replaced is stale: dropped here.
+async function handlePermRequests(res) {
+  const all = asRecord((await db().ref('perm_ban_requests').get()).val()) || {};
+  const out = [];
+  for (const [reqKey, r] of Object.entries(all)) {
+    const emailKey = reqKey.startsWith(EMAIL_REQ_PREFIX) ? reqKey.slice(EMAIL_REQ_PREFIX.length) : null;
+    let rec = null;
+    if (emailKey) rec = asRecord((await db().ref(`banned_users_by_email/${r?.recordKey || emailKey}`).get()).val());
+    else if (UID_RE.test(reqKey)) rec = asRecord((await db().ref(`banned_uids/${reqKey}`).get()).val());
+    if (!isPendingBan(rec)) {
+      await db().ref(`perm_ban_requests/${reqKey}`).remove();
+      continue;
+    }
+    const email = emailKey ? decodeEmailKey(emailKey) : null;
+    const requestedByUid = r?.requestedByUid || rec.requestedByUid || null;
+    out.push({
+      key: reqKey,
+      uid: emailKey ? null : reqKey,
+      emailKey,
+      email,
+      targetName: emailKey ? displayLabel(rec, email) : await displayNameOf(reqKey),
+      requestedByUid,
+      requestedByName: await displayNameOf(requestedByUid),
+      requestedByRole: ROLE_NAME[r?.requestedByRank] || null,
+      requestedAt: r?.requestedAt || rec.bannedAt || null,
+      reason: r?.reason || rec.reason || null,
+      evidence: asList(r?.evidence),
+      strikeCount: rec.strikeCount || 3,
+      bannedUntil: rec.bannedUntil,
+      includeLinked: r?.includeLinked === true,
+    });
+  }
+  out.sort((a, b) => (a.requestedAt || 0) - (b.requestedAt || 0));
+  return res.json({ ok: true, requests: out.slice(0, PERM_REQUESTS_MAX), total: out.length });
+}
+
+// Take the request out of the queue in one transaction: of two Admins
+// answering at once, only the one whose transaction removed it goes on.
+// Returns the request, or null when there was none (any more).
+async function claimPermRequest(reqKey) {
+  let claimed = null;
+  const r = await db().ref(`perm_ban_requests/${reqKey}`).transaction((cur) => {
+    claimed = cur; // the last run sees the server value
+    return null;
+  });
+  return r.committed ? asRecord(claimed) : null;
+}
+const restorePermRequest = (reqKey, req) =>
+  db().ref(`perm_ban_requests/${reqKey}`).set(req).catch((e) =>
+    console.error('[banEnforcement] could not restore perm request', reqKey, e?.message));
+
+// Confirm = the permanent ban the requester could not place (devices, Auth,
+// linked accounts via settleDerived); the admin becomes its banner, so only
+// an admin lifts it. Reject = stays the 30-day ban, no longer pending.
+const decidedBan = (rec, confirm, actor) => (confirm
+  ? { ...rec, bannedUntil: 'permanent', pendingPermanent: false, bannedByUid: actor.uid, bannedByRank: actor.rank }
+  : { ...rec, pendingPermanent: false });
+
+// Builds that only listen by email see the same ban.
+async function settleEmailRecord(recordKey, confirm, actor, ctx) {
+  if (!recordKey) return;
+  const eref = db().ref(`banned_users_by_email/${recordKey}`);
+  const cur = asRecord((await eref.get()).val());
+  if (!cur || !isActive(cur.bannedUntil) || recordType(cur) !== 'ban') return;
+  await eref.update(confirm
+    ? {
+      bannedUntil: 'permanent', pendingPermanent: null, managedBy: 'server',
+      bannedBy: { uid: actor.uid, displayName: ctx.caller.name || 'Staff', avatar: null, role: ROLE_NAME[actor.rank] || 'admin' },
+    }
+    : { pendingPermanent: null, managedBy: 'server' });
+}
+
+async function logPermDecision(action, { uid, email, name, rec, req, actor, ctx, linkedUpdated }) {
+  const confirm = action === 'perm_confirm';
+  await logModAction({
+    target_uid: uid, target_email: email, target_name: name,
+    action, reason: ctx.reason || null, strike_count: rec.strikeCount || 3,
+    banned_until_ms: confirm ? null : rec.bannedUntil, is_permanent: confirm,
+    evidence: ctx.evidence,
+    details: { requested_by: req?.requestedByUid || rec.requestedByUid || null, linked_updated: linkedUpdated },
+    ...(await actorInfo(actor.uid)), source: uid ? 'uid' : 'email',
+  });
+}
+
+async function handlePermDecision(res, action, targetUid, identity, actor, ctx, summary) {
+  const confirm = action === 'perm_confirm';
+  const req = await claimPermRequest(targetUid);
+  const uidRec = asRecord((await db().ref(`banned_uids/${targetUid}`).get()).val());
+  if (!req || !isPendingBan(uidRec)) return fail(res, 'not_pending', summary);
+
+  let out;
+  try {
+    out = await applyBan(targetUid, decidedBan(uidRec, confirm, actor), identity);
+    if (out.applied) {
+      await settleEmailRecord(uidRec.emailKey || (identity.email ? encodeEmailKey(identity.email) : null), confirm, actor, ctx);
+    }
+  } catch (e) {
+    await restorePermRequest(targetUid, req);
+    throw e;
+  }
+  await logPermDecision(action, {
+    uid: targetUid, email: identity.email, name: await displayNameOf(targetUid),
+    rec: uidRec, req, actor, ctx, linkedUpdated: out.derivedUpdated || 0,
+  });
+  return res.json({ ok: true, ...summary, ...out, linkedUpdated: out.derivedUpdated || 0 });
+}
+
+// An email-only request (no account when it was made). Confirm makes the
+// email record permanent, so a sign-up with that email is banned for good;
+// an account made with it since then follows too.
+async function handlePermDecisionEmail(res, action, rawKey, actor, ctx) {
+  const key = canonicalBanKey(rawKey);
+  if (!key || /[.#$[\]/]/.test(key)) return fail(res, 'bad_target');
+  const confirm = action === 'perm_confirm';
+  const email = decodeEmailKey(key);
+  let uid = null;
+  try { uid = (await admin.auth().getUserByEmail(email)).uid; } catch (_) { /* still no account */ }
+  if (uid) {
+    if (uid === actor.uid) return fail(res, 'self_target');
+    const denied = checkActorOverTarget(actor, uid, await rankOfUid(uid));
+    if (denied) return fail(res, denied);
+  }
+  const reqKey = emailRequestKey(key);
+  const req = await claimPermRequest(reqKey);
+  const recordKey = req?.recordKey || key;
+  const rec = asRecord((await db().ref(`banned_users_by_email/${recordKey}`).get()).val());
+  if (!req || !isPendingBan(rec)) return fail(res, 'not_pending');
+
+  let out = { applied: false };
+  try {
+    await settleEmailRecord(recordKey, confirm, actor, ctx);
+    if (uid) {
+      const uidRec = asRecord((await db().ref(`banned_uids/${uid}`).get()).val());
+      if (isPendingBan(uidRec)) out = await applyBan(uid, decidedBan(uidRec, confirm, actor), await resolveIdentity(uid));
+    }
+  } catch (e) {
+    await restorePermRequest(reqKey, req);
+    throw e;
+  }
+  await logPermDecision(action, {
+    uid, email, name: displayLabel(rec, email), rec, req, actor, ctx, linkedUpdated: out.derivedUpdated || 0,
+  });
+  return res.json({ ok: true, accountExists: !!uid, ...out, linkedUpdated: out.derivedUpdated || 0 });
+}
+
 async function handleSanction(res, action, body, targetUid, identity, actor, ctx, summary) {
   const type = action === 'mute' ? 'mute' : 'ban';
   const now = Date.now();
   let bannedUntil;
   let strikeCount;
+  let pendingPermanent = false;
   if (type === 'ban') {
     strikeCount = Number(body.strikeCount);
     if (![1, 2, 3].includes(strikeCount)) return fail(res, 'bad_strike');
-    bannedUntil = strikeCount === 3 ? 'permanent' : now + STRIKE_DURATION_MS[strikeCount];
+    if (strikeCount === 3 && actor.rank < RANK.admin) {
+      // Permanent needs an admin, whatever the build asked for: 30 days now
+      // and a request in the dashboard's "Perm-ban requests".
+      pendingPermanent = true;
+      bannedUntil = now + PENDING_PERM_MS;
+    } else {
+      bannedUntil = strikeCount === 3 ? 'permanent' : now + STRIKE_DURATION_MS[strikeCount];
+    }
   } else {
     const minutes = Number(body.minutes);
     if (!Number.isInteger(minutes) || minutes < 1 || minutes > MAX_MUTE_MIN) return fail(res, 'bad_minutes');
@@ -997,6 +1265,7 @@ async function handleSanction(res, action, body, targetUid, identity, actor, ctx
   const ban = {
     type, bannedUntil, strikeCount, reason, bannedAt: now,
     bannedByUid: actor.uid, bannedByRank: actor.rank, source: 'uid',
+    ...(pendingPermanent ? { pendingPermanent: true, requestedByUid: actor.uid } : {}),
   };
 
   // Keep the email record too, so builds that only listen by email see it.
@@ -1013,12 +1282,22 @@ async function handleSanction(res, action, body, targetUid, identity, actor, ctx
       bannedAt: now,
       bannedBy: { uid: actor.uid, displayName: ctx.caller.name || 'Staff', avatar: null, role: ROLE_NAME[actor.rank] || 'staff' },
       managedBy: 'server',
+      ...(pendingPermanent ? { pendingPermanent: true } : {}),
     });
     ban.source = 'email';
     ban.emailKey = key;
   }
 
-  const out = await applyBan(targetUid, ban, identity);
+  const permRequest = pendingPermanent ? {
+    requestedByUid: actor.uid,
+    requestedByRank: actor.rank,
+    requestedAt: now,
+    reason,
+    evidence: ctx.evidence,
+    strikeCount,
+    includeLinked: body.includeLinked === true,
+  } : null;
+  const out = await applyBan(targetUid, ban, identity, { permRequest });
   const actorRow = await actorInfo(actor.uid);
   if (out.applied) {
     await logModAction({
@@ -1097,13 +1376,15 @@ exports.modSanction = functions
 // what the real writer may do
 // --------------------------------------------------------------------
 
-// v1 context → { admin: true } | { uid, rank } | null (unauthenticated).
+// v1 context → { admin: true } | { uid, rank, banned } | null (unauthenticated).
+// `banned`: the writer is staff under an active ban — every write is refused.
 async function resolveWriter(context) {
   if (context.authType === 'ADMIN') return { admin: true };
   if (context.authType !== 'USER') return null;
   const uid = context.auth?.uid;
   if (!uid) return null;
-  return { uid, rank: await readRank(uid, context.auth.token || {}) };
+  const rank = await readRank(uid, context.auth.token || {});
+  return { uid, rank, banned: isStaffRank(rank) && (await isActorBanned(uid)) };
 }
 
 // The account an email record is about. The key IS the email, so the live
@@ -1159,6 +1440,17 @@ async function revertEmailRecord(rawKey, rejected, restoreTo) {
     return restored;
   });
   return r.committed && banFingerprint(r.snapshot.val()) === banFingerprint(restored);
+}
+
+// Replace the record with `next` (server-managed) only while it is still
+// exactly `expected`.
+async function replaceEmailRecord(rawKey, expected, next) {
+  const want = banFingerprint(expected);
+  const r = await db().ref(`banned_users_by_email/${rawKey}`).transaction((cur) => {
+    if (banFingerprint(cur) !== want) return cur === null ? null : undefined;
+    return { ...cur, ...next, managedBy: 'server' };
+  });
+  return r.committed && banFingerprint(r.snapshot.val()) === banFingerprint(next);
 }
 
 // Old builds mirror a ban onto banned_devices themselves. When the ban is
@@ -1261,7 +1553,8 @@ async function handleEmailBanWrite(change, context) {
     const targetRank = primary ? await rankOfUid(primary) : RANK.user;
     const uidRec = primary ? asRecord((await db().ref(`banned_uids/${primary}`).get()).val()) : null;
     const src = sameSourceKey(uidRec, key) && isActive(uidRec.bannedUntil) ? uidRec : before;
-    const denied = checkActorOverTarget(actor, primary, targetRank) || (await checkLift(actor, src));
+    const denied = (actor.banned && 'actor_banned') || checkActorOverTarget(actor, primary, targetRank) ||
+      (await checkLift(actor, src));
     if (denied) {
       console.warn(`[syncEmailBan] ${actor.uid} may not lift ${rawKey} (${denied}); restoring`);
       const restored = await revertEmailRecord(rawKey, after, before);
@@ -1297,7 +1590,7 @@ async function handleEmailBanWrite(change, context) {
   const prev = sameSource && isActive(uidRec.bannedUntil) ? uidRec : beforeActive ? before : null;
   const softens = !!prev && isSofter(after, prev);
 
-  let denied = checkSanction(actor, target, targetRank, { type, minutes, permanent });
+  let denied = (actor.banned && 'actor_banned') || checkSanction(actor, target, targetRank, { type, minutes, permanent });
   if (!denied && softens) denied = await checkLift(actor, prev);
   if (denied) {
     console.warn(`[syncEmailBan] ${actor.uid} may not write ${rawKey} (${denied}); reverting`);
@@ -1308,10 +1601,38 @@ async function handleEmailBanWrite(change, context) {
     }
     return null;
   }
+
+  // Permanent bans need an admin. A lower rank's permanent strike (old
+  // builds, email-only rows) becomes the 30-day pending ban; the record is
+  // rewritten so every build enforces 30 days, not permanent.
+  let rec = after;
+  let permRequest = null;
+  if (type === 'ban' && permanent && actor.rank < RANK.admin) {
+    rec = { ...after, bannedUntil: now + PENDING_PERM_MS, pendingPermanent: true };
+    if (prev && isSofter(rec, prev)) {
+      // Already banned more strictly (permanent): this write adds nothing.
+      const restored = await revertEmailRecord(rawKey, after, before);
+      if (target && restored && sameSource && isActive(uidRec.bannedUntil)) await applyBan(target, uidRec, identity);
+      return null;
+    }
+    if (!(await replaceEmailRecord(rawKey, after, rec))) return null; // a newer write has its own event
+    permRequest = {
+      requestedByUid: actor.uid, requestedByRank: actor.rank, requestedAt: now,
+      reason: rec.reason || null, strikeCount: rec.strikeCount || 3, includeLinked: false,
+    };
+    // Old builds also copied the ban onto banned_devices as 'permanent':
+    // drop those, applyBan re-bans the devices for the 30 days.
+    if (target) await dropClientDeviceCopies(target, identity, after);
+    // No account behind the email: the request is keyed by the email.
+    else await db().ref(`perm_ban_requests/${emailRequestKey(key)}`).set({ ...permRequest, recordKey: rawKey, bannedUntil: rec.bannedUntil });
+  }
   if (!target) return null; // no account behind this email (yet): banCheckOnSignup covers it
 
-  const ban = { ...banFromEmailRecord(key, after), bannedByUid: actor.uid, bannedByRank: actor.rank };
-  const out = await applyBan(target, ban, identity, { allowSoften: softens && sameSource });
+  const ban = {
+    ...banFromEmailRecord(key, rec), bannedByUid: actor.uid, bannedByRank: actor.rank,
+    ...(permRequest ? { requestedByUid: actor.uid } : {}),
+  };
+  const out = await applyBan(target, ban, identity, { allowSoften: softens && sameSource, permRequest });
   if (out.applied) {
     await logModAction({
       target_uid: target, target_email: decodeEmailKey(key), target_name: after.displayName || null,
@@ -1383,6 +1704,7 @@ async function onDeviceSeen(uid, fp, removed) {
     bannedByRank: null,
     source: 'device',
     linkedFrom: owner,
+    pendingPermanent: entry.pendingPermanent === true,
   };
   const out = await applyBan(uid, ban, identity);
   if (out.applied) {
@@ -1490,6 +1812,7 @@ async function onSignup(user) {
           bannedByRank: null,
           source,
           linkedFrom: h.userId || null,
+          pendingPermanent: h.pendingPermanent === true,
         };
         break;
       }
@@ -1547,6 +1870,7 @@ async function onAccountDeleted(user) {
     const h = {
       bannedUntil: ban.bannedUntil, type: recordType(ban), userId: user.uid,
       reason: ban.reason || null, bannedAt: ban.bannedAt || Date.now(),
+      pendingPermanent: ban.pendingPermanent === true ? true : null,
     };
     if (emailHash) updates[`banned_email_hashes/${emailHash}`] = h;
     if (phoneHash) updates[`banned_phone_hashes/${phoneHash}`] = h;
@@ -1722,5 +2046,7 @@ exports._internal = {
   reconcileBans,
   logModAction,
   mirrorToFirestore,
+  PENDING_PERM_MS,
+  JMD_MAX_MUTE_MIN,
   setSupabaseForTest: (client) => { supabaseOverride = client; },
 };
