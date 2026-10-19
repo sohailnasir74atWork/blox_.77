@@ -76,5 +76,38 @@ ok(/not authorized/.test((await forUser({ sub: 'USR' })) || ''), 'user refused o
 await as({ sub: 'SEN' });
 ok((await q('select count(*)::int as n from public.mod_actions_recent()'))[0].n >= 7, 'senior sees the rows');
 
+// Banned staff lose staff powers; mutes and expired bans don't count.
+await q(`insert into user_roles(uid, is_admin, is_cmsr, is_moderator, is_baby_mod) values
+  ('SENB', false, true, false, false), ('MODB', false, false, true, false), ('MODP', false, false, true, false),
+  ('MODM', false, false, true, false), ('MODLM', false, false, true, false), ('JMDL', false, false, false, true),
+  ('JMDX', false, false, false, true), ('ADMB', true, false, false, false)`);
+await q(`insert into banned_senders(uid, banned_until, reason, type) values
+  ('SENB', now() + interval '30 days', 'Strike 1', 'ban'),
+  ('MODB', now() + interval '3 hours', 'Strike 1', 'ban'),
+  ('MODP', null, 'Strike 3', 'ban'),
+  ('MODM', now() + interval '1 hour', 'spam', 'mute'),
+  ('MODLM', now() + interval '1 hour', 'Muted for 60 min', null),
+  ('JMDL', now() + interval '1 day', 'Strike 2', null),
+  ('JMDX', now() - interval '1 minute', 'Strike 1', 'ban'),
+  ('ADMB', now() + interval '1 day', 'x', 'ban'),
+  ('OWNB', null, 'x', 'ban')`);
+const staff = async (claims) => { await as(claims); return (await q('select public.is_mod_staff() as v'))[0].v; };
+ok(await staff({ sub: 'MODB' }) === false, 'banned mod is not staff');
+ok(await staff({ sub: 'MODP' }) === false, 'permanently banned mod is not staff');
+ok(await staff({ sub: 'JMDL' }) === false, 'legacy (no type) ban counts');
+ok(await staff({ sub: 'ADMB' }) === false, 'banned admin is not staff');
+ok(await staff({ sub: 'OWNB', email: 'sohailnasir74@gmail.com', email_verified: true }) === false, 'banned owner account is not staff');
+ok(await staff({ sub: 'MODM' }) === true, 'muted mod is still staff');
+ok(await staff({ sub: 'MODLM' }) === true, 'legacy mute (Muted for…) is still staff');
+ok(await staff({ sub: 'JMDX' }) === true, 'expired ban: staff again');
+ok(await staff({ sub: 'MOD' }) === true, 'unbanned mod is staff');
+ok(await staff({ sub: 'X', email: 'sohailnasir74@gmail.com', email_verified: true }) === true, 'verified owner email is staff');
+ok(await staff({ sub: 'X', email: 'sohailnasir74@gmail.com', email_verified: false }) === false, 'unverified owner email is not staff');
+ok(await staff(null) === false, 'no claims: not staff');
+ok(await senior({ sub: 'SENB' }) === false, 'banned senior is not senior+');
+ok(/not authorized/.test((await recent({ sub: 'SENB' })) || ''), 'banned senior refused the Mod log');
+ok(/not authorized/.test((await forUser({ sub: 'MODB' })) || ''), 'banned mod refused one user\'s history');
+ok((await forUser({ sub: 'MODM' })) === null, 'muted mod still reads one user\'s history');
+
 console.log(`\n${pass}/${pass + fail} passed`);
 process.exit(fail ? 1 : 0);

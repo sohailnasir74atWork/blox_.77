@@ -6,7 +6,8 @@
 //   Confirm → permanent: devices, Auth account and the linked accounts banned
 //             with it. Only an Admin can lift it afterwards.
 //   Reject  → stays the 30-day ban.
-// Requests whose ban was lifted or ran out drop off by themselves.
+// Requests whose ban was lifted or ran out drop off by themselves. An
+// email-only strike (old builds, no account yet) is listed by its email.
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, FlatList, ActivityIndicator, RefreshControl, Alert } from 'react-native';
@@ -48,19 +49,20 @@ const PermBanRequestsTab = ({ isDark, onOpenUser }) => {
 
   useEffect(() => { load(); }, [load]);
 
-  const nameOf = (item) => item?.targetName || item?.uid || 'this user';
+  const nameOf = (item) => item?.targetName || item?.uid || item?.email || 'this user';
+  const keyOf = (item) => item?.key || item?.uid;
 
   const confirmDecision = async ({ reason }) => {
     const d = decision;
     if (!d) return true;
-    const r = await decidePermRequest(d.item.uid, d.kind, reason);
+    const r = await decidePermRequest(d.item, d.kind, reason);
     if (!r.ok) {
       Alert.alert('Error', sanctionErrorText(r.error));
       if (r.error !== 'not_pending') return false; // keep the prompt open
       load();
       return true;
     }
-    setItems((prev) => prev.filter((x) => x.uid !== d.item.uid));
+    setItems((prev) => prev.filter((x) => keyOf(x) !== keyOf(d.item)));
     Alert.alert(
       d.kind === 'confirm' ? 'Permanently banned' : 'Request rejected',
       d.kind === 'confirm'
@@ -74,10 +76,15 @@ const PermBanRequestsTab = ({ isDark, onOpenUser }) => {
     <View style={{ backgroundColor: card, borderRadius: 12, padding: 12, marginHorizontal: 12, marginBottom: 8 }}>
       <TouchableOpacity
         activeOpacity={0.7}
-        onPress={() => { Clipboard.setString(item.uid); showSuccessMessage('Copied', 'User ID copied'); }}
+        onPress={() => {
+          Clipboard.setString(item.uid || item.email || '');
+          showSuccessMessage('Copied', item.uid ? 'User ID copied' : 'Email copied');
+        }}
       >
         <Text style={{ color: text, fontSize: 14, fontWeight: '700' }} numberOfLines={1}>{nameOf(item)}</Text>
-        <Text style={{ color: sub, fontSize: 10, fontFamily: 'monospace' }} numberOfLines={1}>{item.uid}</Text>
+        <Text style={{ color: sub, fontSize: 10, fontFamily: 'monospace' }} numberOfLines={1}>
+          {item.uid || `${item.email} · no account yet`}
+        </Text>
       </TouchableOpacity>
       <Text style={{ color: sub, fontSize: 12, marginTop: 4 }}>
         Strike {item.strikeCount || 3} by {item.requestedByName || item.requestedByUid || 'unknown'}
@@ -91,7 +98,7 @@ const PermBanRequestsTab = ({ isDark, onOpenUser }) => {
       {!!item.reason && <Text style={{ color: text, fontSize: 13, marginTop: 6 }}>{item.reason}</Text>}
       <EvidenceThumbs urls={item.evidence || []} onOpen={(index) => setViewer({ urls: item.evidence, index })} />
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-        {onOpenUser && (
+        {onOpenUser && !!item.uid && (
           <TouchableOpacity
             onPress={() => onOpenUser({ id: item.uid, displayName: item.targetName || null })}
             style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: isDark ? '#2C2C2E' : '#E5E5EA' }}
@@ -123,7 +130,7 @@ const PermBanRequestsTab = ({ isDark, onOpenUser }) => {
       </Text>
       <FlatList
         data={items}
-        keyExtractor={(x) => x.uid}
+        keyExtractor={keyOf}
         renderItem={renderItem}
         ListEmptyComponent={
           <View style={{ padding: 32, alignItems: 'center' }}>

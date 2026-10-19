@@ -295,6 +295,13 @@ function checkSanction(actor, targetUid, targetRank, { type, minutes, permanent 
   return null;
 }
 
+// A banned staff member keeps his Auth account (only permanent bans disable
+// it) but loses every staff power until the ban ends. Mutes don't count.
+async function isActorBanned(uid) {
+  const rec = asRecord((await db().ref(`banned_uids/${uid}`).get()).val());
+  return !!rec && recordType(rec) === 'ban' && isActive(rec.bannedUntil);
+}
+
 // Lifting or softening `rec`: JMD only touches mutes; otherwise the actor's
 // rank must reach the banner's. Admin/owner can always lift.
 async function checkLift(actor, rec) {
@@ -640,9 +647,13 @@ async function spreadToDevices(uid, rec, identity) {
  * Supabase, Firestore, and (permanent, opts.disableAuth) the Auth account.
  * Mutes: banned_uids + Supabase only; the strikeCount is preserved.
  * opts.permRequest writes perm_ban_requests/{uid} (a non-admin's strike 3);
- * any other record replacing a pending one removes it.
+ * any other ban replacing a pending one removes it, and the accounts banned
+ * with the pending ban follow (settleDerived).
  */
-async function applyBan(uid, ban, identity = null, { disableAuth = true, allowSoften = false, permRequest = null } = {}) {
+async function applyBan(uid, ban, identity = null, {
+  disableAuth = true, allowSoften = false, permRequest = null, visited = new Set(),
+} = {}) {
+  visited.add(uid);
   if (!uid || !isActive(ban.bannedUntil)) return { applied: false, reason: 'inactive' };
   const type = ban.type === 'mute' ? 'mute' : 'ban';
   identity = identity || (await resolveIdentity(uid));
@@ -740,6 +751,13 @@ async function applyBan(uid, ban, identity = null, { disableAuth = true, allowSo
 
   await mirrorToSupabase(uid, record);
   await mirrorToFirestore(uid, record);
+
+  // A pending ban settled (confirm, reject, or an admin's own strike 3):
+  // its linked / evasion accounts must not stay pending with no request.
+  const derivedUpdated = exActive && exType === 'ban' && existing.pendingPermanent === true &&
+    type === 'ban' && !record.pendingPermanent
+    ? await settleDerived(uid, record, visited)
+    : 0;
   return {
     applied: true,
     type,
@@ -748,7 +766,29 @@ async function applyBan(uid, ban, identity = null, { disableAuth = true, allowSo
     devicesSkipped: dev.skipped.length,
     bannedUntil: record.bannedUntil,
     pendingPermanent: record.pendingPermanent === true,
+    derivedUpdated,
   };
+}
+
+// The pending accounts banned because of `uid` (linked picks, device /
+// re-registration evasion: linkedFrom = uid) follow its settled ban:
+// permanent with the same banner, or the 30 days without the flag. Never
+// staff; transitive through applyBan, `visited` stops cycles.
+async function settleDerived(uid, record, visited) {
+  const permanent = record.bannedUntil === 'permanent';
+  const snap = await db().ref('banned_uids').orderByChild('linkedFrom').equalTo(uid)
+    .limitToFirst(LINKED_LIMIT * 2).get();
+  let n = 0;
+  for (const [altUid, alt] of Object.entries(snap.val() || {})) {
+    if (visited.has(altUid) || !isPendingBan(alt)) continue;
+    const altId = await resolveIdentity(altUid);
+    if (isStaffRank(await readRank(altUid, altId.authUser))) continue;
+    const next = permanent
+      ? { ...alt, bannedUntil: 'permanent', pendingPermanent: false, bannedByUid: record.bannedByUid, bannedByRank: record.bannedByRank }
+      : { ...alt, pendingPermanent: false };
+    if ((await applyBan(altUid, next, altId, { visited })).applied) n += 1;
+  }
+  return n;
 }
 
 /**
@@ -888,7 +928,7 @@ function parseEvidence(ev) {
 const ERROR_STATUS = {
   bad_action: 400, bad_target: 400, bad_strike: 400, bad_minutes: 400, bad_reason: 400,
   bad_evidence: 400, bad_log: 400, unauthenticated: 401, not_staff: 403, self_target: 403,
-  outranked: 403, staff_immune: 403, rank_limit: 403, banner_outranks: 403, admin_only: 403,
+  outranked: 403, staff_immune: 403, rank_limit: 403, banner_outranks: 403, admin_only: 403, actor_banned: 403,
   stricter_ban_active: 409, not_muted: 409, not_pending: 409,
 };
 const fail = (res, code, extra = {}) => res.status(ERROR_STATUS[code] || 400).json({ error: code, ...extra });
@@ -938,10 +978,14 @@ async function handleModSanction(req, res) {
 
   const callerRank = await readRank(caller.uid, caller);
   const actor = { uid: caller.uid, rank: callerRank };
+  if (isStaffRank(callerRank) && (await isActorBanned(caller.uid))) return fail(res, 'actor_banned');
   if (action === 'log') return handleLog(req, res, body, actor, ctx);
   if (PERM_ACTIONS.has(action)) {
     if (callerRank < RANK.admin) return fail(res, isStaffRank(callerRank) ? 'admin_only' : 'not_staff');
     if (action === 'perm_requests') return handlePermRequests(res);
+    if (body.targetUid == null && typeof body.emailKey === 'string') {
+      return handlePermDecisionEmail(res, action, body.emailKey, actor, ctx);
+    }
   }
 
   const { targetUid } = body;
@@ -1015,22 +1059,37 @@ const isPendingBan = (rec) =>
 
 const asList = (v) => (Array.isArray(v) ? v : Object.values(asRecord(v) || {})).filter((x) => typeof x === 'string');
 
+// perm_ban_requests keys: the target uid, or `email:<key>` for an email-only
+// strike with no account behind it (old builds / legacy rows).
+const EMAIL_REQ_PREFIX = 'email:';
+const emailRequestKey = (key) => `${EMAIL_REQ_PREFIX}${canonicalBanKey(key)}`;
+const displayLabel = (rec, email) =>
+  (rec?.displayName && rec.displayName !== 'Unknown' ? rec.displayName : null) || email || null;
+
 // Open requests, oldest first. A request whose ban was lifted, expired or
 // already replaced is stale: dropped here.
 async function handlePermRequests(res) {
   const all = asRecord((await db().ref('perm_ban_requests').get()).val()) || {};
   const out = [];
-  for (const [uid, r] of Object.entries(all)) {
-    const rec = UID_RE.test(uid) ? asRecord((await db().ref(`banned_uids/${uid}`).get()).val()) : null;
+  for (const [reqKey, r] of Object.entries(all)) {
+    const emailKey = reqKey.startsWith(EMAIL_REQ_PREFIX) ? reqKey.slice(EMAIL_REQ_PREFIX.length) : null;
+    let rec = null;
+    if (emailKey) rec = asRecord((await db().ref(`banned_users_by_email/${r?.recordKey || emailKey}`).get()).val());
+    else if (UID_RE.test(reqKey)) rec = asRecord((await db().ref(`banned_uids/${reqKey}`).get()).val());
     if (!isPendingBan(rec)) {
-      await db().ref(`perm_ban_requests/${uid}`).remove();
+      await db().ref(`perm_ban_requests/${reqKey}`).remove();
       continue;
     }
+    const email = emailKey ? decodeEmailKey(emailKey) : null;
+    const requestedByUid = r?.requestedByUid || rec.requestedByUid || null;
     out.push({
-      uid,
-      targetName: await displayNameOf(uid),
-      requestedByUid: r?.requestedByUid || rec.requestedByUid || null,
-      requestedByName: await displayNameOf(r?.requestedByUid || rec.requestedByUid || null),
+      key: reqKey,
+      uid: emailKey ? null : reqKey,
+      emailKey,
+      email,
+      targetName: emailKey ? displayLabel(rec, email) : await displayNameOf(reqKey),
+      requestedByUid,
+      requestedByName: await displayNameOf(requestedByUid),
       requestedByRole: ROLE_NAME[r?.requestedByRank] || null,
       requestedAt: r?.requestedAt || rec.bannedAt || null,
       reason: r?.reason || rec.reason || null,
@@ -1044,58 +1103,113 @@ async function handlePermRequests(res) {
   return res.json({ ok: true, requests: out.slice(0, PERM_REQUESTS_MAX), total: out.length });
 }
 
-// Admin answer to a request. Confirm = the permanent ban the requester
-// could not place: devices, Auth disable and the linked accounts banned with
-// it (pendingPermanent, linkedFrom the target) — rank of the ban becomes the
-// admin's, so only an admin lifts it. Reject = stays the 30-day ban.
+// Take the request out of the queue in one transaction: of two Admins
+// answering at once, only the one whose transaction removed it goes on.
+// Returns the request, or null when there was none (any more).
+async function claimPermRequest(reqKey) {
+  let claimed = null;
+  const r = await db().ref(`perm_ban_requests/${reqKey}`).transaction((cur) => {
+    claimed = cur; // the last run sees the server value
+    return null;
+  });
+  return r.committed ? asRecord(claimed) : null;
+}
+const restorePermRequest = (reqKey, req) =>
+  db().ref(`perm_ban_requests/${reqKey}`).set(req).catch((e) =>
+    console.error('[banEnforcement] could not restore perm request', reqKey, e?.message));
+
+// Confirm = the permanent ban the requester could not place (devices, Auth,
+// linked accounts via settleDerived); the admin becomes its banner, so only
+// an admin lifts it. Reject = stays the 30-day ban, no longer pending.
+const decidedBan = (rec, confirm, actor) => (confirm
+  ? { ...rec, bannedUntil: 'permanent', pendingPermanent: false, bannedByUid: actor.uid, bannedByRank: actor.rank }
+  : { ...rec, pendingPermanent: false });
+
+// Builds that only listen by email see the same ban.
+async function settleEmailRecord(recordKey, confirm, actor, ctx) {
+  if (!recordKey) return;
+  const eref = db().ref(`banned_users_by_email/${recordKey}`);
+  const cur = asRecord((await eref.get()).val());
+  if (!cur || !isActive(cur.bannedUntil) || recordType(cur) !== 'ban') return;
+  await eref.update(confirm
+    ? {
+      bannedUntil: 'permanent', pendingPermanent: null, managedBy: 'server',
+      bannedBy: { uid: actor.uid, displayName: ctx.caller.name || 'Staff', avatar: null, role: ROLE_NAME[actor.rank] || 'admin' },
+    }
+    : { pendingPermanent: null, managedBy: 'server' });
+}
+
+async function logPermDecision(action, { uid, email, name, rec, req, actor, ctx, linkedUpdated }) {
+  const confirm = action === 'perm_confirm';
+  await logModAction({
+    target_uid: uid, target_email: email, target_name: name,
+    action, reason: ctx.reason || null, strike_count: rec.strikeCount || 3,
+    banned_until_ms: confirm ? null : rec.bannedUntil, is_permanent: confirm,
+    evidence: ctx.evidence,
+    details: { requested_by: req?.requestedByUid || rec.requestedByUid || null, linked_updated: linkedUpdated },
+    ...(await actorInfo(actor.uid)), source: uid ? 'uid' : 'email',
+  });
+}
+
 async function handlePermDecision(res, action, targetUid, identity, actor, ctx, summary) {
   const confirm = action === 'perm_confirm';
+  const req = await claimPermRequest(targetUid);
   const uidRec = asRecord((await db().ref(`banned_uids/${targetUid}`).get()).val());
-  const req = asRecord((await db().ref(`perm_ban_requests/${targetUid}`).get()).val());
-  if (!isPendingBan(uidRec)) {
-    if (req) await db().ref(`perm_ban_requests/${targetUid}`).remove();
-    return fail(res, 'not_pending', summary);
-  }
-  const decided = (rec) => (confirm
-    ? { ...rec, bannedUntil: 'permanent', pendingPermanent: false, bannedByUid: actor.uid, bannedByRank: actor.rank }
-    : { ...rec, pendingPermanent: false });
+  if (!req || !isPendingBan(uidRec)) return fail(res, 'not_pending', summary);
 
-  const out = await applyBan(targetUid, decided(uidRec), identity);
-
-  // Builds that only listen by email see the same ban.
-  const key = uidRec.emailKey || (identity.email ? encodeEmailKey(identity.email) : null);
-  if (key && out.applied) {
-    const eref = db().ref(`banned_users_by_email/${key}`);
-    const cur = asRecord((await eref.get()).val());
-    if (cur && isActive(cur.bannedUntil) && recordType(cur) === 'ban') {
-      await eref.update(confirm
-        ? {
-          bannedUntil: 'permanent', pendingPermanent: null, managedBy: 'server',
-          bannedBy: { uid: actor.uid, displayName: ctx.caller.name || 'Staff', avatar: null, role: ROLE_NAME[actor.rank] || 'admin' },
-        }
-        : { pendingPermanent: null, managedBy: 'server' });
+  let out;
+  try {
+    out = await applyBan(targetUid, decidedBan(uidRec, confirm, actor), identity);
+    if (out.applied) {
+      await settleEmailRecord(uidRec.emailKey || (identity.email ? encodeEmailKey(identity.email) : null), confirm, actor, ctx);
     }
+  } catch (e) {
+    await restorePermRequest(targetUid, req);
+    throw e;
   }
-
-  let linkedUpdated = 0;
-  const linked = await db().ref('banned_uids').orderByChild('linkedFrom').equalTo(targetUid)
-    .limitToFirst(LINKED_LIMIT * 2).get();
-  for (const [altUid, alt] of Object.entries(linked.val() || {})) {
-    if (!isPendingBan(alt) || altUid === actor.uid) continue;
-    const altId = await resolveIdentity(altUid);
-    if (isStaffRank(await readRank(altUid, altId.authUser))) continue;
-    if ((await applyBan(altUid, decided(alt), altId)).applied) linkedUpdated += 1;
-  }
-
-  await logModAction({
-    target_uid: targetUid, target_email: identity.email, target_name: await displayNameOf(targetUid),
-    action, reason: ctx.reason || null, strike_count: uidRec.strikeCount || 3,
-    banned_until_ms: confirm ? null : uidRec.bannedUntil, is_permanent: confirm,
-    evidence: ctx.evidence,
-    details: { requested_by: req?.requestedByUid || uidRec.requestedByUid || null, linked_updated: linkedUpdated },
-    ...(await actorInfo(actor.uid)), source: 'uid',
+  await logPermDecision(action, {
+    uid: targetUid, email: identity.email, name: await displayNameOf(targetUid),
+    rec: uidRec, req, actor, ctx, linkedUpdated: out.derivedUpdated || 0,
   });
-  return res.json({ ok: true, ...summary, ...out, linkedUpdated });
+  return res.json({ ok: true, ...summary, ...out, linkedUpdated: out.derivedUpdated || 0 });
+}
+
+// An email-only request (no account when it was made). Confirm makes the
+// email record permanent, so a sign-up with that email is banned for good;
+// an account made with it since then follows too.
+async function handlePermDecisionEmail(res, action, rawKey, actor, ctx) {
+  const key = canonicalBanKey(rawKey);
+  if (!key || /[.#$[\]/]/.test(key)) return fail(res, 'bad_target');
+  const confirm = action === 'perm_confirm';
+  const email = decodeEmailKey(key);
+  let uid = null;
+  try { uid = (await admin.auth().getUserByEmail(email)).uid; } catch (_) { /* still no account */ }
+  if (uid) {
+    if (uid === actor.uid) return fail(res, 'self_target');
+    const denied = checkActorOverTarget(actor, uid, await rankOfUid(uid));
+    if (denied) return fail(res, denied);
+  }
+  const reqKey = emailRequestKey(key);
+  const req = await claimPermRequest(reqKey);
+  const recordKey = req?.recordKey || key;
+  const rec = asRecord((await db().ref(`banned_users_by_email/${recordKey}`).get()).val());
+  if (!req || !isPendingBan(rec)) return fail(res, 'not_pending');
+
+  let out = { applied: false };
+  try {
+    await settleEmailRecord(recordKey, confirm, actor, ctx);
+    if (uid) {
+      const uidRec = asRecord((await db().ref(`banned_uids/${uid}`).get()).val());
+      if (isPendingBan(uidRec)) out = await applyBan(uid, decidedBan(uidRec, confirm, actor), await resolveIdentity(uid));
+    }
+  } catch (e) {
+    await restorePermRequest(reqKey, req);
+    throw e;
+  }
+  await logPermDecision(action, {
+    uid, email, name: displayLabel(rec, email), rec, req, actor, ctx, linkedUpdated: out.derivedUpdated || 0,
+  });
+  return res.json({ ok: true, accountExists: !!uid, ...out, linkedUpdated: out.derivedUpdated || 0 });
 }
 
 async function handleSanction(res, action, body, targetUid, identity, actor, ctx, summary) {
@@ -1261,13 +1375,15 @@ exports.modSanction = functions
 // what the real writer may do
 // --------------------------------------------------------------------
 
-// v1 context → { admin: true } | { uid, rank } | null (unauthenticated).
+// v1 context → { admin: true } | { uid, rank, banned } | null (unauthenticated).
+// `banned`: the writer is staff under an active ban — every write is refused.
 async function resolveWriter(context) {
   if (context.authType === 'ADMIN') return { admin: true };
   if (context.authType !== 'USER') return null;
   const uid = context.auth?.uid;
   if (!uid) return null;
-  return { uid, rank: await readRank(uid, context.auth.token || {}) };
+  const rank = await readRank(uid, context.auth.token || {});
+  return { uid, rank, banned: isStaffRank(rank) && (await isActorBanned(uid)) };
 }
 
 // The account an email record is about. The key IS the email, so the live
@@ -1436,7 +1552,8 @@ async function handleEmailBanWrite(change, context) {
     const targetRank = primary ? await rankOfUid(primary) : RANK.user;
     const uidRec = primary ? asRecord((await db().ref(`banned_uids/${primary}`).get()).val()) : null;
     const src = sameSourceKey(uidRec, key) && isActive(uidRec.bannedUntil) ? uidRec : before;
-    const denied = checkActorOverTarget(actor, primary, targetRank) || (await checkLift(actor, src));
+    const denied = (actor.banned && 'actor_banned') || checkActorOverTarget(actor, primary, targetRank) ||
+      (await checkLift(actor, src));
     if (denied) {
       console.warn(`[syncEmailBan] ${actor.uid} may not lift ${rawKey} (${denied}); restoring`);
       const restored = await revertEmailRecord(rawKey, after, before);
@@ -1472,7 +1589,7 @@ async function handleEmailBanWrite(change, context) {
   const prev = sameSource && isActive(uidRec.bannedUntil) ? uidRec : beforeActive ? before : null;
   const softens = !!prev && isSofter(after, prev);
 
-  let denied = checkSanction(actor, target, targetRank, { type, minutes, permanent });
+  let denied = (actor.banned && 'actor_banned') || checkSanction(actor, target, targetRank, { type, minutes, permanent });
   if (!denied && softens) denied = await checkLift(actor, prev);
   if (denied) {
     console.warn(`[syncEmailBan] ${actor.uid} may not write ${rawKey} (${denied}); reverting`);
@@ -1502,6 +1619,11 @@ async function handleEmailBanWrite(change, context) {
       requestedByUid: actor.uid, requestedByRank: actor.rank, requestedAt: now,
       reason: rec.reason || null, strikeCount: rec.strikeCount || 3, includeLinked: false,
     };
+    // Old builds also copied the ban onto banned_devices as 'permanent':
+    // drop those, applyBan re-bans the devices for the 30 days.
+    if (target) await dropClientDeviceCopies(target, identity, after);
+    // No account behind the email: the request is keyed by the email.
+    else await db().ref(`perm_ban_requests/${emailRequestKey(key)}`).set({ ...permRequest, recordKey: rawKey, bannedUntil: rec.bannedUntil });
   }
   if (!target) return null; // no account behind this email (yet): banCheckOnSignup covers it
 

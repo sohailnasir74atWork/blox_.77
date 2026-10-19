@@ -97,6 +97,7 @@ const ERROR_TEXT = {
   rank_limit: 'Your rank does not allow this action (Junior Mods can only mute for up to 1 day).',
   admin_only: 'Only an Admin can do this.',
   not_pending: 'This ban is no longer waiting for a decision (lifted, expired or already decided).',
+  actor_banned: 'You are banned, so your staff tools are paused until the ban ends.',
   banner_outranks: 'This was placed by a higher-ranked staff member. Ask them or an admin to lift it.',
   stricter_ban_active: 'A stricter ban is already active on this user.',
   bad_action: 'This action is not supported by the server yet.',
@@ -186,16 +187,22 @@ export const describeSanctionResult = (r) => {
 
 /**
  * Admin/owner: open permanent-ban requests (non-admin 3rd strikes).
- * @returns {Promise<{ok: boolean, error?: string, requests?: Array<{uid: string,
+ * `uid` is null for an email-only strike (no account yet): then `emailKey` / `email`.
+ * @returns {Promise<{ok: boolean, error?: string, requests?: Array<{key: string, uid: string|null,
+ *   emailKey: string|null, email: string|null,
  *   targetName: string|null, requestedByUid: string|null, requestedByName: string|null,
  *   requestedByRole: string|null, requestedAt: number|null, reason: string|null,
  *   evidence: string[], strikeCount: number, bannedUntil: number, includeLinked: boolean}>}>}
  */
 export const fetchPermRequests = () => callModSanction('perm_requests', null);
 
-/** Admin/owner: 'confirm' (→ permanent) or 'reject' (stays 30 days). */
-export const decidePermRequest = (targetUid, decision, reason) =>
-  callModSanction(decision === 'confirm' ? 'perm_confirm' : 'perm_reject', targetUid, { reason });
+/** Admin/owner: answer one request from fetchPermRequests — 'confirm' (→ permanent) or 'reject' (stays 30 days). */
+export const decidePermRequest = (request, decision, reason) =>
+  callModSanction(
+    decision === 'confirm' ? 'perm_confirm' : 'perm_reject',
+    request?.uid || null,
+    request?.uid ? { reason } : { reason, emailKey: request?.emailKey },
+  );
 
 /**
  * Audit-log a staff action that isn't a sanction (message delete, pin, role

@@ -525,6 +525,132 @@ async function main() {
     BE.setSupabaseForTest(undefined);
   });
 
+  console.log('\n# review fixes 2026-10-19');
+  await test('FIX1 banned staff lose server powers (modSanction + email path); muted staff keep them', async () => {
+    const m4 = await mkUser('ModBanned', { role: 'isModerator' });
+    const m5 = await mkUser('ModMuted', { role: 'isModerator' });
+    const t = await mkUser('FixOneT');
+    const placed = await mkUser('FixOnePlaced');
+    assert.strictEqual((await sanction(m4, { action: 'strike', targetUid: placed.uid, strikeCount: 1, reason: 'x' })).status, 200);
+    assert.strictEqual((await sanction(senior, { action: 'strike', targetUid: m4.uid, strikeCount: 1, reason: 'abuse' })).status, 200);
+    for (const body of [
+      { action: 'mute', targetUid: t.uid, minutes: 5, reason: 'x' },
+      { action: 'strike', targetUid: t.uid, strikeCount: 1, reason: 'x' },
+      { action: 'unban', targetUid: placed.uid },
+      { action: 'linked', targetUid: t.uid },
+      { action: 'log', targetUid: t.uid, logAction: 'message_delete' },
+    ]) {
+      const r = await sanction(m4, body);
+      assert.strictEqual(r.status, 403, `${body.action}: ${JSON.stringify(r.body)}`); assert.strictEqual(r.body.error, 'actor_banned');
+    }
+    // Email path: a ban written by the banned mod is reverted, a lift restored.
+    const k = ekey(t.email);
+    await userWrite(m4, `banned_users_by_email/${k}`, strikeRec(m4, t, 1));
+    await waitFor(async () => (await val(`banned_users_by_email/${k}`)) === null, 'banned writer reverted');
+    assert.strictEqual(await val(`banned_uids/${t.uid}`), null);
+    const kp = ekey(placed.email);
+    await userDelete(m4, `banned_users_by_email/${kp}`);
+    await waitFor(async () => !!(await val(`banned_users_by_email/${kp}`)), 'lift by banned writer restored');
+    assert.ok(await activeBan(placed.uid));
+    // A mute does not pause staff tools; the ban ending does.
+    assert.strictEqual((await sanction(senior, { action: 'mute', targetUid: m5.uid, minutes: 60, reason: 'x' })).status, 200);
+    assert.strictEqual((await sanction(m5, { action: 'mute', targetUid: t.uid, minutes: 5, reason: 'x' })).status, 200);
+    assert.strictEqual((await sanction(senior, { action: 'unban', targetUid: m4.uid })).status, 200);
+    assert.strictEqual((await sanction(m4, { action: 'unban', targetUid: placed.uid })).status, 200);
+  });
+
+  await test('FIX2 two admins answering one request at once: one wins, record consistent', async () => {
+    const admin2 = await mkUser('AdminRace', { role: 'isAdmin' });
+    for (const [first, second] of [['perm_confirm', 'perm_confirm'], ['perm_confirm', 'perm_reject'], ['perm_reject', 'perm_confirm']]) {
+      const t = await mkUser(`Race${first}${second}`);
+      await sanction(mod, { action: 'strike', targetUid: t.uid, strikeCount: 3, reason: 'x' });
+      const [a, b] = await Promise.all([
+        inProcessSanction(adminU, { action: first, targetUid: t.uid }),
+        inProcessSanction(admin2, { action: second, targetUid: t.uid }),
+      ]);
+      const codes = [a.statusCode, b.statusCode].sort();
+      assert.deepStrictEqual(codes, [200, 409], `${first}/${second}: ${JSON.stringify([a.body, b.body])}`);
+      const winner = a.statusCode === 200 ? first : second;
+      const rec = await val(`banned_uids/${t.uid}`);
+      assert.strictEqual(rec.pendingPermanent, undefined);
+      assert.strictEqual(await val(`perm_ban_requests/${t.uid}`), null);
+      const disabled = (await admin.auth().getUser(t.uid)).disabled;
+      if (winner === 'perm_confirm') {
+        assert.strictEqual(rec.bannedUntil, 'permanent'); assert.strictEqual(rec.authDisabledByBan, true); assert.strictEqual(disabled, true);
+      } else {
+        assert.strictEqual(typeof rec.bannedUntil, 'number'); assert.ok(!rec.authDisabledByBan); assert.strictEqual(disabled, false);
+      }
+    }
+  });
+
+  await test('FIX3 old-build permanent client device copy is dropped on the 30-day conversion', async () => {
+    const t = await mkUser('OldDevCopy');
+    const fp = fp16();
+    await indexDevice(t.uid, fp);
+    for (let i = 0; i < 3; i++) await indexDevice((await mkUser(`OldDevFam${i}`)).uid, fp); // shared: server won't ban it
+    const payload = strikeRec(mod, t, 3);
+    await userWrite(mod, `banned_devices/${fp}`, {
+      bannedUntil: 'permanent', bannedAt: payload.bannedAt, bannedBy: payload.bannedBy, reason: payload.reason, strikeCount: 3, email: t.email, userId: t.uid,
+    });
+    await userWrite(mod, `banned_users_by_email/${ekey(t.email)}`, payload);
+    await waitFor(async () => (await activeBan(t.uid))?.pendingPermanent === true, 'converted');
+    await waitFor(async () => (await val(`banned_devices/${fp}`)) === null, 'permanent client copy dropped');
+  });
+
+  await test('FIX4 email-only permanent strike, no account: 30 days + email-keyed request; confirm / reject', async () => {
+    const email = `noacct.${RUN}.${Date.now()}@example.com`;
+    const k = ekey(email);
+    const rec = { ...strikeRec(mod, { email, label: 'NoAcct', uid: null }, 3), userId: null };
+    await userWrite(mod, `banned_users_by_email/${k}`, rec);
+    const em = await waitFor(async () => {
+      const v = await val(`banned_users_by_email/${k}`);
+      return v && v.managedBy === 'server' ? v : null;
+    }, 'rewritten');
+    assert.strictEqual(typeof em.bannedUntil, 'number'); assert.strictEqual(em.pendingPermanent, true);
+    const req = await waitFor(() => val(`perm_ban_requests/email:${k}`), 'email request');
+    assert.strictEqual(req.requestedByUid, mod.uid); assert.strictEqual(req.recordKey, k);
+    const list = await sanction(adminU, { action: 'perm_requests' });
+    const row = list.body.requests.find((x) => x.key === `email:${k}`);
+    assert.ok(row, JSON.stringify(list.body)); assert.strictEqual(row.uid, null); assert.strictEqual(row.email, email);
+    assert.strictEqual((await sanction(mod, { action: 'perm_confirm', emailKey: k })).body.error, 'admin_only');
+    const c = await sanction(adminU, { action: 'perm_confirm', emailKey: k, reason: 'ok' });
+    assert.strictEqual(c.status, 200, JSON.stringify(c.body)); assert.strictEqual(c.body.accountExists, false);
+    assert.strictEqual((await val(`banned_users_by_email/${k}`)).bannedUntil, 'permanent');
+    assert.strictEqual(await val(`perm_ban_requests/email:${k}`), null);
+    assert.strictEqual((await sanction(adminU, { action: 'perm_confirm', emailKey: k })).body.error, 'not_pending');
+    // Signing up with that email now is a permanent ban.
+    const u = await admin.auth().createUser({ email, password: 'test-pass-123' });
+    assert.strictEqual((await waitFor(() => activeBan(u.uid), 're-ban on sign-up')).bannedUntil, 'permanent');
+
+    // An account made while pending follows the decision (reject → 30 days).
+    const email2 = `noacct2.${RUN}.${Date.now()}@example.com`;
+    const k2 = ekey(email2);
+    await userWrite(mod, `banned_users_by_email/${k2}`, { ...strikeRec(mod, { email: email2, label: 'NoAcct2', uid: null }, 3), userId: null });
+    await waitFor(() => val(`perm_ban_requests/email:${k2}`), 'email request 2');
+    const u2 = await admin.auth().createUser({ email: email2, password: 'test-pass-123' });
+    assert.strictEqual((await waitFor(() => activeBan(u2.uid), 'pending on sign-up')).pendingPermanent, true);
+    const rj = await sanction(adminU, { action: 'perm_reject', emailKey: k2 });
+    assert.strictEqual(rj.status, 200, JSON.stringify(rj.body)); assert.strictEqual(rj.body.accountExists, true);
+    const b2 = await val(`banned_uids/${u2.uid}`);
+    assert.strictEqual(typeof b2.bannedUntil, 'number'); assert.strictEqual(b2.pendingPermanent, undefined);
+    assert.strictEqual((await val(`banned_users_by_email/${k2}`)).pendingPermanent, undefined);
+  });
+
+  await test('FIX5 an admin strike 3 over a pending ban settles its linked accounts', async () => {
+    const t = await mkUser('SettleT');
+    const fp = fp16();
+    await indexDevice(t.uid, fp);
+    const alt = await mkUser('SettleAlt');
+    await indexDevice(alt.uid, fp);
+    await sanction(mod, { action: 'strike', targetUid: t.uid, strikeCount: 3, reason: 'x', includeLinked: true, linkedUids: [alt.uid] });
+    assert.strictEqual((await val(`banned_uids/${alt.uid}`)).pendingPermanent, true);
+    const r = await sanction(adminU, { action: 'strike', targetUid: t.uid, strikeCount: 3, reason: 'final' });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.body)); assert.strictEqual(r.body.derivedUpdated, 1);
+    const a = await val(`banned_uids/${alt.uid}`);
+    assert.strictEqual(a.bannedUntil, 'permanent'); assert.strictEqual(a.pendingPermanent, undefined); assert.strictEqual(a.bannedByRank, 4);
+    assert.strictEqual(await val(`perm_ban_requests/${t.uid}`), null);
+  });
+
   console.log('\n# bans vs mutes, mirrors');
   await test('F8/F13 admin strike 3: type ban, Firestore mirror, Auth disabled; unban reverses all', async () => {
     const a = await mkUser('PermA');

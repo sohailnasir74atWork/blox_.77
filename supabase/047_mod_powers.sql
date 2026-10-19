@@ -11,6 +11,13 @@
 --     _jwt_is_owner() (040) is not installed on every Blox database.
 --   * mod_actions_for_user (ONE user's timeline, shown to every staff rank in
 --     the profile drawer's Mod Tools) stays on is_mod_staff().
+--   * Banned staff lose their staff powers: is_mod_staff() (and the new
+--     helper) are false while the caller has an active BAN in banned_senders
+--     (mutes don't count). Senior Mods can now ban Mods/JMDs, and a ban below
+--     permanent leaves the Firebase account working. Same rule as
+--     functions/banEnforcement.js isActorBanned. Signature, grants and the
+--     coalesce are unchanged; the owner check is now the VERIFIED one (040),
+--     inline because _jwt_is_owner() is not on every Blox database.
 --   * mod_actions.action also allows 'perm_confirm' / 'perm_reject' (an
 --     admin's answer to a non-admin's 3rd strike, which is now a 30-day ban
 --     waiting for an admin) and 'post_delete' (staff deleting a feed post).
@@ -30,8 +37,70 @@
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
--- STEP 1 — is_senior_mod_staff()
+-- STEP 1 — _caller_has_active_ban(), is_mod_staff(), is_senior_mod_staff()
+--
+-- banned_senders (030) holds bans AND mutes; banned_until NULL = permanent.
+-- `type` (033) says which; legacy rows with no type are mutes iff the reason
+-- starts "Muted for" (same rule as 034's _sender_ban_kind, inlined so this
+-- does not depend on 034).
 -- ---------------------------------------------------------------------
+create or replace function public._caller_has_active_ban()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1
+      from public.banned_senders b
+     where b.uid = public.firebase_uid()
+       and (b.banned_until is null or b.banned_until > now())
+       and coalesce(b.type, case when coalesce(b.reason, '') ~* '^muted for' then 'mute' else 'ban' end) = 'ban'
+  );
+$$;
+
+revoke all on function public._caller_has_active_ban() from public;
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    revoke all on function public._caller_has_active_ban() from anon;
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'authenticated') then
+    revoke all on function public._caller_has_active_ban() from authenticated;
+  end if;
+end $$;
+
+-- 031 / 040 body plus "and not banned". create or replace keeps its grants.
+create or replace function public.is_mod_staff()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select coalesce(
+    (
+      exists (
+        select 1
+          from public.user_roles
+         where uid = public.firebase_uid()
+           and (is_admin = true or is_cmsr = true or is_moderator = true or is_baby_mod = true)
+      )
+      or (
+        (c ->> 'email_verified')::boolean
+        and lower(c ->> 'email') in (
+          'thesolanalabs@gmail.com',
+          'sohailnasir74business@gmail.com',
+          'sohailnasir74@gmail.com'
+        )
+      )
+    )
+    and not public._caller_has_active_ban(),
+    false
+  )
+  from (select nullif(current_setting('request.jwt.claims', true), '')::jsonb as c) s;
+$$;
+
 create or replace function public.is_senior_mod_staff()
 returns boolean
 language sql
@@ -40,20 +109,23 @@ set search_path = public
 stable
 as $$
   select coalesce(
-    exists (
-      select 1
-        from public.user_roles
-       where uid = public.firebase_uid()
-         and (is_admin = true or is_cmsr = true)
-    )
-    or (
-      (c ->> 'email_verified')::boolean
-      and lower(c ->> 'email') in (
-        'thesolanalabs@gmail.com',
-        'sohailnasir74business@gmail.com',
-        'sohailnasir74@gmail.com'
+    (
+      exists (
+        select 1
+          from public.user_roles
+         where uid = public.firebase_uid()
+           and (is_admin = true or is_cmsr = true)
       )
-    ),
+      or (
+        (c ->> 'email_verified')::boolean
+        and lower(c ->> 'email') in (
+          'thesolanalabs@gmail.com',
+          'sohailnasir74business@gmail.com',
+          'sohailnasir74@gmail.com'
+        )
+      )
+    )
+    and not public._caller_has_active_ban(),
     false
   )
   from (select nullif(current_setting('request.jwt.claims', true), '')::jsonb as c) s;
@@ -217,6 +289,7 @@ grant execute on function public.mod_leaderboard(int, int) to authenticated;
 notify pgrst, 'reload schema';
 
 -- Verify:
+--   select prosrc ~ '_caller_has_active_ban' from pg_proc where proname = 'is_mod_staff';   -- true
 --   select pg_get_constraintdef(oid) from pg_constraint
 --    where conname = 'mod_actions_action_check';         -- has perm_confirm, perm_reject, post_delete
 --   select prosrc ~ 'is_senior_mod_staff' from pg_proc
@@ -229,4 +302,7 @@ notify pgrst, 'reload schema';
 --   * Keep the widened CHECK: narrowing it fails on (or needs deleting)
 --     audit rows written with the new actions. Do not delete audit rows.
 --   * drop function if exists public.is_senior_mod_staff();   -- after the two above
+--   * is_mod_staff() without the ban check: re-run 040 section 2 (or 031
+--     section 1 where 040 was never applied), then
+--     drop function if exists public._caller_has_active_ban();
 -- =====================================================================
