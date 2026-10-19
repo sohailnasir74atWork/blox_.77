@@ -407,7 +407,9 @@ begin
            coalesce(m.room_id, pm.chat_id, gm.group_id),
            coalesce(m.text, pm.text, gm.text),
            coalesce(pm.image_url, gm.image_url),
-           m.gif,
+           -- Stickers in DMs / groups (050 adds their gif column). to_jsonb so
+           -- this works before 050 too: a missing key is NULL.
+           coalesce(m.gif, to_jsonb(pm) ->> 'gif', to_jsonb(gm) ->> 'gif'),
            coalesce(m.deleted, pm.deleted, gm.deleted),
            coalesce(m.report_count, pm.report_count, gm.report_count),
            g.n, g.last_at, to_jsonb(g.reps)

@@ -273,5 +273,29 @@ ok(await canRead('M', 'chat5'), 'legacy report with no reported_uid: unchanged')
 ok(!(await canRead('M', 'chat9')), 'unreported chat still refused');
 ok(!(await canRead('U1', 'chat1')), 'non-staff still refused');
 
+// Stickers: report rows carry the gif of a public, private or group message,
+// before 050 (no gif column on private/group messages) and after it.
+await q(`delete from public.message_reports`);
+const pub = await one(`insert into public.messages (room_id, sender_id, gif) values ('${R}', 'U2', 'https://x/pub.gif') returning id`);
+const dm = await one(`insert into public.private_messages (chat_id, sender_id, recipient_id) values ('chat7', 'U2', 'U1') returning id`);
+const grp = await one(`insert into public.group_messages (group_id, sender_id) values ('g7', 'U2') returning id`);
+const reportMsg = (table, id) => q(`insert into public.message_reports (table_name, message_id, reporter_uid, sender_uid, reason)
+  values ($1, $2, 'R1', 'U2', 'spam')`, [table, id]);
+await reportMsg('messages', pub.id); await reportMsg('private_messages', dm.id); await reportMsg('group_messages', grp.id);
+const gifs = async () => Object.fromEntries((await as('O', () => q(`select table_name, message_gif from public.list_message_reports(50, null)`)))
+  .map((r) => [r.table_name, r.message_gif]));
+const g1 = await gifs();
+ok(g1.messages === 'https://x/pub.gif' && g1.private_messages === null && g1.group_messages === null, `before 050: public gif, others null (got ${JSON.stringify(g1)})`);
+ok((await readChat('A', 'chat2')).length === 1, 'mod_read_private_chat before 050');
+await db.exec(`alter table public.private_messages add column if not exists gif text;
+  alter table public.group_messages add column if not exists gif text;`);
+await q(`update public.private_messages set gif = 'https://x/dm.gif' where id = $1`, [dm.id]);
+await q(`update public.group_messages set gif = 'https://x/grp.gif' where id = $1`, [grp.id]);
+const g2 = await gifs();
+ok(g2.messages === 'https://x/pub.gif' && g2.private_messages === 'https://x/dm.gif' && g2.group_messages === 'https://x/grp.gif',
+  `after 050: sticker gifs for DM and group reports (got ${JSON.stringify(g2)})`);
+const after = await readChat('A', 'chat2');
+ok(after.length === 1 && 'gif' in after[0], 'mod_read_private_chat after 050 returns the gif column');
+
 console.log(`046: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
