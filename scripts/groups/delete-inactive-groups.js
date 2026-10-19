@@ -124,9 +124,19 @@ function cliRunner(repoRoot) {
     const file = path.join(os.tmpdir(), `group-cleanup-${process.pid}-${Date.now()}.sql`);
     fs.writeFileSync(file, sql);
     try {
-      const out = execFileSync('npx', ['--yes', 'supabase@2.120.0', 'db', 'query', '--linked', '-f', file, '-o', 'json'],
-        { cwd: repoRoot, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
-      return JSON.parse(out).rows || [];
+      let out;
+      try {
+        out = execFileSync('npx', ['--yes', 'supabase@2.120.0', 'db', 'query', '--linked', '-f', file, '-o', 'json'],
+          { cwd: repoRoot, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
+      } catch (e) {
+        throw new Error(`Supabase CLI failed: ${String(e.stderr || e.message).trim().slice(0, 500)}`);
+      }
+      let parsed;
+      try { parsed = JSON.parse(out); } catch (_) {
+        throw new Error(`Supabase CLI did not return JSON: ${String(out).trim().slice(0, 500)}`);
+      }
+      if (!Array.isArray(parsed?.rows)) throw new Error(`Supabase CLI returned no rows field: ${String(out).trim().slice(0, 500)}`);
+      return parsed.rows;
     } finally {
       fs.rmSync(file, { force: true });
     }
@@ -139,6 +149,12 @@ async function plan({ db, store, now, days }) {
     db.collection('groups').get(),
     store.activeGroupIds(new Date(cutoff).toISOString()),
   ]);
+  // A database read that silently returns nothing must never look like
+  // "no group is active" — that would delete every group.
+  if (active.size === 0) {
+    throw new Error('the database returned no group messages for the window, so every group would look inactive. Not continuing. '
+      + 'Check the Supabase login (npx supabase@2.120.0 projects list) or run from the Blox_Fruit folder.');
+  }
   const keepActive = [];
   const keepNew = [];
   const remove = [];
