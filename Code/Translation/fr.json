@@ -1084,14 +1084,17 @@
             "tab_trusted": "Fiables",
             "tab_grinder": "Acharnés",
             "tab_raider": "Raiders",
+            "tab_helper": "Assistants",
             "empty_topRated": "Aucun joueur avec une note d’au moins 3,7",
             "empty_trusted": "Aucun joueur fiable pour le moment",
             "empty_grinder": "Aucun joueur acharné pour le moment",
             "empty_raider": "Aucun raider pour le moment",
+            "empty_helper": "Aucun assistant pour le moment",
             "loading_topRated": "Chargement des mieux notés…",
             "loading_trusted": "Chargement des joueurs fiables…",
             "loading_grinder": "Chargement des joueurs acharnés…",
             "loading_raider": "Chargement des raiders…",
+            "loading_helper": "Chargement des assistants…",
             "loading_subtext": "Affichage des joueurs les plus évalués avec une note d’au moins 3,7…",
             "updated_daily": "Le classement est mis à jour chaque jour",
             "last_updated": "Dernière mise à jour : {{date}}"
@@ -2488,7 +2491,8 @@
             "jmd": "Mod. junior",
             "trusted": "Membre de confiance",
             "grinder": "Farmeur",
-            "raider": "Raider"
+            "raider": "Raider",
+            "helper": "Assistant"
         },
         "image_viewer": {
             "storage_denied": "Autorise l’accès au stockage pour enregistrer des images.",

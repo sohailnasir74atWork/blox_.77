@@ -1083,14 +1083,17 @@
       "tab_trusted": "信頼",
       "tab_grinder": "やり込み",
       "tab_raider": "レイド勢",
+      "tab_helper": "ヘルパー",
       "empty_topRated": "評価3.7以上のユーザーはまだいません",
       "empty_trusted": "信頼ユーザーはまだいません",
       "empty_grinder": "やり込みユーザーはまだいません",
       "empty_raider": "レイド勢のユーザーはまだいません",
+      "empty_helper": "ヘルパーのユーザーはまだいません",
       "loading_topRated": "高評価ユーザーを読み込み中…",
       "loading_trusted": "信頼ユーザーを読み込み中…",
       "loading_grinder": "やり込みユーザーを読み込み中…",
       "loading_raider": "レイド勢を読み込み中…",
+      "loading_helper": "ヘルパーを読み込み中…",
       "loading_subtext": "評価3.7以上でレビューの多いユーザーを表示しています…",
       "updated_daily": "ランキングは毎日更新されます",
       "last_updated": "最終更新：{{date}}"
@@ -2479,7 +2482,8 @@
       "jmd": "新人MOD",
       "trusted": "信頼済み",
       "grinder": "やり込み",
-      "raider": "レイド勢"
+      "raider": "レイド勢",
+      "helper": "ヘルパー"
     },
     "image_viewer": {
       "storage_denied": "画像を保存するには、ストレージへのアクセスを許可してください。",

@@ -1084,14 +1084,17 @@
       "tab_trusted": "De confianza",
       "tab_grinder": "Dedicados",
       "tab_raider": "Asaltantes",
+      "tab_helper": "Ayudantes",
       "empty_topRated": "No se encontraron usuarios con una valoración de 3,7 o más",
       "empty_trusted": "Aún no hay usuarios de confianza",
       "empty_grinder": "Aún no hay jugadores dedicados",
       "empty_raider": "Aún no hay asaltantes",
+      "empty_helper": "Aún no hay ayudantes",
       "loading_topRated": "Cargando los mejor valorados…",
       "loading_trusted": "Cargando usuarios de confianza…",
       "loading_grinder": "Cargando jugadores dedicados…",
       "loading_raider": "Cargando asaltantes…",
+      "loading_helper": "Cargando ayudantes…",
       "loading_subtext": "Se muestran los usuarios con más reseñas y una valoración de 3,7 o más…",
       "updated_daily": "La clasificación se actualiza a diario",
       "last_updated": "Última actualización: {{date}}"
@@ -2488,7 +2491,8 @@
       "jmd": "Mod. júnior",
       "trusted": "Usuario de confianza",
       "grinder": "Farmeador",
-      "raider": "Asaltante"
+      "raider": "Asaltante",
+      "helper": "Ayudante"
     },
     "image_viewer": {
       "storage_denied": "Permite el acceso al almacenamiento para guardar imágenes.",

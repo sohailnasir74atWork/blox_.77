@@ -298,6 +298,8 @@ async function main() {
     assert.strictEqual((await sanction(mod, { action: 'log', logAction: 'nuke' })).body.error, 'bad_log');
     assert.strictEqual((await sanction(mod, { action: 'log', logAction: 'pin', details: [1] })).body.error, 'bad_log');
     assert.strictEqual((await sanction(mod, { action: 'log', logAction: 'pin', details: { x: 'y'.repeat(3000) } })).body.error, 'bad_log');
+    // Custom titles (blox-badges, 2026-10-19).
+    assert.strictEqual((await sanction(mod, { action: 'log', targetUid: t.uid, logAction: 'title_change', details: { title: 'Event Host' } })).status, 200);
   });
 
   console.log('\n# bans vs mutes, mirrors');

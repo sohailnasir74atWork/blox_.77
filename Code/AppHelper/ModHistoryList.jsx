@@ -43,7 +43,7 @@ const LOG_LABEL = {
 
 const roleName = (key) => ({
   isSeniorMod: 'Senior Mod', isModerator: 'Mod', isBabyMod: 'JMD', isTrusted: 'Trusted',
-  isGrinder: 'Grinder', isRaider: 'Raider', isAdmin: 'Admin',
+  isGrinder: 'Grinder', isRaider: 'Raider', isAdmin: 'Admin', isHelper: 'Helper',
 }[key] || key || 'role');
 
 /** One-line label for a mod_actions row (also used by the Mod Log tab). */
@@ -56,6 +56,7 @@ export const describeModAction = (a) => {
     const d = a.details || {};
     return d.role ? `${d.value ? 'Made' : 'Removed'} ${roleName(d.role)}` : 'Role changed';
   }
+  if (a.action === 'title_change') return a.details?.title ? `Title set: ${a.details.title}` : 'Title removed';
   if (LOG_LABEL[a.action]) return LOG_LABEL[a.action];
   if (a.action === 'strike' || a.action === 'ban') {
     if (a.isPermanent) return `Strike ${a.strikeCount || 3} · permanent`;

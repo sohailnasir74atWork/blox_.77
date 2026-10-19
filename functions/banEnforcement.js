@@ -133,6 +133,7 @@ const EVIDENCE_URL_MAX = 1000;
 const DETAILS_MAX_BYTES = 2048;
 const LOG_ACTIONS = new Set([
   'message_delete', 'delete_all', 'pin', 'unpin', 'role_change', 'review_delete', 'profile_delete',
+  'title_change', // custom titles (2026-10-19; Supabase CHECK widened in 045)
 ]);
 const ACTIONS = new Set(['strike', 'mute', 'unban', 'unmute', 'linked', 'log']);
 

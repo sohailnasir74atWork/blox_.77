@@ -1083,14 +1083,17 @@
       "tab_trusted": "Vertrauenswürdig",
       "tab_grinder": "Fleißige Spieler",
       "tab_raider": "Raider",
+      "tab_helper": "Helfer",
       "empty_topRated": "Keine Nutzer mit mindestens 3,7 Sternen gefunden",
       "empty_trusted": "Noch keine vertrauenswürdigen Nutzer",
       "empty_grinder": "Noch keine fleißigen Spieler",
       "empty_raider": "Noch keine Raider",
+      "empty_helper": "Noch keine Helfer",
       "loading_topRated": "Am besten Bewertete werden geladen …",
       "loading_trusted": "Vertrauenswürdige Nutzer werden geladen …",
       "loading_grinder": "Fleißige Spieler werden geladen …",
       "loading_raider": "Raider werden geladen …",
+      "loading_helper": "Helfer werden geladen …",
       "loading_subtext": "Nutzer mit den meisten Bewertungen und mindestens 3,7 Sternen werden angezeigt …",
       "updated_daily": "Die Rangliste wird täglich aktualisiert",
       "last_updated": "Zuletzt aktualisiert: {{date}}"
@@ -2485,7 +2488,8 @@
       "jmd": "Junior-Mod",
       "trusted": "Vertrauenswürdig",
       "grinder": "Fleißiger Spieler",
-      "raider": "Raider"
+      "raider": "Raider",
+      "helper": "Helfer"
     },
     "image_viewer": {
       "storage_denied": "Erlaube den Speicherzugriff, um Bilder zu sichern.",

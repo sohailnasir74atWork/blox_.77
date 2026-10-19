@@ -15,7 +15,7 @@ import { getThemeColors } from '../../Helper/themeColors';
 import FramedAvatar from '../GroupChat/FramedAvatar';
 import { getActiveCosmetics } from '../../Engagement/shopUtils';
 import RoleBadges from '../../Design/componenets/RoleBadges';
-import { getCachedProfile } from '../../Helper/profileCache';
+import { getCachedProfile, warmProfileCache } from '../../Helper/profileCache';
 import { getRoblox, getRoles, getCosmetics } from '../../Supabase/userBackend';
 import { SUPABASE_USERS_ENABLED } from '../../Supabase/featureFlags';
 
@@ -43,6 +43,8 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
 
   // State for fetched user data
   const [userData, setUserData] = useState(null);
+  // Bumped when this user's profile lands in the profile cache (role badges).
+  const [profileVersion, setProfileVersion] = useState(0);
   const [activeCosmetics, setActiveCosmetics] = useState(null);
 
   // Memoize copyToClipboard
@@ -60,7 +62,15 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
     // Only fetch if robloxUsername is not already in selectedUser
     if (selectedUser?.robloxUsername || selectedUser?.robloxUserId) {
       setUserData(null);
-      return;
+      // Role badges come only from server data, not from selectedUser: make
+      // sure this profile is cached (cache-first, usually no request).
+      const cached = getCachedProfile(selectedUserId);
+      if (cached && !cached._seeded) return undefined;
+      let alive = true;
+      warmProfileCache(appdatabase, [selectedUserId])
+        .then(() => { if (alive) setProfileVersion((v) => v + 1); })
+        .catch(() => {});
+      return () => { alive = false; };
     }
 
     let isMounted = true;
@@ -103,6 +113,8 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
               isTrusted: !!roles?.isTrusted,
               isGrinder: !!roles?.isGrinder,
               isRaider: !!roles?.isRaider,
+              isHelper: !!roles?.isHelper,
+              customTitle: roles?.customTitle ?? null,
               profileFrame: profileFrameSnap?.exists() ? profileFrameSnap.val() : null,
             });
             return;
@@ -111,7 +123,8 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
 
         // Fallback: original 12-field RTDB fan-out.
         const [robloxUsernameSnap, robloxUserIdSnap, robloxUsernameVerifiedSnap,
-          isProSnap, lastGameWinAtSnap, isAdminSnap, isSeniorModSnap, isModeratorSnap, isTrustedSnap, isGrinderSnap, isRaiderSnap, profileFrameSnap] = await Promise.all([
+          isProSnap, lastGameWinAtSnap, isAdminSnap, isSeniorModSnap, isModeratorSnap, isTrustedSnap, isGrinderSnap, isRaiderSnap, profileFrameSnap,
+          isHelperSnap, customTitleSnap] = await Promise.all([
             get(ref(appdatabase, `users/${selectedUserId}/robloxUsername`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/robloxUserId`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/robloxUsernameVerified`)).catch(() => null),
@@ -124,6 +137,8 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
             get(ref(appdatabase, `users/${selectedUserId}/isGrinder`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/isRaider`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/profileFrame`)).catch(() => null),
+            get(ref(appdatabase, `users/${selectedUserId}/isHelper`)).catch(() => null),
+            get(ref(appdatabase, `users/${selectedUserId}/customTitle`)).catch(() => null),
           ]);
 
         if (!isMounted) return;
@@ -140,6 +155,8 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
           isTrusted: isTrustedSnap?.exists() ? isTrustedSnap.val() : false,
           isGrinder: isGrinderSnap?.exists() ? isGrinderSnap.val() : false,
           isRaider: isRaiderSnap?.exists() ? isRaiderSnap.val() : false,
+          isHelper: !!(isHelperSnap?.exists() && isHelperSnap.val()),
+          customTitle: customTitleSnap?.exists() && typeof customTitleSnap.val() === 'string' ? customTitleSnap.val() : null,
           profileFrame: profileFrameSnap?.exists() ? profileFrameSnap.val() : null,
         });
       } catch (error) {
@@ -325,7 +342,8 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
           <Text style={[styles.userName, { color: c.text }]} numberOfLines={1}>
             {userName}
           </Text>
-          <RoleBadges userItem={mergedUser} />
+          {/* Roles only from the fetched userData or the cache, never selectedUser */}
+          <RoleBadges userItem={mergedUser} serverRoles={userData} cacheVersion={profileVersion} />
 
           {(mergedUser?.isPro || cachedProfile?.isPro) && (
             <Image resizeMethod="resize" source={require('../../../assets/pro.png')} style={styles.inlineIcon} />

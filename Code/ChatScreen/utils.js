@@ -17,6 +17,10 @@ import {
   strikeDurationLabel,
   JMD_MAX_MUTE_MINUTES,
 } from '../Helper/modSanction';
+// Role grants: Helper badge + custom titles (2026-10-19).
+import { serverTimestamp } from '@react-native-firebase/database';
+import { validateContent } from '../Helper/ContentModeration';
+import { patchCachedProfile } from '../Helper/profileCache';
 
 // Returns true if the caller is trying to ban/mute/unban their own account.
 // All moderation actions go through utils.js, so guarding here closes every
@@ -34,8 +38,9 @@ const isSelfTargeting = (targetEmail, targetUid = null) => {
 // Owner (server-set owner flag) > Admin > Senior Mod > Mod > JMD > user.
 // Mods can't ban Mods. Admins can't ban Admins or owners. JMDs can only act
 // on regular users. Promote/demote rules: only Admins can manage Senior
-// Mods; Admins and Senior Mods can manage Mods; Admins, Senior Mods and
-// Mods can manage JMDs.
+// Mods; Admins and Senior Mods can manage Mods and JMDs (Mods lost JMD
+// management 2026-10-19); Mods and up give the cosmetic badges (Trusted,
+// Grinder, Raider, Helper); Senior Mods and up give custom titles.
 //
 // The server (functions/banEnforcement.js readRank) is the source of truth;
 // this copy only decides which buttons to show.
@@ -113,9 +118,18 @@ export const canLiftSanction = (caller, target, type, bannerRoles = null) => {
 export const canManageSeniorMod = (caller) => !!(caller?.isAdmin || caller?.isOwner);
 // Admins AND Senior Mods can appoint/remove Mods.
 export const canManageMod = (caller) => !!(caller?.isAdmin || caller?.isOwner || caller?.isSeniorMod);
-// Admins, Senior Mods AND Mods can appoint/remove JMDs.
+// Admins and Senior Mods can appoint/remove JMDs (owner decision
+// 2026-10-19: Mods no longer can). Staff Access JMD granters
+// (AppHelper/StaffAccessTab.js) keep their own path.
 export const canManageBabyMod = (caller) =>
+  !!(caller?.isAdmin || caller?.isOwner || caller?.isSeniorMod);
+// Mods and up give/remove the cosmetic badges (Trusted, Grinder, Raider, Helper).
+export const canManageBadges = (caller) =>
   !!(caller?.isAdmin || caller?.isOwner || caller?.isSeniorMod || caller?.isModerator);
+// Senior Mods and up give custom titles, to someone strictly below them
+// (outranksTarget re-checks with fresh roles before writing).
+export const canGiveTitle = (caller) => !!(caller?.isAdmin || caller?.isOwner || caller?.isSeniorMod);
+export const CUSTOM_TITLE_MAX = 20;
 
 // Look up target's role flags from RTDB so utility-level checks don't
 // rely on every caller populating userInfo. Tolerant of the legacy
@@ -1329,14 +1343,14 @@ export const removeModerator = async (userId, callerRoles = {}) => {
   }
 };
 
-// Promote to JMD (BabyMod) — Admin, Senior Mod or Moderator can manage JMDs.
+// Promote to JMD (BabyMod) — Admin or Senior Mod.
 export const makeBabyMod = async (userId, callerRoles = {}) => {
   if (!userId) {
     Alert.alert('Error', 'Invalid user ID.');
     return false;
   }
   if (!canManageBabyMod(callerRoles)) {
-    Alert.alert('Permission Denied', 'Only Admins, Senior Mods or Moderators can promote JMDs.');
+    Alert.alert('Permission Denied', 'Only Admins or Senior Mods can promote JMDs.');
     return false;
   }
   if (!(await outranksTarget(userId, callerRoles))) {
@@ -1355,17 +1369,16 @@ export const makeBabyMod = async (userId, callerRoles = {}) => {
   }
 };
 
-// Demote JMD — Admin, Senior Mod or Moderator. The outranksTarget check
-// blocks demoting a JMD who has already been upgraded to a real Mod
-// (canManageBabyMod doesn't cover Mods, so without it a Mod could clear a
-// peer Mod's — or an Admin's — JMD flag).
+// Demote JMD — Admin or Senior Mod. The outranksTarget check blocks
+// demoting a JMD who has since been made a Senior Mod (or clearing an
+// Admin's JMD flag).
 export const removeBabyMod = async (userId, callerRoles = {}) => {
   if (!userId) {
     Alert.alert('Error', 'Invalid user ID.');
     return false;
   }
   if (!canManageBabyMod(callerRoles)) {
-    Alert.alert('Permission Denied', 'Only Admins, Senior Mods or Moderators can remove JMDs.');
+    Alert.alert('Permission Denied', 'Only Admins or Senior Mods can remove JMDs.');
     return false;
   }
   if (!(await outranksTarget(userId, callerRoles))) {
@@ -1380,6 +1393,91 @@ export const removeBabyMod = async (userId, callerRoles = {}) => {
   } catch (error) {
     console.error('Error removing JMD:', error);
     Alert.alert('Error', 'Failed to remove JMD status.');
+    return false;
+  }
+};
+
+// Helper badge — cosmetic only (no moderation powers, no panel access).
+// Mod and up, like Trusted/Grinder/Raider. Same write shape as those: flag +
+// rolesUpdatedAt so the Supabase mirror always runs.
+const setHelperFlag = async (userId, value, callerRoles = {}) => {
+  if (!userId) {
+    Alert.alert('Error', 'Invalid user ID.');
+    return false;
+  }
+  if (!canManageBadges(withOwnerFlag(callerRoles))) {
+    Alert.alert('Permission Denied', 'Only Mods and above can change the Helper badge.');
+    return false;
+  }
+  if (getAuth()?.currentUser?.uid === userId) {
+    Alert.alert('Permission Denied', 'You cannot change your own Helper badge.');
+    return false;
+  }
+  try {
+    await update(ref(getDatabase(), `users/${userId}`), { isHelper: value ? true : null, rolesUpdatedAt: Date.now() });
+    logModAction('role_change', userId, { role: 'isHelper', value: !!value });
+    patchCachedProfile(userId, { isHelper: !!value });
+    return true;
+  } catch (error) {
+    console.error('Error changing Helper badge:', error);
+    Alert.alert('Error', 'Failed to update the Helper badge.');
+    return false;
+  }
+};
+export const makeHelper = (userId, callerRoles = {}) => setHelperFlag(userId, true, callerRoles);
+export const removeHelper = (userId, callerRoles = {}) => setHelperFlag(userId, false, callerRoles);
+
+// Tidy a typed title: trim, collapse whitespace. Returns { title } or { error }.
+export const normalizeCustomTitle = (text) => {
+  const title = String(text ?? '').replace(/\s+/g, ' ').trim();
+  if (!title) return { error: 'Type a title first.' };
+  if (title.length > CUSTOM_TITLE_MAX) return { error: `Titles are ${CUSTOM_TITLE_MAX} characters or less.` };
+  const check = validateContent(title);
+  if (!check.isValid) return { error: check.reason || 'That title is not allowed.' };
+  return { title };
+};
+
+// Custom title — Senior Mod, Admin or owner, on someone strictly below them,
+// never yourself (database.rules.json enforces the same). `title` null/''
+// removes it. Shown next to the name by RoleBadges.
+export const setCustomTitle = async (userId, title, callerRoles = {}) => {
+  const roles = withOwnerFlag(callerRoles);
+  if (!userId) {
+    Alert.alert('Error', 'Invalid user ID.');
+    return false;
+  }
+  if (!canGiveTitle(roles)) {
+    Alert.alert('Permission Denied', 'Only Senior Mods and above can give custom titles.');
+    return false;
+  }
+  if (getAuth()?.currentUser?.uid === userId) {
+    Alert.alert('Permission Denied', 'You cannot give yourself a title.');
+    return false;
+  }
+  let clean = null;
+  if (title) {
+    const r = normalizeCustomTitle(title);
+    if (r.error) {
+      Alert.alert('Title not saved', r.error);
+      return false;
+    }
+    clean = r.title;
+  }
+  if (!(await outranksTarget(userId, roles))) {
+    Alert.alert('Permission Denied', 'You cannot change the title of someone at or above your rank.');
+    return false;
+  }
+  try {
+    const me = getAuth()?.currentUser?.uid || null;
+    await update(ref(getDatabase(), `users/${userId}`), clean
+      ? { customTitle: clean, customTitleBy: me, customTitleAt: serverTimestamp(), rolesUpdatedAt: Date.now() }
+      : { customTitle: null, customTitleBy: null, customTitleAt: null, rolesUpdatedAt: Date.now() });
+    logModAction('title_change', userId, { title: clean });
+    patchCachedProfile(userId, { customTitle: clean });
+    return true;
+  } catch (error) {
+    console.error('Error setting custom title:', error);
+    Alert.alert('Error', 'Failed to update the title.');
     return false;
   }
 };

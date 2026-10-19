@@ -67,6 +67,13 @@ export const setCachedProfile = (uid, data) => {
   }
 };
 
+// Staff just changed a role/title for uid: update this device's cached copy
+// so badges show the change now instead of after the TTL. No-op if uncached.
+export const patchCachedProfile = (uid, patch) => {
+  const cached = getCachedProfile(uid);
+  if (cached && patch) setCachedProfile(uid, { ...cached, ...patch });
+};
+
 // ────────────────────────────────────────────────────────
 //  EXTRACT ACTIVE COSMETICS from shop/activeItems snapshot
 //  Shared logic used by both getOrFetchProfile and seedCurrentUser
@@ -148,6 +155,8 @@ export const getOrFetchProfile = async (db, uid) => {
           isTrusted: !!roles?.isTrusted,
           isGrinder: !!roles?.isGrinder,
           isRaider: !!roles?.isRaider,
+          isHelper: !!roles?.isHelper,
+          customTitle: roles?.customTitle ?? null,
           topBadge: cosBadge?.topBadge ?? null,
           ...cosmetics,
         };
@@ -165,7 +174,7 @@ export const getOrFetchProfile = async (db, uid) => {
   try {
     const [displayNameSnap, avatarSnap, isProSnap, verifiedSnap, recentWinSnap,
       lastWinSnap, adminSnap, seniorModSnap, modSnap, babyModSnap, trustedSnap, grinderSnap,
-      raiderSnap, topBadgeSnap, cosmeticsSnap] = await Promise.all([
+      raiderSnap, helperSnap, titleSnap, topBadgeSnap, cosmeticsSnap] = await Promise.all([
       get(ref(db, `users/${uid}/displayName`)),
       get(ref(db, `users/${uid}/avatar`)),
       get(ref(db, `users/${uid}/isPro`)),
@@ -179,6 +188,8 @@ export const getOrFetchProfile = async (db, uid) => {
       get(ref(db, `users/${uid}/isTrusted`)),
       get(ref(db, `users/${uid}/isGrinder`)),
       get(ref(db, `users/${uid}/isRaider`)),
+      get(ref(db, `users/${uid}/isHelper`)),
+      get(ref(db, `users/${uid}/customTitle`)),
       get(ref(db, `users/${uid}/topBadge`)),
       get(ref(db, `users/${uid}/shop/activeItems`)),
     ]);
@@ -199,6 +210,8 @@ export const getOrFetchProfile = async (db, uid) => {
       isTrusted: !!(trustedSnap?.exists() && trustedSnap.val()),
       isGrinder: !!(grinderSnap?.exists() && grinderSnap.val()),
       isRaider: !!(raiderSnap?.exists() && raiderSnap.val()),
+      isHelper: !!(helperSnap?.exists() && helperSnap.val()),
+      customTitle: titleSnap?.exists() && typeof titleSnap.val() === 'string' ? titleSnap.val() : null,
       topBadge: topBadgeSnap?.exists() ? topBadgeSnap.val() : null,
       ...cosmetics,
     };
@@ -267,6 +280,8 @@ export const warmProfileCache = async (db, uids) => {
           isTrusted: !!role?.isTrusted,
           isGrinder: !!role?.isGrinder,
           isRaider: !!role?.isRaider,
+          isHelper: !!role?.isHelper,
+          customTitle: role?.customTitle ?? null,
           topBadge: cosBadge?.topBadge ?? null,
           ...cosmetics,
         });
@@ -308,13 +323,9 @@ export const seedFromMessage = (msg) => {
     robloxUsernameVerified: !!msg.robloxUsernameVerified,
     hasRecentGameWin: !!msg.hasRecentGameWin,
     lastGameWinAt: msg.lastGameWinAt || null,
-    isAdmin: !!msg.isAdmin,
-    isSeniorMod: !!msg.isSeniorMod,
-    isModerator: !!msg.isModerator,
-    isBabyMod: !!msg.isBabyMod,
-    isTrusted: !!msg.isTrusted,
-    isGrinder: !!msg.isGrinder,
-    isRaider: !!msg.isRaider,
+    // No role flags or title here (2026-10-19): a message is written by its
+    // sender, so roles only ever come from Supabase/RTDB (RoleBadges relies on
+    // it). warmProfileCache replaces this entry with the real profile.
     topBadge: msg.topBadge || null,
     profileFrame: msg.profileFrame || null,
     chatTextColor: msg.chatTextColor || null,
@@ -335,6 +346,7 @@ const DEFAULT_PROFILE = {
   chatTextColor: null, profileFrame: null, tradeCardBg: null,
   chatBubbleBg: null, profileBanner: null, topBadge: null,
   isAdmin: false, isSeniorMod: false, isModerator: false, isBabyMod: false, isTrusted: false, isGrinder: false, isRaider: false,
+  isHelper: false, customTitle: null,
 };
 
 export const resolveProfile = (msg) => {
@@ -351,13 +363,16 @@ export const resolveProfile = (msg) => {
       typeof (msg.lastGameWinAt || cached?.lastGameWinAt) === 'number' &&
       Date.now() - (msg.lastGameWinAt || cached?.lastGameWinAt) <= 24 * 60 * 60 * 1000
     ),
-    isAdmin: msg.isAdmin ?? cached?.isAdmin ?? false,
-    isSeniorMod: msg.isSeniorMod ?? cached?.isSeniorMod ?? false,
-    isModerator: msg.isModerator ?? cached?.isModerator ?? false,
-    isBabyMod: msg.isBabyMod ?? cached?.isBabyMod ?? false,
-    isTrusted: msg.isTrusted ?? cached?.isTrusted ?? false,
-    isGrinder: msg.isGrinder ?? cached?.isGrinder ?? false,
-    isRaider: msg.isRaider ?? cached?.isRaider ?? false,
+    // Roles: server data only, never the message (see seedFromMessage).
+    isAdmin: cached?.isAdmin ?? false,
+    isSeniorMod: cached?.isSeniorMod ?? false,
+    isModerator: cached?.isModerator ?? false,
+    isBabyMod: cached?.isBabyMod ?? false,
+    isTrusted: cached?.isTrusted ?? false,
+    isGrinder: cached?.isGrinder ?? false,
+    isRaider: cached?.isRaider ?? false,
+    isHelper: cached?.isHelper ?? false,
+    customTitle: cached?.customTitle ?? null,
     chatTextColor: msg.chatTextColor ?? cached?.chatTextColor ?? null,
     profileFrame: msg.profileFrame ?? cached?.profileFrame ?? null,
     tradeCardBg: cached?.tradeCardBg ?? null,
@@ -388,6 +403,8 @@ export const seedCurrentUser = async (user, localState, db) => {
     isTrusted: !!user.isTrusted,
     isGrinder: !!user.isGrinder,
     isRaider: !!user.isRaider,
+    isHelper: !!user.isHelper,
+    customTitle: typeof user.customTitle === 'string' ? user.customTitle : null,
     topBadge: user.topBadge || null,
     chatTextColor: null,
     profileFrame: null,

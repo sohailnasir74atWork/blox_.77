@@ -90,6 +90,7 @@ export const LocalStateProvider = ({ children }) => {
     trustedRoster: safeParseJSON('trustedRoster', { data: [], timestamp: null }),
     grinderRoster: safeParseJSON('grinderRoster', { data: [], timestamp: null }),
     raiderRoster: safeParseJSON('raiderRoster', { data: [], timestamp: null }),
+    helperRoster: safeParseJSON('helperRoster', { data: [], timestamp: null }),
     pollVotes: safeParseJSON('pollVotes', {}), // ✅ Store user's poll votes (pollId -> optionLabel)
     showReadReceipts: storage.getBoolean('showReadReceipts') ?? true, // ✅ Default ON
     // Settings → Value Update Notifications: the FCM topic `value-updates`

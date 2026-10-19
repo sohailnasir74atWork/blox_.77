@@ -4,14 +4,20 @@
  * and the only custom claim users carry is role:'authenticated').
  *
  * Staff = any of users/{uid}/{admin,isAdmin,isSeniorMod,isModerator,isBabyMod}
- * true — the same flags database.rules.json treats as staff. Those flags are
- * write-protected in RTDB, so the mirror is trustworthy.
+ * true — the same flags database.rules.json treats as staff — or the
+ * server-set owner flag (2026-10-19), so Firestore rules can see the owner
+ * rank in roles (review deletes by rank). That grants nothing new: the flag is
+ * only ever set for a verified OWNER_EMAILS account, which isStaff()/isAdmin()
+ * already accept by email, and isAdmin() checks only admin/isAdmin. All of
+ * them are write-protected in RTDB, so the mirror is trustworthy. The badges
+ * (isTrusted, isGrinder, isRaider, isHelper) and customTitle are cosmetic and
+ * never make anyone staff, so they have no trigger here.
  *
  * One trigger per flag (not users/{uid}/{field}) so ordinary profile writes
  * never invoke it. Seed existing staff once with scripts/seed-firestore-staff.js.
  *
  * Deployment:
- *   firebase deploy --only functions:syncStaff_admin,functions:syncStaff_isAdmin,functions:syncStaff_isSeniorMod,functions:syncStaff_isModerator,functions:syncStaff_isBabyMod
+ *   firebase deploy --only functions:syncStaff_admin,functions:syncStaff_isAdmin,functions:syncStaff_isSeniorMod,functions:syncStaff_isModerator,functions:syncStaff_isBabyMod,functions:syncStaff_owner
  */
 
 const admin = require('firebase-admin');
@@ -21,7 +27,7 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-const STAFF_FLAGS = ['admin', 'isAdmin', 'isSeniorMod', 'isModerator', 'isBabyMod'];
+const STAFF_FLAGS = ['admin', 'isAdmin', 'isSeniorMod', 'isModerator', 'isBabyMod', 'owner'];
 
 async function syncStaff(uid) {
   const snaps = await Promise.all(

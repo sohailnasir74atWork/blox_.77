@@ -33,12 +33,14 @@ const TABS = [
   { key: 'trusted',  label: 'Trusted',   icon: 'checkmark-circle',  color: '#10B981', roleField: 'is_trusted' },
   { key: 'grinder',  label: 'Grinder',   icon: 'barbell',           color: '#06B6D4', roleField: 'is_grinder' },
   { key: 'raider',   label: 'Raider',    icon: 'flash',             color: '#DC2626', roleField: 'is_raider' },
+  { key: 'helper',   label: 'Helper',    icon: 'hand-left',         color: '#14B8A6', roleField: 'is_helper' },
 ];
 
 const ROSTER_CACHE_KEY = {
   trusted: 'trustedRoster',
   grinder: 'grinderRoster',
   raider:  'raiderRoster',
+  helper:  'helperRoster',
 };
 
 const LeaderboardScreen = ({ route }) => {
@@ -51,7 +53,7 @@ const LeaderboardScreen = ({ route }) => {
 
   const [activeTab, setActiveTab] = useState('topRated');
   const [topRatedData, setTopRatedData] = useState([]);
-  const [rosterData, setRosterData] = useState({ trusted: [], grinder: [], raider: [] });
+  const [rosterData, setRosterData] = useState({ trusted: [], grinder: [], raider: [], helper: [] });
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [loadedTabs, setLoadedTabs] = useState({});
