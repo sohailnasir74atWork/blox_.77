@@ -17,8 +17,9 @@ makes that harmless.
   (3 MB, avatars 1 MB). It refuses an active ban (`banned_uids/{uid}` or the
   email record), except for complaint screenshots, so a ban appeal still
   works. A mute refuses only chat and DM images. Poll images need staff (JMD+).
-  Each user gets 60 uploads per hour (`upload_quota/{uid}`, server-only). The
-  function picks the path itself, using the same folders and file-name
+  Each user gets 60 uploads per hour, staff (JMD+) 300; the counter is
+  `upload_quota/{uid}`, server-only, and rank is only read once a caller hits
+  60. The function picks the path itself, using the same folders and file-name
   patterns as before, PUTs to post-gag with the `BUNNY_STORAGE_KEY` secret and
   returns the pull-gag URL.
 - `Code/Helper/imageUpload.js`: `uploadImage(uri, kind)` for the app. It

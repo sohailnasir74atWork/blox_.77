@@ -27,7 +27,7 @@ process.env.FIREBASE_CONFIG = JSON.stringify({
 const admin = require('firebase-admin');
 if (!admin.apps.length) admin.initializeApp({ projectId: PROJECT, databaseURL: JSON.parse(process.env.FIREBASE_CONFIG).databaseURL });
 const UI = require('../uploadImage')._internal;
-const { handleUpload, io, KINDS, MAX_PER_HOUR, DEFAULT_MAX_BYTES } = UI;
+const { handleUpload, io, KINDS, MAX_PER_HOUR, STAFF_MAX_PER_HOUR, DEFAULT_MAX_BYTES } = UI;
 const realIo = { ...io };
 
 const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(64, 1)]);
@@ -65,21 +65,23 @@ let puts;
 let quota;
 let bans;  // uid → record
 let ranks; // uid → rank
+let rankReads;
 function stubAll() {
   puts = [];
   quota = new Map();
   bans = new Map();
   ranks = new Map();
+  rankReads = 0;
   io.verifyIdToken = async (t) => {
     const m = /^tok:([A-Za-z0-9]+)$/.exec(t);
     if (!m) throw new Error('bad token');
     return { uid: m[1], email: `${m[1].toLowerCase()}@example.com`, email_verified: true };
   };
   io.readBanRecords = async (uid) => [bans.get(uid) || null];
-  io.readRank = async (uid) => ranks.get(uid) || 0;
-  io.takeQuota = async (uid) => {
+  io.readRank = async (uid) => { rankReads += 1; return ranks.get(uid) || 0; };
+  io.takeQuota = async (uid, max) => {
     const n = (quota.get(uid) || 0) + 1;
-    if (n > MAX_PER_HOUR) return false;
+    if (n > max) return false;
     quota.set(uid, n);
     return true;
   };
@@ -262,6 +264,27 @@ async function stubbedSuite() {
     assert.strictEqual(puts.length, 1);
   });
 
+  await test('staff (JMD+) get 300 an hour; rank is only read once the player cap is reached', async () => {
+    stubAll();
+    assert.strictEqual(MAX_PER_HOUR, 60);
+    assert.strictEqual(STAFF_MAX_PER_HOUR, 300);
+    assert.strictEqual((await call({ kind: 'post', data: b64(JPEG) })).statusCode, 200);
+    assert.strictEqual(rankReads, 0, 'no rank read under the player cap');
+    quota.set(UID, MAX_PER_HOUR);
+    assert.strictEqual((await call({ kind: 'post', data: b64(JPEG) })).statusCode, 429, 'a player stops at 60');
+    assert.strictEqual(rankReads, 1);
+    ranks.set(UID, 1); // JMD
+    assert.strictEqual((await call({ kind: 'scammer', data: b64(JPEG) })).statusCode, 200, 'staff go past 60');
+    assert.strictEqual(quota.get(UID), MAX_PER_HOUR + 1);
+    quota.set(UID, STAFF_MAX_PER_HOUR);
+    assert.strictEqual((await call({ kind: 'scammer', data: b64(JPEG) })).statusCode, 429, 'staff stop at 300');
+    // A poll upload reads the rank once, not twice.
+    quota.set(UID, MAX_PER_HOUR);
+    rankReads = 0;
+    assert.strictEqual((await call({ kind: 'poll', data: b64(JPEG) })).statusCode, 200);
+    assert.strictEqual(rankReads, 1);
+  });
+
   await test('refused requests (ban, kind, image) do not spend quota', async () => {
     stubAll();
     bans.set(UID, { type: 'ban', bannedUntil: Date.now() + HOUR });
@@ -382,6 +405,16 @@ async function emulatorSuite() {
       await db.ref(`upload_quota/${u.uid}`).set({ h: hour - 1, n: MAX_PER_HOUR });
       assert.strictEqual((await up(u, { kind: 'chat', data: b64(JPEG) })).statusCode, 200);
       assert.deepStrictEqual((await db.ref(`upload_quota/${u.uid}`).get()).val(), { h: hour, n: 1 });
+    });
+
+    await test('emulator: a staff flag lifts the cap from 60 to 300', async () => {
+      const mod = await mkUser('QuotaMod', { role: 'isModerator' });
+      const hour = Math.floor(Date.now() / 3600000);
+      await db.ref(`upload_quota/${mod.uid}`).set({ h: hour, n: MAX_PER_HOUR });
+      assert.strictEqual((await up(mod, { kind: 'scammer', data: b64(JPEG) })).statusCode, 200);
+      assert.deepStrictEqual((await db.ref(`upload_quota/${mod.uid}`).get()).val(), { h: hour, n: MAX_PER_HOUR + 1 });
+      await db.ref(`upload_quota/${mod.uid}`).set({ h: hour, n: STAFF_MAX_PER_HOUR });
+      assert.strictEqual((await up(mod, { kind: 'scammer', data: b64(JPEG) })).statusCode, 429);
     });
 
     await test('emulator: a disabled account (permanent ban) is 401', async () => {

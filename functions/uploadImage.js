@@ -23,7 +23,7 @@
  * images; complaint screenshots stay open so a banned player can appeal),
  * staff rank for poll images, then a per-user hourly quota held
  * server-side at upload_quota/{uid} (no client rule, so database.rules.json
- * denies it to the app).
+ * denies it to the app): 60 an hour for players, 300 for staff.
  *
  * Folders and file names are the ones the app wrote before, so every existing
  * URL keeps working and the /player_feedback rule (report-images/ prefix,
@@ -74,6 +74,9 @@ const kindSpec = (kind) => (Object.prototype.hasOwnProperty.call(KINDS, kind) ? 
 // Per user, across all kinds. A feed post carries a few images (MAX_IMAGES in
 // UploadModal), a scammer report or a complaint up to 3.
 const MAX_PER_HOUR = 60;
+// Staff (JMD+) post scammer proof, poll images and announcements in bursts.
+// Rank is only read once a caller reaches the player cap.
+const STAFF_MAX_PER_HOUR = 300;
 
 // Magic bytes. No SVG, HTML or anything else a browser could run.
 const ascii = (b, from, to) => b.subarray(from, to).toString('ascii');
@@ -111,11 +114,12 @@ async function readBanRecords(uid, email) {
 }
 
 // One counter per user, reset each hour: { h: hour index, n: uploads }.
-async function takeQuota(uid) {
+// Refuses (and leaves the counter alone) once n has reached `max`.
+async function takeQuota(uid, max) {
   const hour = Math.floor(Date.now() / 3600000);
   const { committed } = await admin.database().ref(`upload_quota/${uid}`).transaction((cur) => {
     if (!cur || cur.h !== hour) return { h: hour, n: 1 };
-    if (cur.n >= MAX_PER_HOUR) return undefined; // abort
+    if (cur.n >= max) return undefined; // abort
     return { h: hour, n: cur.n + 1 };
   });
   return committed;
@@ -177,9 +181,16 @@ async function handleUpload(req, res) {
     if (restriction === 'ban') return fail(res, 'banned');
     if (restriction === 'mute' && spec.chat) return fail(res, 'muted');
   }
-  if (spec.staff && (await io.readRank(caller.uid, caller)) < RANK.babyMod) return fail(res, 'not_staff');
+  let rank;
+  const isStaff = async () => {
+    if (rank === undefined) rank = await io.readRank(caller.uid, caller);
+    return rank >= RANK.babyMod;
+  };
+  if (spec.staff && !(await isStaff())) return fail(res, 'not_staff');
 
-  if (!(await io.takeQuota(caller.uid))) return fail(res, 'rate_limited');
+  let allowed = await io.takeQuota(caller.uid, MAX_PER_HOUR);
+  if (!allowed && (await isStaff())) allowed = await io.takeQuota(caller.uid, STAFF_MAX_PER_HOUR);
+  if (!allowed) return fail(res, 'rate_limited');
 
   const key = io.storageKey();
   if (!key) {
@@ -210,4 +221,4 @@ exports.uploadImage = functions
     }
   });
 
-exports._internal = { handleUpload, io, KINDS, DEFAULT_MAX_BYTES, MAX_PER_HOUR, sniff, restrictionOf, storagePath };
+exports._internal = { handleUpload, io, KINDS, DEFAULT_MAX_BYTES, MAX_PER_HOUR, STAFF_MAX_PER_HOUR, sniff, restrictionOf, storagePath };
