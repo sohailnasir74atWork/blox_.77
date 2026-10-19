@@ -2565,6 +2565,7 @@
       "delete_confirm": "Tem certeza de que deseja excluir este status?",
       "delete_failed": "Não foi possível excluir o status",
       "views_reactions": "👁 {{views}} visualizações • {{reactions}} reações",
+      "hidden_after_reports_owner": "Oculto do feed após denúncias. A equipe de moderação vai analisar.",
       "new": "Novo",
       "new_status": "Novo status",
       "add_photo": "Adicionar foto",

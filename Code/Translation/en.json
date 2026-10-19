@@ -2557,6 +2557,7 @@
       "delete_confirm": "Are you sure you want to delete this status?",
       "delete_failed": "Failed to delete status",
       "views_reactions": "👁 {{views}} views  •  {{reactions}} reactions",
+      "hidden_after_reports_owner": "Hidden from the feed after reports. Staff will review it.",
       "new": "New",
       "new_status": "New Status",
       "add_photo": "Add Photo",

@@ -775,6 +775,77 @@ async function firestoreTests() {
   await ok('guest reads top50', () => getDoc(d(null, 'leaderboard_cache', 'top50')));
 }
 
+// ── blox-quick-wins (2026-10-19): 6-image post cap + status report auto-hide ──
+async function quickWinsTests() {
+  const { doc, addDoc, updateDoc, deleteDoc, getDoc, collection, serverTimestamp, Timestamp, increment, arrayUnion, runTransaction } = F;
+  const d = (uid, ...p) => doc(fsOf(uid), ...p);
+  const c = (uid, ...p) => collection(fsOf(uid), ...p);
+  const img = (n) => Array.from({ length: n }, (_, i) => `https://pull-blox.b-cdn.net/posts/${i}.jpg`);
+  const post = (uid, imageUrl) => ({ imageUrl, desc: 'hi', userId: uid, displayName: 'n', avatar: null, createdAt: serverTimestamp(), likes: {}, selectedTags: ['Discussion'], report: false, flage: null, isBabyMod: false, isTrusted: false, isGrinder: false, isRaider: false, profileFrame: null });
+  const status = (uid) => ({ userId: uid, userName: 'n', caption: 'c', imageUrl: null, createdAt: serverTimestamp(), expiresAt: Timestamp.fromMillis(Date.now() + 24 * H), viewedBy: [], type: 'text', randomSeed: 0.4 });
+  // ReportModal (kind 'status') bumpStatusReport: once per reporter, in a transaction.
+  const reportStatus = (uid, id) => runTransaction(fsOf(uid), async (tx) => {
+    const ref = d(uid, 'statuses', id); const snap = await tx.get(ref);
+    const reportedBy = snap.get('reportedBy') || [];
+    tx.update(ref, { reportedBy: [...reportedBy, uid], reportCount: (snap.get('reportCount') || 0) + 1 });
+  });
+  await seed(async (f) => {
+    await F.setDoc(F.doc(f, 'designPosts_upgrade', 'qwp1'), post(U2, img(4)));
+    await F.setDoc(F.doc(f, 'statuses', 'qws1'), { ...status(U2), createdAt: F.Timestamp.now() });
+    await F.setDoc(F.doc(f, 'statuses', 'qws2'), { ...status(U2), createdAt: F.Timestamp.now(), reportedBy: [U1, U3, BX, G, OU], reportCount: 5 });
+  });
+
+  sec('fs posts: 6-image cap');
+  await ok('create post with 4 images (current + old builds, web)', () => addDoc(c(U1, 'designPosts_upgrade'), post(U1, img(4))));
+  await ok('create post with 6 images', () => addDoc(c(U1, 'designPosts_upgrade'), post(U1, img(6))));
+  await no('create post with 7 images', () => addDoc(c(U1, 'designPosts_upgrade'), post(U1, img(7))));
+  await ok('create text-only post (imageUrl [])', () => addDoc(c(U1, 'designPosts_upgrade'), post(U1, [])));
+  await ok('owner edits a 4-image post', () => updateDoc(d(U2, 'designPosts_upgrade', 'qwp1'), { desc: 'edited' }));
+  await ok('owner sets 6 images', () => updateDoc(d(U2, 'designPosts_upgrade', 'qwp1'), { imageUrl: img(6) }));
+  await no('owner sets 7 images', () => updateDoc(d(U2, 'designPosts_upgrade', 'qwp1'), { imageUrl: img(7) }));
+  await no('staff sets 7 images', () => updateDoc(d(M, 'designPosts_upgrade', 'qwp1'), { imageUrl: img(7) }));
+  await ok('others still react to a 6-image post', () => updateDoc(d(U1, 'designPosts_upgrade', 'qwp1'), { [`reactions.${U1}`]: '🔥' }));
+
+  sec('fs statuses: report auto-hide');
+  await no('create status pre-seeding reportCount', () => addDoc(c(U1, 'statuses'), { ...status(U1), reportCount: -100 }));
+  await no('create status pre-seeding reportedBy', () => addDoc(c(U1, 'statuses'), { ...status(U1), reportedBy: [U3] }));
+  await ok('first report (ReportModal transaction)', () => reportStatus(U1, 'qws1'));
+  await no('same reporter again (transaction shape)', () => reportStatus(U1, 'qws1'));
+  await no('same reporter again (arrayUnion + increment)', () => updateDoc(d(U1, 'statuses', 'qws1'), { reportedBy: arrayUnion(U1), reportCount: increment(1) }));
+  await ok('second reporter via arrayUnion + increment', () => updateDoc(d(U3, 'statuses', 'qws1'), { reportedBy: arrayUnion(U3), reportCount: increment(1) }));
+  await no('report adding someone else', () => updateDoc(d(G, 'statuses', 'qws1'), { reportedBy: arrayUnion(OU), reportCount: increment(1) }));
+  await no('report adding self + someone else', () => updateDoc(d(G, 'statuses', 'qws1'), { reportedBy: arrayUnion(G, OU), reportCount: increment(1) }));
+  await no('report bumping count by 3', () => updateDoc(d(G, 'statuses', 'qws1'), { reportedBy: arrayUnion(G), reportCount: increment(3) }));
+  await no('count without reportedBy', () => updateDoc(d(G, 'statuses', 'qws1'), { reportCount: increment(1) }));
+  await no('reportedBy without count', () => updateDoc(d(G, 'statuses', 'qws1'), { reportedBy: arrayUnion(G) }));
+  await no('reporter removes another reporter', () => updateDoc(d(G, 'statuses', 'qws1'), { reportedBy: [U3, G], reportCount: increment(1) }));
+  await no('report with a duplicate entry', () => updateDoc(d(G, 'statuses', 'qws1'), { reportedBy: [U1, U3, G, G], reportCount: increment(1) }));
+  // Size +1 without adding yourself: would let one account bump the count again and again.
+  await no('report repeating an earlier reporter instead of self', () => updateDoc(d(G, 'statuses', 'qws1'), { reportedBy: [U1, U3, U1], reportCount: increment(1) }));
+  await no('report duplicating the other reporter instead of self', () => updateDoc(d(G, 'statuses', 'qws1'), { reportedBy: [U1, U3, U3], reportCount: increment(1) }));
+  await no('banned user reports', () => updateDoc(d(B, 'statuses', 'qws1'), { reportedBy: arrayUnion(B), reportCount: increment(1) }));
+  await no('guest reports', () => updateDoc(d(null, 'statuses', 'qws1'), { reportedBy: arrayUnion('x'), reportCount: increment(1) }));
+  await ok('reports 3-5 from distinct users reach the hide threshold', async () => {
+    for (const uid of [BX, G, OU]) await reportStatus(uid, 'qws1');
+    const snap = await getDoc(d(A, 'statuses', 'qws1'));
+    if (snap.get('reportCount') !== 5 || snap.get('reportedBy').length !== 5) throw new Error(`count ${snap.get('reportCount')}`);
+  });
+  await no('owner resets own reportCount', () => updateDoc(d(U2, 'statuses', 'qws2'), { reportCount: 0 }));
+  await no('owner clears reportedBy', () => updateDoc(d(U2, 'statuses', 'qws2'), { reportedBy: [] }));
+  await ok('owner still edits a reported status', () => updateDoc(d(U2, 'statuses', 'qws2'), { caption: 'edited' }));
+  await ok('viewer marks a reported status viewed (old builds)', () => updateDoc(d(U1, 'statuses', 'qws2'), { viewedBy: arrayUnion(U1) }));
+  await ok('viewer reacts to a reported status (old builds)', () => updateDoc(d(U1, 'statuses', 'qws2'), { [`reactions.${U1}`]: '❤️' }));
+  await no('regular user restores a hidden status', () => updateDoc(d(U1, 'statuses', 'qws2'), { reportCount: 0 }));
+  await ok('JMD restores a hidden status (reportCount 0)', () => updateDoc(d(J, 'statuses', 'qws2'), { reportCount: 0 }));
+  await no('earlier reporter re-reports after restore', () => reportStatus(U1, 'qws2'));
+  await ok('new reporter after restore counts from 0', async () => {
+    await reportStatus(U2, 'qws2'); // owner path is frozen; this goes through the reporter rule
+    const snap = await getDoc(d(A, 'statuses', 'qws2'));
+    if (snap.get('reportCount') !== 1) throw new Error(`count ${snap.get('reportCount')}`);
+  });
+  await ok('JMD deletes a hidden status', () => deleteDoc(d(J, 'statuses', 'qws1')));
+}
+
 async function main() {
   const [fsHost, fsPort] = (process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080').split(':');
   const [dbHost, dbPort] = (process.env.FIREBASE_DATABASE_EMULATOR_HOST || '127.0.0.1:9000').split(':');
@@ -787,6 +858,7 @@ async function main() {
   await env.clearDatabase(); await env.clearFirestore();
   await rtdbTests();
   await firestoreTests();
+  await quickWinsTests();
   await env.cleanup();
   console.log(`\n${results.pass} passed, ${results.fail} failed`);
   if (results.fail) { console.log('\nFAILURES:\n  ' + results.failures.join('\n  ')); process.exit(1); }

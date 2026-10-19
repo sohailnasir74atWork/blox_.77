@@ -10,10 +10,26 @@ import { useGlobalState, modGateText } from '../../GlobelStats';
 import { submitUserReport } from '../../Helper/userReports';
 import { useTranslation } from 'react-i18next';
 
-// kind 'status' (2026-10-18): a status from the Home status viewer. It only
-// files a user_reports row of type 'status' (staff Reports queue); the
+// kind 'status' (2026-10-18): a status from the Home status viewer. It files a
+// user_reports row of type 'status' (staff Reports queue) and, since
+// 2026-10-19, adds the reporter to the status's reportedBy (once) and bumps its
+// reportCount; StatusFeed hides it at 5 (Design/statusReports.js). The
 // designPosts_upgrade count and the local hide are for feed posts.
-const ReportModal = ({ visible, onClose, item, kind = 'post' }) => {
+// onReported(statusId, { reportedBy, reportCount }) fires after that bump.
+
+// Once per reporter: a repeat report still reaches the queue but doesn't count.
+const bumpStatusReport = (db, statusId, uid) => runTransaction(db, async (tx) => {
+  const statusRef = doc(db, 'statuses', statusId);
+  const snap = await tx.get(statusRef);
+  if (!snap.exists()) return null;
+  const reportedBy = Array.isArray(snap.get('reportedBy')) ? snap.get('reportedBy') : [];
+  if (reportedBy.includes(uid)) return null;
+  const next = { reportedBy: [...reportedBy, uid], reportCount: (snap.get('reportCount') || 0) + 1 };
+  tx.update(statusRef, next);
+  return next;
+});
+
+const ReportModal = ({ visible, onClose, item, kind = 'post', onReported }) => {
   const isStatus = kind === 'status';
   const [reportText, setReportText] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -90,6 +106,13 @@ const ReportModal = ({ visible, onClose, item, kind = 'post' }) => {
 
     setSubmitting(true);
     if (isStatus) {
+      // Best-effort and first, so the auto-hide count doesn't depend on the queue row.
+      try {
+        const next = await bumpStatusReport(firestoreDB, item.id, user.id);
+        if (next) onReported?.(item.id, next);
+      } catch (countErr) {
+        console.warn('status reportCount write failed:', countErr?.message || countErr);
+      }
       try {
         await submitUserReport(firestoreDB, {
           type: 'status',
