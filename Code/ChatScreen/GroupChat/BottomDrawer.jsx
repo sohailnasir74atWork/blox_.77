@@ -1628,7 +1628,7 @@ const ProfileBottomDrawer = ({
     if (!todo.length) return;
     todo.forEach((r) => checkedReviewIdsRef.current.add(r.id));
     Promise.all(todo.map(async (r) => (
-      (await canRemoveReview(r.fromUserId, reviewCallerRoles, user?.id).catch(() => false)) ? r.id : null
+      (await canRemoveReview(r.fromUserId, reviewCallerRoles, user?.id, selectedUserId).catch(() => false)) ? r.id : null
     ))).then((ids) => {
       const ok = ids.filter(Boolean);
       if (ok.length) setRemovableReviewIds((prev) => new Set([...prev, ...ok]));
@@ -1639,8 +1639,8 @@ const ProfileBottomDrawer = ({
     if (!review?.id || !selectedUserId) return;
 
     // Checked again with fresh roles: the button can be stale.
-    if (!(await canRemoveReview(review.fromUserId, reviewCallerRoles, user?.id).catch(() => false))) {
-      Alert.alert('Restricted', 'Only admins can delete reviews, and not reviews left by staff at or above your rank.');
+    if (!(await canRemoveReview(review.fromUserId, reviewCallerRoles, user?.id, selectedUserId).catch(() => false))) {
+      Alert.alert('Restricted', 'Senior Mods and up can delete reviews, but not ones left by staff at or above their rank or ones about themselves.');
       return;
     }
 

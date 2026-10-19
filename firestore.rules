@@ -184,12 +184,31 @@ service cloud.firestore {
         && d.rating is number
         && d.rating >= 1 && d.rating <= 5;
     }
+    // Review removal by a Senior Mod (owner decision 2026-10-19): only a
+    // review left by someone strictly below them (not a Senior Mod's or an
+    // Admin's; their own is fine), never one about themselves, never a
+    // profile doc. Same rule as the app (Helper/reviewModeration).
+    function reviewStaffRoles(uid) {
+      return exists(/databases/$(database)/documents/staff/$(uid))
+        ? get(/databases/$(database)/documents/staff/$(uid)).data.get('roles', [])
+        : [];
+    }
+    function seniorModRemovesReview() {
+      let author = resource.data.get('fromUserId', null);
+      return signedIn()
+        && reviewStaffRoles(request.auth.uid).hasAny(['isSeniorMod'])
+        && author is string
+        && resource.data.get('toUserId', null) != request.auth.uid
+        && (author == request.auth.uid
+            || !reviewStaffRoles(author).hasAny(['admin', 'isAdmin', 'isSeniorMod']));
+    }
     match /reviews/{docId} {
       allow read: if true;                      // web profile pages (signed out)
       allow create, update: if !isBanned() && (isOwnReview(docId)
         || (signedIn() && docId == request.auth.uid && !('fromUserId' in request.resource.data)));
-      // Admins only (owner decision 2026-10-18; moderators could before).
-      allow delete: if isAdmin();
+      // Admins and the owner (as since 2026-10-18), and Senior Mods within
+      // their rank (2026-10-19). Mods and JMDs can't.
+      allow delete: if isAdmin() || seniorModRemovesReview();
     }
 
     // Display summary (profile rating). Server-kept since 2026-10-19

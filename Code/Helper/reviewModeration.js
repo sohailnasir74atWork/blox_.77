@@ -15,16 +15,24 @@ import { fetchUserRoles, canModerate, getStaffRank, STAFF_RANK, isCurrentUserOwn
 // Callers pass role flags from useGlobalState, which has no owner flag.
 const withOwner = (roles) => ({ ...(roles || {}), isOwner: !!roles?.isOwner || isCurrentUserOwner() });
 
-/** True when the caller may remove a review written by `fromUserId`. */
-// Reviews can be deleted by admins only (owner decision, 2026-10-18).
-// Moderators used to remove reviews written by regular players.
-// Blox also keeps its rank rule: an admin cannot remove a review left by
-// staff at or above their rank (only the owner outranks admins).
-export const canDeleteReviews = (callerRoles) => getStaffRank(withOwner(callerRoles)) >= STAFF_RANK.admin;
+/**
+ * Senior Mods, Admins and the owner may delete reviews (owner decision
+ * 2026-10-19). Plain Mods and JMDs can't (admins only from 2026-10-18,
+ * moderators before that).
+ */
+export const canDeleteReviews = (callerRoles) => getStaffRank(withOwner(callerRoles)) >= STAFF_RANK.seniorMod;
 
-// Fails closed: when the reviewer's roles can't be read, the review stays.
-export async function canRemoveReview(fromUserId, callerRoles, selfId) {
+/**
+ * True when the caller may remove a review written by `fromUserId` about
+ * `toUserId`: only one left by someone strictly below them (a Senior Mod
+ * can't remove a Senior Mod's or Admin's review, an Admin can't remove an
+ * Admin's; only the owner outranks admins), and a Senior Mod never one
+ * about themselves. Fails closed when the reviewer's roles can't be read.
+ * firestore.rules checks the same for Senior Mods.
+ */
+export async function canRemoveReview(fromUserId, callerRoles, selfId, toUserId = null) {
   if (!canDeleteReviews(callerRoles)) return false;
+  if (toUserId && toUserId === selfId && getStaffRank(withOwner(callerRoles)) < STAFF_RANK.admin) return false;
   if (!fromUserId || fromUserId === selfId) return true;
   const reviewerRoles = await fetchUserRoles(fromUserId);
   return !!reviewerRoles && canModerate(withOwner(callerRoles), reviewerRoles);

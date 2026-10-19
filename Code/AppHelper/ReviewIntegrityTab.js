@@ -209,13 +209,13 @@ const ReviewIntegrityTab = ({ isDark, currentUser, callerRoles }) => {
   }, [lookupText]);
 
   // Same flow and rule as the Find user ▸ Reviews delete (AdminDashboard):
-  // staff may only remove a review left by someone strictly below them, and
+  // Senior Mod and up, only a review left by someone strictly below them, and
   // the removal goes to the mod action feed. The verified summary updates
   // itself (scoreReviewOnWrite handles the delete).
   const deleteReview = useCallback(async (row) => {
     const fromUserId = row.review?.fromUserId || row.score?.fromUserId || null;
-    if (!(await canRemoveReview(fromUserId, callerRoles || {}, currentUser?.id))) {
-      Alert.alert('Restricted', 'Only admins can delete reviews, and not reviews left by staff at or above your rank.');
+    if (!(await canRemoveReview(fromUserId, callerRoles || {}, currentUser?.id, trader?.userId))) {
+      Alert.alert('Restricted', 'Senior Mods and up can delete reviews, but not ones left by staff at or above their rank or ones about themselves.');
       return;
     }
     Alert.alert(

@@ -618,17 +618,29 @@ async function firestoreTests() {
   await no('user_profiles other', () => setDoc(d(U1, 'user_profiles', U2), { ownedFruits: [] }, { merge: true }));
   await ok('user_profiles get other', () => getDoc(d(U1, 'user_profiles', U2)));
 
+  // Senior Mod, Admin and owner delete reviews (owner decision 2026-10-19);
+  // a Senior Mod only within their rank.
   sec('fs review delete (blox-ratings 2026-10-19)');
+  const S2 = 'seniorUid0002';
   await seed(async (f) => {
-    for (const from of [U1, U3, A, S, M]) await F.setDoc(F.doc(f, 'reviews', `${U2}_${from}`), { fromUserId: from, toUserId: U2, rating: 1 });
+    await F.setDoc(F.doc(f, 'staff', S2), { roles: ['isSeniorMod'] });
+    for (const from of [U1, U3, A, A2, S, S2, M]) await F.setDoc(F.doc(f, 'reviews', `${U2}_${from}`), { fromUserId: from, toUserId: U2, rating: 1 });
     await F.setDoc(F.doc(f, 'reviews', `${S}_${U1}`), { fromUserId: U1, toUserId: S, rating: 1 });
+    await F.setDoc(F.doc(f, 'reviews', U3), { bio: 'profile doc' });
   });
   await no('mod deletes a player\'s review', () => deleteDoc(d(M, 'reviews', `${U2}_${U1}`)));
   await no('JMD deletes a player\'s review', () => deleteDoc(d(J, 'reviews', `${U2}_${U1}`)));
   await no('player deletes a review about someone else', () => deleteDoc(d(U3, 'reviews', `${U2}_${U1}`)));
   await no('senior mod deletes an admin\'s review', () => deleteDoc(d(S, 'reviews', `${U2}_${A}`)));
+  await no('senior mod deletes a legacy-admin\'s review', () => deleteDoc(d(S, 'reviews', `${U2}_${A2}`)));
+  await no('senior mod deletes another senior mod\'s review', () => deleteDoc(d(S, 'reviews', `${U2}_${S2}`)));
   await no('senior mod deletes a review about themselves', () => deleteDoc(d(S, 'reviews', `${S}_${U1}`)));
+  await no('senior mod deletes a profile doc', () => deleteDoc(d(S, 'reviews', U3)));
+  await ok('senior mod deletes a player\'s review', () => deleteDoc(d(S, 'reviews', `${U2}_${U1}`)));
+  await ok('senior mod deletes a mod\'s review', () => deleteDoc(d(S, 'reviews', `${U2}_${M}`)));
+  await ok('senior mod deletes their own review', () => deleteDoc(d(S, 'reviews', `${U2}_${S}`)));
   await ok('admin deletes a player\'s review', () => deleteDoc(d(A, 'reviews', `${U2}_${U3}`)));
+  await ok('admin deletes a senior mod\'s review', () => deleteDoc(d(A, 'reviews', `${U2}_${S2}`)));
   await ok('senior mod writes the summary after a delete (old builds)', () => setDoc(d(S, 'user_ratings_summary', U2), { averageRating: 1, count: 1 }, { merge: true }));
 
   sec('fs social');
