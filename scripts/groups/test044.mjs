@@ -30,7 +30,7 @@ async function boot({ with040 = false } = {}) {
   `);
   const skip = new Set(['026_private_message_retention.sql', '038_birthday_emails.sql', '044_group_privacy.sql']);
   if (!with040) skip.add('040_owner_email_verified.sql');
-  for (const f of fs.readdirSync(ROOT).filter((x) => /^0\d\d_.*\.sql$/.test(x) && !skip.has(x)).sort()) {
+  for (const f of fs.readdirSync(ROOT).filter((x) => /^0\d\d_.*\.sql$/.test(x) && x < '044' && !skip.has(x)).sort()) {
     await db.exec(read(f));
   }
   return db;
