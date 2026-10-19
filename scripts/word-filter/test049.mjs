@@ -42,7 +42,9 @@ await db.exec(`
   create table public.user_identity (uid text primary key, display_name text);
   create table public.messages (id bigserial primary key, sender_id text, text text, gif text);
   create table public.group_messages (id bigserial primary key, sender_id text, text text);
-  create table public.private_messages (id bigserial primary key, sender_id text, text text);
+  create table public.private_messages (id bigserial primary key, sender_id text, text text, chat_id text, created_at timestamptz default now());
+  create table public.reported_chats (chat_id text primary key);
+  create table public.banned_senders (uid text primary key, banned_until timestamptz, reason text, type text);
 `);
 // 034's caller helpers, verbatim bodies.
 const s034 = read('034_chat_moderation_enforcement.sql');
@@ -56,14 +58,20 @@ const fnOf = (name) => {
 await db.exec(fnOf('_chat_jwt_claims'));
 await db.exec(fnOf('_chat_end_user_uid'));
 await db.exec(fnOf('_chat_caller_link_tier'));
+await db.exec(read('040_owner_email_verified.sql')); // live: owner email needs email_verified
 await db.exec(read('021_username_uniqueness.sql'));
 await db.exec(read('022_username_charset_relax.sql'));
 
+// Supabase's default privileges: anon / authenticated get EXECUTE on every new
+// function, so 049 must revoke explicitly.
+await db.exec(`alter default privileges in schema public grant execute on functions to anon, authenticated, service_role`);
 const SQL = read('049_word_filter.sql');
 await db.exec(SQL);
 const v1 = (await one(`select version from word_filter_state`)).version;
 await db.exec(SQL); // idempotent
-ok((await one(`select count(*)::int as n from word_blocklist`)).n === core.BUNDLED.length + 20, 're-run adds no rows');
+const OFF_SEEDS = (SQL.match(/', false, 'seed \(off\)/g) || []).length;
+ok(OFF_SEEDS === 21, `21 switched-off suggestions in the file (got ${OFF_SEEDS})`);
+ok((await one(`select count(*)::int as n from word_blocklist`)).n === core.BUNDLED.length + OFF_SEEDS, 're-run adds no rows');
 ok(Number((await one(`select version from word_filter_state`)).version) >= Number(v1), 'version never goes back');
 
 // --- constants ---------------------------------------------------------------
@@ -80,7 +88,7 @@ const seed = await q(`select term, kind, match_mode, lang, active from word_bloc
 const active = seed.filter((r) => r.active).map((r) => [r.term, r.kind, r.match_mode, r.lang].join('|'));
 const bundled = core.BUNDLED.map((b) => [b.term, b.kind, b.mode, b.lang].join('|'));
 ok(JSON.stringify(active) === JSON.stringify(bundled), 'active seed rows == wordFilterCore BUNDLED');
-ok(seed.filter((r) => !r.active).length === 20, '20 switched-off suggestions');
+ok(seed.filter((r) => !r.active).length === OFF_SEEDS, 'switched-off suggestions seeded off');
 
 // --- normalise: SQL == JS on a fuzzed corpus ----------------------------------
 const PALETTE = [
@@ -111,6 +119,9 @@ const corpus = [
   'kill.yourself', 'enviado', 'viado', 'VIADO!!!', 'Pakistan', 'paki', 'raccoon', 'coon', 'Scunthorpe',
   'ching chong', 'ching-chong', 'heil   hitler', '1v1 me 50k', '$100 @user', '@@@ $$$', '1 2 3 4 5', 'a b',
   'x y z w', 'ab c d e', 'ç', 'ß', 'İstanbul', 'ǅ', 'ﬁne', 'ⓝⓘⓖⓖⓔⓡ', '⒩⒤⒢⒢⒠⒭', 'n😀igger', 'trade 4 5 6 7',
+  // the 4000-character cap (code points, astral characters around the edge)
+  'x '.repeat(1999) + 'n i g g e r', 'a'.repeat(3998) + '😀😀😀 nigger', '😀'.repeat(3999) + 'ab nigger',
+  'nigger ' + 'z'.repeat(5000), 'ok '.repeat(1400) + 'f a g',
 ];
 for (let i = 0; i < 3000; i++) {
   const len = 1 + rnd(24);
@@ -143,8 +154,8 @@ ok(core.HAS_NFKD, 'Node has String.prototype.normalize (fuzz compared the NFKD p
 
 // --- patterns: SQL == JS -----------------------------------------------------
 const pats = [];
-for (const b of core.BUNDLED) for (const m of ['auto', 'word', 'part']) pats.push([b.term, m, b.kind]);
-for (let i = 0; i < 400; i++) pats.push([corpus[100 + i], ['auto', 'word', 'part'][i % 3], ['slur', 'allow'][i % 2]]);
+for (const b of core.BUNDLED) for (const m of ['auto', 'word', 'exact', 'part']) pats.push([b.term, m, b.kind]);
+for (let i = 0; i < 400; i++) pats.push([corpus[100 + i], ['auto', 'word', 'exact', 'part'][i % 4], ['slur', 'allow'][i % 2]]);
 pats.push(['lll000', 'auto', 'slur'], ['a1b22c333', 'word', 'slur'], ['88', 'auto', 'slur'], ['$$$', 'auto', 'slur']);
 const sqlPat = (await one(`select jsonb_agg(word_filter_pattern(t[1], t[2], t[3]) order by i) as r
                              from unnest($1::text[]) with ordinality as u(x, i),
@@ -167,7 +178,10 @@ const probes = [...corpus,
   'you are a n1gg3r', 'f a g', 'retard', 'you retard', 'je suis en retard', 'il est en retard, désolé',
   'retardant', 'retarded', 'spic', 'spicy', 'homo sapiens', 'homework', 'kys', 'kill yourself',
   'FuckYou', 'fuck_you', 'Dick_Grayson', 'Dickson', 'peacock', 'grape', 'enviado', 'chinks', 'Pakistan',
-  'Niger', 'nigeria', 'cabello negro', 'kkkkk', 'negre', 'neger', 'tàu khựa', 'tau khua', 'TAU KHUA lol'];
+  'Niger', 'nigeria', 'cabello negro', 'kkkkk', 'negre', 'neger', 'tàu khựa', 'tau khua', 'TAU KHUA lol',
+  // review false positives
+  'chinking', 'PunchinKing', 'stranny', 'DragHead', 'spices', 'tu retardes', 'les retards', 'paki naman',
+  'Kike', 'homo sapiens', 'niggardliness', 'niggardness', 'xX_Shadow_Xx', 'Dragon_xx', 'spics', 'chinks', 'trannies'];
 const sqlChk = (await one(`select jsonb_agg(coalesce(word_filter_check(x, true), '-') order by i) as r
                              from unnest($1::text[]) with ordinality as t(x, i)`, [probes])).r;
 let chkDiff = 0;
@@ -193,6 +207,15 @@ ok(await chk('spicy food') === null && await chk('homework') === null && await c
 ok(await chk('raccoon') === null && await chk('enviado') === null && await chk('Niger') === null, 'more innocent words');
 ok(await chk('cabello negro') === null && await chk('kkkkk') === null, 'negro / kkk are not server-blocked');
 ok(await chk('Dick_Grayson') === null && await chk('Dick_Grayson', true) === 'offensive', 'offensive: names only');
+for (const t of ['chinking', 'PunchinKing', 'stranny', 'DragHead', 'spices', 'tu retardes', 'les retards', 'paki naman',
+  'Kike', 'homo sapiens', 'niggardliness', 'niggardness', 'xX_Shadow_Xx', 'Dragon_xx']) {
+  ok(await chk(t) === null, `review false positive passes: ${t}`);
+}
+ok(await chk('Kike', true) === 'offensive', 'kike is app-only (names refused, chat not)');
+ok(await chk('spics') === 'slur' && await chk('chinks') === 'slur' && await chk('trannies') === 'slur', 'real plurals still hit');
+ok(await chk('retards') === null && await chk('retard') === 'slur', "retard is 'exact' (no plural)");
+ok(await chk('ok '.repeat(1400) + 'f a g') === null, 'text past 4000 characters is not read (documented)');
+ok(await chk('nigger ' + 'z'.repeat(5000)) === 'slur', 'a long message is still checked from the start');
 ok(await chk('you are a f a g') === 'slur' && await chk('u r a f a g') === 'slur', 'lone letters next to a spaced word');
 ok(await chk('i am a b c') === null && await chk('a b c d e f g') === null, 'spaced alphabet is clean');
 
@@ -200,7 +223,11 @@ ok(await chk('i am a b c') === null && await chk('a b c d e f g') === null, 'spa
 await db.exec(`insert into user_roles (uid, is_admin, is_moderator, is_baby_mod, is_cmsr) values
   ('ADM', true, false, false, false), ('MOD', false, true, false, false), ('JMD', false, true, true, false),
   ('SR', false, false, false, true)`);
-const send = async (table, claims, text) => { await as(claims); return err(`insert into ${table} (sender_id, text) values ($1, $2)`, [claims?.sub || null, text]); };
+const send = async (table, claims, text) => {
+  await as(claims);
+  const e = await err(`insert into ${table} (sender_id, text) values ($1, $2)`, [claims?.sub || null, text]);
+  return e && e.startsWith('WORDS_NOT_ALLOWED') ? 'WORDS_NOT_ALLOWED' : e;
+};
 for (const t of ['messages', 'group_messages', 'private_messages']) {
   ok((await send(t, user('U'), 'you are a f a g')) === 'WORDS_NOT_ALLOWED', `${t}: user slur rejected`);
   ok((await send(t, user('U'), 'hello there, spicy trade?')) === null, `${t}: clean text passes`);
@@ -210,13 +237,15 @@ for (const t of ['messages', 'group_messages', 'private_messages']) {
   ok((await send(t, user('MOD'), 'n1gga')) === null, `${t}: moderator exempt (link bypass)`);
   ok((await send(t, user('SR'), 'n1gga')) === null, `${t}: senior mod exempt`);
   ok((await send(t, user('ADM'), 'n1gga')) === null, `${t}: admin exempt`);
-  ok((await send(t, user('OWN', { email: 'thesolanalabs@gmail.com' }), 'n1gga')) === null, `${t}: owner email exempt`);
+  ok((await send(t, user('OWN', { email: 'thesolanalabs@gmail.com', email_verified: true }), 'n1gga')) === null, `${t}: verified owner email exempt`);
+  ok((await send(t, user('OWX', { email: 'thesolanalabs@gmail.com' }), 'n1gga')) === 'WORDS_NOT_ALLOWED', `${t}: unverified owner email not exempt`);
   ok((await send(t, { role: 'service_role' }, 'n1gga')) === null, `${t}: service role passes`);
   ok((await send(t, null, 'n1gga')) === null, `${t}: no JWT (editor) passes`);
 }
 await as(user('U'));
 const mid = (await one(`insert into messages (sender_id, text) values ('U', 'clean') returning id`)).id;
-ok((await err(`update messages set text = 'retard' where id = $1`, [mid])) === 'WORDS_NOT_ALLOWED', 'update to a slur rejected');
+const upd = await err(`update messages set text = 'retard' where id = $1`, [mid]);
+ok(/^WORDS_NOT_ALLOWED: this message contains a word that is not allowed/.test(upd || ''), `update to a slur rejected with a readable message (got ${upd})`);
 await as(null);
 await db.query(`update messages set text = 'retard' where id = $1`, [mid]);
 await as(user('U'));
@@ -240,6 +269,33 @@ await as(user('U'));
 ok(/NOT_ALLOWED/.test(await err(`select word_filter_add('xyzzy', 'slur')`) || ''), 'user cannot add');
 await as(user('MOD'));
 ok(/NOT_ALLOWED/.test(await err(`select word_filter_admin_list()`) || ''), 'moderator cannot list for editing');
+await as(user('OWX', { email: 'sohailnasir74@gmail.com' }));
+ok(/NOT_ALLOWED/.test(await err(`select word_filter_add('dough', 'slur')`) || ''), 'UNVERIFIED owner email cannot edit');
+ok(/NOT_ALLOWED/.test(await err(`select word_filter_hits_list(10)`) || ''), 'UNVERIFIED owner email cannot read hits');
+await as(user('OWN', { email: 'sohailnasir74@gmail.com', email_verified: true }));
+ok((await err(`select word_filter_admin_list()`)) === null, 'verified owner email can edit');
+await as(null);
+await db.exec(`insert into user_roles (uid, is_cmsr) values ('SRB', true), ('SRM', true);
+  insert into banned_senders (uid, banned_until, reason, type) values
+    ('SRB', now() + interval '1 day', 'ban', 'ban'), ('SRM', now() + interval '1 day', 'Muted for 1h', null),
+    ('OWN', now() - interval '1 day', 'old ban', 'ban')`);
+await as(user('SRB'));
+ok(/NOT_ALLOWED/.test(await err(`select word_filter_admin_list()`) || ''), 'banned Senior Mod cannot edit');
+await as(user('SRM'));
+ok((await err(`select word_filter_admin_list()`)) === null, 'muted Senior Mod can still edit');
+await as(user('OWN', { email: 'sohailnasir74@gmail.com', email_verified: true }));
+ok((await err(`select word_filter_admin_list()`)) === null, 'an expired ban does not count');
+// Grants (Supabase default privileges were applied above).
+const can = async (role, fn) => (await one(`select has_function_privilege($1, $2, 'execute') as r`, [role, fn])).r;
+for (const fn of ['public._word_filter_rebuild()', 'public._word_filter_editor()', 'public._word_filter_hits(text, text, text)']) {
+  ok(!(await can('anon', fn)) && !(await can('authenticated', fn)), `${fn} not callable by anon / authenticated`);
+}
+for (const fn of ['public.word_filter_admin_list()', 'public.word_filter_add(text, text, text, text, text, text)',
+  'public.word_filter_remove(text, text)', 'public.word_filter_hits_list(integer)', 'public.word_filter_check(text, boolean)']) {
+  ok(!(await can('anon', fn)) && await can('authenticated', fn), `${fn}: authenticated only`);
+}
+ok(await can('anon', 'public.word_filter_list(bigint)'), 'word_filter_list stays public (app before sign-in)');
+ok(await can('authenticated', 'public._wf_finish(text[])'), '_wf_finish callable for word_filter_normalize');
 await as(user('SR'));
 const before = await one(`select word_filter_list(null) as r`);
 const vBefore = before.r.v;
@@ -265,7 +321,7 @@ ok(re.active === true && re.term === 'x.y.z.z.y', 'adding the same key again re-
 ok(/TERM_EMPTY/.test(await err(`select word_filter_add('!!!', 'slur')`) || ''), 'punctuation-only term refused');
 ok(/BAD_KIND/.test(await err(`select word_filter_add('abc', 'nope')`) || ''), 'bad kind refused');
 const admin = (await one(`select word_filter_admin_list() as r`)).r;
-ok(admin.rows.length === core.BUNDLED.length + 20 + 2 && admin.rows[0].term === 'x.y.z.z.y', 'admin list, newest first');
+ok(admin.rows.length === core.BUNDLED.length + OFF_SEEDS + 2 && admin.rows[0].term === 'x.y.z.z.y', 'admin list, newest first');
 ok(Array.isArray((await one(`select word_filter_hits_list(10) as r`)).r), 'hits list for Sr Mod+');
 await as(user('U'));
 ok(/NOT_ALLOWED/.test(await err(`select word_filter_hits_list(10)`) || ''), 'hits list refused for users');

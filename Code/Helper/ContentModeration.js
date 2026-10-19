@@ -18,9 +18,10 @@ import { getRemoteWordList, refreshWordList } from './wordBlocklistCache';
 // ✅ Initialize leo-profanity filter
 Filter.loadDictionary('en');
 
-// leo-profanity words that normalise into something much broader than the
-// original token ('s&m' -> 'sm').
-const LEO_SKIP = new Set(['s&m']);
+// leo-profanity words skipped: 's&m' normalises to 'sm'; 'xx' / 'xxx' hit
+// Roblox-style names ("xX_Shadow_Xx", "Dragon_xx"). A standalone "xxx" is
+// still caught by INAPPROPRIATE_PATTERNS.
+const LEO_SKIP = new Set(['s&m', 'xx', 'xxx']);
 
 // ✅ Custom spam/scam keywords and phrases
 const SPAM_KEYWORDS = [
@@ -152,7 +153,9 @@ const URL_PATTERNS = [
 
 // ── Word filter matcher ──
 // Rebuilt only when the remote list version changes. Terms a moderator
-// turned off (`off`) are dropped from the bundled lists too.
+// turned off (`off`) are dropped from the bundled lists too, and a remote
+// term replaces a bundled one with the same key (so a moderator can change
+// its kind or match mode).
 let matcher = null;
 let matcherVersion;
 let spamKeywords = SPAM_KEYWORDS;
@@ -163,8 +166,12 @@ const getMatcher = () => {
   const version = remote ? remote.v : null;
   if (matcher && matcherVersion === version) return matcher;
   const off = new Set((remote?.off || []).map(termKey));
+  const remoteKeys = new Set((remote?.terms || []).map((t) => termKey(t[0])));
   const entries = [];
-  const keep = (e) => { if (!off.has(termKey(e.term))) entries.push(e); };
+  const keep = (e) => {
+    const key = termKey(e.term);
+    if (!off.has(key) && !remoteKeys.has(key)) entries.push(e);
+  };
   BUNDLED.forEach(keep);
   Filter.list().forEach((w) => { if (!LEO_SKIP.has(w)) keep({ term: w, kind: 'offensive', mode: 'word' }); });
   for (const [term, kind, mode] of remote?.terms || []) entries.push({ term, kind, mode });

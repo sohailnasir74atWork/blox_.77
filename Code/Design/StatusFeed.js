@@ -45,7 +45,7 @@ import { useLocalState } from '../LocalGlobelStats';
 import { useGlobalState, modGateText } from '../GlobelStats';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
 import ReportModal from './componenets/ReportModal';
-import { validateContent } from '../Helper/ContentModeration';
+import { validateContent, isAllowedLink } from '../Helper/ContentModeration';
 import { clearFollowingCache } from '../Helper/followingCache';
 
 
@@ -653,9 +653,11 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
     }
 
     // Word filter + content rules on the caption and poll options, the same
-    // check posts and comments get (statuses are public).
+    // check posts and comments get (statuses are public). YouTube / TikTok
+    // links stay allowed.
     const blocked = [caption, ...(isPollMode ? pollOptions : [])]
-      .map(t => validateContent((t || '').trim()))
+      .map(t => (t || '').trim())
+      .map(t => validateContent(t, { skipLinkCheck: isAllowedLink(t) }))
       .find(r => !r.isValid);
     if (blocked) {
       Alert.alert(i18next.t('feed.comments_modal.content_not_allowed'), blocked.reason || i18next.t('feed.upload_modal.inappropriate'));

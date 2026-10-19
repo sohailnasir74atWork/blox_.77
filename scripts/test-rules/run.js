@@ -555,6 +555,18 @@ async function firestoreTests() {
   await no('other user edits post text', () => updateDoc(d(U1, 'designPosts_upgrade', 'p1'), { desc: 'x' }));
   await no('other user un-bans post', () => updateDoc(d(U1, 'designPosts_upgrade', 'p1'), { banned: false }));
   await ok('owner edits own post', () => updateDoc(d(U2, 'designPosts_upgrade', 'p1'), { desc: 'edited' }));
+  // Word filter: masked text stays masked (functions/wordFilterContent.js).
+  await seed(async (f) => {
+    await F.setDoc(F.doc(f, 'designPosts_upgrade', 'pwf'), { userId: U2, desc: 'you ******', likes: {}, wordFilter: { masked: true, fields: ['desc'] } });
+    await F.setDoc(F.doc(f, 'designPosts_upgrade', 'pwf', 'comments', 'cwf'), { userId: U2, text: '***', wordFilter: { masked: true, fields: ['text'] } });
+  });
+  await no('owner un-masks a masked post', () => updateDoc(d(U2, 'designPosts_upgrade', 'pwf'), { desc: 'you slur' }));
+  await no('owner drops the wordFilter stamp', () => updateDoc(d(U2, 'designPosts_upgrade', 'pwf'), { wordFilter: deleteField() }));
+  await no('owner stamps wordFilter on a clean post', () => updateDoc(d(U2, 'designPosts_upgrade', 'p1'), { wordFilter: { masked: false } }));
+  await ok('owner edits tags on a masked post', () => updateDoc(d(U2, 'designPosts_upgrade', 'pwf'), { selectedTags: ['Discussion'] }));
+  await ok('others still react to a masked post', () => updateDoc(d(U1, 'designPosts_upgrade', 'pwf'), { [`reactions.${U1}`]: '🔥' }));
+  await no('author un-masks a masked comment', () => updateDoc(d(U2, 'designPosts_upgrade', 'pwf', 'comments', 'cwf'), { text: 'slur' }));
+  await ok('staff restores a masked post', () => updateDoc(d(M, 'designPosts_upgrade', 'pwf'), { desc: 'you friend', wordFilter: deleteField() }));
   await ok('legacy designPosts like (Mar 2026)', () => updateDoc(d(U1, 'designPosts', 'lp1'), { [`likes.${U1}`]: true }));
   await ok('legacy designPosts comment + count', async () => {
     await addDoc(c(U1, 'designPosts', 'lp1', 'comments'), { userId: U1, text: 'x' });
@@ -579,6 +591,11 @@ async function firestoreTests() {
   await no('remove another voter', () => updateDoc(d(U1, 'statuses', 's1'), { 'pollVotes.0': arrayRemove(U3) }));
   await no('stuff the ballot', () => updateDoc(d(U1, 'statuses', 's1'), { 'pollVotes.0': arrayUnion('x1', 'x2') }));
   await no('edit someone else\'s caption', () => updateDoc(d(U1, 'statuses', 's1'), { caption: 'x' }));
+  await seed(async (f) => F.setDoc(F.doc(f, 'statuses', 'swf'), { userId: U2, caption: '****', type: 'poll', pollOptions: ['a', '***'], pollVotes: { 0: [], 1: [] }, viewedBy: [], wordFilter: { masked: true, fields: ['caption', 'pollOptions'] }, expiresAt: F.Timestamp.fromMillis(Date.now() + 24 * H) }));
+  await no('owner un-masks a masked caption', () => updateDoc(d(U2, 'statuses', 'swf'), { caption: 'slur' }));
+  await no('owner un-masks a masked poll option', () => updateDoc(d(U2, 'statuses', 'swf'), { pollOptions: ['a', 'slur'] }));
+  await ok('owner votes in own masked poll', () => updateDoc(d(U2, 'statuses', 'swf'), { 'pollVotes.0': arrayUnion(U2) }));
+  await ok('others view a masked status', () => updateDoc(d(U1, 'statuses', 'swf'), { viewedBy: arrayUnion(U1) }));
   await ok('global feed query (guest)', () => getDocs(query(c(null, 'statuses'), where('expiresAt', '>', Timestamp.now()), orderBy('expiresAt', 'desc'), limit(20))));
   await no('delete someone else\'s status', () => deleteDoc(d(U1, 'statuses', 's1')));
   await ok('staff deletes status (AdminDashboard)', () => deleteDoc(d(M, 'statuses', 's1')));

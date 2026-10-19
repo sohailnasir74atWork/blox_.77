@@ -69,14 +69,14 @@ async function test(name, fn) {
   await test('status caption and poll options are masked, votes kept', async () => {
     const ref = fsdb.collection('statuses').doc(`wf-status-${RUN}`);
     await ref.set({
-      userId: 'U3', caption: 'vote, retards', type: 'poll',
-      pollOptions: ['leopard', 'k1ke', 'dough'], pollVotes: { 0: [], 1: ['U9'], 2: [] },
+      userId: 'U3', caption: 'vote, retard', type: 'poll',
+      pollOptions: ['leopard', 'sp1c', 'dough'], pollVotes: { 0: [], 1: ['U9'], 2: [] },
     });
     const d = await waitFor(async () => {
       const s = (await ref.get()).data();
       return s && s.wordFilter ? s : null;
     }, 'status masked');
-    assert.strictEqual(d.caption, 'vote, *******');
+    assert.strictEqual(d.caption, 'vote, ******');
     assert.deepStrictEqual(d.pollOptions, ['leopard', '****', 'dough']);
     assert.deepStrictEqual(d.pollVotes[1], ['U9']);
     assert.deepStrictEqual(d.wordFilter.fields, ['caption', 'pollOptions']);
@@ -86,7 +86,7 @@ async function test(name, fn) {
     const ref = fsdb.collection('statuses').doc(`wf-clean-${RUN}`);
     await ref.set({ userId: 'U4', caption: 'désolé, je suis en retard! spicy trade?' });
     const post = fsdb.collection('designPosts_upgrade').doc(`wf-clean-${RUN}`);
-    await post.set({ userId: 'U4', desc: 'fuck this update' }); // offensive, not a slur: the app's job
+    await post.set({ userId: 'U4', desc: 'fuck this update, kike, retards, spices' }); // offensive / app-only / not slurs
     await sleep(6000);
     assert.strictEqual((await ref.get()).data().wordFilter, undefined);
     assert.strictEqual((await ref.get()).data().caption, 'désolé, je suis en retard! spicy trade?');

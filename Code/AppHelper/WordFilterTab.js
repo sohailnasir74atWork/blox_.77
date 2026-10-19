@@ -38,7 +38,7 @@ import { findBlockedTerms, refreshWordFilter, validateUsername } from '../Helper
 dayjs.extend(relativeTime);
 
 const KINDS = ['slur', 'offensive', 'spam', 'allow'];
-const MODES = ['auto', 'word', 'part'];
+const MODES = ['auto', 'word', 'exact', 'part'];
 const KIND_COLOR = { slur: '#FF3B30', offensive: '#FF9500', spam: '#AF52DE', allow: '#34C759' };
 const FILTERS = [null, ...KINDS, 'off'];
 const LANG_RE = /^[a-z]{2,3}$/;
@@ -293,7 +293,7 @@ const WordFilterTab = ({ isDark, currentUser }) => {
       <Text style={{ color: sub, fontSize: 11, marginTop: 6 }}>
         {kind === 'allow'
           ? 'Allow: this whole phrase is cut out before matching (e.g. "en retard" = French for "late").'
-          : 'auto: whole word for short terms (spic ≠ spicy), inside words for 5+ letters. word: whole word only. part: inside any word.'}
+          : 'auto: whole word for short terms (spic ≠ spicy), inside words for 5+ letters. word: whole word (+ plural s). exact: whole word, no plural. part: inside any word.'}
       </Text>
       <View style={{ flexDirection: 'row', marginTop: 8 }}>
         <TextInput

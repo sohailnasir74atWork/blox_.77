@@ -32,8 +32,9 @@
 --     tokens that contain a letter, then the pieces of each joined run
 --     ("u r a f a g" -> ... fag ...).
 --   word_filter_pattern(term, mode, kind) -> regex: each letter may repeat,
---     'l' also matches 'i'; mode 'word' = whole tokens (+ plural s/es),
---     'part' = inside a token, 'auto' = part for one token of 5+ chars.
+--     'l' also matches 'i'; mode 'word' = whole tokens (+ plural s),
+--     'exact' = whole tokens, no plural, 'part' = inside a token,
+--     'auto' = part for one token of 5+ chars.
 --   The patterns of each kind are OR-ed into ONE regex, cached in the
 --   single row of word_filter_state and rebuilt by a statement trigger on
 --   every list change. A chat insert costs: one pk read, one normalise, one
@@ -48,11 +49,24 @@
 -- own error first, and the regex only runs on writes that would land.
 -- 034's functions are not modified.
 --
--- OLD BUILDS (4.0.15+, i.e. every production build): chatErrorCode() finds
--- 'NOT_ALLOWED' inside 'WORDS_NOT_ALLOWED' -> "Message not sent / This
--- message isn't allowed here."; the public-chat retry queue drops it (a
--- 23514 is permanent). Settings shows a refused name's error message as is,
--- so USERNAME_NOT_ALLOWED carries a readable English sentence.
+-- OLD BUILDS. Nothing crashes; the message never reaches anyone else.
+--   4.0.15+ (Play production 4.0.22, iOS 8.x): chatErrorCode() finds
+--     'NOT_ALLOWED' inside 'WORDS_NOT_ALLOWED' -> "Message not sent / This
+--     message isn't allowed here." in the user's language. Public chat keeps
+--     the text in the box and never queues it; private chat drops the bubble
+--     and puts the text back; group chat shows the same toast.
+--   4.0.12-4.0.14: public chat treats any failed send as offline: the input
+--     clears, an "Offline - your message will send automatically" toast
+--     shows, the send is retried on the next 3 reconnects and then dropped.
+--     Private chat: "Error / Could not send your message. Please try again."
+--     (the bubble stays on the sender's screen until the chat reloads).
+--     Group chat: "Error / <server message>", so the exception text below is
+--     a readable sentence.
+-- Names: every build shows the server's error text as is, so
+-- USERNAME_NOT_ALLOWED carries a readable English sentence.
+--
+-- COST: only the first 4000 characters are read (wordFilterCore MAX_CHARS),
+-- and run pieces are capped, so a crafted message stays in the low ms.
 --
 -- Apply after 034, any order relative to 044-048/050. Steps 1-5 are one run;
 -- each STEP arms one table.
@@ -171,7 +185,7 @@ declare
   v_j     integer;
   v_punct text := public._wf_punct_re();
 begin
-  v_s := normalize(p_text, NFKD);
+  v_s := normalize(left(p_text, 4000), NFKD);          -- wordFilterCore MAX_CHARS
   v_s := regexp_replace(v_s, public._wf_spaces_re(), ' ', 'g');
   v_s := regexp_replace(v_s, public._wf_strip_re(), '', 'g');
   v_s := translate(v_s, public._wf_map_from(), public._wf_map_to());
@@ -285,21 +299,38 @@ begin
 
   if p_kind = 'allow' then
     v_mode := 'word';
-  elsif v_mode not in ('word', 'part') then
+  elsif v_mode not in ('word', 'exact', 'part') then
     v_mode := case when array_length(v_toks, 1) = 1 and char_length(v_toks[1]) >= 5 then 'part' else 'word' end;
   end if;
   if v_mode = 'part' then
     return v_body;
   end if;
+  -- Plural: a plain 's' (never 'es': "spices", French "tu retardes"); none
+  -- for 'exact' terms or after a digit.
   v_last := right(v_toks[array_length(v_toks, 1)], 1);
-  return ' ' || v_body || case when v_last ~ '^[0-9]$' then '' else '(?:e?s)?' end || '(?= )';
+  return ' ' || v_body || case when v_mode = 'exact' or v_last ~ '^[0-9]$' then '' else 's?' end || '(?= )';
 end;
 $$;
 
+-- word_filter_normalize is not SECURITY DEFINER, so whoever calls it also
+-- needs _wf_finish and the _wf_*_re() constants (Supabase's default
+-- privileges grant those). The app never calls these; staff / service may.
 revoke all on function public._wf_finish(text[]) from public;
-grant execute on function public.word_filter_normalize(text) to anon, authenticated, service_role;
-grant execute on function public.word_filter_term_key(text) to anon, authenticated, service_role;
-grant execute on function public.word_filter_pattern(text, text, text) to anon, authenticated, service_role;
+grant execute on function public._wf_finish(text[]) to authenticated, service_role;
+revoke all on function public.word_filter_normalize(text) from public;
+revoke all on function public.word_filter_term_key(text) from public;
+revoke all on function public.word_filter_pattern(text, text, text) from public;
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    revoke all on function public.word_filter_normalize(text) from anon;
+    revoke all on function public.word_filter_term_key(text) from anon;
+    revoke all on function public.word_filter_pattern(text, text, text) from anon;
+    revoke all on function public._wf_finish(text[]) from anon;
+  end if;
+end $$;
+grant execute on function public.word_filter_normalize(text) to authenticated, service_role;
+grant execute on function public.word_filter_term_key(text) to authenticated, service_role;
+grant execute on function public.word_filter_pattern(text, text, text) to authenticated, service_role;
 
 
 -- =====================================================================
@@ -311,7 +342,7 @@ create table if not exists public.word_blocklist (
   term          text not null check (char_length(term) between 1 and 100),
   term_key      text not null,                     -- word_filter_term_key(term), set by trigger
   kind          text not null check (kind in ('slur', 'offensive', 'spam', 'allow')),
-  match_mode    text not null default 'auto' check (match_mode in ('auto', 'word', 'part')),
+  match_mode    text not null default 'auto',
   lang          text check (lang is null or lang ~ '^[a-z]{2,3}$'),
   note          text check (note is null or char_length(note) <= 300),
   active        boolean not null default true,
@@ -324,6 +355,10 @@ create table if not exists public.word_blocklist (
 
 create unique index if not exists word_blocklist_term_key_uidx
   on public.word_blocklist (term_key);
+
+alter table public.word_blocklist drop constraint if exists word_blocklist_match_mode_check;
+alter table public.word_blocklist add constraint word_blocklist_match_mode_check
+  check (match_mode in ('auto', 'word', 'exact', 'part'));
 
 alter table public.word_blocklist enable row level security;
 revoke all on public.word_blocklist from anon, authenticated;
@@ -438,7 +473,18 @@ begin
    where id = 1;
 end;
 $$;
+-- Internal (SECURITY DEFINER): nobody calls these over the API. Revoked
+-- from anon / authenticated too, because Supabase's default privileges
+-- grant them EXECUTE on every new function.
 revoke all on function public._word_filter_rebuild() from public;
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    revoke all on function public._word_filter_rebuild() from anon;
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'authenticated') then
+    revoke all on function public._word_filter_rebuild() from authenticated;
+  end if;
+end $$;
 
 create or replace function public._word_blocklist_after()
 returns trigger
@@ -484,9 +530,12 @@ $$;
 revoke all on function public.word_filter_list(bigint) from public;
 grant execute on function public.word_filter_list(bigint) to anon, authenticated, service_role;
 
--- Senior Mod+ (owner email, user_roles.is_admin, user_roles.is_cmsr) — the
--- same role source as 031 is_mod_staff / 034 _chat_caller_link_tier. Returns
--- the caller's uid; raises NOT_ALLOWED for anyone else (incl. no JWT: the SQL
+-- Senior Mod+: a VERIFIED owner email (040), user_roles.is_admin or
+-- user_roles.is_cmsr (the 031 / 034 role source), and no active BAN in
+-- banned_senders (mutes don't count; owners included), the same rule as
+-- 047's is_mod_staff and functions/banEnforcement.js isActorBanned. Both are
+-- inlined so this does not depend on 040 / 047 being applied. Returns the
+-- caller's uid; raises NOT_ALLOWED for anyone else (incl. no JWT: the SQL
 -- editor writes the table directly instead).
 create or replace function public._word_filter_editor()
 returns text
@@ -496,14 +545,23 @@ security definer
 set search_path = public
 as $$
 declare
-  v_uid   text := public._chat_end_user_uid();
-  v_email text;
+  v_uid text := public._chat_end_user_uid();
+  v_c   jsonb := public._chat_jwt_claims();
 begin
   if v_uid is null then
     raise exception 'NOT_ALLOWED' using errcode = '42501', hint = 'Sign in as a Senior Mod or above.';
   end if;
-  v_email := lower(public._chat_jwt_claims() ->> 'email');
-  if v_email in ('thesolanalabs@gmail.com', 'sohailnasir74business@gmail.com', 'sohailnasir74@gmail.com') then
+  if exists (
+    select 1
+      from public.banned_senders b
+     where b.uid = v_uid
+       and (b.banned_until is null or b.banned_until > now())
+       and coalesce(b.type, case when coalesce(b.reason, '') ~* '^muted for' then 'mute' else 'ban' end) = 'ban'
+  ) then
+    raise exception 'NOT_ALLOWED' using errcode = '42501', hint = 'Banned accounts cannot edit the word filter.';
+  end if;
+  if coalesce(v_c ->> 'email_verified', '') = 'true'
+     and lower(v_c ->> 'email') in ('thesolanalabs@gmail.com', 'sohailnasir74business@gmail.com', 'sohailnasir74@gmail.com') then
     return v_uid;
   end if;
   if exists (select 1 from public.user_roles ur
@@ -514,6 +572,14 @@ begin
 end;
 $$;
 revoke all on function public._word_filter_editor() from public;
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    revoke all on function public._word_filter_editor() from anon;
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'authenticated') then
+    revoke all on function public._word_filter_editor() from authenticated;
+  end if;
+end $$;
 
 create or replace function public.word_filter_admin_list()
 returns jsonb
@@ -622,6 +688,14 @@ revoke all on function public.word_filter_admin_list() from public;
 revoke all on function public.word_filter_add(text, text, text, text, text, text) from public;
 revoke all on function public.word_filter_remove(text, text) from public;
 revoke all on function public.word_filter_hits_list(integer) from public;
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    revoke all on function public.word_filter_admin_list() from anon;
+    revoke all on function public.word_filter_add(text, text, text, text, text, text) from anon;
+    revoke all on function public.word_filter_remove(text, text) from anon;
+    revoke all on function public.word_filter_hits_list(integer) from anon;
+  end if;
+end $$;
 grant execute on function public.word_filter_admin_list() to authenticated;
 grant execute on function public.word_filter_add(text, text, text, text, text, text) to authenticated;
 grant execute on function public.word_filter_remove(text, text) to authenticated;
@@ -638,7 +712,11 @@ grant execute on function public.word_filter_hits_list(integer) to authenticated
 -- Confidence (how sure we are a term is a slur AND has no common innocent
 -- use in the app's languages):
 --   en  high.   "fag" (UK: cigarette), "homo", "dyke" medium; "retard" is
---               whole-word only and French "en retard" etc. are allow phrases.
+--               'exact' (no plural: French "retards") and French "en retard"
+--               etc. are allow phrases, as is "homo sapiens". chink, tranny,
+--               raghead are whole-word ("chinking", "stranny", "DragHead").
+--               paki is off (Tagalog "please"); kike is 'offensive', app-only
+--               (Spanish nickname for Enrique).
 --               English profanity lives in the app's bundled leo-profanity
 --               list; the 'offensive' rows here are what the server also
 --               checks in usernames.
@@ -680,19 +758,18 @@ insert into public.word_blocklist (term, term_key, kind, match_mode, lang, activ
   ('niglet', '', 'slur', 'part', 'en', true, 'seed: high'),
   ('faggot', '', 'slur', 'part', 'en', true, 'seed: high'),
   ('fag', '', 'slur', 'word', 'en', true, 'seed: medium: UK "cigarette"'),
-  ('retard', '', 'slur', 'word', 'en', true, 'seed: high; whole word, French "en retard" is an allow phrase'),
+  ('retard', '', 'slur', 'exact', 'en', true, 'seed: high; exact word, French "en retard" is an allow phrase'),
   ('retarded', '', 'slur', 'part', 'en', true, 'seed: high'),
-  ('chink', '', 'slur', 'part', 'en', true, 'seed: high'),
+  ('chink', '', 'slur', 'word', 'en', true, 'seed: high; whole word ("chinking")'),
   ('gook', '', 'slur', 'word', 'en', true, 'seed: high'),
   ('spic', '', 'slur', 'word', 'en', true, 'seed: high'),
-  ('kike', '', 'slur', 'word', 'en', true, 'seed: high'),
   ('coon', '', 'slur', 'word', 'en', true, 'seed: high'),
-  ('paki', '', 'slur', 'word', 'en', true, 'seed: high'),
   ('wetback', '', 'slur', 'part', 'en', true, 'seed: high'),
   ('beaner', '', 'slur', 'part', 'en', true, 'seed: high'),
-  ('raghead', '', 'slur', 'part', 'en', true, 'seed: high'),
+  ('raghead', '', 'slur', 'word', 'en', true, 'seed: high; whole word ("DragHead")'),
   ('towelhead', '', 'slur', 'part', 'en', true, 'seed: high'),
-  ('tranny', '', 'slur', 'part', 'en', true, 'seed: high'),
+  ('tranny', '', 'slur', 'word', 'en', true, 'seed: high; whole word ("stranny")'),
+  ('trannies', '', 'slur', 'word', 'en', true, 'seed: high'),
   ('dyke', '', 'slur', 'word', 'en', true, 'seed: medium'),
   ('homo', '', 'slur', 'word', 'en', true, 'seed: medium'),
   ('jigaboo', '', 'slur', 'part', 'en', true, 'seed: high'),
@@ -709,6 +786,7 @@ insert into public.word_blocklist (term, term_key, kind, match_mode, lang, activ
   ('kill yourself', '', 'offensive', 'word', 'en', true, 'seed: high'),
   ('kill urself', '', 'offensive', 'word', 'en', true, 'seed: high'),
   ('whore', '', 'offensive', 'word', 'en', true, 'seed: high'),
+  ('kike', '', 'offensive', 'word', 'en', true, 'seed: app-only: also a Spanish nickname (Enrique)'),
   ('fuck', '', 'offensive', 'word', 'en', true, 'seed: high'),
   ('fucking', '', 'offensive', 'word', 'en', true, 'seed: high'),
   ('fucker', '', 'offensive', 'word', 'en', true, 'seed: high'),
@@ -740,7 +818,7 @@ insert into public.word_blocklist (term, term_key, kind, match_mode, lang, activ
   ('boiola', '', 'slur', 'part', 'pt', true, 'seed: high'),
   ('traveco', '', 'slur', 'part', 'pt', true, 'seed: high'),
   ('sapatao', '', 'slur', 'word', 'pt', true, 'seed: medium-high'),
-  ('retardado', '', 'slur', 'part', 'pt', true, 'seed: high'),
+  ('retardado', '', 'slur', 'part', 'pt', true, 'seed: high; es also "delayed"'),
   ('mongoloide', '', 'slur', 'part', 'pt', true, 'seed: high'),
   -- fr
   ('bougnoule', '', 'slur', 'part', 'fr', true, 'seed: high'),
@@ -778,7 +856,7 @@ insert into public.word_blocklist (term, term_key, kind, match_mode, lang, activ
   ('زنجي', '', 'slur', 'word', 'ar', true, 'seed: medium'),
   ('لوطي', '', 'slur', 'word', 'ar', true, 'seed: medium'),
   ('khawal', '', 'slur', 'word', 'ar', true, 'seed: medium (Arabizi)'),
-  -- allow phrases: French "retard" = delay / late; English words that contain a part-mode slur
+  -- allow phrases: French "retard" = delay / late; English words that contain a slur
   ('en retard', '', 'allow', 'word', 'fr', true, 'seed: allow'),
   ('du retard', '', 'allow', 'word', 'fr', true, 'seed: allow'),
   ('de retard', '', 'allow', 'word', 'fr', true, 'seed: allow'),
@@ -796,7 +874,11 @@ insert into public.word_blocklist (term, term_key, kind, match_mode, lang, activ
   ('sniggered', '', 'allow', 'word', 'en', true, 'seed: allow'),
   ('niggard', '', 'allow', 'word', 'en', true, 'seed: allow'),
   ('niggardly', '', 'allow', 'word', 'en', true, 'seed: allow'),
+  ('niggardliness', '', 'allow', 'word', 'en', true, 'seed: allow'),
+  ('niggardness', '', 'allow', 'word', 'en', true, 'seed: allow'),
+  ('homo sapiens', '', 'allow', 'word', 'en', true, 'seed: allow'),
   -- suggestions, switched off (see confidence notes above)
+  ('paki', '', 'slur', 'word', 'en', false, 'seed (off): medium: also Tagalog "please" (paki naman)'),
   ('marica', '', 'slur', 'word', 'es', false, 'seed (off): medium: also "dude" in Colombia'),
   ('puto', '', 'slur', 'word', 'es', false, 'seed (off): medium: also a general intensifier in Spain'),
   ('bicha', '', 'slur', 'word', 'pt', false, 'seed (off): medium: pt-PT "queue"'),
@@ -848,6 +930,14 @@ begin
 end;
 $$;
 revoke all on function public._word_filter_hits(text, text, text) from public;
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    revoke all on function public._word_filter_hits(text, text, text) from anon;
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'authenticated') then
+    revoke all on function public._word_filter_hits(text, text, text) from authenticated;
+  end if;
+end $$;
 
 -- Is p_text OK for kind 'slur' (+ 'offensive' when p_names)? For the app's
 -- own diagnostics and the staff tester; anyone may ask about any text.
@@ -872,7 +962,12 @@ begin
 end;
 $$;
 revoke all on function public.word_filter_check(text, boolean) from public;
-grant execute on function public.word_filter_check(text, boolean) to anon, authenticated, service_role;
+do $$ begin
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    revoke all on function public.word_filter_check(text, boolean) from anon;
+  end if;
+end $$;
+grant execute on function public.word_filter_check(text, boolean) to authenticated, service_role;
 
 create or replace function public.enforce_chat_words()
 returns trigger
@@ -905,7 +1000,9 @@ begin
   if public._chat_caller_link_tier() in ('admin', 'bypass') then
     return new;
   end if;
-  raise exception 'WORDS_NOT_ALLOWED'
+  -- Builds 4.0.12-4.0.14 show the group-chat error text as is; newer ones
+  -- find NOT_ALLOWED in it.
+  raise exception 'WORDS_NOT_ALLOWED: this message contains a word that is not allowed.'
     using errcode = 'check_violation',
           hint = 'This message contains a word that is not allowed.';
 end;

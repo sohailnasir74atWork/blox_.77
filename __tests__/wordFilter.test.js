@@ -69,8 +69,8 @@ describe('blocks evasions', () => {
     'n i g g e r', 'n.i.g.g.e.r', 'n-i-g-g-e-r', 'n_i_g_g_e_r', 'n*i*g*g*e*r', 'ｎｉｇｇｅｒ', '𝓷𝓲𝓰𝓰𝓮𝓻',
     'n​igger', 'nіggеr', 'Ｎ 1 g g 3 r', 'you niggas', 'sandnigger',
     'fag', 'FAG!', 'f@g', 'fags', 'f a g', 'you are a f a g', 'u r a f a g', 'faggot', 'f4gg0t', 'faggots',
-    'retard', 'ur a retard', 'r3t4rd', 'retarded', 'retards',
-    'chink', 'ch1nk', 'chinks', 'spic', 'sp1c', 'kike', 'k1ke', 'coon', 'c00n', 'paki', 'tranny', 'tr4nny',
+    'retard', 'ur a retard', 'r3t4rd', 'retarded',
+    'chink', 'ch1nk', 'chinks', 'spic', 'sp1c', 'spics', 'coon', 'c00n', 'tranny', 'tr4nny', 'trannies', 'raghead',
     'porch monkey', 'ching chong', 'ching-chong', 'heil hitler', 'sieg heil', 'dyke', 'homo',
     'maricón', 'MARICONES', 'viado', 'v1ad0', 'bougnoule', 'nègre', 'Neger', 'Kanake',
     'Schwuchtel', 'Kümmeltürke', 'пидор', 'ПИДОРАС', 'пидорасы', 'педик', 'хохол', 'жид', 'черножопый',
@@ -90,6 +90,9 @@ describe('no false positives (Scunthorpe)', () => {
     'kkkkkk', 'cabello negro', 'trade 4 5 6 7', '1v1 me 50k', '455k leopard',
     'Dragon for Leopard + Dough?', 'w/l?', 'gg ez', 'fair trade', 'Mammoth', 'Buddha', 'Kitsune',
     'T-Rex', 'Portal', 'Rumble', 'Spike', 'Shadow', 'Venom', 'Control', 'Spirit', 'Gravity',
+    // review false positives
+    'chinking', 'PunchinKing', 'stranny', 'DragHead', 'spices', 'tu retardes', 'les retards', 'retards',
+    'paki naman', 'pakibigay', 'Kike', 'homo sapiens', 'niggardliness', 'niggardness', 'xX_Shadow_Xx', 'Dragon_xx',
   ])('%j', (text) => {
     expect(slur(text)).toBe(false);
   });
@@ -113,10 +116,27 @@ describe('ContentModeration', () => {
     expect(validateContent('visit example.com', { skipLinkCheck: true }).isValid).toBe(true);
   });
 
-  it('still blocks everything leo-profanity blocked', () => {
-    for (const w of ['boobs', 'bitch', 'cunt', 'twat', 'wank', 'xxx', 'sucks']) {
+  it('still blocks what leo-profanity blocked, minus xx / xxx in names', () => {
+    for (const w of ['boobs', 'bitch', 'cunt', 'twat', 'wank', 'sucks', 'kike', 'k1ke']) {
       expect(containsProfanity(w)).toBe(true);
     }
+    expect(containsProfanity('xX_Shadow_Xx')).toBe(false);
+    expect(containsProfanity('Dragon_xx')).toBe(false);
+    expect(validateContent('xxx').reason).toBe('app.content_moderation.inappropriate');
+    expect(validateContent('xX_Shadow_Xx sells leopard')).toEqual({ isValid: true });
+  });
+
+  it('paki (Tagalog "please") is not blocked; leo drops it once the server list says off', () => {
+    expect(containsSlur('paki naman')).toBe(false);
+    mockRemote = { v: 2, terms: [], off: ['paki'] };
+    expect(containsProfanity('paki add me')).toBe(false);
+  });
+
+  it('a remote term replaces a bundled one with the same key', () => {
+    expect(validateContent('spic').reason).toBe('app.word_filter.slur');
+    mockRemote = { v: 3, terms: [['spic', 'offensive', 'exact']], off: [] };
+    expect(validateContent('spic').reason).toBe('app.content_moderation.profanity');
+    expect(containsSlur('spics')).toBe(false); // exact now: no plural
   });
 
   it('merges the remote list and drops terms a moderator turned off', () => {
@@ -141,7 +161,7 @@ describe('ContentModeration', () => {
     expect(validateUsername('xXn1gg3rXx')).toEqual({ isValid: false, reason: 'app.word_filter.username_not_allowed' });
     expect(validateUsername('Fuck_You').isValid).toBe(false);
     expect(validateUsername('kys').isValid).toBe(false);
-    for (const ok of ['SpicyTrader', 'LinkMaster', 'GiveawayKing', 'BloxGod99', 'xXSlayerXx', 'Assassin', 'Mr. Peacock']) {
+    for (const ok of ['SpicyTrader', 'LinkMaster', 'GiveawayKing', 'BloxGod99', 'xXSlayerXx', 'xX_Shadow_Xx', 'Dragon_xx', 'Assassin', 'Mr. Peacock']) {
       expect(validateUsername(ok)).toEqual({ isValid: true });
     }
   });
@@ -162,11 +182,18 @@ describe('maskText', () => {
 
 describe('patterns', () => {
   it('short terms are whole-word, long ones match inside words', () => {
-    expect(core.termPattern('spic', 'auto', 'slur')).toBe(' s+p+i+c+(?:e?s)?(?= )');
+    expect(core.termPattern('spic', 'auto', 'slur')).toBe(' s+p+i+c+s?(?= )');
+    expect(core.termPattern('retard', 'exact', 'slur')).toBe(' r+e+t+a+r+d+(?= )');
     expect(core.termPattern('nigger', 'auto', 'slur')).toBe('n+i+g{2,}e+r+');
-    expect(core.termPattern('kill yourself', 'auto', 'offensive')).toBe(' k+i+[li]{2,} y+o+u+r+s+e+[li]+f+(?:e?s)?(?= )');
+    expect(core.termPattern('kill yourself', 'auto', 'offensive')).toBe(' k+i+[li]{2,} y+o+u+r+s+e+[li]+f+s?(?= )');
     expect(core.termPattern('88', 'auto', 'slur')).toBe(' 8{2}(?= )');
     expect(core.termPattern('!!!', 'auto', 'slur')).toBeNull();
+  });
+
+  it('reads only the first 4000 characters', () => {
+    expect(slur('nigger ' + 'z'.repeat(5000))).toBe(true);
+    expect(slur('ok '.repeat(1400) + 'nigger')).toBe(false);
+    expect(slur('😀'.repeat(3990) + ' nigger')).toBe(true); // counted in code points, like SQL left()
   });
 
   it('a long message is still fast', () => {

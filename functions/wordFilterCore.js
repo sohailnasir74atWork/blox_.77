@@ -30,8 +30,10 @@
 // MATCH  a term is normalised the same way (variant A), then:
 //   - a letter may repeat (fuuuuck): a run of k becomes {k,}; 'l' also
 //     matches 'i' (so 1 can stand for i or l); digits match exactly.
-//   - mode 'word': whole tokens only, optional plural s/es. Short terms use
-//     it, so "spic" never fires on "spicy", "homo" never on "homework".
+//   - mode 'word': whole tokens only, plus an optional plural 's' (never
+//     'es': "spices", French "tu retardes"). Short terms use it, so "spic"
+//     never fires on "spicy", "homo" never on "homework".
+//     mode 'exact': whole tokens only, no plural (retard: French "retards").
 //     mode 'part': anywhere inside a token (niggas, faggots).
 //     mode 'auto': 'part' for one token of 5+ characters, else 'word'.
 //   - kind 'allow': phrases cut out before matching, for innocent text that
@@ -178,10 +180,24 @@ const runPieces = (lists) => {
   return out;
 };
 
+// Only the first 4000 characters (code points, like SQL left()) are read, so
+// a huge crafted message stays cheap on the server.
+const MAX_CHARS = 4000;
+const capChars = (s) => {
+  if (s.length <= MAX_CHARS) return s;
+  let i = 0;
+  for (let n = 0; n < MAX_CHARS && i < s.length; n++) {
+    const c = s.charCodeAt(i);
+    const d = i + 1 < s.length ? s.charCodeAt(i + 1) : 0;
+    i += c >= 0xd800 && c <= 0xdbff && d >= 0xdc00 && d <= 0xdfff ? 2 : 1;
+  }
+  return s.slice(0, i);
+};
+
 // Tokens of both variants plus the run pieces; w0..w1 = index of the source
 // word(s) in text.split(SPLIT_RE), so maskText can find them again.
 const tokenize = (text) => {
-  const words = String(text == null ? '' : text).split(SPLIT_RE);
+  const words = capChars(String(text == null ? '' : text)).split(SPLIT_RE);
   const a = [];
   const b = [];
   for (let i = 0; i < words.length; i++) {
@@ -238,10 +254,10 @@ const tokenPattern = (tok) => {
 
 const termTokens = (term) => tokenize(term).a.map((x) => x.t);
 
-// 'word' | 'part' after resolving 'auto' (allow phrases are always 'word').
+// 'word' | 'exact' | 'part' after resolving 'auto' (allow phrases: 'word').
 const resolveMode = (toks, mode, kind) => {
   if (kind === 'allow') return 'word';
-  if (mode === 'word' || mode === 'part') return mode;
+  if (mode === 'word' || mode === 'exact' || mode === 'part') return mode;
   return toks.length === 1 && toks[0].length >= 5 ? 'part' : 'word';
 };
 
@@ -250,9 +266,10 @@ const termPattern = (term, mode, kind) => {
   const toks = termTokens(term);
   if (!toks.length) return null;
   const body = toks.map(tokenPattern).join(' ');
-  if (resolveMode(toks, mode, kind) === 'part') return body;
+  const m = resolveMode(toks, mode, kind);
+  if (m === 'part') return body;
   const last = toks[toks.length - 1];
-  return ' ' + body + (isDigit(last[last.length - 1]) ? '' : '(?:e?s)?') + '(?= )';
+  return ' ' + body + (m === 'exact' || isDigit(last[last.length - 1]) ? '' : 's?') + '(?= )';
 };
 
 // Canonical form of a term (for de-duplicating and the "off" list).
@@ -357,19 +374,18 @@ const BUNDLED = [
   ['niglet', 'slur', 'part', 'en'],
   ['faggot', 'slur', 'part', 'en'],
   ['fag', 'slur', 'word', 'en'],
-  ['retard', 'slur', 'word', 'en'],
+  ['retard', 'slur', 'exact', 'en'],
   ['retarded', 'slur', 'part', 'en'],
-  ['chink', 'slur', 'part', 'en'],
+  ['chink', 'slur', 'word', 'en'],
   ['gook', 'slur', 'word', 'en'],
   ['spic', 'slur', 'word', 'en'],
-  ['kike', 'slur', 'word', 'en'],
   ['coon', 'slur', 'word', 'en'],
-  ['paki', 'slur', 'word', 'en'],
   ['wetback', 'slur', 'part', 'en'],
   ['beaner', 'slur', 'part', 'en'],
-  ['raghead', 'slur', 'part', 'en'],
+  ['raghead', 'slur', 'word', 'en'],
   ['towelhead', 'slur', 'part', 'en'],
-  ['tranny', 'slur', 'part', 'en'],
+  ['tranny', 'slur', 'word', 'en'],
+  ['trannies', 'slur', 'word', 'en'],
   ['dyke', 'slur', 'word', 'en'],
   ['homo', 'slur', 'word', 'en'],
   ['jigaboo', 'slur', 'part', 'en'],
@@ -388,6 +404,9 @@ const BUNDLED = [
   ['kill yourself', 'offensive', 'word', 'en'],
   ['kill urself', 'offensive', 'word', 'en'],
   ['whore', 'offensive', 'word', 'en'],
+  // Slurs that are also everyday words elsewhere: app-only (the server checks
+  // them in usernames only). kike = Spanish nickname for Enrique.
+  ['kike', 'offensive', 'word', 'en'],
   ['fuck', 'offensive', 'word', 'en'],
   ['fucking', 'offensive', 'word', 'en'],
   ['fucker', 'offensive', 'word', 'en'],
@@ -476,6 +495,9 @@ const BUNDLED = [
   ['sniggered', 'allow', 'word', 'en'],
   ['niggard', 'allow', 'word', 'en'],
   ['niggardly', 'allow', 'word', 'en'],
+  ['niggardliness', 'allow', 'word', 'en'],
+  ['niggardness', 'allow', 'word', 'en'],
+  ['homo sapiens', 'allow', 'word', 'en'],
 ].map(([term, kind, mode, lang]) => ({ term, kind, mode, lang }));
 
 module.exports = {
