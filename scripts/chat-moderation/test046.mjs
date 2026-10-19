@@ -238,8 +238,8 @@ ok(same(await listAs('J'), ['M', 'J', 'U2']), `JMD: no Senior Mod / Admin report
 ok(same(await listAs('M'), ['M', 'J', 'U2']), `Mod: no Senior Mod / Admin reports (got ${await listAs('M')})`);
 ok(same(await listAs('S'), ['M', 'J', 'U2']), `Senior Mod: not even reports about Senior Mods (got ${await listAs('S')})`);
 ok(same(await listAs('S2'), ['M', 'J', 'U2']), 'another Senior Mod: same');
-ok(same(await listAs('A'), ['S', 'M', 'J', 'U2']), `Admin: Senior Mod reports, not Admin reports (got ${await listAs('A')})`);
-ok(same(await listAs('A2'), ['S', 'M', 'J', 'U2']), 'another Admin: same');
+ok(same(await listAs('A'), ['A', 'S', 'M', 'J', 'U2']), `Admin (owner level): everything, own reports too (got ${await listAs('A')})`);
+ok(same(await listAs('A2'), ['A', 'S', 'M', 'J', 'U2']), 'another Admin: reports about Admins too');
 ok(same(await listAs('O'), ['A', 'S', 'M', 'J', 'U2']), `owner: everything (got ${await listAs('O')})`);
 ok(same(await listAs('J', 1), ['M']), 'page limit applies after the filter (a hidden newer row does not eat the page)');
 const ue = await err(() => listAs('U1'));
@@ -267,6 +267,7 @@ for (const who of ['J', 'M', 'S', 'S2']) {
 }
 ok((await readChat('A', 'chat2')).length === 1, 'Admin reads the Senior Mod chat');
 ok(await canRead('O', 'chat3'), 'owner reads the Admin chat');
+ok(await canRead('A2', 'chat3'), 'another Admin reads the Admin chat');
 ok(await canRead('M', 'chat4'), 'chat also reported about a user: readable as evidence for that report');
 ok(await canRead('M', 'chat5'), 'legacy report with no reported_uid: unchanged');
 ok(!(await canRead('M', 'chat9')), 'unreported chat still refused');

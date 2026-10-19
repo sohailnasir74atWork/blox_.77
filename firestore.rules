@@ -335,13 +335,13 @@ service cloud.firestore {
     // ── Reports ──
     // Reports about senior staff go up (2026-10-19). functions/reportAudience.js
     // stamps `audience` from the target's server-side rank: 'staff' (target
-    // below Senior Mod: all staff), 'admin' (Senior Mod: Admins + owner),
-    // 'owner' (Admin or owner: owner only). Unstamped = owner only. Staff list
-    // queries must filter on audience (ReportsTab does); clients never write it.
+    // below Senior Mod: all staff) or 'admin' (Senior Mod / Admin / owner:
+    // Admins + owner). Admins and the owner read every report; unstamped ones
+    // too. Lower staff must filter on audience == 'staff' (ReportsTab and the
+    // Chat Viewer do); clients never write it.
     function seesReport() {
-      return isAdminEmail()
-        || (resource.data.get('audience', '') == 'staff' && isStaff())
-        || (resource.data.get('audience', '') == 'admin' && isAdmin());
+      return isAdmin()
+        || (resource.data.get('audience', '') == 'staff' && isStaff());
     }
     // DM reports (Scamwarning.js). The reporter's duplicate check queries
     // their own pending reports.
@@ -374,7 +374,7 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time
         && request.resource.data.status == 'open';
       allow update: if seesReport() && changed().hasOnly(['status', 'reviewedBy', 'reviewedAt']);
-      allow delete: if isAdmin() && seesReport();
+      allow delete: if isAdmin();
     }
 
     // ── Scammer database (app + website) ──

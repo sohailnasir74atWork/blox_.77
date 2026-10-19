@@ -5,7 +5,7 @@
 // (MODERATION_CONTRACT §9) — don't add fields here without the rules.
 // Never send `audience`: functions/reportAudience.js stamps it from the
 // target's server-side rank, which decides which staff tier may read the
-// report (about a Senior Mod → Admins + owner, about an Admin → owner only).
+// report (about a Senior Mod or an Admin → Admins + owner only).
 // targetUid is a hint only; for trades / posts / statuses the server also
 // checks the reported doc's owner.
 import { collection, addDoc, serverTimestamp } from '@react-native-firebase/firestore';

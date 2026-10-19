@@ -63,8 +63,8 @@ const fakeFirestore = (colls) => {
   assert.strictEqual(audienceForRank(RANK.babyMod), 'staff');
   assert.strictEqual(audienceForRank(RANK.moderator), 'staff');
   assert.strictEqual(audienceForRank(RANK.seniorMod), 'admin');
-  assert.strictEqual(audienceForRank(RANK.admin), 'owner');
-  assert.strictEqual(audienceForRank(RANK.owner), 'owner');
+  assert.strictEqual(audienceForRank(RANK.admin), 'admin', 'Admin counts as owner level: no owner-only tier');
+  assert.strictEqual(audienceForRank(RANK.owner), 'admin');
 
   const fs = fakeFirestore({
     trades_new_upgrade: { t1: { userId: S }, t2: { userId: U2 } },
@@ -94,8 +94,8 @@ const fakeFirestore = (colls) => {
   assert.strictEqual(await audienceFor([], rankOf), 'staff');
   assert.strictEqual(await audienceFor([U, M], rankOf), 'staff');
   assert.strictEqual(await audienceFor([U, S], rankOf), 'admin');
-  assert.strictEqual(await audienceFor([S, A], rankOf), 'owner');
-  assert.strictEqual(await audienceFor([O], rankOf), 'owner');
+  assert.strictEqual(await audienceFor([U, A], rankOf), 'admin');
+  assert.strictEqual(await audienceFor([O], rankOf), 'admin');
 
   // reconcile: stamps missing, re-stamps a promotion, leaves correct docs alone.
   const colls = {
@@ -105,10 +105,10 @@ const fakeFirestore = (colls) => {
       r2: { type: 'trade', targetId: 't2', targetUid: U2, createdAt: 4, audience: 'staff' }, // correct
       r3: { type: 'scam', targetId: 'x', targetUid: null, createdAt: 3 },                    // missing → staff
       r4: { type: 'user', targetId: M, targetUid: M, createdAt: 2, audience: 'staff' },      // M promoted → admin
-      r5: { type: 'user', targetId: A, targetUid: A, createdAt: 1, audience: 'owner' },      // beyond the limit
+      r5: { type: 'user', targetId: A, targetUid: A, createdAt: 1 },                          // beyond the limit: untouched
     },
     chat_reports: {
-      c1: { chatKey: key(U, A), reportedBy: U, createdAt: 9 },                       // → owner
+      c1: { chatKey: key(U, A), reportedBy: U, createdAt: 9 },                       // about an Admin → admin
       c2: { chatKey: key(U, U2), reportedBy: U, createdAt: 8, audience: 'admin' },  // demoted target → staff
     },
   };
@@ -119,7 +119,8 @@ const fakeFirestore = (colls) => {
   assert.strictEqual(colls.user_reports.r1.audience, 'admin');
   assert.strictEqual(colls.user_reports.r3.audience, 'staff');
   assert.strictEqual(colls.user_reports.r4.audience, 'admin');
-  assert.strictEqual(colls.chat_reports.c1.audience, 'owner');
+  assert.strictEqual(colls.chat_reports.c1.audience, 'admin');
+  assert.strictEqual(colls.user_reports.r5.audience, undefined, 'outside the window: not stamped');
   assert.strictEqual(colls.chat_reports.c2.audience, 'staff');
   assert.ok(!fs2.updates.some(([c, id]) => c === 'user_reports' && (id === 'r2' || id === 'r5')), 'correct / out-of-window docs untouched');
   const again = await reconcile(fs2, promoted, { limit: 4 });

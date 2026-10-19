@@ -59,8 +59,8 @@
 --   role flags: mirrorUsersToSupabase + reconcileRolesMirror every 6 h),
 --   never from the client:
 --     target below Senior Mod   every staff member (unchanged)
---     target Senior Mod         Admins and the owner
---     target Admin              the owner only
+--     target Senior Mod or Admin Admins and the owner (Admin counts as owner
+--                               level, owner decision 2026-10-19)
 --   * list_message_reports (034): same signature and columns, the hidden rows
 --     are filtered out before the page limit. Old builds' dashboards simply
 --     get fewer rows.
@@ -69,7 +69,7 @@
 --     error text 'chat not reported' as before, so old builds show their
 --     usual message). Admins still read any chat (owner decision 2026-10-10).
 --   * user_roles has no owner column: a report about the owner's account is
---     routed by the flags that account carries (is_admin → owner only).
+--     routed by the flags that account carries (is_admin → Admins + owner).
 --   Firestore user_reports / chat_reports are routed separately by
 --   firestore.rules + functions/reportAudience.js (server-stamped
 --   `audience`).
@@ -345,10 +345,10 @@ reset lock_timeout;
 -- =====================================================================
 
 -- 3a. list_message_reports (034 1g) + rank routing -------------------------
--- Hidden for the caller: reports whose sender is an Admin (unless the caller
--- is the owner) or a Senior Mod (unless the caller is Admin+). Two partial
--- index probes on user_roles (idx_user_roles_admin / _cmsr) build the hidden
--- set once; the rest is 034's query unchanged.
+-- Hidden for staff below Admin: reports whose sender is a Senior Mod or an
+-- Admin. Admins and the owner see everything. Two partial index probes on
+-- user_roles (idx_user_roles_admin / _cmsr) build the hidden set once; the
+-- rest is 034's query unchanged.
 create or replace function public.list_message_reports(
   p_limit  integer default 50,
   p_before timestamptz default null
@@ -381,7 +381,7 @@ begin
   v_rank := public._chat_caller_staff_rank();
   return query
     with hidden as (
-      select ur.uid from public.user_roles ur where ur.is_admin = true and v_rank < 5
+      select ur.uid from public.user_roles ur where ur.is_admin = true and v_rank < 4
       union
       select ur.uid from public.user_roles ur where ur.is_cmsr = true and v_rank < 4
     ), g as (

@@ -1,7 +1,7 @@
 // Admin Dashboard → "Reports" tab: one review queue for every report source
 // (contract §9). All staff who can open the dashboard see it — except
-// reports about senior staff, which go up (2026-10-19): about a Senior Mod →
-// Admins + owner, about an Admin → owner only. The server decides: Firestore
+// reports about a Senior Mod or an Admin, which only Admins and the owner see
+// (2026-10-19; Admin counts as owner level). The server decides: Firestore
 // `audience` (functions/reportAudience.js + firestore.rules) and Supabase
 // list_message_reports (supabase/046). This tab just asks for its own tier.
 //
@@ -103,13 +103,12 @@ const normalizeMessageReport = (r) => {
   };
 };
 
-// Firestore report lists by tier. Rules refuse an unfiltered list from anyone
-// but the owner, so each tier asks for exactly the audiences it may read.
+// Firestore report lists by tier. Admins and the owner read every report;
+// rules refuse lower staff an unfiltered list, so they ask for 'staff' only.
 const reportsQuery = (fdb, col, tier, n) => {
   const base = collection(fdb, col);
-  if (tier === 'owner') return firestoreQuery(base, orderBy('createdAt', 'desc'), limit(n));
-  const audience = tier === 'admin' ? where('audience', 'in', ['staff', 'admin']) : where('audience', '==', 'staff');
-  return firestoreQuery(base, audience, orderBy('createdAt', 'desc'), limit(n));
+  if (tier === 'admin') return firestoreQuery(base, orderBy('createdAt', 'desc'), limit(n));
+  return firestoreQuery(base, where('audience', '==', 'staff'), orderBy('createdAt', 'desc'), limit(n));
 };
 // If this device thinks it ranks higher than the server does (a stale flag),
 // fall back to the staff list instead of showing nothing.
@@ -117,7 +116,7 @@ const getReports = async (fdb, col, tier, n) => {
   try {
     return await getDocs(reportsQuery(fdb, col, tier, n));
   } catch (e) {
-    if (tier !== 'staff' && /permission/i.test(`${e?.code || ''} ${e?.message || ''}`)) {
+    if (tier === 'admin' && /permission/i.test(`${e?.code || ''} ${e?.message || ''}`)) {
       return getDocs(reportsQuery(fdb, col, 'staff', n));
     }
     throw e;
@@ -126,7 +125,7 @@ const getReports = async (fdb, col, tier, n) => {
 
 const ReportsTab = ({ isDark, onViewUser, onSanctionUser, onViewChat }) => {
   const { isAdmin } = useGlobalState();
-  const tier = getCurrentUserOwner(getAuth().currentUser?.uid) ? 'owner' : isAdmin ? 'admin' : 'staff';
+  const tier = isAdmin || getCurrentUserOwner(getAuth().currentUser?.uid) ? 'admin' : 'staff';
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('all');
@@ -146,7 +145,7 @@ const ReportsTab = ({ isDark, onViewUser, onSanctionUser, onViewChat }) => {
     const warn = [];
     const out = [];
 
-    // audience + createdAt (composite index); status is filtered here.
+    // Staff: audience + createdAt (composite index); status is filtered here.
     const userReports = getReports(fdb, 'user_reports', tier, PAGE)
       .then((snap) => snap.docs.forEach((d) => {
         const r = d.data() || {};

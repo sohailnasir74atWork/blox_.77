@@ -9,12 +9,12 @@
  *
  *   target rank (banEnforcement readRank)   audience   who sees it
  *   user / JMD / Mod                        'staff'    every staff member
- *   Senior Mod                              'admin'    Admins and the owner
- *   Admin / owner                           'owner'    the owner only
+ *   Senior Mod / Admin / owner              'admin'    Admins and the owner
  *
- * A doc with no audience yet is readable by the owner and its reporter only
- * (fail-closed): a report in its first second, or one filed before this
- * shipped until the reconcile below reaches it. Clients can't write
+ * Admin counts as owner level (owner decision 2026-10-19): no owner-only
+ * tier. A doc with no audience yet is readable by Admins, the owner and its
+ * reporter only (fail-closed for lower staff): a report in its first second,
+ * or one filed before this shipped until the reconcile below reaches it. Clients can't write
  * `audience` (user_reports create is hasOnly; chat_reports create forbids it).
  *
  * Whose rank — never only what the client wrote:
@@ -48,11 +48,7 @@ const { toRow: chatReportRow } = require('./mirrorChatReport')._internal;
 const RECONCILE_LIMIT = 300;
 const PARALLEL = 20;
 
-const audienceForRank = (rank) => {
-  if (rank >= RANK.admin) return 'owner';
-  if (rank >= RANK.seniorMod) return 'admin';
-  return 'staff';
-};
+const audienceForRank = (rank) => (rank >= RANK.seniorMod ? 'admin' : 'staff');
 
 // Where a reported item lives and whose it is (`userId` in every collection;
 // rules keep it pinned to the creator). Legacy collections second.
