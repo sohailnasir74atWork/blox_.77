@@ -13,7 +13,7 @@ const PROJECT = process.env.GCLOUD_PROJECT || 'demo-fruiteblocks';
 const admin = require('firebase-admin');
 admin.initializeApp({ projectId: PROJECT });
 const db = admin.firestore();
-const { run } = require('./delete-inactive-groups');
+const { run, serviceRoleStore } = require('./delete-inactive-groups');
 
 const NOW = Date.now();
 const DAY = 864e5;
@@ -69,18 +69,18 @@ function fakeSupabase(tables) {
     group_meta_data: [{ group_id: 'gQuiet', user_id: 'a' }, { group_id: 'gQuiet', user_id: 'b' }, { group_id: 'gActive', user_id: 'a' }],
     group_members: [{ group_id: 'gQuiet', user_id: 'a' }],
   };
-  const sb = fakeSupabase(tables);
+  const store = serviceRoleStore(fakeSupabase(tables));
   const backupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'grp-del-'));
 
-  const dry = await run({ db, sb, now: NOW, backupDir, log: () => {} });
+  const dry = await run({ db, store, now: NOW, backupDir, log: () => {} });
   assert.strictEqual(dry.mode, 'dry_run');
   assert.deepStrictEqual([dry.groups, dry.keepActive, dry.keepNew, dry.wouldDelete], [6, 2, 1, 3], JSON.stringify(dry));
   assert.ok((await db.collection('groups').doc('gQuiet').get()).exists, 'dry run deletes nothing');
 
-  await assert.rejects(() => run({ db, sb, now: NOW, apply: true, confirm: 2, backupDir, log: () => {} }), /refusing to delete/, 'wrong --confirm aborts');
+  await assert.rejects(() => run({ db, store, now: NOW, apply: true, confirm: 2, backupDir, log: () => {} }), /refusing to delete/, 'wrong --confirm aborts');
   assert.ok((await db.collection('groups').doc('gQuiet').get()).exists, 'nothing deleted after a refused run');
 
-  const res = await run({ db, sb, now: NOW, apply: true, confirm: 3, backupDir, log: () => {} });
+  const res = await run({ db, store, now: NOW, apply: true, confirm: 3, backupDir, log: () => {} });
   assert.strictEqual(res.deleted, 3);
   assert.deepStrictEqual(res.failed, []);
   for (const id of ['gQuiet', 'gNever', 'gOld']) assert.ok(!(await db.collection('groups').doc(id).get()).exists, `${id} deleted`);
@@ -99,7 +99,7 @@ function fakeSupabase(tables) {
   assert.strictEqual(backup.find((b) => b.id === 'gQuiet').data.name, 'Quiet', 'backup has the group doc');
   assert.strictEqual(backup.find((b) => b.id === 'gQuiet').inboxRows.length, 2, 'backup has the inbox rows');
 
-  const again = await run({ db, sb, now: NOW, backupDir, log: () => {} });
+  const again = await run({ db, store, now: NOW, backupDir, log: () => {} });
   assert.strictEqual(again.wouldDelete, 0, 're-run: nothing left to delete');
   console.log('delete-inactive-groups: all checks passed');
   process.exit(0);
