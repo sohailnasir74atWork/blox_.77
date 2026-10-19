@@ -135,8 +135,11 @@ function cliRunner(repoRoot) {
       try { parsed = JSON.parse(out); } catch (_) {
         throw new Error(`Supabase CLI did not return JSON: ${String(out).trim().slice(0, 500)}`);
       }
-      if (!Array.isArray(parsed?.rows)) throw new Error(`Supabase CLI returned no rows field: ${String(out).trim().slice(0, 500)}`);
-      return parsed.rows;
+      // The CLI prints a bare array in a terminal and { boundary, rows } when
+      // run by an agent; take either.
+      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed?.rows)) return parsed.rows;
+      throw new Error(`Supabase CLI returned an unknown shape: ${String(out).trim().slice(0, 500)}`);
     } finally {
       fs.rmSync(file, { force: true });
     }
