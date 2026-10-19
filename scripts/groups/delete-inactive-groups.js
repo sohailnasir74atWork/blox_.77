@@ -39,13 +39,15 @@ function serviceRoleStore(sb) {
   return {
     async activeGroupIds(cutoffIso) {
       const ids = new Set();
-      for (let from = 0; ; from += 1000) {
+      // Page by what came back: the API may cap a page below 1,000 rows.
+      for (let from = 0; ; ) {
         const { data, error } = await sb.from('group_messages').select('group_id')
           .gte('created_at', cutoffIso).order('created_at', { ascending: true }).order('id', { ascending: true })
           .range(from, from + 999);
         if (error) throw error;
-        for (const r of data || []) ids.add(r.group_id);
-        if (!data || data.length < 1000) break;
+        if (!data || data.length === 0) break;
+        for (const r of data) ids.add(r.group_id);
+        from += data.length;
       }
       return ids;
     },
