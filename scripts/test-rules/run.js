@@ -820,6 +820,9 @@ async function quickWinsTests() {
   await no('reportedBy without count', () => updateDoc(d(G, 'statuses', 'qws1'), { reportedBy: arrayUnion(G) }));
   await no('reporter removes another reporter', () => updateDoc(d(G, 'statuses', 'qws1'), { reportedBy: [U3, G], reportCount: increment(1) }));
   await no('report with a duplicate entry', () => updateDoc(d(G, 'statuses', 'qws1'), { reportedBy: [U1, U3, G, G], reportCount: increment(1) }));
+  // Size +1 without adding yourself: would let one account bump the count again and again.
+  await no('report repeating an earlier reporter instead of self', () => updateDoc(d(G, 'statuses', 'qws1'), { reportedBy: [U1, U3, U1], reportCount: increment(1) }));
+  await no('report duplicating the other reporter instead of self', () => updateDoc(d(G, 'statuses', 'qws1'), { reportedBy: [U1, U3, U3], reportCount: increment(1) }));
   await no('banned user reports', () => updateDoc(d(B, 'statuses', 'qws1'), { reportedBy: arrayUnion(B), reportCount: increment(1) }));
   await no('guest reports', () => updateDoc(d(null, 'statuses', 'qws1'), { reportedBy: arrayUnion('x'), reportCount: increment(1) }));
   await ok('reports 3-5 from distinct users reach the hide threshold', async () => {

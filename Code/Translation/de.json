@@ -2562,7 +2562,7 @@
       "delete_confirm": "Möchtest du diesen Status wirklich löschen?",
       "delete_failed": "Status konnte nicht gelöscht werden",
       "views_reactions": "👁 {{views}} Aufrufe • {{reactions}} Reaktionen",
-      "hidden_after_reports_owner": "Nach Meldungen ausgeblendet. Nur du und das Mod-Team können diesen Status sehen.",
+      "hidden_after_reports_owner": "Nach Meldungen aus dem Feed ausgeblendet. Das Mod-Team prüft ihn.",
       "new": "Neu",
       "new_status": "Neuer Status",
       "add_photo": "Bild hinzufügen",

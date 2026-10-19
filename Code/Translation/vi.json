@@ -2560,7 +2560,7 @@
       "delete_confirm": "Bạn có chắc muốn xóa trạng thái này không?",
       "delete_failed": "Không thể xóa trạng thái",
       "views_reactions": "👁 {{views}} lượt xem • {{reactions}} cảm xúc",
-      "hidden_after_reports_owner": "Đã bị ẩn do bị báo cáo. Chỉ bạn và đội ngũ quản trị mới thấy trạng thái này.",
+      "hidden_after_reports_owner": "Đã bị ẩn khỏi bảng tin do bị báo cáo. Đội ngũ quản trị sẽ xem xét.",
       "new": "Mới",
       "new_status": "Trạng thái mới",
       "add_photo": "Thêm ảnh",

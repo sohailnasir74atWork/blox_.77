@@ -172,8 +172,9 @@ service cloud.firestore {
       return active()
         && changed().hasOnly(['reportedBy', 'reportCount'])
         && changed().hasAll(['reportedBy', 'reportCount'])
-        && !(me() in before)
+        && !(me() in before) && (me() in after)
         && after.size() == before.size() + 1
+        && after.toSet().size() == after.size()
         && addedOnlyMe('reportedBy') && bumpedByOne('reportCount');
     }
     match /statuses/{statusId} {
