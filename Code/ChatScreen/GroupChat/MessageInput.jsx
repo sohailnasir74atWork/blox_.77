@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, TextInput, TouchableOpacity, Text, FlatList, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, TextInput, TouchableOpacity, Text, FlatList, ActivityIndicator, StyleSheet, Image } from 'react-native';
 import { getStyles } from './../Style';
 import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
