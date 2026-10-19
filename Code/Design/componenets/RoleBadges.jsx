@@ -32,7 +32,11 @@ const RoleBadges = ({ userItem, style, cacheVersion }) => {
   const isRaider = cachedUser.isRaider ?? cachedProfile.isRaider ?? userItem.isRaider ?? false;
   // Cosmetic Helper badge and the staff-given custom title (2026-10-19).
   const isHelper = !!((isCurrentUser && isGlobalHelper) || (cachedUser.isHelper ?? cachedProfile.isHelper ?? userItem.isHelper ?? false));
-  const rawTitle = (isCurrentUser ? currentUser?.customTitle : undefined) ?? cachedUser.customTitle ?? cachedProfile.customTitle ?? userItem.customTitle;
+  // First source that carries the field wins, even with null ("no title"), so
+  // a removed title doesn't fall through to an old copy stamped on a post.
+  const titleSource = [isCurrentUser ? currentUser : null, cachedUser, cachedProfile, userItem]
+    .find((o) => o && o.customTitle !== undefined);
+  const rawTitle = titleSource?.customTitle;
   const customTitle = typeof rawTitle === 'string' && rawTitle.trim() ? rawTitle.trim() : null;
 
   if (!isAdmin && !isSeniorMod && !isModerator && !isJMD && !isTrusted && !isGrinder && !isRaider && !isHelper && !customTitle) {

@@ -331,7 +331,9 @@ export const seedFromMessage = (msg) => {
     isGrinder: !!msg.isGrinder,
     isRaider: !!msg.isRaider,
     isHelper: !!msg.isHelper,
-    customTitle: msg.customTitle || null,
+    // Messages don't carry titles: leave the key out (not null) so RoleBadges
+    // keeps looking for a real value.
+    customTitle: msg.customTitle,
     topBadge: msg.topBadge || null,
     profileFrame: msg.profileFrame || null,
     chatTextColor: msg.chatTextColor || null,

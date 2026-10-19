@@ -103,6 +103,8 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
               isTrusted: !!roles?.isTrusted,
               isGrinder: !!roles?.isGrinder,
               isRaider: !!roles?.isRaider,
+              isHelper: !!roles?.isHelper,
+              customTitle: roles?.customTitle ?? null,
               profileFrame: profileFrameSnap?.exists() ? profileFrameSnap.val() : null,
             });
             return;
@@ -111,7 +113,8 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
 
         // Fallback: original 12-field RTDB fan-out.
         const [robloxUsernameSnap, robloxUserIdSnap, robloxUsernameVerifiedSnap,
-          isProSnap, lastGameWinAtSnap, isAdminSnap, isSeniorModSnap, isModeratorSnap, isTrustedSnap, isGrinderSnap, isRaiderSnap, profileFrameSnap] = await Promise.all([
+          isProSnap, lastGameWinAtSnap, isAdminSnap, isSeniorModSnap, isModeratorSnap, isTrustedSnap, isGrinderSnap, isRaiderSnap, profileFrameSnap,
+          isHelperSnap, customTitleSnap] = await Promise.all([
             get(ref(appdatabase, `users/${selectedUserId}/robloxUsername`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/robloxUserId`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/robloxUsernameVerified`)).catch(() => null),
@@ -124,6 +127,8 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
             get(ref(appdatabase, `users/${selectedUserId}/isGrinder`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/isRaider`)).catch(() => null),
             get(ref(appdatabase, `users/${selectedUserId}/profileFrame`)).catch(() => null),
+            get(ref(appdatabase, `users/${selectedUserId}/isHelper`)).catch(() => null),
+            get(ref(appdatabase, `users/${selectedUserId}/customTitle`)).catch(() => null),
           ]);
 
         if (!isMounted) return;
@@ -140,6 +145,8 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
           isTrusted: isTrustedSnap?.exists() ? isTrustedSnap.val() : false,
           isGrinder: isGrinderSnap?.exists() ? isGrinderSnap.val() : false,
           isRaider: isRaiderSnap?.exists() ? isRaiderSnap.val() : false,
+          isHelper: !!(isHelperSnap?.exists() && isHelperSnap.val()),
+          customTitle: customTitleSnap?.exists() && typeof customTitleSnap.val() === 'string' ? customTitleSnap.val() : null,
           profileFrame: profileFrameSnap?.exists() ? profileFrameSnap.val() : null,
         });
       } catch (error) {
@@ -193,6 +200,9 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
       isTrusted: userData.isTrusted ?? selectedUser?.isTrusted ?? false,
       isGrinder: userData.isGrinder ?? selectedUser?.isGrinder ?? false,
       isRaider: userData.isRaider ?? selectedUser?.isRaider ?? false,
+      // Helper badge + custom title (2026-10-19): fetched value wins.
+      isHelper: userData.isHelper ?? selectedUser?.isHelper ?? false,
+      customTitle: userData.customTitle !== undefined ? userData.customTitle : (selectedUser?.customTitle ?? null),
       profileFrame: selectedUser?.profileFrame || userData.profileFrame || null,
     };
   }, [selectedUser, userData]);

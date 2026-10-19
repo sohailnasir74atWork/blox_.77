@@ -60,7 +60,7 @@ const DesignFeedScreen = ({ route }) => {
   // Floating buttons clear the real banner height (Ads/bannerHeight.js).
   const bannerHeight = useBannerHeight();
   const { selectedTheme } = route.params;
-  const { appdatabase, user, theme, firestoreDB, isBabyMod, isTrusted, isGrinder, isRaider, proGranted, getModGate } = useGlobalState();
+  const { appdatabase, user, theme, firestoreDB, isBabyMod, isTrusted, isGrinder, isRaider, isHelper, proGranted, getModGate } = useGlobalState();
   const { localState } = useLocalState();
   const isDarkMode = theme === 'dark';
   const navigation = useNavigation();
@@ -619,6 +619,9 @@ const DesignFeedScreen = ({ route }) => {
         isTrusted: !!isTrusted,
         isGrinder: !!isGrinder,
         isRaider: !!isRaider,
+        // Helper badge + staff-given title, stamped like the roles above.
+        isHelper: !!isHelper,
+        customTitle: typeof user?.customTitle === 'string' ? user.customTitle : null,
         profileFrame: getMyCosmetics()?.profileFrame || null,
       };
 

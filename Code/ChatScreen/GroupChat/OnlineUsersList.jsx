@@ -214,6 +214,8 @@ const OnlineUsersList = ({
               isTrusted: !!roles?.isTrusted,
               isGrinder: !!roles?.isGrinder,
               isRaider: !!roles?.isRaider,
+              isHelper: !!roles?.isHelper,
+              customTitle: roles?.customTitle ?? null,
             };
             cacheUserData(userId, userData);
             return userData;
@@ -222,7 +224,8 @@ const OnlineUsersList = ({
           // ── RTDB fallback (original 14-field fan-out) ─────────────
           const [displayNameSnap, avatarSnap, isProSnap, robloxUsernameVerifiedSnap,
             lastGameWinAtSnap, isAdminSnap, isSeniorModSnap, OSSnap, isPlayingSnap,
-            isModeratorSnap, isBabyModSnap, isTrustedSnap, isGrinderSnap, isRaiderSnap] = await Promise.all([
+            isModeratorSnap, isBabyModSnap, isTrustedSnap, isGrinderSnap, isRaiderSnap,
+            isHelperSnap, customTitleSnap] = await Promise.all([
               get(ref(appdatabase, `users/${userId}/displayName`)).catch(() => null),
               get(ref(appdatabase, `users/${userId}/avatar`)).catch(() => null),
               get(ref(appdatabase, `users/${userId}/isPro`)).catch(() => null),
@@ -237,6 +240,8 @@ const OnlineUsersList = ({
               get(ref(appdatabase, `users/${userId}/isTrusted`)).catch(() => null),
               get(ref(appdatabase, `users/${userId}/isGrinder`)).catch(() => null),
               get(ref(appdatabase, `users/${userId}/isRaider`)).catch(() => null),
+              get(ref(appdatabase, `users/${userId}/isHelper`)).catch(() => null),
+              get(ref(appdatabase, `users/${userId}/customTitle`)).catch(() => null),
             ]);
 
           const displayName = displayNameSnap?.exists() ? displayNameSnap.val() : null;
@@ -261,6 +266,8 @@ const OnlineUsersList = ({
             isTrusted: !!(isTrustedSnap?.exists() && isTrustedSnap.val()),
             isGrinder: !!(isGrinderSnap?.exists() && isGrinderSnap.val()),
             isRaider: !!(isRaiderSnap?.exists() && isRaiderSnap.val()),
+            isHelper: !!(isHelperSnap?.exists() && isHelperSnap.val()),
+            customTitle: customTitleSnap?.exists() && typeof customTitleSnap.val() === 'string' ? customTitleSnap.val() : null,
           };
 
           cacheUserData(userId, userData);
