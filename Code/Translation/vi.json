@@ -1105,6 +1105,14 @@
       "fruits_selected": "Đã chọn {{count}}/4 trái cây",
       "max_reached": "(Đã đạt giới hạn)"
     },
+    "slow_mode": {
+      "title": "Chế độ chậm",
+      "banner": "Chế độ chậm: 1 tin nhắn mỗi {{duration}}",
+      "wait": "Chế độ chậm đang bật. Bạn có thể gửi lại sau {{seconds}} giây.",
+      "dur_seconds": "{{n}} giây",
+      "dur_minutes": "{{n}} phút",
+      "staff_exempt": "đội ngũ quản lý được miễn"
+    },
     "trader": {
       "channel_chat": "Trò chuyện bằng tiếng Việt",
       "channel_raid": "Đột kích",

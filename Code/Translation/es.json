@@ -1106,6 +1106,14 @@
       "fruits_selected": "{{count}}/4 fruta(s) seleccionada(s)",
       "max_reached": "(Límite alcanzado)"
     },
+    "slow_mode": {
+      "title": "Modo lento",
+      "banner": "Modo lento: 1 mensaje cada {{duration}}",
+      "wait": "El modo lento está activado. Podrás enviar otro mensaje en {{seconds}} s.",
+      "dur_seconds": "{{n}} s",
+      "dur_minutes": "{{n}} min",
+      "staff_exempt": "el staff está exento"
+    },
     "trader": {
       "channel_chat": "Chat en español",
       "channel_raid": "Incursiones",

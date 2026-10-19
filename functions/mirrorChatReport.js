@@ -46,11 +46,30 @@ function toRow(reportId, data) {
   };
 }
 
+// reportAudience.js stamps `audience` on every new report; that write
+// changes nothing mirrored here, so it is skipped.
+function onlyAudienceChanged(before, after) {
+  if (!before || !after) return false;
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  let changed = false;
+  for (const k of keys) {
+    const same = JSON.stringify(before[k]) === JSON.stringify(after[k]);
+    if (same) continue;
+    if (k !== 'audience') return false;
+    changed = true;
+  }
+  return changed;
+}
+
 const mirrorChatReport = functions
   .runWith({ secrets: SECRETS, memory: '256MB', timeoutSeconds: 60 })
   .firestore.document('chat_reports/{reportId}')
   .onWrite(async (change, context) => {
     const { reportId } = context.params;
+    if (change.before.exists && change.after.exists
+        && onlyAudienceChanged(change.before.data(), change.after.data())) {
+      return null;
+    }
     const sb = getSupabaseAdmin();
     try {
       if (!change.after.exists) {
@@ -114,4 +133,4 @@ const reconcileReportedChats = functions
     return null;
   });
 
-module.exports = { mirrorChatReport, reconcileReportedChats, _internal: { toRow, reconcile } };
+module.exports = { mirrorChatReport, reconcileReportedChats, _internal: { toRow, reconcile, onlyAudienceChanged } };

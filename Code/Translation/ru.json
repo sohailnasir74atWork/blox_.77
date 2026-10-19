@@ -1161,6 +1161,14 @@
       "fruits_selected": "Выбрано фруктов: {{count}}/4",
       "max_reached": "(Достигнут лимит)"
     },
+    "slow_mode": {
+      "title": "Медленный режим",
+      "banner": "Медленный режим: 1 сообщение раз в {{duration}}",
+      "wait": "Включён медленный режим. Отправить снова можно через {{seconds}} с.",
+      "dur_seconds": "{{n}} с",
+      "dur_minutes": "{{n}} мин",
+      "staff_exempt": "на команду не действует"
+    },
     "trader": {
       "channel_chat": "Русский чат",
       "channel_raid": "Рейды",

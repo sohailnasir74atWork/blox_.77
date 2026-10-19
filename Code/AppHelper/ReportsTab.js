@@ -1,5 +1,9 @@
 // Admin Dashboard → "Reports" tab: one review queue for every report source
-// (contract §9). All staff who can open the dashboard see it.
+// (contract §9). All staff who can open the dashboard see it — except
+// reports about senior staff, which go up (2026-10-19): about a Senior Mod →
+// Admins + owner, about an Admin → owner only. The server decides: Firestore
+// `audience` (functions/reportAudience.js + firestore.rules) and Supabase
+// list_message_reports (supabase/046). This tab just asks for its own tier.
 //
 //   Firestore user_reports   trade / post / status / scam / user reports
 //                            written by current builds (status 'open')
@@ -33,6 +37,7 @@ import {
   getDoc,
   doc,
   query as firestoreQuery,
+  where,
   orderBy,
   limit,
   updateDoc,
@@ -44,6 +49,8 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import * as chatBackend from '../Supabase/chatBackend';
 import { getIdentityBatch } from '../Supabase/userBackend';
+import { useGlobalState } from '../GlobelStats';
+import { getCurrentUserOwner } from '../Helper/ownerFlag';
 
 dayjs.extend(relativeTime);
 
@@ -96,7 +103,30 @@ const normalizeMessageReport = (r) => {
   };
 };
 
+// Firestore report lists by tier. Rules refuse an unfiltered list from anyone
+// but the owner, so each tier asks for exactly the audiences it may read.
+const reportsQuery = (fdb, col, tier, n) => {
+  const base = collection(fdb, col);
+  if (tier === 'owner') return firestoreQuery(base, orderBy('createdAt', 'desc'), limit(n));
+  const audience = tier === 'admin' ? where('audience', 'in', ['staff', 'admin']) : where('audience', '==', 'staff');
+  return firestoreQuery(base, audience, orderBy('createdAt', 'desc'), limit(n));
+};
+// If this device thinks it ranks higher than the server does (a stale flag),
+// fall back to the staff list instead of showing nothing.
+const getReports = async (fdb, col, tier, n) => {
+  try {
+    return await getDocs(reportsQuery(fdb, col, tier, n));
+  } catch (e) {
+    if (tier !== 'staff' && /permission/i.test(`${e?.code || ''} ${e?.message || ''}`)) {
+      return getDocs(reportsQuery(fdb, col, 'staff', n));
+    }
+    throw e;
+  }
+};
+
 const ReportsTab = ({ isDark, onViewUser, onSanctionUser, onViewChat }) => {
+  const { isAdmin } = useGlobalState();
+  const tier = getCurrentUserOwner(getAuth().currentUser?.uid) ? 'owner' : isAdmin ? 'admin' : 'staff';
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('all');
@@ -116,8 +146,8 @@ const ReportsTab = ({ isDark, onViewUser, onSanctionUser, onViewChat }) => {
     const warn = [];
     const out = [];
 
-    // Single-field orderBy only (automatic index); status is filtered here.
-    const userReports = getDocs(firestoreQuery(collection(fdb, 'user_reports'), orderBy('createdAt', 'desc'), limit(PAGE)))
+    // audience + createdAt (composite index); status is filtered here.
+    const userReports = getReports(fdb, 'user_reports', tier, PAGE)
       .then((snap) => snap.docs.forEach((d) => {
         const r = d.data() || {};
         out.push({
@@ -128,7 +158,7 @@ const ReportsTab = ({ isDark, onViewUser, onSanctionUser, onViewChat }) => {
       }))
       .catch((e) => warn.push(`User reports: ${e?.message || 'failed'}`));
 
-    const chatReports = getDocs(firestoreQuery(collection(fdb, 'chat_reports'), orderBy('createdAt', 'desc'), limit(30)))
+    const chatReports = getReports(fdb, 'chat_reports', tier, 30)
       .then((snap) => snap.docs.forEach((d) => {
         const r = d.data() || {};
         if (r.chatConsent !== true) return;
@@ -189,7 +219,7 @@ const ReportsTab = ({ isDark, onViewUser, onSanctionUser, onViewChat }) => {
     setItems(out);
     setWarnings(warn);
     setLoading(false);
-  }, []);
+  }, [tier]);
 
   useEffect(() => { load(); }, [load]);
 

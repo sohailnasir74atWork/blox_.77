@@ -1105,6 +1105,14 @@
       "fruits_selected": "{{count}}/4 na prutas ang pinili",
       "max_reached": "(Naabot na ang limit)"
     },
+    "slow_mode": {
+      "title": "Slow mode",
+      "banner": "Slow mode: 1 mensahe kada {{duration}}",
+      "wait": "Naka-on ang slow mode. Makakapagpadala ka ulit pagkalipas ng {{seconds}} segundo.",
+      "dur_seconds": "{{n}} seg",
+      "dur_minutes": "{{n}} min",
+      "staff_exempt": "exempted ang staff"
+    },
     "trader": {
       "channel_chat": "Chat sa Filipino",
       "channel_raid": "Raid",

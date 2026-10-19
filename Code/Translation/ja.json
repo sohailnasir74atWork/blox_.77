@@ -1105,6 +1105,14 @@
       "fruits_selected": "{{count}}/4個のフルーツを選択中",
       "max_reached": "（上限です）"
     },
+    "slow_mode": {
+      "title": "スローモード",
+      "banner": "スローモード：{{duration}}に1回まで送信できます",
+      "wait": "スローモード中です。あと{{seconds}}秒で送信できます。",
+      "dur_seconds": "{{n}}秒",
+      "dur_minutes": "{{n}}分",
+      "staff_exempt": "スタッフは対象外"
+    },
     "trader": {
       "channel_chat": "英語",
       "channel_raid": "レイド",

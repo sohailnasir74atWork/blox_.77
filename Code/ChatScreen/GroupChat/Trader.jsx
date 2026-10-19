@@ -57,6 +57,7 @@ import {
   supabaseMessageId,
 } from '../../Supabase/chatBackend';
 import { SUPABASE_PUBLIC_CHAT_ENABLED, CHAT_REACTIONS_ENABLED } from '../../Supabase/featureFlags';
+import { setActivePublicRoom, slowModeErrorWait, noteSlowModeRejected } from '../../Supabase/chatSlowMode';
 import i18next from 'i18next';
 // getMyCosmetics no longer needed — cosmetics resolved from profileCache on render
 
@@ -414,6 +415,15 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
     if (channelRetryTimerRef.current) { clearTimeout(channelRetryTimerRef.current); channelRetryTimerRef.current = null; }
   }, [activeChannel.id]);
 
+  // Slow mode: tell the chat header's staff sheet which public room is open.
+  useEffect(() => {
+    setActivePublicRoom({
+      id: activeChannel.path,
+      label: activeChannel.labelKey ? t(activeChannel.labelKey) : activeChannel.label,
+    });
+  }, [activeChannel.path, activeChannel.labelKey, activeChannel.label, t]);
+  useEffect(() => () => setActivePublicRoom(null), []);
+
   // Initial channel load (mount + every switch).
   //
   // Supabase path: loadMessages pulls the last PAGE_SIZE rows in a
@@ -663,8 +673,9 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
             if (!cancelled && saved) ingest(saved);
           } catch (e) {
             // A server rejection (banned / muted / links, 23514) is permanent:
-            // drop it rather than replaying it on every reconnect.
-            if (chatSendErrorCode(e)) continue;
+            // drop it rather than replaying it on every reconnect. Slow mode
+            // (also 23514) is not: it stays queued, attempts capped below.
+            if (chatSendErrorCode(e) && !slowModeErrorWait(e)) continue;
             // Still failing — keep for the next reconnect, but cap attempts so
             // a poison send (e.g. RLS reject) can't loop on every reconnect.
             if ((item.attempts || 0) < 3) {
@@ -1200,6 +1211,19 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
       return true;
     } catch (error) {
       console.error('Error sending message:', error);
+      // Slow mode (supabase/046): say how long to wait, keep the text, and
+      // start MessageInput's countdown from the server's clock.
+      const slowWait = slowModeErrorWait(error);
+      if (slowWait) {
+        noteSlowModeRejected(activeChannel.path, slowWait);
+        showMessage({
+          message: t('chat.slow_mode.title'),
+          description: t('chat.slow_mode.wait', { seconds: slowWait }),
+          type: 'warning',
+          duration: 3000,
+        });
+        return false;
+      }
       // The server rejected this sender / message (SENDER_BANNED,
       // LINKS_NOT_ALLOWED, NOT_ALLOWED — errcode 23514). That is permanent,
       // so don't queue it (a rejected head would never drain); keep the input
@@ -1435,6 +1459,7 @@ const ChatScreen = ({ selectedTheme, bannedUsers, modalVisibleChatinfo, setChatF
                 selectedEmoji={selectedEmoji}
                 setSelectedEmoji={setSelectedEmoji}
                 activeChannelId={activeChannel.id}
+                slowModeRoomId={activeChannel.path}
               />
             ) : (
               <TouchableOpacity

@@ -1501,7 +1501,9 @@ const AdminDashboard = () => {
       // never created — so the query threw FAILED_PRECONDITION and mods saw an
       // empty list. Every report is written with chatConsent:true anyway
       // (Scamwarning.js), so we filter it client-side instead of in the query.
-      const q = firestoreQuery(reportsRef, orderBy('createdAt', 'desc'), limit(30));
+      // Non-admin staff only (see the effect below): reports about a Senior
+      // Mod+ carry another audience and are Admin/owner-only (firestore.rules).
+      const q = firestoreQuery(reportsRef, where('audience', '==', 'staff'), orderBy('createdAt', 'desc'), limit(30));
       const snapshot = await getDocs(q);
       const list = snapshot.docs
         .map((d) => ({ id: d.id, ...d.data() }))
