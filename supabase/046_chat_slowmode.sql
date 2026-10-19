@@ -44,35 +44,43 @@
 --     'NOT_ALLOWED' → toast "Message not sent · This message isn't allowed
 --     here."; the typed message stays in the box, nothing is queued.
 --   * 4.0.12–4.0.14: the catch-all path → toast "Offline · Your message will
---     send automatically…", the box is cleared and the send is queued; it is
---     replayed on the next realtime reconnect (up to 4 tries) and goes
---     through if the gap has passed by then. SENDER_BANNED takes the same
---     path on those builds today.
+--     send automatically…", the box is cleared and the send is queued. The
+--     queue is replayed only when the realtime channel (re)subscribes, never
+--     on a timer, and a send that keeps failing is dropped after 3 replays
+--     (Trader.jsx flushRetryQueue `attempts < 3`, present since 4.0.10), so
+--     it cannot loop: at most 4 inserts per message. A replay that lands
+--     after the gap goes through (the message shows up late); otherwise the
+--     message silently disappears. Switching rooms clears the queue.
+--     SENDER_BANNED takes the same path on those builds today.
 --   No build crashes. Every build also has its own 10 s client cooldown in
 --   public chat (Trader.jsx MESSAGE_COOLDOWN, all users), so 5 s / 10 s only
 --   bite crafted clients; 30 s and up are felt by everyone.
 --
--- B. REPORTS ABOUT SENIOR STAFF GO TO ADMINS ONLY
+-- B. REPORTS ABOUT STAFF GO UP THE LADDER
 --   The mod asked that Senior Mods can't be reported; the owner chose to keep
---   accepting those reports but route them up. A report's target rank is
---   looked up when listing, from user_roles (the server mirror of the RTDB
---   role flags: mirrorUsersToSupabase + reconcileRolesMirror every 6 h),
---   never from the client:
---     target below Senior Mod   every staff member (unchanged)
---     target Senior Mod or Admin Admins and the owner (Admin counts as owner
---                               level, owner decision 2026-10-19)
+--   accepting those reports but route them up, and nobody may see or act on
+--   a report about themselves. A report's target rank is looked up when
+--   listing, from user_roles (the server mirror of the RTDB role flags:
+--   mirrorUsersToSupabase + reconcileRolesMirror every 6 h), never from the
+--   client:
+--     target is a player               every staff member (unchanged)
+--     target is a JMD or Mod           Senior Mods, Admins, owner
+--     target is a Senior Mod or Admin  Admins and owner (Admin counts as
+--                                      owner level, owner decision 2026-10-19)
+--     and never the target themselves.
 --   * list_message_reports (034): same signature and columns, the hidden rows
 --     are filtered out before the page limit. Old builds' dashboards simply
 --     get fewer rows.
 --   * mod_read_private_chat (039/040): a non-admin staff member may open a
---     DM only through a report whose reported_uid is below Senior Mod (same
---     error text 'chat not reported' as before, so old builds show their
---     usual message). Admins still read any chat (owner decision 2026-10-10).
+--     DM only through a report whose reported_uid is one they may see by the
+--     table above, and not themselves (same error text 'chat not reported'
+--     as before, so old builds show their usual message). Admins still read
+--     any chat (owner decision 2026-10-10).
 --   * user_roles has no owner column: a report about the owner's account is
 --     routed by the flags that account carries (is_admin → Admins + owner).
---   Firestore user_reports / chat_reports are routed separately by
---   firestore.rules + functions/reportAudience.js (server-stamped
---   `audience`).
+--   Firestore user_reports / chat_reports are routed separately:
+--   functions/reportRouting.js moves reports about staff into
+--   *_restricted collections that only the allowed staff can read.
 --
 -- HOW TO RUN (owner)
 --   1. supabase/046_chat_slowmode_index.sql — ON ITS OWN, not in begin/commit.
@@ -111,7 +119,7 @@ set lock_timeout = '5s';
 do $$
 begin
   if to_regprocedure('public._jwt_is_owner()') is null then
-    raise exception 'Run 040_owner_email_verified.sql first (public._jwt_is_owner() is missing)';
+    raise exception '046 needs 040 applied first: run supabase/040_owner_email_verified.sql, then run 046 again (public._jwt_is_owner() is missing)';
   end if;
   if to_regprocedure('public._chat_end_user_uid()') is null
      or to_regclass('public.message_reports') is null then
@@ -134,17 +142,25 @@ create policy "chat_slowmode read all"
   on public.chat_slowmode for select
   using (true);
 -- No write policies: only set_chat_slowmode (security definer) writes.
-revoke insert, update, delete, truncate on table public.chat_slowmode from public;
+-- Clients may read scope and seconds only: set_by (a staff uid) and
+-- updated_at stay server-side (column grant; `select *` is refused).
+revoke all on table public.chat_slowmode from public;
 do $$ begin
   if exists (select 1 from pg_roles where rolname = 'anon') then
-    revoke insert, update, delete, truncate on table public.chat_slowmode from anon;
-    grant select on table public.chat_slowmode to anon;
+    revoke all on table public.chat_slowmode from anon;
+    grant select (scope, seconds) on table public.chat_slowmode to anon;
   end if;
   if exists (select 1 from pg_roles where rolname = 'authenticated') then
-    revoke insert, update, delete, truncate on table public.chat_slowmode from authenticated;
-    grant select on table public.chat_slowmode to authenticated;
+    revoke all on table public.chat_slowmode from authenticated;
+    grant select (scope, seconds) on table public.chat_slowmode to authenticated;
   end if;
 end $$;
+
+-- Report routing (STEP 3) lists JMDs; user_roles has partial indexes for
+-- every other staff flag (003) but not this one. user_roles is written only
+-- on role changes, so a plain (brief) build is fine.
+create index if not exists idx_user_roles_baby_mod
+  on public.user_roles (uid) where is_baby_mod = true;
 
 reset lock_timeout;
 
@@ -284,6 +300,10 @@ begin
     return new;                                      -- service role / cron / editor
   end if;
   new.created_at := now();                           -- no backdating while slow mode is on
+  -- One sender's parallel inserts queue here until the earlier one commits,
+  -- so the lookup below sees it (a volatile function's query takes a fresh
+  -- snapshot). Transaction-scoped; only taken while slow mode is on.
+  perform pg_advisory_xact_lock(hashtext('chat_slowmode'), hashtext(v_uid));
 
   -- RLS ("messages insert own") already pins new.sender_id to the caller.
   select max(m.created_at) into v_last
@@ -345,10 +365,11 @@ reset lock_timeout;
 -- =====================================================================
 
 -- 3a. list_message_reports (034 1g) + rank routing -------------------------
--- Hidden for staff below Admin: reports whose sender is a Senior Mod or an
--- Admin. Admins and the owner see everything. Two partial index probes on
--- user_roles (idx_user_roles_admin / _cmsr) build the hidden set once; the
--- rest is 034's query unchanged.
+-- Hidden for the caller: reports about themselves; for a JMD / Mod, reports
+-- about any staff member; for a Senior Mod, reports about a Senior Mod or
+-- Admin. Admins and the owner see the rest. Partial-index probes on
+-- user_roles (idx_user_roles_admin / _cmsr / _moderators / _baby_mod) build
+-- the hidden set once; the rest is 034's query unchanged.
 create or replace function public.list_message_reports(
   p_limit  integer default 50,
   p_before timestamptz default null
@@ -374,6 +395,7 @@ as $$
 declare
   v_limit integer := greatest(1, least(coalesce(p_limit, 50), 200));
   v_rank  integer;
+  v_uid   text := public._chat_end_user_uid();
 begin
   if not public._chat_caller_is_staff() then
     raise exception 'not authorized' using errcode = '42501';
@@ -381,9 +403,15 @@ begin
   v_rank := public._chat_caller_staff_rank();
   return query
     with hidden as (
+      select v_uid as uid where v_uid is not null
+      union
       select ur.uid from public.user_roles ur where ur.is_admin = true and v_rank < 4
       union
       select ur.uid from public.user_roles ur where ur.is_cmsr = true and v_rank < 4
+      union
+      select ur.uid from public.user_roles ur where ur.is_moderator = true and v_rank < 3
+      union
+      select ur.uid from public.user_roles ur where ur.is_baby_mod = true and v_rank < 3
     ), g as (
       select r.table_name                     as t,
              r.message_id                     as mid,
@@ -422,7 +450,8 @@ end;
 $$;
 
 -- 3b. mod_read_private_chat (039 / 040) + rank routing ----------------------
--- Non-admin staff need a report about someone below Senior Mod.
+-- Non-admin staff need a report they may see: about a player (JMD / Mod), or
+-- about a player, JMD or Mod (Senior Mod) — never one about themselves.
 create or replace function public.mod_read_private_chat(
   p_chat_id text,
   p_limit int default 50
@@ -454,7 +483,10 @@ begin
      and not exists (
        select 1 from public.reported_chats rc
         where rc.chat_id = p_chat_id
-          and (rc.reported_uid is null or public._staff_rank_of(rc.reported_uid) < 3)) then
+          and rc.reported_uid is distinct from v_uid
+          and (rc.reported_uid is null
+               or public._staff_rank_of(rc.reported_uid)
+                  < case when public._staff_rank_of(v_uid) >= 3 then 3 else 1 end)) then
     raise exception 'chat not reported' using errcode = '42501';
   end if;
 
@@ -494,4 +526,5 @@ notify pgrst, 'reload schema';
 --   -- (mod_read_private_chat); both are create or replace. Then:
 --   drop function if exists public._chat_caller_staff_rank();
 --   drop function if exists public._staff_rank_of(text);
+--   drop index if exists public.idx_user_roles_baby_mod;
 -- =====================================================================

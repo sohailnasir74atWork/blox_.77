@@ -679,29 +679,21 @@ async function firestoreTests() {
   await no('report as someone else', () => addDoc(c(U1, 'chat_reports'), chatReport(U2, U1)));
   await no('banned reports', () => addDoc(c(B, 'chat_reports'), chatReport(B, U1)));
   await no('user lists all chat reports', () => getDocs(query(c(U1, 'chat_reports'), orderBy('createdAt', 'desc'), limit(30))));
-  // functions/reportAudience.js stamps `audience` after create; tests stamp by hand.
-  const stampAudience = (col, id, audience) => seed(async (f) => F.updateDoc(F.doc(f, col, id), { audience }));
   await ok('staff dismisses chat report (ReportsTab)', async () => {
     const ref = await addDoc(c(U2, 'chat_reports'), chatReport(U2, U1));
-    await stampAudience('chat_reports', ref.id, 'staff');
     return updateDoc(d(M, 'chat_reports', ref.id), { status: 'reviewed' });
   });
   await no('staff points a chat report at another chat', async () => {
     const ref = await addDoc(c(U2, 'chat_reports'), chatReport(U2, U1));
-    await stampAudience('chat_reports', ref.id, 'staff');
     return updateDoc(d(M, 'chat_reports', ref.id), { chatKey: [U1, U3].sort().join('_'), reportedBy: U1 });
   });
   await no('reporter dismisses own chat report', async () => {
     const ref = await addDoc(c(U2, 'chat_reports'), chatReport(U2, U3));
     return updateDoc(d(U2, 'chat_reports', ref.id), { status: 'reviewed' });
   });
-  await ok('staff lists chat reports (audience staff)', () => getDocs(query(c(J, 'chat_reports'), where('audience', '==', 'staff'), orderBy('createdAt', 'desc'), limit(30))));
-  await no('JMD lists chat reports unfiltered (old builds)', () => getDocs(query(c(J, 'chat_reports'), orderBy('createdAt', 'desc'), limit(30))));
+  await ok('staff lists chat reports', () => getDocs(query(c(J, 'chat_reports'), orderBy('createdAt', 'desc'), limit(30))));
   const ur = { type: 'trade', targetId: 'tr1', targetUid: U2, reporterUid: U1, reason: 'Scam', text: 'details', createdAt: serverTimestamp(), status: 'open' };
-  await ok('user_reports create', async () => {
-    await setDoc(d(U1, 'user_reports', 'r1'), ur);
-    await stampAudience('user_reports', 'r1', 'staff');
-  });
+  await ok('user_reports create', () => setDoc(d(U1, 'user_reports', 'r1'), ur));
   await ok('user_reports create w/o optional text/targetUid', () => addDoc(c(U1, 'user_reports'), { type: 'post', targetId: 'p1', reporterUid: U1, reason: 'Spam', createdAt: serverTimestamp(), status: 'open' }));
   await ok('user_reports exact submitUserReport shape (text "", targetUid null)', () => addDoc(c(U1, 'user_reports'), { type: 'scam', targetId: 'bob_1', targetUid: null, reporterUid: U1, reason: 'Fake trade', text: '', createdAt: serverTimestamp(), status: 'open' }));
   await no('user_reports extra field', () => addDoc(c(U1, 'user_reports'), { ...ur, evil: 1 }));
@@ -712,53 +704,64 @@ async function firestoreTests() {
   await no('user_reports banned', () => addDoc(c(B, 'user_reports'), { ...ur, reporterUid: B }));
   await no('user_reports client createdAt', () => addDoc(c(U1, 'user_reports'), { ...ur, createdAt: Timestamp.fromMillis(1) }));
   await no('user lists user_reports', () => getDocs(c(U2, 'user_reports')));
-  await ok('staff lists user_reports (audience staff)', () => getDocs(query(c(J, 'user_reports'), where('audience', '==', 'staff'), orderBy('createdAt', 'desc'), limit(50))));
-  await no('JMD lists user_reports unfiltered (old builds)', () => getDocs(c(J, 'user_reports')));
+  await ok('staff lists user_reports', () => getDocs(c(J, 'user_reports')));
   await ok('staff marks reviewed', () => updateDoc(d(M, 'user_reports', 'r1'), { status: 'reviewed', reviewedBy: M, reviewedAt: serverTimestamp() }));
   await no('staff rewrites reason', () => updateDoc(d(M, 'user_reports', 'r1'), { reason: 'x' }));
   await no('mod deletes report', () => deleteDoc(d(M, 'user_reports', 'r1')));
   await ok('admin deletes report', () => deleteDoc(d(A, 'user_reports', 'r1')));
 
   sec('fs report routing');
-  // Reports about a Senior Mod or an Admin → Admins + owner (Admin counts as
-  // owner level); unstamped → Admins + owner. The reporter always sees their own.
+  // Reports about staff live in *_restricted (functions/reportRouting.js moves
+  // them, same id). `viewers` = the staff allowed: Mod target → Senior Mod+,
+  // Admin target → Admin+, never the target. Seeded as the function writes them.
   await seed(async (f) => {
-    const r = (id, audience, extra = {}) => F.setDoc(F.doc(f, 'user_reports', id), {
-      type: 'user', targetId: id, targetUid: null, reporterUid: U1, reason: 'x', text: '', createdAt: F.Timestamp.now(), status: 'open',
-      ...(audience ? { audience } : {}), ...extra });
-    await r('rU', 'staff'); await r('rS', 'admin'); await r('rA', 'admin'); await r('rN', null);
-    const cr = (id, audience) => F.setDoc(F.doc(f, 'chat_reports', id), { ...chatReport(U1, U2), createdAt: F.Timestamp.now(), audience });
-    await cr('cU', 'staff'); await cr('cS', 'admin'); await cr('cA', 'admin');
+    const ur = (id, target, viewers, minRank) => F.setDoc(F.doc(f, 'user_reports_restricted', id), {
+      type: 'user', targetId: target, targetUid: target, reporterUid: U1, reason: 'x', text: '', createdAt: F.Timestamp.now(),
+      status: 'open', targetUids: [target], minRank, viewers, movedFrom: 'user_reports', movedAt: F.Timestamp.now() });
+    await ur('xM', M, [A, A2, O, S].sort(), 3);
+    await ur('xA', A, [A2, O].sort(), 4);
+    const cr = (id, target, viewers, minRank) => F.setDoc(F.doc(f, 'chat_reports_restricted', id), {
+      ...chatReport(U1, target), createdAt: F.Timestamp.now(), targetUids: [target], minRank, viewers,
+      movedFrom: 'chat_reports', movedAt: F.Timestamp.now() });
+    await cr('yM', M, [A, A2, O, S].sort(), 3);
+    await cr('yA', A, [A2, O].sort(), 4);
   });
-  for (const [who, label] of [[J, 'JMD'], [M, 'Mod'], [S, 'Senior Mod']]) {
-    await ok(`${label} reads a report about a user`, () => getDoc(d(who, 'user_reports', 'rU')));
-    await no(`${label} reads a report about a Senior Mod`, () => getDoc(d(who, 'user_reports', 'rS')));
-    await no(`${label} reads a report about an Admin`, () => getDoc(d(who, 'user_reports', 'rA')));
-    await no(`${label} reads an unstamped report`, () => getDoc(d(who, 'user_reports', 'rN')));
-    await no(`${label} lists audience admin`, () => getDocs(query(c(who, 'user_reports'), where('audience', '==', 'admin'), orderBy('createdAt', 'desc'), limit(50))));
-    await no(`${label} dismisses a Senior Mod report`, () => updateDoc(d(who, 'user_reports', 'rS'), { status: 'reviewed', reviewedBy: who, reviewedAt: serverTimestamp() }));
-    await no(`${label} reads a DM report about a Senior Mod`, () => getDoc(d(who, 'chat_reports', 'cS')));
-    await no(`${label} deletes a DM report about a Senior Mod`, () => deleteDoc(d(who, 'chat_reports', 'cS')));
-  }
-  await ok('Admin reads a report about a Senior Mod', () => getDoc(d(A, 'user_reports', 'rS')));
-  await ok('Admin reads a report about another Admin', () => getDoc(d(A2, 'user_reports', 'rA')));
-  await ok('Admin reads an unstamped report', () => getDoc(d(A, 'user_reports', 'rN')));
-  await ok('Admin lists user_reports unfiltered (ReportsTab, old builds too)', () => getDocs(query(c(A, 'user_reports'), orderBy('createdAt', 'desc'), limit(50))));
-  await ok('Admin lists DM reports unfiltered', () => getDocs(query(c(A, 'chat_reports'), orderBy('createdAt', 'desc'), limit(30))));
-  await ok('Admin reads a DM report about an Admin', () => getDoc(d(A, 'chat_reports', 'cA')));
-  await ok('Admin dismisses a Senior Mod report', () => updateDoc(d(A, 'user_reports', 'rS'), { status: 'reviewed', reviewedBy: A, reviewedAt: serverTimestamp() }));
-  await ok('Admin deletes a report about an Admin', () => deleteDoc(d(A2, 'user_reports', 'rA')));
-  await ok('owner reads an unstamped report', () => getDoc(d(O, 'user_reports', 'rN')));
-  await ok('owner lists everything unfiltered', () => getDocs(query(c(O, 'user_reports'), orderBy('createdAt', 'desc'), limit(50))));
-  await ok('owner lists DM reports unfiltered', () => getDocs(query(c(O, 'chat_reports'), orderBy('createdAt', 'desc'), limit(30))));
-  await ok('owner deletes an unstamped report', () => deleteDoc(d(O, 'user_reports', 'rN')));
-  await no('UNVERIFIED owner email reads an Admin DM report', () => getDoc(d(OU, 'chat_reports', 'cA')));
-  await ok('reporter reads own report about a Senior Mod', () => getDoc(d(U1, 'user_reports', 'rS')));
-  await ok('reporter reads own DM report about an Admin', () => getDoc(d(U1, 'chat_reports', 'cA')));
-  await no('client forges audience on user_reports', () => addDoc(c(U1, 'user_reports'), { ...ur, audience: 'staff' }));
-  await no('client forges audience on chat_reports', () => addDoc(c(U1, 'chat_reports'), { ...chatReport(U1, U2), audience: 'staff' }));
-  await no('staff rewrites audience', () => updateDoc(d(M, 'user_reports', 'rU'), { audience: 'admin', status: 'reviewed' }));
-  await no('admin lowers audience', () => updateDoc(d(A, 'user_reports', 'rS'), { audience: 'staff' }));
+  const mine = (uid, col, n = 50) => getDocs(query(c(uid, col), where('viewers', 'array-contains', uid), orderBy('createdAt', 'desc'), limit(n)));
+  await no('JMD reads a report about a Mod', () => getDoc(d(J, 'user_reports_restricted', 'xM')));
+  await no('JMD reads a DM report about a Mod', () => getDoc(d(J, 'chat_reports_restricted', 'yM')));
+  await ok('JMD lists their restricted reports (allowed, none match)', () => mine(J, 'user_reports_restricted'));
+  await ok('Mod lists their restricted reports (allowed; the one about them is not in it)', async () => {
+    const snap = await mine(M, 'user_reports_restricted');
+    if (snap.docs.some((x) => x.id === 'xM')) throw new Error('the report about M was listed');
+  });
+  await no('Mod reads the report about themselves', () => getDoc(d(M, 'user_reports_restricted', 'xM')));
+  await no('Mod reads the DM report about themselves', () => getDoc(d(M, 'chat_reports_restricted', 'yM')));
+  await no('Mod dismisses the report about themselves', () => updateDoc(d(M, 'user_reports_restricted', 'xM'), { status: 'reviewed', reviewedBy: M, reviewedAt: serverTimestamp() }));
+  await no('Mod deletes the DM report about themselves', () => deleteDoc(d(M, 'chat_reports_restricted', 'yM')));
+  await ok('Senior Mod reads a report about a Mod', () => getDoc(d(S, 'user_reports_restricted', 'xM')));
+  await ok('Senior Mod lists restricted reports (ReportsTab)', () => mine(S, 'user_reports_restricted'));
+  await ok('Senior Mod lists restricted DM reports', () => mine(S, 'chat_reports_restricted', 30));
+  await no('Senior Mod reads a report about an Admin', () => getDoc(d(S, 'user_reports_restricted', 'xA')));
+  await no('Senior Mod lists restricted reports unfiltered', () => getDocs(query(c(S, 'user_reports_restricted'), orderBy('createdAt', 'desc'), limit(50))));
+  await ok('Senior Mod dismisses a Mod report', () => updateDoc(d(S, 'user_reports_restricted', 'xM'), { status: 'reviewed', reviewedBy: S, reviewedAt: serverTimestamp() }));
+  await no('Senior Mod adds themselves to viewers of an Admin report', () => updateDoc(d(S, 'user_reports_restricted', 'xA'), { viewers: [A2, O, S] }));
+  await no('Senior Mod rewrites viewers of a Mod report', () => updateDoc(d(S, 'user_reports_restricted', 'xM'), { viewers: [M, S] }));
+  await no('Senior Mod deletes a user report (admin only)', () => deleteDoc(d(S, 'user_reports_restricted', 'xM')));
+  await no('Admin reads the report about themselves', () => getDoc(d(A, 'user_reports_restricted', 'xA')));
+  await no('Admin reads the DM report about themselves', () => getDoc(d(A, 'chat_reports_restricted', 'yA')));
+  await ok('another Admin reads the report about an Admin', () => getDoc(d(A2, 'user_reports_restricted', 'xA')));
+  await ok('another Admin reads the DM report about an Admin', () => getDoc(d(A2, 'chat_reports_restricted', 'yA')));
+  await ok('owner reads the report about an Admin', () => getDoc(d(O, 'user_reports_restricted', 'xA')));
+  await ok('owner lists restricted reports', () => mine(O, 'user_reports_restricted'));
+  await no('UNVERIFIED owner email reads an Admin report', () => getDoc(d(OU, 'user_reports_restricted', 'xA')));
+  await ok('Admin deletes a Mod report', () => deleteDoc(d(A, 'user_reports_restricted', 'xM')));
+  await ok('Senior Mod deletes a Mod DM report (staff delete, as chat_reports)', () => deleteDoc(d(S, 'chat_reports_restricted', 'yM')));
+  await ok('reporter reads own report about an Admin', () => getDoc(d(U1, 'user_reports_restricted', 'xA')));
+  await ok('reporter duplicate check on moved DM reports (Scamwarning)', () => getDocs(query(c(U1, 'chat_reports_restricted'),
+    where('chatKey', '==', [U1, A].sort().join('_')), where('reportedBy', '==', U1), where('status', '==', 'pending'), limit(20))));
+  await no('another user reads a restricted report', () => getDoc(d(U2, 'user_reports_restricted', 'xA')));
+  await no('client creates a restricted report', () => addDoc(c(U1, 'user_reports_restricted'), { type: 'user', targetId: A, reporterUid: U1, viewers: [U1] }));
+  await no('staff creates a restricted DM report', () => addDoc(c(S, 'chat_reports_restricted'), { ...chatReport(S, U1), viewers: [S] }));
 
   sec('fs scammer db');
   const scamReport = (uid, name, existing) => runTransaction(fsOf(uid), async (tx) => {

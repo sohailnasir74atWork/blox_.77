@@ -3,8 +3,9 @@
 --
 -- Part of 046_chat_slowmode.sql. Run THIS FILE FIRST, ON ITS OWN, and NOT
 -- inside begin/commit: CREATE INDEX CONCURRENTLY refuses to run in a
--- transaction block. CONCURRENTLY builds the index without blocking chat
--- inserts (public.messages has ~2 M rows, ~15k new a day).
+-- transaction block, so the file holds exactly one statement. CONCURRENTLY
+-- builds the index without blocking chat inserts (public.messages has ~2 M
+-- rows, ~15k new a day).
 --
 -- What it is for: the slow-mode trigger (046 STEP 2) asks "when did this
 -- sender last post in this room, within the last N seconds?" for every

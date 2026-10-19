@@ -199,12 +199,12 @@
       ]
     },
     {
-      "collectionGroup": "user_reports",
+      "collectionGroup": "user_reports_restricted",
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "audience",
-          "order": "ASCENDING"
+          "fieldPath": "viewers",
+          "arrayConfig": "CONTAINS"
         },
         {
           "fieldPath": "createdAt",
@@ -213,12 +213,12 @@
       ]
     },
     {
-      "collectionGroup": "chat_reports",
+      "collectionGroup": "chat_reports_restricted",
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "audience",
-          "order": "ASCENDING"
+          "fieldPath": "viewers",
+          "arrayConfig": "CONTAINS"
         },
         {
           "fieldPath": "createdAt",

@@ -5,23 +5,29 @@
  *   node functions/test/mirrorChatReport.test.js
  */
 const assert = require('assert');
-const { toRow, reconcile } = require('../mirrorChatReport')._internal;
+const { toRow, reconcile, mirrorWrite, onlyRoutingChanged } = require('../mirrorChatReport')._internal;
 
 const A = 'uidAAAAAAAAAAAAAAAAAAAAAAAA1';
 const B = 'uidBBBBBBBBBBBBBBBBBBBBBBBB2';
 const C = 'uidCCCCCCCCCCCCCCCCCCCCCCCC3';
 const key = (x, y) => [x, y].sort().join('_');
 
-// Firestore: collection(name).select(...).get() → forEach over { id, data() }.
-const fakeFirestore = (docs) => ({
-  collection: () => ({
-    select: () => ({
-      get: async () => ({
-        size: Object.keys(docs).length,
-        forEach: (fn) => Object.entries(docs).forEach(([id, d]) => fn({ id, data: () => d })),
+// Firestore: collection(name).select(...).get() → forEach over { id, data() };
+// collection(name).doc(id).get() → { exists }. chat_reports = `docs`,
+// chat_reports_restricted = `restricted`.
+const fakeFirestore = (docs, restricted = {}) => ({
+  collection: (name) => {
+    const set = name === 'chat_reports_restricted' ? restricted : docs;
+    return {
+      select: () => ({
+        get: async () => ({
+          size: Object.keys(set).length,
+          forEach: (fn) => Object.entries(set).forEach(([id, d]) => fn({ id, data: () => d })),
+        }),
       }),
-    }),
-  }),
+      doc: (id) => ({ get: async () => ({ exists: !!set[id] }) }),
+    };
+  },
 });
 
 // Supabase: just the calls reconcile makes, on one table.
@@ -67,6 +73,12 @@ const fakeSupabase = (initial) => {
   const res = await reconcile(fs, sb);
   assert.deepStrictEqual(res, { reports: 3, mirrored: 2, removed: 1 });
   assert.deepStrictEqual([...sb.table.keys()].sort(), ['r1', 'r2']);
+
+  // Restricted (moved) reports are mirrored too and are not "stale".
+  const fsR = fakeFirestore({ r1: { chatKey: key(A, B), reportedBy: A } }, { m1: { chatKey: key(A, C), reportedBy: A, viewers: [] } });
+  const sbR = fakeSupabase([{ report_id: 'm1', chat_id: key(A, C), reporter_uid: A, reported_uid: C }]);
+  assert.deepStrictEqual(await reconcile(fsR, sbR), { reports: 2, mirrored: 2, removed: 0 });
+  assert.deepStrictEqual([...sbR.table.keys()].sort(), ['m1', 'r1']);
   assert.strictEqual(sb.table.get('r2').chat_id, key(B, C));
 
   // Paging past PostgREST's 1000-row cap: 2500 stale rows all go.
@@ -75,6 +87,26 @@ const fakeSupabase = (initial) => {
   const res2 = await reconcile(fakeFirestore({}), sb2);
   assert.deepStrictEqual(res2, { reports: 0, mirrored: 0, removed: 2500 });
   assert.strictEqual(sb2.table.size, 0);
+
+  // mirrorWrite: a move (create in restricted + delete in chat_reports) keeps the row.
+  const calls = [];
+  const sbW = {
+    from: () => ({
+      delete: () => ({ eq: async (_c, id) => { calls.push(['delete', id]); return { error: null }; } }),
+      upsert: async (row) => { calls.push(['upsert', row.report_id]); return { error: null }; },
+    }),
+  };
+  const snap = (data) => (data ? { exists: true, data: () => data } : { exists: false, data: () => undefined });
+  const doc = { chatKey: key(A, B), reportedBy: A, status: 'pending' };
+  const movedFs = fakeFirestore({}, { x1: doc });
+  assert.strictEqual(await mirrorWrite('chat_reports_restricted', 'x1', { before: snap(null), after: snap(doc) }, movedFs, sbW), 'upserted');
+  assert.strictEqual(await mirrorWrite('chat_reports', 'x1', { before: snap(doc), after: snap(null) }, movedFs, sbW), 'moved');
+  assert.strictEqual(await mirrorWrite('chat_reports', 'x2', { before: snap(doc), after: snap(null) }, fakeFirestore({}), sbW), 'deleted');
+  assert.deepStrictEqual(calls, [['upsert', 'x1'], ['delete', 'x2']], 'the moved report keeps its reported_chats row');
+  const restamp = { before: snap({ ...doc, viewers: ['a'] }), after: snap({ ...doc, viewers: ['a', 'b'], minRank: 3 }) };
+  assert.strictEqual(await mirrorWrite('chat_reports_restricted', 'x1', restamp, movedFs, sbW), 'skipped', 'viewers re-stamp skipped');
+  assert.strictEqual(onlyRoutingChanged(doc, { ...doc, status: 'reviewed' }), false);
+  assert.strictEqual(onlyRoutingChanged(doc, { ...doc }), false, 'no change at all → mirror as before');
 
   console.log('mirrorChatReport: all tests passed');
 })().catch((e) => { console.error(e); process.exit(1); });

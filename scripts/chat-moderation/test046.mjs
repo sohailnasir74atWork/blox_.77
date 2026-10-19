@@ -85,8 +85,13 @@ await q(`insert into public.user_roles (uid, is_admin, is_cmsr, is_moderator, is
 const R = 'chat_new_upgrade', ES = 'chat_es_upgrade', RAID = 'chat_raid_upgrade';
 
 // ── Reading the setting ─────────────────────────────────────────────────
-ok((await as('U1', () => q(`select * from public.chat_slowmode`))).length === 0, 'user reads settings (empty)');
-ok((await as('anon', () => q(`select * from public.chat_slowmode`))).length === 0, 'anon reads settings (empty)');
+ok((await as('U1', () => q(`select scope, seconds from public.chat_slowmode`))).length === 0, 'user reads scope + seconds (empty)');
+ok((await as('anon', () => q(`select scope, seconds from public.chat_slowmode`))).length === 0, 'anon reads scope + seconds (empty)');
+for (const [who, sql] of [['U1', 'select * from public.chat_slowmode'], ['anon', 'select set_by from public.chat_slowmode'],
+  ['S', 'select updated_at from public.chat_slowmode']]) {
+  const e = await err(() => as(who, () => q(sql)));
+  ok(e && /permission denied/.test(e.message), `${who}: "${sql}" refused (set_by / updated_at stay server-side; got ${e?.message})`);
+}
 for (const [sql, label] of [
   [`insert into public.chat_slowmode (scope, seconds) values ('*', 300)`, 'insert'],
   [`update public.chat_slowmode set seconds = 0`, 'update'],
@@ -234,28 +239,37 @@ const reportOn = async (sender, minutesAgo) => q(
 await reportOn('U2', 50); await reportOn('J', 40); await reportOn('M', 30); await reportOn('S', 20); await reportOn('A', 10);
 const listAs = async (who, limit = 50) => (await as(who, () => q(`select * from public.list_message_reports($1, null)`, [limit]))).map((r) => r.sender_uid);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-ok(same(await listAs('J'), ['M', 'J', 'U2']), `JMD: no Senior Mod / Admin reports (got ${await listAs('J')})`);
-ok(same(await listAs('M'), ['M', 'J', 'U2']), `Mod: no Senior Mod / Admin reports (got ${await listAs('M')})`);
-ok(same(await listAs('S'), ['M', 'J', 'U2']), `Senior Mod: not even reports about Senior Mods (got ${await listAs('S')})`);
-ok(same(await listAs('S2'), ['M', 'J', 'U2']), 'another Senior Mod: same');
-ok(same(await listAs('A'), ['A', 'S', 'M', 'J', 'U2']), `Admin (owner level): everything, own reports too (got ${await listAs('A')})`);
-ok(same(await listAs('A2'), ['A', 'S', 'M', 'J', 'U2']), 'another Admin: reports about Admins too');
+ok(same(await listAs('J'), ['U2']), `JMD: player reports only (got ${await listAs('J')})`);
+ok(same(await listAs('M'), ['U2']), `Mod: player reports only, not even other Mods / JMDs (got ${await listAs('M')})`);
+ok(same(await listAs('S'), ['M', 'J', 'U2']), `Senior Mod: Mod / JMD / player reports (got ${await listAs('S')})`);
+ok(same(await listAs('S2'), ['M', 'J', 'U2']), 'another Senior Mod: same, nothing about Senior Mods');
+ok(same(await listAs('A'), ['S', 'M', 'J', 'U2']), `Admin: everything except reports about themselves (got ${await listAs('A')})`);
+ok(same(await listAs('A2'), ['A', 'S', 'M', 'J', 'U2']), 'another Admin: reports about the first Admin too');
 ok(same(await listAs('O'), ['A', 'S', 'M', 'J', 'U2']), `owner: everything (got ${await listAs('O')})`);
-ok(same(await listAs('J', 1), ['M']), 'page limit applies after the filter (a hidden newer row does not eat the page)');
+await reportOn('J2', 45); await q(`insert into public.user_roles (uid, is_baby_mod) values ('J2', true)`);
+ok(same(await listAs('J'), ['U2']), 'a JMD does not see reports about another JMD');
+ok(same(await listAs('S', 1), ['M']), 'page limit applies after the filter (a hidden newer row does not eat the page)');
+await reportOn('O', 5);
+ok(!(await listAs('O')).includes('O'), 'the owner does not see reports about the owner account');
+ok((await listAs('A')).includes('O'), 'Admins see reports about the owner account');
 const ue = await err(() => listAs('U1'));
 ok(ue && ue.message === 'not authorized', 'non-staff still refused');
 const ou = await err(() => listAs('OU'));
 ok(ou && ou.message === 'not authorized', 'unverified owner email still refused');
 // A promotion is picked up at once (looked up when listing).
 await q(`update public.user_roles set is_cmsr = true where uid = 'M'`);
-ok(same(await listAs('J'), ['J', 'U2']), 'Mod promoted to Senior Mod: their reports leave the JMD view');
+ok(!(await listAs('S')).includes('M'), 'Mod promoted to Senior Mod: their reports leave the Senior Mod view');
 await q(`update public.user_roles set is_cmsr = false where uid = 'M'`);
+await q(`update public.user_roles set is_moderator = false where uid = 'M'`);
+ok((await listAs('J')).includes('M'), 'Mod demoted to player: their reports reach every staff member');
+await q(`update public.user_roles set is_moderator = true where uid = 'M'`);
 
 // mod_read_private_chat: chat1 about a user, chat2 about a Senior Mod,
 // chat3 about an Admin, chat4 reported both ways, chat5 legacy (no reported_uid).
 await q(`insert into public.reported_chats (report_id, chat_id, reporter_uid, reported_uid) values
   ('r1', 'chat1', 'U1', 'U2'), ('r2', 'chat2', 'U1', 'S'), ('r3', 'chat3', 'U1', 'A'),
-  ('r4a', 'chat4', 'U1', 'S2'), ('r4b', 'chat4', 'S2', 'U1'), ('r5', 'chat5', 'U1', null)`);
+  ('r4a', 'chat4', 'U1', 'S2'), ('r4b', 'chat4', 'S2', 'U1'), ('r5', 'chat5', 'U1', null),
+  ('r6', 'chat6', 'U1', 'M'), ('r8', 'chat8', 'U1', 'J')`);
 await q(`insert into public.private_messages (chat_id, sender_id, recipient_id, text) values ('chat2', 'U1', 'S', 'hi')`);
 const readChat = (who, chat) => as(who, () => q(`select * from public.mod_read_private_chat($1, 50)`, [chat]));
 const canRead = async (who, chat) => !(await err(() => readChat(who, chat)));
@@ -269,6 +283,10 @@ ok((await readChat('A', 'chat2')).length === 1, 'Admin reads the Senior Mod chat
 ok(await canRead('O', 'chat3'), 'owner reads the Admin chat');
 ok(await canRead('A2', 'chat3'), 'another Admin reads the Admin chat');
 ok(await canRead('M', 'chat4'), 'chat also reported about a user: readable as evidence for that report');
+ok(!(await canRead('M', 'chat6')), 'a Mod cannot open a chat reported about themselves');
+ok(!(await canRead('J', 'chat6')), 'a JMD cannot open a chat reported about a Mod');
+ok(!(await canRead('M', 'chat8')), 'a Mod cannot open a chat reported about a JMD');
+ok(await canRead('S', 'chat6') && await canRead('S', 'chat8'), 'a Senior Mod opens chats reported about a Mod / JMD');
 ok(await canRead('M', 'chat5'), 'legacy report with no reported_uid: unchanged');
 ok(!(await canRead('M', 'chat9')), 'unreported chat still refused');
 ok(!(await canRead('U1', 'chat1')), 'non-staff still refused');

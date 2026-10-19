@@ -1,15 +1,18 @@
 // Admin Dashboard → "Reports" tab: one review queue for every report source
-// (contract §9). All staff who can open the dashboard see it — except
-// reports about a Senior Mod or an Admin, which only Admins and the owner see
-// (2026-10-19; Admin counts as owner level). The server decides: Firestore
-// `audience` (functions/reportAudience.js + firestore.rules) and Supabase
-// list_message_reports (supabase/046). This tab just asks for its own tier.
+// (contract §9). All staff who can open the dashboard see it — except reports
+// about staff (2026-10-19): about a JMD / Mod → Senior Mod+, about a Senior
+// Mod / Admin / owner → Admin+, never the target. The server decides:
+// functions/reportRouting.js moves those into *_restricted collections whose
+// `viewers` list says who may read them (firestore.rules), and Supabase
+// list_message_reports filters by rank (supabase/046).
 //
 //   Firestore user_reports   trade / post / status / scam / user reports
 //                            written by current builds (status 'open')
 //   Firestore chat_reports   private-chat reports with chat consent
 //                            (Scamwarning.js) — "View chat" opens them in the
 //                            Chat Viewer
+//   …_restricted (both)      the same, about staff; listed where `viewers`
+//                            contains me
 //   RTDB tradeReports        trade reports from older builds
 //   Supabase message reports public / group / private chat messages
 //                            (fetchMessageReports, supabase/034); "Hide"
@@ -49,8 +52,6 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import * as chatBackend from '../Supabase/chatBackend';
 import { getIdentityBatch } from '../Supabase/userBackend';
-import { useGlobalState } from '../GlobelStats';
-import { getCurrentUserOwner } from '../Helper/ownerFlag';
 
 dayjs.extend(relativeTime);
 
@@ -103,29 +104,27 @@ const normalizeMessageReport = (r) => {
   };
 };
 
-// Firestore report lists by tier. Admins and the owner read every report;
-// rules refuse lower staff an unfiltered list, so they ask for 'staff' only.
-const reportsQuery = (fdb, col, tier, n) => {
-  const base = collection(fdb, col);
-  if (tier === 'admin') return firestoreQuery(base, orderBy('createdAt', 'desc'), limit(n));
-  return firestoreQuery(base, where('audience', '==', 'staff'), orderBy('createdAt', 'desc'), limit(n));
+// user_reports(_restricted) / chat_reports(_restricted) doc → card item.
+const userReportItem = (source, d) => {
+  const r = d.data() || {};
+  return {
+    key: `${source}:${d.id}`, source, kind: r.type || 'user', id: d.id,
+    targetUid: r.targetUid || null, targetId: r.targetId || null, reporterUid: r.reporterUid || null,
+    reason: r.reason || null, text: r.text || null, status: r.status || 'open', createdAt: toMs(r.createdAt),
+  };
 };
-// If this device thinks it ranks higher than the server does (a stale flag),
-// fall back to the staff list instead of showing nothing.
-const getReports = async (fdb, col, tier, n) => {
-  try {
-    return await getDocs(reportsQuery(fdb, col, tier, n));
-  } catch (e) {
-    if (tier === 'admin' && /permission/i.test(`${e?.code || ''} ${e?.message || ''}`)) {
-      return getDocs(reportsQuery(fdb, col, 'staff', n));
-    }
-    throw e;
-  }
+const chatReportItem = (source, d) => {
+  const r = d.data() || {};
+  if (r.chatConsent !== true) return null;
+  return {
+    key: `${source}:${d.id}`, source, kind: 'chat', id: d.id,
+    targetUid: r.reportedUser || null, targetName: r.reportedUserName || null,
+    reporterUid: r.reportedBy || null, reporterName: r.reporterName || null,
+    reason: r.reason || null, status: r.status || 'open', createdAt: toMs(r.createdAt), raw: { id: d.id, ...r },
+  };
 };
 
 const ReportsTab = ({ isDark, onViewUser, onSanctionUser, onViewChat }) => {
-  const { isAdmin } = useGlobalState();
-  const tier = isAdmin || getCurrentUserOwner(getAuth().currentUser?.uid) ? 'admin' : 'staff';
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('all');
@@ -145,30 +144,29 @@ const ReportsTab = ({ isDark, onViewUser, onSanctionUser, onViewChat }) => {
     const warn = [];
     const out = [];
 
-    // Staff: audience + createdAt (composite index); status is filtered here.
-    const userReports = getReports(fdb, 'user_reports', tier, PAGE)
-      .then((snap) => snap.docs.forEach((d) => {
-        const r = d.data() || {};
-        out.push({
-          key: `ur:${d.id}`, source: 'user_reports', kind: r.type || 'user', id: d.id,
-          targetUid: r.targetUid || null, targetId: r.targetId || null, reporterUid: r.reporterUid || null,
-          reason: r.reason || null, text: r.text || null, status: r.status || 'open', createdAt: toMs(r.createdAt),
-        });
-      }))
-      .catch((e) => warn.push(`User reports: ${e?.message || 'failed'}`));
-
-    const chatReports = getReports(fdb, 'chat_reports', tier, 30)
-      .then((snap) => snap.docs.forEach((d) => {
-        const r = d.data() || {};
-        if (r.chatConsent !== true) return;
-        out.push({
-          key: `cr:${d.id}`, source: 'chat_reports', kind: 'chat', id: d.id,
-          targetUid: r.reportedUser || null, targetName: r.reportedUserName || null,
-          reporterUid: r.reportedBy || null, reporterName: r.reporterName || null,
-          reason: r.reason || null, status: r.status || 'open', createdAt: toMs(r.createdAt), raw: { id: d.id, ...r },
-        });
-      }))
-      .catch((e) => warn.push(`Chat reports: ${e?.message || 'failed'}`));
+    const me = getAuth().currentUser?.uid || null;
+    // Single-field orderBy only (automatic index); status is filtered here.
+    const listInto = (col, toItem, n, label, mine = false) => {
+      const base = collection(fdb, col);
+      const q = mine
+        ? firestoreQuery(base, where('viewers', 'array-contains', me), orderBy('createdAt', 'desc'), limit(n))
+        : firestoreQuery(base, orderBy('createdAt', 'desc'), limit(n));
+      return getDocs(q)
+        .then((snap) => snap.docs.forEach((d) => {
+          const item = toItem(col, d);
+          if (item) out.push(item);
+        }))
+        .catch((e) => warn.push(`${label}: ${e?.message || 'failed'}`));
+    };
+    const userReports = listInto('user_reports', userReportItem, PAGE, 'User reports');
+    const chatReports = listInto('chat_reports', chatReportItem, 30, 'Chat reports');
+    // Reports about staff that this staff member may see (viewers + createdAt index).
+    const restrictedReports = me
+      ? Promise.all([
+        listInto('user_reports_restricted', userReportItem, PAGE, 'Staff reports', true),
+        listInto('chat_reports_restricted', chatReportItem, 30, 'Staff chat reports', true),
+      ])
+      : Promise.resolve();
 
     // Push keys sort chronologically, so the key order needs no index.
     const tradeReports = get(query(ref(rdb, 'tradeReports'), limitToLast(PAGE)))
@@ -196,7 +194,7 @@ const ReportsTab = ({ isDark, onViewUser, onSanctionUser, onViewChat }) => {
         .catch((e) => warn.push(`Chat-message reports: ${e?.message || 'failed'}`))
       : Promise.resolve(warn.push('Chat-message reports: not available in this build.'));
 
-    await Promise.all([userReports, chatReports, tradeReports, messageReports]);
+    await Promise.all([userReports, chatReports, restrictedReports, tradeReports, messageReports]);
     out.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
     // Chat-message and user reports carry only uids: look the names up so
@@ -218,7 +216,7 @@ const ReportsTab = ({ isDark, onViewUser, onSanctionUser, onViewChat }) => {
     setItems(out);
     setWarnings(warn);
     setLoading(false);
-  }, [tier]);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 
@@ -250,10 +248,10 @@ const ReportsTab = ({ isDark, onViewUser, onSanctionUser, onViewChat }) => {
     setBusyKey(r.key);
     const me = getAuth().currentUser?.uid || null;
     try {
-      if (r.source === 'user_reports') {
-        await updateDoc(doc(getFirestore(), 'user_reports', r.id), { status: 'reviewed', reviewedBy: me, reviewedAt: serverTimestamp() });
-      } else if (r.source === 'chat_reports') {
-        await updateDoc(doc(getFirestore(), 'chat_reports', r.id), { status: 'reviewed' });
+      if (r.source === 'user_reports' || r.source === 'user_reports_restricted') {
+        await updateDoc(doc(getFirestore(), r.source, r.id), { status: 'reviewed', reviewedBy: me, reviewedAt: serverTimestamp() });
+      } else if (r.source === 'chat_reports' || r.source === 'chat_reports_restricted') {
+        await updateDoc(doc(getFirestore(), r.source, r.id), { status: 'reviewed' });
       } else if (r.source === 'tradeReports') {
         await update(ref(getDatabase(), `tradeReports/${r.id}`), { status: 'reviewed', reviewedBy: me, reviewedAt: Date.now() });
       } else if (r.source === 'message') {

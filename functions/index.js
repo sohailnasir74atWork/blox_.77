@@ -93,12 +93,13 @@ exports.modEvidenceUpload = require('./modEvidenceUpload').modEvidenceUpload;
 const chatReports = require('./mirrorChatReport');
 exports.mirrorChatReport = chatReports.mirrorChatReport;
 exports.reconcileReportedChats = chatReports.reconcileReportedChats;
-// Reports about Senior Mod+ are shown to Admins / the owner only: server-stamped
-// `audience` on user_reports + chat_reports, enforced by firestore.rules.
-const reportAudience = require('./reportAudience');
-exports.stampUserReportAudience = reportAudience.stampUserReportAudience;
-exports.stampChatReportAudience = reportAudience.stampChatReportAudience;
-exports.reconcileReportAudience = reportAudience.reconcileReportAudience;
+exports.mirrorRestrictedChatReport = chatReports.mirrorRestrictedChatReport;
+// Reports about staff move to *_restricted collections that only the staff
+// above the target can read (never the target). See reportRouting.js.
+const reportRouting = require('./reportRouting');
+exports.routeUserReport = reportRouting.routeUserReport;
+exports.routeChatReport = reportRouting.routeChatReport;
+exports.reconcileReportRouting = reportRouting.reconcileReportRouting;
 exports.syncEmailBan = bans.syncEmailBan;
 exports.indexDeviceAccount = bans.indexDeviceAccount;
 exports.indexLegacyDeviceAccount = bans.indexLegacyDeviceAccount;
