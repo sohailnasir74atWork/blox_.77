@@ -91,7 +91,8 @@ const fakeRtdb = (nodes) => ({
     };
   },
 });
-const deps = () => cachedDeps(rankOf, async () => STAFF);
+// since 0: every fake report counts as created after go-live.
+const deps = () => cachedDeps(rankOf, async () => STAFF, 0);
 
 (async () => {
   // Tiers.
@@ -241,7 +242,7 @@ const deps = () => cachedDeps(rankOf, async () => STAFF);
   colls2.trades_new_upgrade = { tM: { userId: M } };
   const rt2 = fakeRtdb({ k9: { tradeId: 'tM', reportedBy: U2, reason: 'x', timestamp: 9 } });
   const promoted = async (uid) => (uid === U ? RANK.moderator : uid === M2 ? RANK.user : rankOf(uid));
-  const r = await reconcile(fs2, rt2, promoted, async () => STAFF);
+  const r = await reconcile(fs2, rt2, promoted, async () => STAFF, { since: 0 });
   // 1 RTDB + 2 public + 4 restricted (p2 and the trade copy re-checked right after their move) + 1 chat.
   assert.deepStrictEqual(r, { checked: 8, moved: 2, restamped: 2, failed: 0 }, JSON.stringify(r));
   assert.ok(!rt2.nodes.k9 && colls2.user_reports_restricted.rtdb_k9, 'reconcile routes old-build trade reports too');
@@ -250,14 +251,40 @@ const deps = () => cachedDeps(rankOf, async () => STAFF);
   assert.strictEqual(colls2.user_reports_restricted.r2.minRank, RANK.babyMod, 'demoted target: all staff but them');
   assert.ok(!colls2.user_reports_restricted.r2.viewers.includes(M2) && colls2.user_reports_restricted.r2.viewers.includes(J));
   assert.ok(!fs2.writes.some(([, c, id]) => c === 'chat_reports_restricted' && id === 'c1'), 'correct doc untouched');
-  const again = await reconcile(fs2, rt2, promoted, async () => STAFF);
+  const again = await reconcile(fs2, rt2, promoted, async () => STAFF, { since: 0 });
   assert.strictEqual(again.moved + again.restamped, 0, 'second run writes nothing');
 
   // A failing rank lookup counts as failed and moves nothing.
   const fs3 = fakeFirestore({ user_reports: { x: { type: 'user', targetId: S, targetUid: S, createdAt: 1 } } });
-  const r3 = await reconcile(fs3, fakeRtdb({}), async () => { throw new Error('rtdb down'); }, async () => STAFF);
+  const r3 = await reconcile(fs3, fakeRtdb({}), async () => { throw new Error('rtdb down'); }, async () => STAFF, { since: 0 });
   assert.strictEqual(r3.failed, 1);
   assert.strictEqual(r3.moved, 0);
+
+  // Legacy (owner decision): reports created before go-live, or marked by hand, never move.
+  const legacyDeps = () => cachedDeps(rankOf, async () => STAFF, 1000);
+  const colls6 = {
+    chat_reports: {
+      old: { chatKey: key(U, A), reportedBy: U, createdAt: 999 },
+      neu: { chatKey: key(U, A), reportedBy: U, createdAt: 1001 },
+      restored: { chatKey: key(U, A), reportedBy: U, createdAt: 5 },
+    },
+    report_routing_legacy: { chat_reports_restored: { reason: 'legacy restore' } },
+  };
+  const fs6 = fakeFirestore(colls6);
+  assert.deepStrictEqual(await routeReport(fs6, 'chat_reports', 'old', colls6.chat_reports.old, legacyDeps()), { moved: false, reason: 'legacy' });
+  assert.ok(colls6.chat_reports.old, 'created before go-live: stays');
+  assert.strictEqual((await routeReport(fs6, 'chat_reports', 'restored', colls6.chat_reports.restored, legacyDeps(), { createdMs: 5000 })).reason,
+    'legacy', 'put back by hand (new createTime) but marked: stays');
+  assert.strictEqual((await routeReport(fs6, 'chat_reports', 'neu', colls6.chat_reports.neu, legacyDeps())).moved, true, 'after go-live: moves');
+  assert.strictEqual((await routeReport(fs6, 'chat_reports', 'x', { chatKey: key(U, A), reportedBy: U, createdAt: 1 }, legacyDeps(),
+    { dryRun: true, createdMs: 2000 })).moved, true, 'server createTime wins over a backdated createdAt');
+  const rt6 = fakeRtdb({ kOld: { tradeId: 'tS', reportedBy: U, timestamp: 10 } });
+  const fs7 = fakeFirestore({ trades_new_upgrade: { tS: { userId: S } } });
+  assert.strictEqual((await routeTradeReport(fs7, rt6, 'kOld', rt6.nodes.kOld, legacyDeps())).reason, 'legacy');
+  assert.ok(rt6.nodes.kOld, 'legacy RTDB trade report stays');
+  const r6 = await reconcile(fakeFirestore({ chat_reports: { o: { chatKey: key(U, A), reportedBy: U, createdAt: 3 } } }), fakeRtdb({}),
+    rankOf, async () => STAFF, { since: 1000 });
+  assert.strictEqual(r6.moved, 0, 'reconcile leaves legacy reports alone');
 
   console.log('reportRouting: all assertions passed');
 })().catch((e) => {

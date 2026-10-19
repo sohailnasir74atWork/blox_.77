@@ -57,12 +57,18 @@
  *                            promoted since), and
  *                            re-stamps viewers / minRank on the restricted
  *                            ones (staff added, removed, promoted, demoted).
- *   scripts/reports/backfill-restricted-reports.js moves the older ones once.
+ *
+ * LEGACY (owner decision 2026-10-19): reports filed before routing went live
+ * (ROUTING_SINCE, by Firestore's server-side createTime; RTDB: the trigger's
+ * event time, else the node's timestamp) stay exactly where they are. There
+ * is no backfill. A doc with a marker report_routing_legacy/{collection}_{id}
+ * (server-only collection: no rules, so clients can't write it) is never
+ * moved either — that is how a legacy report put back by hand stays put.
  *
  * Deploy order: firestore indexes → firestore.rules (the restricted blocks are
- * additive) → these functions (with mirrorRestrictedChatReport) → the backfill
- * → the app build. Until staff run that build, a moved report is visible only
- * in the new build (or the console), not in old builds' queues:
+ * additive) → these functions (with mirrorRestrictedChatReport) → the app
+ * build. Until staff run that build, a moved report is visible only in the
+ * new build (or the console), not in old builds' queues:
  *   firebase deploy --only functions:routeUserReport,functions:routeChatReport,functions:routeTradeReport,functions:reconcileReportRouting,functions:mirrorChatReport,functions:mirrorRestrictedChatReport,functions:reconcileReportedChats --project fruiteblocks
  */
 const functions = require('firebase-functions/v1');
@@ -71,6 +77,23 @@ const { RANK, UID_RE, OWNER_EMAILS, readRank } = require('./banEnforcement')._in
 const { toRow: chatReportRow } = require('./mirrorChatReport')._internal;
 
 const RESTRICTED = { user_reports: 'user_reports_restricted', chat_reports: 'chat_reports_restricted' };
+// Routing went live 2026-10-19; anything created earlier is legacy and stays.
+const ROUTING_SINCE_MS = Date.parse('2026-10-19T13:00:00Z');
+const LEGACY_MARKERS = 'report_routing_legacy';
+
+// Firestore Timestamp / Date / ms → ms (NaN when unknown).
+const msOf = (v) => {
+  if (v && typeof v.toMillis === 'function') return v.toMillis();
+  if (v instanceof Date) return v.getTime();
+  return typeof v === 'number' ? v : NaN;
+};
+
+// Legacy = created before deps.since, or marked by hand. Only asked for a
+// report about staff (one marker read), never for the player majority.
+async function isLegacy(firestore, collection, id, createdMs, deps) {
+  if (Number.isFinite(createdMs) && createdMs < deps.since) return true;
+  return (await firestore.collection(LEGACY_MARKERS).doc(`${collection}_${id}`).get()).exists;
+}
 const PUBLIC_SCAN = 300;
 const RESTRICTED_SCAN = 1000;
 const PARALLEL = 20;
@@ -192,10 +215,12 @@ async function topRank(uids, rankOf) {
 // trigger or a reconcile racing it finds the public doc gone (or the
 // restricted one there) and writes nothing, so a viewer's status change or
 // delete is never undone.
-async function routeReport(firestore, collection, id, data, deps, { dryRun = false } = {}) {
+// createdMs: the doc's server-side createTime (falls back to createdAt).
+async function routeReport(firestore, collection, id, data, deps, { dryRun = false, createdMs = msOf(data?.createdAt) } = {}) {
   const targetUids = await targetsOf(firestore, collection, id, data);
   const minRank = minRankFor(await topRank(targetUids, deps.rankOf));
   if (!minRank) return { moved: false };
+  if (await isLegacy(firestore, collection, id, createdMs, deps)) return { moved: false, reason: 'legacy' };
   const viewers = viewersFor(await deps.staff(), minRank, targetUids);
   const plan = { moved: true, collection, id, to: RESTRICTED[collection], minRank, targetUids, viewers };
   if (dryRun) return plan;
@@ -218,11 +243,12 @@ async function routeReport(firestore, collection, id, data, deps, { dryRun = fal
 // create is transactional (never overwrites an existing copy); the RTDB
 // remove follows it, so a crash in between leaves both and the next run only
 // removes the node.
-async function routeTradeReport(firestore, rtdb, key, data, deps, { dryRun = false } = {}) {
+async function routeTradeReport(firestore, rtdb, key, data, deps, { dryRun = false, createdMs = Number(data?.timestamp) } = {}) {
   const asReport = tradeReportAsUserReport(data);
   const targetUids = await userReportTargets(firestore, asReport);
   const minRank = minRankFor(await topRank(targetUids, deps.rankOf));
   if (!minRank) return { moved: false };
+  if (await isLegacy(firestore, 'tradeReports', key, createdMs, deps)) return { moved: false, reason: 'legacy' };
   const viewers = viewersFor(await deps.staff(), minRank, targetUids);
   const id = `rtdb_${key}`;
   const plan = { moved: true, collection: 'tradeReports', id: key, to: RESTRICTED.user_reports, minRank, targetUids, viewers };
@@ -267,10 +293,11 @@ async function inChunks(items, fn) {
 }
 
 // Caches rank lookups and the staff list for one run.
-function cachedDeps(rankOf, loadStaff) {
+function cachedDeps(rankOf, loadStaff, since = ROUTING_SINCE_MS) {
   const ranks = new Map();
   let staff = null;
   return {
+    since,
     rankOf: (uid) => {
       if (!ranks.has(uid)) ranks.set(uid, rankOf(uid));
       return ranks.get(uid);
@@ -283,8 +310,8 @@ function cachedDeps(rankOf, loadStaff) {
 }
 
 // `firestore`, `rtdb`, `rankOf` and `loadStaff` are passed in so tests can use fakes.
-async function reconcile(firestore, rtdb, rankOf, loadStaff, { publicScan = PUBLIC_SCAN, restrictedScan = RESTRICTED_SCAN } = {}) {
-  const deps = cachedDeps(rankOf, loadStaff);
+async function reconcile(firestore, rtdb, rankOf, loadStaff, { publicScan = PUBLIC_SCAN, restrictedScan = RESTRICTED_SCAN, since } = {}) {
+  const deps = cachedDeps(rankOf, loadStaff, since);
   const result = { checked: 0, moved: 0, restamped: 0, failed: 0 };
   // Old builds' RTDB trade reports (push keys sort by time).
   const trades = [];
@@ -304,7 +331,9 @@ async function reconcile(firestore, rtdb, rankOf, loadStaff, { publicScan = PUBL
     await inChunks(snap.docs || [], async (doc) => {
       result.checked++;
       try {
-        if ((await routeReport(firestore, collection, doc.id, doc.data() || {}, deps)).moved) result.moved++;
+        const data = doc.data() || {};
+        const createdMs = Number.isFinite(msOf(doc.createTime)) ? msOf(doc.createTime) : msOf(data.createdAt);
+        if ((await routeReport(firestore, collection, doc.id, data, deps, { createdMs })).moved) result.moved++;
       } catch (e) {
         result.failed++;
         console.error('[reconcileReportRouting]', collection, doc.id, e?.message || e);
@@ -343,7 +372,8 @@ const routeTrigger = (collection) => functions
   .firestore.document(`${collection}/{id}`)
   .onCreate(async (snap) => {
     try {
-      await routeReport(admin.firestore(), collection, snap.id, snap.data() || {}, liveDeps());
+      // createTime is server-set; a client-written createdAt could be backdated.
+      await routeReport(admin.firestore(), collection, snap.id, snap.data() || {}, liveDeps(), { createdMs: msOf(snap.createTime) });
     } catch (e) {
       console.error('[routeReport]', collection, snap.id, e?.message || e);
     }
@@ -358,7 +388,8 @@ const routeTradeReportTrigger = functions
   .database.ref('tradeReports/{key}')
   .onCreate(async (snap, context) => {
     try {
-      await routeTradeReport(admin.firestore(), admin.database(), context.params.key, snap.val() || {}, liveDeps());
+      await routeTradeReport(admin.firestore(), admin.database(), context.params.key, snap.val() || {}, liveDeps(),
+        { createdMs: Date.parse(context.timestamp) });
     } catch (e) {
       console.error('[routeTradeReport]', context.params.key, e?.message || e);
     }
@@ -381,6 +412,8 @@ module.exports = {
   reconcileReportRouting,
   _internal: {
     RESTRICTED,
+    ROUTING_SINCE_MS,
+    LEGACY_MARKERS,
     minRankFor,
     rankFromRoles,
     loadStaffRanks,
