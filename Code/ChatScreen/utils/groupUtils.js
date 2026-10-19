@@ -715,7 +715,7 @@ export const sendGroupMessage = async (appdatabase, firestoreDB, groupId, messag
     // Last message preview
     const lastMessagePreview =
       messageData.text?.trim() ||
-      (messageData.imageUrl ? '📷 Photo' : messageData.fruits?.length ? `🐾 ${messageData.fruits.length} pet(s)` : '');
+      (messageData.imageUrl ? '📷 Photo' : messageData.fruits?.length ? `🐾 ${messageData.fruits.length} pet(s)` : messageData.gif ? '✨ Sticker' : '');
 
     // 3. Fan-out group_meta_data to every member — Supabase. The helper
     // does:

@@ -1100,6 +1100,12 @@
     "translate": "Traducir",
     "staff_actions": "Acciones del equipo",
     "delete_all": "Eliminar todos los mensajes del usuario",
+    "stickers": {
+      "title": "Stickers",
+      "pack_classic": "Clásicos",
+      "reply_preview": "[Sticker]",
+      "sent_sticker": "Envió un sticker"
+    },
     "message_input": {
       "cooldown": "Espera {{seconds}} s antes de enviar otro mensaje.",
       "gif_locked": "Debes comprar este artículo en la tienda, dentro de la sección de recompensas.",

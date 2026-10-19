@@ -28,7 +28,7 @@ const PAGE_SIZE_DEFAULT = 25;
 // Explicit column list for reads — avoids select('*') egress on every page
 // of group history. Must list exactly the columns fromGroupMessageRow() reads.
 const GROUP_MSG_COLS =
-  'id, client_msg_id, group_id, sender_id, sender_name, sender_avatar, text, image_url, fruits, reply_to, is_pro, roblox_username_verified, has_recent_game_win, last_game_win_at, is_creator, os, deleted, created_at';
+  'id, client_msg_id, group_id, sender_id, sender_name, sender_avatar, text, image_url, gif, fruits, reply_to, is_pro, roblox_username_verified, has_recent_game_win, last_game_win_at, is_creator, os, deleted, created_at';
 
 // =====================================================================
 // Row mapper
@@ -48,6 +48,7 @@ export function fromGroupMessageRow(row) {
     avatar: row.sender_avatar ?? null,
     text: row.text ?? null,
     imageUrl: row.image_url ?? null,
+    gif: row.gif ?? null,    // sticker URL (050)
     fruits: Array.isArray(row.fruits) ? row.fruits : [],
     replyTo: row.reply_to ?? null,
     isPro: !!row.is_pro,
@@ -250,6 +251,27 @@ export async function sendGroupMessage({
   }
 
   const cmid = clientMsgId ?? newClientMsgId();
+
+  // Stickers go through send_group_sticker (050), which checks the URL and
+  // then calls send_group_message, so every send rule there still applies.
+  if (message.gif) {
+    const { data, error } = await supabase.rpc('send_group_sticker', {
+      p_group_id: groupId,
+      p_client_msg_id: cmid,
+      p_gif: message.gif,
+      p_reply_to: message.replyTo ?? null,
+      p_sender_name: message.sender ?? null,
+      p_sender_avatar: message.avatar ?? null,
+      p_is_pro: !!message.isPro,
+      p_roblox_username_verified: !!message.robloxUsernameVerified,
+      p_has_recent_game_win: !!message.hasRecentGameWin,
+      p_last_game_win_at: message.lastGameWinAt ?? null,
+      p_is_creator: !!message.isCreator,
+      p_os: message.OS ?? null,
+    });
+    if (error) throw error;
+    return fromGroupMessageRow(data);
+  }
 
   const { data, error } = await supabase.rpc('send_group_message', {
     p_group_id: groupId,

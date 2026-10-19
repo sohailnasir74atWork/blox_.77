@@ -1211,6 +1211,12 @@
     "translate": "ترجمة",
     "staff_actions": "إجراءات فريق الإشراف",
     "delete_all": "حذف كل رسائل هذا المستخدم",
+    "stickers": {
+      "title": "الملصقات",
+      "pack_classic": "كلاسيكي",
+      "reply_preview": "[ملصق]",
+      "sent_sticker": "أرسل ملصقًا"
+    },
     "message_input": {
       "cooldown": "انتظر {{seconds}} ث قبل إرسال رسالة أخرى.",
       "gif_locked": "يجب شراء هذا العنصر من قسم المكافآت في المتجر.",

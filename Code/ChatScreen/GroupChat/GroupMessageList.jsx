@@ -27,6 +27,7 @@ import RoleBadges from '../../Design/componenets/RoleBadges';
 import FramedAvatar from './FramedAvatar';
 import { BirthdayCake } from '../../Birthdays/BirthdayBits';
 import { getSafeTextColor, RainbowText, isMultiColorText, getMultiColorPalette } from '../../Helper/contrastHelper';
+import { StickerImage } from '../Stickers/StickerPicker';
 
 const GroupMessageList = ({
   messages,
@@ -145,6 +146,10 @@ const GroupMessageList = ({
 
     if (replyTo.imageUrl) {
       return t('chat.message_common.reply_image');
+    }
+
+    if (replyTo.gif) {
+      return t('chat.stickers.reply_preview');
     }
 
     if (replyTo.hasFruits || (Array.isArray(replyTo.fruits) && replyTo.fruits.length > 0)) {
@@ -357,6 +362,9 @@ const GroupMessageList = ({
                       </TouchableOpacity>
                     </View>
                   )}
+
+                  {/* Sticker */}
+                  {!!item.gif && <StickerImage url={item.gif} label={t('chat.stickers.sent_sticker')} />}
 
                   {/* 🐾 Fruits list (matching main chat style) */}
                   {hasFruits && (

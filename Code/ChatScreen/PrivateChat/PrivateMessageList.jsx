@@ -26,6 +26,7 @@ import { getDeviceLanguage } from '../../../i18n';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { resolveProfile, seedFromMessage } from '../../Helper/profileCache';
 import { getSafeTextColor, RainbowText, isMultiColorText, getMultiColorPalette } from '../../Helper/contrastHelper';
+import { StickerImage } from '../Stickers/StickerPicker';
 
 const FRUIT_KEYWORDS = [
   'rocket', 'spin', 'chop', 'spring', 'bomb', 'spike', 'blade',
@@ -100,6 +101,9 @@ const PrivateMessageList = ({
     }
     if (replyTo.imageUrl || (Array.isArray(replyTo.imageUrls) && replyTo.imageUrls.length > 0)) {
       return t('chat.message_common.reply_image');
+    }
+    if (replyTo.gif) {
+      return t('chat.stickers.reply_preview');
     }
     if (replyTo.hasFruits || (Array.isArray(replyTo.fruits) && replyTo.fruits.length > 0)) {
       const count = replyTo.fruitsCount || (Array.isArray(replyTo.fruits) ? replyTo.fruits.length : 0);
@@ -338,6 +342,8 @@ const PrivateMessageList = ({
               onLongPress={() => Vibration.vibrate(50)}
               customStyles={{ triggerTouchable: { activeOpacity: 1 } }}
             >
+              {/* Sticker: inside the trigger so a long-press still offers reply / report */}
+              {!!item.gif && <StickerImage url={item.gif} label={t('chat.stickers.sent_sticker')} />}
               {hasFruits && (
                 <View
                   style={[

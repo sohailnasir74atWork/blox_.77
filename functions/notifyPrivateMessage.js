@@ -67,6 +67,7 @@ function previewFor(r) {
   if (Array.isArray(r.fruits) && r.fruits.length > 0) {
     return r.fruits.length === 1 ? '🐾 Sent a pet' : `🐾 Sent ${r.fruits.length} pets`;
   }
+  if (r.gif) return '✨ Sent a sticker'; // 050 sticker column
   return 'New message';
 }
 

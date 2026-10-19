@@ -655,7 +655,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
 
 
 
-  const sendMessage = useCallback(async (text, image, fruits, replyToMsg) => {
+  const sendMessage = useCallback(async (text, image, fruits, replyToMsg, gif) => {
     // Guard for a stale screen — the input is already disabled when this door
     // is shut, so this only fires if the switch flipped while the chat was open.
     if (chatBlockedBy) {
@@ -675,6 +675,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
     const trimmedText = (text || '').trim();
     const hasImage = !!image;
     const hasFruits = Array.isArray(fruits) && fruits.length > 0;
+    const hasGif = !!gif;
 
     if (!myUserId || !currentUserEmail) {
       showErrorMessage(t("home.alert.error"), t('chat.private_chat.must_login'));
@@ -695,7 +696,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       return;
     }
 
-    if (!trimmedText && !hasImage && !hasFruits) {
+    if (!trimmedText && !hasImage && !hasFruits && !hasGif) {
       showErrorMessage(t("home.alert.error"), t("chat.cannot_empty"));
       return;
     }
@@ -717,6 +718,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
           text: replyToMsg.text || '',
           senderId: replyToMsg.senderId,
           imageUrl: replyToMsg.imageUrl || null,
+          gif: replyToMsg.gif || null,
           hasFruits: replyToMsg.fruits && replyToMsg.fruits.length > 0,
           fruitsCount: replyToMsg.fruits ? replyToMsg.fruits.length : 0,
         }
@@ -724,7 +726,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
 
     const lastMessagePreview =
       trimmedText ||
-      (hasImage ? '📷 Photo' : hasFruits ? `🐾 ${fruits.length} pet(s)` : '');
+      (hasImage ? '📷 Photo' : hasFruits ? `🐾 ${fruits.length} pet(s)` : hasGif ? '✨ Sticker' : '');
 
     // Pre-generate the idempotency key so the optimistic placeholder can
     // be matched against the realtime INSERT (and against the row
@@ -745,6 +747,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       sender: user?.displayName || 'You',
       avatar: user?.avatar || null,
       ...(hasImage ? { imageUrl: image } : {}),
+      ...(hasGif ? { gif } : {}),
       ...(hasFruits ? { fruits } : {}),
       ...(replyToPayload ? { replyTo: replyToPayload } : {}),
     };
@@ -761,6 +764,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
         recipientId: selectedUserId,
         text: trimmedText || null,
         imageUrl: hasImage ? image : null,
+        gif: hasGif ? gif : null,
         fruits: hasFruits ? fruits : [],
         replyTo: replyToPayload,
         OS: undefined, // PrivateChat doesn't track OS today; leave null

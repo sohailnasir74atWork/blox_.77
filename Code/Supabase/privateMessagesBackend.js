@@ -24,7 +24,7 @@ const PAGE_SIZE_DEFAULT = 15;
 // Explicit column list for reads — avoids select('*') egress on every page
 // of message history. Must list exactly the columns fromPrivateMessageRow() reads.
 const PRIVATE_MSG_COLS =
-  'id, client_msg_id, chat_id, sender_id, recipient_id, text, image_url, fruits, reply_to, os, deleted, created_at';
+  'id, client_msg_id, chat_id, sender_id, recipient_id, text, image_url, gif, fruits, reply_to, os, deleted, created_at';
 
 // Canonical chat id used by both RTDB and the Supabase chat_id column.
 // Sort the two UIDs alphabetically and join with an underscore.
@@ -50,6 +50,7 @@ export function fromPrivateMessageRow(row) {
     recipientId: row.recipient_id,
     text: row.text ?? null,
     imageUrl: row.image_url ?? null,
+    gif: row.gif ?? null,                        // sticker URL (050)
     fruits: Array.isArray(row.fruits) ? row.fruits : [],
     replyTo: row.reply_to ?? null,
     OS: row.os ?? null,
@@ -70,7 +71,7 @@ let originColumnSupported = true;
 
 function toInsertPayload({
   chatId, clientMsgId, senderId, recipientId,
-  text, imageUrl, fruits, replyTo, OS, origin,
+  text, imageUrl, gif, fruits, replyTo, OS, origin,
 }) {
   return {
     chat_id: chatId,
@@ -79,6 +80,8 @@ function toInsertPayload({
     recipient_id: recipientId,
     text: text ?? null,
     image_url: imageUrl ?? null,
+    // Sticker URL; the server checks it against the sticker folders (050).
+    ...(gif ? { gif } : {}),
     fruits: fruits ?? [],
     reply_to: replyTo ?? null,
     os: OS ?? null,
@@ -238,7 +241,7 @@ export function subscribeToPrivateMessages(chatId, { onInsert, onUpdate, onDelet
 // optimistic-update + reconcile on resolve.
 export async function sendPrivateMessage({
   chatId, senderId, recipientId,
-  text = null, imageUrl = null, fruits = [], replyTo = null,
+  text = null, imageUrl = null, gif = null, fruits = [], replyTo = null,
   OS = null, clientMsgId = null, origin = null,
 }) {
   if (!chatId || !senderId || !recipientId) {
@@ -252,6 +255,7 @@ export async function sendPrivateMessage({
     recipientId,
     text,
     imageUrl,
+    gif,
     fruits,
     replyTo,
     OS,

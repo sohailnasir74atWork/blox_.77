@@ -1100,6 +1100,12 @@
     "translate": "Traduzir",
     "staff_actions": "Ações da equipe",
     "delete_all": "Excluir todas as mensagens do usuário",
+    "stickers": {
+      "title": "Figurinhas",
+      "pack_classic": "Clássicas",
+      "reply_preview": "[Figurinha]",
+      "sent_sticker": "Enviou uma figurinha"
+    },
     "message_input": {
       "cooldown": "Aguarde {{seconds}}s antes de enviar outra mensagem.",
       "gif_locked": "Você precisa comprar este item na seção de recompensas da loja.",

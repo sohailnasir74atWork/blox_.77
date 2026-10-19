@@ -789,6 +789,7 @@ const GroupChatScreen = () => {
       hasFruits: Array.isArray(message.fruits) && message.fruits.length > 0,
       fruitsCount: Array.isArray(message.fruits) ? message.fruits.length : 0,
       imageUrl: message.imageUrl || null,
+      gif: message.gif || null,
     });
   }, []);
 
@@ -799,10 +800,11 @@ const GroupChatScreen = () => {
 
   // Send message
   const sendMessage = useCallback(
-    async (text, image, fruits, replyToMessage) => {
+    async (text, image, fruits, replyToMessage, gif) => {
       const trimmedText = (text || '').trim();
       const hasImage = !!image;
       const hasFruits = Array.isArray(fruits) && fruits.length > 0;
+      const hasGif = !!gif;
 
       // Validate fruits count - maximum 18 fruits allowed
       if (hasFruits && fruits.length > 18) {
@@ -811,7 +813,7 @@ const GroupChatScreen = () => {
       }
 
       // Block only if there's no text, no image AND no fruits
-      if (!trimmedText && !hasImage && !hasFruits) {
+      if (!trimmedText && !hasImage && !hasFruits && !hasGif) {
         showErrorMessage(t('home.alert.error'), t('chat.cannot_empty'));
         return;
       }
@@ -883,6 +885,10 @@ const GroupChatScreen = () => {
         messageData.fruits = fruits;
       }
 
+      if (hasGif) {
+        messageData.gif = gif;
+      }
+
       // Add replyTo if replying to a message
       if (replyToMessage && replyToMessage.id) {
         messageData.replyTo = {
@@ -890,6 +896,7 @@ const GroupChatScreen = () => {
           text: replyToMessage.text || '',
           sender: replyToMessage.sender || 'Anonymous',
           imageUrl: replyToMessage.imageUrl || null,
+          gif: replyToMessage.gif || null,
           hasFruits: replyToMessage.hasFruits || false,
           fruitsCount: replyToMessage.fruitsCount || 0,
         };
@@ -1352,7 +1359,7 @@ const GroupChatScreen = () => {
               <ChatRestrictedBar gate={getModGate('chat')} isDarkMode={isDarkMode} />
             ) : (
               <GroupMessageInput
-                onSend={(text, image, fruits) => sendMessage(text, image, fruits, replyTo)}
+                onSend={(text, image, fruits, _replyTo, gif) => sendMessage(text, image, fruits, replyTo, gif)}
                 isBanned={false}
                 petModalVisible={petModalVisible}
                 setPetModalVisible={setPetModalVisible}
