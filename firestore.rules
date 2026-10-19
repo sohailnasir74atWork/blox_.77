@@ -309,10 +309,15 @@ service cloud.firestore {
       return !changed().hasAny(['searchKeys', 'ownerCap'])
         && (!('isActive' in changed()) || request.resource.data.isActive == true);
     }
-    // A group can only be handed to one of its members.
+    // A group can only be handed to one of its members, by its current
+    // creator or Senior Mod+ (not a leftover role 'admin'), and never in the
+    // same write that adds people (an add must be backed by an invite).
     function ownerStaysMember() {
       return !('createdBy' in changed())
-        || request.resource.data.get('createdBy', null) in request.resource.data.get('memberIds', []);
+        || (request.resource.data.get('createdBy', null) in request.resource.data.get('memberIds', [])
+            && (resource.data.get('createdBy', null) == me() || isSeniorStaff())
+            && request.resource.data.get('memberIds', []).toSet()
+                 .difference(resource.data.get('memberIds', []).toSet()).size() == 0);
     }
     // Your own members entry can't promote or unmute you.
     function ownEntryKeepsRole() {
@@ -338,12 +343,6 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/groups/$(groupId))
         && get(/databases/$(database)/documents/groups/$(groupId)).data.get('createdBy', null) == me();
     }
-    // The caller created groupId or is in its memberIds.
-    function inGroup(groupId) {
-      return exists(/databases/$(database)/documents/groups/$(groupId))
-        && (get(/databases/$(database)/documents/groups/$(groupId)).data.get('createdBy', null) == me()
-            || me() in get(/databases/$(database)/documents/groups/$(groupId)).data.get('memberIds', []));
-    }
     match /groups/{groupId} {
       // Public: the All groups tab lists every group (old builds query this
       // collection directly), so it can't be narrowed without breaking them.
@@ -363,14 +362,15 @@ service cloud.firestore {
     match /group_invitations/{id} {
       // Creators check pending invites of other users before inviting.
       allow read: if signedIn();
-      // A pending invite, from someone in the group, for someone else.
+      // A pending invite from the group's creator (the only one the app and
+      // the website let invite; memberIds alone can be self-added), for someone else.
       allow create: if createsAs('invitedBy') && !isBanned()
         && request.resource.data.get('status', '') == 'pending'
         && request.resource.data.get('invitedUserId', null) is string
         && request.resource.data.invitedUserId != me()
         && request.resource.data.get('groupId', null) is string
         && !('revokedAt' in request.resource.data)
-        && inGroup(request.resource.data.groupId);
+        && isGroupCreator(request.resource.data.groupId);
       allow update: if isSeniorStaff()
         || (ownerIs('invitedBy') && !changed().hasAny(['groupId', 'invitedUserId', 'invitedBy', 'revokedAt']))
         || (ownerIs('invitedUserId') && changed().hasOnly(['status', 'updatedAt', 'respondedAt'])

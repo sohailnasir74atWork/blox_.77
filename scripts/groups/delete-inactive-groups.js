@@ -255,16 +255,23 @@ if (require.main === module) {
     ? serviceRoleStore(require('@supabase/supabase-js').createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } }))
     : cliStore(cliRunner(repoRoot));
 
+  // Only --days=N with N a positive number (a bare `--days 30` would read as 1).
+  const daysArg = arg('days');
+  const days = daysArg === null ? 15 : Number(daysArg);
+  if (daysArg === true || !Number.isFinite(days) || days <= 0) {
+    console.error('Use --days=N with a positive number of days, e.g. --days=7');
+    process.exit(1);
+  }
   run({
     db: admin.firestore(),
     store,
-    days: Number(arg('days')) || 15,
+    days,
     apply: arg('apply') === true,
     confirm: arg('confirm'),
   }).then((report) => {
     console.log(JSON.stringify(report, null, 2));
     if (report.mode === 'dry_run') {
-      console.log(`\nDry run: nothing was changed. To delete these ${report.wouldDelete} groups:\n  node scripts/groups/delete-inactive-groups.js --apply --confirm=${report.wouldDelete}`);
+      console.log(`\nDry run: nothing was changed. To delete these ${report.wouldDelete} groups:\n  node scripts/groups/delete-inactive-groups.js --days=${days} --apply --confirm=${report.wouldDelete}`);
     }
     process.exit(report.failed?.length ? 1 : 0);
   }).catch((e) => {

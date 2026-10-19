@@ -163,6 +163,21 @@ async function revokeJoinDocs(db, groupId, uids) {
   }
 }
 
+// Invitations a reverted (never verified) account SENT for this group can't
+// be used; the ones it RECEIVED stay valid.
+async function revokeSentInvites(db, groupId, uids) {
+  for (const uid of uids) {
+    const snap = await db.collection('group_invitations')
+      .where('groupId', '==', groupId).where('invitedBy', '==', uid).get();
+    const live = snap.docs.filter((d) => !d.get('revokedAt'));
+    for (let i = 0; i < live.length; i += 400) {
+      const batch = db.batch();
+      live.slice(i, i + 400).forEach((d) => batch.update(d.ref, { revokedAt: FieldValue.serverTimestamp() }));
+      await batch.commit();
+    }
+  }
+}
+
 async function sweepJoinDocs(db, groupId) {
   for (const col of ['group_invitations', 'group_join_requests']) {
     for (;;) {
@@ -211,12 +226,10 @@ async function setOwnerRow(sb, groupId, owner) {
 
 // ── onGroupWrite ─────────────────────────────────────────────────────
 
-async function onGroupDeleted(groupId, { db, sb, rtdb }) {
+async function onGroupDeleted(groupId, { db, sb }) {
   const { data, error } = await sb.rpc('purge_group_chat', { p_group_id: groupId });
   if (error) throw error;
   await sweepJoinDocs(db, groupId);
-  // Push collapse state (notifyGroupNewMessage).
-  if (rtdb) await rtdb().ref(`group_push_state/${groupId}`).remove().catch(() => {});
   return { action: 'purged', ...(data || {}) };
 }
 
@@ -290,7 +303,9 @@ async function handleGroupWrite({ groupId, before, after }, deps) {
     const unverified = [];
     for (const uid of added) {
       if (uid === after.createdBy || known.has(uid)) { verified.push(uid); continue; }
-      const why = await joinBacking(db, groupId, uid, { owner, members: beforeIds, now: now() });
+      // Inviters must be the owner or a VERIFIED member: memberIds alone can be
+      // self-added (an attacker could invite an alt before being reverted).
+      const why = await joinBacking(db, groupId, uid, { owner, members: new Set(known.keys()), now: now() });
       (why ? verified : unverified).push(uid);
     }
     if (unverified.length) {
@@ -307,6 +322,7 @@ async function handleGroupWrite({ groupId, before, after }, deps) {
     const out = [...removed, ...unverified].filter((u) => !nowIds.has(u));
     await dropMembers(sb, groupId, out);
     await revokeJoinDocs(db, groupId, removed.filter((u) => !nowIds.has(u)));
+    await revokeSentInvites(db, groupId, unverified);
     Object.assign(result, { verified, unverified, removed });
   }
 
@@ -323,6 +339,11 @@ async function handleGroupWrite({ groupId, before, after }, deps) {
   const fix = {};
   const keys = searchKeysFor(current.name || current.groupName);
   if (!sameList(keys, current.searchKeys)) fix.searchKeys = keys;
+  // Only the owner keeps role 'admin' (leaveGroup gives it to the new owner;
+  // a later transfer never took it back, and groupAdmin() honours it).
+  for (const [uid, m] of Object.entries(current.members || {})) {
+    if (uid !== current.createdBy && m && m.role === 'admin') fix[`members.${uid}.role`] = 'member';
+  }
   const ownerEntry = current.members?.[current.createdBy];
   if (ownerEntry && (result.owner === undefined || result.owner === current.createdBy)
       && (ownerChanged || current.creatorDisplayName === undefined || current.creatorAvatar === undefined)) {
@@ -363,10 +384,11 @@ async function planGroupCleanup({ db, sb, now }) {
   const t = now();
   const snap = await db.collection('groups').select('createdAt').get();
   const last = await lastMessageAt(sb, snap.docs.map((d) => d.id));
-  const plan = { groups: snap.size, withMessages: last.size, delete: [] };
+  const plan = { groups: snap.size, withMessages: last.size, delete: [], noCreatedAt: 0 };
   for (const d of snap.docs) {
-    const activity = Math.max(last.get(d.id) || 0, millis(d.get('createdAt')) || 0);
-    if (activity < t - DELETE_AFTER_QUIET_MS) plan.delete.push(d.id);
+    const created = millis(d.get('createdAt'));
+    if (!created) { plan.noCreatedAt += 1; continue; } // can't tell its age: skip
+    if (Math.max(last.get(d.id) || 0, created) < t - DELETE_AFTER_QUIET_MS) plan.delete.push(d.id);
   }
   return plan;
 }
@@ -382,16 +404,34 @@ async function runGroupCleanup(deps, opts = {}) {
     groups: plan.groups,
     groupsWithMessages: plan.withMessages,
     wouldDelete: plan.delete.length,
+    skippedNoCreatedAt: plan.noCreatedAt,
     perRun: MAX_DELETE_PER_RUN,
     sample: plan.delete.slice(0, 10),
   };
   if (!apply) return report;
 
   report.deleted = 0;
+  report.skipped = 0;
+  const { sb, now } = deps;
   for (const id of plan.delete.slice(0, MAX_DELETE_PER_RUN)) {
-    // The onGroupWrite delete event purges messages, inbox rows, membership,
-    // invitations and join requests (the safe server delete).
-    await db.collection('groups').doc(id).delete();
+    const ref = db.collection('groups').doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) continue;
+    // Re-check right before deleting: a message may have arrived since the plan.
+    const created = millis(snap.get('createdAt'));
+    const lastAt = (await lastMessageAt(sb, [id])).get(id) || 0;
+    if (!created || Math.max(created, lastAt) >= now() - DELETE_AFTER_QUIET_MS) {
+      report.skipped += 1;
+      continue;
+    }
+    // Backup, then purge the chat (messages, every inbox row, membership)
+    // BEFORE the doc goes, so a failed delete trigger can't leave it behind.
+    await db.collection('groups_deleted').doc(id)
+      .set({ group: snap.data(), reason: 'no_message_15_days', deletedAt: FieldValue.serverTimestamp() });
+    const { error } = await sb.rpc('purge_group_chat', { p_group_id: id });
+    if (error) throw error;
+    await sweepJoinDocs(db, id);
+    await ref.delete(); // onGroupWrite's delete path re-runs the purge (idempotent)
     report.deleted += 1;
   }
   return report;

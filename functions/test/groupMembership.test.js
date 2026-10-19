@@ -146,6 +146,20 @@ const invite = (g, from, to, extra = {}) => db.collection('group_invitations').a
   assert.ok(inv.docs.every((x) => x.get('revokedAt')), 'their invitation is revoked');
   assert.deepStrictEqual((await join(G1, U1)).unverified, [U1], 'old invite can\'t be replayed after a kick');
 
+  // ── forged inviter: a self-added account invites an alt before it is reverted ──
+  const GF = `gf_${RUN}`, P = uid('altaccount');
+  await create(GF, C);
+  const fBefore = await data(GF);
+  await gref(GF).update({ memberIds: [C, X], [`members.${X}`]: { id: X } }); // its trigger hasn't run yet
+  await invite(GF, X, P);
+  const rf = await join(GF, P);
+  assert.deepStrictEqual(rf.unverified, [P], 'an invite from an unverified member does not count');
+  assert.strictEqual(roleOf(GF, P), undefined, 'the alt gets no membership row');
+  await GM.handleGroupWrite({ groupId: GF, before: fBefore, after: { ...fBefore, memberIds: [C, X] } }, deps);
+  const sentByX = await db.collection('group_invitations').where('groupId', '==', GF).where('invitedBy', '==', X).get();
+  assert.ok(sentByX.docs.length === 1 && sentByX.docs.every((x) => x.get('revokedAt')), 'invites the reverted account SENT are revoked');
+  assert.ok(!(await data(GF)).memberIds.includes(X), 'the self-added account is reverted');
+
   // ── group cap ──
   const G2 = `g2_${RUN}`, G3 = `g3_${RUN}`;
   await create(G2, C);
@@ -226,6 +240,13 @@ const invite = (g, from, to, extra = {}) => db.collection('group_invitations').a
   d = await data(GN);
   assert.ok(d.createdBy === U1 && d.creatorDisplayName === 'One' && d.creatorAvatar === 'https://x/a.png', 'name + avatar follow a transfer');
 
+  // ── a leftover role 'admin' is stripped from anyone who isn't the owner ──
+  const GR = `gr_${RUN}`;
+  await create(GR, U3);
+  await gref(GR).update({ memberIds: [U3, R], [`members.${R}`]: { id: R, role: 'admin' } });
+  await write(GR, (ref) => ref.update({ name: 'Renamed', groupName: 'Renamed' }));
+  assert.strictEqual((await data(GR)).members[R].role, 'member', 'stray admin role removed');
+
   // ── cleanup: no message for 15 days → deleted (dry run first) ──
   const ago = (days) => admin.firestore.Timestamp.fromMillis(Date.now() - days * 864e5);
   const iso = (days) => new Date(Date.now() - days * 864e5).toISOString();
@@ -235,9 +256,12 @@ const invite = (g, from, to, extra = {}) => db.collection('group_invitations').a
   await gref(Q2).set({ ...base(Y), createdAt: ago(3) });                           // new, no message yet
   await gref(Q3).set({ ...base(Y), createdAt: ago(100) }); sb.lastAt.set(Q3, iso(16)); // last message 16 days ago
   await gref(Q4).set({ ...base(Y), createdAt: ago(100) }); sb.lastAt.set(Q4, iso(14)); // last message 14 days ago
+  const Q5 = `q_nocreated_${RUN}`;
+  await gref(Q5).set({ ...base(Y) });                                                // no createdAt → skipped
   const plan = await GM.planGroupCleanup(deps);
   assert.ok(plan.delete.includes(Q1) && plan.delete.includes(Q3), 'quiet 15+ days → delete');
   assert.ok(!plan.delete.includes(Q2) && !plan.delete.includes(Q4), 'new or recently active → kept');
+  assert.ok(!plan.delete.includes(Q5) && plan.noCreatedAt >= 1, 'no createdAt → skipped, not deleted');
   const dry = await GM.runGroupCleanup(deps); // no server_config doc → dry run
   assert.strictEqual(dry.mode, 'dry_run');
   assert.ok(dry.wouldDelete >= 2 && dry.deleted === undefined, 'dry run only counts');
@@ -247,7 +271,10 @@ const invite = (g, from, to, extra = {}) => db.collection('group_invitations').a
   assert.strictEqual(run.mode, 'apply');
   assert.strictEqual(await data(Q1), null, 'no message ever, 16 days old → deleted');
   assert.strictEqual(await data(Q3), null, 'last message 16 days ago → deleted');
-  assert.ok((await data(Q2)) !== null && (await data(Q4)) !== null, 'new and active groups kept');
+  assert.ok((await data(Q2)) !== null && (await data(Q4)) !== null && (await data(Q5)) !== null, 'new, active and undated groups kept');
+  assert.ok(sb.purged.includes(Q1) && sb.purged.includes(Q3), 'the job purges the chat itself, before deleting');
+  const backupDoc = await db.collection('groups_deleted').doc(Q1).get();
+  assert.ok(backupDoc.exists && backupDoc.get('group').name === 'q', 'backup kept in groups_deleted');
   for (const id of [Q1, Q3]) {
     // What the delete event does next (the safe server delete).
     await GM.handleGroupWrite({ groupId: id, before: { createdBy: Y }, after: null }, deps);

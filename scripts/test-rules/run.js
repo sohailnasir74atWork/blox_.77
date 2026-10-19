@@ -668,6 +668,7 @@ async function firestoreTests() {
   await no('invite created as already accepted', () => addDoc(c(U1, 'group_invitations'), inviteDoc('g2', U1, U2, { status: 'accepted' })));
   await no('invite carrying revokedAt', () => addDoc(c(U1, 'group_invitations'), inviteDoc('g2', U1, U2, { revokedAt: null })));
   await no('invite into a group that does not exist', () => addDoc(c(U1, 'group_invitations'), inviteDoc('gNone', U1, U2)));
+  await no('a member who is not the creator invites (memberIds can be self-added)', () => addDoc(c(M, 'group_invitations'), inviteDoc('gS', M, U2)));
 
   // Accepting.
   await ok('accept invite: join + mark accepted (transaction)', () => runTransaction(fsOf(U1), async (tx) => {
@@ -730,6 +731,7 @@ async function firestoreTests() {
   await no('creator writes searchKeys (server field)', () => updateDoc(d(U2, 'groups', 'g1'), { searchKeys: ['a', 'b'] }));
   await no('creator writes ownerCap (server field)', () => updateDoc(d(U2, 'groups', 'g1'), { ownerCap: null }));
   await no('creator hands the group to a non-member', () => updateDoc(d(U2, 'groups', 'g1'), { createdBy: U3, updatedAt: serverTimestamp() }));
+  await no('hand the group over and add someone in the same write', () => updateDoc(d(U2, 'groups', 'g1'), { createdBy: U1, memberIds: [U2, U1, U3], updatedAt: serverTimestamp() }));
   await ok('creator transfers ownership to a member (makeMemberCreator)', () => updateDoc(d(U2, 'groups', 'g1'), { createdBy: U1, updatedAt: serverTimestamp() }));
   await ok('creator leaves: random member becomes owner with role admin (leaveGroup)', async () => {
     const g = (await getDoc(d(U1, 'groups', 'g1'))).data(); const members = { ...g.members }; delete members[U1];
@@ -738,6 +740,10 @@ async function firestoreTests() {
   });
 
   await no('creator switches isActive off (would dodge the group cap)', () => updateDoc(d(U2, 'groups', 'g1'), { isActive: false }));
+
+  await seed(async (f) => F.setDoc(F.doc(f, 'groups', 'gRole'), { createdBy: U2, memberIds: [U2, U3], members: { [U2]: { id: U2 }, [U3]: { id: U3, role: 'admin' } } }));
+  await no('a leftover role-admin member (not the creator) moves createdBy', () => updateDoc(d(U3, 'groups', 'gRole'), { createdBy: U3 }));
+  await ok('a role-admin member can still rename (old builds)', () => updateDoc(d(U3, 'groups', 'gRole'), { name: 'R', groupName: 'R' }));
 
   // Staff: Moderators and JMDs are members like anyone; Senior Mod+ manage any group.
   await no('Moderator (member) renames a group they do not own', () => updateDoc(d(M, 'groups', 'gS'), { name: 'mod', groupName: 'mod' }));

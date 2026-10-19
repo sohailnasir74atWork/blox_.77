@@ -179,17 +179,13 @@ exports.notifyPrivateMessage = functions
 // =====================================================================
 // notifyGroupNewMessage — group fan-out push
 //
-// Per message (2026-10-19, group lag): one Firestore read (memberIds), one group_members + one group_meta_data query, the
-// activeGroupChats node and the collapse state below, then fcmTokens only for
-// the members who actually get a push — from a per-instance cache, so a busy
-// group re-reads none of them.
-// Collapse: a member gets at most one push per group every 2 minutes. What
-// arrives in between is counted, and the next push shows the newest message
-// with "(+N)" — a number, so it reads in every language (the server knows no
-// player languages). Android `tag` / iOS `apns-collapse-id` replace the
-// group's previous notification in the tray instead of stacking them.
+// Per message (2026-10-19, group lag): one Firestore read (memberIds), one
+// group_members + one group_meta_data query and the activeGroupChats node,
+// then fcmTokens from a per-instance cache, so a busy group re-reads none.
+// Every message pushes (so the last one in a burst always arrives), and the
+// Android `tag` / iOS `apns-collapse-id` replace the group's previous
+// notification in the tray instead of stacking a pile of them.
 // =====================================================================
-const PUSH_COLLAPSE_MS = 2 * 60 * 1000;
 const TOKEN_TTL_MS = 10 * 60 * 1000;
 const TOKEN_CACHE_MAX = 5000;
 const _tokenCache = new Map(); // uid → { token | null, at }
@@ -235,11 +231,10 @@ async function handleGroupPush(record, deps) {
 
   // Parallel: verified members (supabase/044), mute flags + group name, and
   // who's on this group's chat screen right now (they see it inline).
-  const [verifiedResult, metaResult, activeGroupSnap, stateSnap] = await Promise.all([
+  const [verifiedResult, metaResult, activeGroupSnap] = await Promise.all([
     supabase.from('group_members').select('user_id, role').eq('group_id', groupId),
     supabase.from('group_meta_data').select('user_id, muted, group_name').eq('group_id', groupId).in('user_id', memberIds),
     rtdb.ref(`/activeGroupChats/${groupId}`).once('value'),
-    rtdb.ref(`/group_push_state/${groupId}`).once('value'),
   ]);
 
   // Only server-verified members get the push, so an account that added
@@ -262,26 +257,16 @@ async function handleGroupPush(record, deps) {
   const wanted = memberIds.filter((id) => !mutedSet.has(id) && activeMap[id] !== true);
   if (wanted.length === 0) return 'Skipped: all muted or active in chat';
 
-  const state = stateSnap?.val?.() || {};
-  const pushNow = [];
-  const hold = [];
-  for (const uid of wanted) {
-    const at = state[uid]?.at;
-    if (typeof at === 'number' && now - at < PUSH_COLLAPSE_MS) hold.push(uid);
-    else pushNow.push(uid);
-  }
-
-  const tokens = await tokensFor(pushNow, { rtdb, now, cache });
+  const tokens = await tokensFor(wanted, { rtdb, now, cache });
   const preview = previewFor(record);
   const collapseId = String(groupId).slice(0, 64);
-  const sendTo = pushNow.filter((uid) => tokens.has(uid));
+  const sendTo = wanted.filter((uid) => tokens.has(uid));
   const messages = sendTo.map((uid) => {
-    const missed = Number(state[uid]?.n) || 0;
     return {
       token: tokens.get(uid),
       notification: {
         title: `${senderName} • ${groupName}`,
-        body: missed > 0 ? `${preview} (+${missed})` : preview,
+        body: preview,
       },
       data: {
         type: 'group_message',
@@ -310,14 +295,8 @@ async function handleGroupPush(record, deps) {
     });
   }
 
-  // Remember who got a push now and count what the others missed.
-  const update = {};
-  for (const uid of sendTo) update[uid] = { at: now, n: 0 };
-  for (const uid of hold) update[`${uid}/n`] = rtdb.increment(1);
-  if (Object.keys(update).length) await rtdb.ref(`/group_push_state/${groupId}`).update(update);
-
-  if (sendTo.length === 0) return hold.length ? `Held: ${hold.length} (collapse window)` : 'Skipped: no fcm tokens';
-  return `OK: ${sendTo.length} sent, ${hold.length} held`;
+  if (sendTo.length === 0) return 'Skipped: no fcm tokens';
+  return `OK: ${sendTo.length} sent`;
 }
 
 exports.notifyGroupNewMessage = functions
@@ -329,7 +308,7 @@ exports.notifyGroupNewMessage = functions
       const db = admin.database();
       const result = await handleGroupPush(record, {
         firestore: admin.firestore(),
-        rtdb: { ref: (p) => db.ref(p), increment: (n) => admin.database.ServerValue.increment(n) },
+        rtdb: { ref: (p) => db.ref(p) },
         supabase: getSupabase(),
         messaging: admin.messaging(),
         now: Date.now(),
@@ -341,4 +320,4 @@ exports.notifyGroupNewMessage = functions
     }
   });
 
-exports._internal = { handleGroupPush, tokensFor, PUSH_COLLAPSE_MS };
+exports._internal = { handleGroupPush, tokensFor };

@@ -72,6 +72,13 @@
 --
 -- HOW TO RUN — ONE STEP AT A TIME, IN ORDER (044_steps/ has each step as its
 -- own file). STEP 3 waits for the functions deploy and the backfill.
+-- Functions: deploy ONLY the named ones (onGroupWrite, groupSync, later
+-- notifyGroupNewMessage and cleanupInactiveGroups). NEVER a full functions
+-- deploy before STEP 1: onGroupWrite would fail on the missing group_members
+-- table / rpcs. notifyGroupNewMessage must be redeployed too (verified-member
+-- pushes), after the backfill.
+-- After merging blox-mod-powers (047): is_group_staff() should skip banned
+-- staff — switch it to 047's is_senior_mod_staff() (which has the ban check).
 --   0  read-only: where am I?
 --   1  functions + table only; changes nothing for anyone
 --   2  group_messages: scope trigger + narrower hard-delete policy
