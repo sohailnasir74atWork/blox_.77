@@ -2560,6 +2560,7 @@
       "delete_confirm": "Yakin ingin menghapus status ini?",
       "delete_failed": "Status gagal dihapus",
       "views_reactions": "👁 {{views}} tayangan • {{reactions}} reaksi",
+      "hidden_after_reports_owner": "Disembunyikan karena laporan. Hanya kamu dan staf yang bisa melihat status ini.",
       "new": "Baru",
       "new_status": "Status Baru",
       "add_photo": "Tambah Foto",

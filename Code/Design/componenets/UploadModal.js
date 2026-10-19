@@ -31,7 +31,7 @@ import { useTranslation } from 'react-i18next';
 
 const CLOUD_NAME = 'djtqw0jb5';
 const UPLOAD_PRESET = 'my_upload';
-const MAX_IMAGES = 4;
+const MAX_IMAGES = 6; // 6 not more: each image is a Bunny CDN fetch for every viewer
 
 // Tag values are stored on the post and used as filters — keep them English;
 // only the label is translated.
@@ -420,7 +420,7 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
             {/* Image Picker */}
             <Text style={themedStyles.sectionLabel}>{t('feed.upload_modal.photos', { max: MAX_IMAGES })}</Text>
             <TouchableOpacity
-              style={[themedStyles.imagePicker, imageUris.length > 0 && { justifyContent: 'flex-start', padding: 10 }]}
+              style={[themedStyles.imagePicker, imageUris.length > 0 && { justifyContent: 'flex-start', padding: 10, height: 'auto', minHeight: 120 }]}
               onPress={pickAndCompress}
               activeOpacity={0.7}
             >

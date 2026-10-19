@@ -2565,6 +2565,7 @@
       "delete_confirm": "¿Seguro que quieres eliminar este estado?",
       "delete_failed": "No se pudo eliminar el estado",
       "views_reactions": "👁 {{views}} vistas • {{reactions}} reacciones",
+      "hidden_after_reports_owner": "Oculto tras varios reportes. Solo tú y el equipo de moderación pueden ver este estado.",
       "new": "Nuevo",
       "new_status": "Nuevo estado",
       "add_photo": "Añadir foto",

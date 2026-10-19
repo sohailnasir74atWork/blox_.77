@@ -2556,6 +2556,7 @@
       "delete_confirm": "このステータスを削除しますか？",
       "delete_failed": "ステータスを削除できませんでした",
       "views_reactions": "👁 {{views}}回表示  •  リアクション{{reactions}}件",
+      "hidden_after_reports_owner": "通報により非表示になりました。このステータスはあなたとスタッフだけが見られます。",
       "new": "新規",
       "new_status": "新しいステータス",
       "add_photo": "写真を追加",

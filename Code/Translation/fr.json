@@ -2565,6 +2565,7 @@
             "delete_confirm": "Veux-tu vraiment supprimer ce statut ?",
             "delete_failed": "Impossible de supprimer le statut",
             "views_reactions": "👁 {{views}} vues • {{reactions}} réactions",
+            "hidden_after_reports_owner": "Masqué après des signalements : visible uniquement par toi et la modération.",
             "new": "Nouveau",
             "new_status": "Nouveau statut",
             "add_photo": "Ajouter une photo",

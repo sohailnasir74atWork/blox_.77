@@ -1258,9 +1258,9 @@ export const FRUITS = {
     color: '#4ADE80',
     description: 'A basic fruit with mostly common rewards',
     dropTable: {
-      [RARITY.COMMON]: 70,
-      [RARITY.UNCOMMON]: 25,
-      [RARITY.RARE]: 5,
+      [RARITY.COMMON]: 65,
+      [RARITY.UNCOMMON]: 27,
+      [RARITY.RARE]: 8,
       [RARITY.LEGENDARY]: 0,
       [RARITY.EXCLUSIVE]: 0,
     },
@@ -1273,9 +1273,9 @@ export const FRUITS = {
     color: '#A855F7',
     description: 'Better odds for uncommon and rare items',
     dropTable: {
-      [RARITY.COMMON]: 50,
+      [RARITY.COMMON]: 45,
       [RARITY.UNCOMMON]: 35,
-      [RARITY.RARE]: 15,
+      [RARITY.RARE]: 20,
       [RARITY.LEGENDARY]: 0,
       [RARITY.EXCLUSIVE]: 0,
     },
@@ -1289,9 +1289,9 @@ export const FRUITS = {
     description: 'High chance of rare + legendary rewards',
     dropTable: {
       [RARITY.COMMON]: 0,
-      [RARITY.UNCOMMON]: 30,
+      [RARITY.UNCOMMON]: 25,
       [RARITY.RARE]: 50,
-      [RARITY.LEGENDARY]: 20,
+      [RARITY.LEGENDARY]: 25,
       [RARITY.EXCLUSIVE]: 0,
     },
   },
@@ -1305,9 +1305,9 @@ export const FRUITS = {
     dropTable: {
       [RARITY.COMMON]: 0,
       [RARITY.UNCOMMON]: 0,
-      [RARITY.RARE]: 40,
+      [RARITY.RARE]: 35,
       [RARITY.LEGENDARY]: 40,
-      [RARITY.EXCLUSIVE]: 20,
+      [RARITY.EXCLUSIVE]: 25,
     },
   },
 };

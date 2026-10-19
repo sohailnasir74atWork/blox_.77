@@ -46,6 +46,7 @@ import { useGlobalState, modGateText } from '../GlobelStats';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
 import ReportModal from './componenets/ReportModal';
 import { clearFollowingCache } from '../Helper/followingCache';
+import { isReportHidden, hideReportedStatuses } from './statusReports';
 
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -249,6 +250,9 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
   const navigation = useNavigation();
   const { isAdmin, currentUserEmail, getModGate } = useGlobalState();
   const isAdminOrMod = isAdmin || !!user?.isModerator;
+  // JMD and up see report-hidden statuses (Firestore isStaff() covers all four ranks).
+  const { isSeniorMod, isModerator, isBabyMod } = useGlobalState();
+  const isStatusStaff = !!(isAdmin || isSeniorMod || isModerator || isBabyMod);
   const insets = useSafeAreaInsets();
   const [statuses, setStatuses] = useState(() => {
     const cached = getCachedJSON('statuses_grouped');
@@ -803,6 +807,30 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
     ]);
   }, [firestoreDB, user?.id]);
 
+  // ── Report auto-hide: merge new report fields into the feed, viewer and cache ──
+  const patchStatus = useCallback((statusId, fields) => {
+    const patch = (list) => list.map(s => (s.id === statusId ? { ...s, ...fields } : s));
+    setViewingStatus(prev => (prev ? { ...prev, statuses: patch(prev.statuses) } : prev));
+    setStatuses(prev => {
+      const updated = prev.map(g => ({ ...g, statuses: patch(g.statuses) }));
+      setCachedJSON('statuses_grouped', updated.map(g => ({ ...g, statuses: g.statuses.map(serializeStatus) })));
+      return updated;
+    });
+  }, []);
+
+  // Staff restore: count back to 0. reportedBy stays, so the same reporters
+  // can't hide it again; five new ones can.
+  const handleRestoreStatus = useCallback(async (statusId) => {
+    if (!firestoreDB || !statusId) return;
+    try {
+      await updateDoc(doc(firestoreDB, 'statuses', statusId), { reportCount: 0 });
+      patchStatus(statusId, { reportCount: 0 });
+    } catch (err) {
+      console.warn('[StatusFeed] restore error:', err?.message);
+      Alert.alert('Restore failed', 'Could not restore this status. Try again.');
+    }
+  }, [firestoreDB, patchStatus]);
+
   // ── Mark viewed ──
   const markViewed = useCallback(async (statusId) => {
     if (!user?.id || !firestoreDB) return;
@@ -1123,20 +1151,21 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
 
   // Build data
   const feedData = useMemo(() => {
-    if (!user?.id) return statuses;
-    const myIndex = statuses.findIndex(s => s.userId === user.id);
+    const shown = isStatusStaff ? statuses : hideReportedStatuses(statuses, user?.id);
+    if (!user?.id) return shown;
+    const myIndex = shown.findIndex(s => s.userId === user.id);
     if (myIndex === -1) {
       return [
         { userId: user.id, userName: 'You', userAvatar: user.avatar, statuses: [], hasUnviewed: false },
-        ...statuses,
+        ...shown,
       ];
     }
-    if (myIndex === 0) return statuses;
-    const reordered = [...statuses];
+    if (myIndex === 0) return shown;
+    const reordered = [...shown];
     const [myGroup] = reordered.splice(myIndex, 1);
     reordered.unshift(myGroup);
     return reordered;
-  }, [statuses, user]);
+  }, [statuses, user, isStatusStaff]);
 
   if (feedData.length === 0) {
     return (
@@ -1456,12 +1485,46 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
                   </TouchableOpacity>
                 </View>
               )}
+
+              {/* Report auto-hide: the owner gets a notice; staff restore or delete
+                  (staff text stays English like Mod Delete). */}
+              {isReportHidden(currentStatus) && (isMyStatus || isStatusStaff) && (
+                <View style={{ marginTop: 8, padding: 10, borderRadius: 12, backgroundColor: 'rgba(245,158,11,0.15)', gap: 8 }}>
+                  <Text style={{ color: '#FBBF24', fontSize: 12, fontWeight: '700' }}>
+                    {isMyStatus
+                      ? t('feed.status_feed.hidden_after_reports_owner')
+                      : `Hidden after reports (${currentStatus.reportCount})`}
+                  </Text>
+                  {!isMyStatus && (
+                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10 }}>
+                      <TouchableOpacity
+                        onPress={() => { stopStoryTimer(); handleRestoreStatus(currentStatus.id); }}
+                        style={[styles.deleteBtn, { backgroundColor: 'rgba(34,197,94,0.2)' }]}
+                      >
+                        <FontAwesome name="rotate-left" size={12} color="#22C55E" solid />
+                        <Text style={[styles.deleteText, { color: '#22C55E' }]}>Restore</Text>
+                      </TouchableOpacity>
+                      {/* Admins and Mods already have Mod Delete just above. */}
+                      {!isAdminOrMod && (
+                        <TouchableOpacity
+                          onPress={() => { stopStoryTimer(); handleDeleteStatus(currentStatus.id); }}
+                          style={styles.deleteBtn}
+                        >
+                          <FontAwesome name="trash" size={12} color="#EF4444" />
+                          <Text style={styles.deleteText}>Delete</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
             {/* Inside the viewer so it stacks over it; the story resumes on close. */}
             <ReportModal
               visible={!!reportingStatus}
               kind="status"
               item={reportingStatus}
+              onReported={patchStatus}
               onClose={() => { setReportingStatus(null); startStoryTimer(storyIndex, totalStatuses); }}
             />
           </View>

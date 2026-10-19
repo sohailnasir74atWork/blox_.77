@@ -593,9 +593,10 @@ const DesignFeedScreen = ({ route }) => {
         throw new Error('Missing tags'); // ✅ Throw error to prevent clearing form
       }
 
-      // Ensure imageUrls is an array (PostCard expects imageUrl as array)
+      // Ensure imageUrls is an array (PostCard expects imageUrl as array).
+      // Max 6, same as UploadModal and firestore.rules (a 7th would fail the write).
       const imageUrlArray = Array.isArray(imageUrls)
-        ? imageUrls.filter(url => url && typeof url === 'string' && url.trim().length > 0)
+        ? imageUrls.filter(url => url && typeof url === 'string' && url.trim().length > 0).slice(0, 6)
         : (imageUrls && typeof imageUrls === 'string' && imageUrls.trim().length > 0 ? [imageUrls] : []);
 
       // ✅ Images are optional - posts can have text only, images only, or both

@@ -2805,6 +2805,7 @@
       "delete_confirm": "هل تريد حذف هذه الحالة؟",
       "delete_failed": "تعذّر حذف الحالة",
       "views_reactions": "👁 المشاهدات {{views}} • التفاعلات {{reactions}}",
+      "hidden_after_reports_owner": "مخفية بسبب البلاغات. لا يمكن لأحد رؤية هذه الحالة سواك وفريق الإشراف.",
       "new": "جديد",
       "new_status": "حالة جديدة",
       "add_photo": "إضافة صورة",

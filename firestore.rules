@@ -107,12 +107,19 @@ service cloud.firestore {
         && (!('report' in changed()) || request.resource.data.report == true)
         && (!('banned' in changed()) || request.resource.data.banned == true);
     }
+    // At most 6 images per post (2026-10-19; was 4 in the app, which builds still send).
+    // A non-list imageUrl (string from very old builds) is left alone.
+    function postImagesWithinCap() {
+      let urls = request.resource.data.get('imageUrl', []);
+      return !(urls is list) || urls.size() <= 6;
+    }
     match /designPosts_upgrade/{postId} {
       allow read: if true;
-      allow create: if createsAs('userId') && !isBanned();
-      allow update: if (ownerIs('userId') && keepsOwner('userId') && !isBanned())
+      allow create: if createsAs('userId') && !isBanned() && postImagesWithinCap();
+      allow update: if ((ownerIs('userId') && keepsOwner('userId') && !isBanned())
         || postUpdateByOthers()
-        || isStaff();
+        || isStaff())
+        && (!('imageUrl' in changed()) || postImagesWithinCap());
       allow delete: if ownerIs('userId') || isStaff();
 
       match /comments/{commentId} {
@@ -156,10 +163,26 @@ service cloud.firestore {
         && (!('5' in keys) || listOnlyMe(before.get('5', []), after.get('5', [])))
       );
     }
+    // Report auto-hide (2026-10-19): a reporter adds only themselves to
+    // reportedBy, once, and bumps reportCount by one in the same write. The app
+    // hides a status at 5 reports until staff restore it (reportCount = 0).
+    function reportsStatusOnce() {
+      let before = resource.data.get('reportedBy', []);
+      let after = request.resource.data.get('reportedBy', []);
+      return active()
+        && changed().hasOnly(['reportedBy', 'reportCount'])
+        && changed().hasAll(['reportedBy', 'reportCount'])
+        && !(me() in before)
+        && after.size() == before.size() + 1
+        && addedOnlyMe('reportedBy') && bumpedByOne('reportCount');
+    }
     match /statuses/{statusId} {
       allow read: if true;
-      allow create: if createsAs('userId') && !isBanned();
-      allow update: if (ownerIs('userId') && keepsOwner('userId') && !isBanned())
+      allow create: if createsAs('userId') && !isBanned()
+        && !request.resource.data.keys().hasAny(['reportedBy', 'reportCount']);
+      allow update: if (ownerIs('userId') && keepsOwner('userId') && !isBanned()
+          && !changed().hasAny(['reportedBy', 'reportCount']))
+        || reportsStatusOnce()
         // Viewing is not an action a ban blocks.
         || (signedIn() && changed().hasOnly(['viewedBy']) && addedOnlyMe('viewedBy'))
         || (active() && changed().hasOnly(['viewedBy', 'reactions', 'pollVotes'])

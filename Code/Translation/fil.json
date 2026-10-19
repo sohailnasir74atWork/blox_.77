@@ -2562,6 +2562,7 @@
       "delete_confirm": "Sigurado ka bang i-delete ang status na ito?",
       "delete_failed": "Hindi ma-delete ang status",
       "views_reactions": "👁 {{views}} view • {{reactions}} reaction",
+      "hidden_after_reports_owner": "Nakatago dahil sa mga report. Ikaw at ang staff lang ang nakakakita ng status na ito.",
       "new": "Bago",
       "new_status": "Bagong Status",
       "add_photo": "Magdagdag ng Larawan",
