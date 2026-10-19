@@ -37,15 +37,29 @@ try {
 const RTDB_URL = process.env.RTDB_URL || `https://${serviceAccount.project_id}-default-rtdb.firebaseio.com`;
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount), databaseURL: RTDB_URL });
 
-const { RESTRICTED, routeReport, routeTradeReport, cachedDeps, loadStaffRanks, rankOfUid } = require(path.join(FUNCTIONS_DIR, 'reportRouting'))._internal;
+const { RESTRICTED, routeReport, routeTradeReport, cachedDeps, loadStaffRanks } = require(path.join(FUNCTIONS_DIR, 'reportRouting'))._internal;
+const { RANK, readRank } = require(path.join(FUNCTIONS_DIR, 'banEnforcement'))._internal;
 
 const APPLY = process.env.APPLY === '1';
 const PAGE = 300;
+const PARALLEL = 25; // chat_reports holds ~17k docs: one at a time would take over an hour
+
+// Process `items` with up to PARALLEL `fn` calls in flight.
+async function inChunks(items, fn) {
+  for (let i = 0; i < items.length; i += PARALLEL) {
+    await Promise.all(items.slice(i, i + PARALLEL).map(fn));
+  }
+}
 const RANK_NAME = { 3: 'Senior Mod+', 4: 'Admin+' };
 
 (async () => {
   const firestore = admin.firestore();
-  const deps = cachedDeps(rankOfUid, () => loadStaffRanks(firestore, admin.auth()));
+  // Same ranks as the trigger (readRank), without an Auth lookup per uid: the
+  // only Auth-based rank is the verified owner, and loadStaffRanks already
+  // resolved the owner accounts by email.
+  const staffP = loadStaffRanks(firestore, admin.auth());
+  const rankOf = async (uid) => ((await staffP).get(uid) === RANK.owner ? RANK.owner : readRank(uid, null));
+  const deps = cachedDeps(rankOf, () => staffP);
   const totals = {};
   console.log(APPLY ? '⚠️  APPLY=1: moving reports about staff' : 'DRY RUN (set APPLY=1 to move)');
 
@@ -57,7 +71,7 @@ const RANK_NAME = { 3: 'Senior Mod+', 4: 'Admin+' };
       if (last) q = q.startAfter(last);
       const snap = await q.get();
       if (snap.empty) break;
-      for (const doc of snap.docs) {
+      await inChunks(snap.docs, async (doc) => {
         totals[collection].scanned++;
         try {
           const plan = await routeReport(firestore, collection, doc.id, doc.data() || {}, deps, { dryRun: !APPLY });
@@ -70,7 +84,8 @@ const RANK_NAME = { 3: 'Senior Mod+', 4: 'Admin+' };
           totals[collection].failed++;
           console.error(`failed ${collection}/${doc.id}: ${e?.message || e}`);
         }
-      }
+      });
+      console.error(`… ${collection}: ${totals[collection].scanned} scanned`);
       last = snap.docs[snap.docs.length - 1];
       if (snap.size < PAGE) break;
     }
@@ -86,7 +101,7 @@ const RANK_NAME = { 3: 'Senior Mod+', 4: 'Admin+' };
     const nodes = [];
     (await q.once('value')).forEach((child) => { if (child.key !== lastKey) nodes.push([child.key, child.val()]); return false; });
     if (!nodes.length) break;
-    for (const [key, val] of nodes) {
+    await inChunks(nodes, async ([key, val]) => {
       totals.tradeReports.scanned++;
       try {
         const plan = await routeTradeReport(firestore, rtdb, key, val || {}, deps, { dryRun: !APPLY });
@@ -99,7 +114,7 @@ const RANK_NAME = { 3: 'Senior Mod+', 4: 'Admin+' };
         totals.tradeReports.failed++;
         console.error(`failed tradeReports/${key}: ${e?.message || e}`);
       }
-    }
+    });
     lastKey = nodes[nodes.length - 1][0];
     if (nodes.length < PAGE) break;
   }
