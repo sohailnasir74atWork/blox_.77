@@ -644,6 +644,7 @@ async function firestoreTests() {
     await F.setDoc(F.doc(f, 'groups', 'gMuted'), { createdBy: U2, memberIds: [U2, U3], members: { [U2]: { id: U2 }, [U3]: { id: U3, role: 'member', muted: true } } });
     await F.setDoc(F.doc(f, 'groups', 'gS'), { createdBy: U3, memberIds: [U3, M, J], members: { [U3]: { id: U3 }, [M]: { id: M }, [J]: { id: J } }, name: 'S' });
     await F.setDoc(F.doc(f, 'groups', 'gLast'), { createdBy: U3, memberIds: [U1], members: { [U1]: { id: U1 } } });
+    await F.setDoc(F.doc(f, 'groups', 'gArch'), { createdBy: U2, memberIds: [U2, U1, M], members: { [U2]: { id: U2 }, [U1]: { id: U1 }, [M]: { id: M } }, isActive: false, archivedAt: F.Timestamp.fromMillis(Date.now() - 61 * 24 * H) });
     await F.setDoc(F.doc(f, 'group_invitations', 'invD'), { groupId: 'g1', invitedBy: U2, invitedUserId: U3, status: 'pending' });
     await F.setDoc(F.doc(f, 'group_join_requests', 'jr2'), { groupId: 'g1', requesterId: U1, creatorId: U2, status: 'pending' });
     await F.setDoc(F.doc(f, 'group_join_requests', 'jr3'), { groupId: 'g1', requesterId: U3, creatorId: U1, status: 'pending' });
@@ -657,6 +658,7 @@ async function firestoreTests() {
   await no('create a group with other people already in it', () => setDoc(d(U1, 'groups', 'g4'), { ...groupDoc('g4', U1), memberIds: [U1, U2] }));
   await no('create a group carrying server fields', () => setDoc(d(U1, 'groups', 'g4'), { ...groupDoc('g4', U1), searchKeys: ['a'] }));
   await no('banned creates group', () => setDoc(d(B, 'groups', 'g3'), { createdBy: B, memberIds: [B] }));
+  await no('create a group already archived', () => setDoc(d(U1, 'groups', 'g4'), { ...groupDoc('g4', U1), isActive: false }));
 
   // Invitations.
   await ok('invite (groupUtils createGroup / addMembersToGroup)', () => addDoc(c(U1, 'group_invitations'), inviteDoc('g2', U1, U3)));
@@ -735,6 +737,16 @@ async function firestoreTests() {
     members[U2] = { ...members[U2], role: 'admin' };
     return updateDoc(d(U1, 'groups', 'g1'), { createdBy: U2, memberIds: g.memberIds.filter((x) => x !== U1), members, memberCount: g.memberIds.length - 1, updatedAt: serverTimestamp() });
   });
+
+  // Archive / restore (inactive-group cleanup: only the server archives).
+  await no('creator archives their own group (would dodge the cap)', () => updateDoc(d(U2, 'groups', 'g1'), { isActive: false }));
+  await no('creator sets archivedAt', () => updateDoc(d(U2, 'groups', 'gArch'), { archivedAt: Timestamp.now() }));
+  await no('member restores an archived group', () => updateDoc(d(U1, 'groups', 'gArch'), { isActive: true, restoredAt: serverTimestamp() }));
+  await no('Moderator (member) restores an archived group', () => updateDoc(d(M, 'groups', 'gArch'), { isActive: true, restoredAt: serverTimestamp() }));
+  await no('creator restores with a postdated restoredAt', () => updateDoc(d(U2, 'groups', 'gArch'), { isActive: true, restoredAt: Timestamp.fromMillis(now() + 365 * 24 * H) }));
+  await ok('creator restores an archived group (restoreGroup)', () => updateDoc(d(U2, 'groups', 'gArch'), { isActive: true, restoredAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+  await seed(async (f) => F.updateDoc(F.doc(f, 'groups', 'gArch'), { isActive: false }));
+  await ok('Senior Mod restores any archived group', () => updateDoc(d(S, 'groups', 'gArch'), { isActive: true, restoredAt: serverTimestamp() }));
 
   // Staff: Moderators and JMDs are members like anyone; Senior Mod+ manage any group.
   await no('Moderator (member) renames a group they do not own', () => updateDoc(d(M, 'groups', 'gS'), { name: 'mod', groupName: 'mod' }));

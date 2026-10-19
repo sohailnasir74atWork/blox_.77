@@ -78,7 +78,10 @@
 --   -- deploy functions onGroupWrite + groupSync, then run
 --      node scripts/groups/backfill-group-members.js (dry run, then --apply)
 --   3  the switch: membership from group_members, private SELECT, member-only
---      send / fan-out, Senior Mod+ instead of JMD+ on group_meta_data
+--      send / fan-out (one row write per member), Senior Mod+ instead of JMD+
+--      on group_meta_data
+--   4  inactive-group cleanup: archived_at label column + two service-role
+--      rpcs (independent of 2-3; before cleanupInactiveGroups and the app build)
 -- Every step is idempotent. STEPs 2 and 3 take brief locks on hot tables with
 -- lock_timeout, so they fail fast instead of queueing app traffic; re-run one
 -- that times out. Rollback for STEP 3 is at the bottom.
@@ -86,7 +89,7 @@
 
 
 -- =====================================================================
--- STEP 0 — Read-only. Where am I?   Fully applied: t | 8 | 2 | (rows) | 4
+-- STEP 0 — Read-only. Where am I?   Fully applied: t | 8 | 2 | (rows) | 4 | 3
 -- =====================================================================
 select
   (select count(*) = 1 from pg_tables
@@ -109,7 +112,11 @@ select
     + (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
         where n.nspname = 'public' and p.proname = 'send_group_message' and p.prosrc like '%_group_can_post%')
     + (select count(*) from pg_policies where schemaname = 'public' and tablename = 'group_meta_data'
-      and policyname = 'group_meta_data read shared group' and qual like '%is_group_staff%')  as step3_switch;
+      and policyname = 'group_meta_data read shared group' and qual like '%is_group_staff%')  as step3_switch,
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and table_name = 'group_meta_data' and column_name = 'archived_at')
+    + (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'public' and p.proname in ('group_last_activity', 'set_group_archived')) as step4_cleanup;
 
 
 -- =====================================================================
@@ -621,8 +628,9 @@ begin
   return inserted;
 end $$;
 
--- 3e. fanout_group_message_meta — 034 body; caller check is _group_can_post
--- and the member list is cut to verified members once the group has rows.
+-- 3e. fanout_group_message_meta — 034 body; caller check is _group_can_post,
+-- the member list is cut to verified members once the group has rows, and
+-- each member's row is written once instead of twice (see the insert).
 create or replace function public.fanout_group_message_meta(
   p_group_id      text,
   p_member_ids    text[],
@@ -687,16 +695,22 @@ begin
 
   perform set_config('blox.meta_rpc', 'on', true);
 
+  -- ONE write per member (034 wrote every non-sender row twice: the preview
+  -- upsert, then a separate unread bump). Same result — new rows start at 1
+  -- for everyone but the sender, existing rows go +1 — with half the row
+  -- updates, WAL (replica identity full) and realtime events per message.
   insert into public.group_meta_data (
     user_id, group_id,
     last_message, last_message_timestamp_ms,
     last_message_sender_id, last_message_sender_name,
-    group_name, updated_at
+    group_name, unread_count, updated_at
   )
   select m, p_group_id,
          v_last, ts,
          caller, v_name,
-         left(p_group_name, 100), now()
+         left(p_group_name, 100),
+         case when m = caller then 0 else 1 end,
+         now()
     from unnest(v_members) m
   on conflict (user_id, group_id) do update set
     last_message              = excluded.last_message,
@@ -704,14 +718,9 @@ begin
     last_message_sender_id    = excluded.last_message_sender_id,
     last_message_sender_name  = excluded.last_message_sender_name,
     group_name                = coalesce(excluded.group_name, group_meta_data.group_name),
+    unread_count              = group_meta_data.unread_count
+                                  + case when excluded.user_id = caller then 0 else 1 end,
     updated_at                = now();
-
-  update public.group_meta_data
-     set unread_count = unread_count + 1,
-         updated_at   = now()
-   where group_id = p_group_id
-     and user_id <> caller
-     and user_id = any(v_members);
 
   perform set_config('blox.meta_rpc', '', true);
 end $$;
@@ -819,6 +828,82 @@ notify pgrst, 'reload schema';
 
 
 -- =====================================================================
+-- STEP 4 — Inactive-group cleanup (functions/groupMembership.js
+-- cleanupInactiveGroups). Independent of STEPs 2-3; run before deploying that
+-- function and before an app build that shows the Archived label.
+--   * group_meta_data.archived_at: set on every member's row while a group is
+--     archived (the app's list shows "Archived"). Nullable, no default: a
+--     catalog-only change. Builds that list their columns don't read it.
+--   * group_last_activity(ids): newest message per group (one index probe on
+--     idx_group_messages_group_created per group). Service role only.
+--   * set_group_archived(group, at): writes that label. Service role only.
+-- =====================================================================
+set lock_timeout = '5s';
+alter table public.group_meta_data add column if not exists archived_at timestamptz;
+reset lock_timeout;
+
+create or replace function public.group_last_activity(p_group_ids text[])
+returns table (group_id text, last_at timestamptz)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select g,
+         (select m.created_at from public.group_messages m
+           where m.group_id = g
+           order by m.created_at desc
+           limit 1)
+    from unnest(coalesce(p_group_ids, '{}'::text[])) as g;
+$$;
+
+create or replace function public.set_group_archived(p_group_id text, p_archived_at timestamptz)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_n integer;
+begin
+  if public._chat_end_user_uid() is not null then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+  update public.group_meta_data
+     set archived_at = p_archived_at
+   where group_id = p_group_id
+     and archived_at is distinct from p_archived_at;
+  get diagnostics v_n = row_count;
+  return v_n;
+end;
+$$;
+
+do $$
+declare
+  v_fn   text;
+  v_role text;
+begin
+  foreach v_fn in array array[
+    'public.group_last_activity(text[])',
+    'public.set_group_archived(text, timestamptz)'
+  ] loop
+    execute format('revoke all on function %s from public', v_fn);
+    foreach v_role in array array['anon', 'authenticated'] loop
+      if exists (select 1 from pg_roles where rolname = v_role) then
+        execute format('revoke all on function %s from %I', v_fn, v_role);
+      end if;
+    end loop;
+    if exists (select 1 from pg_roles where rolname = 'service_role') then
+      execute format('grant execute on function %s to service_role', v_fn);
+    end if;
+  end loop;
+end
+$$;
+
+notify pgrst, 'reload schema';
+
+
+-- =====================================================================
 -- ROLLBACK (STEP 3) — reopens group reads exactly as before 044:
 --   run 013_open_group_rules.sql; 010's is_group_member (section
 --   "Membership helper"); 012's send_group_message; 034_steps/1_functions.sql
@@ -827,4 +912,6 @@ notify pgrst, 'reload schema';
 -- STEP 2:  drop trigger trg_ab_group_scope on public.group_messages; and
 --   re-run 034_steps/4_group_messages.sql (delete policy).
 -- STEP 1 objects are inert on their own; group_members can stay.
+-- STEP 4: drop function public.group_last_activity(text[]);
+--   drop function public.set_group_archived(text, timestamptz); the column can stay.
 -- =====================================================================

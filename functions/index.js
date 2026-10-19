@@ -107,6 +107,9 @@ exports.reconcileBanMirrors = bans.reconcileBanMirrors;
 const groups = require('./groupMembership');
 exports.onGroupWrite = groups.onGroupWrite;
 exports.groupSync = groups.groupSync;
+// Daily inactive-group cleanup (archive 60 d, delete 30 d later). Dry run until
+// Firestore server_config/groupCleanup.apply = true.
+exports.cleanupInactiveGroups = groups.cleanupInactiveGroups;
 
 // Birthdays (supabase/036_birthdays.sql; ported from Adopt Me 2026-10-07).
 // Deploy the schedulers PAUSED until an app build with Birthdays ships.

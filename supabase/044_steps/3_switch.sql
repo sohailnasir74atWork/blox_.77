@@ -1,4 +1,4 @@
--- 044 step 3 of 3 — run in the SQL editor as ONE query, in order.
+-- 044 step 3 of 4 — run in the SQL editor as ONE query, in order.
 -- Source: supabase/044_group_privacy.sql
 
 -- =====================================================================
@@ -153,8 +153,9 @@ begin
   return inserted;
 end $$;
 
--- 3e. fanout_group_message_meta — 034 body; caller check is _group_can_post
--- and the member list is cut to verified members once the group has rows.
+-- 3e. fanout_group_message_meta — 034 body; caller check is _group_can_post,
+-- the member list is cut to verified members once the group has rows, and
+-- each member's row is written once instead of twice (see the insert).
 create or replace function public.fanout_group_message_meta(
   p_group_id      text,
   p_member_ids    text[],
@@ -219,16 +220,22 @@ begin
 
   perform set_config('blox.meta_rpc', 'on', true);
 
+  -- ONE write per member (034 wrote every non-sender row twice: the preview
+  -- upsert, then a separate unread bump). Same result — new rows start at 1
+  -- for everyone but the sender, existing rows go +1 — with half the row
+  -- updates, WAL (replica identity full) and realtime events per message.
   insert into public.group_meta_data (
     user_id, group_id,
     last_message, last_message_timestamp_ms,
     last_message_sender_id, last_message_sender_name,
-    group_name, updated_at
+    group_name, unread_count, updated_at
   )
   select m, p_group_id,
          v_last, ts,
          caller, v_name,
-         left(p_group_name, 100), now()
+         left(p_group_name, 100),
+         case when m = caller then 0 else 1 end,
+         now()
     from unnest(v_members) m
   on conflict (user_id, group_id) do update set
     last_message              = excluded.last_message,
@@ -236,14 +243,9 @@ begin
     last_message_sender_id    = excluded.last_message_sender_id,
     last_message_sender_name  = excluded.last_message_sender_name,
     group_name                = coalesce(excluded.group_name, group_meta_data.group_name),
+    unread_count              = group_meta_data.unread_count
+                                  + case when excluded.user_id = caller then 0 else 1 end,
     updated_at                = now();
-
-  update public.group_meta_data
-     set unread_count = unread_count + 1,
-         updated_at   = now()
-   where group_id = p_group_id
-     and user_id <> caller
-     and user_id = any(v_members);
 
   perform set_config('blox.meta_rpc', '', true);
 end $$;

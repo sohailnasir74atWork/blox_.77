@@ -1,4 +1,4 @@
--- 044 step 1 of 3 — run in the SQL editor as ONE query, in order.
+-- 044 step 1 of 4 — run in the SQL editor as ONE query, in order.
 -- Source: supabase/044_group_privacy.sql
 
 -- =====================================================================

@@ -25,6 +25,16 @@
  *   - searchKeys (word prefixes of the name) for the All groups search.
  *   - Delete → purge_group_chat (every message soft-deleted, every member's
  *     inbox row and membership row removed) and the invitations / requests.
+ *   - creatorDisplayName / creatorAvatar follow the owner (All groups tab).
+ *   - Archive / restore: labels every member's inbox row (archived_at); a
+ *     restore that would put the owner over the cap is undone.
+ *
+ * cleanupInactiveGroups — daily 03:30 UTC. No message for 60 days → archived
+ *   (isActive false + archivedAt: hidden from All groups, not counted toward
+ *   the cap, members see "Archived"); archived and quiet 30 more days →
+ *   deleted through the delete path above. A message (notifyGroupNewMessage)
+ *   or Restore brings a group back. DRY RUN (counts in the log only) until
+ *   Firestore server_config/groupCleanup has apply: true.
  *
  * groupSync — HTTPS, Authorization: Bearer <Firebase ID token>, POST {groupId}
  *   New builds call it right after creating, accepting or approving, so the
@@ -32,8 +42,9 @@
  *   verified members only and drops rows of people no longer in memberIds; it
  *   never edits the Firestore doc. → 200 { ok, member } | 4xx { error }
  *
- * Deploy (after supabase/044 STEP 1):
+ * Deploy (after supabase/044 STEP 1; cleanupInactiveGroups after STEP 4):
  *   firebase deploy --only functions:onGroupWrite,functions:groupSync --project fruiteblocks
+ *   firebase deploy --only functions:cleanupInactiveGroups --project fruiteblocks
  */
 const admin = require('firebase-admin');
 const functions = require('firebase-functions/v1');
@@ -57,6 +68,14 @@ const CLOCK_GRACE_MS = 10 * 60 * 1000;         // phones' clocks drift
 const OWNER_CANDIDATES = 10;                   // members checked when re-picking an owner
 const GROUP_ID_RE = /^[A-Za-z0-9_-]{1,200}$/;
 const STALE_EVENT_MS = 3 * 60 * 60 * 1000;     // stop retrying after this
+// Inactive-group cleanup (owner decision 2026-10-19).
+const DAY_MS = 24 * 60 * 60 * 1000;
+const ARCHIVE_AFTER_MS = 60 * DAY_MS;          // no messages for 60 days → archived
+const DELETE_AFTER_ARCHIVE_MS = 30 * DAY_MS;   // still nothing 30 days later → deleted
+const MAX_ARCHIVE_PER_RUN = 200;
+const MAX_RESTORE_PER_RUN = 100;
+const MAX_DELETE_PER_RUN = 50;
+const ACTIVITY_CHUNK = 300;                    // group ids per group_last_activity call
 
 const capFor = (rank) => (rank >= RANK.seniorMod ? MAX_GROUPS_STAFF : MAX_GROUPS);
 const memberIdsOf = (d) => (Array.isArray(d?.memberIds)
@@ -66,11 +85,14 @@ const millis = (t) => (typeof t?.toMillis === 'function' ? t.toMillis() : (typeo
 
 const sameList = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((x, i) => x === b[i]);
 
+const rankOfUid = async (uid) => readRank(uid, await admin.auth().getUser(uid).catch(() => null));
+
 function defaultDeps() {
   return {
     db: admin.firestore(),
     sb: getSupabaseAdmin(),
-    rankOf: async (uid) => readRank(uid, await admin.auth().getUser(uid).catch(() => null)),
+    rtdb: () => admin.database(),
+    rankOf: rankOfUid,
     now: () => Date.now(),
   };
 }
@@ -195,10 +217,12 @@ async function setOwnerRow(sb, groupId, owner) {
 
 // ── onGroupWrite ─────────────────────────────────────────────────────
 
-async function onGroupDeleted(groupId, { db, sb }) {
+async function onGroupDeleted(groupId, { db, sb, rtdb }) {
   const { data, error } = await sb.rpc('purge_group_chat', { p_group_id: groupId });
   if (error) throw error;
   await sweepJoinDocs(db, groupId);
+  // Push collapse state (notifyGroupNewMessage).
+  if (rtdb) await rtdb().ref(`group_push_state/${groupId}`).remove().catch(() => {});
   return { action: 'purged', ...(data || {}) };
 }
 
@@ -299,15 +323,162 @@ async function handleGroupWrite({ groupId, before, after }, deps) {
     result.owner = owner;
   }
 
-  // 4. Search keys.
+  // 4. Search keys, and the owner's name / avatar the All groups tab shows
+  // (saves one RTDB read per creator per page). Skipped when step 3 just
+  // re-picked the owner: that write comes back here with the final owner.
+  const fix = {};
   const keys = searchKeysFor(current.name || current.groupName);
-  if (!sameList(keys, current.searchKeys)) {
-    await ref.update({ searchKeys: keys }).catch((e) => {
+  if (!sameList(keys, current.searchKeys)) fix.searchKeys = keys;
+  const ownerEntry = current.members?.[current.createdBy];
+  if (ownerEntry && (result.owner === undefined || result.owner === current.createdBy)
+      && (ownerChanged || current.creatorDisplayName === undefined || current.creatorAvatar === undefined)) {
+    const name = typeof ownerEntry.displayName === 'string' && ownerEntry.displayName ? ownerEntry.displayName : null;
+    const avatar = typeof ownerEntry.avatar === 'string' && ownerEntry.avatar ? ownerEntry.avatar : null;
+    if (name && current.creatorDisplayName !== name) fix.creatorDisplayName = name;
+    if (current.creatorAvatar !== avatar && (ownerChanged || current.creatorAvatar === undefined)) fix.creatorAvatar = avatar;
+  }
+  if (Object.keys(fix).length) {
+    await ref.update(fix).catch((e) => {
       if (e?.code !== 5) throw e; // NOT_FOUND: deleted meanwhile
     });
   }
+
+  // 5. Archive / restore (inactive-group cleanup). Archived groups don't
+  // count toward the owner's cap, so restoring one must fit under it.
+  if (before) {
+    const wasActive = before.isActive !== false;
+    const isActive = current.isActive !== false;
+    if (wasActive && !isActive) {
+      const at = millis(current.archivedAt) || now();
+      await setArchivedLabel(sb, groupId, new Date(at).toISOString());
+      result.archived = true;
+    } else if (!wasActive && isActive) {
+      const owner = current.createdBy;
+      const [count, rank] = typeof owner === 'string' && owner
+        ? await Promise.all([ownedActiveCount(db, owner), rankOf(owner)])
+        : [0, RANK.user];
+      if (count > capFor(rank)) {
+        console.warn(`[groupMembership] ${groupId}: restore refused, ${owner} owns ${count} > ${capFor(rank)} active groups`);
+        await ref.update({ isActive: false });
+        result.restore = 'over_cap';
+      } else {
+        if (current.archivedAt !== undefined) await ref.update({ archivedAt: FieldValue.delete() });
+        await setArchivedLabel(sb, groupId, null);
+        result.restore = 'ok';
+      }
+    }
+  }
   return result;
 }
+
+// ── Inactive-group cleanup ───────────────────────────────────────────
+
+async function setArchivedLabel(sb, groupId, iso) {
+  const { error } = await sb.rpc('set_group_archived', { p_group_id: groupId, p_archived_at: iso });
+  if (error) throw error;
+}
+
+// A new message (notifyGroupNewMessage) or the daily job brings an archived
+// group back — unless its owner is at the cap; then it stays archived (members
+// can still chat, it just stays out of All groups) and isn't deleted while busy.
+async function reactivateArchivedGroup(groupId, group, deps = { db: admin.firestore(), rankOf: rankOfUid }) {
+  if (!group || group.isActive !== false) return 'active';
+  const owner = group.createdBy;
+  if (typeof owner === 'string' && owner) {
+    const [count, rank] = await Promise.all([ownedActiveCount(deps.db, owner), deps.rankOf(owner)]);
+    if (count >= capFor(rank)) return 'over_cap';
+  }
+  await deps.db.collection('groups').doc(groupId)
+    .update({ isActive: true, restoredAt: FieldValue.serverTimestamp() });
+  return 'restored';
+}
+
+// Newest message per group (supabase/044 group_last_activity).
+async function lastMessageAt(sb, groupIds) {
+  const out = new Map();
+  for (let i = 0; i < groupIds.length; i += ACTIVITY_CHUNK) {
+    const { data, error } = await sb.rpc('group_last_activity', { p_group_ids: groupIds.slice(i, i + ACTIVITY_CHUNK) });
+    if (error) throw error;
+    for (const r of data || []) {
+      const t = r.last_at ? Date.parse(r.last_at) : NaN;
+      if (Number.isFinite(t)) out.set(r.group_id, t);
+    }
+  }
+  return out;
+}
+
+// Which groups to archive, bring back, or delete. Activity = the newest of:
+// last message (group_messages), group created, last restore. Firestore's
+// lastMessageTimestamp is never written, so it isn't used.
+async function planGroupCleanup({ db, sb, now }) {
+  const t = now();
+  const snap = await db.collection('groups').select('createdAt', 'isActive', 'archivedAt', 'restoredAt', 'createdBy').get();
+  const last = await lastMessageAt(sb, snap.docs.map((d) => d.id));
+  const plan = { groups: snap.size, withMessages: last.size, archive: [], restore: [], delete: [] };
+  for (const d of snap.docs) {
+    const g = d.data();
+    const activity = Math.max(last.get(d.id) || 0, millis(g.createdAt) || 0, millis(g.restoredAt) || 0);
+    if (g.isActive !== false) {
+      if (activity < t - ARCHIVE_AFTER_MS) plan.archive.push(d.id);
+      continue;
+    }
+    const archivedAt = millis(g.archivedAt);
+    if (!archivedAt) continue; // archived some other way: leave it alone
+    // Quiet for 30 days since it was archived (or since its last message,
+    // when one came in but the owner was at the cap) → delete.
+    if (Math.max(archivedAt, activity) < t - DELETE_AFTER_ARCHIVE_MS) plan.delete.push(d.id);
+    else if (activity > archivedAt) plan.restore.push({ id: d.id, data: g });
+  }
+  return plan;
+}
+
+// Dry run unless Firestore server_config/groupCleanup has apply: true (the
+// owner sets it in the console after reading a dry run's counts). Batch
+// limits per run: 200 archived, 100 brought back, 50 deleted.
+async function runGroupCleanup(deps, opts = {}) {
+  const { db } = deps;
+  const apply = opts.apply ?? ((await db.collection('server_config').doc('groupCleanup').get()).get('apply') === true);
+  const plan = await planGroupCleanup(deps);
+  const report = {
+    mode: apply ? 'apply' : 'dry_run',
+    groups: plan.groups,
+    groupsWithMessages: plan.withMessages,
+    wouldArchive: plan.archive.length,
+    wouldRestore: plan.restore.length,
+    wouldDelete: plan.delete.length,
+    sample: { archive: plan.archive.slice(0, 10), restore: plan.restore.slice(0, 10).map((r) => r.id), delete: plan.delete.slice(0, 10) },
+  };
+  if (!apply) return report;
+
+  report.archived = 0;
+  for (const id of plan.archive.slice(0, MAX_ARCHIVE_PER_RUN)) {
+    // The onGroupWrite trigger labels every member's inbox row.
+    await db.collection('groups').doc(id).update({ isActive: false, archivedAt: FieldValue.serverTimestamp() });
+    report.archived += 1;
+  }
+  report.restored = 0;
+  for (const { id, data } of plan.restore.slice(0, MAX_RESTORE_PER_RUN)) {
+    if ((await reactivateArchivedGroup(id, data, deps)) === 'restored') report.restored += 1;
+  }
+  report.deleted = 0;
+  for (const id of plan.delete.slice(0, MAX_DELETE_PER_RUN)) {
+    // The onGroupWrite delete event purges messages, inbox rows, membership,
+    // invitations and join requests (the safe server delete).
+    await db.collection('groups').doc(id).delete();
+    report.deleted += 1;
+  }
+  return report;
+}
+
+const cleanupInactiveGroups = functions
+  .runWith({ secrets: SECRETS, memory: '256MB', timeoutSeconds: 540 })
+  .pubsub.schedule('every day 03:30')
+  .timeZone('UTC')
+  .onRun(async () => {
+    const report = await runGroupCleanup(defaultDeps());
+    console.log('[cleanupInactiveGroups]', JSON.stringify(report));
+    return null;
+  });
 
 const onGroupWrite = functions
   .runWith({ secrets: SECRETS, memory: '256MB', timeoutSeconds: 120, failurePolicy: true })
@@ -396,7 +567,14 @@ const groupSync = functions
 module.exports = {
   onGroupWrite,
   groupSync,
+  cleanupInactiveGroups,
+  reactivateArchivedGroup,
   _internal: {
+    reactivateArchivedGroup,
+    planGroupCleanup,
+    runGroupCleanup,
+    ARCHIVE_AFTER_MS,
+    DELETE_AFTER_ARCHIVE_MS,
     MAX_GROUPS,
     MAX_GROUPS_STAFF,
     capFor,

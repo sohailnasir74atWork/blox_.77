@@ -78,7 +78,7 @@ await db.exec(`
 
 // ── step files are exactly the sections of 044 ──
 const main = read('044_group_privacy.sql');
-for (const f of ['0_check.sql', '1_functions.sql', '2_group_messages.sql', '3_switch.sql']) {
+for (const f of ['0_check.sql', '1_functions.sql', '2_group_messages.sql', '3_switch.sql', '4_cleanup.sql']) {
   const body = read(`044_steps/${f}`).split('\n').slice(3).join('\n').trimEnd();
   ok(main.includes(body), `044_steps/${f} matches its section of 044_group_privacy.sql`);
 }
@@ -122,9 +122,10 @@ await db.exec(`insert into public.group_members (group_id, user_id, role) values
 // ── STEP 3 ──
 await root();
 await db.exec(read('044_steps/3_switch.sql'));
+await db.exec(read('044_steps/4_cleanup.sql'));
 const s3 = await one(read('044_steps/0_check.sql'));
 ok(s3.step1_table === true && Number(s3.step1_functions) === 8 && Number(s3.step2_group_messages) === 2
-  && Number(s3.step3_switch) === 4, `step 0 after all steps (${JSON.stringify(s3)})`);
+  && Number(s3.step3_switch) === 4 && Number(s3.step4_cleanup) === 3, `step 0 after all steps (${JSON.stringify(s3)})`);
 
 // Reads.
 ok((await visible(X, 'g1')) === 0, 'outsider with a self-made inbox row reads nothing');
@@ -176,6 +177,21 @@ ok(/NOT_ALLOWED/.test(await err(async () => { await as(X); await db.query(`selec
   'outsider cannot rename the group in members\' lists');
 await as(C);
 ok((await one(`select public.upsert_group_meta_members('g1', $1, 'G1 renamed') as n`, [[C, U1]])).n === 2, 'creator renames in members\' lists');
+
+// Fan-out writes each member's row once, with the same unread counts as 034.
+await root();
+await db.exec(`insert into public.group_members (group_id, user_id, role) values
+  ('g3', '${C}', 'creator'), ('g3', '${U1}', 'member'), ('g3', '${J}', 'member');
+  insert into public.group_meta_data (user_id, group_id, unread_count) values ('${C}', 'g3', 5), ('${U1}', 'g3', 7);`);
+for (let i = 0; i < 2; i++) {
+  await as(U1);
+  await db.query(`select public.fanout_group_message_meta('g3', $1, $2, 'u1', $3, null, 'G3')`, [[C, U1, J], U1, `msg ${i}`]);
+}
+await root();
+const un = Object.fromEntries((await q(`select user_id, unread_count, last_message from public.group_meta_data where group_id = 'g3'`)).map((r) => [r.user_id, r]));
+ok(un[C].unread_count === 7 && un[U1].unread_count === 7 && un[J].unread_count === 2,
+  `fan-out unread: existing +1 per message, sender unchanged, new row starts at 1 (got ${un[C].unread_count}/${un[U1].unread_count}/${un[J].unread_count})`);
+ok(un[J].last_message === 'msg 1' && un[C].last_message === 'msg 1', 'fan-out preview is the newest message');
 
 // Deleting messages.
 const msgOf = async (sender, text) => (await (async () => { await root(); return one(`select id from public.group_messages where sender_id = $1 and text = $2`, [sender, text]); })()).id;
@@ -244,6 +260,20 @@ ok(purged.messages >= 1500 && (await one(`select count(*)::int as n from public.
 ok((await one(`select count(*)::int as n from public.group_meta_data where group_id = 'g1'`)).n === 0, 'purge removes every member\'s inbox row');
 ok((await one(`select count(*)::int as n from public.group_members where group_id = 'g1'`)).n === 0, 'purge removes membership rows');
 ok((await one(`select count(*)::int as n from public.group_meta_data where group_id = 'g2'`)).n > 0, 'purge leaves other groups alone');
+
+// STEP 4: last activity per group, archived label (service role only).
+await as('service');
+const act = await q(`select * from public.group_last_activity($1)`, [['g2', 'g3', 'gNone']]);
+const actBy = Object.fromEntries(act.map((r) => [r.group_id, r.last_at]));
+ok(act.length === 3 && actBy.g2 !== null && actBy.gNone === null, 'group_last_activity: newest message per group, null when none');
+ok((await one(`select public.set_group_archived('g3', now()) as n`)).n === 3, 'set_group_archived labels every member row');
+ok((await one(`select public.set_group_archived('g3', now()) as n`)).n === 3, 'set_group_archived again moves the timestamp');
+ok((await one(`select public.set_group_archived('g3', null) as n`)).n === 3, 'set_group_archived(null) clears the label');
+ok((await one(`select public.set_group_archived('g3', null) as n`)).n === 0, 'clearing twice is a no-op');
+ok(/permission denied/.test(await err(async () => { await as(C); await db.query(`select public.set_group_archived('g3', now())`); }) || ''),
+  'clients cannot call set_group_archived');
+ok(/permission denied/.test(await err(async () => { await as(C); await db.query(`select * from public.group_last_activity($1)`, [['g3']]); }) || ''),
+  'clients cannot call group_last_activity');
 
 // Grants.
 await root();

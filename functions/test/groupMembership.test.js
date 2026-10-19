@@ -54,13 +54,19 @@ function fakeSupabase() {
     };
     return b;
   };
+  const labels = new Map(); // group → archived_at iso | null (set_group_archived)
+  const lastAt = new Map();  // group → newest message iso (group_last_activity)
   const rpc = async (fn, args) => {
+    if (fn === 'set_group_archived') { labels.set(args.p_group_id, args.p_archived_at); return { data: 1, error: null }; }
+    if (fn === 'group_last_activity') {
+      return { data: args.p_group_ids.map((g) => ({ group_id: g, last_at: lastAt.get(g) || null })), error: null };
+    }
     assert.strictEqual(fn, 'purge_group_chat');
     purged.push(args.p_group_id);
     for (const t of ['group_members', 'group_meta_data']) tables[t] = tables[t].filter((r) => r.group_id !== args.p_group_id);
     return { data: { messages: 0 }, error: null };
   };
-  return { tables, purged, from, rpc };
+  return { tables, purged, labels, lastAt, from, rpc };
 }
 
 const sb = fakeSupabase();
@@ -208,6 +214,83 @@ const invite = (g, from, to, extra = {}) => db.collection('group_invitations').a
   assert.ok(sb.purged.includes(G1), 'purge_group_chat called');
   assert.strictEqual((await db.collection('group_invitations').where('groupId', '==', G1).get()).size, 0, 'invitations swept');
   assert.strictEqual((await db.collection('group_join_requests').where('groupId', '==', G1).get()).size, 0, 'join requests swept');
+
+  // ── creator name / avatar follow the owner (All groups tab) ──
+  const GN = `gn_${RUN}`;
+  await create(GN, U3);
+  d = await data(GN);
+  assert.strictEqual(d.creatorDisplayName, U3, 'creatorDisplayName from the creator entry');
+  assert.strictEqual(d.creatorAvatar, null, 'creatorAvatar written (none yet)');
+  await invite(GN, U3, U1);
+  await join(GN, U1);
+  await write(GN, (ref) => ref.update({ [`members.${U1}.displayName`]: 'One', [`members.${U1}.avatar`]: 'https://x/a.png' }));
+  await write(GN, (ref) => ref.update({ createdBy: U1 }));
+  d = await data(GN);
+  assert.ok(d.createdBy === U1 && d.creatorDisplayName === 'One' && d.creatorAvatar === 'https://x/a.png', 'name + avatar follow a transfer');
+
+  // ── archive / restore ──
+  const GA = `ga_${RUN}`;
+  await create(GA, U2);
+  const archivedAt = admin.firestore.Timestamp.fromMillis(Date.now() - 61 * 864e5);
+  const ra = await write(GA, (ref) => ref.update({ isActive: false, archivedAt }));
+  assert.ok(ra.archived && sb.labels.get(GA), 'archiving labels every member row');
+  const rr = await write(GA, (ref) => ref.update({ isActive: true, restoredAt: FieldValue.serverTimestamp() }));
+  assert.strictEqual(rr.restore, 'ok');
+  assert.strictEqual(sb.labels.get(GA), null, 'restore clears the label');
+  assert.strictEqual((await data(GA)).archivedAt, undefined, 'restore removes archivedAt');
+  // U2 owns GL? no — U2 owns GA + at most one more; fill the cap, then a restore must be refused.
+  await write(GA, (ref) => ref.update({ isActive: false, archivedAt }));
+  const GA2 = `ga2_${RUN}`, GA3 = `ga3_${RUN}`;
+  await create(GA2, U2);
+  await create(GA3, U2);
+  const rr2 = await write(GA, (ref) => ref.update({ isActive: true, restoredAt: FieldValue.serverTimestamp() }));
+  assert.strictEqual(rr2.restore, 'over_cap', 'restore past the cap is undone');
+  assert.strictEqual((await data(GA)).isActive, false);
+  assert.strictEqual(await GM.reactivateArchivedGroup(GA, await data(GA), deps), 'over_cap', 'a message does not reactivate past the cap');
+  await gref(GA3).delete();
+  assert.strictEqual(await GM.reactivateArchivedGroup(GA, await data(GA), deps), 'restored', 'a message reactivates when there is room');
+  assert.strictEqual((await data(GA)).isActive, true);
+
+  // ── cleanup: dry run, then apply ──
+  const ago = (days) => admin.firestore.Timestamp.fromMillis(Date.now() - days * 864e5);
+  const iso = (days) => new Date(Date.now() - days * 864e5).toISOString();
+  const C1 = `c_old_${RUN}`, C2 = `c_fresh_${RUN}`, C3 = `c_msgold_${RUN}`, C4 = `c_msgnew_${RUN}`;
+  const C5 = `c_archold_${RUN}`, C6 = `c_archnew_${RUN}`, C7 = `c_archmsg_${RUN}`, C8 = `c_archhand_${RUN}`;
+  const base = (owner) => ({ createdBy: owner, memberIds: [owner], name: 'c' });
+  await gref(C1).set({ ...base(Y), isActive: true, createdAt: ago(70) });
+  await gref(C2).set({ ...base(Y), isActive: true, createdAt: ago(1) });
+  await gref(C3).set({ ...base(Y), isActive: true, createdAt: ago(100) }); sb.lastAt.set(C3, iso(61));
+  await gref(C4).set({ ...base(Y), isActive: true, createdAt: ago(100) }); sb.lastAt.set(C4, iso(10));
+  await gref(C5).set({ ...base(Y), isActive: false, createdAt: ago(200), archivedAt: ago(31) }); sb.lastAt.set(C5, iso(95));
+  await gref(C6).set({ ...base(Y), isActive: false, createdAt: ago(200), archivedAt: ago(5) }); sb.lastAt.set(C6, iso(70));
+  // C7's owner has room under the cap (Y owns several active groups by now).
+  await gref(C7).set({ ...base(uid('zedowner')), isActive: false, createdAt: ago(200), archivedAt: ago(10) }); sb.lastAt.set(C7, iso(1));
+  await gref(C8).set({ ...base(Y), isActive: false, createdAt: ago(200) });
+  const plan = await GM.planGroupCleanup(deps);
+  const restoreIds = plan.restore.map((r) => r.id);
+  for (const [id, want] of [[C1, 'archive'], [C3, 'archive'], [C5, 'delete'], [C7, 'restore']]) {
+    const got = plan.archive.includes(id) ? 'archive' : plan.delete.includes(id) ? 'delete' : restoreIds.includes(id) ? 'restore' : 'keep';
+    assert.strictEqual(got, want, `${id}: ${want}`);
+  }
+  for (const id of [C2, C4, C6, C8]) {
+    assert.ok(!plan.archive.includes(id) && !plan.delete.includes(id) && !restoreIds.includes(id), `${id}: kept`);
+  }
+  const dry = await GM.runGroupCleanup(deps); // no server_config doc → dry run
+  assert.strictEqual(dry.mode, 'dry_run');
+  assert.ok(dry.wouldArchive >= 2 && dry.wouldDelete >= 1 && dry.archived === undefined, 'dry run only counts');
+  assert.strictEqual((await data(C1)).isActive, true, 'dry run changed nothing');
+  await db.collection('server_config').doc('groupCleanup').set({ apply: true });
+  const run = await GM.runGroupCleanup(deps);
+  assert.strictEqual(run.mode, 'apply');
+  assert.strictEqual((await data(C1)).isActive, false, 'quiet 60 days → archived');
+  assert.ok((await data(C1)).archivedAt, 'archivedAt stamped');
+  assert.strictEqual((await data(C3)).isActive, false, 'last message 61 days ago → archived');
+  assert.strictEqual(await data(C5), null, 'archived and quiet 30 more days → deleted');
+  assert.strictEqual((await data(C7)).isActive, true, 'archived but chatted since → back');
+  assert.strictEqual((await data(C6)).isActive, false, 'recently archived stays archived');
+  assert.strictEqual((await data(C2)).isActive, true, 'fresh group untouched');
+  assert.strictEqual((await data(C4)).isActive, true, 'busy group untouched');
+  await db.collection('server_config').doc('groupCleanup').delete();
 
   // ── unit bits ──
   assert.deepStrictEqual(GM.searchKeysFor('トレード 募集'), ['ト', 'トレ', 'トレー', 'トレード', '募', '募集']);

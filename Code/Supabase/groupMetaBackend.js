@@ -42,8 +42,15 @@ async function upsertMembersViaRpc({
 
 // Explicit column list for hot reads — avoids select('*') egress on the
 // group-list table. Must list exactly the columns fromGroupMetaRow() reads.
-const GROUP_META_COLS =
+const GROUP_META_COLS_BASE =
   'group_id, group_name, group_avatar, last_message, last_message_timestamp_ms, last_message_sender_id, last_message_sender_name, member_count, created_by, unread_count, muted, joined_at_ms, last_read_at_ms';
+// archived_at (supabase/044 STEP 4, inactive-group cleanup) labels archived
+// groups. Until that step is applied the column is missing (42703): drop it
+// for this session instead of failing the whole list.
+let withArchivedCol = true;
+const metaCols = () => (withArchivedCol ? `${GROUP_META_COLS_BASE}, archived_at` : GROUP_META_COLS_BASE);
+const missingArchivedCol = (error) => withArchivedCol
+  && (error?.code === '42703' || /archived_at/.test(error?.message || ''));
 
 // -----------------------------------------------------------------
 // Row mapper — DB snake_case → UI camelCase
@@ -60,6 +67,7 @@ export function fromGroupMetaRow(row) {
     lastMessageSenderName: row.last_message_sender_name ?? null,
     memberCount: row.member_count ?? null,
     createdBy: row.created_by ?? null,
+    archivedAt: row.archived_at ? Date.parse(row.archived_at) || null : null,
     unreadCount: row.unread_count ?? 0,
     muted: !!row.muted,
     joinedAt: row.joined_at_ms ?? null,
@@ -85,10 +93,14 @@ export async function loadGroupMeta(userId) {
   while (true) {
     const { data, error } = await supabase
       .from('group_meta_data')
-      .select(GROUP_META_COLS)
+      .select(metaCols())
       .eq('user_id', userId)
       .order('last_message_timestamp_ms', { ascending: false, nullsFirst: false })
       .range(from, from + GROUP_META_PAGE - 1);
+    if (error && missingArchivedCol(error)) {
+      withArchivedCol = false;
+      continue;
+    }
     if (error) {
       console.warn('[groupMetaBackend] loadGroupMeta error:', error.message);
       break;
@@ -316,7 +328,7 @@ export function subscribeToGroupMeta(userId, { onUpsert, onRemove, onReady, onSt
     gapFillInFlight = true;
     supabase
       .from('group_meta_data')
-      .select(GROUP_META_COLS)
+      .select(metaCols())
       .eq('user_id', userId)
       .gt('last_message_timestamp_ms', maxKnownTs || 0)
       .order('last_message_timestamp_ms', { ascending: false, nullsFirst: false })

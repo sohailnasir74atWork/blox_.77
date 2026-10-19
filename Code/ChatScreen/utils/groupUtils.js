@@ -200,6 +200,7 @@ export const createGroup = async (firestoreDB, appdatabase, creatorData, memberI
       description: finalDescription,
       createdBy: creatorData.id,
       creatorDisplayName: creatorData.displayName || 'Anonymous', // Store creator display name for explore feature
+      creatorAvatar: creatorData.avatar || null, // All groups tab shows these without a profile read
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       avatar: groupAvatarUrl || null, // Store group avatar
@@ -637,6 +638,8 @@ export const leaveGroup = async (firestoreDB, appdatabase, groupId, userId) => {
 
         transaction.update(groupRef, {
           createdBy: newOwnerId, // Transfer creator status
+          creatorDisplayName: newMembers[newOwnerId]?.displayName || 'Anonymous',
+          creatorAvatar: newMembers[newOwnerId]?.avatar || null,
           memberIds: newMemberIds,
           members: newMembers,
           memberCount: newMemberIds.length,
@@ -1219,6 +1222,8 @@ export const makeMemberCreator = async (firestoreDB, appdatabase, groupId, membe
       // This is IRREVERSIBLE - current creator becomes regular member
       transaction.update(groupRef, {
         createdBy: memberIdToMakeCreator, // New creator
+        creatorDisplayName: groupData.members?.[memberIdToMakeCreator]?.displayName || 'Anonymous',
+        creatorAvatar: groupData.members?.[memberIdToMakeCreator]?.avatar || null,
         updatedAt: serverTimestamp(),
       });
 
@@ -1371,6 +1376,48 @@ export const updateGroupAvatar = async (firestoreDB, appdatabase, groupId, userI
   } catch (error) {
     console.error('Error updating group avatar:', error);
     return { success: false, error: error.message || i18n.t('chat.group_utils.failed_to_update_group_icon') };
+  }
+};
+
+/**
+ * Restore a group the server archived (no messages for 60 days): the creator
+ * or Senior Mod+. Archived groups don't count toward the owner's cap, so the
+ * owner must have room; the server undoes a restore that doesn't fit
+ * (functions/groupMembership.js) — this only says so up front for your own.
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+export const restoreGroup = async (firestoreDB, groupId, userId, roles = null) => {
+  if (!firestoreDB || !groupId || !userId) {
+    return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
+  }
+  try {
+    const groupRef = doc(firestoreDB, 'groups', groupId);
+    const groupSnap = await getDoc(groupRef);
+    if (!groupSnap.exists()) {
+      return { success: false, error: i18n.t('chat.group_utils.group_not_found') };
+    }
+    const groupData = groupSnap.data();
+    if (groupData.isActive !== false) return { success: true };
+    if (!getGroupPermissions(groupData, userId, roles).canManage) {
+      return { success: false, error: i18n.t('chat.groups_screen.only_admins_edit') };
+    }
+    if (groupData.createdBy === userId) {
+      const cap = getGroupCap(roles);
+      if ((await getUserAdminGroups(firestoreDB, userId)).length >= cap) {
+        return {
+          success: false,
+          error: i18n.t('groups.errors.group_limit', {
+            max: cap,
+            defaultValue: 'You can be the admin of up to {{max}} groups at a time. Delete one to create a new one.',
+          }),
+        };
+      }
+    }
+    await updateDoc(groupRef, { isActive: true, restoredAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    return { success: true };
+  } catch (error) {
+    console.error('Error restoring group:', error);
+    return { success: false, error: error.message || i18n.t('chat.groups_screen.restore_failed') };
   }
 };
 
