@@ -618,6 +618,19 @@ async function firestoreTests() {
   await no('user_profiles other', () => setDoc(d(U1, 'user_profiles', U2), { ownedFruits: [] }, { merge: true }));
   await ok('user_profiles get other', () => getDoc(d(U1, 'user_profiles', U2)));
 
+  sec('fs review delete (blox-ratings 2026-10-19)');
+  await seed(async (f) => {
+    for (const from of [U1, U3, A, S, M]) await F.setDoc(F.doc(f, 'reviews', `${U2}_${from}`), { fromUserId: from, toUserId: U2, rating: 1 });
+    await F.setDoc(F.doc(f, 'reviews', `${S}_${U1}`), { fromUserId: U1, toUserId: S, rating: 1 });
+  });
+  await no('mod deletes a player\'s review', () => deleteDoc(d(M, 'reviews', `${U2}_${U1}`)));
+  await no('JMD deletes a player\'s review', () => deleteDoc(d(J, 'reviews', `${U2}_${U1}`)));
+  await no('player deletes a review about someone else', () => deleteDoc(d(U3, 'reviews', `${U2}_${U1}`)));
+  await no('senior mod deletes an admin\'s review', () => deleteDoc(d(S, 'reviews', `${U2}_${A}`)));
+  await no('senior mod deletes a review about themselves', () => deleteDoc(d(S, 'reviews', `${S}_${U1}`)));
+  await ok('admin deletes a player\'s review', () => deleteDoc(d(A, 'reviews', `${U2}_${U3}`)));
+  await ok('senior mod writes the summary after a delete (old builds)', () => setDoc(d(S, 'user_ratings_summary', U2), { averageRating: 1, count: 1 }, { merge: true }));
+
   sec('fs social');
   await ok('follow', () => addDoc(c(U1, 'following'), { followerId: U1, followingId: U2, createdAt: serverTimestamp() }));
   await ok('follow (setDoc auto-id, BottomDrawer)', () => setDoc(doc(c(U3, 'following')), { followerId: U3, followingId: U1, createdAt: serverTimestamp() }));
