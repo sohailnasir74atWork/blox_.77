@@ -2,8 +2,10 @@
 // with the original 16 stickers bundled as the offline fallback.
 //
 // Manifest: https://blox-api.b-cdn.net/stickers/manifest.json (storage zone
-// blox-data, folder stickers/; the zone serves max-age=0, so an upload is
-// live on the next check). Shape:
+// blox-data, folder stickers/). The zone tells phones max-age=0, but the
+// Bunny edge keeps its own copy (codes.json / data.json stay cache HITs for
+// days, and a 404 is cached too), so purge this URL in the pull zone after
+// every upload, the first one included. Phones fetch with no-store. Shape:
 //   {
 //     "version": 2,
 //     "packs": [
@@ -141,7 +143,7 @@ export function refreshStickerManifest({ force = false, now = Date.now() } = {})
   inflight = (async () => {
     try {
       const next = await withDeadline(async () => {
-        const res = await fetch(STICKER_MANIFEST_URL, { signal: controller.signal });
+        const res = await fetch(STICKER_MANIFEST_URL, { cache: 'no-store', signal: controller.signal });
         // Any HTTP answer counts as a check (a 404 before the first upload
         // should not refetch on every open). Network errors do not.
         storage.set(CHECKED_AT_KEY, String(now));

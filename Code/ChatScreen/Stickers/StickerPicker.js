@@ -13,6 +13,7 @@ import {
   stickerPackName,
   isAllowedStickerUrl,
 } from './stickerManifest';
+import { stickersSupported, subscribeStickerSupport } from '../../Supabase/stickerSupport';
 
 const COLUMNS = 4;
 
@@ -86,6 +87,17 @@ const StickerPicker = ({ visible, onClose, onSelect, isDark }) => {
     </Modal>
   );
 };
+
+// False once the database turned out to lack 050's sticker column / rpc for
+// `table` ('private_messages' | 'group_messages'); the input hides its button.
+export function useStickersSupported(table) {
+  const [ok, setOk] = useState(() => stickersSupported(table));
+  useEffect(() => {
+    setOk(stickersSupported(table));
+    return subscribeStickerSupport(() => setOk(stickersSupported(table)));
+  }, [table]);
+  return ok;
+}
 
 // A sticker inside a message bubble. Renders nothing for a URL outside the
 // sticker folders (the server refuses those since 050; this covers old rows).

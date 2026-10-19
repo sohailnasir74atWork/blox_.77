@@ -9,7 +9,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import { safeCompressImage } from '../../Helper/safeCompressImage';
 import RNFS from 'react-native-fs';
 import { validateContent, containsLink, isAllowedLink } from '../../Helper/ContentModeration';
-import StickerPicker from '../Stickers/StickerPicker';
+import StickerPicker, { useStickersSupported } from '../Stickers/StickerPicker';
 
 const BUNNY_STORAGE_HOST = 'storage.bunnycdn.com';
 const BUNNY_STORAGE_ZONE = 'post-gag';
@@ -67,6 +67,7 @@ const GroupMessageInput = ({
   const [isSending, setIsSending] = useState(false);
   const [imageUri, setImageUri] = useState(null);
   const [showStickers, setShowStickers] = useState(false);
+  const stickersOn = useStickersSupported('group_messages');
 
   const { theme, user, isAdmin } = useGlobalState();
   // Admins and full (non-baby) moderators bypass moderation so they can post
@@ -296,15 +297,17 @@ const GroupMessageInput = ({
           <Icon name="attach" size={20} color={isDark ? '#FFF' : '#000'} />
         </TouchableOpacity>
 
-        {/* Stickers */}
-        <TouchableOpacity
-          style={[styles.sendButton, { marginRight: 3, paddingHorizontal: 3 }]}
-          onPress={() => setShowStickers(true)}
-          disabled={isSending || isBanned}
-          accessibilityLabel={t('chat.stickers.title')}
-        >
-          <Icon name="happy-outline" size={20} color={isDark ? '#FFF' : '#000'} />
-        </TouchableOpacity>
+        {/* Stickers (hidden while the database has no sticker column) */}
+        {stickersOn && (
+          <TouchableOpacity
+            style={[styles.sendButton, { marginRight: 3, paddingHorizontal: 3 }]}
+            onPress={() => setShowStickers(true)}
+            disabled={isSending || isBanned}
+            accessibilityLabel={t('chat.stickers.title')}
+          >
+            <Icon name="happy-outline" size={20} color={isDark ? '#FFF' : '#000'} />
+          </TouchableOpacity>
+        )}
 
         <TextInput
           style={[styles.input, { color: isDark ? '#FFF' : '#000' }]}
@@ -377,7 +380,7 @@ const GroupMessageInput = ({
       )}
 
       <StickerPicker
-        visible={showStickers}
+        visible={showStickers && stickersOn}
         onClose={() => setShowStickers(false)}
         onSelect={handleSendSticker}
         isDark={isDark}

@@ -57,8 +57,10 @@
 --     record.gif and say "✨ Sent a sticker" for everyone.
 --
 -- DEPLOY ORDER
---   This file before any app build that selects `gif` from private_messages /
---   group_messages (that build's history loads fail without the column).
+--   Any order. Apply this before the build if you can: a build that meets a
+--   database without it still chats (Code/Supabase/stickerSupport.js retries
+--   without `gif`), but hides the DM / group sticker button until the app is
+--   restarted after this file is in. Public-chat stickers work either way.
 --   The functions change (push text) can go before or after.
 --
 -- HOW TO RUN — ONE STEP AT A TIME, IN ORDER (each is its own query)

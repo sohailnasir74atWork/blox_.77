@@ -18,7 +18,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import { safeCompressImage } from '../../Helper/safeCompressImage';
 import RNFS from 'react-native-fs';
 import { validateContent } from '../../Helper/ContentModeration';
-import StickerPicker from '../Stickers/StickerPicker';
+import StickerPicker, { useStickersSupported } from '../Stickers/StickerPicker';
 
 const BUNNY_STORAGE_HOST = 'storage.bunnycdn.com';
 const BUNNY_STORAGE_ZONE = 'post-gag';
@@ -88,6 +88,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
   const [imageUri, setImageUri] = useState(null); // single image only
   const [showTemplates, setShowTemplates] = useState(false);
   const [showStickers, setShowStickers] = useState(false);
+  const stickersOn = useStickersSupported('private_messages');
 
 
 
@@ -327,19 +328,21 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
           />
         </TouchableOpacity>
 
-        {/* Stickers */}
-        <TouchableOpacity
-          style={[styles.sendButton, { marginRight: 3, paddingHorizontal: 3 }]}
-          onPress={() => setShowStickers(true)}
-          disabled={isSending || isBanned}
-          accessibilityLabel={t('chat.stickers.title')}
-        >
-          <Icon
-            name="happy-outline"
-            size={20}
-            color={isDark ? '#FFF' : '#000'}
-          />
-        </TouchableOpacity>
+        {/* Stickers (hidden while the database has no sticker column) */}
+        {stickersOn && (
+          <TouchableOpacity
+            style={[styles.sendButton, { marginRight: 3, paddingHorizontal: 3 }]}
+            onPress={() => setShowStickers(true)}
+            disabled={isSending || isBanned}
+            accessibilityLabel={t('chat.stickers.title')}
+          >
+            <Icon
+              name="happy-outline"
+              size={20}
+              color={isDark ? '#FFF' : '#000'}
+            />
+          </TouchableOpacity>
+        )}
 
         <TextInput
           style={[styles.input, { color: isDark ? '#FFF' : '#000' }]}
@@ -533,7 +536,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
       </Modal>
 
       <StickerPicker
-        visible={showStickers}
+        visible={showStickers && stickersOn}
         onClose={() => setShowStickers(false)}
         onSelect={handleSendSticker}
         isDark={isDark}

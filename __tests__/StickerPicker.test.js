@@ -47,3 +47,14 @@ test('a message sticker renders only for a sticker-folder URL', async () => {
   expect(img.props.source.uri).toBe('https://blox-api.b-cdn.net/stickers/fruits/dragon.webp');
   expect(img.props.accessibilityLabel).toBe('Sent a sticker');
 });
+
+test('useStickersSupported turns false when the backend finds no gif column', async () => {
+  const { useStickersSupported } = require('../Code/ChatScreen/Stickers/StickerPicker');
+  const { markStickersUnsupported } = require('../Code/Supabase/stickerSupport');
+  const seen = [];
+  const Probe = () => { seen.push(useStickersSupported('group_messages')); return null; };
+  await ReactTestRenderer.act(async () => { ReactTestRenderer.create(<Probe />); });
+  expect(seen[seen.length - 1]).toBe(true);
+  await ReactTestRenderer.act(async () => { markStickersUnsupported('group_messages'); });
+  expect(seen[seen.length - 1]).toBe(false);
+});

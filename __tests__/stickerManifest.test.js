@@ -80,7 +80,7 @@ test('refresh swaps packs only when the version changes, and caches the answer',
   global.fetch = respond(manifest);
 
   await refreshStickerManifest({ now: 1000 });
-  expect(global.fetch).toHaveBeenCalledWith(STICKER_MANIFEST_URL, expect.anything());
+  expect(global.fetch).toHaveBeenCalledWith(STICKER_MANIFEST_URL, expect.objectContaining({ cache: 'no-store' }));
   expect(getStickerPacks().map((p) => p.id)).toEqual(['fruits']);
   expect(listener).toHaveBeenCalledTimes(1);
 

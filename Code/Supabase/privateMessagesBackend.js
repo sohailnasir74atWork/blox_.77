@@ -18,6 +18,10 @@
 import { supabase } from './client';
 import { uuidv4 } from './uuid';
 import { reportChatMessage } from './messageReports';
+import {
+  stickersSupported, markStickersUnsupported, isUnknownGifColumn,
+  stickersUnavailableError, withoutGifColumn, selectWithGifFallback,
+} from './stickerSupport';
 
 const PAGE_SIZE_DEFAULT = 15;
 
@@ -25,6 +29,10 @@ const PAGE_SIZE_DEFAULT = 15;
 // of message history. Must list exactly the columns fromPrivateMessageRow() reads.
 const PRIVATE_MSG_COLS =
   'id, client_msg_id, chat_id, sender_id, recipient_id, text, image_url, gif, fruits, reply_to, os, deleted, created_at';
+// Before 050 there is no `gif` column (see stickerSupport.js).
+const PRIVATE_MSG_COLS_NO_GIF = withoutGifColumn(PRIVATE_MSG_COLS);
+const privateMsgCols = (withGif = stickersSupported('private_messages')) =>
+  (withGif ? PRIVATE_MSG_COLS : PRIVATE_MSG_COLS_NO_GIF);
 
 // Canonical chat id used by both RTDB and the Supabase chat_id column.
 // Sort the two UIDs alphabetically and join with an underscore.
@@ -108,24 +116,25 @@ export function newClientMsgId() {
 // returned by the previous page's last row. Newest-first within a chat.
 export async function loadPrivateMessages(chatId, { limit = PAGE_SIZE_DEFAULT, before = null } = {}) {
   if (!chatId) return [];
-  let q = supabase
-    .from('private_messages')
-    .select(PRIVATE_MSG_COLS)
-    .eq('chat_id', chatId)
-    .eq('deleted', false)
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(limit);
+  const { data, error } = await selectWithGifFallback('private_messages', (withGif) => {
+    let q = supabase
+      .from('private_messages')
+      .select(privateMsgCols(withGif))
+      .eq('chat_id', chatId)
+      .eq('deleted', false)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(limit);
 
-  if (before?.createdAt) {
-    // Composite cursor — Postgres evaluates this as a row comparison;
-    // (chat_id, created_at desc, id desc) index serves it.
-    q = q.or(
-      `created_at.lt.${before.createdAt},and(created_at.eq.${before.createdAt},id.lt.${before.id})`,
-    );
-  }
-
-  const { data, error } = await q;
+    if (before?.createdAt) {
+      // Composite cursor — Postgres evaluates this as a row comparison;
+      // (chat_id, created_at desc, id desc) index serves it.
+      q = q.or(
+        `created_at.lt.${before.createdAt},and(created_at.eq.${before.createdAt},id.lt.${before.id})`,
+      );
+    }
+    return q;
+  });
   if (error) {
     console.warn('[privateMessagesBackend] loadPrivateMessages error:', error.message);
     return [];
@@ -158,22 +167,23 @@ export async function modLoadPrivateChat(chatId, { limit = 50 } = {}) {
 
 export async function loadPrivateMessagesSince(chatId, since = null, { limit = 200 } = {}) {
   if (!chatId) return [];
-  let q = supabase
-    .from('private_messages')
-    .select(PRIVATE_MSG_COLS)
-    .eq('chat_id', chatId)
-    .eq('deleted', false)
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(limit);
+  const { data, error } = await selectWithGifFallback('private_messages', (withGif) => {
+    let q = supabase
+      .from('private_messages')
+      .select(privateMsgCols(withGif))
+      .eq('chat_id', chatId)
+      .eq('deleted', false)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(limit);
 
-  if (since?.createdAt) {
-    q = q.or(
-      `created_at.gt.${since.createdAt},and(created_at.eq.${since.createdAt},id.gt.${since.id})`,
-    );
-  }
-
-  const { data, error } = await q;
+    if (since?.createdAt) {
+      q = q.or(
+        `created_at.gt.${since.createdAt},and(created_at.eq.${since.createdAt},id.gt.${since.id})`,
+      );
+    }
+    return q;
+  });
   if (error) {
     console.warn('[privateMessagesBackend] loadPrivateMessagesSince error:', error.message);
     return [];
@@ -247,6 +257,7 @@ export async function sendPrivateMessage({
   if (!chatId || !senderId || !recipientId) {
     throw new Error('sendPrivateMessage: chatId + senderId + recipientId required');
   }
+  if (gif && !stickersSupported('private_messages')) throw stickersUnavailableError();
 
   const buildPayload = () => toInsertPayload({
     chatId,
@@ -262,23 +273,29 @@ export async function sendPrivateMessage({
     origin,
   });
 
-  let payload = buildPayload();
-  let { data, error } = await supabase
+  const insertOnce = (p) => supabase
     .from('private_messages')
-    .insert(payload)
-    .select(PRIVATE_MSG_COLS)
+    .insert(p)
+    .select(privateMsgCols())
     .single();
 
-  // Schema hasn't caught up: drop `origin` and send again rather than losing
-  // the message. Costs one wasted round-trip, once per app session.
-  if (isUnknownOriginColumn(error)) {
-    originColumnSupported = false;
+  let payload = buildPayload();
+  let { data, error } = await insertOnce(payload);
+
+  // Schema hasn't caught up: drop `origin` / `gif` and send again rather than
+  // losing the message. Costs one wasted round-trip each, once per app session.
+  // A sticker can't go without `gif`, so that send fails as not allowed.
+  for (let attempt = 0; attempt < 2 && error; attempt++) {
+    if (isUnknownOriginColumn(error)) {
+      originColumnSupported = false;
+    } else if (isUnknownGifColumn(error) && stickersSupported('private_messages')) {
+      markStickersUnsupported('private_messages');
+      if (gif) throw stickersUnavailableError();
+    } else {
+      break;
+    }
     payload = buildPayload();
-    ({ data, error } = await supabase
-      .from('private_messages')
-      .insert(payload)
-      .select(PRIVATE_MSG_COLS)
-      .single());
+    ({ data, error } = await insertOnce(payload));
   }
 
   if (error) {
@@ -287,7 +304,7 @@ export async function sendPrivateMessage({
     if (error.code === '23505' && payload.client_msg_id) {
       const { data: existing, error: selectErr } = await supabase
         .from('private_messages')
-        .select(PRIVATE_MSG_COLS)
+        .select(privateMsgCols())
         .eq('chat_id', chatId)
         .eq('client_msg_id', payload.client_msg_id)
         .maybeSingle();
