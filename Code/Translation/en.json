@@ -1831,6 +1831,10 @@
       "inappropriate": "Inappropriate content is not allowed.",
       "links": "Links are not allowed in messages."
     },
+    "word_filter": {
+      "slur": "Hate speech and slurs are not allowed.",
+      "username_not_allowed": "This name contains a word that isn't allowed. Please choose a different one."
+    },
     "notifications": {
       "default_channel": "Default Channel",
       "stock_update_title": "Stock Update",

@@ -1833,6 +1833,10 @@
       "inappropriate": "Hindi puwede ang hindi angkop na content.",
       "links": "Hindi puwede ang links sa mga mensahe."
     },
+    "word_filter": {
+      "slur": "Hindi puwede ang hate speech at mapanlait na salita.",
+      "username_not_allowed": "May salitang hindi puwede sa pangalang iyan. Pumili ng iba."
+    },
     "notifications": {
       "default_channel": "Default na channel",
       "stock_update_title": "Na-update ang stock",

@@ -1836,6 +1836,10 @@
       "inappropriate": "No se permite el contenido inapropiado.",
       "links": "No se permiten enlaces en los mensajes."
     },
+    "word_filter": {
+      "slur": "No se permiten los discursos de odio ni los insultos discriminatorios.",
+      "username_not_allowed": "Ese nombre contiene una palabra no permitida. Elige otro."
+    },
     "notifications": {
       "default_channel": "Canal predeterminado",
       "stock_update_title": "Stock actualizado",
