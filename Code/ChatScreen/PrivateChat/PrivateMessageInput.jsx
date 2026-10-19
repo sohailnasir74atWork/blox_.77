@@ -18,6 +18,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import { safeCompressImage } from '../../Helper/safeCompressImage';
 import { uploadImage, UPLOAD_KIND } from '../../Helper/imageUpload';
 import { validateContent } from '../../Helper/ContentModeration';
+import StickerPicker, { useStickersSupported } from '../Stickers/StickerPicker';
 
 // ✅ Quick message templates for Blox Fruits trading
 // Translation keys, resolved with t() at render/send time.
@@ -51,6 +52,8 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
   const [isSending, setIsSending] = useState(false);
   const [imageUri, setImageUri] = useState(null); // single image only
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showStickers, setShowStickers] = useState(false);
+  const stickersOn = useStickersSupported('private_messages');
 
 
 
@@ -177,6 +180,21 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
       setIsSending(false); // Reset sending state
     }
   };
+  // A sticker goes out on its own; whatever is typed stays in the box.
+  const handleSendSticker = async (url) => {
+    setShowStickers(false);
+    if (isSending || isBanned) return;
+    setIsSending(true);
+    try {
+      await onSend('', null, [], replyTo, url);
+      if (onCancelReply) onCancelReply();
+    } catch (error) {
+      console.error('Error sending sticker:', error);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   const hasFruits =
     Array.isArray(selectedFruits) && selectedFruits.length > 0;
 
@@ -194,6 +212,8 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
                 ? replyTo.text
                 : replyTo.imageUrl
                   ? t('chat.message_common.reply_image')
+                  : replyTo.gif
+                    ? t('chat.stickers.reply_preview')
                   : (Array.isArray(replyTo.fruits) && replyTo.fruits.length > 0)
                     ? t('chat.private_message_input.reply_pets', { count: replyTo.fruits.length })
                     : t('chat.private_message_input.reply_message')
@@ -244,6 +264,22 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
             color={isDark ? '#FFF' : '#000'}
           />
         </TouchableOpacity>
+
+        {/* Stickers (hidden while the database has no sticker column) */}
+        {stickersOn && (
+          <TouchableOpacity
+            style={[styles.sendButton, { marginRight: 3, paddingHorizontal: 3 }]}
+            onPress={() => setShowStickers(true)}
+            disabled={isSending || isBanned}
+            accessibilityLabel={t('chat.stickers.title')}
+          >
+            <Icon
+              name="happy-outline"
+              size={20}
+              color={isDark ? '#FFF' : '#000'}
+            />
+          </TouchableOpacity>
+        )}
 
         <TextInput
           style={[styles.input, { color: isDark ? '#FFF' : '#000' }]}
@@ -435,6 +471,13 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      <StickerPicker
+        visible={showStickers && stickersOn}
+        onClose={() => setShowStickers(false)}
+        onSelect={handleSendSticker}
+        isDark={isDark}
+      />
     </View>
   );
 };

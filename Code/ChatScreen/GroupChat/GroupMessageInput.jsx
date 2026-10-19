@@ -9,6 +9,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import { safeCompressImage } from '../../Helper/safeCompressImage';
 import { uploadImage, UPLOAD_KIND } from '../../Helper/imageUpload';
 import { validateContent, containsLink, isAllowedLink } from '../../Helper/ContentModeration';
+import StickerPicker, { useStickersSupported } from '../Stickers/StickerPicker';
 
 const GroupMessageInput = ({
   onSend,
@@ -23,6 +24,8 @@ const GroupMessageInput = ({
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [imageUri, setImageUri] = useState(null);
+  const [showStickers, setShowStickers] = useState(false);
+  const stickersOn = useStickersSupported('group_messages');
 
   const { theme, user, isAdmin } = useGlobalState();
   // Admins and full (non-baby) moderators bypass moderation so they can post
@@ -145,6 +148,22 @@ const GroupMessageInput = ({
     t,
   ]);
 
+  // A sticker goes out on its own; whatever is typed stays in the box.
+  const handleSendSticker = useCallback(async (url) => {
+    setShowStickers(false);
+    if (isSending || isBanned) return;
+    setIsSending(true);
+    try {
+      await onSend('', null, [], replyTo, url);
+      if (onCancelReply) onCancelReply();
+    } catch (error) {
+      console.error('Error sending sticker:', error);
+      Alert.alert(t('chat.error'), t('chat.message_common.send_failed'));
+    } finally {
+      setIsSending(false);
+    }
+  }, [isSending, isBanned, onSend, replyTo, onCancelReply, t]);
+
   const hasFruits = useMemo(
     () => Array.isArray(selectedFruits) && selectedFruits.length > 0,
     [selectedFruits]
@@ -163,6 +182,9 @@ const GroupMessageInput = ({
     }
     if (replyTo.imageUrl) {
       return t('chat.message_common.reply_image');
+    }
+    if (replyTo.gif) {
+      return t('chat.stickers.reply_preview');
     }
     if (replyTo.hasFruits || (Array.isArray(replyTo.fruits) && replyTo.fruits.length > 0)) {
       const count = replyTo.fruitsCount || (Array.isArray(replyTo.fruits) ? replyTo.fruits.length : 0);
@@ -215,6 +237,18 @@ const GroupMessageInput = ({
         >
           <Icon name="attach" size={20} color={isDark ? '#FFF' : '#000'} />
         </TouchableOpacity>
+
+        {/* Stickers (hidden while the database has no sticker column) */}
+        {stickersOn && (
+          <TouchableOpacity
+            style={[styles.sendButton, { marginRight: 3, paddingHorizontal: 3 }]}
+            onPress={() => setShowStickers(true)}
+            disabled={isSending || isBanned}
+            accessibilityLabel={t('chat.stickers.title')}
+          >
+            <Icon name="happy-outline" size={20} color={isDark ? '#FFF' : '#000'} />
+          </TouchableOpacity>
+        )}
 
         <TextInput
           style={[styles.input, { color: isDark ? '#FFF' : '#000' }]}
@@ -285,6 +319,13 @@ const GroupMessageInput = ({
           </TouchableOpacity>
         </View>
       )}
+
+      <StickerPicker
+        visible={showStickers && stickersOn}
+        onClose={() => setShowStickers(false)}
+        onSelect={handleSendSticker}
+        isDark={isDark}
+      />
     </View>
   );
 };

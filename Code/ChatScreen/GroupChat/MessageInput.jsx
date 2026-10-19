@@ -1,12 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, TextInput, TouchableOpacity, Text, Modal, Image, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, TextInput, TouchableOpacity, Text, FlatList, ActivityIndicator, StyleSheet } from 'react-native';
 import { getStyles } from './../Style';
 import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import { useTranslation } from 'react-i18next';
 import { useLocalState } from '../../LocalGlobelStats';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import InterstitialAdManager from '../../Ads/IntAd';
 import { CHAT_MESSAGES_PER_AD } from '../../Ads/adPolicy';
 import { showMessage } from 'react-native-flash-message';
@@ -19,25 +18,7 @@ import {
   slowModeRemainingMs,
   noteSlowModeSent,
 } from '../../Supabase/chatSlowMode';
-
-const Emojies = [
-  'e1.png',
-  'e2.png',
-  'e3.png',
-  'e4.png',
-  'e5.png',
-  'e6.png',
-  'e7.png',
-  'e8.png',
-  'e9.png',
-  'e10.png',
-  'e11.png',
-  'e12.png',
-  'e13.png',
-  'e14.png',
-  'e15.png',
-  'e16.png'
-];
+import StickerPicker from '../Stickers/StickerPicker';
 
 const MessageInput = ({
   input,
@@ -56,7 +37,6 @@ const MessageInput = ({
   slowModeRoomId, // public room id (rooms.id) for slow mode; unset = no slow mode
 }) => {
   const styles = getStyles(selectedTheme.colors.text === 'white');
-  const insets = useSafeAreaInsets();
   const [isSending, setIsSending] = useState(false);
   const { triggerHapticFeedback } = useHaptic();
   const [messageCount, setMessageCount] = useState(0);
@@ -405,28 +385,12 @@ const MessageInput = ({
           </TouchableOpacity>
         </View>
       )}
-      {/* Emoji Popup Modal */}
-      {/* Emoji Popup Modal */}
-      <Modal visible={showEmojiPopup} transparent animationType="slide">
-        <TouchableOpacity style={modalStyles.backdrop} onPress={() => setShowEmojiPopup(false)}>
-          <View style={[modalStyles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]} onPress={(e) => e.stopPropagation()}>
-            <View style={modalStyles.emojiListContainer}>
-              {Emojies.map((item) => (
-                <TouchableOpacity
-                  key={item}
-                  onPress={() => selectEmoji(`https://bloxfruitscalc.com/wp-content/uploads/2025/Emojies/${item}`)}
-                  style={modalStyles.emojiContainer}
-                >
-                  <Image resizeMethod="resize"
-                    source={{ uri: `https://bloxfruitscalc.com/wp-content/uploads/2025/Emojies/${item}` }}
-                    style={modalStyles.emojiImage}
-                  />
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+      <StickerPicker
+        visible={showEmojiPopup}
+        onClose={() => setShowEmojiPopup(false)}
+        onSelect={selectEmoji}
+        isDark={isDark}
+      />
 
 
 
@@ -447,35 +411,6 @@ const modalStyles = StyleSheet.create({
     fontSize: 11,
     marginLeft: 4,
     flexShrink: 1,
-  },
-  backdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.35)',
-  },
-  sheet: {
-    backgroundColor: '#fff',
-    padding: 20,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-  },
-  emojiListContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap', // Allows emojis to wrap when they overflow
-    justifyContent: 'space-between', // Aligns items to the start
-    marginTop: 10,
-  },
-  emojiContainer: {
-    margin: 10,
-    width: 50, // emoji width
-    height: 50, // emoji height
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emojiImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
   },
 });
 

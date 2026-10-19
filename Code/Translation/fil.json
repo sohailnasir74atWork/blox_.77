@@ -1102,6 +1102,12 @@
     "translate": "Isalin",
     "staff_actions": "Mga aksyon ng staff",
     "delete_all": "I-delete ang lahat ng mensahe ng user na ito",
+    "stickers": {
+      "title": "Mga Sticker",
+      "pack_classic": "Classic",
+      "reply_preview": "[Sticker]",
+      "sent_sticker": "Nagpadala ng sticker"
+    },
     "message_input": {
       "cooldown": "Maghintay ng {{seconds}} segundo bago magpadala ulit ng mensahe.",
       "gif_locked": "Bilhin muna ang item na ito sa rewards section ng shop.",

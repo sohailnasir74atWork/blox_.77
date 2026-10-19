@@ -22,13 +22,20 @@
 import { supabase } from './client';
 import { uuidv4 } from './uuid';
 import { reportChatMessage } from './messageReports';
+import {
+  stickersSupported, markStickersUnsupported, isMissingStickerRpc,
+  stickersUnavailableError, withoutGifColumn, selectWithGifFallback,
+} from './stickerSupport';
 
 const PAGE_SIZE_DEFAULT = 25;
 
 // Explicit column list for reads — avoids select('*') egress on every page
 // of group history. Must list exactly the columns fromGroupMessageRow() reads.
 const GROUP_MSG_COLS =
-  'id, client_msg_id, group_id, sender_id, sender_name, sender_avatar, text, image_url, fruits, reply_to, is_pro, roblox_username_verified, has_recent_game_win, last_game_win_at, is_creator, os, deleted, created_at';
+  'id, client_msg_id, group_id, sender_id, sender_name, sender_avatar, text, image_url, gif, fruits, reply_to, is_pro, roblox_username_verified, has_recent_game_win, last_game_win_at, is_creator, os, deleted, created_at';
+// Before 050 there is no `gif` column (see stickerSupport.js).
+const GROUP_MSG_COLS_NO_GIF = withoutGifColumn(GROUP_MSG_COLS);
+const groupMsgCols = (withGif) => (withGif ? GROUP_MSG_COLS : GROUP_MSG_COLS_NO_GIF);
 
 // =====================================================================
 // Row mapper
@@ -48,6 +55,7 @@ export function fromGroupMessageRow(row) {
     avatar: row.sender_avatar ?? null,
     text: row.text ?? null,
     imageUrl: row.image_url ?? null,
+    gif: row.gif ?? null,    // sticker URL (050)
     fruits: Array.isArray(row.fruits) ? row.fruits : [],
     replyTo: row.reply_to ?? null,
     isPro: !!row.is_pro,
@@ -101,22 +109,23 @@ export function newClientMsgId() {
 // returned by the previous page's last (oldest) row.
 export async function loadGroupMessages(groupId, { limit = PAGE_SIZE_DEFAULT, before = null } = {}) {
   if (!groupId) return [];
-  let q = supabase
-    .from('group_messages')
-    .select(GROUP_MSG_COLS)
-    .eq('group_id', groupId)
-    .eq('deleted', false)
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(limit);
+  const { data, error } = await selectWithGifFallback('group_messages', (withGif) => {
+    let q = supabase
+      .from('group_messages')
+      .select(groupMsgCols(withGif))
+      .eq('group_id', groupId)
+      .eq('deleted', false)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(limit);
 
-  if (before?.createdAt) {
-    q = q.or(
-      `created_at.lt.${before.createdAt},and(created_at.eq.${before.createdAt},id.lt.${before.id})`,
-    );
-  }
-
-  const { data, error } = await q;
+    if (before?.createdAt) {
+      q = q.or(
+        `created_at.lt.${before.createdAt},and(created_at.eq.${before.createdAt},id.lt.${before.id})`,
+      );
+    }
+    return q;
+  });
   if (error) {
     console.warn('[groupMessagesBackend] loadGroupMessages error:', error.message);
     return [];
@@ -130,21 +139,23 @@ export async function loadGroupMessages(groupId, { limit = PAGE_SIZE_DEFAULT, be
 // Newest-first, same contract as loadGroupMessages.
 export async function loadGroupMessagesBetween(groupId, { fromCreatedAt, before = null, limit = 300 } = {}) {
   if (!groupId || !fromCreatedAt) return [];
-  let q = supabase
-    .from('group_messages')
-    .select(GROUP_MSG_COLS)
-    .eq('group_id', groupId)
-    .eq('deleted', false)
-    .gte('created_at', fromCreatedAt)
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(limit);
-  if (before?.createdAt) {
-    q = q.or(
-      `created_at.lt.${before.createdAt},and(created_at.eq.${before.createdAt},id.lt.${before.id})`,
-    );
-  }
-  const { data, error } = await q;
+  const { data, error } = await selectWithGifFallback('group_messages', (withGif) => {
+    let q = supabase
+      .from('group_messages')
+      .select(groupMsgCols(withGif))
+      .eq('group_id', groupId)
+      .eq('deleted', false)
+      .gte('created_at', fromCreatedAt)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(limit);
+    if (before?.createdAt) {
+      q = q.or(
+        `created_at.lt.${before.createdAt},and(created_at.eq.${before.createdAt},id.lt.${before.id})`,
+      );
+    }
+    return q;
+  });
   if (error) {
     console.warn('[groupMessagesBackend] loadGroupMessagesBetween error:', error.message);
     return [];
@@ -167,9 +178,9 @@ export async function loadGroupMessagesBetween(groupId, { fromCreatedAt, before 
 export async function loadGroupMessagesSince(groupId, after, { limit = 50 } = {}) {
   if (!groupId || !after?.createdAt) return { rows: [], gapped: false };
 
-  const { data, error } = await supabase
+  const { data, error } = await selectWithGifFallback('group_messages', (withGif) => supabase
     .from('group_messages')
-    .select(GROUP_MSG_COLS)
+    .select(groupMsgCols(withGif))
     .eq('group_id', groupId)
     .eq('deleted', false)
     .or(
@@ -177,7 +188,7 @@ export async function loadGroupMessagesSince(groupId, after, { limit = 50 } = {}
     )
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
-    .limit(limit + 1); // +1 probe row tells us whether we truncated
+    .limit(limit + 1)); // +1 probe row tells us whether we truncated
 
   if (error) {
     console.warn('[groupMessagesBackend] loadGroupMessagesSince error:', error.message);
@@ -250,6 +261,34 @@ export async function sendGroupMessage({
   }
 
   const cmid = clientMsgId ?? newClientMsgId();
+
+  // Stickers go through send_group_sticker (050), which checks the URL and
+  // then calls send_group_message, so every send rule there still applies.
+  // Before 050 the rpc is missing: the send fails as not allowed and the
+  // sticker button hides (stickerSupport.js).
+  if (message.gif) {
+    if (!stickersSupported('group_messages')) throw stickersUnavailableError();
+    const { data, error } = await supabase.rpc('send_group_sticker', {
+      p_group_id: groupId,
+      p_client_msg_id: cmid,
+      p_gif: message.gif,
+      p_reply_to: message.replyTo ?? null,
+      p_sender_name: message.sender ?? null,
+      p_sender_avatar: message.avatar ?? null,
+      p_is_pro: !!message.isPro,
+      p_roblox_username_verified: !!message.robloxUsernameVerified,
+      p_has_recent_game_win: !!message.hasRecentGameWin,
+      p_last_game_win_at: message.lastGameWinAt ?? null,
+      p_is_creator: !!message.isCreator,
+      p_os: message.OS ?? null,
+    });
+    if (isMissingStickerRpc(error)) {
+      markStickersUnsupported('group_messages');
+      throw stickersUnavailableError();
+    }
+    if (error) throw error;
+    return fromGroupMessageRow(data);
+  }
 
   const { data, error } = await supabase.rpc('send_group_message', {
     p_group_id: groupId,

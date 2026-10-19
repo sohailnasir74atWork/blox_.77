@@ -76,6 +76,7 @@ function previewFor(r) {
   if (r.text && String(r.text).trim()) return r.text;
   if (r.image_url) return '📷 Photo';
   if (Array.isArray(r.fruits) && r.fruits.length > 0) return `🐾 Sent ${r.fruits.length} pet(s)`;
+  if (r.gif) return '✨ Sent a sticker'; // 050 sticker column
   return 'New message';
 }
 

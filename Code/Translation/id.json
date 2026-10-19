@@ -1102,6 +1102,12 @@
     "translate": "Terjemahkan",
     "staff_actions": "Tindakan staf",
     "delete_all": "Hapus semua pesan dari pengguna ini",
+    "stickers": {
+      "title": "Stiker",
+      "pack_classic": "Klasik",
+      "reply_preview": "[Stiker]",
+      "sent_sticker": "Mengirim stiker"
+    },
     "message_input": {
       "cooldown": "Tunggu {{seconds}} dtk sebelum mengirim pesan lagi.",
       "gif_locked": "Item ini harus dibeli di bagian hadiah toko.",

@@ -1102,6 +1102,12 @@
     "translate": "Übersetzen",
     "staff_actions": "Teamaktionen",
     "delete_all": "Alle Nachrichten dieses Nutzers löschen",
+    "stickers": {
+      "title": "Sticker",
+      "pack_classic": "Klassisch",
+      "reply_preview": "[Sticker]",
+      "sent_sticker": "Hat einen Sticker gesendet"
+    },
     "message_input": {
       "cooldown": "Warte {{seconds}} Sek., bevor du eine weitere Nachricht sendest.",
       "gif_locked": "Du musst diesen Gegenstand im Belohnungsbereich des Shops kaufen.",

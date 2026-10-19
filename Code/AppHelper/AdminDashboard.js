@@ -1383,6 +1383,7 @@ const AdminDashboardScreen = () => {
               timestamp: message.timestamp || null,
               text: message.text || '',
               imageUrl: message.imageUrl || null,
+              gif: message.gif || null,
               fruits: message.fruits || null,
               deleted: !!message.deleted,
             })),
@@ -2453,6 +2454,12 @@ const AdminDashboardScreen = () => {
                           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
                             <Ionicons name="image-outline" size={14} color="#007AFF" />
                             <Text style={{ color: '#007AFF', fontSize: 12, marginLeft: 4 }}>Image</Text>
+                          </View>
+                        ) : null}
+                        {item.gif ? (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
+                            <Ionicons name="happy-outline" size={14} color="#007AFF" />
+                            <Text style={{ color: '#007AFF', fontSize: 12, marginLeft: 4 }}>Sticker</Text>
                           </View>
                         ) : null}
                         {item.fruits && item.fruits.length > 0 ? (

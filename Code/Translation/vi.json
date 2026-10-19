@@ -1102,6 +1102,12 @@
     "translate": "Dịch",
     "staff_actions": "Thao tác của đội ngũ",
     "delete_all": "Xóa tất cả tin nhắn của người dùng này",
+    "stickers": {
+      "title": "Nhãn dán",
+      "pack_classic": "Cổ điển",
+      "reply_preview": "[Nhãn dán]",
+      "sent_sticker": "Đã gửi một nhãn dán"
+    },
     "message_input": {
       "cooldown": "Vui lòng đợi {{seconds}} giây rồi hãy gửi tin nhắn tiếp theo.",
       "gif_locked": "Bạn cần mua vật phẩm này trong mục phần thưởng của cửa hàng.",
