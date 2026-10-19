@@ -23,7 +23,7 @@
 
 const path = require('path');
 const admin = require('firebase-admin');
-const { evaluateReview, storedChat, contribution, isScamHold, isScamWatch, BURST_WINDOW_MS } =
+const { evaluateReview, storedChat, emptyTally, addScore, isScamHold, isScamWatch, BURST_WINDOW_MS } =
   require(path.join(__dirname, '..', 'functions', 'reviewSignals'));
 
 const serviceAccount = require(path.join(__dirname, '..', 'serviceAccount.json'));
@@ -180,10 +180,9 @@ async function main() {
     scores.set(r.id, score);
     for (const f of [...verdict.hard, ...verdict.soft]) flagCounts[f] = (flagCounts[f] || 0) + 1;
 
-    const s = summaries.get(r.toUserId) || { count: 0, sum: 0, scamReports: 0, excludedCount: 0, flaggedCount: 0 };
-    const c = contribution(score);
-    for (const k of Object.keys(c)) s[k] += c[k];
-    summaries.set(r.toUserId, s);
+    // emptyTally has every key contribution() returns (incl. the profile
+    // tallies), so no field starts undefined and turns into NaN.
+    summaries.set(r.toUserId, addScore(summaries.get(r.toUserId) || emptyTally(), score));
   }
 
   // Report

@@ -185,8 +185,8 @@ service cloud.firestore {
         && d.rating >= 1 && d.rating <= 5;
     }
     // Review removal by a Senior Mod (owner decision 2026-10-19): only a
-    // review left by someone strictly below them (not a Senior Mod's or an
-    // Admin's; their own is fine), never one about themselves, never a
+    // review left by someone strictly below them (not a Senior Mod's, an
+    // Admin's or the owner's; their own is fine), never one about themselves, never a
     // profile doc. Same rule as the app (Helper/reviewModeration).
     function reviewStaffRoles(uid) {
       return exists(/databases/$(database)/documents/staff/$(uid))
@@ -200,7 +200,7 @@ service cloud.firestore {
         && author is string
         && resource.data.get('toUserId', null) != request.auth.uid
         && (author == request.auth.uid
-            || !reviewStaffRoles(author).hasAny(['admin', 'isAdmin', 'isSeniorMod']));
+            || !reviewStaffRoles(author).hasAny(['owner', 'admin', 'isAdmin', 'isSeniorMod']));
     }
     match /reviews/{docId} {
       allow read: if true;                      // web profile pages (signed out)

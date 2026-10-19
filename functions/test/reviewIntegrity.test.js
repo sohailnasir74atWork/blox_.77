@@ -88,11 +88,14 @@ const OLDT = 'traderBBBB001';     // reviewee with pre-2026-10-19 data (v1 score
 const FIVE = 'traderFIVE001';     // reviewee close to the 5-Star badge
 const GONE = 'traderGONE001';     // deleted account (no users/{uid})
 const RC = 'traderRCNT001';       // reviewee for the recount script
+const MISS = 'traderMISS001';     // scores but no review_verified_summary doc
+const NANU = 'traderNANU001';     // summary with damaged (NaN) profile tallies
+const GAPU = 'traderGAPU001';     // a review that was never scored
 const R = Array.from({ length: 12 }, (_, i) => `reviewer${String(i).padStart(5, '0')}`);
 
 async function seed() {
   const created = new Date(Date.now() - 60 * DAY).toUTCString();
-  const uids = [T, OLDT, FIVE, GONE, RC, ...R];
+  const uids = [T, OLDT, FIVE, GONE, RC, MISS, NANU, GAPU, ...R];
   const res = await admin.auth().importUsers(uids.map((uid) => ({ uid, email: `${uid.toLowerCase()}@example.com`, metadata: { creationTime: created, lastSignInTime: created } })));
   assert.strictEqual(res.failureCount, 0, JSON.stringify(res.errors));
   const users = {};
@@ -250,10 +253,39 @@ async function main() {
     assert.deepStrictEqual(await profile(OLDT), { count: 2, averageRating: 4 });
   });
 
-  await test('guard puts the server value back after a staff write', async () => {
+  await test('summary doc missing: rebuilt from every score, not reset to the new review', async () => {
+    const f = fs();
+    for (const [from, rating] of [[R[8], 5], [R[9], 3]]) {
+      await f.collection('reviews').doc(rid(from, MISS)).set(reviewDoc(from, MISS, rating));
+      await f.collection('review_scores').doc(rid(from, MISS)).set({ ...v1Score(from, MISS, rating), chat: true, version: 2 });
+    }
+    chat(R[10], MISS);
+    await write(R[10], MISS, 4);
+    assert.deepStrictEqual(await profile(MISS), { count: 3, averageRating: 4 });
+    const v = await get('review_verified_summary', MISS);
+    assert.deepStrictEqual([v.count, v.sum, v.shownCount, v.shownSum], [3, 12, 3, 12]);
+  });
+
+  await test('summary with NaN profile tallies is rebuilt, not trusted', async () => {
+    const f = fs();
+    await f.collection('reviews').doc(rid(R[8], NANU)).set(reviewDoc(R[8], NANU, 5));
+    await f.collection('review_scores').doc(rid(R[8], NANU)).set({ ...v1Score(R[8], NANU, 5), chat: true, version: 2 });
+    await f.collection('review_verified_summary').doc(NANU).set({ count: 1, sum: 5, averageRating: 5, shownCount: NaN, shownSum: NaN });
+    chat(R[9], NANU);
+    await write(R[9], NANU, 3);
+    assert.deepStrictEqual(await profile(NANU), { count: 2, averageRating: 4 });
+    const v = await get('review_verified_summary', NANU);
+    assert.deepStrictEqual([v.shownCount, v.shownSum], [2, 8]);
+  });
+
+  await test('guard: the server\'s own write ends without reads; a staff write is put back', async () => {
+    const d = await get('user_ratings_summary', T);
+    assert.strictEqual(d.serverValue, '2|3', 'server writes are stamped');
+    assert.strictEqual(await RI.onSummaryWrite(T, d), 'server');
     await fs().collection('user_ratings_summary').doc(T).set({ count: 99, averageRating: 1 }, { merge: true });
-    assert.strictEqual(await RI.guardSummary(T), true);
+    assert.strictEqual(await RI.onSummaryWrite(T, await get('user_ratings_summary', T)), 'restored');
     assert.deepStrictEqual(await profile(T), { count: 2, averageRating: 3 });
+    assert.strictEqual(await RI.onSummaryWrite(T, await get('user_ratings_summary', T)), 'server');
     assert.strictEqual(await RI.guardSummary(T), false, 'no-op for the server value');
   });
 
@@ -323,6 +355,23 @@ async function main() {
     const again = await runRecount([`--uid=${RC}`]);
     assert.match(again, /0 no-chat review\(s\) stop counting/);
     assert.match(again, /unchanged 1, changed 0/);
+  });
+
+  await test('recount: a never-scored review is listed, then scored and counted by --write', async () => {
+    await fs().collection('reviews').doc(rid(R[11], GAPU)).set(reviewDoc(R[11], GAPU, 4));
+    const dry = await runRecount([`--uid=${GAPU}`]);
+    assert.match(dry, /unscored reviews: 1 across 1 user/);
+    assert.strictEqual(await profile(GAPU).then((p) => p.count), undefined, 'dry run writes nothing');
+
+    const out = await runRecount([`--uid=${GAPU}`, '--write']);
+    assert.match(out, /unscored reviews: 1 scored/);
+    const sc = await score(R[11], GAPU);
+    assert.strictEqual(sc.counted, true);
+    assert.strictEqual(sc.chat, null, 'scored without a chat lookup (unknown, as the backfill)');
+    assert.deepStrictEqual(await profile(GAPU), { count: 1, averageRating: 4 });
+    assert.strictEqual((await get('user_ratings_summary', GAPU)).serverValue, '1|4');
+
+    assert.match(await runRecount([`--uid=${GAPU}`]), /unscored reviews: 0 across 0 user/);
   });
 
   await test('recount: whole-database dry run completes', async () => {

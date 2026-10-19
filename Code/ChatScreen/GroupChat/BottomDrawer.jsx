@@ -62,6 +62,7 @@ import {
 } from '../utils'; // ✅ Import moderator utils
 import { getUserEmail } from '../../Helper/privateProfile';
 import { canDeleteReviews, canRemoveReview, deleteReviewAndSummary } from '../../Helper/reviewModeration';
+import { getRolesBatch } from '../../Supabase/userBackend';
 import { BirthdayProfileLine } from '../../Birthdays/BirthdayBits';
 import {
   callModSanction, sanctionErrorText, describeSanctionResult, logModAction,
@@ -1614,8 +1615,10 @@ const ProfileBottomDrawer = ({
   }), [isAdmin, isGlobalSenior, isGlobalModerator, isGlobalBabyMod]);
   const mayDeleteReviews = canDeleteReviews(reviewCallerRoles);
 
-  // Loaded reviews whose trash button shows: each checked once, and never on
-  // the viewer's own profile.
+  // Loaded reviews whose trash button shows, never on the viewer's own
+  // profile. One Supabase user_roles query per page of reviews (the mirror can
+  // lag RTDB by a few hours, so this only hides buttons; the tap re-checks
+  // with fresh RTDB roles and the rules check again).
   const [removableReviewIds, setRemovableReviewIds] = useState(() => new Set());
   const checkedReviewIdsRef = useRef(new Set());
   useEffect(() => {
@@ -1627,12 +1630,15 @@ const ProfileBottomDrawer = ({
     const todo = reviews.filter((r) => r?.id && !checkedReviewIdsRef.current.has(r.id));
     if (!todo.length) return;
     todo.forEach((r) => checkedReviewIdsRef.current.add(r.id));
-    Promise.all(todo.map(async (r) => (
-      (await canRemoveReview(r.fromUserId, reviewCallerRoles, user?.id, selectedUserId).catch(() => false)) ? r.id : null
-    ))).then((ids) => {
-      const ok = ids.filter(Boolean);
-      if (ok.length) setRemovableReviewIds((prev) => new Set([...prev, ...ok]));
-    });
+    getRolesBatch(todo.map((r) => r.fromUserId))
+      .catch(() => new Map())
+      .then((roles) => {
+        const ok = todo
+          .filter((r) => !r.fromUserId || r.fromUserId === user?.id
+            || canModerate(reviewCallerRoles, roles.get(r.fromUserId) || {}))
+          .map((r) => r.id);
+        if (ok.length) setRemovableReviewIds((prev) => new Set([...prev, ...ok]));
+      });
   }, [reviews, mayDeleteReviews, selectedUserId, user?.id, reviewCallerRoles]);
 
   const handleDeleteReview = useCallback(async (review) => {

@@ -622,9 +622,11 @@ async function firestoreTests() {
   // a Senior Mod only within their rank.
   sec('fs review delete (blox-ratings 2026-10-19)');
   const S2 = 'seniorUid0002';
+  const OW = 'ownerRoleUid1';   // staffMirror puts 'owner' in roles for users/{uid}/owner
   await seed(async (f) => {
     await F.setDoc(F.doc(f, 'staff', S2), { roles: ['isSeniorMod'] });
-    for (const from of [U1, U3, A, A2, S, S2, M]) await F.setDoc(F.doc(f, 'reviews', `${U2}_${from}`), { fromUserId: from, toUserId: U2, rating: 1 });
+    await F.setDoc(F.doc(f, 'staff', OW), { roles: ['owner'] });
+    for (const from of [U1, U3, A, A2, S, S2, M, OW]) await F.setDoc(F.doc(f, 'reviews', `${U2}_${from}`), { fromUserId: from, toUserId: U2, rating: 1 });
     await F.setDoc(F.doc(f, 'reviews', `${S}_${U1}`), { fromUserId: U1, toUserId: S, rating: 1 });
     await F.setDoc(F.doc(f, 'reviews', U3), { bio: 'profile doc' });
   });
@@ -634,6 +636,7 @@ async function firestoreTests() {
   await no('senior mod deletes an admin\'s review', () => deleteDoc(d(S, 'reviews', `${U2}_${A}`)));
   await no('senior mod deletes a legacy-admin\'s review', () => deleteDoc(d(S, 'reviews', `${U2}_${A2}`)));
   await no('senior mod deletes another senior mod\'s review', () => deleteDoc(d(S, 'reviews', `${U2}_${S2}`)));
+  await no('senior mod deletes the owner\'s review', () => deleteDoc(d(S, 'reviews', `${U2}_${OW}`)));
   await no('senior mod deletes a review about themselves', () => deleteDoc(d(S, 'reviews', `${S}_${U1}`)));
   await no('senior mod deletes a profile doc', () => deleteDoc(d(S, 'reviews', U3)));
   await ok('senior mod deletes a player\'s review', () => deleteDoc(d(S, 'reviews', `${U2}_${U1}`)));

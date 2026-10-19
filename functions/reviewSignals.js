@@ -139,6 +139,22 @@ function contribution(score) {
   };
 }
 
+/** A summary tally with every contribution key at 0. */
+const emptyTally = () => contribution(null);
+
+/** Adds (sign 1) or removes (sign -1) one score's contribution, in place. */
+function addScore(tally, score, sign = 1) {
+  const c = contribution(score);
+  for (const k of Object.keys(c)) tally[k] = (tally[k] || 0) + sign * c[k];
+  return tally;
+}
+
+/** The summary tally of a list of scores. */
+const tallyScores = (scores) => scores.reduce((t, s) => addScore(t, s), emptyTally());
+
+/** A stored summary with usable profile tallies (written since 2026-10-19). */
+const hasShownTallies = (s) => !!s && Number.isFinite(s.shownCount) && Number.isFinite(s.shownSum);
+
 const round2 = (x) => Math.round(x * 100) / 100;
 
 /** user_ratings_summary/{uid} fields from a review_verified_summary doc. */
@@ -146,6 +162,10 @@ function profileSummary(s) {
   const count = (s && s.shownCount) || 0;
   return { count, averageRating: count ? round2(s.shownSum / count) : 0 };
 }
+
+// Stamp the server writes next to the profile rating (serverValue), so the
+// guard trigger can tell its own writes from a staff write without reads.
+const profileStamp = (p) => `${p && p.count}|${p && p.averageRating}`;
 
 const earnsFiveStar = (p) => p.count >= FIVE_STAR.minCount && p.averageRating >= FIVE_STAR.minAverage;
 
@@ -171,8 +191,13 @@ module.exports = {
   storedChat,
   shownOnProfile,
   contribution,
+  emptyTally,
+  addScore,
+  tallyScores,
+  hasShownTallies,
   round2,
   profileSummary,
+  profileStamp,
   earnsFiveStar,
   isScamHold,
   isScamWatch,

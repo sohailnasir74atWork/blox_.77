@@ -1,17 +1,19 @@
 // One-off recount (2026-10-19): reviews from people who never chatted with the
 // trader stop counting, and the profile rating (user_ratings_summary) becomes
-// the server's number. Works from the stored review_scores only: no Supabase,
-// no Auth, no device lookups (functions/reviewSignals.js decides everything).
+// the server's number. Works from the stored review_scores (no Supabase);
+// only reviews that were never scored go through scoreReviewById (Auth + RTDB
+// device lookups, the trigger's own code).
 //
 // Per reviewed user:
+//   0. Gaps: reviews with no review_scores doc (e.g. a trigger event dropped
+//      after 10 minutes). The dry run lists them; --write scores them first.
 //   1. review_scores: the old SOFT noChat flag becomes HARD when it was set on
 //      creation (a real no-chat review), and is dropped when it was set on a
 //      later edit (the chat had been purged after 30 days: grandfathered).
 //   2. review_verified_summary: rebuilt from the scores, incl. the new profile
 //      tallies shownCount / shownSum. leaderboardHold and other fields stay.
 //   3. user_ratings_summary: set to the profile tallies (what the app and the
-//      website show). A summary with no scored reviews is zeroed only when the
-//      user has no reviews at all; otherwise it is listed and left alone.
+//      website show), zeroed when the user has no reviews left.
 //
 // Each user is recounted in its own transaction, so it is safe while the app
 // is live and scoreReviewOnWrite runs. Idempotent: run it again any time
@@ -19,32 +21,45 @@
 //
 // Order: deploy functions (scoreReviewOnWrite, guardRatingSummary) and
 // firestore.rules first, then:
-//   node scripts/recount-review-summaries.js              # dry run: report only
-//   node scripts/recount-review-summaries.js --write      # write the changes
+//   node scripts/recount-review-summaries.js              # 1. dry run: report only
+//     → check the "unscored reviews" and "profile rating" lines
+//   node scripts/recount-review-summaries.js --write      # 2. score the gaps, write
+//   node scripts/recount-review-summaries.js              # 3. dry run again: expect 0 changes
 //   node scripts/recount-review-summaries.js --uid=<uid>  # one user (with or without --write)
 // Run from the repo root; serviceAccount.json must exist there.
 //
-// Cost (2026-10-19 sizes): ~78k score reads + ~45k summary reads (≈ $0.08);
-// --write adds ~23k verified-summary writes (each gets the new fields once),
-// the changed scores and profile summaries, and one guardRatingSummary call
-// per profile summary written.
+// Cost (2026-10-19 sizes): ~121k review reads (one pass, ids only) + ~78k
+// score reads + ~45k summary reads (≈ $0.15); --write adds ~23k
+// verified-summary writes (each gets the new fields once), the changed scores
+// and profile summaries, and one guardRatingSummary call per profile summary
+// written (stamped, so it ends without reads).
 
 const path = require('path');
-const admin = require('firebase-admin');
-const S = require(path.join(__dirname, '..', 'functions', 'reviewSignals'));
+const FUNCTIONS = path.join(__dirname, '..', 'functions');
+// The functions' own firebase-admin, so scoreReviewById shares this app.
+const admin = require(require.resolve('firebase-admin', { paths: [FUNCTIONS] }));
+const S = require(path.join(FUNCTIONS, 'reviewSignals'));
 
 const WRITE = process.argv.includes('--write');
 const ONLY = (process.argv.find((a) => a.startsWith('--uid=')) || '').slice(6) || null;
 const CONCURRENCY = 25;
+const PAGE = 5000;
 
 if (process.env.FIRESTORE_EMULATOR_HOST) {
   // Tests (functions/test/reviewIntegrity.test.js): emulator only, no credentials.
-  admin.initializeApp({ projectId: process.env.GCLOUD_PROJECT || 'demo-fruiteblocks' });
+  const project = process.env.GCLOUD_PROJECT || 'demo-fruiteblocks';
+  const rtdb = process.env.FIREBASE_DATABASE_EMULATOR_HOST;
+  admin.initializeApp({ projectId: project, ...(rtdb ? { databaseURL: `http://${rtdb}?ns=${project}` } : {}) });
 } else {
   const serviceAccount = require(path.join(__dirname, '..', 'serviceAccount.json'));
-  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    databaseURL: `https://${serviceAccount.project_id}-default-rtdb.firebaseio.com`,
+  });
 }
 const fs = admin.firestore();
+// Loaded only to score gaps; needs the app initialised above.
+const RI = WRITE ? require(path.join(FUNCTIONS, 'reviewIntegrity')) : null;
 
 const VERIFIED_KEYS = ['count', 'sum', 'averageRating', 'scamReports', 'excludedCount', 'flaggedCount', 'shownCount', 'shownSum'];
 const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
@@ -66,7 +81,7 @@ function fixScore(score) {
 // What has to change for one user, from their scores and two summary docs.
 function planFor(uid, scoreDocs, verified, display) {
   const scoreUpdates = [];
-  const tally = Object.fromEntries(Object.keys(S.contribution(null)).map((k) => [k, 0]));
+  const tally = S.emptyTally();
   const stats = { toExcluded: 0, flagDropped: 0 };
   for (const d of scoreDocs) {
     const { fixed, changed, chat } = fixScore(d.data());
@@ -75,8 +90,7 @@ function planFor(uid, scoreDocs, verified, display) {
       if (chat === false) stats.toExcluded++;
       else stats.flagDropped++;
     }
-    const c = S.contribution(fixed);
-    for (const k of Object.keys(c)) tally[k] += c[k];
+    S.addScore(tally, fixed);
   }
 
   const wantV = { ...tally, averageRating: tally.count ? S.round2(tally.sum / tally.count) : 0 };
@@ -99,8 +113,35 @@ async function pool(items, fn) {
   }));
 }
 
+// Review ids per reviewee, from one pass over `reviews` (profile docs have no toUserId).
+async function loadReviewIds() {
+  const byUser = new Map();
+  const add = (d) => {
+    const r = d.data();
+    if (!r.fromUserId || !r.toUserId) return;
+    if (!byUser.has(r.toUserId)) byUser.set(r.toUserId, []);
+    byUser.get(r.toUserId).push(d.id);
+  };
+  if (ONLY) {
+    (await fs.collection('reviews').where('toUserId', '==', ONLY).select('fromUserId', 'toUserId').get()).docs.forEach(add);
+    return byUser;
+  }
+  let last = null;
+  for (;;) {
+    let q = fs.collection('reviews').select('fromUserId', 'toUserId')
+      .orderBy(admin.firestore.FieldPath.documentId()).limit(PAGE);
+    if (last) q = q.startAfter(last);
+    const snap = await q.get();
+    snap.docs.forEach(add);
+    if (snap.size < PAGE) break;
+    last = snap.docs[snap.docs.length - 1];
+  }
+  return byUser;
+}
+
 async function main() {
   const t0 = Date.now();
+  const reviewIds = await loadReviewIds();
   let uids;
   if (ONLY) uids = [ONLY];
   else {
@@ -108,13 +149,13 @@ async function main() {
       fs.collection('review_verified_summary').select().get(),
       fs.collection('user_ratings_summary').select().get(),
     ]);
-    uids = [...new Set([...v.docs.map((x) => x.id), ...d.docs.map((x) => x.id)])];
+    uids = [...new Set([...v.docs.map((x) => x.id), ...d.docs.map((x) => x.id), ...reviewIds.keys()])];
   }
   console.log(`${uids.length} users to recount${WRITE ? '' : ' (DRY RUN)'}`);
 
-  const totals = { scoresToExcluded: 0, scoresFlagDropped: 0, verifiedWrites: 0, profileCreated: 0, profileChanged: 0, profileZeroed: 0, profileSame: 0 };
+  const totals = { scoresToExcluded: 0, scoresFlagDropped: 0, verifiedWrites: 0, profileCreated: 0, profileChanged: 0, profileZeroed: 0, profileSame: 0, gapsScored: 0 };
   const moves = [];
-  const unscored = [];
+  const gaps = [];
   let done = 0;
 
   await pool(uids, async (uid) => {
@@ -124,28 +165,44 @@ async function main() {
 
     const run = async (get, tx) => {
       const [scores, vSnap, dSnap] = await Promise.all([get(q), get(vRef), get(dRef)]);
+      const scored = new Set(scores.docs.map((d) => d.id));
+      const unscored = (reviewIds.get(uid) || []).filter((id) => !scored.has(id));
+      // Without its unscored reviews the profile would drop them: never write then.
+      if (unscored.length) return { unscored };
       const display = dSnap.exists ? dSnap.data() : null;
-      if (scores.empty && display && display.count > 0) {
-        // No scored reviews. Zero it only if the user really has none.
-        const n = (await fs.collection('reviews').where('toUserId', '==', uid).count().get()).data().count;
-        if (n > 0) return { unscored: n, display };
-      }
       const plan = planFor(uid, scores.docs, vSnap.exists ? vSnap.data() : null, display);
       if (tx) {
         const now = admin.firestore.FieldValue.serverTimestamp();
         for (const u of plan.scoreUpdates) tx.update(fs.collection('review_scores').doc(u.id), u.patch);
         if (plan.verifiedPatch) tx.set(vRef, { ...plan.verifiedPatch, updatedAt: now }, { merge: true });
-        if (plan.displayPatch) tx.set(dRef, { ...plan.displayPatch, updatedAt: now }, { merge: true });
+        if (plan.displayPatch) {
+          tx.set(dRef, { ...plan.displayPatch, serverValue: S.profileStamp(plan.displayPatch), updatedAt: now }, { merge: true });
+        }
       }
       return { plan, display };
     };
+    const attempt = () => (WRITE
+      ? fs.runTransaction((tx) => run((ref) => tx.get(ref), tx))
+      : run((ref) => ref.get(), null));
 
     try {
-      const r = WRITE
-        ? await fs.runTransaction((tx) => run((ref) => tx.get(ref), tx))
-        : await run((ref) => ref.get(), null);
+      let r = await attempt();
+      if (r.unscored && WRITE) {
+        // Score them with the trigger's own code, then recount this user.
+        let failed = 0;
+        for (const id of r.unscored) {
+          try {
+            await RI.scoreReviewById(id);
+            totals.gapsScored++;
+          } catch (e) {
+            failed++;
+            console.error(`\n${id}: scoring failed: ${e.message}`);
+          }
+        }
+        r = failed ? { unscored: r.unscored, failed } : await attempt();
+      }
       if (r.unscored) {
-        unscored.push({ uid, reviews: r.unscored, shown: r.display.count });
+        gaps.push({ uid, unscored: r.unscored.length, failed: r.failed || 0 });
       } else {
         const { plan, display } = r;
         totals.scoresToExcluded += plan.stats.toExcluded;
@@ -166,6 +223,13 @@ async function main() {
   });
 
   console.log(`\r${done}/${uids.length} users in ${((Date.now() - t0) / 1000).toFixed(0)}s\n`);
+  const gapReviews = gaps.reduce((n, g) => n + g.unscored, 0);
+  if (WRITE) {
+    console.log(`unscored reviews: ${totals.gapsScored} scored (scoreReviewById); ${gaps.length} user(s) left unchanged because scoring failed`);
+  } else {
+    console.log(`unscored reviews: ${gapReviews} across ${gaps.length} user(s) — --write scores them first, then recounts those users (not in the numbers below)`);
+  }
+  for (const g of gaps.slice(0, 20)) console.log(`    ${g.uid}  ${g.unscored} unscored${g.failed ? `, ${g.failed} failed` : ''}`);
   console.log('review_scores:');
   console.log(`  ${totals.scoresToExcluded} no-chat review(s) stop counting (noChat set on creation → HARD)`);
   console.log(`  ${totals.scoresFlagDropped} noChat flag(s) dropped (set on a later edit after the 30-day purge → grandfathered)`);
@@ -184,10 +248,6 @@ async function main() {
   moves.sort((a, b) => Math.abs(b.from - b.to) - Math.abs(a.from - a.to));
   for (const m of moves.slice(0, 15)) {
     console.log(`    ${m.uid}  ${m.from} → ${m.to} reviews, ${m.avgFrom} → ${m.avgTo}★`);
-  }
-  if (unscored.length) {
-    console.log(`\n${unscored.length} profile summary(ies) have reviews but no scores — left alone; re-score with scoreReviewById:`);
-    for (const u of unscored.slice(0, 20)) console.log(`    ${u.uid}  ${u.reviews} review(s), shows ${u.shown}`);
   }
   console.log(WRITE ? '\nWRITTEN.' : '\nDRY RUN — nothing written. Re-run with --write.');
   process.exit(0);

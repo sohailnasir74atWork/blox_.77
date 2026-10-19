@@ -341,8 +341,8 @@ const AdminReportsInbox = () => {
   // someone strictly below them (fresh RTDB roles).
   const removeReview = useCallback(async (r, review) => {
     const callerRoles = { isAdmin: !!isAdmin, isSeniorMod: !!isSeniorMod, isModerator: !!isModerator, isBabyMod: !!isBabyMod, isOwner: isCurrentUserOwner() };
-    if (!(await canRemoveReview(review.fromUserId, callerRoles, user?.id))) {
-      Alert.alert('Restricted', 'Only admins can delete reviews, and not reviews left by staff at or above your rank.');
+    if (!(await canRemoveReview(review.fromUserId, callerRoles, user?.id, review.toUserId || r.reviewedUserId))) {
+      Alert.alert('Restricted', 'Senior Mods and up can delete reviews, but not ones left by staff at or above their rank or ones about themselves.');
       return;
     }
     Alert.alert('Remove review', `Remove this ${Number(review.rating) || 0}-star review${review.userName ? ` by ${review.userName}` : ''}? Their rating is recounted and the report is marked done.`, [

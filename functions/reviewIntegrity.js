@@ -32,7 +32,8 @@
  *     { count, sum, averageRating, scamReports, excludedCount, flaggedCount,
  *       shownCount, shownSum, updatedAt }
  *   user_ratings_summary/{uid}
- *     { count, averageRating, updatedAt }   = shownCount / shownSum
+ *     { count, averageRating, serverValue, updatedAt }   = shownCount / shownSum;
+ *     serverValue "count|averageRating" marks the server's own writes
  *   RTDB users/{uid}/badges/fiveStar        50+ reviews at 4.5+ on the profile
  *
  * Deployment:
@@ -43,7 +44,8 @@ const admin = require('firebase-admin');
 const functions = require('firebase-functions/v1');
 const { getSupabaseAdmin } = require('./_supabaseAdmin');
 const {
-  BURST_WINDOW_MS, evaluateReview, storedChat, contribution, round2, profileSummary, earnsFiveStar,
+  BURST_WINDOW_MS, evaluateReview, storedChat, contribution, tallyScores, hasShownTallies,
+  round2, profileSummary, profileStamp, earnsFiveStar,
 } = require('./reviewSignals');
 
 if (!admin.apps.length) {
@@ -178,19 +180,15 @@ async function buildScore(reviewId, review, { isNew = false } = {}) {
   };
 }
 
-// Summaries written before 2026-10-19 have no profile tallies: derive them
-// once from every score of that user (inside the caller's transaction).
-async function withShownTallies(tx, uid, data) {
-  if (data.shownCount !== undefined) return data;
+// The summary a write adjusts. Missing, or without usable profile tallies
+// (written before 2026-10-19, or damaged): rebuilt from every score of that
+// user inside the caller's transaction, so reviews scored earlier still
+// count and the profile is never reset to just the new review.
+async function baseTally(tx, uid, snap) {
+  const data = snap.exists ? snap.data() : null;
+  if (hasShownTallies(data)) return { ...data };
   const all = await tx.get(db.collection('review_scores').where('toUserId', '==', uid));
-  let shownCount = 0;
-  let shownSum = 0;
-  all.docs.forEach((d) => {
-    const c = contribution(d.data());
-    shownCount += c.shownCount;
-    shownSum += c.shownSum;
-  });
-  return { ...data, shownCount, shownSum };
+  return tallyScores(all.docs.map((d) => d.data()));
 }
 
 // Replace a review's score and move its contribution between summaries
@@ -204,8 +202,7 @@ async function writeScore(reviewId, score) {
     const uids = [...new Set([old?.toUserId, score?.toUserId].filter(Boolean))];
     const sums = {};
     for (const uid of uids) {
-      const s = await tx.get(summaryRef(uid));
-      sums[uid] = s.exists ? await withShownTallies(tx, uid, s.data()) : {};
+      sums[uid] = await baseTally(tx, uid, await tx.get(summaryRef(uid)));
     }
 
     const apply = (uid, c, sign) => {
@@ -231,7 +228,7 @@ async function writeScore(reviewId, score) {
         updatedAt: now,
       }, { merge: true });
       profiles[uid] = profileSummary(s);
-      tx.set(displayRef(uid), { ...profiles[uid], updatedAt: now }, { merge: true });
+      tx.set(displayRef(uid), { ...profiles[uid], serverValue: profileStamp(profiles[uid]), updatedAt: now }, { merge: true });
     }
 
     if (score) tx.set(scoreRef(reviewId), score);
@@ -338,18 +335,27 @@ exports.voidReviewsOfDeletedUser = functions
   });
 
 // The profile rating must equal the server tallies. Rewrites it when a
-// staff write (or anything else) left a different value; a no-op for the
-// server's own writes. Users not yet migrated (no shownCount) are left alone.
+// staff write (or anything else) left a different value. Users not yet
+// migrated (no usable profile tallies) are left alone.
 async function guardSummary(uid) {
   return db.runTransaction(async (tx) => {
     const [v, d] = await Promise.all([tx.get(summaryRef(uid)), tx.get(displayRef(uid))]);
-    if (!v.exists || v.data().shownCount === undefined || !d.exists) return false;
+    if (!v.exists || !hasShownTallies(v.data()) || !d.exists) return false;
     const want = profileSummary(v.data());
     const have = d.data();
     if (have.count === want.count && Math.abs((have.averageRating || 0) - want.averageRating) < 0.005) return false;
-    tx.set(displayRef(uid), { ...want, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    tx.set(displayRef(uid), { ...want, serverValue: profileStamp(want), updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
     return true;
   });
+}
+
+// The server's own writes carry serverValue = the values they wrote, so they
+// end here without reads (the trigger still fires once per write). A staff
+// write changes count/averageRating but not the stamp, so it is checked.
+async function onSummaryWrite(uid, after) {
+  if (!after) return 'deleted';
+  if (after.serverValue === profileStamp(after)) return 'server';
+  return (await guardSummary(uid)) ? 'restored' : 'ok';
 }
 
 exports.guardRatingSummary = functions
@@ -357,8 +363,8 @@ exports.guardRatingSummary = functions
   .firestore
   .document('user_ratings_summary/{uid}')
   .onWrite(async (change, context) => {
-    if (!change.after.exists) return null;
-    if (await guardSummary(context.params.uid)) {
+    const after = change.after.exists ? change.after.data() : null;
+    if ((await onSummaryWrite(context.params.uid, after)) === 'restored') {
       console.log(`[reviewIntegrity] user_ratings_summary/${context.params.uid} restored`);
     }
     return null;
@@ -368,6 +374,7 @@ exports._internal = {
   onReviewWrite,
   scoreReviewById,
   guardSummary,
+  onSummaryWrite,
   hasPrivateChat,
   setSupabaseForTest: (client) => { supabaseOverride = client; },
 };
