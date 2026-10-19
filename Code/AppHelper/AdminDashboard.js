@@ -107,32 +107,8 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
 import { safeCompressImage } from '../Helper/safeCompressImage';
 
-const BUNNY_STORAGE_HOST = 'storage.bunnycdn.com';
-const BUNNY_STORAGE_ZONE = 'post-gag';
-const BUNNY_ACCESS_KEY = '1b7e1a85-dff7-4a98-ba701fc7f9b9-6542-46e2';
-const BUNNY_CDN_BASE = 'https://pull-gag.b-cdn.net';
-
-const base64ToBytes = (base64) => {
-  if (!base64 || typeof base64 !== 'string') throw new Error('Invalid base64 input');
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
-  let str = base64.replace(/[\r\n]+/g, '');
-  let output = [];
-  let i = 0;
-  while (i < str.length) {
-    const enc1 = chars.indexOf(str.charAt(i++));
-    const enc2 = chars.indexOf(str.charAt(i++));
-    const enc3 = chars.indexOf(str.charAt(i++));
-    const enc4 = chars.indexOf(str.charAt(i++));
-    if (enc1 === -1 || enc2 === -1 || enc3 === -1 || enc4 === -1) throw new Error('Invalid base64 character');
-    const chr1 = (enc1 << 2) | (enc2 >> 4);
-    const chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
-    const chr3 = ((enc3 & 3) << 6) | enc4;
-    if (enc3 !== 64) output.push(chr1, chr2);
-    else output.push(chr1);
-    if (enc4 !== 64 && enc3 !== 64) output.push(chr3);
-  }
-  return Uint8Array.from(output);
-};
+// Poll images upload through the server (uploadImage); the app holds no storage key.
+import { uploadImage, UPLOAD_KIND } from '../Helper/imageUpload';
 
 const decodeEmail = (encoded) => (encoded ? encoded.replace(/\(dot\)/g, '.') : '');
 const BAD_KEYS = new Set(['undefined', 'onloaduser', '', null, undefined]);
@@ -1659,21 +1635,8 @@ const AdminDashboard = () => {
               } catch (e) { console.warn('Compression failed, using original:', e); }
             }
 
-            // Upload to Bunny
-            const localPath = imageUri.startsWith('file://') ? imageUri.replace('file://', '') : imageUri;
-            const base64 = await RNFS.readFile(localPath, 'base64');
-            const bytes = base64ToBytes(base64);
-            const fileName = `poll_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.jpg`;
-            const remotePath = `polls/${fileName}`;
-
-            const res = await fetch(`https://${BUNNY_STORAGE_HOST}/${BUNNY_STORAGE_ZONE}/${remotePath}`, {
-              method: 'PUT',
-              headers: { AccessKey: BUNNY_ACCESS_KEY, 'Content-Type': 'image/jpeg' },
-              body: bytes,
-            });
-
-            if (!res.ok) throw new Error('Upload failed');
-            const cdnUrl = `${BUNNY_CDN_BASE}/${remotePath}`;
+            // Upload through the server (stored under polls/ as before)
+            const cdnUrl = await uploadImage(imageUri, UPLOAD_KIND.poll);
             setPollImageUrl(cdnUrl);
           } catch (err) {
             console.error('Poll image upload error:', err);

@@ -53,7 +53,7 @@ import {
     runTransaction,
 } from '@react-native-firebase/firestore';
 import { launchImageLibrary } from 'react-native-image-picker';
-import RNFS from 'react-native-fs';
+import { uploadImage, UPLOAD_KIND } from '../Helper/imageUpload';
 import { safeCompressImage } from '../Helper/safeCompressImage';
 import { useGlobalState, modGateText } from '../GlobelStats';
 import { submitUserReport } from '../Helper/userReports';
@@ -68,19 +68,6 @@ dayjs.extend(relativeTime);
 dayjs.extend(customParseFormat);
 
 
-
-// ── Bunny CDN ──
-const BUNNY_STORAGE_HOST = 'storage.bunnycdn.com';
-const BUNNY_STORAGE_ZONE = 'post-gag';
-const BUNNY_ACCESS_KEY = '1b7e1a85-dff7-4a98-ba701fc7f9b9-6542-46e2';
-const BUNNY_CDN_BASE = 'https://pull-gag.b-cdn.net';
-
-// global.atob (native in Hermes, as Adopt Me uses for mod evidence) instead of a JS
-// decode loop that stalled the JS thread for hundreds of ms per proof image.
-const base64ToBytes = (base64) => {
-    if (!base64 || typeof base64 !== 'string') throw new Error('Invalid base64');
-    return Uint8Array.from(global.atob(base64.replace(/[\r\n]+/g, '')), (c) => c.charCodeAt(0));
-};
 
 const PAGE_SIZE = 15;
 const SCAM_TYPES = ['Trust trade', 'Switch scam', 'Fail trade', 'Other'];
@@ -380,20 +367,8 @@ const ScammerDatabaseScreen = () => {
     // ════════════════════════════════════════
     //  UPLOAD IMAGE TO BUNNY
     // ════════════════════════════════════════
-    const uploadToBunny = useCallback(async (imagePath) => {
-        const localPath = imagePath.startsWith('file://') ? imagePath.replace('file://', '') : imagePath;
-        const b64 = await RNFS.readFile(localPath, 'base64');
-        const bytes = base64ToBytes(b64);
-        const fileName = `scam_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.jpg`;
-        const remotePath = `scammer/${fileName}`;
-        const res = await fetch(`https://${BUNNY_STORAGE_HOST}/${BUNNY_STORAGE_ZONE}/${remotePath}`, {
-            method: 'PUT',
-            headers: { AccessKey: BUNNY_ACCESS_KEY, 'Content-Type': 'image/jpeg' },
-            body: bytes,
-        });
-        if (!res.ok) throw new Error('Bunny upload failed');
-        return `${BUNNY_CDN_BASE}/${remotePath}`;
-    }, []);
+    // Server-side upload (Helper/imageUpload.js); stored under scammer/ as before.
+    const uploadToBunny = useCallback((imagePath) => uploadImage(imagePath, UPLOAD_KIND.scammer), []);
 
     // ════════════════════════════════════════
     //  PICK PROOF IMAGES
