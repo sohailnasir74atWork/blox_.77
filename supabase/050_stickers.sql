@@ -29,6 +29,15 @@
 --   (Cloud Functions, scripts), pg_cron and the SQL editor pass through.
 --   Admins are checked too: no build ever sends a URL outside the folders.
 --   Rows that already exist are not re-checked (STEP 5 lists them).
+--   034's ban triggers on private/group fire on other columns, so a banned
+--   sender changing gif on an OLD message is not ban-checked. Left so on
+--   purpose (2026-10-19): no build edits message content, 034's update guard
+--   still limits it to the sender or staff, and the allowlist still applies.
+--
+-- MOD TOOLS
+--   mod_read_private_chat returns select * from private_messages, so gif
+--   reaches it with no change. list_message_reports (046) reads gif through
+--   to_jsonb(row) ->> 'gif', which works before and after this file.
 --
 -- ERROR
 --   STICKER_NOT_ALLOWED, errcode 23514 check_violation. Every shipped build's
