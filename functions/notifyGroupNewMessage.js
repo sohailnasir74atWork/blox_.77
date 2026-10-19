@@ -179,8 +179,7 @@ exports.notifyPrivateMessage = functions
 // =====================================================================
 // notifyGroupNewMessage — group fan-out push
 //
-// Per message (2026-10-19, group lag): one Firestore read (memberIds and the
-// archive flag), one group_members + one group_meta_data query, the
+// Per message (2026-10-19, group lag): one Firestore read (memberIds), one group_members + one group_meta_data query, the
 // activeGroupChats node and the collapse state below, then fcmTokens only for
 // the members who actually get a push — from a per-instance cache, so a busy
 // group re-reads none of them.
@@ -221,7 +220,7 @@ async function tokensFor(uids, { rtdb, now, cache }) {
 }
 
 async function handleGroupPush(record, deps) {
-  const { firestore, rtdb, supabase, messaging, now = Date.now(), cache = _tokenCache, reactivate } = deps;
+  const { firestore, rtdb, supabase, messaging, now = Date.now(), cache = _tokenCache } = deps;
   const groupId = record.group_id;
   const senderId = record.sender_id;
   const senderName = record.sender_name || 'Someone';
@@ -230,11 +229,6 @@ async function handleGroupPush(record, deps) {
   const groupSnap = await firestore.doc(`groups/${groupId}`).get();
   if (!groupSnap.exists) return 'Skipped: group not found';
   const group = groupSnap.data() || {};
-
-  // A message brings an archived group back (inactive-group cleanup).
-  if (group.isActive === false && reactivate) {
-    await reactivate(groupId, group).catch((e) => console.warn('[notifyGroupNewMessage] reactivate failed:', e?.message));
-  }
 
   let memberIds = [...new Set((group.memberIds || []).filter((id) => id && id !== senderId))];
   if (memberIds.length === 0) return 'Skipped: no other members';
@@ -339,7 +333,6 @@ exports.notifyGroupNewMessage = functions
         supabase: getSupabase(),
         messaging: admin.messaging(),
         now: Date.now(),
-        reactivate: (groupId, group) => require('./groupMembership').reactivateArchivedGroup(groupId, group),
       });
       res.status(200).send(result);
     } catch (err) {

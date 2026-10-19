@@ -2,7 +2,7 @@
 -- Source: supabase/044_group_privacy.sql
 
 -- =====================================================================
--- STEP 0 — Read-only. Where am I?   Fully applied: t | 8 | 2 | (rows) | 4 | 3
+-- STEP 0 — Read-only. Where am I?   Fully applied: t | 8 | 2 | (rows) | 4 | 1
 -- =====================================================================
 select
   (select count(*) = 1 from pg_tables
@@ -26,7 +26,5 @@ select
         where n.nspname = 'public' and p.proname = 'send_group_message' and p.prosrc like '%_group_can_post%')
     + (select count(*) from pg_policies where schemaname = 'public' and tablename = 'group_meta_data'
       and policyname = 'group_meta_data read shared group' and qual like '%is_group_staff%')  as step3_switch,
-  (select count(*) from information_schema.columns
-    where table_schema = 'public' and table_name = 'group_meta_data' and column_name = 'archived_at')
-    + (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-        where n.nspname = 'public' and p.proname in ('group_last_activity', 'set_group_archived')) as step4_cleanup;
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'group_last_activity')                    as step4_cleanup;

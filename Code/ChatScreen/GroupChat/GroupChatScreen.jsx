@@ -10,7 +10,6 @@ import {
   Modal,
   FlatList,
   Image,
-  StyleSheet,
 } from 'react-native';
 import { useFocusEffect, useRoute, useNavigation, useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,7 +23,7 @@ import { useActiveChatLifecycle } from '../utils';
 import { get, ref, update } from '@react-native-firebase/database';
 import { useTranslation } from 'react-i18next';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
-import { sendGroupMessage, removeMemberFromGroup, hasGroupPermission, getPendingInviteForGroup, acceptGroupInvite, declineGroupInvite, leaveGroup, makeMemberCreator, getGroupPermissions, isGroupStaff, restoreGroup } from '../utils/groupUtils';
+import { sendGroupMessage, removeMemberFromGroup, hasGroupPermission, getPendingInviteForGroup, acceptGroupInvite, declineGroupInvite, leaveGroup, makeMemberCreator, getGroupPermissions, isGroupStaff } from '../utils/groupUtils';
 import { doc, getDoc, onSnapshot, collection, query, where, getDocs, updateDoc } from '@react-native-firebase/firestore';
 import GroupPinnedBar, { MAX_GROUP_PINS } from './GroupPinnedBar';
 import { getThemeColors } from '../../Helper/themeColors';
@@ -114,7 +113,6 @@ const GroupChatScreen = () => {
 
   const isDarkMode = theme === 'dark';
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
-  const archivedStyles = useMemo(() => getArchivedStyles(isDarkMode), [isDarkMode]);
 
   // Group message bodies are Supabase-native — no RTDB ref needed.
 
@@ -706,19 +704,6 @@ const GroupChatScreen = () => {
   const pinnedIds = useMemo(() => new Set(pins.map((p) => p.id)), [pins]);
   const groupPerms = useMemo(() => getGroupPermissions(groupData, user?.id, roles), [groupData, user?.id, roles]);
   const canManagePins = groupPerms.canManage;
-
-  // Archived after 60 days without messages (functions/groupMembership.js):
-  // a new message or Restore brings it back.
-  const isArchived = groupData?.isActive === false;
-  const [restoring, setRestoring] = useState(false);
-  const handleRestore = useCallback(async () => {
-    if (!user?.id || restoring) return;
-    setRestoring(true);
-    const result = await restoreGroup(firestoreDB, groupId, user.id, roles);
-    setRestoring(false);
-    if (result.success) showSuccessMessage(t('home.alert.success'), t('chat.groups_screen.group_restored'));
-    else showErrorMessage(t('chat.error'), result.error || t('chat.groups_screen.restore_failed'));
-  }, [user?.id, restoring, firestoreDB, groupId, roles, t]);
 
   const writePins = useCallback(async (next) => {
     await updateDoc(doc(firestoreDB, 'groups', groupId), { pinnedMessages: next });
@@ -1316,17 +1301,6 @@ const GroupChatScreen = () => {
               onJump={jumpToPin}
               onUnpin={handleUnpin}
             />
-            {isArchived && (
-              <View style={archivedStyles.bar}>
-                <Icon name="archive-outline" size={16} color={isDarkMode ? '#D1D5DB' : '#4B5563'} />
-                <Text style={archivedStyles.text}>{t('chat.groups_screen.archived_notice')}</Text>
-                {groupPerms.canManage && (
-                  <TouchableOpacity onPress={handleRestore} disabled={restoring} style={archivedStyles.button}>
-                    <Text style={archivedStyles.buttonText}>{t('chat.groups_screen.restore_group')}</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
             {messages.length === 0 && !loading ? (
               // No messages yet - show empty state but keep input visible
               <View style={styles.emptyContainer}>
@@ -1583,24 +1557,6 @@ const GroupChatScreen = () => {
     </>
   );
 };
-
-// The "Archived" bar above the messages (inactive-group cleanup).
-const getArchivedStyles = (isDarkMode) => StyleSheet.create({
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 10,
-    marginTop: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: isDarkMode ? '#374151' : '#F3F4F6',
-  },
-  text: { flex: 1, fontSize: 12, color: isDarkMode ? '#E5E7EB' : '#374151' },
-  button: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: '#8B5CF6' },
-  buttonText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
-});
 
 export default GroupChatScreen;
 

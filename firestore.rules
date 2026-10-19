@@ -302,14 +302,12 @@ service cloud.firestore {
       return signedIn() && (resource.data.get('createdBy', null) == me()
         || resource.data.get('members', {}).get(me(), {}).get('role', '') == 'admin');
     }
-    // searchKeys / ownerCap / archivedAt are written by functions/
-    // groupMembership.js only. Clients may only RESTORE an archived group
-    // (isActive back to true, restoredAt = now); archiving is the server's job,
-    // or archiving would be a way around the group cap.
+    // searchKeys / ownerCap are written by functions/groupMembership.js only.
+    // isActive can't be switched off by a client: inactive groups don't count
+    // toward the group cap, so that would be a way around it.
     function noGroupServerFields() {
-      return !changed().hasAny(['searchKeys', 'ownerCap', 'archivedAt'])
-        && (!('isActive' in changed()) || request.resource.data.isActive == true)
-        && (!('restoredAt' in changed()) || request.resource.data.restoredAt == request.time);
+      return !changed().hasAny(['searchKeys', 'ownerCap'])
+        && (!('isActive' in changed()) || request.resource.data.isActive == true);
     }
     // A group can only be handed to one of its members.
     function ownerStaysMember() {
@@ -353,7 +351,7 @@ service cloud.firestore {
       allow create: if createsAs('createdBy') && !isBanned()
         && request.resource.data.get('memberIds', [me()]).toSet() == [me()].toSet()
         && request.resource.data.get('isActive', true) == true
-        && !request.resource.data.keys().hasAny(['searchKeys', 'ownerCap', 'archivedAt', 'restoredAt']);
+        && !request.resource.data.keys().hasAny(['searchKeys', 'ownerCap']);
       allow update: if noGroupServerFields() && (
           ((groupAdmin() || isSeniorStaff()) && ownerStaysMember())
           || (signedIn() && ownMembershipOnly()

@@ -125,7 +125,7 @@ await db.exec(read('044_steps/3_switch.sql'));
 await db.exec(read('044_steps/4_cleanup.sql'));
 const s3 = await one(read('044_steps/0_check.sql'));
 ok(s3.step1_table === true && Number(s3.step1_functions) === 8 && Number(s3.step2_group_messages) === 2
-  && Number(s3.step3_switch) === 4 && Number(s3.step4_cleanup) === 3, `step 0 after all steps (${JSON.stringify(s3)})`);
+  && Number(s3.step3_switch) === 4 && Number(s3.step4_cleanup) === 1, `step 0 after all steps (${JSON.stringify(s3)})`);
 
 // Reads.
 ok((await visible(X, 'g1')) === 0, 'outsider with a self-made inbox row reads nothing');
@@ -261,17 +261,11 @@ ok((await one(`select count(*)::int as n from public.group_meta_data where group
 ok((await one(`select count(*)::int as n from public.group_members where group_id = 'g1'`)).n === 0, 'purge removes membership rows');
 ok((await one(`select count(*)::int as n from public.group_meta_data where group_id = 'g2'`)).n > 0, 'purge leaves other groups alone');
 
-// STEP 4: last activity per group, archived label (service role only).
+// STEP 4: last activity per group (service role only).
 await as('service');
 const act = await q(`select * from public.group_last_activity($1)`, [['g2', 'g3', 'gNone']]);
 const actBy = Object.fromEntries(act.map((r) => [r.group_id, r.last_at]));
 ok(act.length === 3 && actBy.g2 !== null && actBy.gNone === null, 'group_last_activity: newest message per group, null when none');
-ok((await one(`select public.set_group_archived('g3', now()) as n`)).n === 3, 'set_group_archived labels every member row');
-ok((await one(`select public.set_group_archived('g3', now()) as n`)).n === 3, 'set_group_archived again moves the timestamp');
-ok((await one(`select public.set_group_archived('g3', null) as n`)).n === 3, 'set_group_archived(null) clears the label');
-ok((await one(`select public.set_group_archived('g3', null) as n`)).n === 0, 'clearing twice is a no-op');
-ok(/permission denied/.test(await err(async () => { await as(C); await db.query(`select public.set_group_archived('g3', now())`); }) || ''),
-  'clients cannot call set_group_archived');
 ok(/permission denied/.test(await err(async () => { await as(C); await db.query(`select * from public.group_last_activity($1)`, [['g3']]); }) || ''),
   'clients cannot call group_last_activity');
 

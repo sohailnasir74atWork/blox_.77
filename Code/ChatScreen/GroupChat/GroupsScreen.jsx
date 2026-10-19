@@ -20,7 +20,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
 import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
 import { useTranslation } from 'react-i18next';
-import { leaveGroup, acceptGroupInvite, declineGroupInvite, updateGroupAvatar, approveJoinRequest, rejectJoinRequest, getAllGroups, sendJoinRequest, deleteGroup, getGroupPermissions, isGroupStaff, getGroupCap, restoreGroup } from '../utils/groupUtils';
+import { leaveGroup, acceptGroupInvite, declineGroupInvite, updateGroupAvatar, approveJoinRequest, rejectJoinRequest, getAllGroups, sendJoinRequest, deleteGroup, getGroupPermissions, isGroupStaff, getGroupCap } from '../utils/groupUtils';
 import { showSuccessMessage, showErrorMessage } from '../../Helper/MessageHelper';
 import { collection, query, where, onSnapshot, doc, getDoc, getCountFromServer, limit } from '@react-native-firebase/firestore';
 import { ref, get, set } from '@react-native-firebase/database';
@@ -432,17 +432,6 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
     );
   }, [user?.id, roles, firestoreDB, appdatabase, setGroups, groups, t]);
 
-  // Restore a group the server archived after 60 days without messages.
-  const handleRestoreGroup = useCallback(async (groupId) => {
-    if (!groupId || !user?.id) return;
-    const result = await restoreGroup(firestoreDB, groupId, user.id, roles);
-    if (result.success) {
-      showSuccessMessage(t('home.alert.success'), t('chat.groups_screen.group_restored'));
-    } else {
-      showErrorMessage(t('chat.error'), result.error || t('chat.groups_screen.restore_failed'));
-    }
-  }, [user?.id, firestoreDB, roles, t]);
-
   // Handle leave group
   const handleLeaveGroup = useCallback((groupId, groupName) => {
     if (!groupId || !user?.id) {
@@ -775,11 +764,6 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                   }}>{t('chat.groups_screen.my_group')}</Text>
                 </View>
               )}
-              {!!item.archivedAt && (
-                <View style={styles.archivedBadge}>
-                  <Text style={styles.archivedBadgeText}>{t('chat.groups_screen.archived_badge')}</Text>
-                </View>
-              )}
               {memberCount > 0 && (
                 <Text style={styles.memberCountText}> · {t('chat.groups_screen.member_count', { count: memberCount })}</Text>
               )}
@@ -828,11 +812,6 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                 />
               </View>
             </MenuOption>
-            {isGroupAdmin && !!item.archivedAt && (
-              <MenuOption onSelect={() => handleRestoreGroup(groupId)}>
-                <Text style={{ fontSize: 16, padding: 10 }}>{t('chat.groups_screen.restore_group')}</Text>
-              </MenuOption>
-            )}
             {isGroupAdmin && (
               <>
                 <MenuOption onSelect={() => handleEditGroup(groupId)}>
@@ -855,7 +834,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
         </Menu>
       </View>
     );
-  }, [styles, handleOpenGroup, handleLeaveGroup, handleUpdateGroupIcon, handleEditGroup, handleDeleteGroup, handleToggleMute, handleRestoreGroup, user?.id, isDarkMode, roles, groups, mutedGroups, t]);
+  }, [styles, handleOpenGroup, handleLeaveGroup, handleUpdateGroupIcon, handleEditGroup, handleDeleteGroup, handleToggleMute, user?.id, isDarkMode, roles, groups, mutedGroups, t]);
 
   const filteredGroups = useMemo(() => {
     if (!Array.isArray(groups)) return [];
@@ -869,8 +848,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
   // button still creates (the picker then offers "Add to <group>" too); at
   // the limit it only adds players.
   const atGroupLimit = useMemo(() => {
-    // Archived groups don't count toward the cap.
-    return filteredGroups.filter(g => g.createdBy === user?.id && !g.archivedAt).length >= getGroupCap(roles);
+    return filteredGroups.filter(g => g.createdBy === user?.id).length >= getGroupCap(roles);
   }, [filteredGroups, user?.id, roles]);
 
   // ✅ Load initial 10 groups when "All Groups" tab is active
@@ -2130,18 +2108,6 @@ const getStyles = (isDarkMode) =>
       fontSize: 12,
     },
     allGroupsTab: { flex: 1 },
-    archivedBadge: {
-      backgroundColor: isDarkMode ? '#4B5563' : '#E5E7EB',
-      paddingHorizontal: 6,
-      paddingVertical: 2,
-      borderRadius: 4,
-      marginLeft: 6,
-    },
-    archivedBadgeText: {
-      color: isDarkMode ? '#F3F4F6' : '#374151',
-      fontSize: 10,
-      fontWeight: '600',
-    },
     allGroupsSearchBar: {
       flexDirection: 'row',
       alignItems: 'center',

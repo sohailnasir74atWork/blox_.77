@@ -66,8 +66,7 @@ function fakeSupabase(tables) {
     },
   };
   const cache = new Map();
-  const reactivated = [];
-  const deps = (now) => ({ firestore, rtdb, supabase: fakeSupabase(tables), messaging, now, cache, reactivate: async (id) => { reactivated.push(id); } });
+  const deps = (now) => ({ firestore, rtdb, supabase: fakeSupabase(tables), messaging, now, cache });
   const tokenReads = () => rtdb.reads.filter((p) => p.endsWith('/fcmToken')).length;
   const rec = (text, id) => ({ group_id: G, sender_id: S, sender_name: 'Sam', text, id });
 
@@ -110,11 +109,6 @@ function fakeSupabase(tables) {
   delete store.group_push_state;
   await handleGroupPush(rec('pre-044', 'm7'), deps(t0 + 10 * PUSH_COLLAPSE_MS));
   assert.ok(sent.some((m) => m.token === 'tokX'), 'unsynced group falls back to memberIds');
-
-  // A message in an archived group asks for reactivation.
-  groups[G].isActive = false;
-  await handleGroupPush(rec('back', 'm8'), deps(t0 + 20 * PUSH_COLLAPSE_MS));
-  assert.deepStrictEqual(reactivated, [G], 'archived group reactivated by a message');
 
   assert.strictEqual(await handleGroupPush({ group_id: 'nope', sender_id: S }, deps(t0)), 'Skipped: group not found');
   console.log('notifyGroupPush: all checks passed');
