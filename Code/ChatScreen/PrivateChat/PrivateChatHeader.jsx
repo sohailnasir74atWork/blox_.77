@@ -15,7 +15,7 @@ import { getThemeColors } from '../../Helper/themeColors';
 import FramedAvatar from '../GroupChat/FramedAvatar';
 import { getActiveCosmetics } from '../../Engagement/shopUtils';
 import RoleBadges from '../../Design/componenets/RoleBadges';
-import { getCachedProfile } from '../../Helper/profileCache';
+import { getCachedProfile, warmProfileCache } from '../../Helper/profileCache';
 import { getRoblox, getRoles, getCosmetics } from '../../Supabase/userBackend';
 import { SUPABASE_USERS_ENABLED } from '../../Supabase/featureFlags';
 
@@ -43,6 +43,8 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
 
   // State for fetched user data
   const [userData, setUserData] = useState(null);
+  // Bumped when this user's profile lands in the profile cache (role badges).
+  const [profileVersion, setProfileVersion] = useState(0);
   const [activeCosmetics, setActiveCosmetics] = useState(null);
 
   // Memoize copyToClipboard
@@ -60,7 +62,15 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
     // Only fetch if robloxUsername is not already in selectedUser
     if (selectedUser?.robloxUsername || selectedUser?.robloxUserId) {
       setUserData(null);
-      return;
+      // Role badges come only from server data, not from selectedUser: make
+      // sure this profile is cached (cache-first, usually no request).
+      const cached = getCachedProfile(selectedUserId);
+      if (cached && !cached._seeded) return undefined;
+      let alive = true;
+      warmProfileCache(appdatabase, [selectedUserId])
+        .then(() => { if (alive) setProfileVersion((v) => v + 1); })
+        .catch(() => {});
+      return () => { alive = false; };
     }
 
     let isMounted = true;
@@ -200,9 +210,6 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
       isTrusted: userData.isTrusted ?? selectedUser?.isTrusted ?? false,
       isGrinder: userData.isGrinder ?? selectedUser?.isGrinder ?? false,
       isRaider: userData.isRaider ?? selectedUser?.isRaider ?? false,
-      // Helper badge + custom title (2026-10-19): fetched value wins.
-      isHelper: userData.isHelper ?? selectedUser?.isHelper ?? false,
-      customTitle: userData.customTitle !== undefined ? userData.customTitle : (selectedUser?.customTitle ?? null),
       profileFrame: selectedUser?.profileFrame || userData.profileFrame || null,
     };
   }, [selectedUser, userData]);
@@ -335,7 +342,8 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
           <Text style={[styles.userName, { color: c.text }]} numberOfLines={1}>
             {userName}
           </Text>
-          <RoleBadges userItem={mergedUser} />
+          {/* Roles only from the fetched userData or the cache, never selectedUser */}
+          <RoleBadges userItem={mergedUser} serverRoles={userData} cacheVersion={profileVersion} />
 
           {(mergedUser?.isPro || cachedProfile?.isPro) && (
             <Image resizeMethod="resize" source={require('../../../assets/pro.png')} style={styles.inlineIcon} />

@@ -323,17 +323,9 @@ export const seedFromMessage = (msg) => {
     robloxUsernameVerified: !!msg.robloxUsernameVerified,
     hasRecentGameWin: !!msg.hasRecentGameWin,
     lastGameWinAt: msg.lastGameWinAt || null,
-    isAdmin: !!msg.isAdmin,
-    isSeniorMod: !!msg.isSeniorMod,
-    isModerator: !!msg.isModerator,
-    isBabyMod: !!msg.isBabyMod,
-    isTrusted: !!msg.isTrusted,
-    isGrinder: !!msg.isGrinder,
-    isRaider: !!msg.isRaider,
-    isHelper: !!msg.isHelper,
-    // Messages don't carry titles: leave the key out (not null) so RoleBadges
-    // keeps looking for a real value.
-    customTitle: msg.customTitle,
+    // No role flags or title here (2026-10-19): a message is written by its
+    // sender, so roles only ever come from Supabase/RTDB (RoleBadges relies on
+    // it). warmProfileCache replaces this entry with the real profile.
     topBadge: msg.topBadge || null,
     profileFrame: msg.profileFrame || null,
     chatTextColor: msg.chatTextColor || null,
@@ -371,15 +363,16 @@ export const resolveProfile = (msg) => {
       typeof (msg.lastGameWinAt || cached?.lastGameWinAt) === 'number' &&
       Date.now() - (msg.lastGameWinAt || cached?.lastGameWinAt) <= 24 * 60 * 60 * 1000
     ),
-    isAdmin: msg.isAdmin ?? cached?.isAdmin ?? false,
-    isSeniorMod: msg.isSeniorMod ?? cached?.isSeniorMod ?? false,
-    isModerator: msg.isModerator ?? cached?.isModerator ?? false,
-    isBabyMod: msg.isBabyMod ?? cached?.isBabyMod ?? false,
-    isTrusted: msg.isTrusted ?? cached?.isTrusted ?? false,
-    isGrinder: msg.isGrinder ?? cached?.isGrinder ?? false,
-    isRaider: msg.isRaider ?? cached?.isRaider ?? false,
-    isHelper: msg.isHelper ?? cached?.isHelper ?? false,
-    customTitle: msg.customTitle ?? cached?.customTitle ?? null,
+    // Roles: server data only, never the message (see seedFromMessage).
+    isAdmin: cached?.isAdmin ?? false,
+    isSeniorMod: cached?.isSeniorMod ?? false,
+    isModerator: cached?.isModerator ?? false,
+    isBabyMod: cached?.isBabyMod ?? false,
+    isTrusted: cached?.isTrusted ?? false,
+    isGrinder: cached?.isGrinder ?? false,
+    isRaider: cached?.isRaider ?? false,
+    isHelper: cached?.isHelper ?? false,
+    customTitle: cached?.customTitle ?? null,
     chatTextColor: msg.chatTextColor ?? cached?.chatTextColor ?? null,
     profileFrame: msg.profileFrame ?? cached?.profileFrame ?? null,
     tradeCardBg: cached?.tradeCardBg ?? null,

@@ -46,7 +46,7 @@ const TAG_LABEL_KEYS = {
   'misc': 'feed.tags.misc',
 };
 
-const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete, onDeleteAll }) => {
+const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete, onDeleteAll, profileVersion = 0 }) => {
   const navigation = useNavigation();
   const { t } = useTranslation();
 
@@ -202,7 +202,7 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
         <TouchableOpacity style={{ marginLeft: 10, flex: 1 }} onPress={openProfileDrawer} activeOpacity={0.8}>
           <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
             <Text style={s.name} numberOfLines={1}>{item.displayName}</Text>
-            <RoleBadges userItem={item} />
+            <RoleBadges userItem={item} cacheVersion={profileVersion} />
             {item.isPro && (
               <Image resizeMethod="resize" source={require('../../../assets/pro.png')} style={s.badge} />
             )}
@@ -751,6 +751,7 @@ export default memo(PostCard, (prevProps, nextProps) => {
     prevProps.userId === nextProps.userId &&
     prevProps.localState?.isPro === nextProps.localState?.isPro &&
     prevProps.appdatabase === nextProps.appdatabase &&
-    prevProps.onReaction === nextProps.onReaction
+    prevProps.onReaction === nextProps.onReaction &&
+    prevProps.profileVersion === nextProps.profileVersion
   );
 });

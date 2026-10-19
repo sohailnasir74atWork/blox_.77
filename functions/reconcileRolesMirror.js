@@ -73,6 +73,68 @@ const FLAGS = [
 // Not a boolean, so it is diffed by value next to the flags.
 const TITLE = { rtdb: 'customTitle', col: 'custom_title' };
 
+// PostgREST: 42703 = undefined column (select), PGRST204 = unknown column in
+// an upsert. Only "045 missing" when the message names one of its columns.
+const ROLES_045_COLS = ['is_helper', 'custom_title'];
+const isMissing045Column = (error) =>
+  !!error && (error.code === '42703' || error.code === 'PGRST204') &&
+  ROLES_045_COLS.some((c) => String(error.message || '').includes(c));
+
+// Make Supabase match `truth` (uid -> { col: value }). Until
+// supabase/045_helper_role.sql is applied the select fails on is_helper /
+// custom_title; then the older columns are reconciled alone (logged) instead
+// of skipping the whole run. Returns the number of repaired rows, or null.
+async function reconcileMirror(supabase, truth) {
+  let flags = FLAGS;
+  let title = TITLE;
+  const selectRows = () => supabase
+    .from('user_roles')
+    .select(['uid', ...flags.map((f) => f.col), ...(title ? [title.col] : [])].join(','))
+    .or([...flags.map((f) => `${f.col}.eq.true`), ...(title ? [`${title.col}.not.is.null`] : [])].join(','));
+
+  // Mirror: every Supabase row with any flag true or a title.
+  let { data: rows, error } = await selectRows();
+  if (isMissing045Column(error)) {
+    console.warn('[reconcileRoles] supabase/045 not applied: reconciling without is_helper/custom_title');
+    flags = FLAGS.filter((f) => !ROLES_045_COLS.includes(f.col));
+    title = null;
+    ({ data: rows, error } = await selectRows());
+  }
+  if (error) {
+    console.error('[reconcileRoles] select failed:', error.message);
+    return null;
+  }
+  const mirror = {};
+  for (const r of rows || []) mirror[r.uid] = r;
+
+  // Diff. A uid drifts if any flag (or the title) differs in either direction.
+  const drifted = [];
+  const uids = new Set([...Object.keys(truth), ...Object.keys(mirror)]);
+  for (const uid of uids) {
+    const t = truth[uid] || {};
+    const m = mirror[uid] || {};
+    const titleDrift = !!title && (t[title.col] || null) !== (m[title.col] || null);
+    if (flags.some((f) => !!t[f.col] !== !!m[f.col]) || titleDrift) {
+      const row = { uid, updated_at: new Date().toISOString() };
+      for (const f of flags) row[f.col] = !!t[f.col];
+      if (title) row[title.col] = t[title.col] || null;
+      drifted.push(row);
+    }
+  }
+
+  if (drifted.length === 0) {
+    console.log(`[reconcileRoles] in sync (${Object.keys(truth).length} role holders)`);
+    return 0;
+  }
+  for (let i = 0; i < drifted.length; i += 500) {
+    const chunk = drifted.slice(i, i + 500);
+    const { error: upErr } = await supabase.from('user_roles').upsert(chunk, { onConflict: 'uid' });
+    if (upErr) { console.error('[reconcileRoles] upsert failed:', upErr.message); return null; }
+  }
+  console.log(`[reconcileRoles] repaired ${drifted.length} drifted row(s)`);
+  return drifted.length;
+}
+
 exports.reconcileRolesMirror = functions
   .runWith({
     secrets: ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'],
@@ -111,44 +173,9 @@ exports.reconcileRolesMirror = functions
       if (typeof v === 'string' && v) (truth[child.key] = truth[child.key] || {})[TITLE.col] = v;
     });
 
-    // 2) Mirror: every Supabase row with any flag true or a title.
-    const orFilter = [...FLAGS.map((f) => `${f.col}.eq.true`), `${TITLE.col}.not.is.null`].join(',');
-    const { data: rows, error } = await supabase
-      .from('user_roles')
-      .select('uid,' + FLAGS.map((f) => f.col).join(',') + ',' + TITLE.col)
-      .or(orFilter);
-    if (error) {
-      console.error('[reconcileRoles] select failed:', error.message);
-      return null;
-    }
-    const mirror = {};
-    for (const r of rows || []) mirror[r.uid] = r;
-
-    // 3) Diff. A uid drifts if any flag differs in either direction.
-    const drifted = [];
-    const uids = new Set([...Object.keys(truth), ...Object.keys(mirror)]);
-    for (const uid of uids) {
-      const t = truth[uid] || {};
-      const m = mirror[uid] || {};
-      if (FLAGS.some((f) => !!t[f.col] !== !!m[f.col]) || (t[TITLE.col] || null) !== (m[TITLE.col] || null)) {
-        const row = { uid, updated_at: new Date().toISOString() };
-        for (const f of FLAGS) row[f.col] = !!t[f.col];
-        row[TITLE.col] = t[TITLE.col] || null;
-        drifted.push(row);
-      }
-    }
-
-    if (drifted.length === 0) {
-      console.log(`[reconcileRoles] in sync (${Object.keys(truth).length} role holders)`);
-      return null;
-    }
-    for (let i = 0; i < drifted.length; i += 500) {
-      const chunk = drifted.slice(i, i + 500);
-      const { error: upErr } = await supabase.from('user_roles').upsert(chunk, { onConflict: 'uid' });
-      if (upErr) { console.error('[reconcileRoles] upsert failed:', upErr.message); return null; }
-    }
-    console.log(`[reconcileRoles] repaired ${drifted.length} drifted row(s)`);
+    // 2) + 3) Mirror, diff, repair.
+    await reconcileMirror(supabase, truth);
     return null;
   });
 
-exports._internal = { syncOwnerFlags };
+exports._internal = { syncOwnerFlags, reconcileMirror };

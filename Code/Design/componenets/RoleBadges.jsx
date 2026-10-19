@@ -8,35 +8,51 @@ import { useTranslation } from 'react-i18next';
 
 const HELPER_ICON = require('../../Assets/badges/badge_helper.webp');
 
+// `serverRoles`: role data a screen fetched itself from Supabase/RTDB (the
+// profile drawer, the private-chat header). `cacheVersion`: bump it to
+// re-render after the profile cache was warmed.
 // eslint-disable-next-line no-unused-vars
-const RoleBadges = ({ userItem, style, cacheVersion }) => {
+const RoleBadges = ({ userItem, style, cacheVersion, serverRoles = null }) => {
   const globalState = useGlobalState() || {};
   const { t } = useTranslation();
-  const { user: currentUser, isAdmin: isGlobalAdmin, isModerator: isGlobalModerator, isSeniorMod: isGlobalSeniorMod, isHelper: isGlobalHelper } = globalState;
+  const {
+    user: currentUser, isAdmin: isGlobalAdmin, isSeniorMod: isGlobalSeniorMod, isModerator: isGlobalModerator,
+    isBabyMod: isGlobalBabyMod, isTrusted: isGlobalTrusted, isGrinder: isGlobalGrinder, isRaider: isGlobalRaider,
+    isHelper: isGlobalHelper,
+  } = globalState;
 
   if (!userItem) return null;
 
-  // Hybrid Approach: Check UserDataCache → profileCache → message payload
   const userId = userItem.userId || userItem.senderId || userItem.id;
   const isCurrentUser = currentUser?.id && userId === currentUser.id;
 
   const cachedUser = getUserData(userId) || {};
   const cachedProfile = getCachedProfile(userId) || {};
 
-  const isAdmin = (isCurrentUser && isGlobalAdmin) || (cachedUser.admin ?? cachedUser.isAdmin ?? cachedProfile.isAdmin ?? userItem.admin ?? userItem.isAdmin ?? false);
-  const isSeniorMod = (isCurrentUser && isGlobalSeniorMod) || (cachedUser.isSeniorMod ?? cachedProfile.isSeniorMod ?? userItem.isSeniorMod ?? false);
-  const isModerator = (isCurrentUser && isGlobalModerator) || (cachedUser.isModerator ?? cachedProfile.isModerator ?? userItem.isModerator ?? false);
-  const isJMD = cachedUser.isBabyMod ?? cachedProfile.isBabyMod ?? userItem.isBabyMod ?? false;
-  const isTrusted = cachedUser.isTrusted ?? cachedProfile.isTrusted ?? userItem.isTrusted ?? false;
-  const isGrinder = cachedUser.isGrinder ?? cachedProfile.isGrinder ?? userItem.isGrinder ?? false;
-  const isRaider = cachedUser.isRaider ?? cachedProfile.isRaider ?? userItem.isRaider ?? false;
-  // Cosmetic Helper badge and the staff-given custom title (2026-10-19).
-  const isHelper = !!((isCurrentUser && isGlobalHelper) || (cachedUser.isHelper ?? cachedProfile.isHelper ?? userItem.isHelper ?? false));
-  // First source that carries the field wins, even with null ("no title"), so
-  // a removed title doesn't fall through to an old copy stamped on a post.
-  const titleSource = [isCurrentUser ? currentUser : null, cachedUser, cachedProfile, userItem]
-    .find((o) => o && o.customTitle !== undefined);
-  const rawTitle = titleSource?.customTitle;
+  // Every badge here comes ONLY from server data (2026-10-19): your own roles
+  // (GlobelStats, from your RTDB record), `serverRoles`, or the two caches,
+  // which are filled from Supabase/RTDB. Never from userItem: posts, comments
+  // and messages are written by their author, so a flag or title stamped there
+  // could be forged. Lists warm the profile cache for the people on screen
+  // (chat, feed, trades). The first source that carries a field wins, even
+  // with false/null ("not a mod", "no title").
+  const self = isCurrentUser ? {
+    isAdmin: !!isGlobalAdmin, isSeniorMod: !!isGlobalSeniorMod, isModerator: !!isGlobalModerator,
+    isBabyMod: !!isGlobalBabyMod, isTrusted: !!isGlobalTrusted, isGrinder: !!isGlobalGrinder,
+    isRaider: !!isGlobalRaider, isHelper: !!isGlobalHelper, customTitle: currentUser?.customTitle,
+  } : null;
+  const sources = [self, serverRoles, cachedUser, cachedProfile];
+  const firstKnown = (key) => sources.find((o) => o && o[key] !== undefined)?.[key];
+
+  const isAdmin = !!(firstKnown('isAdmin') || firstKnown('admin'));
+  const isSeniorMod = !!firstKnown('isSeniorMod');
+  const isModerator = !!firstKnown('isModerator');
+  const isJMD = !!firstKnown('isBabyMod');
+  const isTrusted = !!firstKnown('isTrusted');
+  const isGrinder = !!firstKnown('isGrinder');
+  const isRaider = !!firstKnown('isRaider');
+  const isHelper = !!firstKnown('isHelper');
+  const rawTitle = firstKnown('customTitle');
   const customTitle = typeof rawTitle === 'string' && rawTitle.trim() ? rawTitle.trim() : null;
 
   if (!isAdmin && !isSeniorMod && !isModerator && !isJMD && !isTrusted && !isGrinder && !isRaider && !isHelper && !customTitle) {

@@ -181,6 +181,8 @@ async function rtdbTests() {
   await ok('admin makes U1 Helper', () => D.set(r(A, `users/${U1}/isHelper`), true));
   await no('JMD makes U2 Helper', () => D.update(r(J, `users/${U2}`), { isHelper: true, rolesUpdatedAt: now() }));
   await no('U2 makes self Helper (child)', () => D.set(r(U2, `users/${U2}/isHelper`), true));
+  await no('mod makes self Helper', () => D.update(r(M, `users/${M}`), { isHelper: true, rolesUpdatedAt: now() }));
+  await no('admin makes self Helper', () => D.set(r(A, `users/${A}/isHelper`), true));
   await no('U2 makes self Helper (own record update)', () => D.update(r(U2, `users/${U2}`), { isHelper: true, displayName: 'two' }));
   await no('U1 removes own Helper', () => D.update(r(U1, `users/${U1}`), { isHelper: null }));
   await ok('U1 still edits own profile (Helper unchanged)', () => D.update(r(U1, `users/${U1}`), { displayName: 'helper one' }));

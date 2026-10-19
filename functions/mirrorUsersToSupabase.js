@@ -158,13 +158,20 @@ async function mirrorRoblox(uid, before, after, supabase) {
 // since the May backfill ever reached Supabase, and Senior Mod was read from
 // `isCMSR`, a flag the Blox app never writes (it uses `isSeniorMod`).
 // 2026-10-19: Blox now has a cosmetic Helper badge (isHelper) and staff-given
-// custom titles (customTitle); supabase/045_helper_role.sql adds both columns
-// and MUST be applied before this deploys. Columns are exactly:
+// custom titles (customTitle); supabase/045_helper_role.sql adds both columns.
+// If 045 isn't applied yet the upsert is retried without them (logged), so
+// every other role change still reaches Supabase. Columns are exactly:
 //   uid, is_admin, is_moderator, is_baby_mod, is_trusted, is_cmsr, is_grinder,
 //   is_raider, is_helper, custom_title
 // `rolesUpdatedAt` is a stamp the admin UI writes with every role change so a
 // repeat removal (same value) still re-mirrors.
 const ROLES_KEYS = ['admin', 'isAdmin', 'isModerator', 'isBabyMod', 'isTrusted', 'isSeniorMod', 'isGrinder', 'isRaider', 'isHelper', 'customTitle', 'rolesUpdatedAt'];
+const ROLES_045_COLS = ['is_helper', 'custom_title'];
+// PostgREST: PGRST204 = upsert names a column the schema cache doesn't have,
+// 42703 = undefined column. Only treat it as "045 missing" when it's ours.
+const isMissing045Column = (error) =>
+  !!error && (error.code === 'PGRST204' || error.code === '42703') &&
+  ROLES_045_COLS.some((c) => String(error.message || '').includes(c));
 async function mirrorRoles(uid, before, after, supabase) {
   if (!anyKeyChanged(before, after, ROLES_KEYS)) return;
 
@@ -189,9 +196,15 @@ async function mirrorRoles(uid, before, after, supabase) {
     updated_at: nowIso(),
   };
 
-  const { error } = await supabase
+  let { error } = await supabase
     .from('user_roles')
     .upsert(row, { onConflict: 'uid' });
+  if (isMissing045Column(error)) {
+    console.warn('[mirrorUsers/roles] supabase/045 not applied: mirrored without is_helper/custom_title', uid);
+    const legacy = { ...row };
+    for (const c of ROLES_045_COLS) delete legacy[c];
+    ({ error } = await supabase.from('user_roles').upsert(legacy, { onConflict: 'uid' }));
+  }
   if (error) console.error('[mirrorUsers/roles]', uid, error.message);
 }
 
@@ -492,3 +505,4 @@ exports.mirrorUsersToSupabase = functions
 
     return null;
   });
+exports._internal = { mirrorRoles };

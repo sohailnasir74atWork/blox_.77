@@ -67,7 +67,8 @@
         "admin",
         "isAdmin",
         "isHelper",
-        "customTitle"
+        "customTitle",
+        "owner"
       ],
       ".read": "auth != null",
       "$userId": {
@@ -98,7 +99,7 @@
           ".write": "(auth != null && ((auth.token.email_verified === true && (auth.token.email === 'thesolanalabs@gmail.com' || auth.token.email === 'sohailnasir74business@gmail.com' || auth.token.email === 'sohailnasir74@gmail.com')) || (root.child('users').child(auth.uid).child('admin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isSeniorMod').val() === true || root.child('users').child(auth.uid).child('isModerator').val() === true)))"
         },
         "isHelper": {
-          ".write": "(auth != null && ((auth.token.email_verified === true && (auth.token.email === 'thesolanalabs@gmail.com' || auth.token.email === 'sohailnasir74business@gmail.com' || auth.token.email === 'sohailnasir74@gmail.com')) || (root.child('users').child(auth.uid).child('admin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isSeniorMod').val() === true || root.child('users').child(auth.uid).child('isModerator').val() === true)))"
+          ".write": "((auth != null && ((auth.token.email_verified === true && (auth.token.email === 'thesolanalabs@gmail.com' || auth.token.email === 'sohailnasir74business@gmail.com' || auth.token.email === 'sohailnasir74@gmail.com')) || (root.child('users').child(auth.uid).child('admin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isSeniorMod').val() === true || root.child('users').child(auth.uid).child('isModerator').val() === true))) && $userId !== auth.uid)"
         },
         "customTitle": {
           ".write": "(auth != null && $userId !== auth.uid && ((auth.token.email_verified === true && (auth.token.email === 'thesolanalabs@gmail.com' || auth.token.email === 'sohailnasir74business@gmail.com' || auth.token.email === 'sohailnasir74@gmail.com')) || ((root.child('users').child(auth.uid).child('admin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === true) && !(root.child('users').child($userId).child('admin').val() === true || root.child('users').child($userId).child('isAdmin').val() === true) && !(root.child('users').child($userId).child('owner').val() === true)) || (root.child('users').child(auth.uid).child('isSeniorMod').val() === true && !(root.child('users').child($userId).child('admin').val() === true || root.child('users').child($userId).child('isAdmin').val() === true || root.child('users').child($userId).child('isSeniorMod').val() === true) && !(root.child('users').child($userId).child('owner').val() === true))))",

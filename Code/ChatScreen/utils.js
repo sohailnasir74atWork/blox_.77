@@ -1409,6 +1409,10 @@ const setHelperFlag = async (userId, value, callerRoles = {}) => {
     Alert.alert('Permission Denied', 'Only Mods and above can change the Helper badge.');
     return false;
   }
+  if (getAuth()?.currentUser?.uid === userId) {
+    Alert.alert('Permission Denied', 'You cannot change your own Helper badge.');
+    return false;
+  }
   try {
     await update(ref(getDatabase(), `users/${userId}`), { isHelper: value ? true : null, rolesUpdatedAt: Date.now() });
     logModAction('role_change', userId, { role: 'isHelper', value: !!value });

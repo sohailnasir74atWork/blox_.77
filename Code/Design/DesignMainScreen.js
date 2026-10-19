@@ -42,6 +42,7 @@ import SignInDrawer from '../Firebase/SigninDrawer';
 import config from '../Helper/Environment';
 import { Platform } from 'react-native';
 import { getMyCosmetics } from '../Helper/cosmeticsCache';
+import { getCachedProfile, warmProfileCache } from '../Helper/profileCache';
 import { getCachedFollowingIds, setCachedFollowingIds } from '../Helper/followingCache';
 import { showMessage } from 'react-native-flash-message';
 import i18next from 'i18next';
@@ -60,7 +61,7 @@ const DesignFeedScreen = ({ route }) => {
   // Floating buttons clear the real banner height (Ads/bannerHeight.js).
   const bannerHeight = useBannerHeight();
   const { selectedTheme } = route.params;
-  const { appdatabase, user, theme, firestoreDB, isBabyMod, isTrusted, isGrinder, isRaider, isHelper, proGranted, getModGate } = useGlobalState();
+  const { appdatabase, user, theme, firestoreDB, isBabyMod, isTrusted, isGrinder, isRaider, proGranted, getModGate } = useGlobalState();
   const { localState } = useLocalState();
   const isDarkMode = theme === 'dark';
   const navigation = useNavigation();
@@ -619,9 +620,6 @@ const DesignFeedScreen = ({ route }) => {
         isTrusted: !!isTrusted,
         isGrinder: !!isGrinder,
         isRaider: !!isRaider,
-        // Helper badge + staff-given title, stamped like the roles above.
-        isHelper: !!isHelper,
-        customTitle: typeof user?.customTitle === 'string' ? user.customTitle : null,
         profileFrame: getMyCosmetics()?.profileFrame || null,
       };
 
@@ -664,6 +662,8 @@ const DesignFeedScreen = ({ route }) => {
 
   // Feed ad rows load only near the screen (Ads/feedAdGate.js).
   const feedAdGate = useFeedAdGate();
+  // Bumped when author profiles land in the profile cache (effect below).
+  const [profileCacheVersion, setProfileCacheVersion] = useState(0);
   const renderItem = useCallback(({ item, index }) => {
     if (initialLoading) {
       return <View style={[styles.skeletonPost, isDarkMode && { backgroundColor: '#444' }]} />;
@@ -683,10 +683,10 @@ const DesignFeedScreen = ({ route }) => {
         appdatabase={appdatabase}
         onDelete={handleDeletePost}
         onDeleteAll={deleteUsersLatestPosts}
-
+        profileVersion={profileCacheVersion}
       />
     );
-  }, [feedAdGate, initialLoading, isDarkMode, user?.id, handleReaction, localState, appdatabase, handleDeletePost, deleteUsersLatestPosts]);
+  }, [feedAdGate, initialLoading, isDarkMode, user?.id, handleReaction, localState, appdatabase, handleDeletePost, deleteUsersLatestPosts, profileCacheVersion]);
 
   // const dataToRender = initialLoading
   //   ? skeletonArray
@@ -709,6 +709,22 @@ const DesignFeedScreen = ({ route }) => {
       item?.__type === 'ad' || !bannedUsers.includes(item?.userId)
     );
   }, [initialLoading, baseList, bannedUsers, skeletonArray]);
+
+  // Role badges on post cards (Helper and custom titles above all) come from
+  // the profile cache, which is filled from Supabase/RTDB, not from the post
+  // document its author wrote. Warm it for the authors on screen (as
+  // Trades.jsx does; batched, 60-min cache), then re-render the cards.
+  useEffect(() => {
+    if (initialLoading || !appdatabase) return undefined;
+    const uids = [...new Set(filteredBase.map((p) => p?.userId))]
+      .filter((uid) => uid && uid !== 'Anonymous' && (!getCachedProfile(uid) || getCachedProfile(uid)._seeded));
+    if (uids.length === 0) return undefined;
+    let alive = true;
+    warmProfileCache(appdatabase, uids)
+      .then(() => { if (alive) setProfileCacheVersion((v) => v + 1); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [filteredBase, initialLoading, appdatabase]);
 
   const dataToRender = initialLoading
     ? skeletonArray

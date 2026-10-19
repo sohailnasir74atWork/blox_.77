@@ -514,7 +514,9 @@ const FIRESTORE_BADGE_CHECK_MS = 3 * 24 * 60 * 60 * 1000;
  * from checkDailyStreak; a badge already earned on this device costs nothing.
  *   loved / popular — users/{me}/counters/reactionCount (others +1 it)
  *   influencer      — 200+ followers (Firestore count of `following`)
- *   fiveStar        — user_ratings_summary/{me}: 50+ reviews at 4.5★ or more
+ *   fiveStar        — user_ratings_summary/{me}: 50+ reviews at 4.5★ or more.
+ *                     The server awards it on each review (reviewIntegrity.js);
+ *                     this is only a fallback for earlier qualifiers.
  */
 export const checkBadgesFromOthers = async (database, userId) => {
   if (!database || !isMe(userId)) return;

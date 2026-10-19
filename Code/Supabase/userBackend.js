@@ -32,8 +32,21 @@ import { supabase } from './client';
 // No email: nothing on the client used it, and since supabase/029 the
 // user_identity view returns it only to the owner and staff.
 const IDENTITY_COLS = 'uid, display_name, avatar, is_block, created_at_ms, last_activity_ms, online, os, last_game_win_ms';
-// is_helper + custom_title need supabase/045_helper_role.sql applied first.
+// is_helper + custom_title come from supabase/045_helper_role.sql. Before it
+// is applied PostgREST rejects the whole select (42703), so the roles reads
+// fall back to the older list for the rest of the session (rolesColsFor).
 const ROLES_COLS = 'uid, is_admin, is_cmsr, is_moderator, is_baby_mod, is_trusted, is_grinder, is_raider, is_helper, custom_title';
+const ROLES_COLS_PRE_045 = 'uid, is_admin, is_cmsr, is_moderator, is_baby_mod, is_trusted, is_grinder, is_raider';
+let rolesCols = ROLES_COLS;
+// Called with a failed roles select: the column list to retry with, or null.
+const rolesColsFor = (error) => {
+  const missing045 = rolesCols !== ROLES_COLS_PRE_045 && error?.code === '42703' &&
+    /is_helper|custom_title/.test(error?.message || '');
+  if (!missing045) return null;
+  console.warn('[userBackend] supabase/045 not applied: roles without is_helper/custom_title');
+  rolesCols = ROLES_COLS_PRE_045;
+  return rolesCols;
+};
 const COSMETICS_COLS = 'uid, top_badge, is_pro, profile_frame, chat_text_color, trade_card_bg, profile_banner, chat_bubble_bg';
 const ROBLOX_COLS = 'uid, roblox_username, roblox_user_id, roblox_username_verified';
 const SETTINGS_COLS = 'uid, is_reminder_enabled, is_selected_reminder_enabled';
@@ -147,11 +160,10 @@ export function fromCosmeticsRow(row) {
 
 export async function getRoles(uid) {
   if (!uid) return null;
-  const { data, error } = await supabase
-    .from('user_roles')
-    .select(ROLES_COLS)
-    .eq('uid', uid)
-    .maybeSingle();
+  const select = (cols) => supabase.from('user_roles').select(cols).eq('uid', uid).maybeSingle();
+  let { data, error } = await select(rolesCols);
+  const retryCols = error ? rolesColsFor(error) : null;
+  if (retryCols) ({ data, error } = await select(retryCols));
   if (error) {
     if (error.code !== 'PGRST116') console.warn('[userBackend] getRoles error:', error.message);
     return null;
@@ -174,7 +186,7 @@ export async function getCosmetics(uid) {
 }
 
 export async function getRolesBatch(uids) {
-  return _batchByUid('user_roles', uids, fromRolesRow, ROLES_COLS);
+  return _batchByUid('user_roles', uids, fromRolesRow, rolesCols, rolesColsFor);
 }
 
 // Fetch users where `roleField` is true, joined with displayName/avatar
@@ -398,7 +410,9 @@ export async function getBadgesBatch(uids) {
 // shape, so we factor the chunk-and-merge logic out instead of
 // duplicating it per table.
 // =================================================================
-async function _batchByUid(table, uids, mapRow, cols = '*') {
+// `retryColsFor(error)` (optional): a column list to retry a failed chunk
+// with, or null (used by the roles reads before supabase/045 is applied).
+async function _batchByUid(table, uids, mapRow, cols = '*', retryColsFor = null) {
   const result = new Map();
   if (!Array.isArray(uids) || uids.length === 0) return result;
 
@@ -410,10 +424,15 @@ async function _batchByUid(table, uids, mapRow, cols = '*') {
   const CHUNK = 200;
   for (let i = 0; i < dedup.length; i += CHUNK) {
     const slice = dedup.slice(i, i + CHUNK);
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from(table)
       .select(cols)
       .in('uid', slice);
+    const retryCols = error && retryColsFor ? retryColsFor(error) : null;
+    if (retryCols) {
+      cols = retryCols;
+      ({ data, error } = await supabase.from(table).select(cols).in('uid', slice));
+    }
     if (error) {
       console.warn(`[userBackend] _batchByUid(${table}) chunk failed:`, error.message);
       continue; // partial result is fine — caller falls back per-uid

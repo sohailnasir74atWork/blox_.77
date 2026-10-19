@@ -2408,7 +2408,7 @@ const ProfileBottomDrawer = ({
                 />
               </View>
               {/* Role Badge Pills */}
-              <RoleBadges userItem={mergedUser} style={{ alignSelf: 'center', marginTop: 4, marginBottom: 4 }} />
+              <RoleBadges userItem={mergedUser} serverRoles={userData} style={{ alignSelf: 'center', marginTop: 4, marginBottom: 4 }} />
 
               {/* Roblox Badge */}
               {mergedUser?.robloxUsername ? (

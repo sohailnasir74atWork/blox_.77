@@ -254,8 +254,8 @@ const userChildren = {
   isGrinder: { '.write': wMod },
   isRaider: { '.write': wMod },
   // Cosmetic "Helper" badge: no staff powers anywhere (not in staffMirror,
-  // banEnforcement RANK or the rank sets above).
-  isHelper: { '.write': wMod },
+  // banEnforcement RANK or the rank sets above). Never on yourself.
+  isHelper: { '.write': and(wMod, '$userId !== auth.uid') },
   customTitle: {
     '.write': wTitle,
     '.validate': and(
@@ -299,9 +299,10 @@ const participant = and('auth != null', or(`$chatKey.beginsWith(auth.uid + '_')`
 
 const OVERRIDES = {
   users: (cur) => {
-    // reconcileRolesMirror queries isHelper and customTitle by child.
+    // reconcileRolesMirror queries isHelper and customTitle by child;
+    // scripts/seed-firestore-staff.js queries owner (staffMirror STAFF_FLAGS).
     const indexOn = [...(cur['.indexOn'] || [])];
-    for (const k of ['isHelper', 'customTitle']) if (!indexOn.includes(k)) indexOn.push(k);
+    for (const k of ['isHelper', 'customTitle', 'owner']) if (!indexOn.includes(k)) indexOn.push(k);
     const keep = { '.indexOn': indexOn, '.read': cur['.read'] };
     return {
       ...keep,
