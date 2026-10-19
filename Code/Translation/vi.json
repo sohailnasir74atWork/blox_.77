@@ -1851,6 +1851,10 @@
       "inappropriate": "Không được gửi nội dung không phù hợp.",
       "links": "Không được gửi liên kết trong tin nhắn."
     },
+    "word_filter": {
+      "slur": "Không được phép dùng ngôn từ thù ghét hoặc miệt thị.",
+      "username_not_allowed": "Tên này chứa từ không được phép. Hãy chọn tên khác."
+    },
     "notifications": {
       "default_channel": "Kênh mặc định",
       "stock_update_title": "Đã cập nhật kho",

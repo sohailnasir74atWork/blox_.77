@@ -99,6 +99,13 @@ service cloud.firestore {
     }
 
     // ── Feed posts (designPosts_upgrade; designPosts = builds before 2026-05) ──
+    // Word filter (functions/wordFilterContent.js): once the server has masked
+    // a doc, its owner can't put the text back, and only staff / the server
+    // write the `wordFilter` stamp.
+    function keepsMasked(fields) {
+      return !('wordFilter' in changed())
+        && (!('wordFilter' in resource.data) || !changed().hasAny(fields));
+    }
     function postUpdateByOthers() {
       return active()
         && changed().hasOnly(['reactions', 'likes', 'commentCount', 'reportCount', 'report', 'banned'])
@@ -116,7 +123,7 @@ service cloud.firestore {
     match /designPosts_upgrade/{postId} {
       allow read: if true;
       allow create: if createsAs('userId') && !isBanned() && postImagesWithinCap();
-      allow update: if ((ownerIs('userId') && keepsOwner('userId') && !isBanned())
+      allow update: if ((ownerIs('userId') && keepsOwner('userId') && !isBanned() && keepsMasked(['desc']))
         || postUpdateByOthers()
         || isStaff())
         && (!('imageUrl' in changed()) || postImagesWithinCap());
@@ -125,7 +132,7 @@ service cloud.firestore {
       match /comments/{commentId} {
         allow read: if true;
         allow create: if createsAs('userId') && !isBanned();
-        allow update: if (ownerIs('userId') && keepsOwner('userId') && !isBanned()) || isStaff();
+        allow update: if (ownerIs('userId') && keepsOwner('userId') && !isBanned() && keepsMasked(['text'])) || isStaff();
         allow delete: if ownerIs('userId') || isStaff()
           || (signedIn() && get(/databases/$(database)/documents/designPosts_upgrade/$(postId)).data.get('userId', null) == me());
       }
@@ -182,7 +189,7 @@ service cloud.firestore {
       allow create: if createsAs('userId') && !isBanned()
         && !request.resource.data.keys().hasAny(['reportedBy', 'reportCount']);
       allow update: if (ownerIs('userId') && keepsOwner('userId') && !isBanned()
-          && !changed().hasAny(['reportedBy', 'reportCount']))
+          && !changed().hasAny(['reportedBy', 'reportCount']) && keepsMasked(['caption', 'pollOptions']))
         || reportsStatusOnce()
         // Viewing is not an action a ban blocks.
         || (signedIn() && changed().hasOnly(['viewedBy']) && addedOnlyMe('viewedBy'))

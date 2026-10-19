@@ -46,6 +46,7 @@ import { useTranslation } from 'react-i18next';
 import i18next from 'i18next';
 import { showSuccessMessage, showErrorMessage } from '../Helper/MessageHelper';
 import { claimUsername } from '../Supabase/usernameBackend';
+import { validateContent, validateUsername, isAllowedLink } from '../Helper/ContentModeration';
 import { setAppLanguage } from '../../i18n';
 import StyledUsernamePreview from './Store/StyledName';
 import StyledDisplayName from './Store/NameDisplayReUser';
@@ -569,6 +570,7 @@ export default function SettingsScreen({ selectedTheme }) {
   const [isVerifyingRoblox, setIsVerifyingRoblox] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [bio, setBio] = useState('');
+  const savedBioRef = useRef(null); // bio as stored, so an unchanged one is not re-checked
   const [isSavingBio, setIsSavingBio] = useState(false);
   const [ratingSummary, setRatingSummary] = useState(null);
   const [loadingRating, setLoadingRating] = useState(false);
@@ -1069,6 +1071,7 @@ export default function SettingsScreen({ selectedTheme }) {
             ? reviewData.bio.trim()
             : 'Hi there, I am new here';
           setBio(loadedBio);
+          savedBioRef.current = loadedBio;
 
           // ✅ If bio doesn't exist in Firestore, save default bio
           if (!reviewData.bio || !reviewData.bio.trim()) {
@@ -1084,6 +1087,7 @@ export default function SettingsScreen({ selectedTheme }) {
         } else {
           // ✅ Bio doesn't exist - initialize with default value in Firestore
           setBio('Hi there, I am new here');
+          savedBioRef.current = 'Hi there, I am new here';
           await setDoc(
             doc(firestoreDB, 'reviews', user.id),
             {
@@ -1267,6 +1271,26 @@ export default function SettingsScreen({ selectedTheme }) {
       }
     }
 
+    // Word filter (supabase/049), before any write: the name blocks slurs and
+    // offensive words only; a CHANGED bio gets the same check as posts
+    // (YouTube / TikTok links allowed, like group chat). An unchanged bio is
+    // not re-checked, so an old one can't block a name or avatar change.
+    if (displayNameChanged) {
+      const nameCheck = validateUsername(newDisplayName.trim());
+      if (!nameCheck.isValid) {
+        showErrorMessage(t('home.alert.error'), nameCheck.reason);
+        return;
+      }
+    }
+    const newBio = bio.trim();
+    if (newBio !== (savedBioRef.current || '').trim()) {
+      const bioCheck = validateContent(newBio, { skipLinkCheck: isAllowedLink(newBio) });
+      if (!bioCheck.isValid) {
+        showErrorMessage(t('settings.setting.bio'), bioCheck.reason);
+        return;
+      }
+    }
+
     try {
       const now = Date.now();
 
@@ -1292,7 +1316,9 @@ export default function SettingsScreen({ selectedTheme }) {
               t('home.alert.error'),
               err?.taken
                 ? t('settings.setting.username_taken')
-                : (err?.message || t('settings.setting.username_check_failed'))
+                : /USERNAME_NOT_ALLOWED/.test(err?.message || '')
+                  ? t('app.word_filter.username_not_allowed')
+                  : (err?.message || t('settings.setting.username_check_failed'))
             );
             return;
           }
@@ -1329,6 +1355,7 @@ export default function SettingsScreen({ selectedTheme }) {
           },
           { merge: true }
         );
+        savedBioRef.current = bioToSave;
       }
 
       setDrawerVisible(false);

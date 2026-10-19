@@ -1850,6 +1850,10 @@
       "inappropriate": "不適切な内容は投稿できません。",
       "links": "メッセージにリンクは貼れません。"
     },
+    "word_filter": {
+      "slur": "ヘイトスピーチや差別的な言葉は禁止されています。",
+      "username_not_allowed": "この名前には使用できない言葉が含まれています。別の名前を選んでください。"
+    },
     "notifications": {
       "default_channel": "一般の通知",
       "stock_update_title": "ストック更新",

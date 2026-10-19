@@ -1855,6 +1855,10 @@
       "inappropriate": "Conteúdo impróprio não é permitido.",
       "links": "Não é permitido enviar links no chat."
     },
+    "word_filter": {
+      "slur": "Discurso de ódio e ofensas discriminatórias não são permitidos.",
+      "username_not_allowed": "Esse nome contém uma palavra não permitida. Escolha outro."
+    },
     "notifications": {
       "default_channel": "Canal padrão",
       "stock_update_title": "Estoque atualizado",

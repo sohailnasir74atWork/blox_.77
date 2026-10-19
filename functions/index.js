@@ -49,6 +49,11 @@ exports.syncTopicsOnSelectedFruitsChange = topics.syncTopicsOnSelectedFruitsChan
 // --- Scheduled maintenance -----------------------------------------------
 exports.clearPresenceNode = require('./clearPresenceNode').clearPresenceNode;
 exports.computeFeedRanking = require('./computeFeedRanking').computeFeedRanking;
+// Word filter (supabase/049): masks slurs in new feed posts, comments, statuses.
+const wordFilter = require('./wordFilterContent');
+exports.wordFilterPost = wordFilter.wordFilterPost;
+exports.wordFilterComment = wordFilter.wordFilterComment;
+exports.wordFilterStatus = wordFilter.wordFilterStatus;
 exports.aggregateTradeAnalytics = require('./aggregateTradeAnalytics').aggregateTradeAnalytics;
 exports.updateLeaderboardCache = require('./updateLeaderboardCache').updateLeaderboardCache;
 const reviewIntegrity = require('./reviewIntegrity');

@@ -1851,6 +1851,10 @@
       "inappropriate": "Konten yang tidak pantas tidak diperbolehkan.",
       "links": "Tautan tidak diperbolehkan dalam pesan."
     },
+    "word_filter": {
+      "slur": "Ujaran kebencian dan kata-kata hinaan tidak diizinkan.",
+      "username_not_allowed": "Nama itu mengandung kata yang tidak diizinkan. Pilih nama lain."
+    },
     "notifications": {
       "default_channel": "Saluran default",
       "stock_update_title": "Stok diperbarui",

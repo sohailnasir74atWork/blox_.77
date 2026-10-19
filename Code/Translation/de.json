@@ -1852,6 +1852,10 @@
       "inappropriate": "Unangemessene Inhalte sind nicht erlaubt.",
       "links": "Links sind in Nachrichten nicht erlaubt."
     },
+    "word_filter": {
+      "slur": "Hassrede und abwertende Begriffe sind nicht erlaubt.",
+      "username_not_allowed": "Dieser Name enthält ein unzulässiges Wort. Wähle einen anderen."
+    },
     "notifications": {
       "default_channel": "Standardkanal",
       "stock_update_title": "Bestand aktualisiert",
