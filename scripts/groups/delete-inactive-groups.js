@@ -13,7 +13,7 @@
 //   node scripts/groups/delete-inactive-groups.js                  # dry run: counts only
 //   node scripts/groups/delete-inactive-groups.js --apply --confirm=<N>
 //     N = the "would delete" number the dry run printed; anything else aborts.
-//   Options: --days=15 (quiet window).
+//   Options: --days=15 (quiet window), --no-backup (skip the ~/Downloads backup).
 //
 // Credentials it uses:
 //   Firebase  serviceAccount.json found in this folder or a parent folder
@@ -32,6 +32,15 @@ const CHUNK = 50; // groups per Supabase purge statement
 const millis = (t) => (typeof t?.toMillis === 'function' ? t.toMillis() : (typeof t === 'number' ? t : null));
 const rpcMissing = (e) => ['PGRST202', '42883'].includes(e?.code || '') || /could not find the function/i.test(e?.message || '');
 const tableMissing = (e) => ['42P01', 'PGRST205'].includes(e?.code || '') || /does not exist|could not find the table/i.test(e?.message || '');
+// Run fn over items, `n` at a time; results in order.
+async function pool(items, n, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
+    while (next < items.length) { const i = next++; out[i] = await fn(items[i]); }
+  }));
+  return out;
+}
 const chunks = (list, n) => Array.from({ length: Math.ceil(list.length / n) }, (_, i) => list.slice(i * n, i * n + n));
 
 // ── Supabase through supabase-js (service role key) ──
@@ -186,7 +195,7 @@ const defaultBackupDir = () => {
   return fs.existsSync(dl) ? dl : os.homedir();
 };
 
-async function run({ db, store, now = Date.now(), days = 15, apply = false, confirm = null, backupDir = defaultBackupDir(), log = console.log }) {
+async function run({ db, store, now = Date.now(), days = 15, apply = false, confirm = null, backup: wantBackup = true, backupDir = defaultBackupDir(), log = console.log }) {
   const p = await plan({ db, store, now, days });
   const report = {
     mode: apply ? 'apply' : 'dry_run',
@@ -203,46 +212,48 @@ async function run({ db, store, now = Date.now(), days = 15, apply = false, conf
       + `(groups ${p.total}, active ${p.keepActive.length}, new ${p.keepNew.length}, store ${store.kind || '?'}). Run the dry run again and pass that number.`);
   }
 
-  // Backup first: every group doc, its invitations / join requests, inbox rows.
-  const inbox = await store.inboxRows(p.remove.map((d) => d.id));
-  const backup = [];
-  for (const d of p.remove) {
-    const extra = await joinDocs(db, d.id);
-    backup.push({
+  // Backup first (unless --no-backup): every group doc, its invitations /
+  // join requests, inbox rows.
+  if (wantBackup) {
+    const inbox = await store.inboxRows(p.remove.map((d) => d.id));
+    const backup = await pool(p.remove, 20, async (d) => ({
       id: d.id,
       data: plain(d.data()),
-      joinDocs: extra.map((x) => ({ path: x.ref.path, data: plain(x.data()) })),
+      joinDocs: (await joinDocs(db, d.id)).map((x) => ({ path: x.ref.path, data: plain(x.data()) })),
       inboxRows: inbox.get(d.id) || [],
-    });
+    }));
+    const file = path.join(backupDir, `group-delete-backup-${new Date(now).toISOString().replace(/[:.]/g, '-')}.json`);
+    fs.writeFileSync(file, JSON.stringify(backup, null, 1));
+    report.backup = file;
+    log(`backup: ${file} (${backup.length} groups)`);
+  } else {
+    report.backup = 'skipped (--no-backup)';
   }
-  const file = path.join(backupDir, `group-delete-backup-${new Date(now).toISOString().replace(/[:.]/g, '-')}.json`);
-  fs.writeFileSync(file, JSON.stringify(backup, null, 1));
-  report.backup = file;
-  log(`backup: ${file} (${backup.length} groups)`);
 
   report.deleted = 0;
   report.failed = [];
-  for (const part of chunks(backup, CHUNK)) {
+  for (const part of chunks(p.remove, 200)) {
+    const ids = part.map((d) => d.id);
     try {
-      await store.purge(part.map((b) => b.id));
+      await store.purge(ids);
     } catch (e) {
-      report.failed.push(`${part.length} groups (${part[0].id}…): ${e?.message || e}`);
+      report.failed.push(`${ids.length} groups (${ids[0]}…): ${e?.message || e}`);
       continue; // their Firestore docs stay, so a re-run picks them up
     }
-    for (const b of part) {
+    await pool(part, 20, async (d) => {
       try {
-        for (const slice of chunks(b.joinDocs, 400)) {
+        for (const slice of chunks(await joinDocs(db, d.id), 400)) {
           const batch = db.batch();
-          slice.forEach((j) => batch.delete(db.doc(j.path)));
+          slice.forEach((j) => batch.delete(j.ref));
           await batch.commit();
         }
-        await db.collection('groups').doc(b.id).delete();
+        await d.ref.delete();
         report.deleted += 1;
       } catch (e) {
-        report.failed.push(`${b.id}: ${e?.message || e}`);
+        report.failed.push(`${d.id}: ${e?.message || e}`);
       }
-    }
-    log(`deleted ${report.deleted}/${backup.length}`);
+    });
+    log(`deleted ${report.deleted}/${p.remove.length}`);
   }
   return report;
 }
@@ -288,6 +299,7 @@ if (require.main === module) {
     db: admin.firestore(),
     store,
     days,
+    backup: arg('no-backup') !== true,
     apply: arg('apply') === true,
     confirm: arg('confirm'),
   }).then((report) => {
