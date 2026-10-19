@@ -1083,14 +1083,17 @@
       "tab_trusted": "Đáng tin cậy",
       "tab_grinder": "Chăm chỉ",
       "tab_raider": "Người đột kích",
+      "tab_helper": "Người hỗ trợ",
       "empty_topRated": "Không tìm thấy người dùng có điểm từ 3,7 trở lên",
       "empty_trusted": "Chưa có người dùng đáng tin cậy",
       "empty_grinder": "Chưa có người chơi chăm chỉ",
       "empty_raider": "Chưa có người đột kích",
+      "empty_helper": "Chưa có người hỗ trợ",
       "loading_topRated": "Đang tải mục được đánh giá cao...",
       "loading_trusted": "Đang tải người dùng đáng tin cậy...",
       "loading_grinder": "Đang tải người chơi chăm chỉ...",
       "loading_raider": "Đang tải người đột kích...",
+      "loading_helper": "Đang tải người hỗ trợ...",
       "loading_subtext": "Đang hiển thị người dùng có nhiều đánh giá nhất và điểm từ 3,7 trở lên...",
       "updated_daily": "Bảng xếp hạng được cập nhật mỗi ngày",
       "last_updated": "Cập nhật lần cuối: {{date}}"
@@ -2483,7 +2486,8 @@
       "jmd": "Mod tập sự",
       "trusted": "Đáng tin cậy",
       "grinder": "Cày cuốc",
-      "raider": "Đột kích"
+      "raider": "Đột kích",
+      "helper": "Hỗ trợ"
     },
     "image_viewer": {
       "storage_denied": "Cho phép truy cập bộ nhớ để lưu ảnh.",

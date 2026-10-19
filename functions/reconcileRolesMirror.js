@@ -10,9 +10,10 @@
  * mirror fixed, any future outage or a repeat "remove" (a no-op RTDB write
  * that fires no trigger) would leave drift behind — this job repairs it.
  *
- * Cost: one indexed RTDB query per RTDB key (8 tiny queries — every key below
- * has an `.indexOn` entry under /users) + one Supabase select of rows with
- * any flag true + upserts only for drift.
+ * Cost: one indexed RTDB query per RTDB key (9 tiny flag queries + 1 for
+ * customTitle — every key below has an `.indexOn` entry under /users) + one
+ * Supabase select of rows with any flag true or a title + upserts only for
+ * drift.
  */
 
 const admin = require('firebase-admin');
@@ -64,7 +65,13 @@ const FLAGS = [
   { rtdb: ['isSeniorMod'],      col: 'is_cmsr' },     // client maps is_cmsr → isSeniorMod
   { rtdb: ['isGrinder'],        col: 'is_grinder' },
   { rtdb: ['isRaider'],         col: 'is_raider' },
+  // Cosmetic badge, not staff (2026-10-19, supabase/045_helper_role.sql).
+  { rtdb: ['isHelper'],         col: 'is_helper' },
 ];
+
+// Staff-given custom title (users/{uid}/customTitle → custom_title, 045).
+// Not a boolean, so it is diffed by value next to the flags.
+const TITLE = { rtdb: 'customTitle', col: 'custom_title' };
 
 exports.reconcileRolesMirror = functions
   .runWith({
@@ -97,11 +104,18 @@ exports.reconcileRolesMirror = functions
       }
     }
 
-    // 2) Mirror: every Supabase row with any flag true.
-    const orFilter = FLAGS.map((f) => `${f.col}.eq.true`).join(',');
+    // Titles: every string value (strings sort after booleans and numbers).
+    const titleSnap = await db.ref('users').orderByChild(TITLE.rtdb).startAt('').once('value');
+    titleSnap.forEach((child) => {
+      const v = child.child(TITLE.rtdb).val();
+      if (typeof v === 'string' && v) (truth[child.key] = truth[child.key] || {})[TITLE.col] = v;
+    });
+
+    // 2) Mirror: every Supabase row with any flag true or a title.
+    const orFilter = [...FLAGS.map((f) => `${f.col}.eq.true`), `${TITLE.col}.not.is.null`].join(',');
     const { data: rows, error } = await supabase
       .from('user_roles')
-      .select('uid,' + FLAGS.map((f) => f.col).join(','))
+      .select('uid,' + FLAGS.map((f) => f.col).join(',') + ',' + TITLE.col)
       .or(orFilter);
     if (error) {
       console.error('[reconcileRoles] select failed:', error.message);
@@ -116,9 +130,10 @@ exports.reconcileRolesMirror = functions
     for (const uid of uids) {
       const t = truth[uid] || {};
       const m = mirror[uid] || {};
-      if (FLAGS.some((f) => !!t[f.col] !== !!m[f.col])) {
+      if (FLAGS.some((f) => !!t[f.col] !== !!m[f.col]) || (t[TITLE.col] || null) !== (m[TITLE.col] || null)) {
         const row = { uid, updated_at: new Date().toISOString() };
         for (const f of FLAGS) row[f.col] = !!t[f.col];
+        row[TITLE.col] = t[TITLE.col] || null;
         drifted.push(row);
       }
     }

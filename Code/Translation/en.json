@@ -1083,14 +1083,17 @@
       "tab_trusted": "Trusted",
       "tab_grinder": "Grinder",
       "tab_raider": "Raider",
+      "tab_helper": "Helper",
       "empty_topRated": "No users found with 3.7+ rating",
       "empty_trusted": "No Trusted users yet",
       "empty_grinder": "No Grinder users yet",
       "empty_raider": "No Raider users yet",
+      "empty_helper": "No Helper users yet",
       "loading_topRated": "Loading Top Rated...",
       "loading_trusted": "Loading Trusted...",
       "loading_grinder": "Loading Grinder...",
       "loading_raider": "Loading Raider...",
+      "loading_helper": "Loading Helper...",
       "loading_subtext": "Showing most reviewed users with 3.7+ rating...",
       "updated_daily": "Leaderboard is updated daily",
       "last_updated": "Last updated: {{date}}"
@@ -2480,7 +2483,8 @@
       "jmd": "JMD",
       "trusted": "Trusted",
       "grinder": "Grinder",
-      "raider": "Raider"
+      "raider": "Raider",
+      "helper": "Helper"
     },
     "image_viewer": {
       "storage_denied": "Allow storage access to save images.",

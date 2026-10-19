@@ -1084,14 +1084,17 @@
       "tab_trusted": "Confiáveis",
       "tab_grinder": "Incansáveis",
       "tab_raider": "Raiders",
+      "tab_helper": "Ajudantes",
       "empty_topRated": "Nenhum usuário com avaliação acima de 3,7",
       "empty_trusted": "Ainda não há usuários confiáveis",
       "empty_grinder": "Ainda não há jogadores incansáveis",
       "empty_raider": "Ainda não há raiders",
+      "empty_helper": "Ainda não há ajudantes",
       "loading_topRated": "Carregando os mais bem avaliados...",
       "loading_trusted": "Carregando usuários confiáveis...",
       "loading_grinder": "Carregando jogadores incansáveis...",
       "loading_raider": "Carregando raiders...",
+      "loading_helper": "Carregando ajudantes...",
       "loading_subtext": "Exibindo usuários mais avaliados com nota acima de 3,7...",
       "updated_daily": "A classificação é atualizada diariamente",
       "last_updated": "Última atualização: {{date}}"
@@ -2488,7 +2491,8 @@
       "jmd": "Mod. júnior",
       "trusted": "Confiável",
       "grinder": "Fazendeiro",
-      "raider": "Invasor"
+      "raider": "Invasor",
+      "helper": "Ajudante"
     },
     "image_viewer": {
       "storage_denied": "Permita o acesso ao armazenamento para salvar imagens.",

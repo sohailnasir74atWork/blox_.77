@@ -1083,14 +1083,17 @@
       "tab_trusted": "Tepercaya",
       "tab_grinder": "Paling tekun",
       "tab_raider": "Raider",
+      "tab_helper": "Helper",
       "empty_topRated": "Tidak ada pengguna dengan rating 3,7 ke atas",
       "empty_trusted": "Belum ada pengguna tepercaya",
       "empty_grinder": "Belum ada pemain tekun",
       "empty_raider": "Belum ada raider",
+      "empty_helper": "Belum ada helper",
       "loading_topRated": "Memuat rating tertinggi...",
       "loading_trusted": "Memuat pengguna tepercaya...",
       "loading_grinder": "Memuat pemain tekun...",
       "loading_raider": "Memuat raider...",
+      "loading_helper": "Memuat helper...",
       "loading_subtext": "Menampilkan pengguna dengan ulasan terbanyak dan rating minimal 3,7...",
       "updated_daily": "Papan peringkat diperbarui setiap hari",
       "last_updated": "Terakhir diperbarui: {{date}}"
@@ -2483,7 +2486,8 @@
       "jmd": "Mod Junior",
       "trusted": "Tepercaya",
       "grinder": "Pemain tekun",
-      "raider": "Raider"
+      "raider": "Raider",
+      "helper": "Helper"
     },
     "image_viewer": {
       "storage_denied": "Izinkan akses penyimpanan untuk menyimpan gambar.",

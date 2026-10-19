@@ -1,16 +1,18 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { getUserData } from '../../Helper/UserDataCache';
 import { getCachedProfile } from '../../Helper/profileCache';
 import { useGlobalState } from '../../GlobelStats';
 import { useTranslation } from 'react-i18next';
 
+const HELPER_ICON = require('../../Assets/badges/badge_helper.webp');
+
 // eslint-disable-next-line no-unused-vars
 const RoleBadges = ({ userItem, style, cacheVersion }) => {
   const globalState = useGlobalState() || {};
   const { t } = useTranslation();
-  const { user: currentUser, isAdmin: isGlobalAdmin, isModerator: isGlobalModerator, isSeniorMod: isGlobalSeniorMod } = globalState;
+  const { user: currentUser, isAdmin: isGlobalAdmin, isModerator: isGlobalModerator, isSeniorMod: isGlobalSeniorMod, isHelper: isGlobalHelper } = globalState;
 
   if (!userItem) return null;
 
@@ -28,8 +30,12 @@ const RoleBadges = ({ userItem, style, cacheVersion }) => {
   const isTrusted = cachedUser.isTrusted ?? cachedProfile.isTrusted ?? userItem.isTrusted ?? false;
   const isGrinder = cachedUser.isGrinder ?? cachedProfile.isGrinder ?? userItem.isGrinder ?? false;
   const isRaider = cachedUser.isRaider ?? cachedProfile.isRaider ?? userItem.isRaider ?? false;
+  // Cosmetic Helper badge and the staff-given custom title (2026-10-19).
+  const isHelper = !!((isCurrentUser && isGlobalHelper) || (cachedUser.isHelper ?? cachedProfile.isHelper ?? userItem.isHelper ?? false));
+  const rawTitle = (isCurrentUser ? currentUser?.customTitle : undefined) ?? cachedUser.customTitle ?? cachedProfile.customTitle ?? userItem.customTitle;
+  const customTitle = typeof rawTitle === 'string' && rawTitle.trim() ? rawTitle.trim() : null;
 
-  if (!isAdmin && !isSeniorMod && !isModerator && !isJMD && !isTrusted && !isGrinder && !isRaider) {
+  if (!isAdmin && !isSeniorMod && !isModerator && !isJMD && !isTrusted && !isGrinder && !isRaider && !isHelper && !customTitle) {
     return null;
   }
 
@@ -60,6 +66,12 @@ const RoleBadges = ({ userItem, style, cacheVersion }) => {
           <Text style={styles.roleBadgeText}>{t('feed.role_badges.jmd')}</Text>
         </View>
       )}
+      {customTitle && (
+        <View style={styles.roleBadge_title}>
+          <Ionicons name="ribbon" size={8} color="#fff" />
+          <Text style={styles.titleText} numberOfLines={1}>{customTitle}</Text>
+        </View>
+      )}
       {isTrusted && (
         <View style={styles.roleBadge_trusted}>
           <Ionicons name="checkmark-circle" size={8} color="#fff" />
@@ -76,6 +88,12 @@ const RoleBadges = ({ userItem, style, cacheVersion }) => {
         <View style={styles.roleBadge_raider}>
           <Ionicons name="flash" size={8} color="#fff" />
           <Text style={styles.roleBadgeText}>{t('feed.role_badges.raider')}</Text>
+        </View>
+      )}
+      {isHelper && (
+        <View style={styles.roleBadge_helper}>
+          <Image source={HELPER_ICON} style={styles.helperIcon} />
+          <Text style={styles.roleBadgeText}>{t('feed.role_badges.helper')}</Text>
         </View>
       )}
     </View>
@@ -117,6 +135,18 @@ const styles = StyleSheet.create({
   roleBadge_raider: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#DC2626',
     paddingHorizontal: 4, paddingVertical: 1, borderRadius: 5, gap: 2,
+  },
+  roleBadge_helper: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#14B8A6',
+    paddingHorizontal: 4, paddingVertical: 1, borderRadius: 5, gap: 2,
+  },
+  helperIcon: { width: 10, height: 10 },
+  roleBadge_title: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#DB2777',
+    paddingHorizontal: 4, paddingVertical: 1, borderRadius: 5, gap: 2, maxWidth: 130,
+  },
+  titleText: {
+    color: '#fff', fontSize: 8, fontWeight: '700', paddingVertical: 1, flexShrink: 1,
   },
   roleBadgeText: {
     color: '#fff', fontSize: 7, fontWeight: '700',

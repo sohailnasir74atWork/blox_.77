@@ -210,7 +210,21 @@ const banValidate = and(
 );
 
 // ---------- users/{uid} ----------
-const FROZEN = ['isAdmin', 'admin', 'isSeniorMod', 'isModerator', 'isBabyMod', 'isTrusted', 'isGrinder', 'isRaider', 'isMod', 'owner'];
+const FROZEN = [
+  'isAdmin', 'admin', 'isSeniorMod', 'isModerator', 'isBabyMod', 'isTrusted', 'isGrinder', 'isRaider', 'isMod', 'owner',
+  'isHelper', 'customTitle', 'customTitleBy', 'customTitleAt',
+];
+// Custom titles (2026-10-19): Senior Mod and up, on someone strictly below
+// them, never on themselves. The verified owner may title anyone else.
+const wTitle = and(
+  'auth != null', '$userId !== auth.uid',
+  or(
+    owner,
+    and(adminU(ME), not(adminU('$userId')), not(`(${flag('$userId', 'owner')})`)),
+    and(flag(ME, 'isSeniorMod'), not(seniorPlusU('$userId')), not(`(${flag('$userId', 'owner')})`)),
+  ),
+);
+const TITLE_MAX = 20;
 const usersWrite = and(
   'auth != null',
   or(
@@ -227,11 +241,11 @@ const userChildren = {
   isModerator: {
     '.write': and('auth != null', not(targetAdmin), or(wAdmin, and(flag(ME, 'isSeniorMod'), `${U('$userId')}.child('isSeniorMod').val() !== true`))),
   },
+  // JMD: Senior Mod and up (Mods lost this 2026-10-19, owner decision).
   isBabyMod: {
     '.write': and('auth != null', not(targetAdmin), or(
       wAdmin,
       and(flag(ME, 'isSeniorMod'), `${U('$userId')}.child('isSeniorMod').val() !== true`),
-      and(flag(ME, 'isModerator'), `${U('$userId')}.child('isSeniorMod').val() !== true`, `${U('$userId')}.child('isModerator').val() !== true`),
       // Staff Access: a JMD granter may grant/remove JMD on ordinary users, never on themselves.
       and(isGranter, '$userId !== auth.uid', not(modPlusU('$userId'))),
     )),
@@ -239,6 +253,18 @@ const userChildren = {
   isTrusted: { '.write': wMod },
   isGrinder: { '.write': wMod },
   isRaider: { '.write': wMod },
+  // Cosmetic "Helper" badge: no staff powers anywhere (not in staffMirror,
+  // banEnforcement RANK or the rank sets above).
+  isHelper: { '.write': wMod },
+  customTitle: {
+    '.write': wTitle,
+    '.validate': and(
+      'newData.isString()', 'newData.val().length > 0', `newData.val().length <= ${TITLE_MAX}`,
+      `!newData.val().beginsWith(' ')`, `!newData.val().endsWith(' ')`, `!newData.val().contains('\\n')`,
+    ),
+  },
+  customTitleBy: { '.write': wTitle, '.validate': 'newData.val() === auth.uid' },
+  customTitleAt: { '.write': wTitle, '.validate': 'newData.val() === now' },
   // Legacy flags nobody may grant from a client.
   isMod: { '.write': and(wAdmin, not(targetAdmin)) },
   owner: { '.write': false },
@@ -250,9 +276,11 @@ const userChildren = {
     '.write': 'auth != null && auth.uid === $userId',
     '.validate': "newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{6,128}$/)",
   },
-  // Other players award badges (influencer on follow, fiveStar on review):
-  // set-to-true only.
-  badges: { $badgeId: { '.write': 'auth != null && newData.val() === true' } },
+  // Achievement badges: own only (2026-10-19). Badges other players earn you
+  // (influencer, fiveStar, loved, popular) are checked and written by your
+  // own app (badgeUtils checkBadgesFromOthers); old builds' cross-user
+  // writes are denied and they swallow the error.
+  badges: { $badgeId: { '.write': 'auth != null && auth.uid === $userId && newData.val() === true' } },
   // Other players bump badge counters (reactionCount on a post): +1 only.
   counters: {
     $counter: { '.write': 'auth != null && newData.isNumber() && newData.val() === (data.isNumber() ? data.val() : 0) + 1' },
@@ -271,7 +299,10 @@ const participant = and('auth != null', or(`$chatKey.beginsWith(auth.uid + '_')`
 
 const OVERRIDES = {
   users: (cur) => {
-    const keep = { '.indexOn': cur['.indexOn'], '.read': cur['.read'] };
+    // reconcileRolesMirror queries isHelper and customTitle by child.
+    const indexOn = [...(cur['.indexOn'] || [])];
+    for (const k of ['isHelper', 'customTitle']) if (!indexOn.includes(k)) indexOn.push(k);
+    const keep = { '.indexOn': indexOn, '.read': cur['.read'] };
     return {
       ...keep,
       $userId: { '.read': true, '.write': usersWrite, ...userChildren },

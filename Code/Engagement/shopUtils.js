@@ -9,7 +9,7 @@
 
 import { ref, get, update, push, set, increment } from '@react-native-firebase/database';
 import { updateMyCosmeticType } from '../Helper/cosmeticsCache';
-import { EGGS, ALL_ITEMS, COSMETIC_TYPE, getItemsByRarity } from './shopItems';
+import { EGGS, ALL_ITEMS, COSMETIC_TYPE, getItemsByRarity, FRAMES, TEXT_COLORS, TRADE_BG_COLORS, BANNER_GRADIENTS, CHAT_BG_COLORS } from './shopItems';
 import { spendStars } from './starUtils';
 import i18next from 'i18next';
 
@@ -384,6 +384,49 @@ export const getInventory = async (db, uid) => {
 };
 
 // ════════════════════════════════════════════════════════════
+//  STAFF TEST INVENTORY — Senior Mod, Admin and owner see every cosmetic as
+//  owned so they can test them (owner decision 2026-10-19). Display only:
+//  nothing is written to ownedItems and no stars are spent. Equipping one
+//  writes the staffer's own activeItems like any other item, lasting the
+//  item's normal duration (7 days at most) from the moment it is equipped.
+// ════════════════════════════════════════════════════════════
+const CATALOG_BY_TYPE = {
+  profileFrame: FRAMES,
+  chatTextColor: TEXT_COLORS,
+  tradeCardBg: TRADE_BG_COLORS,
+  profileBanner: BANNER_GRADIENTS,
+  chatBubbleBg: CHAT_BG_COLORS,
+};
+
+// Permanent items are capped at 7 days for staff tests, so a staffer who is
+// later demoted doesn't keep them for free.
+const STAFF_TEST_MAX_DAYS = 7;
+const staffTestExpiry = (item, now = Date.now()) => {
+  const days = item?.duration === -1 ? STAFF_TEST_MAX_DAYS : Math.min(item?.duration || 1, STAFF_TEST_MAX_DAYS);
+  return now + days * 24 * 60 * 60 * 1000;
+};
+
+export const canTestAllCosmetics = (roles) => !!(roles?.isAdmin || roles?.isOwner || roles?.isSeniorMod);
+
+// Real inventory first; every catalog item the staffer doesn't own is added
+// after it, marked _staffTest.
+export const withAllCosmetics = (inventory = {}) => {
+  const now = Date.now();
+  const result = {};
+  Object.entries(CATALOG_BY_TYPE).forEach(([type, items]) => {
+    const owned = Array.isArray(inventory[type]) ? inventory[type] : [];
+    const ownedIds = new Set(owned.map((i) => i.id));
+    const extra = Object.values(items)
+      .filter((item) => !ownedIds.has(item.id))
+      .map((item) => ({ ...item, type, _key: `staff_${item.id}`, _staffTest: true, expiresAt: staffTestExpiry(item, now) }));
+    result[type] = [...owned, ...extra];
+  });
+  // Keep any type the catalog map doesn't know about.
+  Object.entries(inventory).forEach(([type, items]) => { if (!result[type]) result[type] = items; });
+  return result;
+};
+
+// ════════════════════════════════════════════════════════════
 //  ACTIVATE ITEM — Switch active cosmetic to a specific owned item
 // ════════════════════════════════════════════════════════════
 export const activateItem = async (db, uid, type, itemData) => {
@@ -400,7 +443,9 @@ export const activateItem = async (db, uid, type, itemData) => {
       name: itemData.name || fullDef.name,
       rarity: itemData.rarity || fullDef.rarity,
       activatedAt: Date.now(),
-      expiresAt: itemData.expiresAt,
+      // Staff test items run their normal duration from now, not from when
+      // the inventory screen was opened.
+      expiresAt: itemData._staffTest ? staffTestExpiry(fullDef.id ? fullDef : itemData) : itemData.expiresAt,
     };
 
     // Merge type-specific properties from both itemData AND full definition

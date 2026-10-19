@@ -5,7 +5,23 @@
  * Extended with: Fruit Parent, Quiz Master, Memory King, Night Owl, Streak Master, etc.
  */
 
+import { getAuth } from '@react-native-firebase/auth';
 import { getServerTime, getServerTimeQuick } from '../../Helper/serverTime';
+
+// RTDB users/{uid}/badges is writable by its owner only (2026-10-19, bug
+// "any signed-in user can give any user any badge"). Every award below is
+// skipped unless it is for the signed-in user; badges other players earn you
+// are written by your own app (checkBadgesFromOthers).
+const isMe = (userId) => !!userId && getAuth()?.currentUser?.uid === userId;
+
+const getBadgeStore = () => {
+  try {
+    const { createMMKV } = require('react-native-mmkv');
+    return createMMKV({ id: 'badge-cache' });
+  } catch (e) {
+    return { getBoolean: () => undefined, getNumber: () => undefined, set: () => {} };
+  }
+};
 
 export const BADGE_DEFINITIONS = {
   // -- Phase 1 --
@@ -317,6 +333,7 @@ export const getTopBadge = (savedBadges = {}) => {
  */
 export const awardBadge = async (database, userId, badgeId) => {
   if (!database || !userId || !badgeId) return;
+  if (!isMe(userId)) return; // e.g. fiveStar for the reviewed user: their app awards it
   try {
     const { ref, set } = require('@react-native-firebase/database');
     await set(ref(database, `users/${userId}/badges/${badgeId}`), true);
@@ -347,6 +364,9 @@ export const incrementAndCheckBadge = async (database, userId, counterName, thre
     const { ref, get, set, increment } = require('@react-native-firebase/database');
     const counterRef = ref(database, `users/${userId}/counters/${counterName}`);
     await set(counterRef, increment(1));
+    // Another player's counter (reactionCount on their post): +1 only. Their
+    // own app turns it into loved/popular (checkBadgesFromOthers).
+    if (!isMe(userId)) return;
     const snap = await get(counterRef);
     const count = snap.exists() ? snap.val() : 0;
 
@@ -375,6 +395,7 @@ export const incrementAndCheckBadge = async (database, userId, counterName, thre
  */
 export const checkThresholdBadges = async (database, userId, count, thresholds = []) => {
   if (!database || !userId || typeof count !== 'number') return;
+  if (!isMe(userId)) return;
   try {
     // Same MMKV short-circuit as incrementAndCheckBadge: once a badge is earned,
     // later calls cost ZERO Firebase reads/writes (just a local flag check). This
@@ -474,6 +495,76 @@ export const checkDailyStreak = async (database, userId) => {
     }
   } catch (e) {
     console.warn('[Badges] Streak check failed:', e);
+    return;
+  }
+  // First open of the day only (the early return above handles repeats).
+  await checkBadgesFromOthers(database, userId);
+};
+
+export const INFLUENCER_FOLLOWERS = 200;
+export const FIVE_STAR_MIN_REVIEWS = 50;
+export const FIVE_STAR_MIN_AVERAGE = 4.5;
+// The two Firestore checks (follower count, rating summary) run at most every
+// 3 days per device; the RTDB reaction counter is checked every day.
+const FIRESTORE_BADGE_CHECK_MS = 3 * 24 * 60 * 60 * 1000;
+
+/**
+ * Badges that other players' actions earn you, checked and written by your
+ * OWN app (the badges rule is owner-only since 2026-10-19). Runs once a day
+ * from checkDailyStreak; a badge already earned on this device costs nothing.
+ *   loved / popular — users/{me}/counters/reactionCount (others +1 it)
+ *   influencer      — 200+ followers (Firestore count of `following`)
+ *   fiveStar        — user_ratings_summary/{me}: 50+ reviews at 4.5★ or more
+ */
+export const checkBadgesFromOthers = async (database, userId) => {
+  if (!database || !isMe(userId)) return;
+  try {
+    const badgeStore = getBadgeStore();
+    const ids = ['loved', 'popular', 'influencer', 'fiveStar'];
+    const todo = ids.filter((id) => badgeStore.getBoolean(`earned_${userId}_${id}`) !== true);
+    if (todo.length === 0) return;
+
+    const { ref, get, set } = require('@react-native-firebase/database');
+    const badgesSnap = await get(ref(database, `users/${userId}/badges`));
+    const have = (badgesSnap.exists() && badgesSnap.val()) || {};
+    const earn = async (id) => {
+      if (have[id] !== true) await set(ref(database, `users/${userId}/badges/${id}`), true);
+      badgeStore.set(`earned_${userId}_${id}`, true);
+    };
+    const pending = todo.filter((id) => {
+      if (have[id] === true) { badgeStore.set(`earned_${userId}_${id}`, true); return false; }
+      return true;
+    });
+    if (pending.length === 0) return;
+
+    if (pending.includes('loved') || pending.includes('popular')) {
+      const countSnap = await get(ref(database, `users/${userId}/counters/reactionCount`));
+      const reactions = countSnap.exists() && typeof countSnap.val() === 'number' ? countSnap.val() : 0;
+      for (const { count, badgeId } of REACTION_BADGE_THRESHOLDS) {
+        if (pending.includes(badgeId) && reactions >= count) await earn(badgeId);
+      }
+    }
+
+    const fsKey = `fs_badge_check_${userId}`;
+    const lastFsCheck = badgeStore.getNumber?.(fsKey) || 0;
+    if ((pending.includes('influencer') || pending.includes('fiveStar')) && Date.now() - lastFsCheck >= FIRESTORE_BADGE_CHECK_MS) {
+      badgeStore.set(fsKey, Date.now());
+      const {
+        getFirestore, collection, query, where, getCountFromServer, doc, getDoc,
+      } = require('@react-native-firebase/firestore');
+      const fs = getFirestore();
+      if (pending.includes('fiveStar')) {
+        const sumSnap = await getDoc(doc(fs, 'user_ratings_summary', userId));
+        const sum = sumSnap.exists() ? sumSnap.data() : null;
+        if (sum && sum.count >= FIVE_STAR_MIN_REVIEWS && sum.averageRating >= FIVE_STAR_MIN_AVERAGE) await earn('fiveStar');
+      }
+      if (pending.includes('influencer')) {
+        const countSnap = await getCountFromServer(query(collection(fs, 'following'), where('followingId', '==', userId)));
+        if (countSnap.data().count >= INFLUENCER_FOLLOWERS) await earn('influencer');
+      }
+    }
+  } catch (e) {
+    console.warn('[Badges] Badges-from-others check failed:', e);
   }
 };
 
@@ -482,6 +573,10 @@ export const checkDailyStreak = async (database, userId) => {
  */
 export const checkInfluencerBadge = async (database, firestoreDB, followedUserId) => {
   if (!database || !firestoreDB || !followedUserId) return;
+  // Followers can't write the followed user's badge any more; that user's
+  // own app checks once a day (checkBadgesFromOthers). So following someone
+  // costs no badge read or count query now.
+  if (!isMe(followedUserId)) return;
   try {
     // Earned-flag cache (same store as the other badges). Once this device has
     // seen followedUserId hit influencer, later follows skip BOTH the RTDB read
@@ -511,7 +606,7 @@ export const checkInfluencerBadge = async (database, firestoreDB, followedUserId
     const countSnap = await getCountFromServer(followersQuery);
     const followerCount = countSnap.data().count;
 
-    if (followerCount >= 200) {
+    if (followerCount >= INFLUENCER_FOLLOWERS) {
       await set(ref(database, `users/${followedUserId}/badges/influencer`), true);
       badgeStore.set(`earned_${followedUserId}_influencer`, true);
     }

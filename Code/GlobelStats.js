@@ -299,6 +299,7 @@ export const GlobalStateProvider = ({ children }) => {
   const [isTrusted, setIsTrusted] = useState(false); // ✅ Global Trusted State
   const [isGrinder, setIsGrinder] = useState(false); // ✅ Global Grinder State
   const [isRaider, setIsRaider] = useState(false); // ✅ Global Raider State
+  const [isHelper, setIsHelper] = useState(false); // Cosmetic Helper badge (no staff powers)
   const [isInActiveGame, setIsInActiveGame] = useState(false); // ✅ Track if user is in active game
   const [user, setUser] = useState({
     id: null,
@@ -555,6 +556,7 @@ export const GlobalStateProvider = ({ children }) => {
     setIsTrusted(false);
     setIsGrinder(false);
     setIsRaider(false);
+    setIsHelper(false);
     setEmailBanState({ key: null, record: null, active: false });
     setUidBanState({ uid: null, record: null, active: false });
   }, [resetUserState]);
@@ -627,6 +629,8 @@ export const GlobalStateProvider = ({ children }) => {
         if (existing.isGrinder) setIsGrinder(true);
         // ✅ Check if user is Raider
         if (existing.isRaider) setIsRaider(true);
+        // Helper: cosmetic badge only, never a staff gate
+        if (existing.isHelper) setIsHelper(true);
 
         // 🩹 Heal bad displayNames ('Anonymous', empty, or missing) left by the
         // registration race condition or any other cause
@@ -1375,6 +1379,7 @@ export const GlobalStateProvider = ({ children }) => {
       isTrusted, // ✅ Export Trusted status
       isGrinder, // ✅ Export Grinder status
       isRaider, // ✅ Export Raider status
+      isHelper, // Cosmetic Helper badge
       reload,
       robloxUsernameRef, api, proTagBought, stockNotifierPurchase, proGranted, currentUserEmail, single_offer_wall,
       isInActiveGame,
@@ -1389,7 +1394,7 @@ export const GlobalStateProvider = ({ children }) => {
       getModGate, // ✅ getModGate('chat' | 'content' | 'action') → null | { kind, info }
 
     }),
-    [user, onlineMembersCount, theme, fetchStockData, loading, catalogStatus, robloxUsernameRef, api, freeTranslation, proTagBought, stockNotifierPurchase, proGranted, currentUserEmail, single_offer_wall, auth, isInActiveGame, setIsInActiveGame, tradingServerLink, strikeInfo, muteInfo, deviceBanInfo, isUserBlocked, isUserMuted, banCheckPending, getModGate, isAdmin, isSeniorMod, isModerator, isBabyMod, isTrusted, isGrinder, isRaider, updateLocalStateAndDatabase, reload]
+    [user, onlineMembersCount, theme, fetchStockData, loading, catalogStatus, robloxUsernameRef, api, freeTranslation, proTagBought, stockNotifierPurchase, proGranted, currentUserEmail, single_offer_wall, auth, isInActiveGame, setIsInActiveGame, tradingServerLink, strikeInfo, muteInfo, deviceBanInfo, isUserBlocked, isUserMuted, banCheckPending, getModGate, isAdmin, isSeniorMod, isModerator, isBabyMod, isTrusted, isGrinder, isRaider, isHelper, updateLocalStateAndDatabase, reload]
   );
 
   return (

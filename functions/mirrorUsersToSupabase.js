@@ -154,14 +154,17 @@ async function mirrorRoblox(uid, before, after, supabase) {
 }
 
 // 2026-09-04 fix: this upsert had FAILED on every call since the table was
-// created — it wrote `is_helper`, a column that does not exist here (Blox has
-// no helper role), so no role change since the May backfill ever reached
-// Supabase, and Senior Mod was read from `isCMSR`, a flag the Blox app never
-// writes (it uses `isSeniorMod`). Columns are exactly:
-//   uid, is_admin, is_moderator, is_baby_mod, is_trusted, is_cmsr, is_grinder, is_raider
+// created — it wrote `is_helper` before the column existed, so no role change
+// since the May backfill ever reached Supabase, and Senior Mod was read from
+// `isCMSR`, a flag the Blox app never writes (it uses `isSeniorMod`).
+// 2026-10-19: Blox now has a cosmetic Helper badge (isHelper) and staff-given
+// custom titles (customTitle); supabase/045_helper_role.sql adds both columns
+// and MUST be applied before this deploys. Columns are exactly:
+//   uid, is_admin, is_moderator, is_baby_mod, is_trusted, is_cmsr, is_grinder,
+//   is_raider, is_helper, custom_title
 // `rolesUpdatedAt` is a stamp the admin UI writes with every role change so a
 // repeat removal (same value) still re-mirrors.
-const ROLES_KEYS = ['admin', 'isAdmin', 'isModerator', 'isBabyMod', 'isTrusted', 'isSeniorMod', 'isGrinder', 'isRaider', 'rolesUpdatedAt'];
+const ROLES_KEYS = ['admin', 'isAdmin', 'isModerator', 'isBabyMod', 'isTrusted', 'isSeniorMod', 'isGrinder', 'isRaider', 'isHelper', 'customTitle', 'rolesUpdatedAt'];
 async function mirrorRoles(uid, before, after, supabase) {
   if (!anyKeyChanged(before, after, ROLES_KEYS)) return;
 
@@ -181,6 +184,8 @@ async function mirrorRoles(uid, before, after, supabase) {
     is_cmsr: asBool(after.isSeniorMod),        // the client maps is_cmsr → isSeniorMod
     is_grinder: asBool(after.isGrinder),
     is_raider: asBool(after.isRaider),
+    is_helper: asBool(after.isHelper),
+    custom_title: asString(after.customTitle),
     updated_at: nowIso(),
   };
 

@@ -68,6 +68,9 @@ import {
 } from '../../Helper/modSanction';
 import ModActionModal from '../../AppHelper/ModActionModal';
 import ModHistoryList from '../../AppHelper/ModHistoryList';
+// Role grants: Helper badge, custom titles, JMD = Senior Mod+ (2026-10-19).
+import CustomTitleModal from '../../AppHelper/CustomTitleModal';
+import { makeHelper, removeHelper, setCustomTitle, canManageBabyMod, canGiveTitle } from '../utils';
 import { openReportForm, reviewForReport } from '../../Reports/openReportForm';
 
 // Initialize dayjs plugins
@@ -226,6 +229,8 @@ const ProfileBottomDrawer = ({
   // clear selectedUser, so nothing is re-read from props at confirm time.
   const [modAction, setModAction] = useState(null);
   const [showModHistory, setShowModHistory] = useState(false);
+  // Custom-title prompt; same close-the-drawer-first pattern as modAction.
+  const [titleEdit, setTitleEdit] = useState(null);
 
   // 💼 trades list (from Firestore /trades_new_upgrade where userId == selectedUserId)
   const [trades, setTrades] = useState([]);
@@ -310,6 +315,8 @@ const ProfileBottomDrawer = ({
               isTrusted: !!roles?.isTrusted,
               isGrinder: !!roles?.isGrinder,
               isRaider: !!roles?.isRaider,
+              isHelper: !!roles?.isHelper,
+              customTitle: roles?.customTitle ?? null,
             });
             return;
           }
@@ -343,6 +350,8 @@ const ProfileBottomDrawer = ({
         fieldsToFetch.push({ key: 'isTrusted', path: `users/${selectedUserId}/isTrusted` });
         fieldsToFetch.push({ key: 'isGrinder', path: `users/${selectedUserId}/isGrinder` });
         fieldsToFetch.push({ key: 'isRaider', path: `users/${selectedUserId}/isRaider` });
+        fieldsToFetch.push({ key: 'isHelper', path: `users/${selectedUserId}/isHelper` });
+        fieldsToFetch.push({ key: 'customTitle', path: `users/${selectedUserId}/customTitle` });
 
         if (fieldsToFetch.length === 0) {
           setUserData(null);
@@ -433,6 +442,8 @@ const ProfileBottomDrawer = ({
       isTrusted: userData?.isTrusted || false,
       isGrinder: userData?.isGrinder || false,
       isRaider: userData?.isRaider || false,
+      isHelper: userData?.isHelper || false,
+      customTitle: typeof userData?.customTitle === 'string' ? userData.customTitle : null,
       isAdmin: userData?.isAdmin || false,
     };
   }, [selectedUser, userData]);
@@ -937,6 +948,44 @@ const ProfileBottomDrawer = ({
         }
       ]
     );
+  };
+
+  const handleToggleHelper = () => {
+    const removing = !!mergedUser?.isHelper;
+    Alert.alert(
+      removing ? 'Remove Helper' : 'Make Helper',
+      removing
+        ? `Remove the Helper badge from ${userName}?`
+        : `Give ${userName} the Helper badge? It is a badge only: no mod tools or powers.`,
+      [
+        { text: t('chat.cancel'), style: 'cancel' },
+        {
+          text: removing ? 'Remove' : 'Assign', style: removing ? 'destructive' : 'default', onPress: async () => {
+            const ok = removing ? await removeHelper(selectedUserId, callerRoles) : await makeHelper(selectedUserId, callerRoles);
+            if (ok) {
+              setUserData(prev => ({ ...prev, isHelper: !removing }));
+              Alert.alert('Success', removing ? 'Helper badge removed.' : 'User is now a Helper.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Close the drawer, then open the title prompt with a snapshot of the target.
+  const openTitleEditor = () => {
+    setTitleEdit({ targetUid: selectedUserId, targetName: userName || 'this user', current: mergedUser?.customTitle || null });
+    toggleModal(); // close profile drawer
+  };
+
+  const saveCustomTitle = async (title) => {
+    const a = titleEdit;
+    if (!a?.targetUid) return true;
+    const ok = await setCustomTitle(a.targetUid, title, callerRoles);
+    if (!ok) return false; // keep the prompt open
+    setUserData(prev => (prev ? { ...prev, customTitle: title || null } : prev));
+    Alert.alert('Success', title ? `${a.targetName} now has the title "${title}".` : 'Title removed.');
+    return true;
   };
 
   // ✅ Fetch badges, XP, and cosmetics
@@ -3158,12 +3207,14 @@ const ProfileBottomDrawer = ({
                                 onPress={mergedUser?.isModerator ? handleDemoteModerator : handlePromoteModerator}
                               />
                             )}
-                            {/* Make/Remove JMD - Admin, Senior Mod & Mod */}
-                            <Chip
-                              label={mergedUser?.isBabyMod ? 'Remove JMD' : 'Make JMD'}
-                              color={mergedUser?.isBabyMod ? '#f59e0b' : '#3b82f6'}
-                              onPress={mergedUser?.isBabyMod ? handleRemoveJMD : handleMakeJMD}
-                            />
+                            {/* Make/Remove JMD - Admin & Senior Mod (not Mods since 2026-10-19) */}
+                            {canManageBabyMod(callerRoles) && (
+                              <Chip
+                                label={mergedUser?.isBabyMod ? 'Remove JMD' : 'Make JMD'}
+                                color={mergedUser?.isBabyMod ? '#f59e0b' : '#3b82f6'}
+                                onPress={mergedUser?.isBabyMod ? handleRemoveJMD : handleMakeJMD}
+                              />
+                            )}
                             {/* Make/Remove Trusted - Admin & Mod */}
                             <Chip
                               label={mergedUser?.isTrusted ? 'Remove Trusted' : 'Make Trusted'}
@@ -3182,6 +3233,20 @@ const ProfileBottomDrawer = ({
                               color={mergedUser?.isRaider ? '#f59e0b' : '#DC2626'}
                               onPress={mergedUser?.isRaider ? handleRemoveRaider : handleMakeRaider}
                             />
+                            {/* Make/Remove Helper (badge only) - Admin & Mod */}
+                            <Chip
+                              label={mergedUser?.isHelper ? 'Remove Helper' : 'Make Helper'}
+                              color={mergedUser?.isHelper ? '#f59e0b' : '#14B8A6'}
+                              onPress={handleToggleHelper}
+                            />
+                            {/* Custom title - Senior Mod & up, on someone below them */}
+                            {canGiveTitle(callerRoles) && canModerate(callerRoles, targetRoles) && (
+                              <Chip
+                                label={mergedUser?.customTitle ? 'Edit title' : 'Give title'}
+                                color="#DB2777"
+                                onPress={openTitleEditor}
+                              />
+                            )}
                           </View>
                         </View>
                       )}
@@ -3227,6 +3292,16 @@ const ProfileBottomDrawer = ({
         </View>
       </View>
     </Modal>
+
+    {/* Custom-title prompt — standalone, shown after the profile drawer closes */}
+    <CustomTitleModal
+      visible={!!titleEdit}
+      isDark={isDarkMode}
+      targetName={titleEdit?.targetName}
+      currentTitle={titleEdit?.current}
+      onCancel={() => setTitleEdit(null)}
+      onSave={saveCustomTitle}
+    />
 
     {/* ═══ Moderation prompt — standalone, shown after the profile drawer closes ═══ */}
     <ModActionModal

@@ -12,7 +12,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGlobalState } from '../GlobelStats';
 import { getMyCosmetics, syncMyCosmetics, getCachedEggData, setCachedEggInventory } from '../Helper/cosmeticsCache';
-import { getInventory, activateItem, deactivateItem, formatTimeRemaining } from './shopUtils';
+import { getInventory, activateItem, deactivateItem, formatTimeRemaining, withAllCosmetics, canTestAllCosmetics } from './shopUtils';
 import { useTranslation } from 'react-i18next';
 import { RARITY_CONFIG, getRarityLabel, ALL_ITEMS, COSMETIC_TYPE, FRAMES, TEXT_COLORS, TRADE_BG_COLORS, BANNER_GRADIENTS, CHAT_BG_COLORS } from './shopItems';
 import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
@@ -51,7 +51,10 @@ const TYPE_LABELS = {
 };
 
 const MyCosmeticsScreen = ({ navigation }) => {
-  const { theme, user, appdatabase } = useGlobalState();
+  const { theme, user, appdatabase, isAdmin, isSeniorMod } = useGlobalState();
+  // Senior Mod, Admin and owner (GlobelStats sets isAdmin for the owner) see
+  // every cosmetic as owned, for testing.
+  const staffAll = canTestAllCosmetics({ isAdmin, isSeniorMod });
   const { t } = useTranslation();
   const isDark = theme === 'dark';
   const insets = useSafeAreaInsets();
@@ -88,7 +91,10 @@ const MyCosmeticsScreen = ({ navigation }) => {
   }, [appdatabase, user?.id]);
 
   // Use test inventory when testMode is on
-  const displayInventory = useMemo(() => testMode ? generateTestInventory() : inventory, [testMode, inventory]);
+  const displayInventory = useMemo(
+    () => (testMode ? generateTestInventory() : staffAll ? withAllCosmetics(inventory) : inventory),
+    [testMode, staffAll, inventory],
+  );
   const hasAnyItems = useMemo(() => Object.keys(displayInventory).length > 0, [displayInventory]);
   const bgColor = isDark ? '#0f172a' : '#F8FAFC';
 
@@ -130,6 +136,11 @@ const MyCosmeticsScreen = ({ navigation }) => {
         {testMode && (
           <View style={s.testBanner}>
             <Text style={s.testBannerText}>🧪 TEST MODE — All cosmetics unlocked. Tap to equip & preview.</Text>
+          </View>
+        )}
+        {!testMode && staffAll && (
+          <View style={s.testBanner}>
+            <Text style={s.testBannerText}>🛡️ STAFF — every cosmetic is unlocked for testing. Equipping one shows it to everyone, like a real item.</Text>
           </View>
         )}
         {loading ? (

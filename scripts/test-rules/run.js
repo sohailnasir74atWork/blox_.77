@@ -121,8 +121,8 @@ async function rtdbTests() {
   await no('U1 writes U2 avatar', () => D.update(r(U1, `users/${U2}`), { avatar: 'x' }));
   await no('U1 writes U2 rewardPoints', () => D.set(r(U1, `users/${U2}/rewardPoints`), 999));
   await no('guest writes U2 field', () => D.set(r(null, `users/${U2}/displayName`), 'x'));
-  await ok('U1 awards U2 influencer badge (follow)', () => D.set(r(U1, `users/${U2}/badges/influencer`), true));
-  await ok('U1 awards U2 fiveStar badge (review)', () => D.set(r(U1, `users/${U2}/badges/fiveStar`), true));
+  await no('U1 awards U2 influencer badge (follow; self-only since 2026-10-19)', () => D.set(r(U1, `users/${U2}/badges/influencer`), true));
+  await no('U1 awards U2 fiveStar badge (review; self-only since 2026-10-19)', () => D.set(r(U1, `users/${U2}/badges/fiveStar`), true));
   await no('U1 removes U2 badge', () => D.set(r(U1, `users/${U2}/badges/influencer`), null));
   await ok('U1 bumps U2 reactionCount +1', () => D.set(r(U1, `users/${U2}/counters/reactionCount`), D.increment(1)));
   await ok('U1 bumps U2 reactionCount +1 again', () => D.set(r(U1, `users/${U2}/counters/reactionCount`), D.increment(1)));
@@ -142,8 +142,8 @@ async function rtdbTests() {
   await ok('senior makes U1 moderator', () => D.update(r(S, `users/${U1}`), { isModerator: true, rolesUpdatedAt: now() }));
   await ok('senior removes U1 moderator', () => D.update(r(S, `users/${U1}`), { isModerator: false, rolesUpdatedAt: now() }));
   await no('mod makes U1 moderator', () => D.update(r(M, `users/${U1}`), { isModerator: true, rolesUpdatedAt: now() }));
-  await ok('mod makes U1 JMD', () => D.update(r(M, `users/${U1}`), { isBabyMod: true, rolesUpdatedAt: now() }));
-  await ok('mod removes U1 JMD', () => D.update(r(M, `users/${U1}`), { isBabyMod: null, rolesUpdatedAt: now() }));
+  await no('mod makes U1 JMD (Senior Mod+ since 2026-10-19)', () => D.update(r(M, `users/${U1}`), { isBabyMod: true, rolesUpdatedAt: now() }));
+  await no('mod removes U1 JMD (Senior Mod+ since 2026-10-19)', () => D.update(r(M, `users/${U1}`), { isBabyMod: null, rolesUpdatedAt: now() }));
   await no('mod removes mod2 JMD flag', () => D.update(r(M, `users/${M2}`), { isBabyMod: null, rolesUpdatedAt: now() }));
   await no('JMD makes U1 JMD', () => D.update(r(J, `users/${U1}`), { isBabyMod: true, rolesUpdatedAt: now() }));
   await ok('JMD granter makes U1 JMD', () => D.update(r(G, `users/${U1}`), { isBabyMod: true, rolesUpdatedAt: now() }));
@@ -165,6 +165,64 @@ async function rtdbTests() {
   await no('presence other', () => D.set(r(U1, `presence/${U2}`), false));
   await ok('admin clears presence on delete', () => D.remove(r(A, `presence/${U2}`)));
   await ok('guest reads a user profile', () => D.get(r(null, `users/${U1}/displayName`)));
+
+  // ── blox-badges (2026-10-19): Helper badge, custom titles, JMD grants, ──
+  // ── self-only achievement badges. Owner-approved staff hierarchy.      ──
+  sec('rtdb blox-badges');
+  await seed(async (_f, db) => {
+    await D.set(D.ref(db, `users/${U3}`), { displayName: 'three', createdAt: 1700000000000 });
+    await D.set(D.ref(db, `users/${O}/owner`), true);
+    // Owner flag only (server-set), no admin flag: titles must still skip it.
+    await D.set(D.ref(db, 'users/ownerFlagOnly01'), { displayName: 'of', owner: true });
+  });
+  // Helper: Mod and up, never self-granted, cosmetic only.
+  await ok('mod makes U1 Helper (update + stamp)', () => D.update(r(M, `users/${U1}`), { isHelper: true, rolesUpdatedAt: now() }));
+  await ok('senior removes U1 Helper', () => D.update(r(S, `users/${U1}`), { isHelper: null, rolesUpdatedAt: now() }));
+  await ok('admin makes U1 Helper', () => D.set(r(A, `users/${U1}/isHelper`), true));
+  await no('JMD makes U2 Helper', () => D.update(r(J, `users/${U2}`), { isHelper: true, rolesUpdatedAt: now() }));
+  await no('U2 makes self Helper (child)', () => D.set(r(U2, `users/${U2}/isHelper`), true));
+  await no('U2 makes self Helper (own record update)', () => D.update(r(U2, `users/${U2}`), { isHelper: true, displayName: 'two' }));
+  await no('U1 removes own Helper', () => D.update(r(U1, `users/${U1}`), { isHelper: null }));
+  await ok('U1 still edits own profile (Helper unchanged)', () => D.update(r(U1, `users/${U1}`), { displayName: 'helper one' }));
+  // JMD: Senior Mod and up only (Mods lost it); granters unchanged.
+  await ok('senior makes U3 JMD', () => D.update(r(S, `users/${U3}`), { isBabyMod: true, rolesUpdatedAt: now() }));
+  await no('mod removes U3 JMD', () => D.update(r(M, `users/${U3}`), { isBabyMod: null, rolesUpdatedAt: now() }));
+  await ok('admin removes U3 JMD', () => D.update(r(A, `users/${U3}`), { isBabyMod: null, rolesUpdatedAt: now() }));
+  await no('senior makes self JMD', () => D.update(r(S, `users/${S}`), { isBabyMod: true, rolesUpdatedAt: now() }));
+  // Custom titles: Senior Mod+ on someone below them, never self, <= 20 chars.
+  const title = (t) => ({ customTitle: t, customTitleBy: null, customTitleAt: D.serverTimestamp(), rolesUpdatedAt: now() });
+  const titleBy = (uid, t) => ({ ...title(t), customTitleBy: uid });
+  await ok('senior titles U1', () => D.update(r(S, `users/${U1}`), titleBy(S, 'Event Host')));
+  await ok('senior titles a mod', () => D.update(r(S, `users/${M}`), titleBy(S, 'Night Shift')));
+  await ok('admin titles a senior', () => D.update(r(A, `users/${S}`), titleBy(A, 'Head Mod')));
+  await ok('verified owner titles an admin', () => D.update(r(O, `users/${A}`), titleBy(O, 'Co-owner')));
+  await ok('title exactly 20 chars', () => D.update(r(S, `users/${U3}`), titleBy(S, 'x'.repeat(20))));
+  await ok('senior removes U3 title', () => D.update(r(S, `users/${U3}`), { customTitle: null, customTitleBy: null, customTitleAt: null, rolesUpdatedAt: now() }));
+  await no('title 21 chars', () => D.update(r(S, `users/${U3}`), titleBy(S, 'x'.repeat(21))));
+  await no('title with leading space', () => D.update(r(S, `users/${U3}`), titleBy(S, ' Host')));
+  await no('title with newline', () => D.update(r(S, `users/${U3}`), titleBy(S, 'a\nb')));
+  await no('empty title', () => D.update(r(S, `users/${U3}`), titleBy(S, '')));
+  await no('title as a number', () => D.set(r(S, `users/${U3}/customTitle`), 42));
+  await no('customTitleBy forged', () => D.update(r(S, `users/${U3}`), titleBy(A, 'Host')));
+  await no('customTitleAt client time', () => D.update(r(S, `users/${U3}`), { customTitle: 'Host', customTitleBy: S, customTitleAt: now() - 60000 }));
+  await no('mod titles U1', () => D.update(r(M, `users/${U1}`), titleBy(M, 'Host')));
+  await no('JMD titles U1', () => D.update(r(J, `users/${U1}`), titleBy(J, 'Host')));
+  await no('U1 titles self (child)', () => D.set(r(U1, `users/${U1}/customTitle`), 'King'));
+  await no('U1 titles self (own record update)', () => D.update(r(U1, `users/${U1}`), { customTitle: 'King', displayName: 'k' }));
+  await no('U1 clears own title', () => D.update(r(U1, `users/${U1}`), { customTitle: null }));
+  await no('senior titles self', () => D.update(r(S, `users/${S}`), titleBy(S, 'Boss')));
+  await no('senior titles an admin', () => D.update(r(S, `users/${A}`), titleBy(S, 'Clown')));
+  await no('senior titles an owner-flag account', () => D.update(r(S, 'users/ownerFlagOnly01'), titleBy(S, 'Clown')));
+  await no('admin titles another admin', () => D.update(r(A, `users/${A2}`), titleBy(A, 'Clown')));
+  await no('admin titles an owner-flag account', () => D.update(r(A, 'users/ownerFlagOnly01'), titleBy(A, 'Clown')));
+  await no('UNVERIFIED owner email titles U1', () => D.update(r(OU, `users/${U1}`), titleBy(OU, 'Host')));
+  // Achievement badges: own only; others may still +1 counters.
+  await ok('U1 earns own badge', () => D.set(r(U1, `users/${U1}/badges/loved`), true));
+  await no('U1 gives U2 loved', () => D.set(r(U1, `users/${U2}/badges/loved`), true));
+  await no('mod gives U2 a badge', () => D.set(r(M, `users/${U2}/badges/og`), true));
+  await no('guest gives U2 a badge', () => D.set(r(null, `users/${U2}/badges/og`), true));
+  await ok('U1 still bumps U2 reactionCount', () => D.set(r(U1, `users/${U2}/counters/reactionCount`), D.increment(1)));
+  // ── end blox-badges ──
 
   sec('rtdb jmd_granters');
   await ok('admin adds granter', () => D.set(r(A, `jmd_granters/${U1}`), true));

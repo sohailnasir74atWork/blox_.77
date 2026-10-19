@@ -1083,14 +1083,17 @@
       "tab_trusted": "Mapagkakatiwalaan",
       "tab_grinder": "Masisipag",
       "tab_raider": "Raider",
+      "tab_helper": "Helper",
       "empty_topRated": "Walang user na may rating na 3.7 pataas",
       "empty_trusted": "Wala pang mapagkakatiwalaang user",
       "empty_grinder": "Wala pang masisipag na player",
       "empty_raider": "Wala pang raider",
+      "empty_helper": "Wala pang helper",
       "loading_topRated": "Nilo-load ang pinakamataas ang rating...",
       "loading_trusted": "Nilo-load ang mapagkakatiwalaang user...",
       "loading_grinder": "Nilo-load ang masisipag na player...",
       "loading_raider": "Nilo-load ang mga raider...",
+      "loading_helper": "Nilo-load ang mga helper...",
       "loading_subtext": "Ipinapakita ang mga user na may pinakamaraming review at rating na 3.7 pataas...",
       "updated_daily": "Ina-update araw-araw ang leaderboard",
       "last_updated": "Huling update: {{date}}"
@@ -2485,7 +2488,8 @@
       "jmd": "Junior Mod",
       "trusted": "Pinagkakatiwalaan",
       "grinder": "Masipag",
-      "raider": "Raider"
+      "raider": "Raider",
+      "helper": "Helper"
     },
     "image_viewer": {
       "storage_denied": "Payagan ang storage access para makapag-save ng mga larawan.",
