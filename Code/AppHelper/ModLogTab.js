@@ -24,7 +24,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { fetchRecentModActions, fetchModLeaderboard } from '../Supabase/modLogBackend';
 import { showSuccessMessage } from '../Helper/MessageHelper';
-import { describeModAction, MOD_ACTION_COLOR, evidenceOf, EvidenceThumbs } from './ModHistoryList';
+import { describeModAction, actionOf, MOD_ACTION_COLOR, evidenceOf, EvidenceThumbs } from './ModHistoryList';
 import EvidenceViewer from './EvidenceViewer';
 
 dayjs.extend(relativeTime);
@@ -32,8 +32,8 @@ dayjs.extend(relativeTime);
 const SOURCE_LABEL = {
   app: '', uid: 'by user ID', linked: 'linked account', device: 'same device', email: 're-registered email', email_hash: 're-registered email',
 };
-const ACTION_FILTERS = [null, 'strike', 'mute', 'unban', 'unmute', 'message_delete', 'role_change'];
-const FILTER_LABEL = { message_delete: 'Deletes', role_change: 'Roles' };
+const ACTION_FILTERS = [null, 'strike', 'mute', 'unban', 'unmute', 'message_delete', 'post_delete', 'perm_confirm', 'perm_reject', 'role_change'];
+const FILTER_LABEL = { message_delete: 'Deletes', post_delete: 'Post deletes', perm_confirm: 'Perm confirmed', perm_reject: 'Perm rejected', role_change: 'Roles' };
 const PAGE = 30;
 
 const Pill = ({ label, active, onPress, isDark }) => (
@@ -112,7 +112,7 @@ const ModLogTab = ({ isDark }) => {
       style={{ backgroundColor: card, borderRadius: 12, padding: 12, marginHorizontal: 12, marginBottom: 8 }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Text style={{ color: MOD_ACTION_COLOR[a.action] || text, fontWeight: '800', fontSize: 13 }}>{describeModAction(a)}</Text>
+        <Text style={{ color: MOD_ACTION_COLOR[actionOf(a)] || text, fontWeight: '800', fontSize: 13 }}>{describeModAction(a)}</Text>
         <Text style={{ color: sub, fontSize: 11 }}>{a.createdAt ? dayjs(a.createdAt).fromNow() : ''}</Text>
       </View>
       <Text style={{ color: text, fontSize: 14, fontWeight: '600', marginTop: 4 }} numberOfLines={1}>

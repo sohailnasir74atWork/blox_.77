@@ -4,8 +4,9 @@
 // through the server, which resolves email, devices and linked accounts
 // itself, so a ban always lands — also for deleted accounts and phone
 // sign-ins. It enforces the staff hierarchy (caller must strictly outrank the
-// target, never self, staff immunity, JMD limits, original-banner rank on
-// lifts); the app only mirrors those rules to hide buttons that would fail.
+// target, never self, staff targets Senior Mod+ only, JMD limits, permanent
+// bans admin-only, original-banner rank on lifts); the app only mirrors
+// those rules to hide buttons that would fail.
 import { getAuth, getIdToken } from '@react-native-firebase/auth';
 import RNFS from 'react-native-fs';
 import { safeCompressImage } from './safeCompressImage';
@@ -20,7 +21,7 @@ const MOD_EVIDENCE_URL =
 export const EVIDENCE_MAX = 3;
 
 // ── Strike ladder ───────────────────────────────────────────────────────
-// ONE copy for the app. Must match STRIKE_DURATION_MS in
+// ONE copy for the app. Must match STRIKE_DURATION_MS / PENDING_PERM_MS in
 // functions/banEnforcement.js (the server picks the actual expiry).
 const HOUR_MS = 60 * 60 * 1000;
 export const STRIKE_LADDER = {
@@ -29,6 +30,11 @@ export const STRIKE_LADDER = {
   3: { durationMs: null, label: 'permanent', short: 'Perm' }, // null = permanent
 };
 export const MAX_STRIKE = 3;
+
+// Permanent bans need an Admin. Below Admin, strike 3 is a 30-day ban plus a
+// request an Admin confirms (→ permanent) or rejects in the dashboard.
+export const PENDING_PERM_DAYS = 30;
+export const PENDING_STRIKE_3 = { label: `${PENDING_PERM_DAYS} days, permanent if an Admin confirms`, short: `${PENDING_PERM_DAYS}d+` };
 
 /** Next strike level after `current` (0 when there is none), capped at 3. */
 export const nextStrikeCount = (current) =>
@@ -40,11 +46,26 @@ export const strikeBannedUntil = (strikeCount, now = Date.now()) => {
   return step.durationMs == null ? 'permanent' : now + step.durationMs;
 };
 
-export const strikeDurationLabel = (strikeCount) =>
-  (STRIKE_LADDER[strikeCount] || STRIKE_LADDER[MAX_STRIKE]).label;
+/**
+ * Ladder step as the caller will get it: strike 3 from below Admin is the
+ * 30-day pending ban. `permanentAllowed` = getModPermissions().canPermaban.
+ */
+export const strikeStep = (strikeCount, { permanentAllowed = true } = {}) => {
+  const n = STRIKE_LADDER[strikeCount] ? strikeCount : MAX_STRIKE;
+  return n === MAX_STRIKE && !permanentAllowed ? PENDING_STRIKE_3 : STRIKE_LADDER[n];
+};
 
-// Junior Mods may only mute, and only for up to two hours (server: rank_limit).
-export const JMD_MAX_MUTE_MINUTES = 120;
+export const strikeDurationLabel = (strikeCount, opts) => strikeStep(strikeCount, opts).label;
+
+// Junior Mods may only mute, and only for up to one day (server: rank_limit).
+export const JMD_MAX_MUTE_MINUTES = 24 * 60;
+
+// Mute chips. JMDs get exactly these five; Mod and up the full list (the
+// dashboard adds a custom-minutes box).
+export const JMD_MUTE_PRESETS = [5, 30, 120, 360, 1440];
+export const MUTE_PRESETS = [5, 10, 20, 30, 60, 120, 360, 1440];
+export const mutePresetsFor = (perms) => (perms?.isJmd ? JMD_MUTE_PRESETS : MUTE_PRESETS)
+  .filter((m) => !perms?.maxMuteMinutes || m <= perms.maxMuteMinutes);
 
 // One-tap reasons in the reason prompt (staff-only UI, English like the rest
 // of the mod tools). "Other" means "type your own".
@@ -72,8 +93,10 @@ const ERROR_TEXT = {
   not_staff: 'Only staff can do this.',
   self_target: 'You cannot do this to yourself.',
   outranked: 'You cannot act on this user.',
-  staff_immune: 'Staff members can only be sanctioned by an admin.',
-  rank_limit: 'Your rank does not allow this action (Junior Mods can only mute for up to 2 hours).',
+  staff_immune: 'Staff members can only be sanctioned by a Senior Mod or higher.',
+  rank_limit: 'Your rank does not allow this action (Junior Mods can only mute for up to 1 day).',
+  admin_only: 'Only an Admin can do this.',
+  not_pending: 'This ban is no longer waiting for a decision (lifted, expired or already decided).',
   banner_outranks: 'This was placed by a higher-ranked staff member. Ask them or an admin to lift it.',
   stricter_ban_active: 'A stricter ban is already active on this user.',
   bad_action: 'This action is not supported by the server yet.',
@@ -102,6 +125,9 @@ export const sanctionErrorText = (code) => ERROR_TEXT[code] || 'Something went w
  *   'linked'  {}            other accounts on the same device(s):
  *                           linked: [{ uid, displayName, isStaff, banned, … }]
  *   'log'     { logAction, details }  audit row (use logModAction below)
+ *   'perm_requests' / 'perm_confirm' / 'perm_reject'  admin only (below)
+ *
+ * A strike 3 from below Admin answers { pendingPermanent: true, bannedUntil: ms }.
  *
  * `reason` ≤ 500 chars (required by the server for strike/mute),
  * `evidence` ≤ 3 https image URLs (see AppHelper/modEvidenceUpload.js),
@@ -154,14 +180,28 @@ export const describeSanctionResult = (r) => {
     parts.push(r.devices > 0 ? `${r.devices} device(s) on record.` : 'No device on record.');
   }
   if (r.linkedBanned > 0) parts.push(`${r.linkedBanned} linked account(s) banned.`);
+  if (r.pendingPermanent) parts.push(`Banned for ${PENDING_PERM_DAYS} days. An Admin will review the permanent ban.`);
   return parts.join(' ');
 };
+
+/**
+ * Admin/owner: open permanent-ban requests (non-admin 3rd strikes).
+ * @returns {Promise<{ok: boolean, error?: string, requests?: Array<{uid: string,
+ *   targetName: string|null, requestedByUid: string|null, requestedByName: string|null,
+ *   requestedByRole: string|null, requestedAt: number|null, reason: string|null,
+ *   evidence: string[], strikeCount: number, bannedUntil: number, includeLinked: boolean}>}>}
+ */
+export const fetchPermRequests = () => callModSanction('perm_requests', null);
+
+/** Admin/owner: 'confirm' (→ permanent) or 'reject' (stays 30 days). */
+export const decidePermRequest = (targetUid, decision, reason) =>
+  callModSanction(decision === 'confirm' ? 'perm_confirm' : 'perm_reject', targetUid, { reason });
 
 /**
  * Audit-log a staff action that isn't a sanction (message delete, pin, role
  * change…). The server checks the caller is staff and writes mod_actions.
  * Fire-and-forget: never throws, never blocks the action itself.
- * @param {'message_delete'|'delete_all'|'pin'|'unpin'|'role_change'|'review_delete'|'profile_delete'} logAction
+ * @param {'message_delete'|'delete_all'|'pin'|'unpin'|'role_change'|'review_delete'|'profile_delete'|'post_delete'} logAction
  * @param {string|null} targetUid
  * @param {object} [details] small JSON (ids, role names, room) — no message bodies
  */

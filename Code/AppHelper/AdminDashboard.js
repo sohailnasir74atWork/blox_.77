@@ -87,9 +87,13 @@ import {
   logModAction,
   nextStrikeCount,
   strikeDurationLabel,
+  strikeStep,
   formatMuteMinutes,
-  STRIKE_LADDER,
+  mutePresetsFor,
+  PENDING_PERM_DAYS,
 } from '../Helper/modSanction';
+import { translateMany } from '../Helper/chatTranslate';
+import { getDeviceLanguage } from '../../i18n';
 import { encodeEmailKey } from '../Helper/banKeys';
 import { useGlobalState } from '../GlobelStats';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -97,6 +101,8 @@ import { useNavigation } from '@react-navigation/native';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
 import ReviewIntegrityTab from './ReviewIntegrityTab';
 import ModLogTab from './ModLogTab';
+import PermBanRequestsTab from './PermBanRequestsTab';
+import TranslatableText from './TranslatableText';
 import ReportsTab from './ReportsTab';
 import StaffAccessTab from './StaffAccessTab';
 import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
@@ -201,34 +207,39 @@ const timeAgo = (v) => {
 
 const ACCENT = '#0A84FF';
 
-// Dashboard sections. `admin`: admins only; `staffAdmin`: staff managers only.
+// Dashboard sections. `admin`: admins only; `staffAdmin`: staff managers
+// only; `senior`: Senior Mod and up. Plain Mods get the report queue, the
+// chat viewer and the banned list (owner decision 2026-10-19); JMDs have no
+// dashboard at all.
 const SECTIONS = [
   { key: 'queue', label: 'Reports', icon: 'flag', tabs: [
     { key: 'reports', label: 'Queue' },
     { key: 'chatViewer', label: 'Chat viewer' },
+    { key: 'permRequests', label: 'Perm-ban requests', admin: true },
   ] },
   { key: 'users', label: 'Users', icon: 'people', tabs: [
-    { key: 'search', label: 'Find user' },
+    { key: 'search', label: 'Find user', senior: true },
     { key: 'userChats', label: 'User chats', admin: true },
     { key: 'banned', label: 'Banned' },
-    { key: 'banStats', label: 'Ban stats' },
+    { key: 'banStats', label: 'Ban stats', senior: true },
   ] },
   { key: 'content', label: 'Content', icon: 'albums', tabs: [
-    { key: 'polls', label: 'Polls' },
-    { key: 'statusFeed', label: 'Statuses' },
+    { key: 'polls', label: 'Polls', senior: true },
+    { key: 'statusFeed', label: 'Statuses', senior: true },
     { key: 'news', label: 'News', admin: true },
   ] },
   { key: 'audit', label: 'Audit', icon: 'document-text', tabs: [
-    { key: 'modLog', label: 'Mod log' },
-    { key: 'reviewIntegrity', label: 'Reviews' },
+    // The staff activity log; supabase/047 gates its rpcs the same way.
+    { key: 'modLog', label: 'Mod log', senior: true },
+    { key: 'reviewIntegrity', label: 'Reviews', senior: true },
   ] },
   { key: 'staff', label: 'Staff', icon: 'key', tabs: [
     { key: 'staffAccess', label: 'Staff access', staffAdmin: true },
   ] },
 ];
 
-const AdminDashboard = () => {
-  const { theme, user: currentUser, isAdmin, isSeniorMod, isModerator, isBabyMod, isUserBlocked, currentUserEmail } = useGlobalState();
+const AdminDashboardScreen = () => {
+  const { theme, user: currentUser, isAdmin, isSeniorMod, isModerator, isBabyMod, isUserBlocked, currentUserEmail, api } = useGlobalState();
   const isDark = theme === 'dark';
   const db = useMemo(() => getDatabase(), []);
   const navigation = useNavigation();
@@ -580,6 +591,21 @@ const AdminDashboard = () => {
   const [chatSearching2, setChatSearching2] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [loadingChat, setLoadingChat] = useState(false);
+  // Chat viewer "Translate all": message id → translation (staff: no limit).
+  const [chatTranslations, setChatTranslations] = useState({});
+  const [translatingAll, setTranslatingAll] = useState(false);
+  useEffect(() => { setChatTranslations({}); }, [chatMessages]);
+  const translateAllMessages = useCallback(async () => {
+    const withText = chatMessages.filter((m) => m?.text);
+    if (!withText.length || translatingAll) return;
+    setTranslatingAll(true);
+    const out = await translateMany(withText.map((m) => m.text), { apiKey: api, targetLang: getDeviceLanguage() });
+    setTranslatingAll(false);
+    const next = {};
+    withText.forEach((m, i) => { if (out[i]) next[m.id] = out[i]; });
+    if (!Object.keys(next).length) Alert.alert('Translate', 'Could not translate these messages. Try again.');
+    setChatTranslations(next);
+  }, [chatMessages, translatingAll, api]);
   const autoLoadedChatRef = React.useRef(null);
 
   // Admin-only inbox lookup for one user (ported from Adopt Me).
@@ -819,7 +845,8 @@ const AdminDashboard = () => {
   // Moderation. Every action opens the reason prompt (ModActionModal) and
   // then goes to the server by uid (utils.applySanction / liftSanction). The
   // permission checks only hide buttons the server would refuse
-  // (contract §2): strict rank, staff immunity, JMD = mute ≤ 2 h + unmute,
+  // (contract §2): strict rank, staff targets Senior Mod+, JMD = mute ≤ 1
+  // day + unmute, strike 3 below Admin = 30 days + a permanent-ban request,
   // lifts need the original banner's rank.
   const callerRoles = useMemo(() => ({
     isAdmin: !!isAdmin,
@@ -829,6 +856,7 @@ const AdminDashboard = () => {
     isOwner: isCurrentUserOwner(),
   }), [isAdmin, isSeniorMod, isModerator, isBabyMod]);
   const canManageStaffAccess = getStaffRank(callerRoles) >= STAFF_RANK.admin;
+  const isSeniorPlus = getStaffRank(callerRoles) >= STAFF_RANK.seniorMod;
 
   // ── Layout: 5 sections, each with its own sub-tabs ──
   const ui = useMemo(() => (isDark
@@ -842,10 +870,17 @@ const AdminDashboard = () => {
         ? { label: 'Mod', color: '#0A84FF' }
         : { label: 'JMod', color: '#BF5AF2' };
   const visibleSections = useMemo(() => SECTIONS
-    .map((sec) => ({ ...sec, tabs: sec.tabs.filter((t) => (!t.admin || isAdmin) && (!t.staffAdmin || canManageStaffAccess)) }))
-    .filter((sec) => sec.tabs.length > 0), [isAdmin, canManageStaffAccess]);
+    .map((sec) => ({
+      ...sec,
+      tabs: sec.tabs.filter((t) => (!t.admin || isAdmin) && (!t.senior || isSeniorPlus) && (!t.staffAdmin || canManageStaffAccess)),
+    }))
+    .filter((sec) => sec.tabs.length > 0), [isAdmin, isSeniorPlus, canManageStaffAccess]);
   const currentSection = visibleSections.find((sec) => sec.tabs.some((t) => t.key === activeTab)) || visibleSections[0];
   const currentSubTabs = currentSection.tabs;
+  // A tab the rank can't see (role just changed) falls back to the first one.
+  useEffect(() => {
+    if (!visibleSections.some((sec) => sec.tabs.some((t) => t.key === activeTab))) setActiveTab(visibleSections[0].tabs[0].key);
+  }, [visibleSections, activeTab]);
   // Each section remembers the sub-tab you were on.
   const lastSubTabRef = React.useRef({});
   useEffect(() => { lastSubTabRef.current[currentSection.key] = activeTab; }, [activeTab, currentSection.key]);
@@ -897,6 +932,8 @@ const AdminDashboard = () => {
     () => getModPermissions(callerRoles, selectedRoles || {}),
     [callerRoles, selectedRoles]
   );
+  // Strike 3 below Admin = 30 days + a request (server decides; labels follow).
+  const ladder = { permanentAllowed: selectedPerms.canPermaban };
   const canLiftSelected = !!(
     selectedSanction?.active &&
     canLiftSanction(callerRoles, selectedRoles || {}, selectedSanction.type, selectedBannerRoles)
@@ -977,7 +1014,7 @@ const AdminDashboard = () => {
     if (a.kind === 'unban') Alert.alert('User Unbanned', 'Ban has been lifted.');
     else if (a.kind === 'unmute') Alert.alert('User Unmuted', 'Mute has been lifted.');
     else if (a.kind === 'mute') Alert.alert('User Muted', `Muted for ${formatMuteMinutes(a.value)}.`);
-    else Alert.alert('Strike Applied', `Strike ${a.value} applied (${strikeDurationLabel(a.value)}). ${detail}`.trim());
+    else Alert.alert('Strike Applied', `Strike ${a.value} applied (${strikeDurationLabel(a.value, ladder)}). ${detail}`.trim());
 
     // Refresh the sheet, the banned list and the search row's cached status.
     loadSelectedModeration(u, u.email);
@@ -995,7 +1032,7 @@ const AdminDashboard = () => {
   const modActionTitle = (a) => {
     if (!a) return '';
     const name = a.userItem?.displayName || a.userItem?.email || 'this user';
-    if (a.kind === 'strike') return `Strike ${a.value} (${strikeDurationLabel(a.value)}) — ${name}`;
+    if (a.kind === 'strike') return `Strike ${a.value} (${strikeDurationLabel(a.value, ladder)}) — ${name}`;
     if (a.kind === 'mute') return `Mute ${name} for ${formatMuteMinutes(a.value)}`;
     if (a.kind === 'unmute') return `Unmute ${name}`;
     return `Unban ${name}`;
@@ -2404,6 +2441,14 @@ const AdminDashboard = () => {
           {/* Chat Messages (shared by both admin & mod views) */}
           {(isAdmin || selectedReport) && (
             <>
+              {!loadingChat && chatMessages.some((m) => m?.text) && (
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16, paddingTop: 2 }}>
+                  <TouchableOpacity onPress={translateAllMessages} disabled={translatingAll} style={{ flexDirection: 'row', alignItems: 'center', padding: 4 }}>
+                    {translatingAll ? <ActivityIndicator size="small" /> : <Ionicons name="language-outline" size={14} color="#007AFF" />}
+                    <Text style={{ color: '#007AFF', fontSize: 12, fontWeight: '600', marginLeft: 4 }}>Translate all</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
               {loadingChat ? (
                 <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 40 }} />
               ) : (
@@ -2433,7 +2478,12 @@ const AdminDashboard = () => {
                           {senderName || item.senderId || 'Unknown'}
                         </Text>
                         {item.text ? (
-                          <Text style={{ color: isDark ? '#FFF' : '#000', fontSize: 14, lineHeight: 20 }}>{item.text}</Text>
+                          <TranslatableText
+                            text={item.text}
+                            isDark={isDark}
+                            translation={chatTranslations[item.id] || null}
+                            style={{ color: isDark ? '#FFF' : '#000', fontSize: 14, lineHeight: 20 }}
+                          />
                         ) : null}
                         {item.imageUrl ? (
                           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
@@ -2736,6 +2786,8 @@ const AdminDashboard = () => {
         <ReviewIntegrityTab isDark={isDark} currentUser={currentUser} callerRoles={callerRoles} />
       ) : activeTab === 'modLog' ? (
         <ModLogTab isDark={isDark} />
+      ) : activeTab === 'permRequests' && isAdmin ? (
+        <PermBanRequestsTab isDark={isDark} onOpenUser={(u) => handleSelectUser(u)} />
       ) : activeTab === 'reports' ? (
         <ReportsTab
           isDark={isDark}
@@ -2843,6 +2895,7 @@ const AdminDashboard = () => {
                         ? `${selectedSanction.type === 'mute' ? 'Muted' : 'Banned'} ${selectedSanction.bannedUntil === 'permanent' ? 'permanently' : `until ${new Date(selectedSanction.bannedUntil).toLocaleString()}`}`
                         : 'No active sanction'}
                       {` • ${selectedSanction.strikeCount || 0}/3 strikes`}
+                      {selectedSanction.active && selectedSanction.pendingPermanent ? ' • permanent ban waiting for an Admin' : ''}
                     </Text>
                     {selectedSanction.active && !!selectedSanction.reason && (
                       <Text style={{ color: isDark ? '#CCC' : '#333', fontSize: 12, textAlign: 'center', marginTop: 2 }}>
@@ -2862,7 +2915,7 @@ const AdminDashboard = () => {
                     </Text>
                   ) : !selectedPerms.canMute ? (
                     <Text style={{ color: isDark ? '#888' : '#666', textAlign: 'center', marginBottom: 12 }}>
-                      Staff members can only be sanctioned by an admin.
+                      Staff members can only be sanctioned by a Senior Mod or higher.
                     </Text>
                   ) : null}
                   {canLiftSelected && (
@@ -2993,15 +3046,19 @@ const AdminDashboard = () => {
                 <Text style={{ color: isDark ? '#888' : '#666', fontSize: 12, marginBottom: 8, textAlign: 'center' }}>
                   Mute User (chat only, keeps strikes{selectedPerms.maxMuteMinutes ? `, max ${formatMuteMinutes(selectedPerms.maxMuteMinutes)}` : ''})
                 </Text>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <TouchableOpacity style={[styles.strikeButton, { backgroundColor: '#5856D6' }]} onPress={() => handleMuteUser(selectedUser, 5)}>
-                    <Ionicons name="volume-mute" size={16} color="#FFF" />
-                    <Text style={[styles.buttonText, { fontSize: 14 }]}>5 min</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.strikeButton, { backgroundColor: '#AF52DE' }]} onPress={() => handleMuteUser(selectedUser, 10)}>
-                    <Ionicons name="volume-mute" size={16} color="#FFF" />
-                    <Text style={[styles.buttonText, { fontSize: 14 }]}>10 min</Text>
-                  </TouchableOpacity>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                  {mutePresetsFor(selectedPerms).map((m) => (
+                    <TouchableOpacity
+                      key={m}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: m < 60 ? '#5856D6' : '#AF52DE' }}
+                      onPress={() => handleMuteUser(selectedUser, m)}
+                    >
+                      <Ionicons name="volume-mute" size={14} color="#FFF" />
+                      <Text style={[styles.buttonText, { fontSize: 13 }]}>{formatMuteMinutes(m)}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={{ flexDirection: 'row', marginBottom: 8 }}>
                   <View style={[styles.strikeButton, { backgroundColor: isDark ? '#2C2C2E' : '#E5E5EA', justifyContent: 'center' }]}>
                     <TextInput
                       value={customMuteMinutes}
@@ -3048,7 +3105,9 @@ const AdminDashboard = () => {
                       onPress={() => handleSetStrike(selectedUser, n)}
                     >
                       <Text style={styles.buttonText}>Strike {n}</Text>
-                      <Text style={{ color: '#fff', fontSize: 10 }}>{STRIKE_LADDER[n].label}</Text>
+                      <Text style={{ color: '#fff', fontSize: 10 }}>
+                        {n === 3 && !selectedPerms.canPermaban ? `${PENDING_PERM_DAYS} days + Admin review` : strikeStep(n).label}
+                      </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -3066,7 +3125,9 @@ const AdminDashboard = () => {
             title={modActionTitle(modAction)}
             subtitle={
               modAction?.kind === 'mute' ? 'Chat only — they can still trade and post. Their strike count is kept.'
-                : modAction?.kind === 'strike' ? (modAction.value === 3 ? 'Permanent ban: chat, trades, posts and everything else.' : 'Blocks the whole app for the duration and clears their recent public messages.')
+                : modAction?.kind === 'strike' ? (modAction.value !== 3 ? 'Blocks the whole app for the duration and clears their recent public messages.'
+                  : selectedPerms.canPermaban ? 'Permanent ban: chat, trades, posts and everything else.'
+                    : `Bans the whole app for ${PENDING_PERM_DAYS} days now. Admins get a request to make it permanent.`)
                   : 'Removes it everywhere (email, account, devices, chat).'
             }
             confirmLabel={modAction?.kind === 'unban' ? 'Unban' : modAction?.kind === 'unmute' ? 'Unmute' : 'Confirm'}
@@ -3241,5 +3302,19 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
 });
+
+// JMDs and regular users never get the dashboard (the chat header only shows
+// its button to Mod and up); this also covers any other way in.
+const AdminDashboard = (props) => {
+  const { theme, isAdmin, isSeniorMod, isModerator } = useGlobalState();
+  if (isAdmin || isSeniorMod || isModerator || isCurrentUserOwner()) return <AdminDashboardScreen {...props} />;
+  const isDark = theme === 'dark';
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: isDark ? '#000' : '#F2F2F7' }}>
+      <Ionicons name="shield-outline" size={40} color={isDark ? '#555' : '#BBB'} />
+      <Text style={{ color: isDark ? '#AAA' : '#666', marginTop: 12, textAlign: 'center' }}>The mod dashboard is for Mods and above.</Text>
+    </View>
+  );
+};
 
 export default AdminDashboard;

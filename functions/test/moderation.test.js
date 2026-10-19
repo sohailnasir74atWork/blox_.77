@@ -208,7 +208,8 @@ async function test(name, fn) {
     console.log(`  PASS  ${name} (${Date.now() - t0} ms)`);
   } catch (e) {
     results.push({ name, ok: false, err: e });
-    console.log(`  FAIL  ${name}\n        ${e && e.stack ? e.stack.split('\n').slice(0, 3).join('\n        ') : e}`);
+    const where = e && e.stack ? e.stack.split('\n').find((l) => l.includes('moderation.test.js')) : null;
+    console.log(`  FAIL  ${name}\n        ${(e && e.message) || e}${where ? `\n        ${where.trim()}` : ''}`);
   }
 }
 
@@ -242,8 +243,8 @@ async function main() {
     assert.strictEqual((await sanction(granter, { action: 'mute', targetUid: t.uid, minutes: 5 })).body.error, 'not_staff');
   });
 
-  await test('F10 staff immunity: senior cannot sanction a moderator, admin can', async () => {
-    const r1 = await sanction(senior, { action: 'mute', targetUid: mod2.uid, minutes: 5, reason: 'x' });
+  await test('F10 staff targets: mod cannot sanction staff, admin/owner can', async () => {
+    const r1 = await sanction(mod, { action: 'mute', targetUid: jmd.uid, minutes: 5, reason: 'x' });
     assert.strictEqual(r1.status, 403); assert.strictEqual(r1.body.error, 'staff_immune');
     const r2 = await sanction(owner, { action: 'mute', targetUid: mod2.uid, minutes: 5, reason: 'x' });
     assert.strictEqual(r2.status, 200, JSON.stringify(r2.body));
@@ -257,11 +258,12 @@ async function main() {
     assert.strictEqual(await val(`banned_uids/${mod2.uid}`), null);
   });
 
-  await test('F10 JMD limits: mute ≤ 2h only, no strike/linked/perm-ban-all; unmute ok', async () => {
+  await test('F10 JMD limits: mute ≤ 1 day only, no strike/linked/perm-ban-all; unmute ok', async () => {
     const t = await mkUser('JmdTarget');
-    assert.strictEqual((await sanction(jmd, { action: 'mute', targetUid: t.uid, minutes: 180, reason: 'x' })).body.error, 'rank_limit');
+    assert.strictEqual((await sanction(jmd, { action: 'mute', targetUid: t.uid, minutes: 1441, reason: 'x' })).body.error, 'rank_limit');
     assert.strictEqual((await sanction(jmd, { action: 'strike', targetUid: t.uid, strikeCount: 1, reason: 'x' })).body.error, 'rank_limit');
     assert.strictEqual((await sanction(jmd, { action: 'linked', targetUid: t.uid })).body.error, 'rank_limit');
+    assert.strictEqual((await sanction(jmd, { action: 'strike', targetUid: t.uid, strikeCount: 3, includeLinked: true, reason: 'x' })).body.error, 'rank_limit');
     const ok = await sanction(jmd, { action: 'mute', targetUid: t.uid, minutes: 120, reason: 'spam' });
     assert.strictEqual(ok.status, 200, JSON.stringify(ok.body));
     const rec = await val(`banned_uids/${t.uid}`);
@@ -300,17 +302,242 @@ async function main() {
     assert.strictEqual((await sanction(mod, { action: 'log', logAction: 'pin', details: { x: 'y'.repeat(3000) } })).body.error, 'bad_log');
   });
 
+  console.log('\n# staff powers 2026-10-19');
+  await test('POW1 JMD mute cap 1 day: 6h and 1d ok, 1d+1min refused; email path same cap', async () => {
+    const t = await mkUser('JmdDay');
+    for (const m of [360, 1440]) {
+      const r = await sanction(jmd, { action: 'mute', targetUid: t.uid, minutes: m, reason: 'x' });
+      assert.strictEqual(r.status, 200, `${m}: ${JSON.stringify(r.body)}`);
+    }
+    assert.strictEqual((await val(`banned_uids/${t.uid}`)).type, 'mute');
+    assert.strictEqual((await sanction(jmd, { action: 'unmute', targetUid: t.uid })).status, 200);
+    assert.strictEqual(BE.JMD_MAX_MUTE_MIN, 1440);
+    const e = await mkUser('JmdDayEmail');
+    const k = ekey(e.email);
+    await userWrite(jmd, `banned_users_by_email/${k}`, muteRec(jmd, e, 25 * 60));
+    await waitFor(async () => (await val(`banned_users_by_email/${k}`)) === null, '25h reverted');
+    await userWrite(jmd, `banned_users_by_email/${k}`, muteRec(jmd, e, 6 * 60));
+    const rec = await waitFor(() => activeBan(e.uid), '6h applied');
+    assert.strictEqual(rec.type, 'mute'); assert.strictEqual(rec.bannedByRank, 1);
+  });
+
+  await test('POW6 senior sanctions mods/JMDs; mod cannot touch JMD; senior cannot touch senior/admin/owner', async () => {
+    const senior2 = await mkUser('SeniorTwo', { role: 'isSeniorMod' });
+    const m3 = await mkUser('ModThree', { role: 'isModerator' });
+    const j2 = await mkUser('JmdTwo', { role: 'isBabyMod' });
+    const mu = await sanction(senior, { action: 'mute', targetUid: m3.uid, minutes: 60, reason: 'spam' });
+    assert.strictEqual(mu.status, 200, JSON.stringify(mu.body));
+    assert.strictEqual((await sanction(senior, { action: 'unmute', targetUid: m3.uid })).status, 200);
+    const st = await sanction(senior, { action: 'strike', targetUid: m3.uid, strikeCount: 1, reason: 'abuse' });
+    assert.strictEqual(st.status, 200, JSON.stringify(st.body));
+    assert.strictEqual((await val(`banned_uids/${m3.uid}`)).bannedByRank, 3);
+    assert.strictEqual((await sanction(senior, { action: 'unban', targetUid: m3.uid })).status, 200);
+    assert.strictEqual(await val(`banned_uids/${m3.uid}`), null);
+    const sj = await sanction(senior, { action: 'strike', targetUid: j2.uid, strikeCount: 2, reason: 'x' });
+    assert.strictEqual(sj.status, 200, JSON.stringify(sj.body));
+    assert.strictEqual((await sanction(senior, { action: 'linked', targetUid: j2.uid })).status, 200);
+    assert.strictEqual((await sanction(mod, { action: 'mute', targetUid: j2.uid, minutes: 5 })).body.error, 'staff_immune');
+    assert.strictEqual((await sanction(mod, { action: 'unban', targetUid: j2.uid })).body.error, 'staff_immune');
+    assert.strictEqual((await sanction(jmd, { action: 'mute', targetUid: j2.uid, minutes: 5 })).body.error, 'outranked');
+    assert.strictEqual((await sanction(senior, { action: 'mute', targetUid: senior2.uid, minutes: 5 })).body.error, 'outranked');
+    assert.strictEqual((await sanction(senior, { action: 'mute', targetUid: adminU.uid, minutes: 5 })).body.error, 'outranked');
+    assert.strictEqual((await sanction(senior, { action: 'mute', targetUid: owner.uid, minutes: 5 })).body.error, 'outranked');
+    // Lifts stay rank-based: a senior cannot lift an admin's ban on a mod.
+    assert.strictEqual((await sanction(adminU, { action: 'strike', targetUid: m3.uid, strikeCount: 1, reason: 'x' })).status, 200);
+    assert.strictEqual((await sanction(senior, { action: 'unban', targetUid: m3.uid })).body.error, 'banner_outranks');
+    assert.strictEqual((await sanction(adminU, { action: 'unban', targetUid: m3.uid })).status, 200);
+    // Email path: senior → mod applied, mod → JMD reverted.
+    await userWrite(senior, `banned_users_by_email/${ekey(m3.email)}`, strikeRec(senior, m3, 1));
+    assert.strictEqual((await waitFor(() => activeBan(m3.uid), 'senior email strike on mod')).bannedByRank, 3);
+    const kj = ekey(j2.email);
+    await sanction(adminU, { action: 'unban', targetUid: j2.uid });
+    await userWrite(mod, `banned_users_by_email/${kj}`, strikeRec(mod, j2, 1));
+    await waitFor(async () => (await val(`banned_users_by_email/${kj}`)) === null, 'mod email strike on JMD reverted');
+    assert.strictEqual(await val(`banned_uids/${j2.uid}`), null);
+  });
+
+  await test('POW7 non-admin strike 3 → 30 days + request; mirrors temporary, Auth untouched', async () => {
+    const t = await mkUser('PendT');
+    const fp = fp16();
+    await indexDevice(t.uid, fp);
+    const t0 = Date.now();
+    const r = await sanction(mod, { action: 'strike', targetUid: t.uid, strikeCount: 3, reason: 'scam', evidence: ['https://e.example/p.png'] });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+    assert.strictEqual(r.body.pendingPermanent, true); assert.strictEqual(typeof r.body.bannedUntil, 'number');
+    assert.ok(Math.abs(r.body.bannedUntil - (t0 + BE.PENDING_PERM_MS)) < 60000, 'about 30 days');
+    for (const f of ['accountExists', 'hasEmail', 'devices', 'linkedBanned']) assert.ok(f in r.body, f); // old builds read these
+    const rec = await val(`banned_uids/${t.uid}`);
+    assert.strictEqual(rec.type, 'ban'); assert.strictEqual(rec.strikeCount, 3);
+    assert.strictEqual(rec.pendingPermanent, true); assert.strictEqual(rec.requestedByUid, mod.uid);
+    assert.strictEqual(rec.bannedByRank, 2); assert.ok(!rec.authDisabledByBan);
+    assert.strictEqual((await admin.auth().getUser(t.uid)).disabled, false);
+    const em = await val(`banned_users_by_email/${ekey(t.email)}`);
+    assert.strictEqual(em.bannedUntil, rec.bannedUntil); assert.strictEqual(em.pendingPermanent, true);
+    const d = (await fsDoc(t.uid)).data();
+    assert.strictEqual(d.permanent, false); assert.strictEqual(d.until.toMillis(), rec.bannedUntil);
+    const dev = await val(`banned_devices/${fp}`);
+    assert.strictEqual(dev.bannedUntil, rec.bannedUntil); assert.strictEqual(dev.banners[t.uid].pendingPermanent, true);
+    const req = await val(`perm_ban_requests/${t.uid}`);
+    assert.strictEqual(req.requestedByUid, mod.uid); assert.strictEqual(req.reason, 'scam');
+    assert.deepStrictEqual(req.evidence, ['https://e.example/p.png']);
+    // A senior's strike 3 is pending too; an admin's is permanent at once.
+    const s3 = await mkUser('PendSenior');
+    assert.strictEqual((await sanction(senior, { action: 'strike', targetUid: s3.uid, strikeCount: 3, reason: 'x' })).body.pendingPermanent, true);
+  });
+
+  await test('POW7 perm requests: admin only; confirm = permanent everywhere, only admin lifts it', async () => {
+    const t = await mkUser('ConfirmT');
+    const fp = fp16();
+    await indexDevice(t.uid, fp);
+    const alt = await mkUser('ConfirmAlt');
+    await indexDevice(alt.uid, fp);
+    const r = await sanction(mod, { action: 'strike', targetUid: t.uid, strikeCount: 3, reason: 'alts', includeLinked: true, linkedUids: [alt.uid] });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.body)); assert.strictEqual(r.body.linkedBanned, 1);
+    assert.strictEqual((await val(`banned_uids/${alt.uid}`)).pendingPermanent, true);
+    assert.strictEqual(await val(`perm_ban_requests/${alt.uid}`), null, 'linked picks are not separate requests');
+    const plain = await mkUser('PlainP');
+    assert.strictEqual((await sanction(plain, { action: 'perm_requests' })).body.error, 'not_staff');
+    for (const u of [jmd, mod, senior]) {
+      const x = await sanction(u, { action: 'perm_requests' });
+      assert.strictEqual(x.status, 403); assert.strictEqual(x.body.error, 'admin_only');
+      assert.strictEqual((await sanction(u, { action: 'perm_confirm', targetUid: t.uid })).body.error, 'admin_only');
+    }
+    const list = await sanction(adminU, { action: 'perm_requests' });
+    assert.strictEqual(list.status, 200, JSON.stringify(list.body));
+    const row = list.body.requests.find((x) => x.uid === t.uid);
+    assert.ok(row, 'listed'); assert.strictEqual(row.requestedByUid, mod.uid); assert.strictEqual(row.targetName, 'ConfirmT');
+    assert.strictEqual(row.requestedByName, 'Mod'); assert.strictEqual(row.includeLinked, true);
+    const c = await sanction(adminU, { action: 'perm_confirm', targetUid: t.uid, reason: 'confirmed' });
+    assert.strictEqual(c.status, 200, JSON.stringify(c.body)); assert.strictEqual(c.body.linkedUpdated, 1);
+    const rec = await val(`banned_uids/${t.uid}`);
+    assert.strictEqual(rec.bannedUntil, 'permanent'); assert.strictEqual(rec.pendingPermanent, undefined);
+    assert.strictEqual(rec.bannedByRank, 4); assert.strictEqual(rec.requestedByUid, mod.uid);
+    assert.strictEqual(rec.authDisabledByBan, true);
+    assert.strictEqual((await admin.auth().getUser(t.uid)).disabled, true);
+    assert.strictEqual((await fsDoc(t.uid)).data().permanent, true);
+    const em = await val(`banned_users_by_email/${ekey(t.email)}`);
+    assert.strictEqual(em.bannedUntil, 'permanent'); assert.strictEqual(em.pendingPermanent, undefined);
+    assert.strictEqual((await val(`banned_devices/${fp}`)).bannedUntil, 'permanent');
+    assert.strictEqual(await val(`perm_ban_requests/${t.uid}`), null);
+    assert.strictEqual((await val(`banned_uids/${alt.uid}`)).bannedUntil, 'permanent', 'linked pick upgraded');
+    assert.ok(!(await sanction(adminU, { action: 'perm_requests' })).body.requests.some((x) => x.uid === t.uid));
+    assert.strictEqual((await sanction(adminU, { action: 'perm_confirm', targetUid: t.uid })).body.error, 'not_pending');
+    // The mod who asked can no longer lift it; an admin can.
+    assert.strictEqual((await sanction(mod, { action: 'unban', targetUid: t.uid })).body.error, 'banner_outranks');
+    assert.strictEqual((await sanction(adminU, { action: 'unban', targetUid: t.uid })).status, 200);
+    assert.strictEqual((await admin.auth().getUser(t.uid)).disabled, false);
+  });
+
+  await test('POW7 reject keeps 30 days; lift / admin strike 3 clear the request; evasion follows confirm', async () => {
+    const t = await mkUser('RejectT');
+    await sanction(senior, { action: 'strike', targetUid: t.uid, strikeCount: 3, reason: 'x' });
+    const until = (await val(`banned_uids/${t.uid}`)).bannedUntil;
+    const rj = await sanction(owner, { action: 'perm_reject', targetUid: t.uid, reason: 'too harsh' });
+    assert.strictEqual(rj.status, 200, JSON.stringify(rj.body));
+    const rec = await val(`banned_uids/${t.uid}`);
+    assert.strictEqual(rec.bannedUntil, until); assert.strictEqual(rec.pendingPermanent, undefined);
+    assert.strictEqual((await val(`banned_users_by_email/${ekey(t.email)}`)).pendingPermanent, undefined);
+    assert.strictEqual(await val(`perm_ban_requests/${t.uid}`), null);
+    assert.strictEqual((await admin.auth().getUser(t.uid)).disabled, false);
+    const again = await sanction(adminU, { action: 'perm_reject', targetUid: t.uid });
+    assert.strictEqual(again.status, 409); assert.strictEqual(again.body.error, 'not_pending');
+    // Same-rank lift of a pending ban removes the request.
+    const l = await mkUser('LiftPend');
+    await sanction(mod, { action: 'strike', targetUid: l.uid, strikeCount: 3, reason: 'x' });
+    assert.ok(await val(`perm_ban_requests/${l.uid}`));
+    assert.strictEqual((await sanction(mod2, { action: 'unban', targetUid: l.uid })).status, 200);
+    assert.strictEqual(await val(`perm_ban_requests/${l.uid}`), null);
+    // An admin's own strike 3 over a pending ban: permanent, request gone.
+    const a = await mkUser('AdminOver');
+    await sanction(mod, { action: 'strike', targetUid: a.uid, strikeCount: 3, reason: 'x' });
+    assert.strictEqual((await sanction(adminU, { action: 'strike', targetUid: a.uid, strikeCount: 3, reason: 'x' })).status, 200);
+    assert.strictEqual((await val(`banned_uids/${a.uid}`)).bannedUntil, 'permanent');
+    assert.strictEqual(await val(`perm_ban_requests/${a.uid}`), null);
+    // An alt caught on the banned device while pending is upgraded on confirm.
+    const s = await mkUser('PendEvader');
+    const e1 = fp16();
+    await indexDevice(s.uid, e1);
+    await sanction(mod, { action: 'strike', targetUid: s.uid, strikeCount: 3, reason: 'x' });
+    const n1 = await mkUser('PendAlt');
+    await db.ref(`users_private/${n1.uid}/deviceId`).set(e1);
+    const b1 = await waitFor(() => activeBan(n1.uid), 'alt auto-banned');
+    assert.strictEqual(b1.pendingPermanent, true); assert.strictEqual(typeof b1.bannedUntil, 'number');
+    const c = await sanction(adminU, { action: 'perm_confirm', targetUid: s.uid });
+    assert.strictEqual(c.body.linkedUpdated, 1, JSON.stringify(c.body));
+    assert.strictEqual((await val(`banned_uids/${n1.uid}`)).bannedUntil, 'permanent');
+  });
+
+  await test('POW7 OLD build: mod writes a permanent email strike → rewritten to 30 days + request', async () => {
+    const t = await mkUser('OldPerm');
+    const k = ekey(t.email);
+    await userWrite(mod, `banned_users_by_email/${k}`, strikeRec(mod, t, 3));
+    const rec = await waitFor(() => activeBan(t.uid), 'applied');
+    assert.strictEqual(typeof rec.bannedUntil, 'number'); assert.strictEqual(rec.pendingPermanent, true);
+    assert.strictEqual(rec.bannedByUid, mod.uid);
+    const em = await waitFor(async () => {
+      const v = await val(`banned_users_by_email/${k}`);
+      return v && v.managedBy === 'server' ? v : null;
+    }, 'record rewritten');
+    assert.strictEqual(em.bannedUntil, rec.bannedUntil); assert.strictEqual(em.pendingPermanent, true);
+    assert.strictEqual((await val(`perm_ban_requests/${t.uid}`)).requestedByUid, mod.uid);
+    assert.strictEqual((await admin.auth().getUser(t.uid)).disabled, false);
+    // A permanent ban already in place is never softened by such a write.
+    const p = await mkUser('OldPermOver');
+    const kp = ekey(p.email);
+    await sanction(adminU, { action: 'strike', targetUid: p.uid, strikeCount: 3, reason: 'x' });
+    await userWrite(mod, `banned_users_by_email/${kp}`, strikeRec(mod, p, 3, { reason: 'again' }));
+    await waitFor(async () => (await val(`banned_users_by_email/${kp}`))?.reason === 'x', 'restored');
+    assert.strictEqual((await val(`banned_users_by_email/${kp}`)).bannedUntil, 'permanent');
+    assert.strictEqual((await val(`banned_uids/${p.uid}`)).bannedUntil, 'permanent');
+    assert.strictEqual(await val(`perm_ban_requests/${p.uid}`), null);
+  });
+
+  await test('POW7 audit rows: pending flag, perm_confirm / perm_reject, fallback before 047', async () => {
+    const sb = makeFakeSupabase();
+    BE.setSupabaseForTest(sb);
+    const t = await mkUser('PermRows');
+    await inProcessSanction(mod, { action: 'strike', targetUid: t.uid, strikeCount: 3, reason: 'scam' });
+    const row = sb.modActions.find((x) => x.target_uid === t.uid && x.action === 'strike');
+    assert.strictEqual(row.is_permanent, false); assert.strictEqual(row.strike_count, 3);
+    assert.deepStrictEqual(row.details, { pending_permanent: true }); assert.strictEqual(typeof row.banned_until_ms, 'number');
+    const c = await inProcessSanction(adminU, { action: 'perm_confirm', targetUid: t.uid, reason: 'ok' });
+    assert.strictEqual(c.statusCode, 200, JSON.stringify(c.body));
+    const cr = sb.modActions.at(-1);
+    assert.strictEqual(cr.action, 'perm_confirm'); assert.strictEqual(cr.is_permanent, true);
+    assert.strictEqual(cr.details.requested_by, mod.uid); assert.strictEqual(cr.actor_role, 'admin');
+    assert.strictEqual(sb.senders.get(t.uid).banned_until, null);
+    const pl = await inProcessSanction(mod, { action: 'log', targetUid: t.uid, logAction: 'post_delete', details: { postId: 'p1' } });
+    assert.strictEqual(pl.body.logged, true); assert.strictEqual(sb.modActions.at(-1).action, 'post_delete');
+
+    const old = makeFakeSupabase({ oldActionCheck: true });
+    BE.setSupabaseForTest(old);
+    const t2 = await mkUser('PermRowsOld');
+    await inProcessSanction(mod, { action: 'strike', targetUid: t2.uid, strikeCount: 3 });
+    await inProcessSanction(adminU, { action: 'perm_reject', targetUid: t2.uid });
+    const rr = old.modActions.at(-1);
+    assert.strictEqual(rr.action, 'strike'); assert.strictEqual(rr.details.action, 'perm_reject');
+    const noCols = makeFakeSupabase({ noNewColumns: true, oldActionCheck: true });
+    BE.setSupabaseForTest(noCols);
+    const t3 = await mkUser('PermRowsNoCols');
+    await inProcessSanction(mod, { action: 'strike', targetUid: t3.uid, strikeCount: 3 });
+    await inProcessSanction(adminU, { action: 'perm_confirm', targetUid: t3.uid });
+    assert.strictEqual(noCols.modActions.at(-1).action, 'ban');
+    BE.setSupabaseForTest(undefined);
+  });
+
   console.log('\n# bans vs mutes, mirrors');
-  await test('F8/F13 strike 3: type ban, Firestore mirror, Auth disabled; unban reverses all', async () => {
+  await test('F8/F13 admin strike 3: type ban, Firestore mirror, Auth disabled; unban reverses all', async () => {
     const a = await mkUser('PermA');
     const fp = fp16();
     await indexDevice(a.uid, fp);
-    const r = await sanction(mod, { action: 'strike', targetUid: a.uid, strikeCount: 3, reason: 'scam' });
+    const r = await sanction(adminU, { action: 'strike', targetUid: a.uid, strikeCount: 3, reason: 'scam' });
     assert.strictEqual(r.status, 200, JSON.stringify(r.body));
-    assert.strictEqual(r.body.devices, 1);
+    assert.strictEqual(r.body.devices, 1); assert.strictEqual(r.body.pendingPermanent, false);
     const rec = await val(`banned_uids/${a.uid}`);
     assert.strictEqual(rec.type, 'ban'); assert.strictEqual(rec.authDisabledByBan, true);
-    assert.strictEqual(rec.bannedByUid, mod.uid); assert.strictEqual(rec.bannedByRank, 2);
+    assert.strictEqual(rec.bannedUntil, 'permanent'); assert.strictEqual(rec.pendingPermanent, undefined);
+    assert.strictEqual(rec.bannedByUid, adminU.uid); assert.strictEqual(rec.bannedByRank, 4);
+    assert.strictEqual(await val(`perm_ban_requests/${a.uid}`), null);
     const em = await val(`banned_users_by_email/${ekey(a.email)}`);
     assert.strictEqual(em.type, 'ban'); assert.strictEqual(em.managedBy, 'server');
     const d = await fsDoc(a.uid);
@@ -410,10 +637,10 @@ async function main() {
     assert.strictEqual(b.bannedByUid, mod.uid);
   });
 
-  await test('F10 JMD 3h mute via email reverted; 30-min legacy mute applied as mute', async () => {
+  await test('F10 JMD 25h mute via email reverted; 30-min legacy mute applied as mute', async () => {
     const t = await mkUser('JmdEmailT');
     const k = ekey(t.email);
-    await userWrite(jmd, `banned_users_by_email/${k}`, muteRec(jmd, t, 180));
+    await userWrite(jmd, `banned_users_by_email/${k}`, muteRec(jmd, t, 25 * 60));
     await waitFor(async () => (await val(`banned_users_by_email/${k}`)) === null, 'reverted');
     assert.strictEqual(await val(`banned_uids/${t.uid}`), null);
     const fp = fp16();
@@ -447,13 +674,14 @@ async function main() {
   await test('F2 softening perm→temp: lower rank restored, same rank allowed + Auth re-enabled', async () => {
     const t = await mkUser('SoftenT');
     const k = ekey(t.email);
-    await userWrite(senior, `banned_users_by_email/${k}`, strikeRec(senior, t, 3));
+    const admin2 = await mkUser('AdminTwo', { role: 'isAdmin' });
+    await userWrite(adminU, `banned_users_by_email/${k}`, strikeRec(adminU, t, 3));
     await waitFor(async () => (await activeBan(t.uid))?.authDisabledByBan === true, 'perm applied');
     assert.strictEqual((await admin.auth().getUser(t.uid)).disabled, true);
-    await userWrite(mod, `banned_users_by_email/${k}`, strikeRec(mod, t, 1));
+    await userWrite(senior, `banned_users_by_email/${k}`, strikeRec(senior, t, 1));
     await waitFor(async () => (await val(`banned_users_by_email/${k}`))?.bannedUntil === 'permanent', 'restored perm');
     assert.strictEqual((await activeBan(t.uid)).bannedUntil, 'permanent');
-    await userWrite(senior, `banned_users_by_email/${k}`, strikeRec(senior, t, 1));
+    await userWrite(admin2, `banned_users_by_email/${k}`, strikeRec(admin2, t, 1));
     const rec = await waitFor(async () => {
       const r = await activeBan(t.uid);
       return r && typeof r.bannedUntil === 'number' && r.authDisabledByBan === false ? r : null;
@@ -570,7 +798,7 @@ async function main() {
     const z = fp16();
     await indexDevice(r1.uid, z);
     await indexDevice(r2.uid, z);
-    await sanction(mod, { action: 'strike', targetUid: r1.uid, strikeCount: 3, reason: 'x' });
+    await sanction(adminU, { action: 'strike', targetUid: r1.uid, strikeCount: 3, reason: 'x' });
     await sanction(mod, { action: 'strike', targetUid: r2.uid, strikeCount: 1, reason: 'x' });
     let dev = await val(`banned_devices/${z}`);
     assert.deepStrictEqual(Object.keys(dev.banners).sort(), [r1.uid, r2.uid].sort());

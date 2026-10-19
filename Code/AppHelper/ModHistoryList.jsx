@@ -30,6 +30,9 @@ export const MOD_ACTION_COLOR = {
   role_change: '#6366F1',
   review_delete: '#F59E0B',
   profile_delete: '#DC2626',
+  post_delete: '#F97316',
+  perm_confirm: '#B91C1C',
+  perm_reject: '#64748B',
 };
 
 const LOG_LABEL = {
@@ -39,7 +42,15 @@ const LOG_LABEL = {
   unpin: 'Message unpinned',
   review_delete: 'Review deleted',
   profile_delete: 'Profile data deleted',
+  post_delete: 'Post deleted',
+  perm_confirm: 'Permanent ban confirmed',
+  perm_reject: 'Permanent ban rejected (stays 30 days)',
 };
+// Logged under an older action until supabase/047 is applied (details.action).
+const NEWER_ACTIONS = new Set(['perm_confirm', 'perm_reject', 'post_delete']);
+
+/** The row's real action (047 fallback rows carry it in details.action). */
+export const actionOf = (a) => (NEWER_ACTIONS.has(a?.details?.action) ? a.details.action : a?.action);
 
 const roleName = (key) => ({
   isSeniorMod: 'Senior Mod', isModerator: 'Mod', isBabyMod: 'JMD', isTrusted: 'Trusted',
@@ -47,8 +58,9 @@ const roleName = (key) => ({
 }[key] || key || 'role');
 
 /** One-line label for a mod_actions row (also used by the Mod Log tab). */
-export const describeModAction = (a) => {
-  if (!a) return '';
+export const describeModAction = (raw) => {
+  if (!raw) return '';
+  const a = { ...raw, action: actionOf(raw) };
   if (a.action === 'mute') return `Muted ${a.durationMinutes ? `${a.durationMinutes} min` : ''}`.trim();
   if (a.action === 'unban') return 'Unbanned';
   if (a.action === 'unmute') return 'Unmuted';
@@ -59,6 +71,7 @@ export const describeModAction = (a) => {
   if (LOG_LABEL[a.action]) return LOG_LABEL[a.action];
   if (a.action === 'strike' || a.action === 'ban') {
     if (a.isPermanent) return `Strike ${a.strikeCount || 3} · permanent`;
+    if (a.details?.pending_permanent) return `Strike ${a.strikeCount || 3} · 30 days, waiting for an Admin`;
     return `Strike ${a.strikeCount || '?'}`;
   }
   return a.action || 'Action';
@@ -143,7 +156,7 @@ const ModHistoryList = ({ uid, email = null, isDark = false, pageSize = 10, titl
         return (
           <View key={a.id} style={{ backgroundColor: card, borderRadius: 10, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: border }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={{ color: MOD_ACTION_COLOR[a.action] || text, fontWeight: '800', fontSize: 12 }}>{describeModAction(a)}</Text>
+              <Text style={{ color: MOD_ACTION_COLOR[actionOf(a)] || text, fontWeight: '800', fontSize: 12 }}>{describeModAction(a)}</Text>
               <Text style={{ color: sub, fontSize: 10 }}>{a.createdAt ? dayjs(a.createdAt).fromNow() : ''}</Text>
             </View>
             {!!a.reason && <Text style={{ color: text, fontSize: 12, marginTop: 4 }}>{a.reason}</Text>}

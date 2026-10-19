@@ -26,7 +26,6 @@ import { useTranslation } from 'react-i18next';
 import { useGlobalState } from '../../GlobelStats';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { showSuccessMessage } from '../../Helper/MessageHelper';
-import axios from 'axios';
 import { useLocalState } from '../../LocalGlobelStats';
 import { getDeviceLanguage } from '../../../i18n';
 import StyledUsernamePreview from '../../SettingScreen/Store/StyledName';
@@ -38,15 +37,8 @@ import { getSafeTextColor, RainbowText, isMultiColorText, getMultiColorPalette }
 import FramedAvatar from './FramedAvatar';
 import { BirthdayCake } from '../../Birthdays/BirthdayBits';
 import { hideTranslateTip } from '../TranslateTip';
+import { translateText as translateChatText } from '../../Helper/chatTranslate';
 
-const FRUIT_KEYWORDS = [
-  'rocket', 'spin', 'chop', 'spring', 'bomb', 'spike', 'blade',
-  'smoke', 'flame', 'ice', 'sand', 'dark', 'diamond', 'falcon',
-  'rubber', 'barrier', 'ghost', 'light', 'magma', 'quake', 'love',
-  'spider', 'sound', 'portal', 'pain', 'rumble', 'blizzard', 'buddha',
-  'phoenix', 'gravity', 'shadow', 'venom', 'control', 'spirit', 'dough',
-  'gas', 'dragon', 'leopard', 'kitsune', 'mammoth', 't-rex', 'yeti', 'perm', 'west', 'east', 'gamepass', 'skin', 'chromatic', 'permanent', 'Fruit Storage', 'game pass', 'Eagle', 'Creation', 'gamepass'
-];
 
 
 const iconMap = {
@@ -106,6 +98,10 @@ const MessagesList = ({
   // Senior Mod is a separate flag from isModerator — a Sr Mod who was never
   // also flagged as a plain Mod had no pin/delete menu at all.
   const isStaff = isAdmin || isSeniorMod || isModerator
+  // JMDs may delete single messages (rank-checked, logged) but not pin or
+  // "delete all" (owner decision 2026-10-19). Supabase allows it: the
+  // messages trigger treats is_mod_staff() (JMD and up) as staff.
+  const canStaffDelete = isStaff || !!isBabyMod
 
   // Staff message actions. Deleting someone else's message needs the same
   // strict rank as any other moderation (a mod can't remove a message from
@@ -125,12 +121,12 @@ const MessagesList = ({
       await onPinMessage?.(item);
       logModAction('pin', item?.senderId || null, { messageId: item?.id || null, room: chatPath || null });
     },
+    // onDeleteMessage (Trader.confirmDeleteMessage) asks first and writes the
+    // message_delete audit row itself once the delete succeeded — logging
+    // here too double-counted it, and logged a delete the mod then cancelled.
     remove: async (item) => {
       if (!(await mayActOnSender(item))) return;
       await onDeleteMessage?.(item.id);
-      if (item.senderId && item.senderId !== user?.id) {
-        logModAction('message_delete', item.senderId, { messageId: item.id, room: chatPath || null });
-      }
     },
     removeAll: async (item) => {
       if (!(await mayActOnSender(item))) return;
@@ -193,57 +189,17 @@ const MessagesList = ({
 
   // console.log(messages)
 
-  const translateText = async (text, targetLang = deviceLanguage) => {
-    const placeholders = {};
-    let maskedText = text;
-
-    // Step 1: Replace fruit names with placeholders
-    FRUIT_KEYWORDS.forEach((word, index) => {
-      const placeholder = `__FRUIT_${index}__`;
-      const regex = new RegExp(`\\b${word}\\b`, 'gi'); // match full word, case-insensitive
-      maskedText = maskedText.replace(regex, placeholder);
-      placeholders[placeholder] = word;
-    });
-
-    try {
-      // Step 2: Send masked text for translation
-      const response = await axios.post(
-        `https://translation.googleapis.com/language/translate/v2`,
-        {},
-        {
-          params: {
-            q: maskedText,
-            target: targetLang,
-            key: api,
-          },
-        }
-      );
-
-      let translated = response.data.data.translations[0].translatedText;
-
-      // Step 3: Replace placeholders back with original fruit names
-      Object.entries(placeholders).forEach(([placeholder, word]) => {
-        translated = translated.replace(new RegExp(placeholder, 'g'), word);
-      });
-
-      return translated;
-    } catch (err) {
-      // ✅ HANDLED: Catch network/API errors gracefully (no crash)
-      // Only log in development, suppress in production to avoid red banner
-      if (__DEV__) {
-        console.error('Translation Error:', err?.message || err);
-      }
-      return null; // Return null to trigger user-friendly error message
-    }
-  };
+  // Google Translate v2 with fruit names masked (Helper/chatTranslate).
+  const translateText = (text, targetLang = deviceLanguage) =>
+    translateChatText(text, { apiKey: api, targetLang });
 
   const handleTranslate = async (item) => {
     // They found Translate: the one-time tip (ChatScreen/TranslateTip) is done.
     hideTranslateTip();
     if (localState.showTranslateTip) updateLocalState('showTranslateTip', false);
 
-    // ✅ Check unlimited status
-    const isUnlimited = freeTranslation || localState.isPro;
+    // ✅ Check unlimited status (staff read foreign-language messages to moderate)
+    const isUnlimited = freeTranslation || localState.isPro || isStaff || !!isBabyMod;
 
     // ✅ Check limit BEFORE translation (reads from storage for real-time accuracy)
     if (!isUnlimited && !canTranslate()) {
@@ -824,12 +780,12 @@ const MessagesList = ({
         onReport={handleReport}
         // Staff go through staffActionsRef (rank check + audit log); a
         // regular user can only ever reach onDelete for their own message.
-        onDelete={isStaff
+        onDelete={canStaffDelete
           ? (msg) => staffActionsRef.current?.remove(msg)
           : (onDeleteMessage ? (msg) => onDeleteMessage(msg.id) : null)}
         onDeleteAll={isStaff && onDeleteAllMessage ? (msg) => staffActionsRef.current?.removeAll(msg) : null}
         onPinMessage={isStaff && onPinMessage ? (msg) => staffActionsRef.current?.pin(msg) : null}
-        isStaff={isStaff}
+        isStaff={canStaffDelete}
         userId={user?.id}
         isDarkMode={isDarkMode}
       />

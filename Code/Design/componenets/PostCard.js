@@ -14,7 +14,8 @@ import ReportModal from './ReportModal';
 import dayjs from 'dayjs';
 import ProfileBottomDrawer from '../../ChatScreen/GroupChat/BottomDrawer';
 import { banUserwithEmail as banUserwithEmailUtils } from '../../ChatScreen/utils';
-import { isUserOnline } from '../../ChatScreen/utils';
+import { isUserOnline, outranksUser, isCurrentUserOwner } from '../../ChatScreen/utils';
+import { logModAction } from '../../Helper/modSanction';
 import RoleBadges from './RoleBadges';
 import FramedAvatar from '../../ChatScreen/GroupChat/FramedAvatar';
 import { canSaveToGallery, saveImagesToGallery } from '../../Helper/saveImageToGallery';
@@ -89,9 +90,27 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
     setBannedUsers(localState.bannedUsers);
   }, [localState.bannedUsers]);
 
-  const { theme, isAdmin, isSeniorMod, isModerator } = useGlobalState();
+  const { theme, isAdmin, isSeniorMod, isModerator, isBabyMod } = useGlobalState();
   const canModerate = isAdmin || isSeniorMod || isModerator;
+  // JMDs may delete single posts too, never "Delete All" (owner decision
+  // 2026-10-19). Firestore lets any staff/{uid} delete; staffMirror writes
+  // that doc for isBabyMod as well.
+  const canDeleteOthers = canModerate || !!isBabyMod;
   const isDark = theme === 'dark';
+
+  // Someone else's post: same strict-rank rule as chat deletes, and audit-logged.
+  const deletePost = async () => {
+    const others = !!item?.userId && item.userId !== userId;
+    if (others) {
+      const callerRoles = { isAdmin, isSeniorMod, isModerator, isBabyMod, isOwner: isCurrentUserOwner() };
+      if (!(await outranksUser(item.userId, callerRoles))) {
+        Alert.alert('Not allowed', 'You cannot remove posts from staff at or above your rank.');
+        return;
+      }
+    }
+    await onDelete(item.id);
+    if (others) logModAction('post_delete', item.userId, { postId: item.id });
+  };
 
   const getTagLabel = (tag) => {
     const key = TAG_LABEL_KEYS[tag?.toLowerCase?.()];
@@ -246,10 +265,10 @@ const PostCard = ({ item, userId, onReaction, localState, appdatabase, onDelete,
                 <Text style={[s.menuItemText, { color: '#F59E0B' }]}>{t('chat.report')}</Text>
               </View>
             </MenuOption>
-            {(userId === item.userId || canModerate) && (
+            {(userId === item.userId || canDeleteOthers) && (
               <MenuOption onSelect={() => Alert.alert(t('feed.post_card.delete_title'), t('feed.post_card.delete_confirm'), [
                 { text: t('common.cancel'), style: 'cancel' },
-                { text: t('common.delete'), onPress: () => onDelete(item.id), style: 'destructive' },
+                { text: t('common.delete'), onPress: deletePost, style: 'destructive' },
               ])}>
                 <View style={[s.menuItem, { borderTopWidth: 1, borderTopColor: isDark ? '#334155' : '#f1f5f9' }]}>
                   <FontAwesome6 name="trash" size={12} color="#EF4444" solid />
