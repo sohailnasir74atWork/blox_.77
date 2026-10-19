@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FramedAvatar from './FramedAvatar';
 import { getCachedProfile } from '../../Helper/profileCache';
 import { useTranslation } from 'react-i18next';
+import { validateUsername } from '../../Helper/ContentModeration';
 
 const MAX_GROUP_MEMBERS = 100;
 
@@ -176,6 +177,15 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
     if (!groupName.trim()) {
       showErrorMessage(t('chat.error'), t('chat.create_group_modal.name_required'));
       return;
+    }
+
+    // Word filter (2026-10-19): slurs/offensive terms only, like usernames.
+    for (const text of [groupName, groupDescription]) {
+      const check = validateUsername((text || '').trim());
+      if (!check.isValid) {
+        showErrorMessage(t('chat.error'), check.reason);
+        return;
+      }
     }
 
     if (isEditMode) {

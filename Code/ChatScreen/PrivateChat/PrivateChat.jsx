@@ -50,6 +50,7 @@ import {
   softDeleteAllInChat as sbSoftDeleteAllInChat,
   newClientMsgId as newPvtClientMsgId,
 } from '../../Supabase/privateMessagesBackend';
+import { validateUsername } from '../../Helper/ContentModeration';
 
 
 const PAGE_SIZE = 10;
@@ -372,6 +373,13 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
 
     if (!selectedUserId || !myUserId || !appdatabase || !firestoreDB) {
       showErrorMessage(t('chat.error'), t('chat.private_chat.missing_data'));
+      return;
+    }
+
+    // Word filter (2026-10-19): review text may not carry slurs/offensive terms.
+    const reviewCheck = validateUsername((reviewText || '').trim());
+    if (!reviewCheck.isValid) {
+      showErrorMessage(t('chat.error'), reviewCheck.reason);
       return;
     }
 

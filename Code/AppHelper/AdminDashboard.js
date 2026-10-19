@@ -101,6 +101,7 @@ import { useNavigation } from '@react-navigation/native';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
 import ReviewIntegrityTab from './ReviewIntegrityTab';
 import ModLogTab from './ModLogTab';
+import WordFilterTab from './WordFilterTab';
 import PermBanRequestsTab from './PermBanRequestsTab';
 import TranslatableText from './TranslatableText';
 import ReportsTab from './ReportsTab';
@@ -203,6 +204,8 @@ const SECTIONS = [
     { key: 'polls', label: 'Polls', senior: true },
     { key: 'statusFeed', label: 'Statuses', senior: true },
     { key: 'news', label: 'News', admin: true },
+    // Blocklist editor; supabase/049 checks Senior Mod+ on the server too.
+    { key: 'wordFilter', label: 'Word filter', senior: true },
   ] },
   { key: 'audit', label: 'Audit', icon: 'document-text', tabs: [
     // The staff activity log; supabase/047 gates its rpcs the same way.
@@ -2757,6 +2760,8 @@ const AdminDashboardScreen = () => {
         <ReviewIntegrityTab isDark={isDark} currentUser={currentUser} callerRoles={callerRoles} />
       ) : activeTab === 'modLog' ? (
         <ModLogTab isDark={isDark} />
+      ) : activeTab === 'wordFilter' && isSeniorPlus ? (
+        <WordFilterTab isDark={isDark} currentUser={currentUser} />
       ) : activeTab === 'permRequests' && isAdmin ? (
         <PermBanRequestsTab isDark={isDark} onOpenUser={(u) => handleSelectUser(u)} />
       ) : activeTab === 'reports' ? (
