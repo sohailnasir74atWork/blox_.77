@@ -202,18 +202,34 @@ exports.notifyGroupNewMessage = functions
         res.status(200).send('Skipped: group not found');
         return;
       }
-      const memberIds = (groupSnap.data().memberIds || [])
+      let memberIds = (groupSnap.data().memberIds || [])
         .filter((id) => id && id !== senderId);
       if (memberIds.length === 0) {
         res.status(200).send('Skipped: no other members');
         return;
       }
 
+      // supabase/044: only server-verified members (group_members) get the
+      // push, so an account that added itself to memberIds sees no preview.
+      // Groups not synced yet (no creator row) keep the memberIds list.
+      const supabase = getSupabase();
+      const { data: verifiedRows } = await supabase
+        .from('group_members')
+        .select('user_id, role')
+        .eq('group_id', groupId);
+      if ((verifiedRows || []).some((r) => r.role === 'creator')) {
+        const verified = new Set(verifiedRows.map((r) => r.user_id));
+        memberIds = memberIds.filter((id) => verified.has(id));
+        if (memberIds.length === 0) {
+          res.status(200).send('Skipped: no other verified members');
+          return;
+        }
+      }
+
       // Parallel: mute flags + group name (Supabase) AND who's currently
       // viewing this group's chat (RTDB /activeGroupChats/{groupId}).
       // Members on the chat screen see the message inline — push would
       // be redundant + spammy.
-      const supabase = getSupabase();
       const [metaResult, activeGroupSnap] = await Promise.all([
         supabase
           .from('group_meta_data')

@@ -71,7 +71,14 @@ const base64ToBytes = (base64) => {
 const MAX_GROUP_MEMBERS = 100;
 
 const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = null, editGroupName = null, editGroupDescription = null, editGroupAvatar = null, isAdmin = false, onGroupUpdated = null }) => {
-  const { theme, user, firestoreDB, appdatabase, getModGate } = useGlobalState();
+  const { theme, user, firestoreDB, appdatabase, getModGate, isAdmin: isAdminRole, isSeniorMod, isModerator, isBabyMod } = useGlobalState();
+  // Staff flags for the group cap (2; 10 for Senior Mod+) and for editing a
+  // group as Senior Mod+ (groupUtils.getGroupPermissions). The isAdmin prop
+  // is kept for callers; the global flags decide.
+  const roles = useMemo(
+    () => ({ isAdmin: isAdminRole || isAdmin, isSeniorMod, isModerator, isBabyMod }),
+    [isAdminRole, isAdmin, isSeniorMod, isModerator, isBabyMod],
+  );
   const isEditMode = !!editGroupId;
   const { t } = useTranslation();
   const { triggerHapticFeedback } = useHaptic();
@@ -302,7 +309,8 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
         groupName.trim(),
         invitedUsersMap, // ✅ Pass user data to avoid extra Firestore read
         groupAvatarUrl, // Pass group avatar URL
-        groupDescription.trim() // Pass group description
+        groupDescription.trim(), // Pass group description
+        roles
       );
 
       if (result.success) {
@@ -363,7 +371,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
           editGroupId,
           user.id,
           groupName.trim(),
-          isAdmin
+          roles
         );
         if (!nameResult.success) {
           showErrorMessage(t('chat.error'), nameResult.error || t('chat.create_group_modal.update_name_failed'));
@@ -381,7 +389,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
           editGroupId,
           user.id,
           trimmedDescription,
-          isAdmin
+          roles
         );
         if (!descResult.success) {
           showErrorMessage(t('chat.error'), descResult.error || t('chat.create_group_modal.update_description_failed'));
@@ -398,7 +406,7 @@ const CreateGroupModal = ({ visible, onClose, selectedUsers = [], editGroupId = 
           editGroupId,
           user.id,
           groupAvatarUrl,
-          isAdmin
+          roles
         );
         if (!avatarResult.success) {
           showErrorMessage(t('chat.error'), avatarResult.error || t('chat.create_group_modal.update_icon_failed'));

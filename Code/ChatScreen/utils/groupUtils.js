@@ -5,10 +5,10 @@ import {
   deleteGroupMetaForUser,
   updateGroupIdentityForMembers,
 } from '../../Supabase/groupMetaBackend';
-import {
-  sendGroupMessage as sbSendGroupMessage,
-  softDeleteAllInGroup as sbSoftDeleteAllInGroup,
-} from '../../Supabase/groupMessagesBackend';
+import { sendGroupMessage as sbSendGroupMessage } from '../../Supabase/groupMessagesBackend';
+import { getAuth, getIdToken } from '@react-native-firebase/auth';
+import { getStaffRank, STAFF_RANK, fetchUserRoles } from '../utils';
+import { groupSearchToken, groupNameMatches } from './groupSearch';
 import {
   collection,
   doc,
@@ -30,10 +30,75 @@ import i18n from 'i18next';
 
 const MAX_GROUP_MEMBERS = 100; // Maximum members per group
 
-// How many active groups one player may own at a time (owner decision,
-// 2026-10-07: was 1). Client-side only, like the rest of group creation, so
-// builds from before this change still stop at one.
+// How many active groups one player may own at a time (owner decisions
+// 2026-10-07: 2 (was 1); 2026-10-19: 10 for Senior Mod / Admin / owner). The
+// server holds the line for every build (functions/groupMembership.js deletes
+// a group created past the cap and undoes a hand-over to someone at it);
+// these only decide what the app offers.
 export const MAX_GROUPS_PER_USER = 2;
+export const MAX_GROUPS_PER_STAFF = 10;
+
+// ── Who may do what in a group (owner decision 2026-10-19) ──────────────
+//   the creator                  manages their own group
+//   Senior Mod / Admin / owner   manage ANY group, member or not: enter and
+//                                read, rename, description, avatar, kick,
+//                                delete messages, pin, delete the group
+//   Mod / JMD                    nothing extra — a member like anyone else
+// The server enforces the same: firestore.rules (groups, isSeniorStaff) and
+// supabase/044 (is_group_staff, delete_group_message). `roles` is the
+// useGlobalState() flags { isAdmin, isSeniorMod, isModerator, isBabyMod }
+// (owners have isAdmin in the app); a bare boolean is read as isAdmin.
+const asRoles = (roles) => (typeof roles === 'boolean' ? { isAdmin: roles } : roles || null);
+
+export const isGroupStaff = (roles) => getStaffRank(asRoles(roles)) >= STAFF_RANK.seniorMod;
+
+export const getGroupCap = (roles) => (isGroupStaff(roles) ? MAX_GROUPS_PER_STAFF : MAX_GROUPS_PER_USER);
+
+/**
+ * The one place the app decides group powers. `groupData` is the Firestore
+ * group doc (or a group_meta_data row, which only carries createdBy).
+ */
+export const getGroupPermissions = (groupData, userId, roles = null) => {
+  const memberIds = Array.isArray(groupData?.memberIds) ? groupData.memberIds : [];
+  const isMember = !!userId && memberIds.includes(userId);
+  const isCreator = !!userId && !!groupData?.createdBy && groupData.createdBy === userId;
+  const staff = !!userId && isGroupStaff(roles);
+  const canManage = isCreator || staff;
+  return {
+    isMember,
+    isCreator,
+    isGroupStaff: staff,
+    canView: isMember || staff,
+    canSend: (isMember && !groupData?.members?.[userId]?.muted) || staff,
+    canManage, // rename, description, avatar, kick, pin, delete messages, delete the group
+    canInvite: isCreator,
+    canApprove: isCreator,
+    canTransfer: isCreator,
+  };
+};
+
+// Ask the server to record a membership now (functions/groupMembership.js
+// groupSync) instead of waiting for its trigger, so a new member can read and
+// send straight away. Never throws; the trigger catches up if this fails.
+const GROUP_SYNC_URL = 'https://us-central1-fruiteblocks.cloudfunctions.net/groupSync';
+export const syncGroupAccess = async (groupId) => {
+  try {
+    const current = getAuth().currentUser;
+    if (!current || !groupId) return { ok: false };
+    const token = await getIdToken(current);
+    const res = await fetch(GROUP_SYNC_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupId }),
+    });
+    let body = null;
+    try { body = await res.json(); } catch (_) {}
+    return { ok: res.ok, ...(body || {}) };
+  } catch (e) {
+    console.warn('[groups] groupSync failed:', e?.message);
+    return { ok: false };
+  }
+};
 
 /**
  * Every active group the user created (newest first).
@@ -77,9 +142,10 @@ export const getUserAdminGroups = async (firestoreDB, userId) => {
  * @param {Object} invitedUsersMap - Optional map of { userId: { displayName, avatar } } to avoid extra Firestore reads
  * @param {string} groupAvatarUrl - Optional group avatar URL
  * @param {string} groupDescription - Group description (required)
+ * @param {Object} roles - creator's staff flags (useGlobalState), for the group cap
  * @returns {Promise<{success: boolean, groupId?: string, error?: string}>}
  */
-export const createGroup = async (firestoreDB, appdatabase, creatorData, memberIds = [], groupName = null, invitedUsersMap = null, groupAvatarUrl = null, groupDescription = null) => {
+export const createGroup = async (firestoreDB, appdatabase, creatorData, memberIds = [], groupName = null, invitedUsersMap = null, groupAvatarUrl = null, groupDescription = null, roles = null) => {
   if (!firestoreDB || !appdatabase || !creatorData?.id) {
     return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
@@ -94,13 +160,14 @@ export const createGroup = async (firestoreDB, appdatabase, creatorData, memberI
     return { success: false, error: i18n.t('chat.group_utils.group_description_is_required') };
   }
 
-  // Up to MAX_GROUPS_PER_USER groups as admin/creator at a time.
+  // Up to getGroupCap() groups as admin/creator at a time.
+  const cap = getGroupCap(roles);
   const ownGroups = await getUserAdminGroups(firestoreDB, creatorData.id);
-  if (ownGroups.length >= MAX_GROUPS_PER_USER) {
+  if (ownGroups.length >= cap) {
     return {
       success: false,
       error: i18n.t('groups.errors.group_limit', {
-        max: MAX_GROUPS_PER_USER,
+        max: cap,
         defaultValue: 'You can be the admin of up to {{max}} groups at a time. Delete one to create a new one.',
       }),
     };
@@ -170,6 +237,9 @@ export const createGroup = async (firestoreDB, appdatabase, creatorData, memberI
       joinedAtMs: Date.now(),
       createdBy: creatorData.id,
     });
+
+    // The creator can read and send right away (supabase/044).
+    await syncGroupAccess(groupId);
 
     // ✅ Use provided user data map, or fetch from RTDB users node only if needed (OPTIMIZATION: avoid extra reads)
     let finalInvitedUsersMap = invitedUsersMap || {};
@@ -466,6 +536,9 @@ export const acceptGroupInvite = async (firestoreDB, appdatabase, inviteId, user
       createdBy: groupData.createdBy || null,
     });
 
+    // The server checks the invite and lets the new member read straight away.
+    await syncGroupAccess(inviteData.groupId);
+
     return { success: true, groupId: inviteData.groupId };
   } catch (error) {
     console.error('Error accepting group invite:', error);
@@ -592,16 +665,11 @@ export const leaveGroup = async (firestoreDB, appdatabase, groupId, userId) => {
       return { success: true, message: 'Group no longer exists' };
     }
 
-    // If last person left, delete all group data.
+    // If last person left, delete all group data. The messages and every
+    // inbox row are purged by the server on the delete (functions/
+    // groupMembership.js → supabase/044 purge_group_chat).
     if (result.shouldDeleteGroup) {
       try {
-        // Soft-delete every message in the group on Supabase.
-        try {
-          await sbSoftDeleteAllInGroup(groupId, userId ?? null);
-        } catch (e) {
-          console.warn('Could not soft-delete group_messages:', e?.message);
-        }
-
         // Delete group node
         const groupRef = ref(appdatabase, `groups/${groupId}`);
         const groupSnapshot = await get(groupRef);
@@ -896,9 +964,10 @@ export const addMembersToGroup = async (firestoreDB, appdatabase, groupId, newMe
  * @param {String} groupId - Group ID
  * @param {String} memberIdToRemove - User ID to remove
  * @param {String} adminId - Admin/creator user ID
+ * @param {Object} roles - caller's staff flags (Senior Mod+ may remove in any group)
  * @returns {Promise<{success: boolean, error?: string}>}
  */
-export const removeMemberFromGroup = async (firestoreDB, appdatabase, groupId, memberIdToRemove, adminId) => {
+export const removeMemberFromGroup = async (firestoreDB, appdatabase, groupId, memberIdToRemove, adminId, roles = null) => {
   if (!firestoreDB || !appdatabase || !groupId || !memberIdToRemove || !adminId) {
     return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
@@ -916,9 +985,8 @@ export const removeMemberFromGroup = async (firestoreDB, appdatabase, groupId, m
       const currentMemberIds = groupData.memberIds || [];
       const currentMembers = groupData.members || {};
 
-      // ✅ Check if user has permission (must be creator)
-      const isCreator = groupData.createdBy === adminId;
-      if (!isCreator) {
+      // The creator, or Senior Mod+ in any group.
+      if (!getGroupPermissions(groupData, adminId, roles).canManage) {
         throw new Error(i18n.t('chat.group_utils.only_the_creator_can_remove_members'));
       }
 
@@ -958,13 +1026,8 @@ export const removeMemberFromGroup = async (firestoreDB, appdatabase, groupId, m
         });
       }
 
-      // Remove group_meta_data row for the kicked member — Supabase.
-      try {
-        await deleteGroupMetaForUser(memberIdToRemove, groupId);
-      } catch (metaError) {
-        console.warn(`Could not delete group metadata for removed member ${memberIdToRemove}:`, metaError);
-      }
-
+      // The kicked member's inbox row and access go server-side
+      // (functions/groupMembership.js): RLS never let us delete their row.
       return { success: true };
     });
   } catch (error) {
@@ -1056,32 +1119,37 @@ export const getPendingInviteForGroup = async (firestoreDB, groupId, userId) => 
 };
 
 /**
- * Check if user has permission for group action
+ * Check if user has permission for group action (see getGroupPermissions).
  * @param {Object} groupData - Group document data
  * @param {String} userId - User ID
  * @param {String} permission - Permission to check
+ * @param {Object} roles - caller's staff flags (useGlobalState)
  * @returns {boolean}
  */
-// ✅ Simplified: Only creator has special permissions (no admin role)
-export const hasGroupPermission = (groupData, userId, permission) => {
+export const hasGroupPermission = (groupData, userId, permission, roles = null) => {
   if (!groupData || !userId) return false;
-
-  const isCreator = groupData.createdBy === userId;
+  const p = getGroupPermissions(groupData, userId, roles);
 
   switch (permission) {
     case 'delete_group':
-    case 'add_member':
     case 'remove_member':
-    case 'make_creator':
     case 'edit_group':
     case 'mute_member':
-      return isCreator; // Only creator has these permissions
+    case 'pin_message':
+    case 'delete_message':
+      return p.canManage;
+
+    case 'add_member':
+      return p.canInvite;
+
+    case 'make_creator':
+      return p.canTransfer;
 
     case 'send_message':
-      return groupData.memberIds?.includes(userId) && !groupData.members?.[userId]?.muted;
+      return p.canSend;
 
     case 'view_group':
-      return groupData.memberIds?.includes(userId);
+      return p.canView;
 
     default:
       return false;
@@ -1105,6 +1173,23 @@ export const makeMemberCreator = async (firestoreDB, appdatabase, groupId, membe
 
   try {
     const groupRef = doc(firestoreDB, 'groups', groupId);
+
+    // The new owner must be under their own group cap (the server undoes a
+    // hand-over that isn't; this just says so up front).
+    const [targetRoles, targetGroups] = await Promise.all([
+      fetchUserRoles(memberIdToMakeCreator),
+      getUserAdminGroups(firestoreDB, memberIdToMakeCreator),
+    ]);
+    const targetCap = getGroupCap(targetRoles);
+    if (targetGroups.filter((g) => g.groupId !== groupId).length >= targetCap) {
+      return {
+        success: false,
+        error: i18n.t('groups.errors.transfer_limit', {
+          max: targetCap,
+          defaultValue: 'This player already owns the most groups they can ({{max}}). They have to delete one before they can take over this group.',
+        }),
+      };
+    }
 
     return await runTransaction(firestoreDB, async (transaction) => {
       const groupSnap = await transaction.get(groupRef);
@@ -1154,8 +1239,9 @@ export const makeMemberCreator = async (firestoreDB, appdatabase, groupId, membe
  * @param {string} avatarUrl - New avatar URL
  * @returns {Promise<{success: boolean, error?: string}>}
  */
-// ✅ Update group name (Group creator only)
-export const updateGroupName = async (firestoreDB, appdatabase, groupId, userId, groupName, isAdmin = false) => {
+// Update group name — the creator, or Senior Mod+ in any group. `roles` =
+// the caller's staff flags (a boolean is read as isAdmin, for old callers).
+export const updateGroupName = async (firestoreDB, appdatabase, groupId, userId, groupName, roles = null) => {
   if (!firestoreDB || !appdatabase || !groupId || !userId || !groupName) {
     return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
@@ -1170,9 +1256,7 @@ export const updateGroupName = async (firestoreDB, appdatabase, groupId, userId,
 
     const groupData = groupSnap.data();
 
-    // ✅ Only group creator can update name (not global admin)
-    const isCreator = groupData.createdBy === userId;
-    if (!isCreator) {
+    if (!getGroupPermissions(groupData, userId, roles).canManage) {
       return { success: false, error: i18n.t('chat.group_utils.only_creator_update_name') };
     }
 
@@ -1205,8 +1289,8 @@ export const updateGroupName = async (firestoreDB, appdatabase, groupId, userId,
   }
 };
 
-// ✅ Update group description (Group creator only, max 100 chars)
-export const updateGroupDescription = async (firestoreDB, appdatabase, groupId, userId, description, isAdmin = false) => {
+// Update group description (max 100 chars) — the creator, or Senior Mod+.
+export const updateGroupDescription = async (firestoreDB, appdatabase, groupId, userId, description, roles = null) => {
   if (!firestoreDB || !appdatabase || !groupId || !userId) {
     return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
@@ -1221,9 +1305,7 @@ export const updateGroupDescription = async (firestoreDB, appdatabase, groupId, 
 
     const groupData = groupSnap.data();
 
-    // ✅ Only group creator can update description (not global admin)
-    const isCreator = groupData.createdBy === userId;
-    if (!isCreator) {
+    if (!getGroupPermissions(groupData, userId, roles).canManage) {
       return { success: false, error: i18n.t('chat.group_utils.only_creator_update_description') };
     }
 
@@ -1249,7 +1331,8 @@ export const updateGroupDescription = async (firestoreDB, appdatabase, groupId, 
   }
 };
 
-export const updateGroupAvatar = async (firestoreDB, appdatabase, groupId, userId, avatarUrl, isAdmin = false) => {
+// Update group avatar — the creator, or Senior Mod+.
+export const updateGroupAvatar = async (firestoreDB, appdatabase, groupId, userId, avatarUrl, roles = null) => {
   if (!firestoreDB || !appdatabase || !groupId || !userId) {
     return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
@@ -1264,9 +1347,7 @@ export const updateGroupAvatar = async (firestoreDB, appdatabase, groupId, userI
 
     const groupData = groupSnap.data();
 
-    // ✅ Only group creator can update avatar (not global admin)
-    const isCreator = groupData.createdBy === userId;
-    if (!isCreator) {
+    if (!getGroupPermissions(groupData, userId, roles).canManage) {
       return { success: false, error: i18n.t('chat.group_utils.only_creator_update_icon') };
     }
 
@@ -1483,6 +1564,9 @@ export const approveJoinRequest = async (firestoreDB, appdatabase, requestId, cr
       createdBy: groupData.createdBy,
     });
 
+    // The server checks the approval and lets the new member in at once.
+    await syncGroupAccess(groupId);
+
     return { success: true };
   } catch (error) {
     console.error('Error approving join request:', error);
@@ -1536,93 +1620,33 @@ export const rejectJoinRequest = async (firestoreDB, requestId, creatorId) => {
 };
 
 /**
- * Get all groups (for explore feature)
- * @param {Object} firestoreDB - Firestore database instance
- * @param {String} filter - 'recent' or 'all'
- * @param {String} searchQuery - Optional search query for group name
- * @returns {Promise<{success: boolean, groups?: Array, error?: string}>}
+ * Delete a group — the creator, Senior Mod+ (any group), or its last member.
+ * The Firestore delete is the authority: the server then soft-deletes every
+ * message and removes every member's inbox row and access in one go
+ * (functions/groupMembership.js → supabase/044 purge_group_chat). The client
+ * used to try that itself and failed for big groups and for other members'
+ * rows (bug log 2026-10-19).
+ * @returns {Promise<{success: boolean, error?: string}>}
  */
-// ✅ Delete group (Admin only)
-export const deleteGroup = async (firestoreDB, appdatabase, groupId, deletedByUserId = null) => {
+export const deleteGroup = async (firestoreDB, appdatabase, groupId, deletedByUserId = null, roles = null) => {
   if (!firestoreDB || !appdatabase || !groupId) {
     return { success: false, error: i18n.t('chat.group_utils.missing_required_parameters') };
   }
 
   try {
-    // First, get group data to find all members for metadata cleanup
-    // Get memberIds from Firestore BEFORE deleting
-    let memberIds = [];
-    let groupData = null;
-    try {
-      const groupDocRef = doc(firestoreDB, 'groups', groupId);
-      const groupSnap = await getDoc(groupDocRef);
-      if (groupSnap.exists()) {
-        groupData = groupSnap.data();
-        memberIds = groupData.memberIds || [];
-      }
-    } catch (fetchError) {
-      console.warn('Could not fetch group data from Firestore before deletion:', fetchError.message || fetchError);
-    }
-
-    // Also try to get memberIds from RTDB as fallback
-    let rtdbMemberIds = [];
-    try {
-      const groupRef = ref(appdatabase, `groups/${groupId}`);
-      const groupSnapshot = await get(groupRef);
-      if (groupSnapshot.exists()) {
-        const rtdbGroupData = groupSnapshot.val();
-        if (rtdbGroupData) {
-          // Try different possible structures
-          if (rtdbGroupData.memberIds) {
-            rtdbMemberIds = Array.isArray(rtdbGroupData.memberIds) 
-              ? rtdbGroupData.memberIds 
-              : Object.keys(rtdbGroupData.memberIds || {});
-          } else if (rtdbGroupData.members) {
-            // If members is an object, get the keys
-            rtdbMemberIds = Object.keys(rtdbGroupData.members || {});
-          }
-        }
-      }
-    } catch (rtdbFetchError) {
-      // Permission errors are expected if user doesn't have read access
-      // We'll still try to delete metadata if we have memberIds from Firestore
-      if (rtdbFetchError?.code !== 'database/permission-denied') {
-        console.warn('Could not fetch group data from RTDB:', rtdbFetchError.message || rtdbFetchError);
-      }
-    }
-    
-    // Try to get memberIds from group_invitations as additional fallback
-    let invitationMemberIds = [];
-    if (memberIds.length === 0 && rtdbMemberIds.length === 0) {
-      try {
-        const invitationsQuery = query(
-          collection(firestoreDB, 'group_invitations'),
-          where('groupId', '==', groupId),
-          limit(200)
-        );
-        const invitationsSnapshot = await getDocs(invitationsQuery);
-        invitationMemberIds = invitationsSnapshot.docs
-          .map(doc => doc.data().invitedUserId)
-          .filter(id => id && typeof id === 'string');
-      } catch (inviteError) {
-        console.warn('Could not fetch memberIds from invitations:', inviteError.message || inviteError);
-      }
-    }
-
-    // Combine memberIds from all sources (remove duplicates and filter out invalid values)
-    const allMemberIds = [...new Set([...memberIds, ...rtdbMemberIds, ...invitationMemberIds].filter(id => id && typeof id === 'string' && id.length > 0))];
-    
-    if (allMemberIds.length === 0) {
-      console.warn(`⚠️ Warning: Could not find any memberIds for group ${groupId}. Metadata may not be fully cleaned up.`);
-    } else {
-      // console.log(`🗑️ Deleting group ${groupId} - Found ${allMemberIds.length} members to clean up metadata for`);
-    }
-
-    // Delete from Firestore
     const groupDocRef = doc(firestoreDB, 'groups', groupId);
-    await deleteDoc(groupDocRef);
+    const groupSnap = await getDoc(groupDocRef);
+    if (groupSnap.exists()) {
+      const groupData = groupSnap.data();
+      const memberIds = groupData.memberIds || [];
+      const lastMember = memberIds.length === 1 && memberIds[0] === deletedByUserId;
+      if (!getGroupPermissions(groupData, deletedByUserId, roles).canManage && !lastMember) {
+        return { success: false, error: i18n.t('chat.groups_screen.only_admins_delete') };
+      }
+      await deleteDoc(groupDocRef);
+    }
 
-    // Delete from RTDB - group node
+    // Legacy RTDB group node (pre-Firestore builds).
     try {
       const groupRef = ref(appdatabase, `groups/${groupId}`);
       const snapshot = await get(groupRef);
@@ -1630,79 +1654,28 @@ export const deleteGroup = async (firestoreDB, appdatabase, groupId, deletedByUs
         await remove(groupRef);
       }
     } catch (rtdbError) {
-      // Permission errors might occur, but we'll still try to delete metadata
-      if (rtdbError?.code === 'database/permission-denied') {
-        console.warn('⚠️ Permission denied when deleting group from RTDB. This may be expected if user lacks write permissions.');
-      } else {
+      if (rtdbError?.code !== 'database/permission-denied') {
         console.warn('Could not delete group from RTDB:', rtdbError.message || rtdbError);
       }
     }
 
-    // Soft-delete every message in the group — Supabase.
-    try {
-      await sbSoftDeleteAllInGroup(groupId, deletedByUserId ?? null);
-    } catch (messagesError) {
-      console.warn('Could not soft-delete group messages:', messagesError);
-    }
-
-    // Delete group_meta_data rows for every member — Supabase. The
-    // RLS policy permits any authenticated user to delete their own
-    // row only, so for cross-member cleanup the caller (admin/group
-    // owner) deletes their own row and we rely on each remaining
-    // member's client to clean up their own row when they next see the
-    // group is gone. For an authoritative wipe of every member's row
-    // (admin "delete group" flow), prefer using a service-role Edge
-    // Function — out of scope for this client-side migration.
-    try {
-      const results = await Promise.all(
-        (allMemberIds || []).map(async (memberId) => {
-          if (!memberId || typeof memberId !== 'string') {
-            return { success: false, memberId, reason: 'invalid_id' };
-          }
-          try {
-            await deleteGroupMetaForUser(memberId, groupId);
-            return { success: true, memberId };
-          } catch (e) {
-            // Permission denied is expected for cross-member deletes
-            // when the caller isn't the row owner. Not fatal.
-            return { success: false, memberId, reason: e?.message || 'rls_denied' };
-          }
-        }),
-      );
-      const failedCount = results.filter((r) => !r.success).length;
-      if (failedCount > 0) {
-        console.warn(`Could not delete group metadata for ${failedCount}/${allMemberIds.length} members (likely RLS — they'll self-clean on next list refresh).`);
+    // Our own inbox row goes at once; the server removes everyone else's.
+    if (deletedByUserId) {
+      try {
+        await deleteGroupMetaForUser(deletedByUserId, groupId);
+      } catch (metaError) {
+        console.warn('Could not delete own group metadata:', metaError?.message || metaError);
       }
-    } catch (metaError) {
-      console.error('❌ Error during group metadata cleanup:', metaError);
     }
 
-    // Delete related invitations
-    try {
-      const invitationsQuery = query(
-        collection(firestoreDB, 'group_invitations'),
-        where('groupId', '==', groupId),
-        limit(200)
-      );
-      const invitationsSnapshot = await getDocs(invitationsQuery);
-      const deleteInvitationPromises = invitationsSnapshot.docs.map(doc => deleteDoc(doc.ref));
-      await Promise.all(deleteInvitationPromises);
-    } catch (inviteError) {
-      console.warn('Could not delete group invitations:', inviteError);
-    }
-
-    // Delete related join requests
-    try {
-      const joinRequestsQuery = query(
-        collection(firestoreDB, 'group_join_requests'),
-        where('groupId', '==', groupId),
-        limit(200)
-      );
-      const joinRequestsSnapshot = await getDocs(joinRequestsQuery);
-      const deleteJoinRequestPromises = joinRequestsSnapshot.docs.map(doc => deleteDoc(doc.ref));
-      await Promise.all(deleteJoinRequestPromises);
-    } catch (joinRequestError) {
-      console.warn('Could not delete group join requests:', joinRequestError);
+    // Invitations and join requests (the server sweeps whatever is left).
+    for (const col of ['group_invitations', 'group_join_requests']) {
+      try {
+        const snap = await getDocs(query(collection(firestoreDB, col), where('groupId', '==', groupId), limit(200)));
+        await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
+      } catch (sweepError) {
+        console.warn(`Could not delete ${col}:`, sweepError?.message || sweepError);
+      }
     }
 
     return { success: true };
@@ -1712,9 +1685,57 @@ export const deleteGroup = async (firestoreDB, appdatabase, groupId, deletedByUs
   }
 };
 
+/**
+ * Server-side name search for the All groups tab: every group whose name has
+ * a word starting with each word of `text` (groups/{id}.searchKeys, kept by
+ * functions/groupMembership.js). Up to `limitCount` matches, most members first.
+ * @returns {Promise<{success: boolean, groups?: Array, hasMore?: boolean, lastDoc?: null, error?: string}>}
+ */
+export const searchGroups = async (firestoreDB, text, limitCount = 30) => {
+  if (!firestoreDB) {
+    return { success: false, error: i18n.t('chat.group_utils.missing_firestore_database') };
+  }
+  const token = groupSearchToken(text);
+  if (!token) return { success: true, groups: [], hasMore: false, lastDoc: null };
+  try {
+    const snapshot = await getDocs(query(
+      collection(firestoreDB, 'groups'),
+      where('searchKeys', 'array-contains', token),
+      limit(limitCount),
+    ));
+    const groups = snapshot.docs
+      .map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          ...data,
+          createdAtTimestamp: data.createdAt?.toMillis ? data.createdAt.toMillis() : 0,
+        };
+      })
+      .filter((g) => g.isActive !== false && groupNameMatches(g.groupName || g.name, text))
+      .sort((a, b) => (b.memberCount || 0) - (a.memberCount || 0) || b.createdAtTimestamp - a.createdAtTimestamp);
+    return { success: true, groups, hasMore: false, lastDoc: null };
+  } catch (error) {
+    console.error('Error searching groups:', error);
+    return { success: false, error: error.message || i18n.t('chat.group_utils.failed_to_get_groups') };
+  }
+};
+
+/**
+ * Get all groups (for explore feature)
+ * @param {Object} firestoreDB - Firestore database instance
+ * @param {String} filter - 'recent' or 'all'
+ * @param {String} searchQuery - Optional search text: searches the server (searchGroups)
+ * @returns {Promise<{success: boolean, groups?: Array, error?: string}>}
+ */
 export const getAllGroups = async (firestoreDB, filter = 'all', searchQuery = '', limitCount = 100, lastDoc = null) => {
   if (!firestoreDB) {
     return { success: false, error: i18n.t('chat.group_utils.missing_firestore_database') };
+  }
+
+  // Search text: ask the server instead of filtering the loaded page.
+  if (searchQuery && searchQuery.trim()) {
+    return searchGroups(firestoreDB, searchQuery);
   }
 
   try {
@@ -1759,15 +1780,6 @@ export const getAllGroups = async (firestoreDB, filter = 'all', searchQuery = ''
     if (filter === 'recent') {
       const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
       groups = groups.filter(group => group.createdAtTimestamp >= sevenDaysAgo);
-    }
-
-    // Filter by search query if provided
-    if (searchQuery && searchQuery.trim()) {
-      const queryLower = searchQuery.toLowerCase().trim();
-      groups = groups.filter(group => {
-        const groupName = (group.groupName || group.name || '').toLowerCase();
-        return groupName.includes(queryLower);
-      });
     }
 
     // ✅ Check if there are more groups to load

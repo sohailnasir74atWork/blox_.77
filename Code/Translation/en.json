@@ -906,6 +906,7 @@
       "waiting_for_you_other": "{{count}} waiting for you",
       "no_groups_yet": "No groups yet",
       "no_groups_found": "No groups found",
+      "search_groups_placeholder": "Search groups by name",
       "no_groups_available": "No groups available",
       "created_by_name": "Created by {{name}}",
       "joined_badge": "Joined",
@@ -1625,7 +1626,8 @@
   },
   "groups": {
     "errors": {
-      "group_limit": "You can be the admin of up to {{max}} groups at a time. Delete one to create a new one."
+      "group_limit": "You can be the admin of up to {{max}} groups at a time. Delete one to create a new one.",
+      "transfer_limit": "This player already owns the most groups they can ({{max}}). They have to delete one before they can take over this group."
     }
   },
   "birthdays": {

@@ -272,10 +272,22 @@ export async function sendGroupMessage({
   return fromGroupMessageRow(data);
 }
 
-// Soft-delete a single message. Realtime UPDATE with deleted=true
-// notifies all members; UI removes the row.
+// supabase/044 rpcs. Until 044 is applied they don't exist and we fall back
+// to the old direct UPDATE (which only ever worked for the sender or staff).
+const rpcMissing = (error) => {
+  const code = error?.code || '';
+  if (code === 'PGRST202' || code === '42883') return true;
+  return (error?.message || '').toLowerCase().includes('could not find the function');
+};
+
+// Soft-delete a single message: the sender, the group's creator or Senior
+// Mod+ (delete_group_message, supabase/044). Realtime UPDATE with
+// deleted=true notifies all members; UI removes the row.
 export async function softDeleteGroupMessage(messageId, deletedBy = null) {
   if (!messageId) return;
+  const { error: rpcError } = await supabase.rpc('delete_group_message', { p_message_id: messageId });
+  if (!rpcError) return;
+  if (!rpcMissing(rpcError)) throw rpcError;
   const { error } = await supabase
     .from('group_messages')
     .update({
@@ -287,11 +299,20 @@ export async function softDeleteGroupMessage(messageId, deletedBy = null) {
   if (error) throw error;
 }
 
-// Soft-delete the last N non-deleted messages from a sender in a group.
+// Soft-delete the last N (≤ 500) live messages from a sender in a group: the
+// group's creator or Senior Mod+ (delete_group_messages_by_sender, 044).
 export async function softDeleteGroupMessagesBySender(groupId, senderId, {
   limit = 60, deletedBy = null,
 } = {}) {
   if (!groupId || !senderId) return { count: 0 };
+
+  const { data: n, error: rpcError } = await supabase.rpc('delete_group_messages_by_sender', {
+    p_group_id: groupId,
+    p_sender_id: senderId,
+    p_limit: limit,
+  });
+  if (!rpcError) return { count: n || 0 };
+  if (!rpcMissing(rpcError)) throw rpcError;
 
   const { data, error: selectErr } = await supabase
     .from('group_messages')
@@ -317,30 +338,10 @@ export async function softDeleteGroupMessagesBySender(groupId, senderId, {
   return { count: ids.length };
 }
 
-// Soft-delete every message in a group (admin "delete all" flow,
-// usually paired with a group-delete in Firestore).
-export async function softDeleteAllInGroup(groupId, deletedBy = null) {
-  if (!groupId) return { count: 0 };
-  const { data, error: selectErr } = await supabase
-    .from('group_messages')
-    .select('id')
-    .eq('group_id', groupId)
-    .eq('deleted', false);
-  if (selectErr) throw selectErr;
-  if (!data?.length) return { count: 0 };
-
-  const ids = data.map((r) => r.id);
-  const { error: updateErr } = await supabase
-    .from('group_messages')
-    .update({
-      deleted: true,
-      deleted_at: new Date().toISOString(),
-      deleted_by: deletedBy,
-    })
-    .in('id', ids);
-  if (updateErr) throw updateErr;
-  return { count: ids.length };
-}
+// Deleting a whole group: the server does it (functions/groupMembership.js →
+// supabase/044 purge_group_chat) when the Firestore group doc is deleted. The
+// old client-side softDeleteAllInGroup (select every id, then .in('id', ids))
+// failed past 1,000 rows and for non-staff owners.
 
 // Report a group message through the report_message rpc (supabase/034).
 // Returns { action: 'reported' | 'deleted', count }.

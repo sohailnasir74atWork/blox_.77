@@ -906,6 +906,7 @@
       "waiting_for_you_other": "返事待ち{{count}}件",
       "no_groups_yet": "まだグループはありません",
       "no_groups_found": "グループが見つかりません",
+      "search_groups_placeholder": "グループ名で検索",
       "no_groups_available": "参加できるグループはありません",
       "created_by_name": "作成者：{{name}}",
       "joined_badge": "参加中",
@@ -1625,7 +1626,8 @@
   },
   "groups": {
     "errors": {
-      "group_limit": "管理者になれるグループは同時に{{max}}つまでです。新しく作るには、どれか1つを削除してください。"
+      "group_limit": "管理者になれるグループは同時に{{max}}つまでです。新しく作るには、どれか1つを削除してください。",
+      "transfer_limit": "このプレイヤーはすでに上限（{{max}}個）までグループを持っています。このグループを引き継ぐには、先に1つ削除する必要があります。"
     }
   },
   "birthdays": {

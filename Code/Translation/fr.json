@@ -907,6 +907,7 @@
             "waiting_for_you_other": "{{count}} vous attendent",
             "no_groups_yet": "Vous n’avez pas encore de groupe",
             "no_groups_found": "Aucun groupe trouvé",
+            "search_groups_placeholder": "Rechercher des groupes par nom",
             "no_groups_available": "Aucun groupe disponible",
             "created_by_name": "Créé par {{name}}",
             "joined_badge": "Membre",
@@ -1630,7 +1631,8 @@
     },
     "groups": {
         "errors": {
-            "group_limit": "Tu peux être admin de {{max}} groupes maximum en même temps. Supprimes-en un pour en créer un nouveau."
+            "group_limit": "Tu peux être admin de {{max}} groupes maximum en même temps. Supprimes-en un pour en créer un nouveau.",
+            "transfer_limit": "Cette personne possède déjà le nombre maximum de groupes ({{max}}). Elle doit en supprimer un avant de pouvoir reprendre ce groupe."
         }
     },
     "birthdays": {
