@@ -1790,7 +1790,12 @@ async function onSignup(user) {
   const now = Date.now();
   let ban = null;
   const rec = asRecord(recSnap?.val());
-  if (rec && isActive(rec.bannedUntil)) {
+  // A record naming THIS account was written after it existed (uids are
+  // random): an ordinary ban, which syncEmailBan applies with the writer
+  // checked. Applying it here too raced syncEmailBan when the trigger ran
+  // late — a raw permanent strike from a Mod landed as permanent, a ban on a
+  // just-made staff account went through.
+  if (rec && isActive(rec.bannedUntil) && rec.userId !== user.uid) {
     const base = banFromEmailRecord(key, rec);
     ban = {
       ...base,
