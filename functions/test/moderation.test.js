@@ -1026,6 +1026,23 @@ async function main() {
     assert.strictEqual(b.source, 'email'); assert.strictEqual(b.linkedFrom, t.uid);
   });
 
+  await test('F11 sign-up check ignores a record about the new account itself (late-trigger race)', async () => {
+    const u = await mkUser('LateSignup');
+    const k = ekey(u.email);
+    // What a late banCheckOnSignup can see: a Mod's raw permanent strike on
+    // THIS account that syncEmailBan has not converted yet (managedBy keeps
+    // syncEmailBan itself out of this case).
+    await db.ref(`banned_users_by_email/${k}`).set({ ...strikeRec(mod, u, 3), managedBy: 'server' });
+    assert.strictEqual(await BE.onSignup(await admin.auth().getUser(u.uid)), null);
+    assert.strictEqual(await val(`banned_uids/${u.uid}`), null);
+    // A record an EARLIER account with this email left behind is still a re-ban.
+    await db.ref(`banned_users_by_email/${k}`).set({ ...strikeRec(mod, u, 2), userId: 'oldAccount0000000001', managedBy: 'server' });
+    const again = await BE.onSignup(await admin.auth().getUser(u.uid));
+    assert.strictEqual(again.applied, true, JSON.stringify(again));
+    const b = await val(`banned_uids/${u.uid}`);
+    assert.strictEqual(b.source, 'email'); assert.strictEqual(b.linkedFrom, 'oldAccount0000000001');
+  });
+
   await test('previous: legacy public deviceId moved to users_private and indexed', async () => {
     const t = await mkUser('LegacyDev');
     const android = fp16();
