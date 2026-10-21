@@ -41,6 +41,8 @@ import ProfileBottomDrawer from '../GroupChat/BottomDrawer';
 import {
   sendPrivateChatMeta,
   resetUnreadCount as sbResetUnreadCount,
+  setActiveChatPartner,
+  clearActiveChatPartner,
 } from '../../Supabase/chatMetaBackend';
 import {
   loadPrivateMessages as sbLoadPrivateMessages,
@@ -813,6 +815,9 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       // Unread reset moved to Supabase. Errors are swallowed by the
       // helper — at-most-once is fine; next snapshot reflects truth.
       sbResetUnreadCount(user.id, selectedUserId);
+      // While this chat is open the Inbox and the header badge show it as
+      // read, even as the partner's messages raise the server count.
+      setActiveChatPartner(user.id, selectedUserId);
 
       // Mark messages as read — gated on the read-receipts toggle so the
       // sender doesn't see a blue tick if this user has read receipts
@@ -834,14 +839,21 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
 
         // Partner messages that arrived while we sat in the chat bumped our
         // server-side unread_count (the per-message reset was removed to
-        // save writes). Clear it once on the way out.
-        if (unreadWhileFocusedRef.current) {
+        // save writes). Clear it once on the way out. clearActiveChatPartner
+        // also zeroes the cached Inbox row now, and reports whether the
+        // server still holds unread for this chat.
+        const serverHasUnread = clearActiveChatPartner(user.id, selectedUserId);
+        if (unreadWhileFocusedRef.current || serverHasUnread) {
           unreadWhileFocusedRef.current = false;
           sbResetUnreadCount(user.id, selectedUserId);
         }
       };
     }, [user?.id, selectedUserId, chatKey, localState?.showReadReceipts])
   );
+
+  // Stable so PrivateMessageList (memo) doesn't re-render on every keystroke.
+  const handleReply = useCallback((message) => setReplyTo(message), []);
+  const handleCancelReply = useCallback(() => setReplyTo(null), []);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -944,7 +956,13 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       gapFillInFlight = true;
       sbLoadPrivateMessagesSince(chatKey, cursorOf(newest), { limit: 50 })
         .then((rows) => {
-          if (active && rows.length > 0) setMessages(prev => mergeIncoming(prev, rows));
+          if (!active || rows.length === 0) return;
+          // Partner rows fetched here raised the server unread count just
+          // like realtime ones: the blur handler must reset it.
+          if (rows.some(m => m?.senderId && m.senderId !== myUserIdRef.current)) {
+            unreadWhileFocusedRef.current = true;
+          }
+          setMessages(prev => mergeIncoming(prev, rows));
         })
         .catch((e) => console.warn('[PrivateChat] gap-fill failed:', e?.message))
         .finally(() => { gapFillInFlight = false; });
@@ -1050,7 +1068,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
                 selectedUser={currentSelectedUser}
                 user={user}
                 isAdmin={isAdmin}
-                onReply={(message) => setReplyTo(message)}
+                onReply={handleReply}
                 onDeleteAllChat={handleDeleteAllChat}
                 canRate={canRate}
                 hasRated={hasRated}
@@ -1088,7 +1106,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
                 isBanned={isBanned || isChatUnavailable}
                 bannedUsers={bannedUsers}
                 replyTo={replyTo}
-                onCancelReply={() => setReplyTo(null)}
+                onCancelReply={handleCancelReply}
                 input={input}
                 setInput={setInput}
                 selectedTheme={selectedTheme}

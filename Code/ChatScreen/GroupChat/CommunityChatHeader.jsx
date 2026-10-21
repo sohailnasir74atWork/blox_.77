@@ -10,6 +10,7 @@ import { collection, query, where, getDocs, getCountFromServer } from '@react-na
 import SlowModeSheet from './SlowModeSheet';
 import { getActivePublicRoom } from '../../Supabase/chatSlowMode';
 import { getCurrentUserOwner } from '../../Helper/ownerFlag';
+import { useChatBadges, acknowledgeDmBadge, acknowledgeGroupBadge } from '../chatBadgeStore';
 // Focus re-fetch throttle for the two header badges (see the effects below).
 const BADGE_REFETCH_MS = 2 * 60 * 1000;
 let invitationsBadgeCache = { uid: null, ts: 0, count: 0 };
@@ -19,12 +20,35 @@ const resetBadgeThrottle = () => {
   joinRequestsBadgeCache = { ...joinRequestsBadgeCache, ts: 0 };
 };
 
+// The two unread badges read chatBadgeStore themselves, so a new message
+// re-renders only the badge, not this header.
+const InboxBadge = () => {
+  const { dm } = useChatBadges();
+  if (dm <= 0) return null;
+  return (
+    <View style={{ position: 'absolute', top: -2, right: -2, backgroundColor: '#EF4444', borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, borderWidth: 1.5, borderColor: '#4f46e5' }}>
+      <Text style={{ color: '#fff', fontSize: 8, fontWeight: 'bold' }}>
+        {dm > 9 ? '9+' : dm}
+      </Text>
+    </View>
+  );
+};
+
+// "!" for pending invitations or join requests (prioritized), else the unread count.
+const GroupsBadge = ({ hasPending }) => {
+  const { group } = useChatBadges();
+  if (!hasPending && group <= 0) return null;
+  return (
+    <View style={{ position: 'absolute', top: -2, right: -2, backgroundColor: '#10B981', borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, borderWidth: 1.5, borderColor: '#4f46e5' }}>
+      <Text style={{ color: '#fff', fontSize: 8, fontWeight: 'bold' }}>
+        {hasPending ? '!' : (group > 9 ? '9+' : group)}
+      </Text>
+    </View>
+  );
+};
+
 const CommunityChatHeader = ({
   selectedTheme,
-  unreadcount,
-  setunreadcount,
-  groupUnreadCount = 0,
-  setGroupUnreadCount,
   triggerHapticFeedback,
   onOnlineUsersPress,
   onLeaderboardPress,
@@ -141,20 +165,14 @@ const CommunityChatHeader = ({
             onPress={() => {
               navigation.navigate('Inbox');
               triggerHapticFeedback('impactLight');
-              setunreadcount(0);
+              acknowledgeDmBadge();
             }}
             style={{ position: 'relative', marginHorizontal: 3 }}
           >
             <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="chatbubbles-outline" size={20} color="#fff" />
             </View>
-            {unreadcount > 0 && (
-              <View style={{ position: 'absolute', top: -2, right: -2, backgroundColor: '#EF4444', borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, borderWidth: 1.5, borderColor: '#4f46e5' }}>
-                <Text style={{ color: '#fff', fontSize: 8, fontWeight: 'bold' }}>
-                  {unreadcount > 9 ? '9+' : unreadcount}
-                </Text>
-              </View>
-            )}
+            <InboxBadge />
           </TouchableOpacity>
 
           {/* Groups Button */}
@@ -163,23 +181,14 @@ const CommunityChatHeader = ({
               resetBadgeThrottle(); // user is about to act on invites/requests — refetch on return
               navigation.navigate('Groups');
               triggerHapticFeedback('impactLight');
-              if (setGroupUnreadCount && typeof setGroupUnreadCount === 'function') {
-                setGroupUnreadCount(0);
-              }
+              acknowledgeGroupBadge();
             }}
             style={{ position: 'relative', marginHorizontal: 3 }}
           >
             <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="people-circle-outline" size={24} color="#fff" />
             </View>
-            {/* Show "!" if there are pending invitations or join requests (prioritized), otherwise show unread count */}
-            {(pendingGroupInvitationsCount > 0 || pendingJoinRequestsCount > 0 || groupUnreadCount > 0) && (
-              <View style={{ position: 'absolute', top: -2, right: -2, backgroundColor: '#10B981', borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, borderWidth: 1.5, borderColor: '#4f46e5' }}>
-                <Text style={{ color: '#fff', fontSize: 8, fontWeight: 'bold' }}>
-                  {(pendingGroupInvitationsCount > 0 || pendingJoinRequestsCount > 0) ? '!' : (groupUnreadCount > 9 ? '9+' : groupUnreadCount)}
-                </Text>
-              </View>
-            )}
+            <GroupsBadge hasPending={pendingGroupInvitationsCount > 0 || pendingJoinRequestsCount > 0} />
           </TouchableOpacity>
 
           {/* Admin Dashboard Button (Only for Admins/Senior Mods/Moderators, never while banned) */}

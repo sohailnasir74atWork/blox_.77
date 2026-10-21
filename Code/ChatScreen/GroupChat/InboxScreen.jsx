@@ -24,13 +24,15 @@ import {
   subscribeToChatMetaShared,
   setChatMuted as sbSetChatMuted,
   deleteChatForOwner as sbDeleteChatForOwner,
-  resetUnreadCount as sbResetUnreadCount,
 } from '../../Supabase/chatMetaBackend';
 import { SUPABASE_CHAT_META_ENABLED } from '../../Supabase/featureFlags';
 
 // ✅ Constants for pagination (moved outside component to avoid recreation)
 const INITIAL_LOAD = 15; // ✅ Initial chats to display
 const LOAD_MORE = 10; // ✅ Load 10 more on scroll
+// While realtime updates stream in, the list is redrawn at most about this
+// often (timer, then the next idle moment, capped at the same again).
+const LIST_FLUSH_MS = 250;
 
 const DEFAULT_AVATAR = 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png';
 
@@ -173,19 +175,23 @@ const InboxScreen = ({ bannedUsers }) => {
 
     // Both code paths feed into this.
     const updateChatsList = () => {
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       // First paint: the rows are usually already in memory (the shared
       // subscription replays them synchronously), so show them on the next
-      // tick. The 500 ms + idle debounce only coalesces later realtime
-      // bursts — applied to the first load it held a re-opened inbox on the
-      // spinner for up to 1.5 s, then flashed "No chats".
+      // tick — a delay here held a re-opened inbox on the spinner for up to
+      // 1.5 s, then flashed "No chats".
       if (!hasLoadedOnce.current) {
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
         debounceTimerRef.current = setTimeout(flushChatsList, 0);
         return;
       }
+      // Later updates: one redraw per LIST_FLUSH_MS window. Events in between
+      // only update the map; the scheduled flush picks them up. (This used to
+      // restart a 500 ms timer on every event, so a steady stream of messages
+      // kept the list from updating at all until it stopped.)
+      if (debounceTimerRef.current) return;
       debounceTimerRef.current = setTimeout(() => {
-        requestIdleCallback(flushChatsList, { timeout: 1000 });
-      }, 500);
+        requestIdleCallback(flushChatsList, { timeout: LIST_FLUSH_MS });
+      }, LIST_FLUSH_MS);
     };
 
     // ── Supabase path ────────────────────────────────────────────────
@@ -195,11 +201,8 @@ const InboxScreen = ({ bannedUsers }) => {
         const chatPartnerId = row.partnerId;
         const isBlocked = getBanned().includes(chatPartnerId);
         const rawUnread = row.unreadCount || 0;
-
-        if (isBlocked && rawUnread > 0) {
-          // Reset directly on Supabase (now the source of truth).
-          sbResetUnreadCount(user.id, chatPartnerId);
-        }
+        // A blocked partner's server count is reset by ChatNavigator, which
+        // gets the same rows from the shared subscription; here it only shows 0.
 
         chatsMap.set(chatPartnerId, {
           chatId: row.chatId,
@@ -400,7 +403,9 @@ const InboxScreen = ({ bannedUsers }) => {
               // Partner's row is untouched (their inbox keeps the chat).
               await sbDeleteChatForOwner(user.id, otherUserId);
 
-              // Update local state
+              // Update local state (and the realtime map, or the next flush
+              // would bring the row back before the delete echo arrives).
+              chatsMapRef.current.delete(otherUserId);
               setLocalChats((prevChats) => {
                 if (!Array.isArray(prevChats)) return [];
                 return prevChats.filter((chat) => chat?.chatId !== chatId);
@@ -470,7 +475,11 @@ const InboxScreen = ({ bannedUsers }) => {
     }
 
     try {
-      // ✅ Update local state to reset unread count
+      // ✅ Update local state to reset unread count. The realtime map too:
+      // otherwise the next flush shows the old count until PrivateChat's
+      // reset comes back from the server.
+      const mapped = chatsMapRef.current.get(otherUserId);
+      if (mapped?.unreadCount) chatsMapRef.current.set(otherUserId, { ...mapped, unreadCount: 0 });
       setLocalChats((prevChats) => {
         if (!Array.isArray(prevChats)) return prevChats;
         return prevChats.map((chat) =>

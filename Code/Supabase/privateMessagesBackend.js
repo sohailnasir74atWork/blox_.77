@@ -215,23 +215,23 @@ export function subscribeToPrivateMessages(chatId, { onInsert, onUpdate, onDelet
 
   const channel = supabase
     .channel(topic)
+    // ONE binding for all events, dispatched on eventType (as chat_meta and
+    // group_meta have done since 2026-09): Realtime evaluates each binding
+    // separately on every change, so three bindings tripled that work for
+    // the same deliveries.
     .on(
       'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'private_messages', filter: `chat_id=eq.${chatId}` },
-      (payload) => { if (!cancelled) onInsert?.(fromPrivateMessageRow(payload.new)); },
-    )
-    .on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'private_messages', filter: `chat_id=eq.${chatId}` },
-      (payload) => { if (!cancelled) onUpdate?.(fromPrivateMessageRow(payload.new)); },
-    )
-    .on(
-      'postgres_changes',
-      { event: 'DELETE', schema: 'public', table: 'private_messages', filter: `chat_id=eq.${chatId}` },
+      { event: '*', schema: 'public', table: 'private_messages', filter: `chat_id=eq.${chatId}` },
       (payload) => {
         if (cancelled) return;
-        const id = payload.old?.id;
-        if (id) onDelete?.(id);
+        if (payload?.eventType === 'INSERT') {
+          onInsert?.(fromPrivateMessageRow(payload.new));
+        } else if (payload?.eventType === 'UPDATE') {
+          onUpdate?.(fromPrivateMessageRow(payload.new));
+        } else if (payload?.eventType === 'DELETE') {
+          const id = payload.old?.id;
+          if (id) onDelete?.(id);
+        }
       },
     )
     .subscribe((status, err) => onStatus?.(status, err));

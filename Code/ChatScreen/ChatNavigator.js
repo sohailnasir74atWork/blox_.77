@@ -25,20 +25,33 @@ import SocialDashboard from '../AppHelper/SocialDashboard';
 import ThemeHeader from '../Design/componenets/ThemeHeader';
 import { useTranslation } from 'react-i18next';
 import i18next from 'i18next';
+import {
+  setDmUnread, removeDmUnread, clearDmUnread,
+  setGroupUnread, removeGroupUnread, clearGroupUnread,
+} from './chatBadgeStore';
 
 const Stack = createNativeStackNavigator();
+
+// GroupChatScreen sets its own header title and buttons.
+const groupChatDetailOptions = {
+  headerBackVisible: true,
+  headerTitle: () => null,
+  headerRight: () => null,
+};
+
+// A busy group updates every member's group_meta_data row on every message.
+// The groups list is redrawn at most this often while such updates stream in.
+const GROUPS_FLUSH_MS = 400;
 
 export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo, setModalVisibleChatinfo }) => {
   const { user, unreadMessagesCount, appdatabase, onlineMembersCount } = useGlobalState();
   const [bannedUsers, setBannedUsers] = useState([]);
   const { triggerHapticFeedback } = useHaptic();
   const { t } = useTranslation();
-  const [unreadcount, setunreadcount] = useState(0);
   const { localState, updateLocalState } = useLocalState()
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
   const [groups, setGroups] = useState([]);
   const [groupsLoading, setGroupsLoading] = useState(false);
-  const [groupUnreadCount, setGroupUnreadCount] = useState(0); // Total unread count for groups
 
 
   // useEffect(() => {
@@ -75,8 +88,9 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
   // RTDB path: original child listener flow, intact when the kill
   // switch is off (or while we're still rolling Supabase out).
   //
-  // Writes (resetting unread on blocked partners) STILL go to RTDB —
-  // mirror CF tails them and updates Supabase. We don't dual-write.
+  // Counts go to chatBadgeStore, not ChatStack state: a state update here
+  // re-rendered the whole stack on every incoming message.
+  //
   // Read the banned list through a ref inside the subscription handlers so a
   // change to `bannedUsers` (array identity changes on every localState
   // update) does NOT tear down and re-create the realtime channel. Each
@@ -86,50 +100,34 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
   bannedUsersRef.current = bannedUsers;
 
   useEffect(() => {
-    if (!user?.id || !appdatabase) {
-      setunreadcount(0);
-      return;
-    }
-
-    let totalUnread = 0;
-    const unreadCounts = new Map(); // Track unread counts per chat
-
-    const recomputeTotal = () => {
-      totalUnread = Array.from(unreadCounts.values()).reduce((sum, count) => sum + count, 0);
-      setunreadcount(totalUnread);
-    };
+    clearDmUnread();
+    if (!user?.id || !appdatabase) return;
 
     // ── Supabase path ────────────────────────────────────────────────
     if (SUPABASE_CHAT_META_ENABLED) {
-      setunreadcount(0);
-
       const handleSupaUpsert = (row) => {
         if (!row || !row.partnerId) return;
         const chatPartnerId = row.partnerId;
         const bannedNow = bannedUsersRef.current;
-      const isBlocked = Array.isArray(bannedNow) && bannedNow.includes(chatPartnerId);
+        const isBlocked = Array.isArray(bannedNow) && bannedNow.includes(chatPartnerId);
         const rawUnread = row.unreadCount || 0;
         if (isBlocked && rawUnread > 0) {
           // Reset directly on Supabase (now the source of truth).
           sbResetUnreadCount(user.id, chatPartnerId);
-          unreadCounts.set(chatPartnerId, 0);
-        } else {
-          unreadCounts.set(chatPartnerId, isBlocked ? 0 : rawUnread);
         }
-        recomputeTotal();
+        setDmUnread(chatPartnerId, isBlocked ? 0 : rawUnread);
       };
 
       const handleSupaRemove = (partnerId) => {
         if (!partnerId) return;
-        unreadCounts.delete(partnerId);
-        recomputeTotal();
+        removeDmUnread(partnerId);
       };
 
       const unsub = subscribeToChatMetaShared(user.id, {
         onUpsert: handleSupaUpsert,
         onRemove: handleSupaRemove,
       });
-      return () => { unsub(); };
+      return () => { unsub(); clearDmUnread(); };
     }
 
     // ── RTDB fallback (original code) ────────────────────────────────
@@ -152,20 +150,14 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
         ).catch((error) => {
           console.error("Error resetting unread count:", error);
         });
-        unreadCounts.set(chatPartnerId, 0);
-      } else {
-        unreadCounts.set(chatPartnerId, isBlocked ? 0 : rawUnread);
       }
-      recomputeTotal();
+      setDmUnread(chatPartnerId, isBlocked ? 0 : rawUnread);
     };
 
     const handleChildRemoved = (snapshot) => {
       if (!snapshot || !snapshot.key) return;
-      unreadCounts.delete(snapshot.key);
-      recomputeTotal();
+      removeDmUnread(snapshot.key);
     };
-
-    setunreadcount(0);
 
     const unsubAdded = onChildAdded(userChatsRef, handleChildChange);
     const unsubChanged = onChildChanged(userChatsRef, handleChildChange);
@@ -175,6 +167,7 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
       unsubAdded();
       unsubChanged();
       unsubRemoved();
+      clearDmUnread();
     };
     // bannedUsers intentionally omitted: read via bannedUsersRef (see above).
   }, [user?.id, appdatabase]);
@@ -184,6 +177,7 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
   // Same pattern as chat_meta above: subscribeToGroupMeta on the
   // Supabase path, original RTDB child-listener flow as fallback.
   useEffect(() => {
+    clearGroupUnread();
     if (!user?.id || !appdatabase) {
       setGroups([]);
       return;
@@ -191,21 +185,42 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
 
     setGroupsLoading(true);
     const groupsMap = new Map(); // Track groups locally
+    let flushTimer = null;
+    let listShown = false; // the first load has been painted
 
-    const updateGroupsList = () => {
-      const updatedGroups = Array.from(groupsMap.values())
-        .sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp);
-      setGroups(updatedGroups);
+    const flushGroupsList = () => {
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+      }
+      listShown = true;
+      setGroups(Array.from(groupsMap.values())
+        .sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp));
+    };
 
-      const totalGroupUnread = updatedGroups.reduce((sum, group) => sum + (group.unreadCount || 0), 0);
-      setGroupUnreadCount(totalGroupUnread);
+    // The badge updates per row (chatBadgeStore, cheap); the list is redrawn
+    // at most every GROUPS_FLUSH_MS. Rows that arrive before the first load is
+    // ready wait for it.
+    const scheduleGroupsFlush = () => {
+      if (!listShown || flushTimer) return;
+      flushTimer = setTimeout(flushGroupsList, GROUPS_FLUSH_MS);
+    };
+    const putGroup = (group) => {
+      groupsMap.set(group.groupId, group);
+      setGroupUnread(group.groupId, group.unreadCount);
+      scheduleGroupsFlush();
+    };
+    const dropGroup = (groupId) => {
+      groupsMap.delete(groupId);
+      removeGroupUnread(groupId);
+      scheduleGroupsFlush();
     };
 
     // ── Supabase path ────────────────────────────────────────────────
     if (SUPABASE_GROUP_META_ENABLED) {
       const handleSupaUpsert = (row) => {
         if (!row || !row.groupId) return;
-        groupsMap.set(row.groupId, {
+        putGroup({
           groupId: row.groupId,
           groupName: row.groupName || i18next.t('chat.chat_navigator.group_fallback'),
           groupAvatar: row.groupAvatar || null,
@@ -218,31 +233,35 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
           // instead of re-fetching all group_meta_data.
           muted: !!row.muted,
         });
-        updateGroupsList();
       };
 
       const handleSupaRemove = (groupId) => {
         if (!groupId) return;
-        groupsMap.delete(groupId);
-        updateGroupsList();
+        dropGroup(groupId);
       };
 
       // Backstop: the initial load waits on a Firebase token + one Supabase
       // request, and nothing may hold the spinner forever (Adopt Me b369893,
       // 2026-10-14 reports). Rows already in hand stay on screen.
-      const loadingFallback = setTimeout(() => setGroupsLoading(false), 5000);
+      const loadingFallback = setTimeout(() => {
+        flushGroupsList();
+        setGroupsLoading(false);
+      }, 5000);
 
       const unsub = subscribeToGroupMeta(user.id, {
         onUpsert: handleSupaUpsert,
         onRemove: handleSupaRemove,
         onReady: () => {
           clearTimeout(loadingFallback);
+          flushGroupsList();
           setGroupsLoading(false);
         },
       });
       return () => {
         unsub();
         clearTimeout(loadingFallback);
+        if (flushTimer) clearTimeout(flushTimer);
+        clearGroupUnread();
       };
     }
 
@@ -267,57 +286,39 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
     const loadInitialGroups = async () => {
       try {
         const snapshot = await get(userGroupsRef);
-        if (!snapshot.exists()) {
-          setGroups([]);
-          setGroupUnreadCount(0);
-          setGroupsLoading(false);
-          return;
+        const fetchedData = snapshot.exists() ? snapshot.val() : null;
+        if (fetchedData && typeof fetchedData === 'object') {
+          Object.entries(fetchedData).forEach(([groupId, groupData]) => {
+            const parsed = parseGroupData(groupId, groupData);
+            if (parsed) {
+              groupsMap.set(groupId, parsed);
+              setGroupUnread(groupId, parsed.unreadCount);
+            }
+          });
         }
-
-        const fetchedData = snapshot.val();
-        if (!fetchedData || typeof fetchedData !== 'object') {
-          setGroups([]);
-          setGroupUnreadCount(0);
-          setGroupsLoading(false);
-          return;
-        }
-
-        Object.entries(fetchedData).forEach(([groupId, groupData]) => {
-          const parsed = parseGroupData(groupId, groupData);
-          if (parsed) groupsMap.set(groupId, parsed);
-        });
-
-        updateGroupsList();
-        setGroupsLoading(false);
       } catch (error) {
         console.error('Error loading initial groups:', error);
-        setGroupsLoading(false);
       }
+      flushGroupsList();
+      setGroupsLoading(false);
     };
 
     const handleChildAdded = (snapshot) => {
       if (!snapshot || !snapshot.key) return;
       if (groupsMap.has(snapshot.key)) return;
       const parsed = parseGroupData(snapshot.key, snapshot.val());
-      if (parsed) {
-        groupsMap.set(snapshot.key, parsed);
-        updateGroupsList();
-      }
+      if (parsed) putGroup(parsed);
     };
 
     const handleChildChanged = (snapshot) => {
       if (!snapshot || !snapshot.key) return;
       const parsed = parseGroupData(snapshot.key, snapshot.val());
-      if (parsed) {
-        groupsMap.set(snapshot.key, parsed);
-        updateGroupsList();
-      }
+      if (parsed) putGroup(parsed);
     };
 
     const handleChildRemoved = (snapshot) => {
       if (!snapshot || !snapshot.key) return;
-      groupsMap.delete(snapshot.key);
-      updateGroupsList();
+      dropGroup(snapshot.key);
     };
 
     loadInitialGroups();
@@ -330,6 +331,8 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
       unsubAdded();
       unsubChanged();
       unsubRemoved();
+      if (flushTimer) clearTimeout(flushTimer);
+      clearGroupUnread();
     };
   }, [user?.id, appdatabase]);
 
@@ -342,10 +345,6 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
         rightContent={
           <CommunityChatHeader
             selectedTheme={selectedTheme}
-            unreadcount={unreadcount}
-            setunreadcount={setunreadcount}
-            groupUnreadCount={groupUnreadCount}
-            setGroupUnreadCount={setGroupUnreadCount}
             triggerHapticFeedback={triggerHapticFeedback}
             onOnlineUsersPress={() => setOnlineUsersVisible(true)}
             onLeaderboardPress={() => {
@@ -357,7 +356,61 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
         }
       />
     ),
-  }), [selectedTheme, unreadcount, setunreadcount, groupUnreadCount, setGroupUnreadCount, triggerHapticFeedback, user?.id]);
+  }), [selectedTheme, triggerHapticFeedback, user?.id]);
+
+  // Screen render functions are memoized on purpose. React Navigation skips
+  // re-rendering a screen only when its render function is the same one as
+  // last time; inline arrows here were new on every ChatStack render, so the
+  // screen on top and the one under it (not frozen on Fabric) re-rendered
+  // with it — the public chat under the Inbox, the DM screen itself.
+  const renderGroupChat = useCallback(() => (
+    <ChatScreen
+      {...{ selectedTheme, setChatFocused, modalVisibleChatinfo, setModalVisibleChatinfo, bannedUsers, setBannedUsers, triggerHapticFeedback, unreadMessagesCount, onlineUsersVisible, setOnlineUsersVisible }}
+    />
+  ), [selectedTheme, setChatFocused, modalVisibleChatinfo, setModalVisibleChatinfo, bannedUsers, triggerHapticFeedback, unreadMessagesCount, onlineUsersVisible]);
+
+  const renderInbox = useCallback(
+    (props) => <InboxScreen {...props} bannedUsers={bannedUsers} />,
+    [bannedUsers]
+  );
+
+  const renderGroups = useCallback(
+    (props) => <GroupsScreen {...props} groups={groups} setGroups={setGroups} groupsLoading={groupsLoading} />,
+    [groups, groupsLoading]
+  );
+
+  const renderGroupChatDetail = useCallback((props) => <GroupChatScreen {...props} />, []);
+
+  const renderBlockedUsers = useCallback(
+    (props) => <BlockedUsersScreen {...props} bannedUsers={bannedUsers} />,
+    [bannedUsers]
+  );
+
+  const getPrivateChatOptions = useCallback(({ route }) => ({
+    headerTitle: () => (
+      <PrivateChatHeader
+        // New header per player, so nothing from the previous chat carries over.
+        key={route.params?.selectedUser?.senderId || 'none'}
+        selectedUser={route.params?.selectedUser}
+        selectedTheme={selectedTheme}
+        bannedUsers={bannedUsers}
+        isDrawerVisible={isDrawerVisible}
+        setIsDrawerVisible={setIsDrawerVisible}
+      />
+    ),
+  }), [selectedTheme, bannedUsers, isDrawerVisible]);
+
+  const renderPrivateChat = useCallback((props) => (
+    <PrivateChatScreen
+      // New screen per player: params changing in place (a quick second tap)
+      // left the previous player's state behind.
+      key={props.route?.params?.selectedUser?.senderId || 'none'}
+      {...props}
+      bannedUsers={bannedUsers}
+      isDrawerVisible={isDrawerVisible}
+      setIsDrawerVisible={setIsDrawerVisible}
+    />
+  ), [bannedUsers, isDrawerVisible]);
 
   return (
     <Stack.Navigator screenOptions={headerOptions}>
@@ -365,11 +418,7 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
         name="GroupChat"
         options={getGroupChatOptions}
       >
-        {() => (
-          <ChatScreen
-            {...{ selectedTheme, setChatFocused, modalVisibleChatinfo, setModalVisibleChatinfo, bannedUsers, setBannedUsers, triggerHapticFeedback, unreadMessagesCount, unreadcount, setunreadcount, onlineUsersVisible, setOnlineUsersVisible }}
-          />
-        )}
+        {renderGroupChat}
       </Stack.Screen>
 
       {/* ✅ Optimized: InboxScreen manages its own state — only needs bannedUsers */}
@@ -377,66 +426,34 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
         name="Inbox"
         options={{ title: t('misc.inbox') }}
       >
-        {props => <InboxScreen {...props} bannedUsers={bannedUsers} />}
+        {renderInbox}
       </Stack.Screen>
 
       <Stack.Screen
         name="Groups"
         options={{ title: t('chat.chat_navigator.title_groups') }}
       >
-        {props => <GroupsScreen {...props} groups={groups} setGroups={setGroups} groupsLoading={groupsLoading} />}
+        {renderGroups}
       </Stack.Screen>
 
       <Stack.Screen
         name="GroupChatDetail"
-        options={({ route, navigation }) => ({
-          headerBackVisible: true,
-          headerTitle: () => {
-            // This will be set dynamically by GroupChatScreen
-            return null;
-          },
-          headerRight: () => {
-            // This will be set dynamically by GroupChatScreen
-            return null;
-          },
-        })}
+        options={groupChatDetailOptions}
       >
-        {(props) => <GroupChatScreen {...props} />}
+        {renderGroupChatDetail}
       </Stack.Screen>
 
       <Stack.Screen
         name="BlockedUsers"
         options={{ title: t('chat.blocked_users') }} >
-        {props => <BlockedUsersScreen {...props} bannedUsers={bannedUsers} />}
+        {renderBlockedUsers}
       </Stack.Screen>
 
       <Stack.Screen
         name="PrivateChat"
-        options={({ route }) => ({
-          headerTitle: () => (
-            <PrivateChatHeader
-              // New header per player, so nothing from the previous chat carries over.
-              key={route.params?.selectedUser?.senderId || 'none'}
-              selectedUser={route.params?.selectedUser}
-              selectedTheme={selectedTheme}
-              bannedUsers={bannedUsers}
-              isDrawerVisible={isDrawerVisible}
-              setIsDrawerVisible={setIsDrawerVisible}
-            />
-          ),
-        })}
+        options={getPrivateChatOptions}
       >
-        {(props) => (
-          <PrivateChatScreen
-            // New screen per player: params changing in place (a quick second tap)
-            // left the previous player's state behind.
-            key={props.route?.params?.selectedUser?.senderId || 'none'}
-            {...props}
-            bannedUsers={bannedUsers}
-            isDrawerVisible={isDrawerVisible}
-            setIsDrawerVisible={setIsDrawerVisible}
-          />
-        )}
+        {renderPrivateChat}
       </Stack.Screen>
 
       <Stack.Screen
@@ -447,10 +464,9 @@ export const ChatStack = ({ selectedTheme, setChatFocused, modalVisibleChatinfo,
 
       <Stack.Screen
         name="Leaderboard"
+        component={LeaderboardScreen}
         options={{ title: t('chat.chat_navigator.title_top_rated') }}
-      >
-        {props => <LeaderboardScreen {...props} />}
-      </Stack.Screen>
+      />
 
       <Stack.Screen
         name="AdminDashboard"

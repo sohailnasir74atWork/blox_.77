@@ -406,6 +406,47 @@ export function subscribeToChatMeta(ownerUid, { onUpsert, onRemove, onReady, onS
 // -----------------------------------------------------------------
 const _chatMetaShared = new Map(); // ownerUid -> entry
 
+// The private chat the player has open right now. send_private_chat_meta adds
+// +1 to the reader's unread_count for every message (the server can't know
+// the chat is open), and PrivateChat clears it once on the way out, so the
+// Inbox badge counted up while the player was reading. Listeners get that
+// chat's rows with unreadCount 0; entry.rows keeps the server's numbers.
+let _activeChat = null; // { ownerUid, partnerId }
+
+const isActiveChat = (ownerUid, partnerId) =>
+  !!_activeChat && _activeChat.ownerUid === ownerUid && _activeChat.partnerId === partnerId;
+
+const forListeners = (ownerUid, row) =>
+  (row && row.unreadCount && isActiveChat(ownerUid, row.partnerId)
+    ? { ...row, unreadCount: 0 }
+    : row);
+
+// PrivateChat focus: show this chat as read everywhere at once.
+export function setActiveChatPartner(ownerUid, partnerId) {
+  if (!ownerUid || !partnerId) return;
+  _activeChat = { ownerUid, partnerId };
+  const entry = _chatMetaShared.get(ownerUid);
+  const row = entry?.rows.get(partnerId);
+  if (row?.unreadCount) entry.listeners.forEach((l) => l.onUpsert?.(forListeners(ownerUid, row)));
+}
+
+// PrivateChat blur. The cached row is set to 0 unread here, before the
+// server reset's realtime echo arrives, so the Inbox row doesn't flash the
+// old count on the way back. Returns true when the server still holds unread
+// for this chat, i.e. the caller must send the reset. Only clears when this
+// chat is still the active one (a newer chat may have focused first).
+export function clearActiveChatPartner(ownerUid, partnerId) {
+  if (!isActiveChat(ownerUid, partnerId)) return false;
+  _activeChat = null;
+  const entry = _chatMetaShared.get(ownerUid);
+  const row = entry?.rows.get(partnerId);
+  if (!row?.unreadCount) return false;
+  const cleared = { ...row, unreadCount: 0 };
+  entry.rows.set(partnerId, cleared);
+  entry.listeners.forEach((l) => l.onUpsert?.(cleared));
+  return true;
+}
+
 // On app foreground, the long-lived shared realtime channel may have missed
 // events while the socket was down (OS reclaim, network switch, device
 // sleep). client.js reconnects the socket, but realtime does NOT replay the
@@ -477,7 +518,8 @@ export function subscribeToChatMetaShared(ownerUid, handlers = {}) {
           && (fresh.muted === cached.muted)) return;
       }
       entry.rows.set(fresh.partnerId, fresh);
-      entry.listeners.forEach((l) => l.onUpsert?.(fresh));
+      const shown = forListeners(ownerUid, fresh);
+      entry.listeners.forEach((l) => l.onUpsert?.(shown));
     };
 
     const fullRefresh = () => loadChatMeta(ownerUid)
@@ -508,7 +550,8 @@ export function subscribeToChatMetaShared(ownerUid, handlers = {}) {
         // the cursor stays current without any extra queries.
         advanceCursor(row?.updatedAt);
         if (row?.partnerId) entry.rows.set(row.partnerId, row);
-        entry.listeners.forEach((l) => l.onUpsert?.(row));
+        const shown = forListeners(ownerUid, row);
+        entry.listeners.forEach((l) => l.onUpsert?.(shown));
       },
       onRemove: (partnerId) => {
         entry.rows.delete(partnerId);
@@ -536,7 +579,7 @@ export function subscribeToChatMetaShared(ownerUid, handlers = {}) {
 
   // Replay current state to the late joiner so it doesn't miss the load.
   if (entry.rows.size > 0) {
-    entry.rows.forEach((row) => handlers.onUpsert?.(row));
+    entry.rows.forEach((row) => handlers.onUpsert?.(forListeners(ownerUid, row)));
   }
   if (entry.lastStatus) handlers.onStatus?.(entry.lastStatus);
   if (entry.ready) handlers.onReady?.();
