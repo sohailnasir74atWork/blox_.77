@@ -135,6 +135,12 @@ exports.cleanupExpiredStatuses = contentCleanup.cleanupExpiredStatuses;
 exports.cleanupOldTrades = contentCleanup.cleanupOldTrades;
 exports.cleanupOldPosts = contentCleanup.cleanupOldPosts;
 
+// Status feed snapshot (2026-10-22): live statuses as one doc, status_feed/global.
+exports.buildStatusFeed = require('./statusFeed').buildStatusFeed;
+
+// Chat translation with a shared 30-day cache (2026-10-22), Firestore translation_cache.
+exports.translateMessages = require('./translate').translateMessages;
+
 // Birthdays (supabase/036_birthdays.sql; ported from Adopt Me 2026-10-07).
 // Deploy the schedulers PAUSED until an app build with Birthdays ships.
 exports.notifyBirthdays = require('./notifyBirthdays').notifyBirthdays;

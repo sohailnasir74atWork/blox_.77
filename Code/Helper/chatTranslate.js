@@ -1,12 +1,20 @@
 // Chat translation (Google Translate v2), one copy for the app: the public
-// chat (ChatScreen/GroupChat/MessagesList) and the staff tools (Admin
-// Dashboard chat viewer, reports queue — AppHelper/TranslatableText).
+// chat (ChatScreen/GroupChat/MessagesList), private chat (PrivateMessageList)
+// and the staff tools (Admin Dashboard chat viewer, reports queue —
+// AppHelper/TranslatableText).
+//
+// Goes through functions/translate.js (translateMessages) first: it keeps
+// every translation for 30 days, so a repeat tap or the same public message
+// translated by many players is billed once. If the function can't be reached
+// (signed out, network, error) the old direct call with `apiKey` still works.
 //
 // Fruit names are swapped for placeholders before sending and put back
 // after, so "leopard for dough" doesn't come back as animals and pastry.
 // No limits here: callers decide (players have a daily cap, staff none).
 // `apiKey` is useGlobalState().api.
 import axios from 'axios';
+
+const TRANSLATE_FN_URL = 'https://us-central1-fruiteblocks.cloudfunctions.net/translateMessages';
 
 const TRANSLATE_URL = 'https://translation.googleapis.com/language/translate/v2';
 // Google accepts up to 128 segments per request; stay well under.
@@ -42,13 +50,44 @@ const unmask = (translated, placeholders) => {
   return out;
 };
 
+// Masked texts → translations (same order, null per failure), or null when
+// the function can't be used at all and the caller should call Google itself.
+async function viaFunction(maskedTexts, targetLang) {
+  // Required here, not at the top: keeps this module loadable in Jest without
+  // the native auth module (PrivateMessageList's render test imports it).
+  const { getAuth, getIdToken } = require('@react-native-firebase/auth');
+  const user = getAuth().currentUser;
+  if (!user) return null;
+  const send = async (forceRefresh) => fetch(TRANSLATE_FN_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${await getIdToken(user, forceRefresh)}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ q: maskedTexts, target: targetLang }),
+  });
+  try {
+    let res = await send(false);
+    if (res.status === 401) res = await send(true);
+    if (!res.ok) return null;
+    const json = await res.json();
+    return Array.isArray(json?.translations) ? json.translations : null;
+  } catch (err) {
+    if (__DEV__) console.warn('translateMessages unavailable, calling Google directly:', err?.message || err);
+    return null;
+  }
+}
+
 /**
  * Translate one text into `targetLang`. Never throws.
  * @returns {Promise<string|null>} null on any failure (callers show their own message)
  */
 export async function translateText(text, { apiKey, targetLang }) {
-  if (!text || !apiKey || !targetLang) return null;
+  if (!text || !targetLang) return null;
   const { masked, placeholders } = mask(text);
+  const cached = await viaFunction([masked], targetLang);
+  if (typeof cached?.[0] === 'string') return unmask(cached[0], placeholders);
+  if (!apiKey) return null;
   try {
     const response = await axios.post(TRANSLATE_URL, {}, {
       // format 'text': plain text back, not HTML entities (&#39; …).
@@ -70,10 +109,18 @@ export async function translateText(text, { apiKey, targetLang }) {
  */
 export async function translateMany(texts, { apiKey, targetLang }) {
   const out = texts.map(() => null);
-  if (!apiKey || !targetLang) return out;
+  if (!targetLang) return out;
   const todo = texts.map((t, i) => [i, t]).filter(([, t]) => typeof t === 'string' && t.trim());
   for (let start = 0; start < todo.length; start += BATCH) {
     const chunk = todo.slice(start, start + BATCH).map(([i, t]) => ({ i, ...mask(t) }));
+    const cached = await viaFunction(chunk.map((c) => c.masked), targetLang);
+    if (cached) {
+      chunk.forEach((c, j) => {
+        if (typeof cached[j] === 'string') out[c.i] = unmask(cached[j], c.placeholders);
+      });
+      continue;
+    }
+    if (!apiKey) continue;
     try {
       const response = await axios.post(
         TRANSLATE_URL,

@@ -25,7 +25,9 @@ try {
   };
 }
 
-export const FOLLOWING_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+// 24 h (was 1 h, 2026-10-22 cost fix): every follow/unfollow path updates or
+// clears this cache, so the TTL only bounds follows made on another device.
+export const FOLLOWING_CACHE_TTL = 24 * 60 * 60 * 1000;
 
 const idsKey = (uid) => `following_ids_${uid}`;
 const tsKey = (uid) => `following_ids_${uid}_ts`;

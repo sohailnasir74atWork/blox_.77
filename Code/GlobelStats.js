@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { getApps } from '@react-native-firebase/app';
 import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
 import { ref, set, update, get, onDisconnect, getDatabase, onValue } from '@react-native-firebase/database';
+import { getUserRecordWithoutShop } from './Helper/userRecord';
 import { getFirestore } from '@react-native-firebase/firestore';
 import { createNewUser, firebaseConfig, registerForNotifications } from './Globelhelper';
 import { useLocalState } from './LocalGlobelStats';
@@ -617,15 +618,15 @@ export const GlobalStateProvider = ({ children }) => {
 
       // console.log(snapshot, userId, 'userData', userRef)
 
-      // 🔄 Fetch user data
-      const snapshot = await get(userRef);
+      // 🔄 Fetch user data (everything but shop — Helper/userRecord)
+      const record = await getUserRecordWithoutShop(appdatabase, userId);
       let userData;
       let isNewRecord = false;
 
       setCurrentuserEmail(loggedInUser.email)
 
-      if (snapshot.exists()) {
-        const existing = snapshot.val();
+      if (record.exists) {
+        const existing = record.val;
 
         // ✅ Owner: users/{uid}/owner, written only by the server
         // (functions/reconcileRolesMirror.js). No owner emails in the app;

@@ -24,6 +24,7 @@ import { getStarStatus } from '../Engagement/starUtils';
 import DailyStarRewards from '../Engagement/DailyStarRewards';
 import SafeLottieView from '../Helper/SafeLottieView';
 import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
+import { getUserRecordWithoutShop } from '../Helper/userRecord';
 
 // Lottie files for XP levels
 const LEVEL_LOTTIE = {
@@ -291,9 +292,8 @@ const BadgesScreen = ({ navigation }) => {
     getUserXP(appdatabase, user.id).then(data => setXp(data.total || 0));
     getStarStatus(appdatabase, user.id).then(setStreak);
 
-    const { ref, get } = require('@react-native-firebase/database');
-    get(ref(appdatabase, `users/${user.id}`)).then(snap => {
-      const data = snap.exists() ? snap.val() : {};
+    getUserRecordWithoutShop(appdatabase, user.id).then(({ val }) => {
+      const data = val || {};
       const computed = computeBadges(data, data.badges || {});
       setBadges(computed);
     }).catch(() => { });

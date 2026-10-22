@@ -21,21 +21,13 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import { showSuccessMessage } from '../../Helper/MessageHelper';
 import { useLocalState } from '../../LocalGlobelStats';
-import axios from 'axios';
+import { translateText as translateChatText } from '../../Helper/chatTranslate';
 import { getDeviceLanguage } from '../../../i18n';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { resolveProfile, seedFromMessage } from '../../Helper/profileCache';
 import { getSafeTextColor, RainbowText, isMultiColorText, getMultiColorPalette } from '../../Helper/contrastHelper';
 import { StickerImage } from '../Stickers/StickerPicker';
 
-const FRUIT_KEYWORDS = [
-  'rocket', 'spin', 'chop', 'spring', 'bomb', 'spike', 'blade',
-  'smoke', 'flame', 'ice', 'sand', 'dark', 'diamond', 'falcon',
-  'rubber', 'barrier', 'ghost', 'light', 'magma', 'quake', 'love',
-  'spider', 'sound', 'portal', 'pain', 'rumble', 'blizzard', 'buddha',
-  'phoenix', 'gravity', 'shadow', 'venom', 'control', 'spirit', 'dough',
-  'gas', 'dragon', 'leopard', 'kitsune', 'mammoth', 't-rex', 'yeti', 'perm', 'west', 'east', 'gamepass', 'skin', 'chromatic', 'permanent', 'Fruit Storage', 'game pass', 'Eagle', 'Creation', 'gamepass'
-];
 import ScamSafetyBox from './Scamwarning';
 import { useNavigation } from '@react-navigation/native';
 import config from '../../Helper/Environment';
@@ -378,49 +370,9 @@ const PrivateMessageList = ({
 
 
 
-  const translateText = async (text, targetLang = deviceLanguage) => {
-    const placeholders = {};
-    let maskedText = text;
-
-    // Step 1: Replace fruit names with placeholders
-    FRUIT_KEYWORDS.forEach((word, index) => {
-      const placeholder = `__FRUIT_${index}__`;
-      const regex = new RegExp(`\\b${word}\\b`, 'gi'); // match full word, case-insensitive
-      maskedText = maskedText.replace(regex, placeholder);
-      placeholders[placeholder] = word;
-    });
-
-    try {
-      // Step 2: Send masked text for translation
-      const response = await axios.post(
-        `https://translation.googleapis.com/language/translate/v2`,
-        {},
-        {
-          params: {
-            q: maskedText,
-            target: targetLang,
-            key: api,
-          },
-        }
-      );
-
-      let translated = response.data.data.translations[0].translatedText;
-
-      // Step 3: Replace placeholders back with original fruit names
-      Object.entries(placeholders).forEach(([placeholder, word]) => {
-        translated = translated.replace(new RegExp(placeholder, 'g'), word);
-      });
-
-      return translated;
-    } catch (err) {
-      // ✅ HANDLED: Catch network/API errors gracefully (no crash)
-      // Only log in development, suppress in production to avoid red banner
-      if (__DEV__) {
-        console.error('Translation Error:', err?.message || err);
-      }
-      return null; // Return null to trigger user-friendly error message
-    }
-  };
+  // Google Translate v2 with fruit names masked, cached server-side (Helper/chatTranslate).
+  const translateText = (text, targetLang = deviceLanguage) =>
+    translateChatText(text, { apiKey: api, targetLang });
 
   const handleTranslate = async (item) => {
     // They found Translate: the one-time tip (ChatScreen/TranslateTip) is done.

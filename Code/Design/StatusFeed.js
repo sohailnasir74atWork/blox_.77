@@ -13,9 +13,9 @@
  * - 24h auto-expiry via Firestore expiresAt
  *
  * ── Cost Optimizations ──
- * - MMKV cache for statuses (5-min TTL) and following list (30-min TTL)
+ * - MMKV cache for statuses (1 h TTL); following list via Helper/followingCache (24 h)
  * - Paginated following statuses (chunks of 30 IDs, load more on scroll)
- * - Random seed for global statuses (10 max, fair rotation)
+ * - Global statuses from the status_feed/global snapshot doc (one read; query fallback)
  * - Local-first post/delete (no Firestore re-fetch)
  * - Skip duplicate markViewed writes
  */
@@ -29,7 +29,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import {
-  collection, query, where, orderBy, limit, getDocs, startAfter,
+  collection, query, where, orderBy, limit, getDocs, getDoc, startAfter,
   addDoc, serverTimestamp, Timestamp, doc, updateDoc, arrayUnion, arrayRemove, deleteDoc,
 } from '@react-native-firebase/firestore';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -46,7 +46,7 @@ import { useGlobalState, modGateText } from '../GlobelStats';
 import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
 import ReportModal from './componenets/ReportModal';
 import { validateContent, isAllowedLink } from '../Helper/ContentModeration';
-import { clearFollowingCache } from '../Helper/followingCache';
+import { getCachedFollowingIds, setCachedFollowingIds } from '../Helper/followingCache';
 import { isReportHidden, hideReportedStatuses } from './statusReports';
 
 
@@ -75,7 +75,6 @@ try {
   };
 }
 const STATUS_CACHE_TTL = 60 * 60 * 1000;       // 1 hour — refetch only after this
-const FOLLOWING_CACHE_TTL = 60 * 60 * 1000;    // 1 hour
 const FOLLOWING_CHUNK_SIZE = 30;               // Firestore 'in' limit
 // The feed groups statuses into ONE BUBBLE PER USER, so a cap on statuses is not
 // a cap on what the user sees. Cap distinct users instead, and read a wide
@@ -83,6 +82,13 @@ const FOLLOWING_CHUNK_SIZE = 30;               // Firestore 'in' limit
 const GLOBAL_USER_LIMIT = 20;                  // Max global (non-following) BUBBLES
 const GLOBAL_FETCH_LIMIT = 60;                 // Window to pick those bubbles from
 const FOLLOWING_FETCH_LIMIT = 40;              // Hard bound on the following query
+// functions/statusFeed.js rebuilds status_feed/global every 2 min: the live
+// statuses without their viewedBy lists, as ONE doc. One read per fetch instead
+// of ~56. Older than this → the snapshot job is down, query statuses directly.
+const SNAPSHOT_MAX_AGE_MS = 10 * 60 * 1000;
+// Statuses this device has viewed (id → expiresAt ms). The snapshot carries no
+// viewedBy, so the unseen ring and the skip-duplicate-view-write check use this.
+const SEEN_KEY = 'seen_status_ids';
 
 // ── Cache helpers ──
 const getCachedJSON = (key) => {
@@ -109,6 +115,19 @@ const getCachedIdentity = () => {
 };
 const setCachedIdentity = (identity) => {
   try { statusCache.set('statuses_cached_for', identity); } catch {}
+};
+const tsMillis = (ts) => {
+  if (!ts) return 0;
+  if (typeof ts.toDate === 'function') return ts.toDate().getTime();
+  if (ts._seconds) return ts._seconds * 1000;
+  return Number(ts) || 0;
+};
+// Loaded once per mount; expired entries dropped so the map stays small.
+const loadSeenStatuses = () => {
+  const seen = getCachedJSON(SEEN_KEY) || {};
+  const now = Date.now();
+  Object.keys(seen).forEach((id) => { if (!(seen[id] > now)) delete seen[id]; });
+  return seen;
 };
 
 // ── Ring colors ──
@@ -179,7 +198,7 @@ const LoadingImage = ({ source, style, resizeMode = 'cover', borderRadius }) => 
 const DEFAULT_AVATAR = 'https://bloxfruitscalc.com/wp-content/uploads/2025/display-pic.png';
 
 // ── Helper: group raw status docs by userId ──
-const groupStatuses = (rawStatuses, myId, tAnon) => {
+const groupStatuses = (rawStatuses, myId, tAnon, seen = {}) => {
   const grouped = {};
   rawStatuses.forEach(s => {
     if (!grouped[s.userId]) {
@@ -192,7 +211,7 @@ const groupStatuses = (rawStatuses, myId, tAnon) => {
       };
     }
     grouped[s.userId].statuses.push(s);
-    if (!s.viewedBy?.includes(myId)) {
+    if (!s.viewedBy?.includes(myId) && !seen[s.id]) {
       grouped[s.userId].hasUnviewed = true;
     }
   });
@@ -232,13 +251,13 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
     const cached = getCachedJSON('statuses_grouped');
     return cached ? cached.map(g => ({ ...g, statuses: g.statuses.map(deserializeStatus) })) : [];
   });
-  const [followingIds, setFollowingIds] = useState(() => getCachedJSON('following_ids') || []);
+  const [followingIds, setFollowingIds] = useState(() => getCachedFollowingIds(user?.id) || []);
   // Gate the initial statuses fetch on the following-list being resolved so
   // we don't fire a "global only" fetch before the user's followings load
   // and then sit on a cached empty result until the 5-min TTL expires.
   const [followingResolved, setFollowingResolved] = useState(() => {
-    const cached = getCachedJSON('following_ids');
-    return isCacheValid('following_ids', FOLLOWING_CACHE_TTL) && Array.isArray(cached) && cached.length > 0;
+    // Shared per-uid cache (Helper/followingCache, 24 h, cleared on every follow/unfollow).
+    return getCachedFollowingIds(user?.id) !== null;
   });
   const [viewingStatus, setViewingStatus] = useState(null);
   const [reportingStatus, setReportingStatus] = useState(null); // status being reported from the viewer
@@ -260,7 +279,8 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
 
   const followingChunkRef = useRef(0);
   const allFollowingLoadedRef = useRef(false);
-  const viewedLocallyRef = useRef(new Set());
+  const seenRef = useRef(null);
+  if (seenRef.current === null) seenRef.current = loadSeenStatuses();
   // Only one round-trip set in flight at a time
   const inFlightRef = useRef(false);
   // Mirrors statuses.length so fetchStatuses doesn't have to depend on it
@@ -273,7 +293,12 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
   // ── Fetch who I follow ──
   useEffect(() => {
     if (!user?.id || !firestoreDB) return;
-    if (isCacheValid('following_ids', FOLLOWING_CACHE_TTL) && followingIds.length > 0) return;
+    const cachedIds = getCachedFollowingIds(user.id);
+    if (cachedIds !== null) {
+      setFollowingIds(cachedIds);
+      setFollowingResolved(true);
+      return;
+    }
 
     (async () => {
       try {
@@ -285,8 +310,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
         const snap = await getDocs(q);
         const ids = snap.docs.map(d => d.data().followingId).filter(Boolean);
         setFollowingIds(ids);
-        setCachedJSON('following_ids', ids);
-        setCacheTimestamp('following_ids');
+        setCachedFollowingIds(user.id, ids);
       } catch (err) {
         console.warn('[StatusFeed] Error fetching following list:', err?.message);
       } finally {
@@ -317,6 +341,22 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
   // a random sample. This is one read window, flat.
   const fetchGlobalLatest = useCallback(async () => {
     if (!firestoreDB) return [];
+    try {
+      const snapDoc = await getDoc(doc(firestoreDB, 'status_feed', 'global'));
+      const feed = snapDoc.exists() ? snapDoc.data() : null;
+      if (feed && Array.isArray(feed.statuses) && Date.now() - tsMillis(feed.builtAt) < SNAPSHOT_MAX_AGE_MS) {
+        const nowMs = Date.now();
+        return feed.statuses
+          .filter((s) => s.expiresAtMs > nowMs)
+          .map(({ createdAtMs, expiresAtMs, ...rest }) => ({
+            ...rest,
+            createdAt: Timestamp.fromMillis(createdAtMs || 0),
+            expiresAt: Timestamp.fromMillis(expiresAtMs),
+          }));
+      }
+    } catch (err) {
+      console.warn('[StatusFeed] Snapshot read failed, querying statuses:', err?.message);
+    }
     try {
       const now = Timestamp.now();
       const q = query(
@@ -446,7 +486,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
         });
 
       const allRaw = [...myAndFollowing, ...globalOnly];
-      const grouped = groupStatuses(allRaw, user?.id, t('status_feed.anonymous', { defaultValue: 'Anonymous' }));
+      const grouped = groupStatuses(allRaw, user?.id, t('status_feed.anonymous', { defaultValue: 'Anonymous' }), seenRef.current);
 
       const arr = Object.values(grouped);
       arr.sort((a, b) => {
@@ -493,7 +533,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
 
       // null = the request failed; keep what's already on screen.
       if (moreResults && moreResults.length > 0) {
-        const moreGrouped = groupStatuses(moreResults, user?.id, t('status_feed.anonymous', { defaultValue: 'Anonymous' }));
+        const moreGrouped = groupStatuses(moreResults, user?.id, t('status_feed.anonymous', { defaultValue: 'Anonymous' }), seenRef.current);
         setStatuses(prev => {
           const existingMap = {};
           prev.forEach(g => { existingMap[g.userId] = g; });
@@ -828,11 +868,15 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
   }, [firestoreDB, patchStatus]);
 
   // ── Mark viewed ──
-  const markViewed = useCallback(async (statusId) => {
-    if (!user?.id || !firestoreDB) return;
-    if (viewedLocallyRef.current.has(statusId)) return;
-    viewedLocallyRef.current.add(statusId);
+  const markViewed = useCallback(async (status) => {
+    if (!user?.id || !firestoreDB || !status?.id) return;
+    const statusId = status.id;
+    if (seenRef.current[statusId]) return;
+    // Persisted until the status expires, so a reopen never re-writes the view.
+    seenRef.current[statusId] = tsMillis(status.expiresAt) || Date.now() + 24 * 60 * 60 * 1000;
+    setCachedJSON(SEEN_KEY, seenRef.current);
     try {
+      // viewedBy is still written: old builds read it for their unseen ring.
       await updateDoc(doc(firestoreDB, 'statuses', statusId), {
         viewedBy: arrayUnion(user.id),
       });
@@ -844,7 +888,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
     setViewingStatus(group);
     if (group.statuses?.length > 0 && user?.id) {
       group.statuses.forEach(s => {
-        if (!s.viewedBy?.includes(user.id)) markViewed(s.id);
+        if (!s.viewedBy?.includes(user.id)) markViewed(s);
       });
       setStatuses(prev => {
         const updated = prev.map(g => {
@@ -939,8 +983,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
         await Promise.all(followSnap.docs.map(d => deleteDoc(doc(firestoreDB, 'following', d.id))));
         const updated = followingIds.filter(id => id !== targetUserId);
         setFollowingIds(updated);
-        setCachedJSON('following_ids', updated);
-        setCacheTimestamp('following_ids');
+        setCachedFollowingIds(user.id, updated);
       } else {
         await addDoc(collection(firestoreDB, 'following'), {
           followerId: user.id,
@@ -949,16 +992,14 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
         });
         const updated = [...followingIds, targetUserId];
         setFollowingIds(updated);
-        setCachedJSON('following_ids', updated);
-        setCacheTimestamp('following_ids');
+        setCachedFollowingIds(user.id, updated);
         // Influencer badge: award the followed user once they reach 200+ followers.
         try {
           const { checkInfluencerBadge } = require('../ChatScreen/GroupChat/badgeUtils');
           checkInfluencerBadge(appdatabase, firestoreDB, targetUserId);
         } catch (_) {}
       }
-      // Shared per-uid following cache (Trades / Posts filters) must not serve a stale list.
-      clearFollowingCache(user.id);
+      // The shared per-uid cache (Trades / Posts filters too) now holds the new list.
     } catch (err) {
       console.warn('[StatusFeed] follow toggle error:', err?.message);
     }

@@ -189,6 +189,13 @@ service cloud.firestore {
         && after.toSet().size() == after.size()
         && addedOnlyMe('reportedBy') && bumpedByOne('reportCount');
     }
+    // Live-status snapshot, written only by functions/statusFeed.js (Admin SDK).
+    // Same audience as statuses (read: true). translation_cache has no match:
+    // only functions/translate.js touches it.
+    match /status_feed/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
     match /statuses/{statusId} {
       allow read: if true;
       allow create: if createsAs('userId') && !isBanned()

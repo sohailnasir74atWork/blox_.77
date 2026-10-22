@@ -687,6 +687,14 @@ async function firestoreTests() {
   await ok('mark viewed', () => updateDoc(d(U1, 'statuses', 's1'), { viewedBy: arrayUnion(U1) }));
   await ok('banned user can still mark viewed', () => updateDoc(d(B, 'statuses', 's1'), { viewedBy: arrayUnion(B) }));
   await no('add someone else to viewedBy', () => updateDoc(d(U1, 'statuses', 's1'), { viewedBy: arrayUnion(U3) }));
+  // status_feed/global (functions/statusFeed.js): read like statuses, never written by clients.
+  await seed(async (f) => F.setDoc(F.doc(f, 'status_feed', 'global'), { statuses: [], count: 0, builtAt: F.Timestamp.now() }));
+  await ok('guest reads status snapshot', () => getDoc(d(null, 'status_feed', 'global')));
+  await ok('user reads status snapshot', () => getDoc(d(U1, 'status_feed', 'global')));
+  await no('user writes status snapshot', () => setDoc(d(U1, 'status_feed', 'global'), { statuses: [] }));
+  await no('staff writes status snapshot', () => setDoc(d(A, 'status_feed', 'global'), { statuses: [] }));
+  await no('user reads translation cache', () => getDoc(d(U1, 'translation_cache', 'x')));
+  await no('user writes translation cache', () => setDoc(d(U1, 'translation_cache', 'x'), { t: 'y' }));
   await ok('react to status', () => updateDoc(d(U1, 'statuses', 's1'), { [`reactions.${U1}`]: '❤️' }));
   await no('banned reacts to status', () => updateDoc(d(B, 'statuses', 's1'), { [`reactions.${B}`]: '❤️' }));
   await ok('poll vote', () => updateDoc(d(U1, 'statuses', 's1'), { 'pollVotes.1': arrayUnion(U1) }));
