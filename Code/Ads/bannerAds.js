@@ -9,6 +9,7 @@ import { useAdsReady } from './init';
 import { reportBannerHeight } from './bannerHeight';
 import useIsAdFree from './useIsAdFree';
 import { logAdRevenue } from './adTelemetry';
+import { collapsibleBannersEnabled } from './collapsibleSwitch';
 
 // Bottom banners are anchored adaptive (owner decision, 2026-10-13; they were
 // a fixed 320x50 BANNER from 2026-10-05).
@@ -116,7 +117,11 @@ const BannerAdComponent = ({
   // banner is unmounted while its screen is out of focus, which removes the
   // overlay, and once its screen has been left it comes back as a plain
   // banner: it can expand only on the first visit.
-  const wantsCollapsible = collapsible && Platform.OS === 'android';
+  // Remote switch, OFF unless RTDB /collapsible_banners_enabled is true
+  // (collapsibleSwitch.js). Read once per mount, so flipping it never
+  // re-requests a banner that is already on screen.
+  const [remoteCollapsible] = useState(collapsibleBannersEnabled);
+  const wantsCollapsible = collapsible && remoteCollapsible && Platform.OS === 'android';
   const isFocused = useScreenFocused();
   const [expandSpent, setExpandSpent] = useState(false);
   useEffect(() => {

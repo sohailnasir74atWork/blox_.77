@@ -369,6 +369,9 @@ const OVERRIDES = {
   },
   // Server-counted ratings (functions/modVoteTally.js). Current builds read
   // the tally; which votes counted is for admins only.
+  // Android collapsible banners on/off (Code/Ads/collapsibleSwitch.js). Set
+  // from the Firebase console only; anything but `true` = plain banners.
+  collapsible_banners_enabled: { '.read': true, '.write': false, '.validate': 'newData.isBoolean()' },
   mod_votes_tally: { '.read': true, '.write': false },
   mod_votes_counted: { '.read': wAdmin, '.write': false },
   mod_votes_summary: {

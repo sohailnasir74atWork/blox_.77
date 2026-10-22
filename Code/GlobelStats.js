@@ -64,6 +64,20 @@ const logStartupTiming = (name, params) => {
   } catch (_) {}
 };
 
+// The profile's "Joined" date: when the Firebase Auth account was created,
+// not when this login ran. Stamping Date.now() gave every account whose record
+// was recreated (e.g. removed by the uninstall cleanup, then signed in again)
+// the date of that later login (21,683 Adopt Me users corrected 2026-10-21).
+// In @react-native-firebase 25 metadata.creationTime is an ISO string and the
+// getter throws when absent.
+const authCreatedAtMs = (authUser) => {
+  try {
+    const ms = Date.parse(authUser?.metadata?.creationTime);
+    if (Number.isFinite(ms) && ms > 0) return ms;
+  } catch (_) {}
+  return Date.now();
+};
+
 // ── Ban / mute state helpers ─────────────────────────────────────────────
 // Three RTDB sources can restrict the signed-in user: banned_users_by_email
 // (by encodeEmailKey), banned_uids/{uid} and banned_devices/{fingerprint}.
@@ -656,7 +670,7 @@ export const GlobalStateProvider = ({ children }) => {
           ...existing,
           id: userId,
           displayName: healedDisplayName,
-          createdAt: existing.createdAt || Date.now(),
+          createdAt: existing.createdAt || authCreatedAtMs(loggedInUser),
           // Own email comes from Firebase Auth only. It is kept in memory but no
           // longer written to users/{uid} (publicly readable) — it goes to
           // users_private/{uid} below. The old "self-heal" write is gone.
@@ -667,7 +681,7 @@ export const GlobalStateProvider = ({ children }) => {
         // console.log(robloxUsernameRef?.current, 'robloxUsername_inside')
         const newRecord = {
           ...createNewUser(userId, loggedInUser, robloxUsernameRef?.current),
-          createdAt: Date.now(),
+          createdAt: authCreatedAtMs(loggedInUser),
         };
 
         // ✅ No email in the public record — see users_private below.

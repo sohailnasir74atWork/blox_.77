@@ -99,6 +99,7 @@ Deletes, leaving a group, marking notifications read and viewing a status are ne
 | `banned_uids` | Server. `.indexOn` now includes `emailKey` | Unchanged |
 | `tradeReports/{push}` | Every build: `{tradeId, reportedBy, reason, timestamp}`. New build falls back to it. Staff mark reviewed `{status, reviewedBy, reviewedAt}` (ReportsTab) | Signed-in create-only, `reportedBy == me`; staff may update but not change the reporter; staff read (was open read/write) |
 | `reports` | Unused | Staff read, write false |
+| `collapsible_banners_enabled` | Owner, from the Firebase console only: `true` turns Android collapsible banners on (Code/Ads/collapsibleSwitch.js, builds after 4.0.32); anything else = plain banners | New 2026-10-22: public read, write false, boolean |
 | `withdrawals/{uid}/{id}` | Owner create-only (MyPurchases; the screen is dead in 4.0.12+) | Owner create + admin; read own/staff (was open) |
 | `submissions/{task}` | SocialMedia: `{userId: me, …}` create (dead in 4.0.12+) | Create-only as yourself; admin. Read admin/own (was open) |
 | `news_feedback/{push}` | News screen, guests included: `userId 'anonymous'` or own uid | Create-only, shape-checked (was open write) |
