@@ -127,6 +127,14 @@ exports.groupSync = groups.groupSync;
 // first, backup in groups_deleted). Dry run until server_config/groupCleanup.apply = true.
 exports.cleanupInactiveGroups = groups.cleanupInactiveGroups;
 
+// Old-content cleanup (ported from Adopt Me 2026-10-22): expired statuses,
+// trades and posts older than 7 days. Dry run until
+// server_config/contentCleanup.apply = true.
+const contentCleanup = require('./cleanupOldContent');
+exports.cleanupExpiredStatuses = contentCleanup.cleanupExpiredStatuses;
+exports.cleanupOldTrades = contentCleanup.cleanupOldTrades;
+exports.cleanupOldPosts = contentCleanup.cleanupOldPosts;
+
 // Birthdays (supabase/036_birthdays.sql; ported from Adopt Me 2026-10-07).
 // Deploy the schedulers PAUSED until an app build with Birthdays ships.
 exports.notifyBirthdays = require('./notifyBirthdays').notifyBirthdays;
