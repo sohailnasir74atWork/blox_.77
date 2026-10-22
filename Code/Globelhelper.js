@@ -175,6 +175,9 @@ export const createNewUser = (
   lastactivity: null,
   online: false,
   isPro: false,
+  // Platform the account last signed in on ('android' | 'ios'); shown to
+  // admins in the profile drawer. GlobelStats updates it on each sign-in.
+  OS: Platform.OS,
 });
 
 export const resetUserState = (setUser) => {

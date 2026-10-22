@@ -204,6 +204,22 @@ const ProfileBottomDrawer = ({
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
 
   const selectedUserId = selectedUser?.senderId || selectedUser?.id || null;
+
+  // Android / iOS of the viewed user (users/{uid}/OS), Admins and Senior Mods
+  // only. Falls back
+  // to the OS stamped on the chat message the drawer was opened from.
+  const canSeePlatform = !!(isAdmin || isGlobalSenior);
+  const [userOS, setUserOS] = useState(null);
+  useEffect(() => {
+    setUserOS(null);
+    if (!isVisible || !canSeePlatform || !selectedUserId || !appdatabase) return;
+    let alive = true;
+    get(ref(appdatabase, `users/${selectedUserId}/OS`))
+      .then((snap) => { if (alive && snap.exists()) setUserOS(snap.val()); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [isVisible, canSeePlatform, selectedUserId, appdatabase]);
+  const platformOS = userOS || selectedUser?.OS || null;
   // ✅ Resolve from message (old format) → profileCache (slim format) → default
   const cachedProfile = getCachedProfile(selectedUserId);
   const userName = selectedUser?.sender || cachedProfile?.displayName || null;
@@ -2540,6 +2556,18 @@ const ProfileBottomDrawer = ({
                   <Icon name="calendar-outline" size={11} color={c.textMuted} />
                   <Text style={{ fontSize: 10, color: c.textMuted, fontWeight: '500' }}>
                     {t('chat.bottom_drawer.joined', { time: createdAtText })}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Android / iOS: Admins and Senior Mods only */}
+            {canSeePlatform && (platformOS === 'android' || platformOS === 'ios') && (
+              <View style={{ alignItems: 'center', marginTop: 4 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Icon name={platformOS === 'ios' ? 'logo-apple' : 'logo-android'} size={11} color={platformOS === 'ios' ? '#007AFF' : '#34C759'} />
+                  <Text style={{ fontSize: 10, color: c.textMuted, fontWeight: '500' }}>
+                    {platformOS === 'ios' ? 'iOS' : 'Android'}
                   </Text>
                 </View>
               </View>

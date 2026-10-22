@@ -508,7 +508,8 @@ const MessagesList = ({
                     <Text>{''}</Text>
                     <RoleBadges userItem={item} cacheVersion={profileCacheVersion} />
 
-                    {isAdmin && item.OS && (
+                    {/* Android / iOS badge: Admins and Senior Mods only */}
+                    {(isAdmin || isSeniorMod) && item.OS && (
                       <View
                         style={[
                           styles.platformBadge,
@@ -675,7 +676,7 @@ const MessagesList = ({
 
       </View>
     );
-  }, [dateHeaderById, highlightedMessageId, user?.id, profileCacheVersion, isDarkMode, t]);
+  }, [dateHeaderById, highlightedMessageId, user?.id, profileCacheVersion, isDarkMode, t, isAdmin, isSeniorMod]);
 
   return (
     <>

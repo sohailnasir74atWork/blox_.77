@@ -9,7 +9,7 @@ import { getFirestore } from '@react-native-firebase/firestore';
 import { createNewUser, firebaseConfig, registerForNotifications } from './Globelhelper';
 import { useLocalState } from './LocalGlobelStats';
 import { requestPermission } from './Helper/PermissionCheck';
-import { useColorScheme, AppState, Alert } from 'react-native';
+import { useColorScheme, AppState, Alert, Platform } from 'react-native';
 import { clearUserCache } from './Helper/UserDataCache';
 import { generateOnePieceUsername } from './Helper/RendomNamegen';
 import { getDeviceFingerprint } from './Helper/deviceFingerprint';
@@ -677,6 +677,14 @@ export const GlobalStateProvider = ({ children }) => {
           // users_private/{uid} below. The old "self-heal" write is gone.
           email: loggedInUser.email || null,
         };
+
+        // Platform ('android' | 'ios') on the user record, for the admin-only
+        // line in the profile drawer. Written only when missing or changed
+        // (the account moved to another phone), so most sign-ins write nothing.
+        if (existing.OS !== Platform.OS) {
+          userData.OS = Platform.OS;
+          update(userRef, { OS: Platform.OS }).catch(() => {});
+        }
 
       } else {
         // console.log(robloxUsernameRef?.current, 'robloxUsername_inside')
