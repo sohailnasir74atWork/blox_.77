@@ -28,6 +28,7 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome6';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { useLocalState } from '../LocalGlobelStats';
+import { maybeAskForReview } from '../AppHelper/reviewPrompt';
 import { getThemeColors } from '../Helper/themeColors';
 import config from '../Helper/Environment';
 import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
@@ -433,8 +434,13 @@ const TradeJournal = ({
   // Auto-save fruits when they change (debounced)
   const hasFetchedRef = useRef(false);
   const saveTimerRef = useRef(null);
+  const fruitCountRef = useRef(0);
   useEffect(() => {
+    const fruitCount = (ownedFruits?.length || 0) + (wishlistFruits?.length || 0);
+    const grew = fruitCount > fruitCountRef.current;
+    fruitCountRef.current = fruitCount;
     if (!hasFetchedRef.current) return;
+    if (grew) maybeAskForReview('collection');
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       saveFruits(ownedFruits, wishlistFruits);

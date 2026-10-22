@@ -1,6 +1,5 @@
 // themes.js
 import { DefaultTheme, DarkTheme } from '@react-navigation/native';
-import InAppReview from 'react-native-in-app-review';
 
 
 export const MyLightTheme = {
@@ -25,12 +24,4 @@ export const MyDarkTheme = {
 
 
 
-// reviewHelper.js
-
-export const requestReview = () => {
-  if (InAppReview.isAvailable()) {
-    InAppReview.RequestInAppReview()
-      .then(() => {/* console.log('In-App review flow completed') */ })
-      .catch((error) => {/* console.error('In-App review error:', error) */ });
-  }
-};
+// The store review prompt lives in reviewPrompt.js.

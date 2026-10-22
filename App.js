@@ -37,8 +37,8 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import {
   MyDarkTheme,
   MyLightTheme,
-  requestReview,
 } from './Code/AppHelper/AppHelperFunction';
+import { noteReviewActiveDay } from './Code/AppHelper/reviewPrompt';
 import OnboardingScreen from './Code/AppHelper/OnBoardingScreen';
 import { useTranslation } from 'react-i18next';
 import RewardRulesModal from './Code/SettingScreen/RewardRulesModel';
@@ -189,33 +189,11 @@ function App() {
 
 
 
-  // ✅ Fixed: Use ref to track if reviewCount was updated to prevent infinite loop
-  const reviewCountUpdatedRef = React.useRef(false);
+  // Store review: count active days here; the prompt itself is asked at
+  // success moments (Code/AppHelper/reviewPrompt.js), never at launch.
   useEffect(() => {
-    // ✅ Only update reviewCount once on mount, not on every reviewCount change
-    if (!reviewCountUpdatedRef.current) {
-      const { reviewCount } = localState || {};
-      if (reviewCount !== undefined) {
-        reviewCountUpdatedRef.current = true;
-        updateLocalState('reviewCount', Number(reviewCount) + 1);
-      }
-    }
-  }, []); // ✅ Empty deps - only run once on mount
-
-  // ✅ Separate useEffect for review request - only runs when reviewCount changes
-  useEffect(() => {
-    const { reviewCount } = localState || {};
-    if (reviewCount && reviewCount % 6 === 0 && reviewCount > 0) {
-      try {
-        requestReview();
-      } catch (error) {
-        // ✅ Silently handle errors to prevent crashes
-      }
-    }
-    // if (reviewCount && reviewCount % 15 === 0 && reviewCount > 0) {
-    //   setShowofferwall(true);
-    // }
-  }, [localState?.reviewCount]); // ✅ Only depend on reviewCount, not updateLocalState
+    noteReviewActiveDay();
+  }, []);
 
   // ✅ Memoize saveConsentStatus to prevent recreation - use ref to avoid dependency
   const updateLocalStateRef = React.useRef(updateLocalState);

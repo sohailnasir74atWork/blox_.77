@@ -9,6 +9,7 @@ import ConditionalKeyboardWrapper from '../Helper/keyboardAvoidingContainer';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { getDatabase, ref, get, update } from '@react-native-firebase/database';
 import { useLocalState } from '../LocalGlobelStats';
+import { maybeAskForReview } from '../AppHelper/reviewPrompt';
 import SignInDrawer from '../Firebase/SigninDrawer';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../Translation/LanguageProvider';
@@ -771,6 +772,14 @@ const HomeScreen = ({ selectedTheme }) => {
   const profitLoss = wantsTotal.value - hasTotal.value;
   const isProfit = profitLoss >= 0;
   const neutral = profitLoss === 0;
+
+  // Store review: a profit/even result with both sides filled, left unchanged
+  // for 3 s, counts as one finished check (the 5th in a session may ask).
+  useEffect(() => {
+    if (!(isProfit && hasTotal.value > 0 && wantsTotal.value > 0)) return undefined;
+    const id = setTimeout(() => maybeAskForReview('calculator'), 3000);
+    return () => clearTimeout(id);
+  }, [isProfit, hasTotal.value, wantsTotal.value]);
 
   // Pre-selected rating for the Log Trade sheet. Note the journal schema uses
   // 'loss', while handleCreateTrade's own getTradeStatus says 'lose' — keep this
