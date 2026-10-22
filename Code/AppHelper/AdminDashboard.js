@@ -825,7 +825,7 @@ const AdminDashboardScreen = () => {
   // then goes to the server by uid (utils.applySanction / liftSanction). The
   // permission checks only hide buttons the server would refuse
   // (contract §2): strict rank, staff targets Senior Mod+, JMD = mute ≤ 1
-  // day + unmute, strike 3 below Admin = 30 days + a permanent-ban request,
+  // day + unmute, strike 3 below Senior Mod = 30 days + a permanent-ban request,
   // lifts need the original banner's rank.
   const callerRoles = useMemo(() => ({
     isAdmin: !!isAdmin,
@@ -911,7 +911,7 @@ const AdminDashboardScreen = () => {
     () => getModPermissions(callerRoles, selectedRoles || {}),
     [callerRoles, selectedRoles]
   );
-  // Strike 3 below Admin = 30 days + a request (server decides; labels follow).
+  // Strike 3 below Senior Mod = 30 days + a request (server decides; labels follow).
   const ladder = { permanentAllowed: selectedPerms.canPermaban };
   const canLiftSelected = !!(
     selectedSanction?.active &&

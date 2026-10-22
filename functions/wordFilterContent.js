@@ -5,7 +5,8 @@
  *   designPosts_upgrade/{postId}                     .desc
  *   designPosts_upgrade/{postId}/comments/{id}       .text
  *   statuses/{statusId}                              .caption, .pollOptions[]
- * every word that is part of an active SLUR from the moderators' list is
+ * every word that is part of an active SLUR or OFFENSIVE term from the
+ * moderators' list (offensive since 052, 2026-10-22) is
  * replaced with asterisks in place, the doc gets
  * `wordFilter: { masked: true, fields, at }`, and the original text goes to
  * Supabase word_filter_hits (Senior Mod+ read it in the Word filter tab), so a
@@ -37,7 +38,8 @@ const core = require('./wordFilterCore');
 const SECRETS = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
 const LIST_TTL_MS = 5 * 60 * 1000;
 const RETRY_MS = 60 * 1000;
-const SERVER_KINDS = new Set(['slur', 'allow']);
+const SERVER_KINDS = new Set(['slur', 'offensive', 'allow']);
+const MASK_KINDS = ['slur', 'offensive'];
 
 const bundled = () => core.buildMatcher(core.BUNDLED.filter((b) => SERVER_KINDS.has(b.kind)));
 let list = { v: null, matcher: bundled(), at: 0 };
@@ -81,14 +83,14 @@ async function getMatcher() {
 // Masks one field. Returns null when clean, else { value, hit }.
 function maskField(field, value, m) {
   if (typeof value === 'string') {
-    const r = core.maskText(value, m);
+    const r = core.maskText(value, m, MASK_KINDS);
     return r ? { value: r.masked, hit: { field, original: value, masked: r.masked, terms: r.terms } } : null;
   }
   if (Array.isArray(value)) {
     const terms = [];
     let changed = false;
     const next = value.map((x) => {
-      const r = typeof x === 'string' ? core.maskText(x, m) : null;
+      const r = typeof x === 'string' ? core.maskText(x, m, MASK_KINDS) : null;
       if (!r) return x;
       changed = true;
       terms.push(...r.terms);

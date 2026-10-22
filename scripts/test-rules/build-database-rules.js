@@ -236,6 +236,21 @@ const wTitle = and(
   ),
 );
 const TITLE_MAX = 20;
+// Cosmetic badges (Trusted, Grinder, Raider, Helper): Mod and up, on someone
+// strictly below them (Senior Mod test 2026-10-20: a Mod could change a
+// Senior Mod's badges). The verified owner may badge anyone, themselves
+// included for Trusted / Grinder / Raider; Helper is never self-granted.
+const targetOwner = `(${flag('$userId', 'owner')})`;
+const wBadgeOther = and(
+  wMod, '$userId !== auth.uid',
+  or(
+    owner,
+    and(adminU(ME), not(adminU('$userId')), not(targetOwner)),
+    and(flag(ME, 'isSeniorMod'), not(seniorPlusU('$userId')), not(targetOwner)),
+    and(flag(ME, 'isModerator'), not(modPlusU('$userId')), not(targetOwner)),
+  ),
+);
+const wBadge = or(and('auth != null', owner), wBadgeOther);
 const usersWrite = and(
   'auth != null',
   or(
@@ -261,12 +276,12 @@ const userChildren = {
       and(isGranter, '$userId !== auth.uid', not(modPlusU('$userId'))),
     )),
   },
-  isTrusted: { '.write': wMod },
-  isGrinder: { '.write': wMod },
-  isRaider: { '.write': wMod },
+  isTrusted: { '.write': wBadge },
+  isGrinder: { '.write': wBadge },
+  isRaider: { '.write': wBadge },
   // Cosmetic "Helper" badge: no staff powers anywhere (not in staffMirror,
   // banEnforcement RANK or the rank sets above). Never on yourself.
-  isHelper: { '.write': and(wMod, '$userId !== auth.uid') },
+  isHelper: { '.write': wBadgeOther },
   customTitle: {
     '.write': wTitle,
     '.validate': and(

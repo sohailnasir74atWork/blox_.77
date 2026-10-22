@@ -99,9 +99,12 @@ const isStaffRank = (r) => r >= RANK.babyMod;
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
-const STRIKE_DURATION_MS = { 1: 3 * HOUR, 2: 3 * 24 * HOUR }; // 3 → permanent (admin+)
-// Strike 3 from a Senior Mod / Mod: 30 days now, permanent once an admin
-// confirms the request (owner decision 2026-10-19).
+const STRIKE_DURATION_MS = { 1: 3 * HOUR, 2: 3 * 24 * HOUR }; // 3 → permanent (Sr Mod+)
+// Lowest rank whose strike 3 is permanent at once. 2026-10-19..21 it was
+// RANK.admin; since 2026-10-22 (owner, after the 4.0.31 Senior Mod test:
+// Admins are not always online) Senior Mods ban permanently again. A Mod's
+// strike 3 stays 30 days now, permanent once an admin confirms the request.
+const PERM_BAN_MIN_RANK = RANK.seniorMod;
 const PENDING_PERM_MS = 30 * 24 * HOUR;
 const JMD_MAX_MUTE_MIN = 24 * 60; // 5m / 30m / 2h / 6h / 1d in the app
 const MAX_MUTE_MIN = 60 * 24 * 30;
@@ -1222,9 +1225,9 @@ async function handleSanction(res, action, body, targetUid, identity, actor, ctx
   if (type === 'ban') {
     strikeCount = Number(body.strikeCount);
     if (![1, 2, 3].includes(strikeCount)) return fail(res, 'bad_strike');
-    if (strikeCount === 3 && actor.rank < RANK.admin) {
-      // Permanent needs an admin, whatever the build asked for: 30 days now
-      // and a request in the dashboard's "Perm-ban requests".
+    if (strikeCount === 3 && actor.rank < PERM_BAN_MIN_RANK) {
+      // Permanent needs a Senior Mod+, whatever the build asked for: 30 days
+      // now and a request in the dashboard's "Perm-ban requests".
       pendingPermanent = true;
       bannedUntil = now + PENDING_PERM_MS;
     } else {
@@ -1602,12 +1605,12 @@ async function handleEmailBanWrite(change, context) {
     return null;
   }
 
-  // Permanent bans need an admin. A lower rank's permanent strike (old
-  // builds, email-only rows) becomes the 30-day pending ban; the record is
-  // rewritten so every build enforces 30 days, not permanent.
+  // Permanent bans need a Senior Mod+ (PERM_BAN_MIN_RANK). A lower rank's
+  // permanent strike (old builds, email-only rows) becomes the 30-day pending
+  // ban; the record is rewritten so every build enforces 30 days, not permanent.
   let rec = after;
   let permRequest = null;
-  if (type === 'ban' && permanent && actor.rank < RANK.admin) {
+  if (type === 'ban' && permanent && actor.rank < PERM_BAN_MIN_RANK) {
     rec = { ...after, bannedUntil: now + PENDING_PERM_MS, pendingPermanent: true };
     if (prev && isSofter(rec, prev)) {
       // Already banned more strictly (permanent): this write adds nothing.

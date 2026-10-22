@@ -31,8 +31,9 @@ export const STRIKE_LADDER = {
 };
 export const MAX_STRIKE = 3;
 
-// Permanent bans need an Admin. Below Admin, strike 3 is a 30-day ban plus a
-// request an Admin confirms (→ permanent) or rejects in the dashboard.
+// Permanent bans need a Senior Mod+ (Admin-only 2026-10-19..21). A Mod's
+// strike 3 is a 30-day ban plus a request an Admin confirms (→ permanent) or
+// rejects in the dashboard.
 export const PENDING_PERM_DAYS = 30;
 export const PENDING_STRIKE_3 = { label: `${PENDING_PERM_DAYS} days, permanent if an Admin confirms`, short: `${PENDING_PERM_DAYS}d+` };
 
@@ -47,7 +48,7 @@ export const strikeBannedUntil = (strikeCount, now = Date.now()) => {
 };
 
 /**
- * Ladder step as the caller will get it: strike 3 from below Admin is the
+ * Ladder step as the caller will get it: strike 3 from below Senior Mod is the
  * 30-day pending ban. `permanentAllowed` = getModPermissions().canPermaban.
  */
 export const strikeStep = (strikeCount, { permanentAllowed = true } = {}) => {
@@ -128,7 +129,7 @@ export const sanctionErrorText = (code) => ERROR_TEXT[code] || 'Something went w
  *   'log'     { logAction, details }  audit row (use logModAction below)
  *   'perm_requests' / 'perm_confirm' / 'perm_reject'  admin only (below)
  *
- * A strike 3 from below Admin answers { pendingPermanent: true, bannedUntil: ms }.
+ * A strike 3 from below Senior Mod answers { pendingPermanent: true, bannedUntil: ms }.
  *
  * `reason` ≤ 500 chars (required by the server for strike/mute),
  * `evidence` ≤ 3 https image URLs (see AppHelper/modEvidenceUpload.js),

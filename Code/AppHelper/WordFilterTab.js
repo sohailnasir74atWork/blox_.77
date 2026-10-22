@@ -7,11 +7,15 @@
 //           (functions/wordFilterContent.js), with the original text, so a
 //           false positive can be put back by hand.
 //   Test  — what the app's matcher and the server say about any text.
-// Kinds: slur (blocked everywhere; the server rejects it in chat and masks it
-// in posts), offensive (the app blocks it; the server checks it in names),
-// spam (the app blocks it), allow (innocent phrases cut out before matching).
+// The add bar sits at the top of the list (Senior Mod test 2026-10-20 could
+// not find the old "Add" toggle); kind, mode, language and note are under
+// "More options".
+// Kinds: slur and offensive (blocked everywhere: the server rejects them in
+// every chat at once, for every build (052), masks them in posts, comments
+// and statuses, and refuses them in names), spam (the app blocks it), allow
+// (innocent phrases cut out before matching).
 // Turning off a word that ships inside the app (its old English list) stores
-// it switched off, so every app drops it at its next list refresh (≤ 6 h).
+// it switched off, so every app drops it at its next list refresh (≤ 12 h).
 // Only Senior Mods and above pass the rpcs; others see "not allowed".
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -82,9 +86,9 @@ const WordFilterTab = ({ isDark, currentUser }) => {
   const [problem, setProblem] = useState(null);
   const [filter, setFilter] = useState(null);
   const [search, setSearch] = useState('');
-  const [showAdd, setShowAdd] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
   const [term, setTerm] = useState('');
-  const [kind, setKind] = useState('slur');
+  const [kind, setKind] = useState('offensive');
   const [mode, setMode] = useState('auto');
   const [lang, setLang] = useState('');
   const [note, setNote] = useState('');
@@ -171,7 +175,7 @@ const WordFilterTab = ({ isDark, currentUser }) => {
     Alert.alert(
       turnOff ? `Turn off "${r.term}"?` : `Turn "${r.term}" back on?`,
       turnOff
-        ? 'Apps stop blocking it at their next list refresh (within 6 hours; the server at once).'
+        ? 'Chat stops blocking it at once; apps drop it at their next list refresh (within 12 hours).'
         : `It will be blocked again as ${r.kind}.`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -273,61 +277,73 @@ const WordFilterTab = ({ isDark, currentUser }) => {
 
   const addForm = (
     <View style={{ backgroundColor: card, borderRadius: 12, padding: 12, marginHorizontal: 12, marginBottom: 8 }}>
-      <TextInput
-        value={term}
-        onChangeText={setTerm}
-        placeholder="Word or phrase"
-        placeholderTextColor={sub}
-        autoCapitalize="none"
-        autoCorrect={false}
-        style={inputStyle}
-      />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
-        {KINDS.map((k) => <Pill key={k} label={k} active={kind === k} onPress={() => setKind(k)} isDark={isDark} color={KIND_COLOR[k]} />)}
-      </ScrollView>
-      {kind !== 'allow' && (
-        <View style={{ flexDirection: 'row', marginTop: 8 }}>
-          {MODES.map((m) => <Pill key={m} label={m} active={mode === m} onPress={() => setMode(m)} isDark={isDark} />)}
-        </View>
-      )}
-      <Text style={{ color: sub, fontSize: 11, marginTop: 6 }}>
-        {kind === 'allow'
-          ? 'Allow: this whole phrase is cut out before matching (e.g. "en retard" = French for "late").'
-          : 'auto: whole word for short terms (spic ≠ spicy), inside words for 5+ letters. word: whole word (+ plural s). exact: whole word, no plural. part: inside any word.'}
-      </Text>
-      <View style={{ flexDirection: 'row', marginTop: 8 }}>
+      <Text style={{ color: text, fontSize: 14, fontWeight: '800', marginBottom: 8 }}>Add a word</Text>
+      <View style={{ flexDirection: 'row' }}>
         <TextInput
-          value={lang}
-          onChangeText={setLang}
-          placeholder="lang"
+          value={term}
+          onChangeText={setTerm}
+          placeholder="Word or phrase"
           placeholderTextColor={sub}
           autoCapitalize="none"
-          maxLength={3}
-          style={[inputStyle, { width: 70, marginRight: 8 }]}
+          autoCorrect={false}
+          returnKeyType="done"
+          onSubmitEditing={() => { if (preview && !saving) add(); }}
+          style={[inputStyle, { flex: 1, marginRight: 8 }]}
         />
-        <TextInput
-          value={note}
-          onChangeText={setNote}
-          placeholder="Note (why, where it's used)"
-          placeholderTextColor={sub}
-          maxLength={300}
-          style={[inputStyle, { flex: 1 }]}
-        />
+        <TouchableOpacity
+          onPress={add}
+          disabled={!preview || !!saving}
+          style={{ backgroundColor: preview && !saving ? '#007AFF' : border, borderRadius: 10, paddingHorizontal: 16, justifyContent: 'center' }}
+        >
+          {saving && saving === term.trim()
+            ? <ActivityIndicator color="#FFF" />
+            : <Text style={{ color: '#FFF', fontWeight: '800' }}>{kind === 'allow' ? 'Allow' : 'Block'}</Text>}
+        </TouchableOpacity>
       </View>
       {!!term.trim() && (
         <Text style={{ color: preview ? sub : '#FF3B30', fontSize: 11, marginTop: 6, fontFamily: 'monospace' }}>
-          {preview ? `matches as “${termKey(term)}” · ${preview}` : 'No letters or digits: nothing to match.'}
+          {preview ? `${kind} · matches as “${termKey(term)}” · ${preview}` : 'No letters or digits: nothing to match.'}
         </Text>
       )}
-      <TouchableOpacity
-        onPress={add}
-        disabled={!preview || !!saving}
-        style={{ marginTop: 10, backgroundColor: preview && !saving ? '#007AFF' : border, borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
-      >
-        {saving && saving === term.trim()
-          ? <ActivityIndicator color="#FFF" />
-          : <Text style={{ color: '#FFF', fontWeight: '800' }}>{kind === 'allow' ? 'Allow' : 'Block'}</Text>}
+      <TouchableOpacity onPress={() => setShowOptions((v) => !v)} style={{ marginTop: 8, alignSelf: 'flex-start' }}>
+        <Text style={{ color: '#007AFF', fontSize: 12, fontWeight: '700' }}>{showOptions ? 'Fewer options' : 'More options'}</Text>
       </TouchableOpacity>
+      {showOptions && (
+        <View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+            {KINDS.map((k) => <Pill key={k} label={k} active={kind === k} onPress={() => setKind(k)} isDark={isDark} color={KIND_COLOR[k]} />)}
+          </ScrollView>
+          {kind !== 'allow' && (
+            <View style={{ flexDirection: 'row', marginTop: 8 }}>
+              {MODES.map((m) => <Pill key={m} label={m} active={mode === m} onPress={() => setMode(m)} isDark={isDark} />)}
+            </View>
+          )}
+          <Text style={{ color: sub, fontSize: 11, marginTop: 6 }}>
+            {kind === 'allow'
+              ? 'Allow: this whole phrase is cut out before matching (e.g. "en retard" = French for "late").'
+              : 'slur / offensive: blocked in every chat at once. spam: blocked by the app. auto: whole word for short terms (spic ≠ spicy), inside words for 5+ letters. word: whole word (+ plural s). exact: whole word, no plural. part: inside any word.'}
+          </Text>
+          <View style={{ flexDirection: 'row', marginTop: 8 }}>
+            <TextInput
+              value={lang}
+              onChangeText={setLang}
+              placeholder="lang"
+              placeholderTextColor={sub}
+              autoCapitalize="none"
+              maxLength={3}
+              style={[inputStyle, { width: 70, marginRight: 8 }]}
+            />
+            <TextInput
+              value={note}
+              onChangeText={setNote}
+              placeholder="Note (why, where it's used)"
+              placeholderTextColor={sub}
+              maxLength={300}
+              style={[inputStyle, { flex: 1 }]}
+            />
+          </View>
+        </View>
+      )}
     </View>
   );
 
@@ -352,7 +368,8 @@ const WordFilterTab = ({ isDark, currentUser }) => {
           keyboardShouldPersistTaps="handled"
           ListHeaderComponent={(
             <View>
-              <View style={{ flexDirection: 'row', paddingHorizontal: 12, marginBottom: 8 }}>
+              {addForm}
+              <View style={{ paddingHorizontal: 12, marginBottom: 8 }}>
                 <TextInput
                   value={search}
                   onChangeText={setSearch}
@@ -360,16 +377,9 @@ const WordFilterTab = ({ isDark, currentUser }) => {
                   placeholderTextColor={sub}
                   autoCapitalize="none"
                   autoCorrect={false}
-                  style={[inputStyle, { flex: 1, marginRight: 8 }]}
+                  style={inputStyle}
                 />
-                <TouchableOpacity
-                  onPress={() => setShowAdd((v) => !v)}
-                  style={{ backgroundColor: showAdd ? border : '#007AFF', borderRadius: 10, paddingHorizontal: 14, justifyContent: 'center' }}
-                >
-                  <Text style={{ color: showAdd ? text : '#FFF', fontWeight: '800' }}>{showAdd ? 'Close' : 'Add'}</Text>
-                </TouchableOpacity>
               </View>
-              {showAdd && addForm}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 8 }}>
                 {FILTERS.map((f) => (
                   <Pill key={f || 'all'} label={f || 'all'} active={filter === f} onPress={() => setFilter(f)} isDark={isDark} color={KIND_COLOR[f]} />
@@ -428,7 +438,7 @@ const WordFilterTab = ({ isDark, currentUser }) => {
             </View>
           )}
           <Text style={{ color: sub, fontSize: 11, marginTop: 10 }}>
-            The app also blocks its old English profanity list, spam phrases, adult words and links; the server only blocks slurs in chat (and slurs + offensive words in names).
+            The app also blocks its old English profanity list, spam phrases, adult words and links. The server blocks slurs and offensive words in every chat and in names, and masks them in posts, comments and statuses.
           </Text>
         </ScrollView>
       )}

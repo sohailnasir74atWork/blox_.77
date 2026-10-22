@@ -49,12 +49,12 @@ describe('WordFilterTab', () => {
     const root = r.root;
     expect(texts(root)).toEqual(expect.arrayContaining(['Xyzzy', 'marica', 'ON', 'OFF', 'v5 · 1 on']));
 
-    await press(root, 'Add');
+    expect(texts(root)).toContain('Add a word'); // the add bar is always on top
     const termInput = root.findAllByType(TextInput).find((i) => i.props.placeholder === 'Word or phrase');
     await act(async () => { termInput.props.onChangeText('Ｆ@ggy'); });
-    expect(texts(root).some((t) => t.startsWith('matches as “faggy”'))).toBe(true);
+    expect(texts(root).some((t) => t.startsWith('offensive · matches as “faggy”'))).toBe(true);
     await press(root, 'Block');
-    expect(mockRpc).toHaveBeenCalledWith('word_filter_add', expect.objectContaining({ p_term: 'Ｆ@ggy', p_kind: 'slur', p_mode: 'auto', p_name: 'Zoro' }));
+    expect(mockRpc).toHaveBeenCalledWith('word_filter_add', expect.objectContaining({ p_term: 'Ｆ@ggy', p_kind: 'offensive', p_mode: 'auto', p_name: 'Zoro' }));
 
     await press(root, 'Test');
     const sample = root.findAllByType(TextInput).find((i) => i.props.placeholder === 'Type any message or name');

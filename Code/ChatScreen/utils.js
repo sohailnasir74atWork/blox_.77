@@ -81,8 +81,10 @@ export const canSanction = (caller, target) =>
  * What the caller may do to the target — mirrors the server's checks so the UI
  * only offers actions it will accept (contract §2).
  *   JMD:   mute ≤ 1 day and unmute only.
- *   Mod+:  strike / ban / mute, unban, linked accounts. Below Admin a strike 3
- *          is a 30-day ban + a permanent-ban request (canPermaban false).
+ *   Mod+:  strike / ban / mute, unban, linked accounts. A Mod's strike 3
+ *          is a 30-day ban + a permanent-ban request (canPermaban false);
+ *          Senior Mod+ ban permanently (2026-10-22; the server's
+ *          PERM_BAN_MIN_RANK in functions/banEnforcement.js).
  * Lifting also needs rank ≥ the original banner's (admins always may), which
  * needs the record — see canLiftSanction.
  */
@@ -98,7 +100,7 @@ export const getModPermissions = (caller, target) => {
     canMute: sanction,
     maxMuteMinutes: isJmd ? JMD_MAX_MUTE_MINUTES : null,
     canStrike: sanction && !isJmd,
-    canPermaban: rank >= STAFF_RANK.admin,
+    canPermaban: rank >= STAFF_RANK.seniorMod,
     canUnmute: sanction,
     canUnban: sanction && !isJmd,
     canSeeLinked: sanction && rank >= STAFF_RANK.moderator,
@@ -126,7 +128,8 @@ export const canManageMod = (caller) => !!(caller?.isAdmin || caller?.isOwner ||
 // (AppHelper/StaffAccessTab.js) keep their own path.
 export const canManageBabyMod = (caller) =>
   !!(caller?.isAdmin || caller?.isOwner || caller?.isSeniorMod);
-// Mods and up give/remove the cosmetic badges (Trusted, Grinder, Raider, Helper).
+// Mods and up give/remove the cosmetic badges (Trusted, Grinder, Raider, Helper),
+// on someone strictly below them (canModerate; the RTDB rules re-check).
 export const canManageBadges = (caller) =>
   !!(caller?.isAdmin || caller?.isOwner || caller?.isSeniorMod || caller?.isModerator);
 // Senior Mods and up give custom titles, to someone strictly below them
@@ -1021,7 +1024,7 @@ export const banUserwithEmail = async (email, isAdmin = false, senderId = null, 
 
   const strikeCount = nextStrikeCount(await getCurrentStrikeCount(targetUid, email));
   const name = userInfo?.displayName || email || 'this user';
-  const ladder = { permanentAllowed: getStaffRank(callerRoles) >= STAFF_RANK.admin };
+  const ladder = { permanentAllowed: getStaffRank(callerRoles) >= STAFF_RANK.seniorMod };
   if (showConfirm) {
     const ok = await confirmAsync('Confirm Ban', `Apply Strike ${strikeCount} (${strikeDurationLabel(strikeCount, ladder)}) to ${name}?`, 'Ban User');
     if (!ok) return false;
@@ -1042,7 +1045,7 @@ export const banUserwithEmail = async (email, isAdmin = false, senderId = null, 
 /**
  * Set a specific strike level (1, 2, or 3) on a user.
  * Strike 1: 3 hours | Strike 2: 3 days | Strike 3: permanent (STRIKE_LADDER;
- * below Admin: 30 days + a permanent-ban request, decided by the server).
+ * below Senior Mod: 30 days + a permanent-ban request, decided by the server).
  * @param {string} email - User email (only needed when there is no userId)
  * @param {number} strikeCount - 1, 2, or 3
  * @param {string} userId - target uid (preferred: goes through the server)
@@ -1073,7 +1076,7 @@ export const setUserStrike = async (email, strikeCount, userId = null, showAlert
     return false;
   }
   const userName = userInfo?.displayName || userInfo?.userName || email || 'this user';
-  const ladder = { permanentAllowed: getStaffRank(callerRoles) >= STAFF_RANK.admin };
+  const ladder = { permanentAllowed: getStaffRank(callerRoles) >= STAFF_RANK.seniorMod };
   if (showConfirm) {
     const ok = await confirmAsync('Confirm Strike', `Apply Strike ${strikeCount} to ${userName}? This bans them for ${strikeDurationLabel(strikeCount, ladder)}.`, 'Apply Strike');
     if (!ok) return false;
@@ -1419,6 +1422,10 @@ const setHelperFlag = async (userId, value, callerRoles = {}) => {
   }
   if (getAuth()?.currentUser?.uid === userId) {
     Alert.alert('Permission Denied', 'You cannot change your own Helper badge.');
+    return false;
+  }
+  if (!(await outranksTarget(userId, callerRoles))) {
+    Alert.alert('Permission Denied', 'You can only change badges of someone below your rank.');
     return false;
   }
   try {

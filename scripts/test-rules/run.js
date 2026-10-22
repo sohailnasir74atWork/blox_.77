@@ -180,6 +180,20 @@ async function rtdbTests() {
   await ok('senior removes U1 Helper', () => D.update(r(S, `users/${U1}`), { isHelper: null, rolesUpdatedAt: now() }));
   await ok('admin makes U1 Helper', () => D.set(r(A, `users/${U1}/isHelper`), true));
   await no('JMD makes U2 Helper', () => D.update(r(J, `users/${U2}`), { isHelper: true, rolesUpdatedAt: now() }));
+  // Badges only on someone strictly below the writer (Sr Mod test 2026-10-20).
+  await no('mod makes senior Helper', () => D.update(r(M, `users/${S}`), { isHelper: true, rolesUpdatedAt: now() }));
+  await no('mod removes senior Trusted', () => D.update(r(M, `users/${S}`), { isTrusted: null, rolesUpdatedAt: now() }));
+  await no('mod makes senior Grinder (old set)', () => D.set(r(M, `users/${S}/isGrinder`), true));
+  await no('mod makes mod2 Raider', () => D.update(r(M, `users/${M2}`), { isRaider: true, rolesUpdatedAt: now() }));
+  await no('mod makes admin Trusted', () => D.update(r(M, `users/${A}`), { isTrusted: true, rolesUpdatedAt: now() }));
+  await no('senior makes admin Helper', () => D.update(r(S, `users/${A}`), { isHelper: true, rolesUpdatedAt: now() }));
+  await no('admin makes owner-flag user Grinder', () => D.set(r(A, 'users/ownerFlagOnly01/isGrinder'), true));
+  await no('admin makes admin2 Raider', () => D.set(r(A, `users/${A2}/isRaider`), true));
+  await ok('mod makes JMD Helper', () => D.update(r(M, `users/${J}`), { isHelper: true, rolesUpdatedAt: now() }));
+  await ok('senior makes mod Trusted', () => D.update(r(S, `users/${M}`), { isTrusted: true, rolesUpdatedAt: now() }));
+  await ok('admin makes senior Grinder', () => D.set(r(A, `users/${S}/isGrinder`), true));
+  await ok('owner makes self Raider', () => D.set(r(O, `users/${O}/isRaider`), true));
+  await no('owner makes self Helper', () => D.set(r(O, `users/${O}/isHelper`), true));
   await no('U2 makes self Helper (child)', () => D.set(r(U2, `users/${U2}/isHelper`), true));
   await no('mod makes self Helper', () => D.update(r(M, `users/${M}`), { isHelper: true, rolesUpdatedAt: now() }));
   await no('admin makes self Helper', () => D.set(r(A, `users/${A}/isHelper`), true));

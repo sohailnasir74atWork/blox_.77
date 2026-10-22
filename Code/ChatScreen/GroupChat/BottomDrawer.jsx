@@ -72,7 +72,7 @@ import ModActionModal from '../../AppHelper/ModActionModal';
 import ModHistoryList from '../../AppHelper/ModHistoryList';
 // Role grants: Helper badge, custom titles, JMD = Senior Mod+ (2026-10-19).
 import CustomTitleModal from '../../AppHelper/CustomTitleModal';
-import { makeHelper, removeHelper, setCustomTitle, canManageBabyMod, canGiveTitle } from '../utils';
+import { makeHelper, removeHelper, setCustomTitle, canManageBabyMod, canGiveTitle, canManageBadges } from '../utils';
 import { openReportForm, reviewForReport } from '../../Reports/openReportForm';
 
 // Initialize dayjs plugins
@@ -564,7 +564,7 @@ const ProfileBottomDrawer = ({
   // (utils.applySanction / liftSanction → Helper/modSanction). The checks
   // below only decide which buttons to show; the server re-checks all of
   // them (contract §2): strict rank, staff targets Senior Mod and up only,
-  // JMD = mute ≤ 1 day + unmute, strike 3 below Admin = 30 days + a
+  // JMD = mute ≤ 1 day + unmute, strike 3 below Senior Mod = 30 days + a
   // permanent-ban request, lifts need the banner's rank.
   const callerRoles = useMemo(() => ({
     isAdmin: !!isAdmin,
@@ -3213,30 +3213,35 @@ const ProfileBottomDrawer = ({
                                 onPress={mergedUser?.isBabyMod ? handleRemoveJMD : handleMakeJMD}
                               />
                             )}
-                            {/* Make/Remove Trusted - Admin & Mod */}
-                            <Chip
-                              label={mergedUser?.isTrusted ? 'Remove Trusted' : 'Make Trusted'}
-                              color={mergedUser?.isTrusted ? '#f59e0b' : '#10b981'}
-                              onPress={mergedUser?.isTrusted ? handleRemoveTrusted : handleMakeTrusted}
-                            />
-                            {/* Make/Remove Grinder - Admin & Mod */}
-                            <Chip
-                              label={mergedUser?.isGrinder ? 'Remove Grinder' : 'Make Grinder'}
-                              color={mergedUser?.isGrinder ? '#f59e0b' : '#06B6D4'}
-                              onPress={mergedUser?.isGrinder ? handleRemoveGrinder : handleMakeGrinder}
-                            />
-                            {/* Make/Remove Raider - Admin & Mod */}
-                            <Chip
-                              label={mergedUser?.isRaider ? 'Remove Raider' : 'Make Raider'}
-                              color={mergedUser?.isRaider ? '#f59e0b' : '#DC2626'}
-                              onPress={mergedUser?.isRaider ? handleRemoveRaider : handleMakeRaider}
-                            />
-                            {/* Make/Remove Helper (badge only) - Admin & Mod */}
-                            <Chip
-                              label={mergedUser?.isHelper ? 'Remove Helper' : 'Make Helper'}
-                              color={mergedUser?.isHelper ? '#f59e0b' : '#14B8A6'}
-                              onPress={handleToggleHelper}
-                            />
+                            {/* Badges - Mod & up, on someone below them (Sr Mod test 2026-10-20) */}
+                            {canManageBadges(callerRoles) && canModerate(callerRoles, targetRoles) && (
+                              <>
+                                {/* Make/Remove Trusted - Admin & Mod */}
+                                <Chip
+                                  label={mergedUser?.isTrusted ? 'Remove Trusted' : 'Make Trusted'}
+                                  color={mergedUser?.isTrusted ? '#f59e0b' : '#10b981'}
+                                  onPress={mergedUser?.isTrusted ? handleRemoveTrusted : handleMakeTrusted}
+                                />
+                                {/* Make/Remove Grinder - Admin & Mod */}
+                                <Chip
+                                  label={mergedUser?.isGrinder ? 'Remove Grinder' : 'Make Grinder'}
+                                  color={mergedUser?.isGrinder ? '#f59e0b' : '#06B6D4'}
+                                  onPress={mergedUser?.isGrinder ? handleRemoveGrinder : handleMakeGrinder}
+                                />
+                                {/* Make/Remove Raider - Admin & Mod */}
+                                <Chip
+                                  label={mergedUser?.isRaider ? 'Remove Raider' : 'Make Raider'}
+                                  color={mergedUser?.isRaider ? '#f59e0b' : '#DC2626'}
+                                  onPress={mergedUser?.isRaider ? handleRemoveRaider : handleMakeRaider}
+                                />
+                                {/* Make/Remove Helper (badge only) - Admin & Mod */}
+                                <Chip
+                                  label={mergedUser?.isHelper ? 'Remove Helper' : 'Make Helper'}
+                                  color={mergedUser?.isHelper ? '#f59e0b' : '#14B8A6'}
+                                  onPress={handleToggleHelper}
+                                />
+                              </>
+                            )}
                             {/* Custom title - Senior Mod & up, on someone below them */}
                             {canGiveTitle(callerRoles) && canModerate(callerRoles, targetRoles) && (
                               <Chip

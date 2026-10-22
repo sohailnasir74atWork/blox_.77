@@ -86,11 +86,20 @@ async function test(name, fn) {
     const ref = fsdb.collection('statuses').doc(`wf-clean-${RUN}`);
     await ref.set({ userId: 'U4', caption: 'désolé, je suis en retard! spicy trade?' });
     const post = fsdb.collection('designPosts_upgrade').doc(`wf-clean-${RUN}`);
-    await post.set({ userId: 'U4', desc: 'fuck this update, kike, retards, spices' }); // offensive / app-only / not slurs
+    await post.set({ userId: 'U4', desc: 'retards, spices, peacock, grape' }); // not slurs, not offensive
     await sleep(6000);
     assert.strictEqual((await ref.get()).data().wordFilter, undefined);
     assert.strictEqual((await ref.get()).data().caption, 'désolé, je suis en retard! spicy trade?');
     assert.strictEqual((await post.get()).data().wordFilter, undefined);
+  });
+
+  await test('offensive terms are masked too (052)', async () => {
+    const post = fsdb.collection('designPosts_upgrade').doc(`wf-off-${RUN}`);
+    await post.set({ userId: 'U4', desc: 'fuck this update' });
+    await sleep(6000);
+    const d = (await post.get()).data();
+    assert.strictEqual(d.desc, '**** this update');
+    assert.deepStrictEqual(d.wordFilter.fields, ['desc']);
   });
 
   await test('in-process: remote list replaces the bundled one, hits are logged', async () => {
@@ -111,12 +120,12 @@ async function test(name, fn) {
     await ref.set({ userId: 'U5', desc: 'xyzzy and plugh and n1gg3r' });
     await wf.screen(await ref.get(), 'post', ['desc']);
     const d = (await ref.get()).data();
-    // Remote list only: n1gg3r is not in this fake list, plugh is not a slur.
-    assert.strictEqual(d.desc, '***** and plugh and n1gg3r');
+    // Remote list only: n1gg3r is not in this fake list; plugh is offensive.
+    assert.strictEqual(d.desc, '***** and ***** and n1gg3r');
     assert.strictEqual(inserted.length, 1);
     assert.strictEqual(inserted[0].uid, 'U5');
     assert.strictEqual(inserted[0].original, 'xyzzy and plugh and n1gg3r');
-    assert.deepStrictEqual(inserted[0].terms, ['xyzzy']);
+    assert.deepStrictEqual(inserted[0].terms.slice().sort(), ['plugh', 'xyzzy']);
     wf.setSupabase(undefined);
   });
 

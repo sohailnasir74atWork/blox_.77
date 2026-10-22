@@ -222,7 +222,7 @@ const deserializeStatus = (s) => ({
 const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignIn }) => {
   const { t } = useTranslation();
   const navigation = useNavigation();
-  const { isAdmin, currentUserEmail, getModGate } = useGlobalState();
+  const { isAdmin, currentUserEmail, getModGate, strikeInfo } = useGlobalState();
   const isAdminOrMod = isAdmin || !!user?.isModerator;
   // JMD and up see report-hidden statuses (Firestore isStaff() covers all four ranks).
   const { isSeniorMod, isModerator, isBabyMod } = useGlobalState();
@@ -537,9 +537,27 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
     setLoadingMore(false);
   }, [loadingMore, firestoreDB, fetchFollowingChunk, user?.id, followingIds]);
 
+  // A banned account can't open New Status or pick a photo for it (Senior Mod
+  // test 2026-10-20: the ban only showed on Post). Same gate as the post
+  // check below, from ban state GlobelStats already holds — no extra reads.
+  const blockedFromPosting = useCallback(() => {
+    const gate = getModGate('content');
+    if (!gate) return false;
+    const { title, message } = modGateText(gate, 'post');
+    Alert.alert(title, message);
+    return true;
+  }, [getModGate]);
+
+  const openCreator = useCallback(() => {
+    if (!user?.id) { onRequireSignIn?.(); return; }
+    if (blockedFromPosting()) return;
+    setShowCreator(true);
+  }, [user?.id, onRequireSignIn, blockedFromPosting]);
+
   // ── Pick image ──
   const handlePickImage = useCallback(async () => {
     if (!user?.id) { onRequireSignIn?.(); return; }
+    if (blockedFromPosting()) return;
     try {
       const result = await launchImageLibrary({
         mediaType: 'photo',
@@ -577,7 +595,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
       console.error('[StatusFeed] Image picker crash:', err);
       Alert.alert(i18next.t('home.alert.error'), i18next.t('feed.status_feed.pick_failed'));
     }
-  }, [user?.id, onRequireSignIn]);
+  }, [user?.id, onRequireSignIn, blockedFromPosting]);
 
   // ── Post status (local-first) ──
   const { localState } = useLocalState();
@@ -586,6 +604,14 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
   useEffect(() => {
     if (showCreator) PostAdManager.prepare('feed');
   }, [showCreator]);
+
+  // Banned while the composer is open: close it.
+  useEffect(() => {
+    if (showCreator && strikeInfo && !isAdmin) {
+      setShowCreator(false);
+      blockedFromPosting();
+    }
+  }, [showCreator, strikeInfo, isAdmin, blockedFromPosting]);
 
   const handlePostStatus = useCallback(async () => {
     if (!user?.id || !firestoreDB) return;
@@ -1083,7 +1109,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
     return (
       <TouchableOpacity
         style={styles.bubbleWrap}
-        onPress={() => isMe && item.statuses.length === 0 ? setShowCreator(true) : handleViewStatus(item)}
+        onPress={() => isMe && item.statuses.length === 0 ? openCreator() : handleViewStatus(item)}
         activeOpacity={0.7}
       >
         {hasUnviewed ? (
@@ -1117,7 +1143,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
         </Text>
       </TouchableOpacity>
     );
-  }, [user?.id, isDarkMode, handleViewStatus, subtextColor, t]);
+  }, [user?.id, isDarkMode, handleViewStatus, openCreator, subtextColor, t]);
 
   // Build data
   const feedData = useMemo(() => {
@@ -1426,7 +1452,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
                   )}
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 10 }}>
                     <TouchableOpacity
-                      onPress={() => { stopStoryTimer(); setViewingStatus(null); setShowCreator(true); }}
+                      onPress={() => { stopStoryTimer(); setViewingStatus(null); openCreator(); }}
                       style={[styles.deleteBtn, { backgroundColor: 'rgba(59,130,246,0.2)' }]}
                     >
                       <FontAwesome name="plus" size={12} color="#3B82F6" solid />
