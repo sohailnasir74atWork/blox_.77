@@ -53,7 +53,7 @@ const CommunityChatHeader = ({
   onOnlineUsersPress,
   onLeaderboardPress,
 }) => {
-  const { user, firestoreDB, theme, isAdmin, isSeniorMod, isModerator, isUserBlocked } = useGlobalState();
+  const { user, firestoreDB, theme, isAdmin, isSeniorMod, isUserBlocked } = useGlobalState();
   const navigation = useNavigation();
   const { t } = useTranslation();
   const [pendingGroupInvitationsCount, setPendingGroupInvitationsCount] = useState(0);
@@ -191,20 +191,7 @@ const CommunityChatHeader = ({
             <GroupsBadge hasPending={pendingGroupInvitationsCount > 0 || pendingJoinRequestsCount > 0} />
           </TouchableOpacity>
 
-          {/* Admin Dashboard Button (Only for Admins/Senior Mods/Moderators, never while banned) */}
-          {(isAdmin || isSeniorMod || isModerator) && !isUserBlocked && (
-            <TouchableOpacity
-              onPress={() => {
-                navigation.navigate('AdminDashboard');
-                triggerHapticFeedback('impactLight');
-              }}
-              style={{ position: 'relative', marginHorizontal: 3 }}
-            >
-              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name="shield-checkmark-outline" size={20} color="#fff" />
-              </View>
-            </TouchableOpacity>
-          )}
+          {/* The Admin Dashboard button moved to the More tab (2026-10-22). */}
         </>
       )}
       {user?.id && (

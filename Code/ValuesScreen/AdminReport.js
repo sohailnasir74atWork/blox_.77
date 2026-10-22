@@ -17,7 +17,8 @@
  * staff may only remove a review left by someone strictly
  * below them), logs review_delete to the mod action feed and marks the report done
  * (2026-10-18).
- * Ported from Adopt Me; in Blox, mods and up see it (as the old Admin tab).
+ * Ported from Adopt Me; in Blox, Senior Mods and Admins see it (Mods did
+ * until 2026-10-22, owner decision).
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';

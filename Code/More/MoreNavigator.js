@@ -16,7 +16,8 @@
  *                its header that opens…
  *   MoreHub      the card hub (MoreHubScreen) and the pages it opens: Stock,
  *                Codes, Scammer DB, HD Wallpapers, News, Complaints & ideas and
- *                the staff-only reports inbox. Analytics and Birthdays live in
+ *                the staff-only reports inbox and Admin Dashboard (moved from
+ *                the public chat header 2026-10-22). Analytics and Birthdays live in
  *                the root stack and are navigated to by name.
  *
  * Every page ends with ScreenBottomBanner (banner + nav-bar spacer; the spacer
@@ -40,6 +41,7 @@ import HDWallpaperScreen from '../ValuesScreen/HDwallpaper';
 import ScammerDatabaseScreen from '../ValuesScreen/ScammerDatabaseScreen';
 import NewsScreen from '../ValuesScreen/News';
 import AdminReportsInbox from '../ValuesScreen/AdminReport';
+import AdminDashboard from '../AppHelper/AdminDashboard';
 import ReportScreen from '../Reports/ReportScreen';
 import TopLevelStockComponent from '../StockScreen/StockNavigator';
 
@@ -128,7 +130,8 @@ const AdminPage = () => <Page title="Reports inbox" ad={false}><AdminReportsInbo
 const SCREEN_OPTIONS = { headerShown: false, animation: 'slide_from_right' };
 
 export const MoreStack = ({ selectedTheme, inTab = false }) => {
-  const { isAdmin, isModerator } = useGlobalState();
+  const { isAdmin, isSeniorMod, isModerator, isUserBlocked } = useGlobalState();
+  const isStaff = !!(isAdmin || isSeniorMod || isModerator);
   const themeValue = useMemo(() => ({ selectedTheme, inTab }), [selectedTheme, inTab]);
 
   return (
@@ -142,8 +145,12 @@ export const MoreStack = ({ selectedTheme, inTab = false }) => {
         <Stack.Screen name="MoreWallpapers" component={WallpapersPage} />
         <Stack.Screen name="MoreNews" component={NewsPage} />
         <Stack.Screen name="MoreReport" component={ReportPage} />
-        {(isAdmin || isModerator) && (
+        {(isAdmin || isSeniorMod) && (
           <Stack.Screen name="MoreAdmin" component={AdminPage} />
+        )}
+        {/* Full screen with its own header (the tab bar hides on it, MainTabs). */}
+        {isStaff && !isUserBlocked && (
+          <Stack.Screen name="MoreAdminDashboard" component={AdminDashboard} />
         )}
       </Stack.Navigator>
     </MoreThemeContext.Provider>

@@ -72,7 +72,7 @@ import ModActionModal from '../../AppHelper/ModActionModal';
 import ModHistoryList from '../../AppHelper/ModHistoryList';
 // Role grants: Helper badge, custom titles, JMD = Senior Mod+ (2026-10-19).
 import CustomTitleModal from '../../AppHelper/CustomTitleModal';
-import { makeHelper, removeHelper, setCustomTitle, canManageBabyMod, canGiveTitle, canManageBadges } from '../utils';
+import { makeHelper, removeHelper, setCustomTitle, canManageBabyMod, canGiveTitle, canManageBadges, granterCanTouch } from '../utils';
 import { openReportForm, reviewForReport } from '../../Reports/openReportForm';
 
 // Initialize dayjs plugins
@@ -168,6 +168,20 @@ const getTradeDeal = (hasTotal, wantsTotal) => {
 const dmPartnersThisSession = new Set();
 let dmEntryAdShownThisSession = false;
 
+// Staff roles box for Staff Access granters (Make / Remove Mod, JMD).
+const GRANT_BOX = { marginBottom: 8, padding: 12, borderRadius: 12, borderWidth: 1 };
+const GRANT_TITLE = { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 };
+const GRANT_ROW = { flexDirection: 'row', gap: 6, flexWrap: 'wrap' };
+const GrantChip = ({ label, color, onPress }) => (
+  <TouchableOpacity
+    onPress={onPress}
+    activeOpacity={0.7}
+    style={{ paddingVertical: 6, paddingHorizontal: 11, borderRadius: 8, borderWidth: 1, backgroundColor: color + '18', borderColor: color + '40' }}
+  >
+    <Text style={{ fontSize: 11, fontWeight: '600', color }}>{label}</Text>
+  </TouchableOpacity>
+);
+
 const ProfileBottomDrawer = ({
   isVisible,
   toggleModal,
@@ -178,7 +192,7 @@ const ProfileBottomDrawer = ({
   fromPvtChat,
   onFollowChange,
 }) => {
-  const { theme, firestoreDB, appdatabase, isAdmin, user, isSeniorMod: isGlobalSenior, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod } = useGlobalState(); // ✅ Get isAdmin, user, and role flags
+  const { theme, firestoreDB, appdatabase, isAdmin, user, isSeniorMod: isGlobalSenior, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod, canGrantJmd, canGrantMod, isUserBlocked } = useGlobalState(); // ✅ Get isAdmin, user, and role flags
   const { localState, updateLocalState } = useLocalState();
   const { t } = useTranslation();
   const { triggerHapticFeedback } = useHaptic();
@@ -564,7 +578,7 @@ const ProfileBottomDrawer = ({
   // (utils.applySanction / liftSanction → Helper/modSanction). The checks
   // below only decide which buttons to show; the server re-checks all of
   // them (contract §2): strict rank, staff targets Senior Mod and up only,
-  // JMD = mute ≤ 1 day + unmute, strike 3 below Senior Mod = 30 days + a
+  // JMD = mute ≤ 1 day + unmute, strike 3 below Senior Mod = 3 days + a
   // permanent-ban request, lifts need the banner's rank.
   const callerRoles = useMemo(() => ({
     isAdmin: !!isAdmin,
@@ -572,7 +586,10 @@ const ProfileBottomDrawer = ({
     isModerator: !!isGlobalModerator,
     isBabyMod: !!isGlobalBabyMod,
     isOwner: isCurrentUserOwner(),
-  }), [isAdmin, isGlobalSenior, isGlobalModerator, isGlobalBabyMod]);
+    // Staff Access grants (no rank): utils.makeModerator / makeBabyMod accept them.
+    canGrantMod: !!canGrantMod && !isUserBlocked,
+    canGrantJmd: !!canGrantJmd && !isUserBlocked,
+  }), [isAdmin, isGlobalSenior, isGlobalModerator, isGlobalBabyMod, canGrantMod, canGrantJmd, isUserBlocked]);
   const targetRoles = useMemo(() => ({
     isAdmin: !!mergedUser?.isAdmin,
     isSeniorMod: !!mergedUser?.isSeniorMod,
@@ -582,6 +599,11 @@ const ProfileBottomDrawer = ({
   }), [mergedUser?.isAdmin, mergedUser?.isSeniorMod, mergedUser?.isModerator, mergedUser?.isBabyMod, sanction?.targetOwner]);
   const modPerms = useMemo(() => getModPermissions(callerRoles, targetRoles), [callerRoles, targetRoles]);
   const ladder = { permanentAllowed: modPerms.canPermaban };
+  // Staff Access granters: the role chips they may use on this profile
+  // (never their own; the RTDB rules and utils re-check the target).
+  const grantModHere = callerRoles.canGrantMod && granterCanTouch('mod', targetRoles);
+  const grantJmdHere = callerRoles.canGrantJmd && granterCanTouch('jmd', targetRoles);
+  const isFullStaff = !!(isAdmin || isGlobalSenior || isGlobalModerator);
   const canLiftCurrent = !!(sanction?.active && canLiftSanction(callerRoles, targetRoles, sanction.type, bannerRoles));
 
   // Close the drawer, then open the reason prompt with a snapshot of the target.
@@ -709,7 +731,7 @@ const ProfileBottomDrawer = ({
     if (a.kind === 'strike' && a.value === 3) {
       return modPerms.canPermaban
         ? 'Permanent ban: chat, trades, posts and everything else.'
-        : `Bans the whole app for ${PENDING_PERM_DAYS} days now. Admins get a request to make it permanent.`;
+        : `Bans the whole app for ${PENDING_PERM_DAYS} days now. Senior Mods and Admins get a request to make it permanent.`;
     }
     if (a.kind === 'strike') return 'Blocks the whole app for the duration and clears their recent public messages.';
     if (a.kind === 'mute') return 'Chat only — they can still trade and post. Their strike count is kept.';
@@ -724,7 +746,7 @@ const ProfileBottomDrawer = ({
         { text: t('chat.cancel'), style: "cancel" },
         {
           text: t('chat.promote'), onPress: async () => {
-            const success = await makeModerator(selectedUserId, { isAdmin, isSeniorMod: isGlobalSenior, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod });
+            const success = await makeModerator(selectedUserId, callerRoles);
             if (success) {
               setUserData(prev => ({ ...prev, isModerator: true }));
             }
@@ -742,7 +764,7 @@ const ProfileBottomDrawer = ({
         { text: t('chat.cancel'), style: "cancel" },
         {
           text: t('chat.remove'), style: "destructive", onPress: async () => {
-            const success = await removeModerator(selectedUserId, { isAdmin, isSeniorMod: isGlobalSenior, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod });
+            const success = await removeModerator(selectedUserId, callerRoles);
             if (success) {
               setUserData(prev => ({ ...prev, isModerator: false }));
             }
@@ -760,7 +782,7 @@ const ProfileBottomDrawer = ({
         { text: t('chat.cancel'), style: 'cancel' },
         {
           text: t('chat.promote'), onPress: async () => {
-            const success = await makeBabyMod(selectedUserId, { isAdmin, isSeniorMod: isGlobalSenior, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod });
+            const success = await makeBabyMod(selectedUserId, callerRoles);
             if (success) {
               setUserData(prev => ({ ...prev, isBabyMod: true }));
               Alert.alert('Success', 'User is now a JMD.');
@@ -779,7 +801,7 @@ const ProfileBottomDrawer = ({
         { text: t('chat.cancel'), style: 'cancel' },
         {
           text: t('chat.remove'), style: 'destructive', onPress: async () => {
-            const success = await removeBabyMod(selectedUserId, { isAdmin, isSeniorMod: isGlobalSenior, isModerator: isGlobalModerator, isBabyMod: isGlobalBabyMod });
+            const success = await removeBabyMod(selectedUserId, callerRoles);
             if (success) {
               setUserData(prev => ({ ...prev, isBabyMod: false }));
               Alert.alert('Success', 'JMD privileges removed.');
@@ -3024,6 +3046,31 @@ const ProfileBottomDrawer = ({
               </View>
             </View>
 
+            {/* ═══ STAFF ROLES for Staff Access granters who have no Manage Roles
+                section of their own (players and JMDs): only Make / Remove Mod
+                and JMD, nothing else (2026-10-22). ═══ */}
+            {!isFullStaff && (grantModHere || grantJmdHere) && selectedUserId !== user?.id && (
+              <View style={[GRANT_BOX, { backgroundColor: isDarkMode ? '#1e293b' : '#f8fafc', borderColor: isDarkMode ? '#334155' : '#e2e8f0' }]}>
+                <Text style={[GRANT_TITLE, { color: isDarkMode ? '#94a3b8' : '#64748b' }]}>Staff roles</Text>
+                <View style={GRANT_ROW}>
+                  {grantModHere && (
+                    <GrantChip
+                      label={mergedUser?.isModerator ? t('chat.remove_mod_btn') || 'Remove Mod' : t('chat.make_mod') || 'Make Mod'}
+                      color={mergedUser?.isModerator ? '#f59e0b' : '#3b82f6'}
+                      onPress={mergedUser?.isModerator ? handleDemoteModerator : handlePromoteModerator}
+                    />
+                  )}
+                  {grantJmdHere && (
+                    <GrantChip
+                      label={mergedUser?.isBabyMod ? 'Remove JMD' : 'Make JMD'}
+                      color={mergedUser?.isBabyMod ? '#f59e0b' : '#3b82f6'}
+                      onPress={mergedUser?.isBabyMod ? handleRemoveJMD : handleMakeJMD}
+                    />
+                  )}
+                </View>
+              </View>
+            )}
+
             {/* ═══ MOD TOOLS (Collapsible Toggle) ═══ */}
             {/* Self-target guard: a JMD/mod must not see mod tools on their
                 own profile — that's how the self-mute "reset" trick worked. */}
@@ -3197,16 +3244,16 @@ const ProfileBottomDrawer = ({
                                 onPress={mergedUser?.isSeniorMod ? handleRemoveSeniorMod : handleMakeSeniorMod}
                               />
                             )}
-                            {/* Make/Remove Mod - Admin & Senior Mod */}
-                            {(isAdmin || isGlobalSenior) && (
+                            {/* Make/Remove Mod - Admin & Senior Mod, or a Staff Access Mod granter */}
+                            {(isAdmin || isGlobalSenior || grantModHere) && (
                               <Chip
                                 label={mergedUser?.isModerator ? t('chat.remove_mod_btn') || 'Remove Mod' : t('chat.make_mod') || 'Make Mod'}
                                 color={mergedUser?.isModerator ? '#f59e0b' : '#3b82f6'}
                                 onPress={mergedUser?.isModerator ? handleDemoteModerator : handlePromoteModerator}
                               />
                             )}
-                            {/* Make/Remove JMD - Admin & Senior Mod (not Mods since 2026-10-19) */}
-                            {canManageBabyMod(callerRoles) && (
+                            {/* Make/Remove JMD - Admin & Senior Mod (not Mods since 2026-10-19), or a JMD granter */}
+                            {(canManageBabyMod(callerRoles) || grantJmdHere) && (
                               <Chip
                                 label={mergedUser?.isBabyMod ? 'Remove JMD' : 'Make JMD'}
                                 color={mergedUser?.isBabyMod ? '#f59e0b' : '#3b82f6'}

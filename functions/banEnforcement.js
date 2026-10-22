@@ -99,13 +99,17 @@ const isStaffRank = (r) => r >= RANK.babyMod;
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
-const STRIKE_DURATION_MS = { 1: 3 * HOUR, 2: 3 * 24 * HOUR }; // 3 → permanent (Sr Mod+)
+// Strike 1 = 6 h, strike 2 = 24 h (owner 2026-10-22; were 3 h / 3 days), 3 → permanent (Sr Mod+).
+// Old builds that write their own email records keep their own durations.
+const STRIKE_DURATION_MS = { 1: 6 * HOUR, 2: 24 * HOUR };
 // Lowest rank whose strike 3 is permanent at once. 2026-10-19..21 it was
 // RANK.admin; since 2026-10-22 (owner, after the 4.0.31 Senior Mod test:
 // Admins are not always online) Senior Mods ban permanently again. A Mod's
-// strike 3 stays 30 days now, permanent once an admin confirms the request.
+// strike 3 is a 3-day ban now (30 days until 2026-10-22), permanent once a
+// Senior Mod or Admin confirms the request (PERM_DECIDE_MIN_RANK).
 const PERM_BAN_MIN_RANK = RANK.seniorMod;
-const PENDING_PERM_MS = 30 * 24 * HOUR;
+const PERM_DECIDE_MIN_RANK = RANK.seniorMod;
+const PENDING_PERM_MS = 3 * 24 * HOUR;
 const JMD_MAX_MUTE_MIN = 24 * 60; // 5m / 30m / 2h / 6h / 1d in the app
 const MAX_MUTE_MIN = 60 * 24 * 30;
 
@@ -689,9 +693,9 @@ async function applyBan(uid, ban, identity = null, {
     source: ban.source || 'server',
     emailKey: ban.emailKey ? canonicalBanKey(ban.emailKey) : null,
     linkedFrom: ban.linkedFrom || null,
-    // 30-day ban an admin may still make permanent (see PENDING_PERM_MS).
+    // Pending ban (PENDING_PERM_MS) a Senior Mod / Admin may still make permanent.
     pendingPermanent: type === 'ban' && ban.pendingPermanent === true && ban.bannedUntil !== 'permanent' ? true : null,
-    requestedByUid: ban.requestedByUid || null, // the non-admin who asked for permanent
+    requestedByUid: ban.requestedByUid || null, // the Mod who asked for permanent
     authDisabledByBan: existing?.authDisabledByBan === true,
     updatedAt: now,
   };
@@ -985,7 +989,8 @@ async function handleModSanction(req, res) {
   if (isStaffRank(callerRank) && (await isActorBanned(caller.uid))) return fail(res, 'actor_banned');
   if (action === 'log') return handleLog(req, res, body, actor, ctx);
   if (PERM_ACTIONS.has(action)) {
-    if (callerRank < RANK.admin) return fail(res, isStaffRank(callerRank) ? 'admin_only' : 'not_staff');
+    // Senior Mods decide too since 2026-10-22 (the error code keeps its old name).
+    if (callerRank < PERM_DECIDE_MIN_RANK) return fail(res, isStaffRank(callerRank) ? 'admin_only' : 'not_staff');
     if (action === 'perm_requests') return handlePermRequests(res);
     if (body.targetUid == null && typeof body.emailKey === 'string') {
       return handlePermDecisionEmail(res, action, body.emailKey, actor, ctx);
@@ -1338,8 +1343,19 @@ async function handleSanction(res, action, body, targetUid, identity, actor, ctx
   return res.json({ ok: true, ...summary, ...out, linkedBanned, linkedResults });
 }
 
+// Staff Access granters (RTDB /jmd_granters, /mod_granters) appoint JMDs /
+// Mods without a staff rank; their role changes still belong in the audit log.
+async function isRoleGranter(uid) {
+  const [jmd, mod] = await Promise.all([
+    db().ref(`jmd_granters/${uid}`).get(),
+    db().ref(`mod_granters/${uid}`).get(),
+  ]);
+  return jmd.val() === true || mod.val() === true;
+}
+
 async function handleLog(req, res, body, actor, ctx) {
-  if (!isStaffRank(actor.rank)) return fail(res, 'not_staff');
+  if (!isStaffRank(actor.rank)
+    && !(body.logAction === 'role_change' && (await isRoleGranter(actor.uid)))) return fail(res, 'not_staff');
   if (!LOG_ACTIONS.has(body.logAction)) return fail(res, 'bad_log');
   const targetUid = body.targetUid ?? null;
   if (targetUid !== null && (typeof targetUid !== 'string' || !UID_RE.test(targetUid))) return fail(res, 'bad_target');

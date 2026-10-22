@@ -262,10 +262,14 @@ const MainTabs = React.memo(({ selectedTheme, chatFocused, setChatFocused, modal
 
       <Tab.Screen
         name="More"
-        options={{
+        options={({ route }) => ({
           headerShown: false,
+          // The Admin Dashboard (moved here from the chat header) is full screen.
+          ...(getFocusedRouteNameFromRoute(route) === 'MoreAdminDashboard'
+            ? { tabBarStyle: { display: 'none' } }
+            : null),
           title: t('tabs.more', { defaultValue: 'More' }),
-        }}
+        })}
       >
         {renderMoreStack}
       </Tab.Screen>

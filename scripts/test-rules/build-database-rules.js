@@ -54,6 +54,8 @@ const wSenior = and('auth != null', or(owner, seniorPlusU(ME)), notBanned);
 const wMod = and('auth != null', or(owner, modPlusU(ME)), notBanned);
 const wJMD = and('auth != null', or(owner, jmdPlusU(ME)), notBanned);
 const isGranter = and(`root.child('jmd_granters').child(auth.uid).val() === true`, notBanned);
+// Staff Access "can appoint Mods" (2026-10-22): /mod_granters/{me} = true.
+const isModGranter = and(`root.child('mod_granters').child(auth.uid).val() === true`, notBanned);
 // Read access the dashboards already had (staff + JMD granters + owners).
 const staffRead = and('auth != null', or(owner, jmdPlusU(ME), `root.child('jmd_granters').child(auth.uid).exists()`), notBanned);
 
@@ -265,7 +267,13 @@ const userChildren = {
   admin: { '.write': and(wAdmin, not(targetAdmin)) },
   isSeniorMod: { '.write': and(wAdmin, not(targetAdmin)) },
   isModerator: {
-    '.write': and('auth != null', not(targetAdmin), or(wAdmin, and(flag(ME, 'isSeniorMod'), `${U('$userId')}.child('isSeniorMod').val() !== true`))),
+    '.write': and('auth != null', not(targetAdmin), or(
+      wAdmin,
+      and(flag(ME, 'isSeniorMod'), `${U('$userId')}.child('isSeniorMod').val() !== true`),
+      // Staff Access: a Mod granter may make / remove Mods on anyone below
+      // Senior Mod (never an owner-flag account), never on themselves.
+      and(isModGranter, '$userId !== auth.uid', not(seniorPlusU('$userId')), not(`(${flag('$userId', 'owner')})`)),
+    )),
   },
   // JMD: Senior Mod and up (Mods lost this 2026-10-19, owner decision).
   isBabyMod: {
@@ -295,7 +303,7 @@ const userChildren = {
   isMod: { '.write': and(wAdmin, not(targetAdmin)) },
   owner: { '.write': false },
   rolesUpdatedAt: {
-    '.write': and('auth != null', or('auth.uid === $userId', wMod, isGranter)),
+    '.write': and('auth != null', or('auth.uid === $userId', wMod, isGranter, isModGranter)),
     '.validate': 'newData.isNumber()',
   },
   deviceId: {
@@ -606,6 +614,15 @@ const OVERRIDES = {
   private_chat: { '.read': false, '.write': false },
   jmd_granters: {
     '.read': staffRead,
+    $uid: {
+      '.read': ownUid('$uid'),
+      '.write': wAdmin,
+      '.validate': 'newData.val() === true',
+    },
+  },
+  // Who may appoint / remove Mods (Admin Dashboard → Staff → Staff access).
+  mod_granters: {
+    '.read': and('auth != null', or(owner, adminU(ME)), notBanned),
     $uid: {
       '.read': ownUid('$uid'),
       '.write': wAdmin,

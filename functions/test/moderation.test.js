@@ -297,6 +297,14 @@ async function main() {
     assert.strictEqual(ok.status, 200, JSON.stringify(ok.body)); assert.strictEqual(ok.body.logged, false); // no Supabase here
     assert.strictEqual((await sanction(mod, { action: 'log', targetUid: null, logAction: 'pin' })).status, 200);
     assert.strictEqual((await sanction(granter, { action: 'log', logAction: 'pin' })).body.error, 'not_staff');
+    // Staff Access granters may log their own role changes, nothing else (2026-10-22).
+    assert.strictEqual((await sanction(granter, { action: 'log', targetUid: t.uid, logAction: 'role_change', details: { role: 'isBabyMod', value: true } })).status, 200);
+    const mg = await mkUser('ModGranterLog');
+    await db.ref(`mod_granters/${mg.uid}`).set(true);
+    assert.strictEqual((await sanction(mg, { action: 'log', targetUid: t.uid, logAction: 'role_change', details: { role: 'isModerator', value: true } })).status, 200);
+    assert.strictEqual((await sanction(mg, { action: 'log', logAction: 'message_delete' })).body.error, 'not_staff');
+    const plainLog = await mkUser('PlainLog');
+    assert.strictEqual((await sanction(plainLog, { action: 'log', logAction: 'role_change' })).body.error, 'not_staff');
     assert.strictEqual((await sanction(mod, { action: 'log', logAction: 'nuke' })).body.error, 'bad_log');
     assert.strictEqual((await sanction(mod, { action: 'log', logAction: 'pin', details: [1] })).body.error, 'bad_log');
     assert.strictEqual((await sanction(mod, { action: 'log', logAction: 'pin', details: { x: 'y'.repeat(3000) } })).body.error, 'bad_log');
@@ -366,7 +374,14 @@ async function main() {
     const r = await sanction(mod, { action: 'strike', targetUid: t.uid, strikeCount: 3, reason: 'scam', evidence: ['https://e.example/p.png'] });
     assert.strictEqual(r.status, 200, JSON.stringify(r.body));
     assert.strictEqual(r.body.pendingPermanent, true); assert.strictEqual(typeof r.body.bannedUntil, 'number');
-    assert.ok(Math.abs(r.body.bannedUntil - (t0 + BE.PENDING_PERM_MS)) < 60000, 'about 30 days');
+    assert.ok(Math.abs(r.body.bannedUntil - (t0 + BE.PENDING_PERM_MS)) < 60000, 'about 3 days');
+    assert.strictEqual(BE.PENDING_PERM_MS, 3 * 24 * HOUR, 'Mod strike 3 waits 3 days (2026-10-22)');
+    // Strike 1 = 6 h, strike 2 = 24 h (2026-10-22).
+    const st = await mkUser('StrikeTimes');
+    const s1 = await sanction(mod, { action: 'strike', targetUid: st.uid, strikeCount: 1, reason: 'x' });
+    assert.ok(Math.abs(s1.body.bannedUntil - (Date.now() + 6 * HOUR)) < 60000, 'strike 1 is about 6 hours');
+    const s2 = await sanction(mod, { action: 'strike', targetUid: st.uid, strikeCount: 2, reason: 'x' });
+    assert.ok(Math.abs(s2.body.bannedUntil - (Date.now() + 24 * HOUR)) < 60000, 'strike 2 is about 24 hours');
     for (const f of ['accountExists', 'hasEmail', 'devices', 'linkedBanned']) assert.ok(f in r.body, f); // old builds read these
     const rec = await val(`banned_uids/${t.uid}`);
     assert.strictEqual(rec.type, 'ban'); assert.strictEqual(rec.strikeCount, 3);
@@ -404,11 +419,13 @@ async function main() {
     assert.strictEqual(await val(`perm_ban_requests/${alt.uid}`), null, 'linked picks are not separate requests');
     const plain = await mkUser('PlainP');
     assert.strictEqual((await sanction(plain, { action: 'perm_requests' })).body.error, 'not_staff');
-    for (const u of [jmd, mod, senior]) {
+    for (const u of [jmd, mod]) {
       const x = await sanction(u, { action: 'perm_requests' });
       assert.strictEqual(x.status, 403); assert.strictEqual(x.body.error, 'admin_only');
       assert.strictEqual((await sanction(u, { action: 'perm_confirm', targetUid: t.uid })).body.error, 'admin_only');
     }
+    // Senior Mods see the queue too since 2026-10-22.
+    assert.strictEqual((await sanction(senior, { action: 'perm_requests' })).status, 200);
     const list = await sanction(adminU, { action: 'perm_requests' });
     assert.strictEqual(list.status, 200, JSON.stringify(list.body));
     const row = list.body.requests.find((x) => x.uid === t.uid);

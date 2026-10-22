@@ -32,6 +32,7 @@ const M2 = 'modUid0000002';
 const J = 'jmdUid0000001';
 const J2 = 'jmdUid0000002';
 const G = 'granterUid001';    // jmd_granters/{G} = true, no staff role
+const MG = 'modGranter001';   // mod_granters/{MG} = true, no staff role (2026-10-22)
 const U1 = 'userUid000001';
 const U2 = 'userUid000002';
 const U3 = 'userUid000003';
@@ -42,7 +43,7 @@ const BX = 'bannedOld0001';   // expired ban → not banned
 const EMAIL = {
   [A]: 'admin@example.com', [A2]: 'admin2@example.com', [O]: 'thesolanalabs@gmail.com', [OU]: 'sohailnasir74@gmail.com',
   [S]: 'senior@example.com', [M]: 'mod@example.com', [M2]: 'mod2@example.com', [J]: 'jmd@example.com', [J2]: 'jmd2@example.com',
-  [G]: 'granter@example.com', [U1]: 'user.one@example.com', [U2]: 'User.Two@Example.com', [U3]: 'user3@example.com',
+  [G]: 'granter@example.com', [MG]: 'modgranter@example.com', [U1]: 'user.one@example.com', [U2]: 'User.Two@Example.com', [U3]: 'user3@example.com',
   [B]: 'banned@example.com', [BT]: 'bannedtmp@example.com', [BX]: 'bannedold@example.com',
 };
 const key = (email) => email.replace(/\./g, '(dot)');           // GlobelStats / old builds (raw case)
@@ -93,9 +94,10 @@ async function rtdbTests() {
     await u(A, { isAdmin: true }); await u(A2, { admin: true }); await u(S, { isSeniorMod: true });
     await u(M, { isModerator: true }); await u(M2, { isModerator: true });
     await u(J, { isBabyMod: true }); await u(J2, { isBabyMod: true });
-    await u(G); await u(U1); await u(U3); await u(B); await u(O, { isAdmin: true });
+    await u(G); await u(MG); await u(U1); await u(U3); await u(B); await u(O, { isAdmin: true });
     await D.set(D.ref(db, `users/${U2}`), { displayName: 'two' }); // no createdAt
     await D.set(D.ref(db, `jmd_granters/${G}`), true);
+    await D.set(D.ref(db, `mod_granters/${MG}`), true);
     await D.set(D.ref(db, `private_messages/${U1}_${U2}/messages/1`), { text: 'old', senderId: U1 });
     await D.set(D.ref(db, 'api'), { key: 'x' });
     await D.set(D.ref(db, `mod_votes_summary/${M}`), { ups: 3, downs: 1 });
@@ -249,6 +251,32 @@ async function rtdbTests() {
   await ok('granter reads own entry', () => D.get(r(G, `jmd_granters/${G}`)));
   await no('user lists granters', () => D.get(r(U1, 'jmd_granters')));
   await ok('admin lists granters', () => D.get(r(A, 'jmd_granters')));
+
+  // Staff Access "can appoint Mods" (2026-10-22).
+  sec('rtdb mod_granters');
+  await ok('admin adds mod granter', () => D.set(r(A, `mod_granters/${U1}`), true));
+  await ok('owner removes mod granter', () => D.set(r(O, `mod_granters/${U1}`), null));
+  await no('senior adds mod granter', () => D.set(r(S, `mod_granters/${U1}`), true));
+  await no('mod granter adds another', () => D.set(r(MG, `mod_granters/${U1}`), true));
+  await no('admin writes non-true mod granter', () => D.set(r(A, `mod_granters/${U1}`), 'yes'));
+  await ok('mod granter reads own entry', () => D.get(r(MG, `mod_granters/${MG}`)));
+  await no('senior lists mod granters', () => D.get(r(S, 'mod_granters')));
+  await ok('admin lists mod granters', () => D.get(r(A, 'mod_granters')));
+  await ok('mod granter makes U3 Mod', () => D.update(r(MG, `users/${U3}`), { isModerator: true, rolesUpdatedAt: now() }));
+  await ok('mod granter removes U3 Mod', () => D.update(r(MG, `users/${U3}`), { isModerator: false, rolesUpdatedAt: now() }));
+  await ok('mod granter makes a JMD a Mod (old set)', () => D.set(r(MG, `users/${J2}/isModerator`), true));
+  await ok('admin restores J2', () => D.set(r(A, `users/${J2}/isModerator`), null));
+  await ok('mod granter removes mod2', () => D.update(r(MG, `users/${M2}`), { isModerator: false, rolesUpdatedAt: now() }));
+  await ok('admin restores mod2', () => D.update(r(A, `users/${M2}`), { isModerator: true, rolesUpdatedAt: now() }));
+  await no('mod granter makes self Mod', () => D.update(r(MG, `users/${MG}`), { isModerator: true, rolesUpdatedAt: now() }));
+  await no('mod granter removes a senior Mod flag', () => D.update(r(MG, `users/${S}`), { isModerator: false, rolesUpdatedAt: now() }));
+  await no('mod granter makes an admin Mod', () => D.set(r(MG, `users/${A2}/isModerator`), true));
+  await no('mod granter makes an owner-flag user Mod', () => D.set(r(MG, 'users/ownerFlagOnly01/isModerator'), true));
+  await no('mod granter makes U1 JMD', () => D.update(r(MG, `users/${U1}`), { isBabyMod: true, rolesUpdatedAt: now() }));
+  await no('mod granter makes U1 Senior Mod', () => D.set(r(MG, `users/${U1}/isSeniorMod`), true));
+  await no('mod granter gives U1 Trusted', () => D.set(r(MG, `users/${U1}/isTrusted`), true));
+  await no('JMD granter makes U1 Mod', () => D.update(r(G, `users/${U1}`), { isModerator: true, rolesUpdatedAt: now() }));
+  await no('user makes U1 Mod', () => D.update(r(U2, `users/${U1}`), { isModerator: true, rolesUpdatedAt: now() }));
 
   sec('rtdb banned_users_by_email');
   const by = (uid, role = 'Moderator') => ({ uid, displayName: 'mod', avatar: null, role });

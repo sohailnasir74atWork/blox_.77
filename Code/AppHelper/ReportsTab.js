@@ -336,24 +336,24 @@ const ReportsTab = ({ isDark, onViewUser, onSanctionUser, onViewChat }) => {
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 8 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 6, paddingBottom: 6 }}>
         {SOURCE_FILTERS.map((f) => (
           <TouchableOpacity
             key={f.key}
             onPress={() => setFilter(f.key)}
             style={{
-              paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, marginRight: 8,
+              paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, marginRight: 6,
               backgroundColor: filter === f.key ? '#007AFF' : (isDark ? '#2C2C2E' : '#E5E5EA'),
             }}
           >
-            <Text style={{ fontSize: 12, fontWeight: '700', color: filter === f.key ? '#FFF' : (isDark ? '#CCC' : '#333') }}>{f.label}</Text>
+            <Text style={{ fontSize: 11.5, fontWeight: '700', color: filter === f.key ? '#FFF' : (isDark ? '#CCC' : '#333') }}>{f.label}</Text>
           </TouchableOpacity>
         ))}
         <TouchableOpacity
           onPress={() => setShowReviewed((v) => !v)}
-          style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: showReviewed ? '#34C759' : (isDark ? '#2C2C2E' : '#E5E5EA') }}
+          style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: showReviewed ? '#34C759' : (isDark ? '#2C2C2E' : '#E5E5EA') }}
         >
-          <Text style={{ fontSize: 12, fontWeight: '700', color: showReviewed ? '#FFF' : (isDark ? '#CCC' : '#333') }}>
+          <Text style={{ fontSize: 11.5, fontWeight: '700', color: showReviewed ? '#FFF' : (isDark ? '#CCC' : '#333') }}>
             {showReviewed ? 'Showing reviewed' : 'Open only'}
           </Text>
         </TouchableOpacity>

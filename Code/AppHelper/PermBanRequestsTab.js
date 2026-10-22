@@ -1,11 +1,12 @@
-// Admin Dashboard → Reports ▸ "Perm-ban requests" (Admins and the owner).
+// Admin Dashboard → Reports ▸ "Perm-ban requests" (Senior Mods, Admins and the
+// owner since 2026-10-22; Admins only before).
 //
-// Permanent bans need an Admin (owner decision 2026-10-19). A Senior Mod's or
-// Mod's 3rd strike is a 30-day ban that waits here, oldest first
-// (functions/banEnforcement.js, modSanction 'perm_requests'):
+// A Mod's 3rd strike is a temporary ban (3 days since 2026-10-22, 30 days
+// before) that waits here, oldest first (functions/banEnforcement.js,
+// modSanction 'perm_requests'); a Senior Mod's or Admin's is permanent at once.
 //   Confirm → permanent: devices, Auth account and the linked accounts banned
-//             with it. Only an Admin can lift it afterwards.
-//   Reject  → stays the 30-day ban.
+//             with it. Only someone of the confirmer's rank or higher can lift it.
+//   Reject  → the temporary ban stays.
 // Requests whose ban was lifted or ran out drop off by themselves. An
 // email-only strike (old builds, no account yet) is listed by its email.
 
@@ -67,7 +68,7 @@ const PermBanRequestsTab = ({ isDark, onOpenUser }) => {
       d.kind === 'confirm' ? 'Permanently banned' : 'Request rejected',
       d.kind === 'confirm'
         ? `${nameOf(d.item)} is permanently banned.${r.linkedUpdated ? ` ${r.linkedUpdated} linked account(s) too.` : ''}`
-        : `${nameOf(d.item)} keeps the ${PENDING_PERM_DAYS}-day ban.`,
+        : `${nameOf(d.item)} keeps the temporary ban.`,
     );
     return true;
   };
@@ -126,7 +127,7 @@ const PermBanRequestsTab = ({ isDark, onOpenUser }) => {
   return (
     <View style={{ flex: 1 }}>
       <Text style={{ color: sub, fontSize: 12, paddingHorizontal: 16, paddingVertical: 8 }}>
-        A 3rd strike from a Senior Mod or Mod bans for {PENDING_PERM_DAYS} days. Confirm to make it permanent, or reject to keep {PENDING_PERM_DAYS} days.
+        A Mod's 3rd strike bans for {PENDING_PERM_DAYS} days. Confirm to make it permanent, or reject to keep the temporary ban.
       </Text>
       <FlatList
         data={items}
@@ -144,10 +145,10 @@ const PermBanRequestsTab = ({ isDark, onOpenUser }) => {
       <ModActionModal
         visible={!!decision}
         isDark={isDark}
-        title={decision?.kind === 'confirm' ? `Permanently ban ${nameOf(decision?.item)}` : `Reject: keep ${nameOf(decision?.item)} at ${PENDING_PERM_DAYS} days`}
+        title={decision?.kind === 'confirm' ? `Permanently ban ${nameOf(decision?.item)}` : `Reject: keep ${nameOf(decision?.item)}'s temporary ban`}
         subtitle={decision?.kind === 'confirm'
-          ? 'Bans the account, its devices and the linked accounts banned with it, for good. Only an Admin can lift it.'
-          : `The ${PENDING_PERM_DAYS}-day ban stays; it is not made permanent.`}
+          ? 'Bans the account, its devices and the linked accounts banned with it, for good. Only a Senior Mod or Admin can lift it.'
+          : 'The temporary ban stays; it is not made permanent.'}
         confirmLabel={decision?.kind === 'confirm' ? 'Confirm permanent' : 'Reject'}
         confirmColor={decision?.kind === 'confirm' ? '#ef4444' : '#64748b'}
         requireReason={false}

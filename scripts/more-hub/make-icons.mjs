@@ -16,6 +16,8 @@
  *   birthdays  Birthdays      (a pink cake with three lit candles)
  *   reports    Complaints & ideas (a purple speech bubble with "!" and a bulb)
  *   admin      Admin reports  (a clipboard with a bar chart)
+ *   dashboard  Admin Dashboard (an indigo shield with a check; 2026-10-22, when the
+ *                             Mod Panel moved from the chat header into the hub)
  *
  * Glossy toy style to sit next to the assets/home-actions art: soft gradients,
  * a white gloss, a soft dark outline so they read on light and dark cards.
@@ -243,6 +245,17 @@ const ICONS = {
      <rect x="48.5" y="52" width="8" height="7" rx="2" fill="url(#cap)" stroke="${OUTLINE}" stroke-width="1.1"/>
      <path d="M48.5 55.5 H56.5" stroke="rgba(15,23,42,0.35)" stroke-width="1"/>
      ${sparkle(9, 54, 4.5, '#DDD6FE')}`),
+
+  // An indigo shield with a white check: the staff Admin Dashboard (Mod Panel).
+  dashboard: svg(
+    grad('shield', [[0, '#C7D2FE'], [0.45, '#6366F1'], [1, '#3730A3']]),
+    `<path d="M32 6 L53 13 V30 C53 44 44 53 32 58 C20 53 11 44 11 30 V13 Z" fill="#1E1B4B" transform="translate(0 2)"/>
+     <path d="M32 6 L53 13 V30 C53 44 44 53 32 58 C20 53 11 44 11 30 V13 Z"
+           fill="url(#shield)" stroke="${OUTLINE}" stroke-width="1.6" stroke-linejoin="round"/>
+     <path d="M32 10 L49 15.5 C49 17 48 17.5 47 17.2 C42 15.6 37 14.2 32 13.2 C27 14.2 22 15.6 17 17.2 C16 17.5 15 17 15 15.5 Z" fill="rgba(255,255,255,0.5)"/>
+     <path d="M22 32 L29.5 39.5 L43 25" fill="none" stroke="#1E1B4B" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.35"/>
+     <path d="M22 32 L29.5 39.5 L43 25" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+     ${sparkle(55, 10, 5, '#FDE68A')}`),
 };
 
 fs.mkdirSync(OUT, { recursive: true });

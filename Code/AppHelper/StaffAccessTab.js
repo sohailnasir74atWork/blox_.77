@@ -1,8 +1,13 @@
 // Admin Dashboard → "Staff Access" tab (admin / owner only).
 //
-// RTDB /jmd_granters/{uid} = true lets that person appoint and remove JMDs.
-// It gives NO sanction power (contract §1/§10). Only admins/owners may write
-// it (database.rules.json), value `true` or null. Pattern from adoptme-jan7
+// Two lists (pills at the top):
+//   RTDB /jmd_granters/{uid} = true — may appoint and remove JMDs;
+//   RTDB /mod_granters/{uid} = true — may appoint and remove Mods (2026-10-22);
+//   Supabase private_chat_readers (supabase/053) — a Mod / Senior Mod who may
+//   read any player's private chats (Reports ▸ User chats), 2026-10-22.
+// None gives any sanction power (contract §1/§10). Only admins/owners may
+// write them (database.rules.json; 053's rpcs), value `true` or null. The app shows a
+// granter the matching Make / Remove chip on profiles (GlobelStats canGrant*). Pattern from adoptme-jan7
 // (ddae135 "Staff Access"), adapted: Blox stores plain `true`, so names are
 // looked up from users/{uid}/displayName.
 
@@ -22,11 +27,53 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { getDatabase, ref, get, set } from '@react-native-firebase/database';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { logModAction } from '../Helper/modSanction';
+import { supabase } from '../Supabase/client';
 
 const UID_RE = /^[A-Za-z0-9]{10,128}$/;
 
+const LISTS = {
+  jmd: {
+    path: 'jmd_granters', role: 'jmd_granter', pill: 'JMDs', who: 'Junior Mods',
+    intro: "People listed here can appoint and remove Junior Mods from a profile. It grants no other staff power.",
+  },
+  mod: {
+    path: 'mod_granters', role: 'mod_granter', pill: 'Mods', who: 'Mods',
+    intro: "People listed here can appoint and remove Mods (on anyone below Senior Mod) from a profile. It grants no other staff power.",
+  },
+  chats: {
+    supabase: true, role: 'chat_reader', pill: 'Private chats', who: 'private chats', verb: 'read',
+    intro: "Mods and Senior Mods listed here can read any player's private chats (Reports ▸ User chats), like an Admin. Only a Mod or Senior Mod can be added.",
+  },
+};
+
+// One store per list: RTDB leaf (`path`) or the supabase/053 rpcs.
+const readUids = async (db, list) => {
+  if (list.supabase) {
+    const { data, error } = await supabase.rpc('chat_readers_list');
+    if (error) throw error;
+    return (Array.isArray(data) ? data : []).map((r) => r.uid).filter((uid) => UID_RE.test(uid));
+  }
+  const snap = await get(ref(db, list.path));
+  return Object.entries(snap.val() || {})
+    .filter(([uid, v]) => UID_RE.test(uid) && v !== false && v != null)
+    .map(([uid]) => uid);
+};
+const writeGrant = async (db, list, uid, on) => {
+  if (list.supabase) {
+    const { error } = await supabase.rpc('chat_reader_set', { p_uid: uid, p_on: on });
+    if (error) throw error;
+    return;
+  }
+  await set(ref(db, `${list.path}/${uid}`), on ? true : null);
+};
+const grantError = (e) => (/NOT_MOD/.test(String(e?.message || ''))
+  ? 'Only a Mod or Senior Mod can be given this access.'
+  : 'Could not save. Only admins and owners can change Staff Access.');
+
 const StaffAccessTab = ({ isDark }) => {
   const db = useMemo(() => getDatabase(), []);
+  const [listKey, setListKey] = useState('jmd');
+  const list = LISTS[listKey];
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uidInput, setUidInput] = useState('');
@@ -42,10 +89,7 @@ const StaffAccessTab = ({ isDark }) => {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const snap = await get(ref(db, 'jmd_granters'));
-      const uids = Object.entries(snap.val() || {})
-        .filter(([uid, v]) => UID_RE.test(uid) && v !== false && v != null)
-        .map(([uid]) => uid);
+      const uids = await readUids(db, list);
       const names = await Promise.all(uids.map((uid) =>
         get(ref(db, `users/${uid}/displayName`)).then((s) => s.val()).catch(() => null)
       ));
@@ -55,9 +99,9 @@ const StaffAccessTab = ({ isDark }) => {
     } finally {
       setLoading(false);
     }
-  }, [db]);
+  }, [db, list]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { setRows([]); load(); }, [load]);
 
   const lookUp = useCallback(async () => {
     const uid = uidInput.trim();
@@ -80,12 +124,14 @@ const StaffAccessTab = ({ isDark }) => {
   const grant = useCallback((p) => {
     if (!p?.uid) return;
     if (rows.some((r) => r.uid === p.uid)) {
-      Alert.alert('Already listed', `${p.displayName || p.uid} can already appoint JMDs.`);
+      Alert.alert('Already listed', `${p.displayName || p.uid} can already ${list.verb || 'appoint'} ${list.who}.`);
       return;
     }
     Alert.alert(
       'Grant Staff Access',
-      `Allow ${p.displayName || p.uid} to appoint and remove Junior Mods?\n\nThis gives them no other staff power (no bans, mutes or strikes).`,
+      list.supabase
+        ? `Allow ${p.displayName || p.uid} to read any player's private chats?\n\nOnly do this for staff you trust. It gives no other power.`
+        : `Allow ${p.displayName || p.uid} to appoint and remove ${list.who}?\n\nThis gives them no other staff power (no bans, mutes or strikes).`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -93,13 +139,13 @@ const StaffAccessTab = ({ isDark }) => {
           onPress: async () => {
             setSaving(p.uid);
             try {
-              await set(ref(db, `jmd_granters/${p.uid}`), true);
-              logModAction('role_change', p.uid, { role: 'jmd_granter', value: true });
+              await writeGrant(db, list, p.uid, true);
+              logModAction('role_change', p.uid, { role: list.role, value: true });
               setRows((prev) => [{ uid: p.uid, displayName: p.displayName }, ...prev]);
               setPreview(null);
               setUidInput('');
             } catch (e) {
-              Alert.alert('Error', 'Could not save. Only admins and owners can change Staff Access.');
+              Alert.alert('Error', grantError(e));
             } finally {
               setSaving(null);
             }
@@ -107,12 +153,12 @@ const StaffAccessTab = ({ isDark }) => {
         },
       ]
     );
-  }, [db, rows]);
+  }, [db, rows, list]);
 
   const revoke = useCallback((row) => {
     Alert.alert(
       'Remove Staff Access',
-      `${row.displayName || row.uid} will no longer be able to appoint Junior Mods.`,
+      `${row.displayName || row.uid} will no longer be able to ${list.verb || 'appoint'} ${list.who}.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -121,8 +167,8 @@ const StaffAccessTab = ({ isDark }) => {
           onPress: async () => {
             setSaving(row.uid);
             try {
-              await set(ref(db, `jmd_granters/${row.uid}`), null);
-              logModAction('role_change', row.uid, { role: 'jmd_granter', value: false });
+              await writeGrant(db, list, row.uid, false);
+              logModAction('role_change', row.uid, { role: list.role, value: false });
               setRows((prev) => prev.filter((r) => r.uid !== row.uid));
             } catch (e) {
               Alert.alert('Error', 'Could not remove. Only admins and owners can change Staff Access.');
@@ -133,13 +179,28 @@ const StaffAccessTab = ({ isDark }) => {
         },
       ]
     );
-  }, [db]);
+  }, [db, list]);
 
   const header = (
     <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', rowGap: 8, marginBottom: 10 }}>
+        {Object.entries(LISTS).map(([k, l]) => (
+          <TouchableOpacity
+            key={k}
+            onPress={() => { setListKey(k); setPreview(null); }}
+            style={{
+              paddingHorizontal: 14, paddingVertical: 6, borderRadius: 999, marginRight: 8,
+              backgroundColor: listKey === k ? '#007AFF' : (isDark ? '#2C2C2E' : '#E5E5EA'),
+            }}
+          >
+            <Text style={{ fontSize: 12, fontWeight: '700', color: listKey === k ? '#FFF' : (isDark ? '#CCC' : '#333') }}>
+              {l.verb === 'read' ? `Can read ${l.pill.toLowerCase()}` : `Can appoint ${l.pill}`}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
       <Text style={{ color: sub, fontSize: 12, marginBottom: 10 }}>
-        People listed here can appoint and remove Junior Mods from a profile's Mod Tools. It grants no
-        other staff power. Add someone by pasting their user ID (copy it from their profile).
+        {list.intro} Add someone by pasting their user ID (copy it from their profile).
       </Text>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <TextInput
@@ -182,7 +243,7 @@ const StaffAccessTab = ({ isDark }) => {
         </View>
       )}
       <Text style={{ color: text, fontSize: 15, fontWeight: '700', marginTop: 16 }}>
-        Can appoint Junior Mods ({rows.length})
+        Can {list.verb || 'appoint'} {list.who} ({rows.length})
       </Text>
     </View>
   );

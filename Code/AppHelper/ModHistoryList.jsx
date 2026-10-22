@@ -44,7 +44,7 @@ const LOG_LABEL = {
   profile_delete: 'Profile data deleted',
   post_delete: 'Post deleted',
   perm_confirm: 'Permanent ban confirmed',
-  perm_reject: 'Permanent ban rejected (stays 30 days)',
+  perm_reject: 'Permanent ban rejected (stays temporary)',
 };
 // Logged under an older action until supabase/047 is applied (details.action).
 const NEWER_ACTIONS = new Set(['perm_confirm', 'perm_reject', 'post_delete']);
@@ -72,7 +72,7 @@ export const describeModAction = (raw) => {
   if (LOG_LABEL[a.action]) return LOG_LABEL[a.action];
   if (a.action === 'strike' || a.action === 'ban') {
     if (a.isPermanent) return `Strike ${a.strikeCount || 3} · permanent`;
-    if (a.details?.pending_permanent) return `Strike ${a.strikeCount || 3} · 30 days, waiting for an Admin`;
+    if (a.details?.pending_permanent) return `Strike ${a.strikeCount || 3} · temporary, waiting for a Senior Mod or Admin`;
     return `Strike ${a.strikeCount || '?'}`;
   }
   return a.action || 'Action';

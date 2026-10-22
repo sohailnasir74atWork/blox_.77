@@ -38,10 +38,12 @@ const isSelfTargeting = (targetEmail, targetUid = null) => {
 // Owner (server-set owner flag) > Admin > Senior Mod > Mod > JMD > user.
 // Mods can't ban Mods. Admins can't ban Admins or owners. Staff targets need
 // a Senior Mod or higher (so Mods and JMDs only sanction regular users).
-// Permanent bans need an Admin. Promote/demote rules: only Admins can manage
-// Senior Mods; Admins and Senior Mods can manage Mods and JMDs (Mods lost JMD
-// management 2026-10-19); Mods and up give the cosmetic badges (Trusted,
-// Grinder, Raider, Helper); Senior Mods and up give custom titles.
+// Permanent bans need a Senior Mod (Admin-only 2026-10-19..21). Promote /
+// demote rules: only Admins can manage Senior Mods; Admins and Senior Mods can
+// manage Mods and JMDs (Mods lost JMD management 2026-10-19), and so can the
+// Staff Access granters (/mod_granters, /jmd_granters); Mods and up give the
+// cosmetic badges (Trusted, Grinder, Raider, Helper) to someone below them;
+// Senior Mods and up give custom titles.
 //
 // The server (functions/banEnforcement.js readRank) is the source of truth;
 // this copy only decides which buttons to show.
@@ -200,6 +202,29 @@ const resolveTargetRoles = async (userId, fallback = {}) => {
 const outranksTarget = async (userId, callerRoles, fallbackRoles = {}) => {
   const targetRoles = await resolveTargetRoles(userId, fallbackRoles);
   return canModerate(withOwnerFlag(callerRoles), targetRoles);
+};
+
+// Staff Access granters (RTDB /mod_granters, /jmd_granters; callerRoles
+// .canGrantMod / .canGrantJmd from GlobelStats) have no rank of their own.
+// They may set the role on anyone below it: a Mod granter on anyone below
+// Senior Mod, a JMD granter on anyone below Mod; never themselves, never an
+// owner. Same rule as database.rules.json.
+export const granterCanTouch = (role, target = {}) => !!(
+  !target.isOwner && !target.isAdmin && !target.isSeniorMod
+  && (role === 'mod' || !target.isModerator)
+);
+
+// Who may set `role` ('mod' | 'jmd') on userId: staff by rank (canManage* +
+// strictly outranks), or a Staff Access granter. Returns
+// 'ok' | 'not_allowed' (no power over this role) | 'outranked' (target too high).
+const roleChangeAllowed = async (userId, callerRoles, role) => {
+  const roles = withOwnerFlag(callerRoles);
+  const byRank = role === 'mod' ? canManageMod(roles) : canManageBabyMod(roles);
+  const granted = role === 'mod' ? !!roles.canGrantMod : !!roles.canGrantJmd;
+  if (!byRank && !granted) return 'not_allowed';
+  if (byRank && (await outranksTarget(userId, roles))) return 'ok';
+  if (granted && getAuth()?.currentUser?.uid !== userId && granterCanTouch(role, await resolveTargetRoles(userId))) return 'ok';
+  return 'outranked';
 };
 
 /** Fresh-RTDB version of canModerate for a target uid (message deletes etc.). */
@@ -1044,8 +1069,8 @@ export const banUserwithEmail = async (email, isAdmin = false, senderId = null, 
 
 /**
  * Set a specific strike level (1, 2, or 3) on a user.
- * Strike 1: 3 hours | Strike 2: 3 days | Strike 3: permanent (STRIKE_LADDER;
- * below Senior Mod: 30 days + a permanent-ban request, decided by the server).
+ * Strike 1: 6 hours | Strike 2: 24 hours | Strike 3: permanent (STRIKE_LADDER;
+ * below Senior Mod: 3 days + a permanent-ban request, decided by the server).
  * @param {string} email - User email (only needed when there is no userId)
  * @param {number} strikeCount - 1, 2, or 3
  * @param {string} userId - target uid (preferred: goes through the server)
@@ -1294,17 +1319,18 @@ export const removeSeniorMod = async (userId, callerRoles = {}) => {
   }
 };
 
-// Make Moderator — Admin or Senior Mod.
+// Make Moderator — Admin, Senior Mod, or a Staff Access Mod granter.
 export const makeModerator = async (userId, callerRoles = {}) => {
   if (!userId) {
     Alert.alert('Error', 'Invalid user ID.');
     return false;
   }
-  if (!canManageMod(callerRoles)) {
-    Alert.alert('Permission Denied', 'Only Admins or Senior Mods can promote Moderators.');
+  const allowed = await roleChangeAllowed(userId, callerRoles, 'mod');
+  if (allowed === 'not_allowed') {
+    Alert.alert('Permission Denied', 'Only Admins, Senior Mods or Staff Access can promote Moderators.');
     return false;
   }
-  if (!(await outranksTarget(userId, callerRoles))) {
+  if (allowed !== 'ok') {
     Alert.alert('Permission Denied', 'You cannot change the roles of someone at or above your rank.');
     return false;
   }
@@ -1324,17 +1350,18 @@ export const makeModerator = async (userId, callerRoles = {}) => {
   }
 };
 
-// Remove Moderator — Admin or Senior Mod.
+// Remove Moderator — Admin, Senior Mod, or a Staff Access Mod granter.
 export const removeModerator = async (userId, callerRoles = {}) => {
   if (!userId) {
     Alert.alert('Error', 'Invalid user ID.');
     return false;
   }
-  if (!canManageMod(callerRoles)) {
-    Alert.alert('Permission Denied', 'Only Admins or Senior Mods can demote Moderators.');
+  const allowed = await roleChangeAllowed(userId, callerRoles, 'mod');
+  if (allowed === 'not_allowed') {
+    Alert.alert('Permission Denied', 'Only Admins, Senior Mods or Staff Access can demote Moderators.');
     return false;
   }
-  if (!(await outranksTarget(userId, callerRoles))) {
+  if (allowed !== 'ok') {
     Alert.alert('Permission Denied', 'You cannot change the roles of someone at or above your rank.');
     return false;
   }
@@ -1354,17 +1381,18 @@ export const removeModerator = async (userId, callerRoles = {}) => {
   }
 };
 
-// Promote to JMD (BabyMod) — Admin or Senior Mod.
+// Promote to JMD (BabyMod) — Admin, Senior Mod, or a Staff Access JMD granter.
 export const makeBabyMod = async (userId, callerRoles = {}) => {
   if (!userId) {
     Alert.alert('Error', 'Invalid user ID.');
     return false;
   }
-  if (!canManageBabyMod(callerRoles)) {
-    Alert.alert('Permission Denied', 'Only Admins or Senior Mods can promote JMDs.');
+  const allowed = await roleChangeAllowed(userId, callerRoles, 'jmd');
+  if (allowed === 'not_allowed') {
+    Alert.alert('Permission Denied', 'Only Admins, Senior Mods or Staff Access can promote JMDs.');
     return false;
   }
-  if (!(await outranksTarget(userId, callerRoles))) {
+  if (allowed !== 'ok') {
     Alert.alert('Permission Denied', 'You cannot change the roles of someone at or above your rank.');
     return false;
   }
@@ -1388,11 +1416,12 @@ export const removeBabyMod = async (userId, callerRoles = {}) => {
     Alert.alert('Error', 'Invalid user ID.');
     return false;
   }
-  if (!canManageBabyMod(callerRoles)) {
-    Alert.alert('Permission Denied', 'Only Admins or Senior Mods can remove JMDs.');
+  const allowed = await roleChangeAllowed(userId, callerRoles, 'jmd');
+  if (allowed === 'not_allowed') {
+    Alert.alert('Permission Denied', 'Only Admins, Senior Mods or Staff Access can remove JMDs.');
     return false;
   }
-  if (!(await outranksTarget(userId, callerRoles))) {
+  if (allowed !== 'ok') {
     Alert.alert('Permission Denied', 'You cannot change the roles of someone at or above your rank.');
     return false;
   }

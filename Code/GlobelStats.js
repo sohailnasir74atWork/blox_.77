@@ -300,6 +300,12 @@ export const GlobalStateProvider = ({ children }) => {
   const [isGrinder, setIsGrinder] = useState(false); // ✅ Global Grinder State
   const [isRaider, setIsRaider] = useState(false); // ✅ Global Raider State
   const [isHelper, setIsHelper] = useState(false); // Cosmetic Helper badge (no staff powers)
+  // Staff Access grants (Admin Dashboard → Staff → Staff access): RTDB
+  // /jmd_granters/{uid} and /mod_granters/{uid} = true let this account
+  // appoint / remove JMDs or Mods, and nothing else (database.rules.json
+  // checks the same). Ported from adoptme-jan7's canGrantJmd, 2026-10-22.
+  const [canGrantJmd, setCanGrantJmd] = useState(false);
+  const [canGrantMod, setCanGrantMod] = useState(false);
   const [isInActiveGame, setIsInActiveGame] = useState(false); // ✅ Track if user is in active game
   const [user, setUser] = useState({
     id: null,
@@ -1075,6 +1081,24 @@ export const GlobalStateProvider = ({ children }) => {
     });
   }, [user?.id, getProbeUid]); // appdatabase is module-level
 
+  // Staff Access grants: one tiny leaf each, live, so an admin's grant or
+  // revoke reaches the phone at once. Only the account's own entry is read.
+  useEffect(() => {
+    if (!appdatabase || !user?.id) {
+      setCanGrantJmd(false);
+      setCanGrantMod(false);
+      return;
+    }
+    const watch = (path, setter) => onValue(
+      ref(appdatabase, `${path}/${user.id}`),
+      (snap) => setter(!!(snap && snap.exists() && snap.val() === true)),
+      () => setter(false),
+    );
+    const offJmd = watch('jmd_granters', setCanGrantJmd);
+    const offMod = watch('mod_granters', setCanGrantMod);
+    return () => { offJmd(); offMod(); };
+  }, [user?.id]); // appdatabase is module-level
+
   // ── Derived ban / mute state ─────────────────────────────────────────────
   const emailResult = emailKey && emailBanState.key === emailKey ? emailBanState : null;
   const uidResult = user?.id && uidBanState.uid === user.id ? uidBanState : null;
@@ -1380,6 +1404,8 @@ export const GlobalStateProvider = ({ children }) => {
       isGrinder, // ✅ Export Grinder status
       isRaider, // ✅ Export Raider status
       isHelper, // Cosmetic Helper badge
+      canGrantJmd, // Staff Access: may appoint / remove JMDs (RTDB /jmd_granters/{uid})
+      canGrantMod, // Staff Access: may appoint / remove Mods (RTDB /mod_granters/{uid})
       reload,
       robloxUsernameRef, api, proTagBought, stockNotifierPurchase, proGranted, currentUserEmail, single_offer_wall,
       isInActiveGame,
@@ -1394,7 +1420,7 @@ export const GlobalStateProvider = ({ children }) => {
       getModGate, // ✅ getModGate('chat' | 'content' | 'action') → null | { kind, info }
 
     }),
-    [user, onlineMembersCount, theme, fetchStockData, loading, catalogStatus, robloxUsernameRef, api, freeTranslation, proTagBought, stockNotifierPurchase, proGranted, currentUserEmail, single_offer_wall, auth, isInActiveGame, setIsInActiveGame, tradingServerLink, strikeInfo, muteInfo, deviceBanInfo, isUserBlocked, isUserMuted, banCheckPending, getModGate, isAdmin, isSeniorMod, isModerator, isBabyMod, isTrusted, isGrinder, isRaider, isHelper, updateLocalStateAndDatabase, reload]
+    [user, onlineMembersCount, theme, fetchStockData, loading, catalogStatus, robloxUsernameRef, api, freeTranslation, proTagBought, stockNotifierPurchase, proGranted, currentUserEmail, single_offer_wall, auth, isInActiveGame, setIsInActiveGame, tradingServerLink, strikeInfo, muteInfo, deviceBanInfo, isUserBlocked, isUserMuted, banCheckPending, getModGate, isAdmin, isSeniorMod, isModerator, isBabyMod, isTrusted, isGrinder, isRaider, isHelper, canGrantJmd, canGrantMod, updateLocalStateAndDatabase, reload]
   );
 
   return (

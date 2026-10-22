@@ -34,6 +34,7 @@ export const MORE_ICONS = {
   birthdays: require('../../assets/more-hub/birthdays.png'),
   reports: require('../../assets/more-hub/reports.png'),
   admin: require('../../assets/more-hub/admin.png'),
+  dashboard: require('../../assets/more-hub/dashboard.png'),
 };
 
 const chunkPairs = (items) => {
@@ -62,7 +63,8 @@ const HERO_INK = { stock: '#6D28D9', codes: '#B45309' };
 
 const MoreHubScreen = ({ navigation, showBack = true }) => {
   const { t } = useTranslation();
-  const { theme, isAdmin, isModerator } = useGlobalState();
+  const { theme, isAdmin, isSeniorMod, isModerator, isUserBlocked } = useGlobalState();
+  const isStaff = !!(isAdmin || isSeniorMod || isModerator);
   const { triggerHapticFeedback } = useHaptic();
   const isDarkMode = theme === 'dark';
   const c = getThemeColors(isDarkMode);
@@ -76,10 +78,14 @@ const MoreHubScreen = ({ navigation, showBack = true }) => {
       { key: 'birthdays', screen: 'Birthdays', title: t('birthdays.title'), desc: t('more_hub.birthdays_desc'), color: '#EC4899' },
       { key: 'reports', screen: 'MoreReport', title: t('reports.title'), desc: t('more_hub.reports_desc'), color: '#7C3AED' },
     ];
-    // Staff-only card, left in English like the rest of the staff tools.
-    if (isAdmin || isModerator) list.push({ key: 'admin', screen: 'MoreAdmin', title: 'Admin', desc: 'Complaints, ideas and old feedback', color: '#0D9488' });
+    // Staff-only cards (Mod, Senior Mod, Admin), left in English like the rest
+    // of the staff tools. The Admin Dashboard moved here from the public chat
+    // header (2026-10-22); like that button it is hidden while banned.
+    if (isStaff && !isUserBlocked) list.push({ key: 'dashboard', screen: 'MoreAdminDashboard', title: 'Admin Dashboard', desc: 'Reports, bans, users and staff tools', color: '#4F46E5' });
+    // Complaints & ideas inbox: Senior Mods and Admins only (owner, 2026-10-22).
+    if (isAdmin || isSeniorMod) list.push({ key: 'admin', screen: 'MoreAdmin', title: 'Admin', desc: 'Complaints, ideas and old feedback', color: '#0D9488' });
     return list;
-  }, [t, isAdmin, isModerator]);
+  }, [t, isStaff, isAdmin, isSeniorMod, isUserBlocked]);
 
   const open = (screen) => {
     triggerHapticFeedback('impactLight');

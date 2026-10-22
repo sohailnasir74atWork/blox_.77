@@ -116,6 +116,7 @@ import { safeCompressImage } from '../Helper/safeCompressImage';
 
 // Poll images upload through the server (uploadImage); the app holds no storage key.
 import { uploadImage, UPLOAD_KIND } from '../Helper/imageUpload';
+import { supabase } from '../Supabase/client';
 
 const decodeEmail = (encoded) => (encoded ? encoded.replace(/\(dot\)/g, '.') : '');
 const BAD_KEYS = new Set(['undefined', 'onloaduser', '', null, undefined]);
@@ -192,11 +193,14 @@ const SECTIONS = [
   { key: 'queue', label: 'Reports', icon: 'flag', tabs: [
     { key: 'reports', label: 'Queue' },
     { key: 'chatViewer', label: 'Chat viewer' },
-    { key: 'permRequests', label: 'Perm-ban requests', admin: true },
+    { key: 'permRequests', label: 'Perm-ban requests', senior: true },
   ] },
   { key: 'users', label: 'Users', icon: 'people', tabs: [
-    { key: 'search', label: 'Find user', senior: true },
-    { key: 'userChats', label: 'User chats', admin: true },
+    // Find user: every dashboard rank since 2026-10-22 (the RTDB rules always let staff read it).
+    { key: 'search', label: 'Find user' },
+    // Any player's private chats: Admins, and the Mods / Senior Mods an Admin
+    // lists in Staff → Staff access (supabase/053 private_chat_readers).
+    { key: 'userChats', label: 'User chats', chatReader: true },
     { key: 'banned', label: 'Banned' },
     { key: 'banStats', label: 'Ban stats', senior: true },
   ] },
@@ -208,8 +212,8 @@ const SECTIONS = [
     { key: 'wordFilter', label: 'Word filter', senior: true },
   ] },
   { key: 'audit', label: 'Audit', icon: 'document-text', tabs: [
-    // The staff activity log; supabase/047 gates its rpcs the same way.
-    { key: 'modLog', label: 'Mod log', senior: true },
+    // The staff activity log, Mods and up since 2026-10-22 (supabase/053 gates its rpcs the same way).
+    { key: 'modLog', label: 'Mod log' },
     { key: 'reviewIntegrity', label: 'Reviews', senior: true },
   ] },
   { key: 'staff', label: 'Staff', icon: 'key', tabs: [
@@ -825,7 +829,7 @@ const AdminDashboardScreen = () => {
   // then goes to the server by uid (utils.applySanction / liftSanction). The
   // permission checks only hide buttons the server would refuse
   // (contract §2): strict rank, staff targets Senior Mod+, JMD = mute ≤ 1
-  // day + unmute, strike 3 below Senior Mod = 30 days + a permanent-ban request,
+  // day + unmute, strike 3 below Senior Mod = 3 days + a permanent-ban request,
   // lifts need the original banner's rank.
   const callerRoles = useMemo(() => ({
     isAdmin: !!isAdmin,
@@ -836,6 +840,18 @@ const AdminDashboardScreen = () => {
   }), [isAdmin, isSeniorMod, isModerator, isBabyMod]);
   const canManageStaffAccess = getStaffRank(callerRoles) >= STAFF_RANK.admin;
   const isSeniorPlus = getStaffRank(callerRoles) >= STAFF_RANK.seniorMod;
+  // Staff → Staff access "Can read private chats" (supabase/053): asked once
+  // per dashboard open; Admins always can.
+  const [canReadChats, setCanReadChats] = useState(false);
+  useEffect(() => {
+    if (isAdmin || !(isSeniorMod || isModerator)) { setCanReadChats(false); return undefined; }
+    let alive = true;
+    supabase.rpc('chat_reader_me')
+      .then(({ data }) => { if (alive) setCanReadChats(data === true); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [isAdmin, isSeniorMod, isModerator]);
+  const canReadAllChats = !!isAdmin || canReadChats;
 
   // ── Layout: 5 sections, each with its own sub-tabs ──
   const ui = useMemo(() => (isDark
@@ -851,9 +867,9 @@ const AdminDashboardScreen = () => {
   const visibleSections = useMemo(() => SECTIONS
     .map((sec) => ({
       ...sec,
-      tabs: sec.tabs.filter((t) => (!t.admin || isAdmin) && (!t.senior || isSeniorPlus) && (!t.staffAdmin || canManageStaffAccess)),
+      tabs: sec.tabs.filter((t) => (!t.admin || isAdmin) && (!t.senior || isSeniorPlus) && (!t.staffAdmin || canManageStaffAccess) && (!t.chatReader || canReadAllChats)),
     }))
-    .filter((sec) => sec.tabs.length > 0), [isAdmin, isSeniorPlus, canManageStaffAccess]);
+    .filter((sec) => sec.tabs.length > 0), [isAdmin, isSeniorPlus, canManageStaffAccess, canReadAllChats]);
   const currentSection = visibleSections.find((sec) => sec.tabs.some((t) => t.key === activeTab)) || visibleSections[0];
   const currentSubTabs = currentSection.tabs;
   // A tab the rank can't see (role just changed) falls back to the first one.
@@ -911,7 +927,7 @@ const AdminDashboardScreen = () => {
     () => getModPermissions(callerRoles, selectedRoles || {}),
     [callerRoles, selectedRoles]
   );
-  // Strike 3 below Senior Mod = 30 days + a request (server decides; labels follow).
+  // Strike 3 below Senior Mod = 3 days + a request (server decides; labels follow).
   const ladder = { permanentAllowed: selectedPerms.canPermaban };
   const canLiftSelected = !!(
     selectedSanction?.active &&
@@ -1322,7 +1338,7 @@ const AdminDashboardScreen = () => {
   }, [db]);
 
   const fetchUserChats = useCallback(async (target, reset = false) => {
-    if (!isAdmin || !target?.id) return;
+    if (!canReadAllChats || !target?.id) return;
     if (reset) {
       setUserChatsLoading(true);
       userChatsOffsetRef.current = 0;
@@ -1352,7 +1368,7 @@ const AdminDashboardScreen = () => {
       setUserChatsLoading(false);
       setUserChatsLoadingMore(false);
     }
-  }, [isAdmin, userChatsHasMore, userChatsLoadingMore, userChatsLoading]);
+  }, [canReadAllChats, userChatsHasMore, userChatsLoadingMore, userChatsLoading]);
 
   // Temporary admin audit path: bulk-read recent messages for the first 50
   // conversations and write them only to the app cache for local review.
@@ -1499,11 +1515,11 @@ const AdminDashboardScreen = () => {
     const chatKey = chatPerson1?.id && chatPerson2?.id
       ? [chatPerson1.id, chatPerson2.id].sort().join('_')
       : null;
-    if (activeTab === 'chatViewer' && isAdmin && !selectedReport && chatKey && !chatMessages.length && !loadingChat && autoLoadedChatRef.current !== chatKey) {
+    if (activeTab === 'chatViewer' && canReadAllChats && !selectedReport && chatKey && !chatMessages.length && !loadingChat && autoLoadedChatRef.current !== chatKey) {
       autoLoadedChatRef.current = chatKey;
       loadChat();
     }
-  }, [activeTab, isAdmin, selectedReport, chatPerson1?.id, chatPerson2?.id, chatMessages.length, loadingChat, loadChat]);
+  }, [activeTab, canReadAllChats, selectedReport, chatPerson1?.id, chatPerson2?.id, chatMessages.length, loadingChat, loadChat]);
 
   // ─────────────────────────────────────────────
   // Reported Chats — fetch from Firestore (for mods)
@@ -1537,8 +1553,8 @@ const AdminDashboardScreen = () => {
   useEffect(() => {
     // Every non-admin staff member (Senior Mods too) gets the reported-chat
     // list here; admins reach the same reports from the Reports tab.
-    if (activeTab === 'chatViewer' && !isAdmin) fetchChatReports();
-  }, [activeTab, isAdmin, fetchChatReports]);
+    if (activeTab === 'chatViewer' && !canReadAllChats) fetchChatReports();
+  }, [activeTab, canReadAllChats, fetchChatReports]);
 
   // Load chat from a report (mod clicks a reported chat)
   const loadChatFromReport = useCallback(async (report) => {
@@ -1826,66 +1842,73 @@ const AdminDashboardScreen = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: ui.bg }]}>
-      {/* Header: back, title, role */}
-      <View style={[styles.header, { borderBottomColor: ui.border, backgroundColor: ui.surface, paddingTop: insets.top + 6 }]}>
+      {/* Compact header (2026-10-22, more room for the lists): row 1 = back +
+          the five sections (icon beside the label); row 2 = the section's
+          sub-tabs as an underline bar, with the role badge at its end. The
+          title / subtitle row went: the highlighted tabs say where you are. */}
+      <View style={[styles.header, { borderBottomColor: ui.border, backgroundColor: ui.surface, paddingTop: insets.top + 4 }]}>
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.headerBack, { backgroundColor: ui.chip }]} hitSlop={8}>
-            <Ionicons name="chevron-back" size={20} color={ui.text} />
+            <Ionicons name="chevron-back" size={18} color={ui.text} />
           </TouchableOpacity>
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={[styles.headerTitle, { color: ui.text }]} numberOfLines={1}>Mod Panel</Text>
-            <Text style={{ color: ui.sub, fontSize: 11.5 }} numberOfLines={1}>
-              {currentSection.label} · {currentSubTabs.find((x) => x.key === activeTab)?.label || ''}
-            </Text>
+          {/* Sections — every one fits on screen, no sideways scrolling */}
+          <View style={styles.sectionBar}>
+            {visibleSections.map((sec) => {
+              const on = sec.key === currentSection.key;
+              return (
+                <TouchableOpacity
+                  key={sec.key}
+                  onPress={() => selectSection(sec)}
+                  activeOpacity={0.8}
+                  style={[styles.sectionItem, on && { backgroundColor: `${ACCENT}1F` }]}
+                >
+                  <Ionicons name={on ? sec.icon : `${sec.icon}-outline`} size={14} color={on ? ACCENT : ui.sub} />
+                  <Text
+                    style={{ fontSize: 11, fontWeight: on ? '800' : '600', color: on ? ACCENT : ui.sub, marginLeft: 3, flexShrink: 1 }}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                  >
+                    {sec.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.subTabRow}>
+          <View style={styles.subTabs}>
+            {currentSubTabs.map((tab) => {
+              const on = tab.key === activeTab;
+              return (
+                <TouchableOpacity
+                  key={tab.key}
+                  onPress={() => setActiveTab(tab.key)}
+                  activeOpacity={0.8}
+                  disabled={currentSubTabs.length <= 1}
+                  style={[styles.subTab, on && { borderBottomColor: ACCENT }]}
+                >
+                  <Text
+                    style={{ fontSize: 12.5, fontWeight: on ? '800' : '600', color: on ? ui.text : ui.sub }}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                  >
+                    {tab.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
           <View style={[styles.roleChip, { backgroundColor: `${roleBadge.color}22` }]}>
-            <Ionicons name="shield-checkmark" size={12} color={roleBadge.color} />
-            <Text style={{ color: roleBadge.color, fontSize: 11.5, fontWeight: '800', marginLeft: 4 }}>{roleBadge.label}</Text>
+            <Ionicons name="shield-checkmark" size={10} color={roleBadge.color} />
+            <Text style={{ color: roleBadge.color, fontSize: 10.5, fontWeight: '800', marginLeft: 3 }}>{roleBadge.label}</Text>
           </View>
         </View>
-
-        {/* Sections — every one fits on screen, no sideways scrolling */}
-        <View style={styles.sectionBar}>
-          {visibleSections.map((sec) => {
-            const on = sec.key === currentSection.key;
-            return (
-              <TouchableOpacity
-                key={sec.key}
-                onPress={() => selectSection(sec)}
-                activeOpacity={0.8}
-                style={[styles.sectionItem, on && { backgroundColor: `${ACCENT}1F` }]}
-              >
-                <Ionicons name={on ? sec.icon : `${sec.icon}-outline`} size={19} color={on ? ACCENT : ui.sub} />
-                <Text style={{ fontSize: 11, fontWeight: on ? '800' : '600', color: on ? ACCENT : ui.sub, marginTop: 2 }} numberOfLines={1}>
-                  {sec.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
       </View>
-
-      {/* Sub-tabs of the current section (segmented control) */}
-      {currentSubTabs.length > 1 && (
-        <View style={[styles.segment, { backgroundColor: ui.chip }]}>
-          {currentSubTabs.map((tab) => {
-            const on = tab.key === activeTab;
-            return (
-              <TouchableOpacity
-                key={tab.key}
-                onPress={() => setActiveTab(tab.key)}
-                activeOpacity={0.8}
-                style={[styles.segmentItem, on && [styles.segmentItemOn, { backgroundColor: ui.surface }]]}
-              >
-                <Text style={{ fontSize: 12.5, fontWeight: on ? '800' : '600', color: on ? ui.text : ui.sub }} numberOfLines={1}>
-                  {tab.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      )}
-      {currentSubTabs.length <= 1 && <View style={{ height: 10 }} />}
+      {/* The report queue's filter chips bring their own top padding. */}
+      {activeTab !== 'reports' && <View style={{ height: 6 }} />}
 
       {activeTab === 'search' && (
         <View style={styles.searchContainer}>
@@ -2053,7 +2076,7 @@ const AdminDashboardScreen = () => {
             />
           )}
         </View>
-      ) : activeTab === 'userChats' && isAdmin ? (
+      ) : activeTab === 'userChats' && canReadAllChats ? (
         <View style={{ flex: 1 }}>
           <View style={{ paddingHorizontal: 16, marginBottom: 10 }}>
             <Text style={{ color: ui.sub, fontSize: 11, fontWeight: '600', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>Target user</Text>
@@ -2145,8 +2168,8 @@ const AdminDashboardScreen = () => {
       ) : activeTab === 'chatViewer' ? (
         <View style={{ flex: 1 }}>
 
-          {/* ── ADMIN: Free search (unless viewing a report from the Reports tab) ── */}
-          {isAdmin && !selectedReport ? (
+          {/* ── ADMIN / chat reader: free search (unless viewing a report from the Reports tab) ── */}
+          {canReadAllChats && !selectedReport ? (
             <>
               <ScrollView style={{ maxHeight: 320 }} keyboardShouldPersistTaps="handled" nestedScrollEnabled contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 10 }}>
                 {/* Both people picked: one compact row (names, View) instead of
@@ -2762,7 +2785,7 @@ const AdminDashboardScreen = () => {
         <ModLogTab isDark={isDark} />
       ) : activeTab === 'wordFilter' && isSeniorPlus ? (
         <WordFilterTab isDark={isDark} currentUser={currentUser} />
-      ) : activeTab === 'permRequests' && isAdmin ? (
+      ) : activeTab === 'permRequests' && isSeniorPlus ? (
         <PermBanRequestsTab isDark={isDark} onOpenUser={(u) => handleSelectUser(u)} />
       ) : activeTab === 'reports' ? (
         <ReportsTab
@@ -2797,7 +2820,9 @@ const AdminDashboardScreen = () => {
           setStatusProfileUser(null);
           const uid = u?.senderId || u?.id;
           if (!uid) return;
-          navigation.navigate('PrivateChat', {
+          // Root route: the dashboard now lives in the More tab, where the chat
+          // stack's PrivateChat is not reachable by name.
+          navigation.navigate('PrivateChatRoot', {
             selectedUser: { senderId: uid, sender: u?.sender || u?.displayName || 'User', avatar: u?.avatar || null },
           });
         }}
@@ -3082,7 +3107,7 @@ const AdminDashboardScreen = () => {
                     >
                       <Text style={styles.buttonText}>Strike {n}</Text>
                       <Text style={{ color: '#fff', fontSize: 10 }}>
-                        {n === 3 && !selectedPerms.canPermaban ? `${PENDING_PERM_DAYS} days + Admin review` : strikeStep(n).label}
+                        {n === 3 && !selectedPerms.canPermaban ? `${PENDING_PERM_DAYS} days + review` : strikeStep(n).label}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -3103,7 +3128,7 @@ const AdminDashboardScreen = () => {
               modAction?.kind === 'mute' ? 'Chat only — they can still trade and post. Their strike count is kept.'
                 : modAction?.kind === 'strike' ? (modAction.value !== 3 ? 'Blocks the whole app for the duration and clears their recent public messages.'
                   : selectedPerms.canPermaban ? 'Permanent ban: chat, trades, posts and everything else.'
-                    : `Bans the whole app for ${PENDING_PERM_DAYS} days now. Admins get a request to make it permanent.`)
+                    : `Bans the whole app for ${PENDING_PERM_DAYS} days now. Senior Mods and Admins get a request to make it permanent.`)
                   : 'Removes it everywhere (email, account, devices, chat).'
             }
             confirmLabel={modAction?.kind === 'unban' ? 'Unban' : modAction?.kind === 'unmute' ? 'Unmute' : 'Confirm'}
@@ -3120,16 +3145,15 @@ const AdminDashboardScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 12, paddingBottom: 6, borderBottomWidth: StyleSheet.hairlineWidth },
-  headerRow: { flexDirection: 'row', alignItems: 'center', minHeight: 40 },
-  headerBack: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: '800', letterSpacing: -0.2 },
-  roleChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999 },
-  sectionBar: { flexDirection: 'row', marginTop: 8, gap: 4 },
-  sectionItem: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 6, borderRadius: 10 },
-  segment: { flexDirection: 'row', marginHorizontal: 12, marginTop: 10, marginBottom: 10, padding: 3, borderRadius: 10 },
-  segmentItem: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 7, borderRadius: 8 },
-  segmentItemOn: { shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  header: { paddingHorizontal: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+  headerRow: { flexDirection: 'row', alignItems: 'center' },
+  headerBack: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginRight: 4 },
+  roleChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, marginLeft: 6 },
+  sectionBar: { flex: 1, flexDirection: 'row', gap: 2 },
+  sectionItem: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 7, paddingHorizontal: 3, borderRadius: 9 },
+  subTabRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+  subTabs: { flex: 1, flexDirection: 'row' },
+  subTab: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 6, paddingBottom: 6, paddingHorizontal: 2, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   statGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   statCard: { width: '31.5%', borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, padding: 12, marginBottom: 10 },
   statIcon: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },

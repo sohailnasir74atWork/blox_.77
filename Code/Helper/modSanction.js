@@ -25,17 +25,17 @@ export const EVIDENCE_MAX = 3;
 // functions/banEnforcement.js (the server picks the actual expiry).
 const HOUR_MS = 60 * 60 * 1000;
 export const STRIKE_LADDER = {
-  1: { durationMs: 3 * HOUR_MS, label: '3 hours', short: '3h' },
-  2: { durationMs: 3 * 24 * HOUR_MS, label: '3 days', short: '3d' },
+  1: { durationMs: 6 * HOUR_MS, label: '6 hours', short: '6h' },
+  2: { durationMs: 24 * HOUR_MS, label: '24 hours', short: '24h' },
   3: { durationMs: null, label: 'permanent', short: 'Perm' }, // null = permanent
 };
 export const MAX_STRIKE = 3;
 
 // Permanent bans need a Senior Mod+ (Admin-only 2026-10-19..21). A Mod's
-// strike 3 is a 30-day ban plus a request an Admin confirms (→ permanent) or
+// strike 3 is a 3-day ban plus a request a Senior Mod or Admin confirms (→ permanent) or
 // rejects in the dashboard.
-export const PENDING_PERM_DAYS = 30;
-export const PENDING_STRIKE_3 = { label: `${PENDING_PERM_DAYS} days, permanent if an Admin confirms`, short: `${PENDING_PERM_DAYS}d+` };
+export const PENDING_PERM_DAYS = 3;
+export const PENDING_STRIKE_3 = { label: `${PENDING_PERM_DAYS} days, permanent if a Senior Mod or Admin confirms`, short: `${PENDING_PERM_DAYS}d+` };
 
 /** Next strike level after `current` (0 when there is none), capped at 3. */
 export const nextStrikeCount = (current) =>
@@ -182,7 +182,7 @@ export const describeSanctionResult = (r) => {
     parts.push(r.devices > 0 ? `${r.devices} device(s) on record.` : 'No device on record.');
   }
   if (r.linkedBanned > 0) parts.push(`${r.linkedBanned} linked account(s) banned.`);
-  if (r.pendingPermanent) parts.push(`Banned for ${PENDING_PERM_DAYS} days. An Admin will review the permanent ban.`);
+  if (r.pendingPermanent) parts.push(`Banned for ${PENDING_PERM_DAYS} days. A Senior Mod or Admin will review the permanent ban.`);
   return parts.join(' ');
 };
 
@@ -197,7 +197,7 @@ export const describeSanctionResult = (r) => {
  */
 export const fetchPermRequests = () => callModSanction('perm_requests', null);
 
-/** Admin/owner: answer one request from fetchPermRequests — 'confirm' (→ permanent) or 'reject' (stays 30 days). */
+/** Senior Mod / Admin / owner: answer one request from fetchPermRequests — 'confirm' (→ permanent) or 'reject' (stays as is). */
 export const decidePermRequest = (request, decision, reason) =>
   callModSanction(
     decision === 'confirm' ? 'perm_confirm' : 'perm_reject',
