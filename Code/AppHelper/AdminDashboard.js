@@ -2429,8 +2429,8 @@ const AdminDashboardScreen = () => {
             </>
           )}
 
-          {/* Chat Messages (shared by both admin & mod views) */}
-          {(isAdmin || selectedReport) && (
+          {/* Chat Messages (shared by admin / chat reader & mod views) */}
+          {(canReadAllChats || selectedReport) && (
             <>
               {!loadingChat && chatMessages.some((m) => m?.text) && (
                 <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16, paddingTop: 2 }}>
@@ -2451,7 +2451,7 @@ const AdminDashboardScreen = () => {
                     <View style={styles.emptyState}>
                       <Ionicons name="chatbubbles-outline" size={48} color={isDark ? '#333' : '#CCC'} />
                       <Text style={[styles.emptyText, { color: isDark ? '#666' : '#999' }]}>
-                        {chatPerson1 && chatPerson2 ? 'No messages found between these users' : isAdmin ? 'Search and select two users to view their chat' : 'Select a reported chat to view messages'}
+                        {chatPerson1 && chatPerson2 ? 'No messages found between these users' : canReadAllChats ? 'Search and select two users to view their chat' : 'Select a reported chat to view messages'}
                       </Text>
                     </View>
                   }
