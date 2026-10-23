@@ -18,7 +18,7 @@ import ReportPopup from './../ReportPopUp';
 import MessageActionDrawer from './MessageActionDrawer';
 import { supabaseMessageId } from '../../Supabase/chatBackend';
 import { CHAT_REACTIONS_ENABLED } from '../../Supabase/featureFlags';
-import { parseMessageText } from '../ChatHelper';
+import { parseMessageText, capMessageText } from '../ChatHelper';
 import { useHaptic } from '../../Helper/HepticFeedBack';
 import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
@@ -267,7 +267,7 @@ const MessagesList = ({
     if (!replyTo) return t('chat.message_common.reply_deleted');
 
     if (replyTo.text && replyTo.text.trim().length > 0) {
-      return replyTo.text;
+      return capMessageText(replyTo.text);
     }
 
     if (replyTo.gif) {

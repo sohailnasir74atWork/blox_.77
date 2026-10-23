@@ -10,6 +10,7 @@ import { safeCompressImage } from '../../Helper/safeCompressImage';
 import { uploadImage, UPLOAD_KIND } from '../../Helper/imageUpload';
 import { validateContent, containsLink, isAllowedLink } from '../../Helper/ContentModeration';
 import StickerPicker, { useStickersSupported } from '../Stickers/StickerPicker';
+import { MAX_MESSAGE_LENGTH } from '../ChatHelper';
 
 const GroupMessageInput = ({
   onSend,
@@ -257,6 +258,7 @@ const GroupMessageInput = ({
           value={input}
           onChangeText={setInput}
           multiline
+          maxLength={MAX_MESSAGE_LENGTH}
           editable={!isBanned}
         />
 

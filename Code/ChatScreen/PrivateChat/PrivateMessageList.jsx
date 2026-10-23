@@ -31,7 +31,7 @@ import { StickerImage } from '../Stickers/StickerPicker';
 import ScamSafetyBox from './Scamwarning';
 import { useNavigation } from '@react-navigation/native';
 import config from '../../Helper/Environment';
-import { parseMessageText } from '../ChatHelper';
+import { parseMessageText, capMessageText } from '../ChatHelper';
 import { hideTranslateTip } from '../TranslateTip';
 
 const formatFruitName = (name) => {
@@ -55,7 +55,7 @@ const messageKey = (item, index) => item?.clientMsgId || item?.id || `msg-${inde
 const replyPreviewText = (replyTo, t) => {
   if (!replyTo || typeof replyTo !== 'object') return t('chat.message_common.reply_deleted');
   if (replyTo.text && typeof replyTo.text === 'string' && replyTo.text.trim().length > 0) {
-    return replyTo.text;
+    return capMessageText(replyTo.text);
   }
   if (replyTo.imageUrl || (Array.isArray(replyTo.imageUrls) && replyTo.imageUrls.length > 0)) {
     return t('chat.message_common.reply_image');

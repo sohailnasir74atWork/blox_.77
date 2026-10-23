@@ -19,6 +19,7 @@ import { safeCompressImage } from '../../Helper/safeCompressImage';
 import { uploadImage, UPLOAD_KIND } from '../../Helper/imageUpload';
 import { validateContent } from '../../Helper/ContentModeration';
 import StickerPicker, { useStickersSupported } from '../Stickers/StickerPicker';
+import { MAX_MESSAGE_LENGTH } from '../ChatHelper';
 
 // ✅ Quick message templates for Blox Fruits trading
 // Translation keys, resolved with t() at render/send time.
@@ -288,6 +289,7 @@ const PrivateMessageInput = ({ onSend, replyTo, onCancelReply, isBanned, setPetM
           value={input}
           onChangeText={setInput}
           multiline
+          maxLength={MAX_MESSAGE_LENGTH}
           editable={!isBanned} // Disable input if user is banned
         />
         <TouchableOpacity

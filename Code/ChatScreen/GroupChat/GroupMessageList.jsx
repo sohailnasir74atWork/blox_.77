@@ -21,7 +21,7 @@ import { FRUIT_KEYWORDS } from '../../Helper/filter';
 import { fruitStyles } from '../PrivateChat/PrivateMessageList';
 import Icon from 'react-native-vector-icons/Ionicons';
 import config from '../../Helper/Environment';
-import { parseMessageText } from '../ChatHelper';
+import { parseMessageText, capMessageText } from '../ChatHelper';
 import { resolveProfile, seedFromMessage, warmProfileCache, getCachedProfile } from '../../Helper/profileCache';
 import RoleBadges from '../../Design/componenets/RoleBadges';
 import FramedAvatar from './FramedAvatar';
@@ -142,7 +142,7 @@ const GroupMessageList = ({
     if (!replyTo || typeof replyTo !== 'object') return t('chat.message_common.reply_deleted');
 
     if (replyTo.text && typeof replyTo.text === 'string' && replyTo.text.trim().length > 0) {
-      return replyTo.text;
+      return capMessageText(replyTo.text);
     }
 
     if (replyTo.imageUrl) {
