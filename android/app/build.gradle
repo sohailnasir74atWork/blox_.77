@@ -1,6 +1,13 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
+// These two must be applied BEFORE the android { } block, not after it (they
+// used to sit at the bottom of this file). The Crashlytics plugin is what
+// registers the `firebaseCrashlytics` extension on each build type, so with a
+// bottom apply the `firebaseCrashlytics { }` block in buildTypes.release fails
+// configuration with "Could not find method firebaseCrashlytics()".
+apply plugin: 'com.google.gms.google-services'
+apply plugin: 'com.google.firebase.crashlytics'
 apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")
 
 react { autolinkLibrariesWithApp() }
@@ -21,13 +28,53 @@ android {
     versionCode 159
     versionName "4.0.10"
     ndk {
-      abiFilters "arm64-v8a", "armeabi-v7a" // single declaration
+      // NOTE: this line is NOT what ships x86_64 - keep it in sync, but do not
+      // credit it. Verified in this repo: abiFilters does NOT filter native
+      // libs that arrive prebuilt inside AAR dependencies, which in a React
+      // Native app is most of them. Proof from the build that added x86_64 -
+      // abiFilters listed only the three ABIs below (no x86), yet
+      //   merged_native_libs/release/mergeReleaseNativeLibs/out/lib
+      // still contained an x86 directory with 6 AAR-supplied libs. Those 6 are
+      // absent from the final AAB, removed by the jniLibs exclude below. So the
+      // packaging exclude is the effective gate; abiFilters is kept only for
+      // consistency with reactNativeArchitectures in gradle.properties.
+      abiFilters "arm64-v8a", "armeabi-v7a", "x86_64"
     }
   }
 
-  
+  bundle {
+    abi {
+      // This is what keeps the extra ABI off everyone's download: Play builds
+      // one split per ABI and serves each device exactly one, so adding x86_64
+      // grew this AAB by 12.1 MB (6.5 MB of libs + 5.6 MB of debug symbols,
+      // measured) and nobody's install. AGP already defaults
+      // this to true - pinned explicitly so the claim is assertable in-file
+      // rather than resting on a default that could change.
+      enableSplit = true
+    }
+  }
+
   packaging {
-    jniLibs { excludes += ["**/x86/**", "**/x86_64/**"] }
+    jniLibs {
+      // THIS is the line that controls which ABIs reach the AAB. It filters
+      // AAR-supplied prebuilts, which abiFilters above does not.
+      //
+      // "**/x86_64/**" used to be listed here, and that alone was stripping
+      // x86_64 out of every release. On an x86_64 device (PC emulators like
+      // LDPlayer/BlueStacks, Google Play Games on PC, Chromebooks, WSA) Play's
+      // ABI split delivery then has no lib/x86_64 to deliver, SoLoader builds
+      // its DSO search path from Build.SUPPORTED_ABIS[0] = "x86_64", resolves
+      // neither libc++_shared.so nor libreactnative.so, and the app dies in
+      // MainApplication.onCreate before the first frame.
+      //
+      // 32-bit x86 stays excluded - no current emulator defaults to it, and
+      // only 6 of the 27 libs exist for it anyway (nothing builds it from
+      // source), so an x86 split would be a half-populated split that installs
+      // and then crashes. "**/x86/**" does not match x86_64: the glob needs a
+      // path segment equal to "x86", and the AAB confirms it - x86_64 ships
+      // with all 27 libs while x86 is gone entirely.
+      excludes += ["**/x86/**"]
+    }
   }
 
   signingConfigs {
@@ -47,6 +94,23 @@ android {
       minifyEnabled enableProguardInReleaseBuilds
       shrinkResources enableProguardInReleaseBuilds
       proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+      firebaseCrashlytics {
+        // Without this, native crashes ([libc.so] SIGABRT and friends) arrive
+        // in Crashlytics with a completely empty stack and cannot be triaged.
+        nativeSymbolUploadEnabled true
+        // The task name segment ("mergeReleaseNativeLibs") is NOT optional.
+        // AGP 8 moved intermediates from <type>/<variant>/out/ to
+        // <type>/<variant>/<taskName>/out/. The Crashlytics plugin does not
+        // fail on a missing directory, it just uploads nothing - which is how
+        // the same line, left at the pre-AGP-8 path, silently disabled native
+        // symbol upload on the sibling Adopt Me app.
+        //
+        // This path is AGP-version-sensitive and will break silently again on
+        // an upgrade. After bumping AGP, confirm the dir still exists before
+        // trusting any native stack trace:
+        //   ls android/app/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib
+        unstrippedNativeLibsDir "build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib"
+      }
     }
   }
 }
@@ -79,5 +143,3 @@ dependencies {
 }
 
 
-apply plugin: 'com.google.gms.google-services'
-apply plugin: 'com.google.firebase.crashlytics'
