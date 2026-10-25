@@ -46,6 +46,12 @@ describe('FruitCard', () => {
     const t = texts(render(<FruitCard card={{ key: 'k', name: 'Kitsune', rarity: 'mythical', no: 1, family: 'beast', sets: [] }} />));
     expect(t).toContain('beast');   // t(fruit_cards.family.beast, { defaultValue: family })
   });
+  it('shows the Values screen icon while the card art is not on the CDN', () => {
+    const { Image } = require('react-native');
+    const tree = render(<FruitCard card={{ key: 'emberwestdragon', name: 'Ember West Dragon', rarity: 'limited', no: 56, family: 'skin', sets: [] }} />);
+    const uris = tree.root.findAllByType(Image).map((n) => n.props.source?.uri).filter(Boolean);
+    expect(uris).toContain('https://bloxfruitscalc.com/wp-content/uploads/2024/09/Ember-West-Dragon_Icon.webp');
+  });
   it('stamps a serial-less Mythic Aura as fused', () => {
     const t = texts(render(<FruitCard card={{ key: 'k', name: 'K', rarity: 'rare', no: 1, family: 'natural', sets: [] }} finish="aura" />));
     expect(t).toContain('FRUIT_CARDS.FUSED_STAMP');

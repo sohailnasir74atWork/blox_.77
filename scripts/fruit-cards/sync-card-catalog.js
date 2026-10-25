@@ -10,6 +10,12 @@
 //   --hd <file|url>   art manifest (JSON array of card keys). Default: the CDN
 //                     manifest written by art.py --apply.
 //   --out <file>      also write the rows as JSON (the app's dev mock uses this).
+//   --sql <file>      write the sync as one SQL transaction instead (with --offline: no
+//                     service-role key needed), then apply it with the Supabase CLI login:
+//                       npx supabase@2.120.0 db query --linked -f <file>
+//                     Numbers are assigned in SQL: existing cards keep theirs, new ones
+//                     follow max(no) in the same order as below. Used for the first load
+//                     on 2026-10-25.
 //
 // Collector numbers never change: existing cards keep theirs, new cards are
 // appended (commons first, Limited last, A-Z inside a rarity). Cards that
@@ -65,6 +71,49 @@ function toCard(item) {
     family: limited ? 'skin' : String(item.type || '').toLowerCase() || null,
     sets: [...new Set(sets)].sort(),
   };
+}
+
+// The same sync as one SQL transaction. `cards` are in data.json order; new
+// cards get numbers after max(no), commons first, Limited last, A-Z inside a
+// rarity (as the supabase-js path), and existing cards keep their number.
+function toSql(cards, hdSet) {
+  const q = (s) => (s == null ? 'null' : `'${String(s).replace(/'/g, "''")}'`);
+  const ordered = [...cards].sort((a, b) =>
+    RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity) || a.name.localeCompare(b.name));
+  const values = ordered.map((c, i) => `  (${q(c.key)}, ${q(c.name)}, ${q(c.rarity)}, ${q(c.family)}, `
+    + `array[${c.sets.map(q).join(', ')}]::text[], ${hdSet.has(c.key)}, ${i + 1})`).join(',\n');
+  const keys = ordered.map((c) => q(c.key)).join(', ');
+  return `-- Fruit Cards catalogue sync (scripts/fruit-cards/sync-card-catalog.js --sql), ${new Date().toISOString()}
+begin;
+
+create temp table _src (key text, name text, rarity text, family text, sets text[], hd_ready boolean, ord int) on commit drop;
+insert into _src values
+${values};
+
+-- Existing cards: refresh everything except the collector number.
+update public.card_catalog c
+   set name = s.name, rarity = s.rarity, family = s.family, sets = s.sets,
+       hd_ready = s.hd_ready, active = true, updated_at = now()
+  from _src s
+ where c.key = s.key;
+
+-- New cards: numbered after the highest existing number.
+insert into public.card_catalog (key, name, rarity, no, family, sets, bg, hd_ready, active, updated_at)
+select s.key, s.name, s.rarity,
+       (select coalesce(max(no), 0) from public.card_catalog) + row_number() over (order by s.ord),
+       s.family, s.sets, null, s.hd_ready, true, now()
+  from _src s
+ where not exists (select 1 from public.card_catalog c where c.key = s.key);
+
+-- Cards that left the values catalogue: inactive, never deleted (players own them).
+update public.card_catalog set active = false, updated_at = now()
+ where active and key not in (${keys});
+
+select count(*) filter (where active) as active, count(*) filter (where active and hd_ready) as in_packs,
+       min(no) as min_no, max(no) as max_no
+  from public.card_catalog;
+commit;
+`;
 }
 
 async function main() {
@@ -141,6 +190,12 @@ async function main() {
   if (out) {
     fs.writeFileSync(out, JSON.stringify(rows.map((r) => [r.key, r.name, r.rarity, r.no, r.family, r.sets, r.bg])));
     console.log(`rows -> ${out}`);
+  }
+  const sqlOut = argAt('--sql');
+  if (sqlOut) {
+    fs.writeFileSync(sqlOut, toSql(cards, hdSet));
+    console.log(`sql -> ${sqlOut} (apply: npx supabase@2.120.0 db query --linked -f ${sqlOut})`);
+    return;
   }
   if (!APPLY || !sb) {
     console.log('dry run: add --apply (with SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY) to write');

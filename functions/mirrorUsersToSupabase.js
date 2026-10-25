@@ -512,4 +512,4 @@ exports.mirrorUsersToSupabase = functions
 
     return null;
   });
-exports._internal = { mirrorRoles };
+exports._internal = { mirrorRoles, deleteAllForUser };

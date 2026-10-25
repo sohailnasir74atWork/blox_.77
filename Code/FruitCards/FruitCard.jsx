@@ -20,9 +20,9 @@ import React, { memo, useState } from 'react';
 import { View, Text, Image, Animated, StyleSheet, I18nManager, PixelRatio, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import {
-  RARITY_STYLE, FIRST_EDITION_MAX, THEMES, DARK_THEMES, themeOf, themeIdFor, bgIdFor, fruitArtUrl,
+  RARITY_STYLE, FIRST_EDITION_MAX, THEMES, DARK_THEMES, themeOf, themeIdFor, bgIdFor,
 } from './cardConfig';
-import { paintFor, bgAssetId, assetUri, hasFruitArt } from './cardArt';
+import { paintFor, bgAssetId, assetUri, fruitImageUrl, fruitIconUrl } from './cardArt';
 import RarityGem from './RarityGem';
 import CardIcon from './cardIcons';
 
@@ -103,7 +103,9 @@ function FruitCard({
   shine = null, style,
 }) {
   const { t } = useTranslation();
-  const [petFailed, setPetFailed] = useState(false);
+  // Load failures for this card: 0 = try the best URL, 1 = try the Values icon, 2 = placeholder.
+  // Keyed by card so a reused card (the viewer) starts fresh on the next fruit.
+  const [failed, setFailed] = useState({ key: null, n: 0 });
   if (!card) return null;
 
   const thumb = size === 'thumb';
@@ -131,7 +133,10 @@ function FruitCard({
 
   const bgId = bgIdFor(card, f);
   const bgUri = assetUri(bgAssetId(bgId));
-  const petUri = !petFailed && hasFruitArt(card.key) ? fruitArtUrl(card.key, thumb || width < 180 ? 512 : 1024) : null;
+  const fails = failed.key === card.key ? failed.n : 0;
+  const bestUri = fruitImageUrl(card, thumb || width < 180 ? 512 : 1024);
+  const iconUri = fruitIconUrl(card.name);
+  const petUri = fails === 0 ? bestUri : fails === 1 && bestUri !== iconUri ? iconUri : null;
   const holo = owned && (f === 'holo' || f === 'aura' || fullArt);
   const pattern = card.rarity === 'limited' || card.rarity === 'mythical' ? 'starlight' : 'cosmos';
 
@@ -159,7 +164,7 @@ function FruitCard({
   const fruit = petUri ? (
     <Image resizeMethod="resize"
       source={{ uri: petUri }}
-      onError={() => setPetFailed(true)}
+      onError={() => setFailed({ key: card.key, n: fails + 1 })}
       resizeMode="contain"
       style={[
         { width: petSize, height: petSize },

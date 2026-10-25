@@ -136,8 +136,37 @@ def main():
     zone = os.environ.get("BUNNY_STORAGE_ZONE")
     key = os.environ.get("BUNNY_STORAGE_KEY")
     host = os.environ.get("BUNNY_STORAGE_HOST", "storage.bunnycdn.com")
+    if zone and not key and sys.stdin.isatty():
+        # No key in the environment: ask for it at a hidden prompt (never echoed, never saved).
+        import getpass
+        key = getpass.getpass(f"Paste the {zone} storage Password (hidden), then press Return: ").strip()
+        print(f"got {len(key)} characters")
     if not zone or not key:
-        sys.exit("BUNNY_STORAGE_ZONE and BUNNY_STORAGE_KEY must be set in the environment")
+        sys.exit("BUNNY_STORAGE_ZONE must be set, and BUNNY_STORAGE_KEY set or typed at the prompt "
+                 "(run in a real terminal for the prompt)")
+
+    # Check the password first, so a wrong one stops here with one clear line
+    # instead of 128 "401 Unauthorized" uploads (2026-10-25: a stale clipboard,
+    # then the READ-ONLY password, which can list the zone but not upload).
+    # Listing proves the password belongs to the zone; writing and deleting a
+    # tiny probe proves it may upload.
+    def probe(method, data=None):
+        req = urllib.request.Request(f"https://{host}/{zone}/{args.prefix}/_write_check.txt", data=data,
+                                     method=method, headers={"AccessKey": key})
+        urllib.request.urlopen(req, timeout=30)
+
+    try:
+        urllib.request.urlopen(urllib.request.Request(f"https://{host}/{zone}/", headers={"AccessKey": key}), timeout=30)
+    except urllib.error.HTTPError as e:
+        sys.exit(f"Storage zone {zone!r} rejected the password (HTTP {e.code}). Copy the zone's Password "
+                 f"(the first row, not the read-only one) from Storage → {zone} → Access, then run again. "
+                 f"The key you passed is {len(key)} characters long (a Bunny storage password is about 41).")
+    try:
+        probe("PUT", b"ok")
+        probe("DELETE")
+    except urllib.error.HTTPError as e:
+        sys.exit(f"The password can read {zone!r} but not upload (HTTP {e.code}): it is the READ-ONLY password. "
+                 f"Copy the first row, Password, from Storage → {zone} → Access, then run again.")
 
     def send(job):
         path, remote, data = job

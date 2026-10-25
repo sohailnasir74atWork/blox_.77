@@ -7,7 +7,7 @@
  * with layered gradients (RN 0.87 `backgroundImage`), sharp at any size.
  */
 
-import { cdnBase } from './cardConfig';
+import { cdnBase, fruitArtUrl } from './cardConfig';
 
 let storage;
 try {
@@ -105,8 +105,21 @@ export const loadArtManifest = async () => {
   return loading;
 };
 
-/** True when the fruit art is on the CDN (unknown manifest → assume yes: the server only deals cards with art). */
-export const hasFruitArt = (key) => (fruitKeys ? fruitKeys.has(key) : true);
+/** True when the card's own art is listed in the CDN manifest (false while the list is unknown). */
+export const hasFruitArt = (key) => !!fruitKeys && fruitKeys.has(key);
+
+/**
+ * The Values screen's icon for an item (ValueScreen.jsx formatName). Smaller
+ * than the card art, but it exists for every item today, so a card never shows
+ * the empty placeholder: before the card zone is live, while the manifest is
+ * still unknown, or for a card the manifest does not list.
+ */
+export const fruitIconUrl = (name) =>
+  `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${String(name || '').replace(/^\+/, '').replace(/\s+/g, '-')}_Icon.webp`;
+
+/** Best picture for a card: the CDN art when the manifest lists it, else the Values icon. */
+export const fruitImageUrl = (card, size = 1024) =>
+  (hasFruitArt(card?.key) ? fruitArtUrl(card.key, size) : fruitIconUrl(card?.name));
 /** True when the 2048 px wallpaper art exists (otherwise wallpapers use the 1024). */
 export const hasFruitArt2k = (key) => !!fruit2k && fruit2k.has(key);
 /** True when a painted asset (e.g. 'BG-SEA-SUNSET') has been uploaded. */

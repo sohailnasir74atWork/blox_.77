@@ -97,3 +97,4 @@ node_modules
 
 # Fruit Cards art build output (scripts/fruit-cards/art.py)
 scripts/fruit-cards/out/
+scripts/fruit-cards/__pycache__/

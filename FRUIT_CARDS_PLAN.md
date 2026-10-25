@@ -75,7 +75,7 @@ account-delete job, stale streak display, star button ignoring the balance.
 
 ## 5. Where it stands (2026-10-25) and how to resume
 
-Built in the working tree of `ads-v17-nextgen`, **not committed, nothing deployed.**
+Built in the working tree of `ads-v17-nextgen`, **not committed.** Server side LIVE 2026-10-25 (card CDN + art, SQL 057, catalogue, account-delete function); no app build carries the screens yet.
 
 | Piece | Where | Checked |
 |---|---|---|
@@ -107,15 +107,19 @@ Demand (data.json); wallpaper trends from `diff.json` via `fetchAnalyticsData`.
 - Skins join later: when bigger art exists, re-run `art.py --apply` and the catalogue sync; new
   `hd_ready` cards enter packs with no app release.
 
-### Open decision (owner)
-1. **Bunny zone** for card art (`CARDS_CDN = https://bloxcards.b-cdn.net/v1` in `cardConfig.js` and the
-   sync script is a placeholder name until the zone exists).
+### Card CDN (created 2026-10-25)
+Storage zone **`blox-cards`** (id 2014074, Standard tier, main Frankfurt, replicas Los Angeles / New York /
+Singapore, same as `adoptme-cards`) → pull zone **`bloxcards`** (id 6861302, Standard tier, all pricing
+zones, Bunny Shield off) = `https://bloxcards.b-cdn.net`, which is already `CARDS_CDN` in `cardConfig.js`
+and the sync script's default. Art for the 42 launch cards uploaded 2026-10-25; other paths return a clean 404 (no catch-all), so
+held-out cards keep the Values icon. Upload host for `art.py`: the zone's FTP & API
+Access page (default storage.bunnycdn.com = Falkenstein); its password is the `BUNNY_STORAGE_KEY`.
 
 ### Resume / deploy checklist (only when the owner says go)
-1. Create the Bunny storage + pull zone; set `CARDS_CDN` if the name differs.
-2. `BUNNY_STORAGE_ZONE=… BUNNY_STORAGE_KEY=… python3 scripts/fruit-cards/art.py --apply` (400 px rule is the default), purge the two index.json URLs.
-3. Apply 057: `npx supabase@2.120.0 db query --linked -f supabase/057_fruit_cards.sql` (begin/commit), revert `supabase/.temp/cli-latest`.
-4. `SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… node scripts/fruit-cards/sync-card-catalog.js` (dry) then `--apply`.
-5. Deploy `mirrorUsersToSupabase` (account deletion).
+1. ~~Create the Bunny storage + pull zone~~ done 2026-10-25 (`blox-cards` → `bloxcards.b-cdn.net`).
+2. ~~Upload the art~~ done 2026-10-25: owner ran `BUNNY_STORAGE_ZONE=blox-cards python3 scripts/fruit-cards/art.py --apply` (hidden password prompt), 128 files; index.json + 2k/index.json = 42 keys, purged. Later uploads: same command; the script checks the password can upload before sending anything.
+3. ~~Apply 057~~ done 2026-10-25 (begin/commit via `npx supabase@2.120.0 db query --linked`; checked live: 6 tables, 13 sets, anon can call no card function, signed-in can call the 7 RPCs, delete_user_cards server-only, cron `fruit-cards-retention`).
+4. ~~Catalogue sync~~ done 2026-10-25: `node scripts/fruit-cards/sync-card-catalog.js --offline --sql <file>` (no service-role key needed), tested on PGlite, applied with the CLI: 81 active cards numbered 1–81, 42 hd_ready. Live `cards_state` (test uid, wallet removed after): All Fruits open, total 42; pages Natural 20, Beast 8, Logia 10, Mythical 13, Limited 4, Dragon Skins 1, Kitsune Skins 2. Re-run the same way when art or the values catalogue changes.
+5. ~~Deploy `mirrorUsersToSupabase`~~ done 2026-10-25 (`firebase deploy --only functions:mirrorUsersToSupabase --project fruiteblocks`, version 10): a full /users/{uid} delete now also calls `delete_user_cards`. Test: `node --test functions/test/deleteUserCards.test.js` 2/2.
 6. Device pass on an emulator with a **debug** build (`python3 scripts/fruit-cards/dev-cdn.py` + `adb reverse tcp:8765 tcp:8765` for local art; the mock runs while 057 is missing).
 7. Ship in the next Blox build; the Home card appears by itself once step 4 holds.
