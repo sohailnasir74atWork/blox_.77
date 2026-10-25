@@ -94,3 +94,6 @@ pubsub-debug.log
 
 # Session worktrees symlink node_modules; a symlink is a file, so ignore that too
 node_modules
+
+# Fruit Cards art build output (scripts/fruit-cards/art.py)
+scripts/fruit-cards/out/

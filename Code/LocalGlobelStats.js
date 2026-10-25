@@ -5,11 +5,13 @@ import React, {
   useEffect,
   useMemo,
   useCallback,
+  useRef,
 } from 'react';
 import { createMMKV } from 'react-native-mmkv';
 import { AppState } from 'react-native';
 import Purchases from 'react-native-purchases';
 import config from './Helper/Environment';
+import { isProGrantActive, onProGrantChange, startProGrants } from './Helper/proGrant';
 
 const storage = createMMKV();
 
@@ -139,6 +141,27 @@ export const LocalStateProvider = ({ children }) => {
     }
   }, []);
 
+  // Pro = a RevenueCat purchase OR Pro an admin gave (RTDB pro_grants,
+  // Helper/proGrant.js). RevenueCat is the only thing that sets rcPro; an
+  // admin grant starting, ending or the user signing out re-runs the merge.
+  // (Reward-point Pro Membership is separate: `proGranted` in GlobelStats.)
+  const rcProRef = useRef(null);
+  const applyPro = useCallback(rcPro => {
+    if (typeof rcPro === 'boolean') rcProRef.current = rcPro;
+    const grantPro = isProGrantActive();
+    if (rcProRef.current === null) {
+      // RevenueCat hasn't answered yet: only ever add Pro here, never remove it.
+      if (grantPro) updateLocalState('isPro', true);
+      return;
+    }
+    updateLocalState('isPro', rcProRef.current || grantPro);
+  }, [updateLocalState]);
+  useEffect(() => {
+    const stop = onProGrantChange(() => applyPro());
+    startProGrants();
+    return stop;
+  }, [applyPro]);
+
   // ✅ FIXED: Read directly from storage for real-time accuracy (no stale state)
   const canTranslate = useCallback(() => {
     const today = new Date().toDateString();
@@ -172,8 +195,8 @@ export const LocalStateProvider = ({ children }) => {
 
     // console.log(proStatus, 'pro')
 
-    // persist pro
-    updateLocalState('isPro', proStatus);
+    // persist pro (merged with admin Pro)
+    applyPro(proStatus);
 
     // store subs + expiry
     setMySubscriptions(

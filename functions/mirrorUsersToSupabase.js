@@ -393,12 +393,19 @@ async function deleteAllForUser(uid, supabase) {
     'user_badges',
     'user_blocks',
   ];
-  await Promise.all(
-    tables.map(async (t) => {
+  await Promise.all([
+    ...tables.map(async (t) => {
       const { error } = await supabase.from(t).delete().eq('uid', uid);
       if (error) console.error(`[mirrorUsers/delete ${t}]`, uid, error.message);
     }),
-  );
+    // Fruit Cards (supabase/057): collection, wallet and non-serial pulls go;
+    // serial pulls stay as provenance with the uid blanked. Before 057 is
+    // applied the function is missing (PGRST202): nothing to delete.
+    (async () => {
+      const { error } = await supabase.rpc('delete_user_cards', { p_uid: uid });
+      if (error && error.code !== 'PGRST202') console.error('[mirrorUsers/delete cards]', uid, error.message);
+    })(),
+  ]);
 }
 
 // --------------------------------------------------------------------

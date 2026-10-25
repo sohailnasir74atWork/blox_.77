@@ -47,7 +47,22 @@ const rolesColsFor = (error) => {
   rolesCols = ROLES_COLS_PRE_045;
   return rolesCols;
 };
-const COSMETICS_COLS = 'uid, top_badge, is_pro, profile_frame, chat_text_color, trade_card_bg, profile_banner, chat_bubble_bg';
+// card_score + card_showcase come from supabase/057_fruit_cards.sql (Fruit
+// Cards on the profile drawer). Same fallback as the roles list: before 057
+// is applied the whole select would fail (42703), so the cosmetics reads drop
+// the two columns for the rest of the session (cosmeticsColsFor).
+const COSMETICS_COLS = 'uid, top_badge, is_pro, profile_frame, chat_text_color, trade_card_bg, profile_banner, chat_bubble_bg, card_score, card_showcase';
+const COSMETICS_COLS_PRE_057 = 'uid, top_badge, is_pro, profile_frame, chat_text_color, trade_card_bg, profile_banner, chat_bubble_bg';
+let cosmeticsCols = COSMETICS_COLS;
+// Called with a failed cosmetics select: the column list to retry with, or null.
+const cosmeticsColsFor = (error) => {
+  const missing057 = cosmeticsCols !== COSMETICS_COLS_PRE_057 && error?.code === '42703' &&
+    /card_score|card_showcase/.test(error?.message || '');
+  if (!missing057) return null;
+  console.warn('[userBackend] supabase/057 not applied: cosmetics without card_score/card_showcase');
+  cosmeticsCols = COSMETICS_COLS_PRE_057;
+  return cosmeticsCols;
+};
 const ROBLOX_COLS = 'uid, roblox_username, roblox_user_id, roblox_username_verified';
 const SETTINGS_COLS = 'uid, is_reminder_enabled, is_selected_reminder_enabled';
 const NOTIFICATIONS_COLS = 'uid, is_token_invalid, mute_trade_notifs, notification_settings';
@@ -155,6 +170,10 @@ export function fromCosmeticsRow(row) {
       profileBanner: row.profile_banner ?? null,
       chatBubbleBg: row.chat_bubble_bg ?? null,
     },
+    // Fruit Cards (057): collector score and up to 3 showcased cards, drawn on
+    // the profile drawer (Code/FruitCards/ProfileShowcase.jsx).
+    cardScore: Number(row.card_score) || 0,
+    cardShowcase: Array.isArray(row.card_showcase) ? row.card_showcase : [],
   };
 }
 
@@ -173,11 +192,10 @@ export async function getRoles(uid) {
 
 export async function getCosmetics(uid) {
   if (!uid) return null;
-  const { data, error } = await supabase
-    .from('user_cosmetics')
-    .select(COSMETICS_COLS)
-    .eq('uid', uid)
-    .maybeSingle();
+  const select = (cols) => supabase.from('user_cosmetics').select(cols).eq('uid', uid).maybeSingle();
+  let { data, error } = await select(cosmeticsCols);
+  const retryCols = error ? cosmeticsColsFor(error) : null;
+  if (retryCols) ({ data, error } = await select(retryCols));
   if (error) {
     if (error.code !== 'PGRST116') console.warn('[userBackend] getCosmetics error:', error.message);
     return null;
@@ -226,7 +244,7 @@ export async function getUsersByRole(roleField, limit = 100) {
 }
 
 export async function getCosmeticsBatch(uids) {
-  return _batchByUid('user_cosmetics', uids, fromCosmeticsRow, COSMETICS_COLS);
+  return _batchByUid('user_cosmetics', uids, fromCosmeticsRow, cosmeticsCols, cosmeticsColsFor);
 }
 
 

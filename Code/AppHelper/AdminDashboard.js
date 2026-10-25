@@ -42,6 +42,7 @@ import {
 } from '@react-native-firebase/database';
 import { modLoadPrivateChat as sbLoadPrivateMessages } from '../Supabase/privateMessagesBackend';
 import { adminListUserChats } from '../Supabase/chatMetaBackend';
+import ProGrantPanel from './ProGrantPanel';
 import {
   fetchAllPolls as sbFetchAllPolls,
   createPoll as sbCreatePoll,
@@ -2906,6 +2907,17 @@ const AdminDashboardScreen = () => {
                   </View>
                 )}
               </View>
+
+              {isAdmin && !!selectedUser.id && (
+                <ProGrantPanel
+                  uid={selectedUser.id}
+                  name={selectedUser.displayName}
+                  adminUid={currentUser?.id}
+                  colors={isDark
+                    ? { surface: '#1C1C1E', border: '#2C2C2E', text: '#FFF', textMuted: '#AAA' }
+                    : { surface: '#FFF', border: '#E5E5EA', text: '#000', textMuted: '#666' }}
+                />
+              )}
 
               {/* Unban / Unmute / Ban Actions — only what the server will accept */}
               {selectedRoles && !isSelfItem(selectedUser) && (

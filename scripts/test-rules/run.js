@@ -262,6 +262,26 @@ async function rtdbTests() {
   await ok('mod granter reads own entry', () => D.get(r(MG, `mod_granters/${MG}`)));
   await no('senior lists mod granters', () => D.get(r(S, 'mod_granters')));
   await ok('admin lists mod granters', () => D.get(r(A, 'mod_granters')));
+
+  // Admin "Grant Pro" (2026-10-23).
+  sec('rtdb pro_grants');
+  const grant = () => ({ until: now() + 7 * 86400000, by: A, at: now() });
+  await ok('admin grants Pro', () => D.set(r(A, `pro_grants/${U1}`), grant()));
+  await ok('owner grants Pro', () => D.set(r(O, `pro_grants/${U2}`), grant()));
+  await ok('player reads own grant', () => D.get(r(U1, `pro_grants/${U1}`)));
+  await no('player reads another grant', () => D.get(r(U2, `pro_grants/${U1}`)));
+  await no('player grants self Pro', () => D.set(r(U3, `pro_grants/${U3}`), grant()));
+  await no('player edits own grant', () => D.set(r(U1, `pro_grants/${U1}/until`), now() + 999 * 86400000));
+  await no('senior grants Pro', () => D.set(r(S, `pro_grants/${U3}`), grant()));
+  await no('mod grants Pro', () => D.set(r(M, `pro_grants/${U3}`), grant()));
+  await no('mod granter grants Pro', () => D.set(r(MG, `pro_grants/${U3}`), grant()));
+  await no('unverified owner email grants Pro', () => D.set(r(OU, `pro_grants/${U3}`), grant()));
+  await no('admin writes grant without until', () => D.set(r(A, `pro_grants/${U3}`), { at: now() }));
+  await no('admin writes string until', () => D.set(r(A, `pro_grants/${U3}`), { until: 'forever', at: now() }));
+  await no('admin writes extra field', () => D.set(r(A, `pro_grants/${U3}`), { ...grant(), isAdmin: true }));
+  await no('user lists grants', () => D.get(r(U1, 'pro_grants')));
+  await ok('admin removes Pro', () => D.set(r(A, `pro_grants/${U1}`), null));
+  await ok('owner removes Pro', () => D.set(r(O, `pro_grants/${U2}`), null));
   await ok('mod granter makes U3 Mod', () => D.update(r(MG, `users/${U3}`), { isModerator: true, rolesUpdatedAt: now() }));
   await ok('mod granter removes U3 Mod', () => D.update(r(MG, `users/${U3}`), { isModerator: false, rolesUpdatedAt: now() }));
   await ok('mod granter makes a JMD a Mod (old set)', () => D.set(r(MG, `users/${J2}/isModerator`), true));

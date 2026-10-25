@@ -467,6 +467,12 @@ function App() {
               getComponent={() => require('./Code/Birthdays/BirthdaysScreen').default}
             />
 
+            {/* Fruit Cards (FRUIT_CARDS_PLAN.md, supabase/057) */}
+            <Stack.Screen name="FruitCards" options={{ headerShown: false }} getComponent={() => require('./Code/FruitCards/FruitCardsScreen').default} />
+            <Stack.Screen name="PackOpening" options={{ headerShown: false, animation: 'fade', gestureEnabled: false }} getComponent={() => require('./Code/FruitCards/PackOpeningScreen').default} />
+            <Stack.Screen name="CardAlbum" options={{ headerShown: false }} getComponent={() => require('./Code/FruitCards/CardAlbumScreen').default} />
+            <Stack.Screen name="CardWallpaper" options={{ headerShown: false }} getComponent={() => require('./Code/FruitCards/CardWallpaper').default} />
+
             <Stack.Screen
               name="Setting"
               options={{

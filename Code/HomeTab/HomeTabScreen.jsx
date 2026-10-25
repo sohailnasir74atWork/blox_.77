@@ -28,6 +28,7 @@ import { getCachedAvatar } from '../Helper/cosmeticsCache';
 import { getActiveCosmetics } from '../Engagement/shopUtils';
 import GameLeaderboard from '../Engagement/GameLeaderboard';
 import BirthdayHomeCard from '../Birthdays/BirthdayHomeCard';
+import FruitCardsHomeCard from '../FruitCards/FruitCardsHomeCard';
 import { openReportForm } from '../Reports/openReportForm';
 import BannerAdComponent from '../Ads/bannerAds';
 import SubscriptionScreen from '../SettingScreen/OfferWall';
@@ -614,6 +615,9 @@ const HomeTabScreen = ({ selectedTheme }) => {
 
           {/* ═══ BIRTHDAYS: your celebration + stars gift, your countdown, or today's birthdays (Code/Birthdays) ═══ */}
           <BirthdayHomeCard userId={user?.id} userName={user?.displayName} />
+
+          {/* ═══ FRUIT CARDS (hides itself until supabase/057 has a pack) ═══ */}
+          <FruitCardsHomeCard userId={user?.id} requireSignIn={requireSignIn} />
 
           {/* STATUS FEED (Stories) */}
           <StatusFeed

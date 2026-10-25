@@ -923,6 +923,25 @@
         ".write": "(auth != null && ((auth.token.email_verified === true && (auth.token.email === 'thesolanalabs@gmail.com' || auth.token.email === 'sohailnasir74business@gmail.com' || auth.token.email === 'sohailnasir74@gmail.com')) || (root.child('users').child(auth.uid).child('admin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === true)) && !(root.child('banned_uids').child(auth.uid).exists() && (root.child('banned_uids').child(auth.uid).child('type').val() === 'ban' || (!root.child('banned_uids').child(auth.uid).child('type').exists() && root.child('banned_uids').child(auth.uid).child('strikeCount').val() >= 1)) && (root.child('banned_uids').child(auth.uid).child('bannedUntil').val() === 'permanent' || root.child('banned_uids').child(auth.uid).child('bannedUntil').val() > now)))",
         ".validate": "newData.val() === true"
       }
+    },
+    "pro_grants": {
+      "$uid": {
+        ".read": "(auth != null && auth.uid === $uid || (auth != null && ((auth.token.email_verified === true && (auth.token.email === 'thesolanalabs@gmail.com' || auth.token.email === 'sohailnasir74business@gmail.com' || auth.token.email === 'sohailnasir74@gmail.com')) || (root.child('users').child(auth.uid).child('admin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === true)) && !(root.child('banned_uids').child(auth.uid).exists() && (root.child('banned_uids').child(auth.uid).child('type').val() === 'ban' || (!root.child('banned_uids').child(auth.uid).child('type').exists() && root.child('banned_uids').child(auth.uid).child('strikeCount').val() >= 1)) && (root.child('banned_uids').child(auth.uid).child('bannedUntil').val() === 'permanent' || root.child('banned_uids').child(auth.uid).child('bannedUntil').val() > now))))",
+        ".write": "(auth != null && ((auth.token.email_verified === true && (auth.token.email === 'thesolanalabs@gmail.com' || auth.token.email === 'sohailnasir74business@gmail.com' || auth.token.email === 'sohailnasir74@gmail.com')) || (root.child('users').child(auth.uid).child('admin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === true)) && !(root.child('banned_uids').child(auth.uid).exists() && (root.child('banned_uids').child(auth.uid).child('type').val() === 'ban' || (!root.child('banned_uids').child(auth.uid).child('type').exists() && root.child('banned_uids').child(auth.uid).child('strikeCount').val() >= 1)) && (root.child('banned_uids').child(auth.uid).child('bannedUntil').val() === 'permanent' || root.child('banned_uids').child(auth.uid).child('bannedUntil').val() > now)))",
+        ".validate": "newData.hasChildren(['until', 'at'])",
+        "until": {
+          ".validate": "newData.isNumber()"
+        },
+        "at": {
+          ".validate": "newData.isNumber()"
+        },
+        "by": {
+          ".validate": "newData.isString()"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
     }
   }
 }

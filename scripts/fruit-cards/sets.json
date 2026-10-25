@@ -1,0 +1,19 @@
+{
+  "_doc": "Which data.json items become Fruit Cards, and which album pages they fill. Read by art.py and sync-card-catalog.js. Collector numbers live in numbers.json (assigned once, never changed).",
+  "catalog": "https://blox-api.b-cdn.net/data.json",
+  "image": "https://bloxfruitscalc.com/wp-content/uploads/2024/09/{name}_Icon.webp",
+  "excludeTypes": ["Gamepass"],
+  "excludeNames": ["Permanent Dragon Token", "Dragon Token"],
+  "typePages": { "Natural": "natural", "Beast": "beast", "Logia": "logia" },
+  "rarityPages": { "Mythical": "mythical" },
+  "limitedPage": "limited",
+  "skinPages": {
+    "skin_dragon": "Dragon",
+    "skin_kitsune": "Kitsune",
+    "skin_pain": "Pain",
+    "skin_lightning": "Lightning",
+    "skin_diamond": "Diamond",
+    "skin_eagle": "Eagle",
+    "skin_bomb": "Bomb"
+  }
+}

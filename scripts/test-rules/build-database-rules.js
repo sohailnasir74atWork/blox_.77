@@ -632,6 +632,19 @@ const OVERRIDES = {
       '.validate': 'newData.val() === true',
     },
   },
+  // Pro an Admin gives by hand (Admin Dashboard → user → Pro access,
+  // Code/Helper/proGrant.js). The player reads only their own; no list read.
+  pro_grants: {
+    $uid: {
+      '.read': or(ownUid('$uid'), wAdmin),
+      '.write': wAdmin,
+      '.validate': "newData.hasChildren(['until', 'at'])",
+      until: { '.validate': 'newData.isNumber()' },
+      at: { '.validate': 'newData.isNumber()' },
+      by: { '.validate': 'newData.isString()' },
+      $other: { '.validate': false },
+    },
+  },
 };
 
 function main() {

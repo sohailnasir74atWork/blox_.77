@@ -52,6 +52,7 @@ import {
 } from '@react-native-firebase/firestore';
 import { ref, get, set, update, remove } from '@react-native-firebase/database';
 import { getRoblox, getRoles, getCosmetics } from '../../Supabase/userBackend';
+import ProfileShowcase from '../../FruitCards/ProfileShowcase';
 import { SUPABASE_USERS_ENABLED } from '../../Supabase/featureFlags';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -349,6 +350,9 @@ const ProfileBottomDrawer = ({
               isRaider: !!roles?.isRaider,
               isHelper: !!roles?.isHelper,
               customTitle: roles?.customTitle ?? null,
+              // Fruit Cards showcase + collector score ride the cosmetics row (057).
+              cardScore: cos?.cardScore ?? 0,
+              cardShowcase: cos?.cardShowcase ?? [],
             });
             return;
           }
@@ -477,6 +481,8 @@ const ProfileBottomDrawer = ({
       isHelper: userData?.isHelper || false,
       customTitle: typeof userData?.customTitle === 'string' ? userData.customTitle : null,
       isAdmin: userData?.isAdmin || false,
+      cardScore: userData?.cardScore ?? 0,
+      cardShowcase: userData?.cardShowcase ?? [],
     };
   }, [selectedUser, userData]);
 
@@ -2576,6 +2582,11 @@ const ProfileBottomDrawer = ({
             {/* ═══ BIRTHDAY: "🎂 12 Oct", only if they show it (Code/Birthdays) ═══ */}
             {loadDetails && !loadingRating && selectedUserId && (
               <BirthdayProfileLine uid={selectedUserId} color={c.textMuted} />
+            )}
+            {/* ═══ FRUIT CARDS: showcased cards + collector score (Code/FruitCards/ProfileShowcase.jsx).
+                Draws nothing for players without cards. ═══ */}
+            {loadDetails && (
+              <ProfileShowcase cards={mergedUser?.cardShowcase} score={mergedUser?.cardScore} isDarkMode={isDarkMode} style={{ marginHorizontal: 0, marginTop: 0, marginBottom: 12 }} />
             )}
             {/* 📝 Bio Section */}
             {loadDetails && (
