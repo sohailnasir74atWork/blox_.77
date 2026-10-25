@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback, useContext } from 'react';
 import { View, Platform } from 'react-native';
-import { useIsFocused } from '@react-navigation/native';
+import { NavigationContext } from '@react-navigation/native';
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads';
 import getAdUnitId from './ads';
 import { npaRequiredFor } from './consent';
@@ -11,6 +11,28 @@ import { logAdRevenue } from './adTelemetry';
 
 // Bottom banners are anchored adaptive (owner decision, 2026-10-13; they were
 // a fixed 320x50 BANNER from 2026-10-05).
+
+// Focus of the screen this banner sits in, from the focus/blur events (port of
+// Adopt Me / MM2). useIsFocused() flipped in the same render that brings a tab
+// back, so the collapsible banner re-mounted while react-native-screens was
+// re-attaching the screen — and the adaptive banner resizes right after mount.
+// That is the suspected cause of 4.0.25 (174)'s top crash, Fabric addViewAt
+// "Unable to find view for viewState" on HomeTab (Ops/bugs/LOG.md, 2026-10-17).
+// The 'focus' event fires once the tab is back, so the banner mounts one commit
+// later. Without a navigation context the banner counts as focused.
+const useScreenFocused = () => {
+  const navigation = useContext(NavigationContext);
+  const [focused, setFocused] = useState(() => (navigation ? navigation.isFocused() : true));
+  useEffect(() => {
+    if (!navigation) return undefined;
+    setFocused(navigation.isFocused());
+    const offFocus = navigation.addListener('focus', () => setFocused(true));
+    const offBlur = navigation.addListener('blur', () => setFocused(false));
+    return () => { offFocus(); offBlur(); };
+  }, [navigation]);
+  return focused;
+};
+
 const BannerAdComponent = ({
   adType = 'banner',
   visible = true,
@@ -85,7 +107,7 @@ const BannerAdComponent = ({
   // overlay, and once its screen has been left it comes back as a plain
   // banner: it can expand only on the first visit.
   const wantsCollapsible = collapsible && Platform.OS === 'android';
-  const isFocused = useIsFocused();
+  const isFocused = useScreenFocused();
   const [expandSpent, setExpandSpent] = useState(false);
   useEffect(() => {
     if (wantsCollapsible && !isFocused) {

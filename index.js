@@ -1,3 +1,8 @@
+// Before any screen mounts: freeze hidden tabs (MainTabs freezeOnBlur), as MM2 does.
+import { enableScreens, enableFreeze } from 'react-native-screens';
+enableScreens();
+enableFreeze(true);
+
 import React, { lazy, Suspense } from 'react';
 import { AppRegistry, Platform, StatusBar, Text, FlatList } from 'react-native';
 import { getCrashlytics, recordError, log as crashlyticsLog } from '@react-native-firebase/crashlytics';

@@ -39,8 +39,8 @@ android {
     applicationId "com.bloxfruitevalues"
     minSdkVersion rootProject.ext.minSdkVersion
     targetSdkVersion rootProject.ext.targetSdkVersion
-    versionCode 174
-    versionName "4.0.25"
+    versionCode 176
+    versionName "4.0.27"
     ndk {
       abiFilters "arm64-v8a", "armeabi-v7a" // single declaration
     }
@@ -134,6 +134,12 @@ dependencies {
   // react-native-google-mobile-ads itself; do not pin older versions here.
   // (optional, but I’d keep it) WorkManager alignment you added earlier
   implementation "androidx.work:work-runtime-ktx:2.8.0"
+
+  // RN 0.87.1 resolves androidx.collection 1.4.2, whose MutableIntObjectMap can
+  // lose entries; Fabric's view registry then mounts at a stale index
+  // (ReactClippingViewManager.addView IOOBE, Crashlytics c907906e). 1.4.3 fixed
+  // the ScatterMap corruption; RN 0.88 ships 1.4.4 (react-native#58388).
+  implementation("androidx.collection:collection:1.4.4")
 }
 
 
