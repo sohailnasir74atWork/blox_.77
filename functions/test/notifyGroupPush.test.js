@@ -49,7 +49,11 @@ function fakeSupabase(tables) {
 
 (async () => {
   const groups = { [G]: { memberIds: [S, A, B, M, V, X], createdBy: S, isActive: true } };
-  const firestore = { doc: (p) => ({ get: async () => { const id = p.split('/')[1]; return { exists: !!groups[id], data: () => groups[id] }; } }) };
+  const activityWrites = [];
+  const firestore = { doc: (p) => ({
+    get: async () => { const id = p.split('/')[1]; return { exists: !!groups[id], data: () => groups[id] }; },
+    update: async (u) => { const id = p.split('/')[1]; activityWrites.push(u.lastActivityAt); Object.assign(groups[id], u); },
+  }) };
   const store = {
     users: { [A]: { fcmToken: 'tokA' }, [B]: { fcmToken: 'tokB' }, [M]: { fcmToken: 'tokM' }, [V]: { fcmToken: 'tokV' }, [X]: { fcmToken: 'tokX' } },
     activeGroupChats: { [G]: { [V]: true } },
@@ -73,6 +77,8 @@ function fakeSupabase(tables) {
 
   const t0 = 1_800_000_000_000;
   let r = await handleGroupPush(rec('hey', 'm1'), deps(t0));
+  assert.deepStrictEqual(activityWrites, [t0], 'first message marks the group active');
+
   assert.strictEqual(r, 'OK: 2 sent');
   assert.deepStrictEqual(sent.map((m) => m.token).sort(), ['tokA', 'tokB'], 'muted, viewing and self-added members get nothing');
   assert.strictEqual(sent[0].notification.title, 'Sam • Traders');
@@ -107,6 +113,9 @@ function fakeSupabase(tables) {
   assert.ok(sent.some((m) => m.token === 'tokX'), 'unsynced group falls back to memberIds');
 
   assert.strictEqual(await handleGroupPush({ group_id: 'nope', sender_id: S }, deps(t0)), 'Skipped: group not found');
+  for (let k = 1; k < activityWrites.length; k++) {
+    assert.ok(activityWrites[k] - activityWrites[k - 1] >= 60 * 60 * 1000, 'lastActivityAt written at most hourly');
+  }
   console.log('notifyGroupPush: all checks passed');
 })().catch((e) => {
   console.error('FAILED:', e && e.stack || e);

@@ -31,7 +31,10 @@
  *   days (counting from its creation when it never had one) is deleted
  *   through the delete path above: messages, every inbox row, membership,
  *   invitations, join requests. Up to 200 a run. DRY RUN (counts in the log
- *   only) until Firestore server_config/groupCleanup has apply: true.
+ *   only) until Firestore server_config/groupCleanup has apply: true (set
+ *   2026-10-25, owner request). Kept groups get lastActivityAt brought up to
+ *   date; notifyGroupNewMessage bumps it on each message (at most hourly) and
+ *   GroupsScreen shows "deleted in N days" from day 7 of quiet.
  *
  * groupSync — HTTPS, Authorization: Bearer <Firebase ID token>, POST {groupId}
  *   New builds call it right after creating, accepting or approving, so the
@@ -377,18 +380,21 @@ async function lastMessageAt(sb, groupIds) {
   return out;
 }
 
-// Groups with no message for 15 days. Activity = the newest message
-// (group_messages), or when the group was created if it never had one.
+// Groups with no message for 15 days. Activity = the newest of the newest
+// message (group_messages), lastActivityAt, and when the group was created.
 // Firestore's lastMessageTimestamp is never written, so it isn't used.
 async function planGroupCleanup({ db, sb, now }) {
   const t = now();
-  const snap = await db.collection('groups').select('createdAt').get();
+  const snap = await db.collection('groups').select('createdAt', 'lastActivityAt').get();
   const last = await lastMessageAt(sb, snap.docs.map((d) => d.id));
-  const plan = { groups: snap.size, withMessages: last.size, delete: [], noCreatedAt: 0 };
+  const plan = { groups: snap.size, withMessages: last.size, delete: [], noCreatedAt: 0, activity: [] };
   for (const d of snap.docs) {
     const created = millis(d.get('createdAt'));
     if (!created) { plan.noCreatedAt += 1; continue; } // can't tell its age: skip
-    if (Math.max(last.get(d.id) || 0, created) < t - DELETE_AFTER_QUIET_MS) plan.delete.push(d.id);
+    const stored = Number(d.get('lastActivityAt')) || 0;
+    const activity = Math.max(last.get(d.id) || 0, created, stored);
+    if (activity < t - DELETE_AFTER_QUIET_MS) plan.delete.push(d.id);
+    else if (activity - stored > 60 * 1000) plan.activity.push({ id: d.id, at: activity });
   }
   return plan;
 }
@@ -404,11 +410,18 @@ async function runGroupCleanup(deps, opts = {}) {
     groups: plan.groups,
     groupsWithMessages: plan.withMessages,
     wouldDelete: plan.delete.length,
+    activityBehind: plan.activity.length,
     skippedNoCreatedAt: plan.noCreatedAt,
     perRun: MAX_DELETE_PER_RUN,
     sample: plan.delete.slice(0, 10),
   };
   if (!apply) return report;
+
+  // The app's countdown source (never moves backwards).
+  for (const { id, at } of plan.activity) {
+    await db.collection('groups').doc(id).update({ lastActivityAt: at })
+      .catch((e) => console.warn('[cleanupInactiveGroups] lastActivityAt', id, e.message));
+  }
 
   report.deleted = 0;
   report.skipped = 0;
@@ -420,7 +433,8 @@ async function runGroupCleanup(deps, opts = {}) {
     // Re-check right before deleting: a message may have arrived since the plan.
     const created = millis(snap.get('createdAt'));
     const lastAt = (await lastMessageAt(sb, [id])).get(id) || 0;
-    if (!created || Math.max(created, lastAt) >= now() - DELETE_AFTER_QUIET_MS) {
+    const stored = Number(snap.get('lastActivityAt')) || 0;
+    if (!created || Math.max(created, lastAt, stored) >= now() - DELETE_AFTER_QUIET_MS) {
       report.skipped += 1;
       continue;
     }

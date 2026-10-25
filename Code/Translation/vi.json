@@ -262,7 +262,34 @@
       "my_trades": "Giao dịch của tôi"
     },
     "email_updates": "Cập nhật qua email",
-    "privacy_options": "Tùy chọn quyền riêng tư"
+    "privacy_options": "Tùy chọn quyền riêng tư",
+    "stat_points": "Điểm",
+    "section_account": "Tài khoản",
+    "section_notifications": "Thông báo",
+    "section_appearance": "Giao diện",
+    "section_help": "Trợ giúp và giới thiệu",
+    "privacy_chat": "Quyền riêng tư và trò chuyện",
+    "privacy_chat_sub": "Ai có thể nhắn tin, trạng thái trực tuyến",
+    "who_can_message": "Ai có thể nhắn tin cho bạn",
+    "what_others_see": "Những gì người khác thấy",
+    "allow_general_chat": "Cho phép trò chuyện chung",
+    "allow_general_chat_sub": "Chat công khai, bảng tin, hồ sơ, hộp thư",
+    "allow_trade_chat": "Cho phép chat giao dịch",
+    "allow_trade_chat_sub": "Khi ai đó mở giao dịch của bạn",
+    "chat_off_note": "Tắt một kênh chat cũng khiến bạn không nhắn tin cho người khác ở đó.",
+    "help_feedback": "Trợ giúp và góp ý",
+    "legal_safety": "Pháp lý và an toàn",
+    "get_pro": "Nâng cấp Pro",
+    "get_pro_sub": "Không quảng cáo và mọi tính năng Pro",
+    "upgrade": "Nâng cấp",
+    "roblox_account": "Tài khoản Roblox",
+    "roblox_sheet_desc": "Tên đã xác minh có dấu ✓ trong giao dịch và chat.",
+    "not_linked": "Chưa liên kết",
+    "stat_reviews": "{{count}} đánh giá",
+    "stat_xp": "XP",
+    "stat_stars": "Sao",
+    "stat_member": "Tham gia",
+    "version": "Phiên bản {{version}}"
   },
   "home": {
     "you": "Bạn",
@@ -921,7 +948,10 @@
       "created_by": "Người tạo",
       "created_on": "Ngày tạo",
       "members_label": "Thành viên",
-      "no_group_info": "Chưa có thông tin về nhóm."
+      "no_group_info": "Chưa có thông tin về nhóm.",
+      "inactive_delete_in_one": "Không hoạt động · xóa sau {{count}} ngày",
+      "inactive_delete_in_other": "Không hoạt động · xóa sau {{count}} ngày",
+      "inactive_delete_today": "Không hoạt động · xóa hôm nay"
     },
     "group_chat_screen": {
       "load_failed": "Không thể tải nhóm",

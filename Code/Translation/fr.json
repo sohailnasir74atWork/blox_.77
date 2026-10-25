@@ -262,7 +262,34 @@
             "my_trades": "Mes trades"
         },
         "email_updates": "Actualités par e-mail",
-        "privacy_options": "Options de confidentialité"
+        "privacy_options": "Options de confidentialité",
+        "stat_points": "Points",
+        "section_account": "Compte",
+        "section_notifications": "Notifications",
+        "section_appearance": "Apparence",
+        "section_help": "Aide et à propos",
+        "privacy_chat": "Confidentialité et chat",
+        "privacy_chat_sub": "Qui peut t'écrire, statut en ligne",
+        "who_can_message": "Qui peut t'écrire",
+        "what_others_see": "Ce que les autres voient",
+        "allow_general_chat": "Autoriser le chat général",
+        "allow_general_chat_sub": "Chat public, fil, profils, messagerie",
+        "allow_trade_chat": "Autoriser le chat d'échange",
+        "allow_trade_chat_sub": "Quand quelqu'un ouvre ton échange",
+        "chat_off_note": "Si tu désactives un chat, tu ne peux plus y écrire aux autres non plus.",
+        "help_feedback": "Aide et avis",
+        "legal_safety": "Mentions légales et sécurité",
+        "get_pro": "Passer Pro",
+        "get_pro_sub": "Sans pub et toutes les fonctions Pro",
+        "upgrade": "Passer Pro",
+        "roblox_account": "Compte Roblox",
+        "roblox_sheet_desc": "Les noms vérifiés ont un ✓ dans les échanges et le chat.",
+        "not_linked": "Non lié",
+        "stat_reviews": "{{count}} avis",
+        "stat_xp": "XP",
+        "stat_stars": "Étoiles",
+        "stat_member": "Inscrit",
+        "version": "Version {{version}}"
     },
     "home": {
         "you": "Toi",
@@ -921,7 +948,10 @@
             "created_by": "Créé par",
             "created_on": "Créé le",
             "members_label": "Membres",
-            "no_group_info": "Aucune information sur le groupe."
+            "no_group_info": "Aucune information sur le groupe.",
+            "inactive_delete_in_one": "Inactif · supprimé dans {{count}} jour",
+            "inactive_delete_in_other": "Inactif · supprimé dans {{count}} jours",
+            "inactive_delete_today": "Inactif · supprimé aujourd'hui"
         },
         "group_chat_screen": {
             "load_failed": "Impossible de charger le groupe",

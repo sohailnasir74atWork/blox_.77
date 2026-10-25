@@ -17,6 +17,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGlobalState } from '../../GlobelStats';
 import Icon from 'react-native-vector-icons/Ionicons';
+import InactiveGroupWarning, { useGroupsLastActivity } from './InactiveGroupWarning';
 import config from '../../Helper/Environment';
 import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
 import { useTranslation } from 'react-i18next';
@@ -655,6 +656,13 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
   }, [user?.id, firestoreDB, appdatabase, uploadToBunny, setGroups, roles, groups, t]);
 
   // Render group item
+  // lastActivityAt per joined group, for the inactive-group countdown.
+  const myGroupIds = useMemo(
+    () => (Array.isArray(groups) ? groups : []).map((g) => g?.groupId).filter(Boolean),
+    [groups],
+  );
+  const groupActivity = useGroupsLastActivity(firestoreDB, myGroupIds);
+
   const renderGroupItem = useCallback(({ item }) => {
     if (!item || typeof item !== 'object') return null;
 
@@ -711,6 +719,10 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
             <Text style={styles.lastMessage} numberOfLines={1}>
               {lastMessage}
             </Text>
+            <InactiveGroupWarning
+              lastActivityAt={Math.max(groupActivity[groupId] || 0, Number(item.lastMessageTimestamp) || 0)}
+              isDarkMode={isDarkMode}
+            />
           </View>
           {unreadCount > 0 && (
             <View style={styles.unreadBadge}>
@@ -774,7 +786,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
         </Menu>
       </View>
     );
-  }, [styles, handleOpenGroup, handleLeaveGroup, handleUpdateGroupIcon, handleEditGroup, handleDeleteGroup, handleToggleMute, user?.id, isDarkMode, roles, groups, mutedGroups, t]);
+  }, [styles, handleOpenGroup, handleLeaveGroup, handleUpdateGroupIcon, handleEditGroup, handleDeleteGroup, handleToggleMute, user?.id, isDarkMode, roles, groups, mutedGroups, t, groupActivity]);
 
   const filteredGroups = useMemo(() => {
     if (!Array.isArray(groups)) return [];
@@ -791,7 +803,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
     return filteredGroups.filter(g => g.createdBy === user?.id).length >= getGroupCap(roles);
   }, [filteredGroups, user?.id, roles]);
 
-  // ✅ Load initial 10 groups when "All Groups" tab is active
+  // ✅ Load initial 8 groups when "All Groups" tab is active (8 more per scroll, same as Adopt Me)
   useEffect(() => {
     if (activeTab === 'all' && firestoreDB && appdatabase) {
       // The newest search wins: a slower earlier load must not overwrite it.
@@ -801,7 +813,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
         setAllGroupsHasMore(true);
         setAllGroupsLastDoc(null);
         try {
-          const result = await getAllGroups(firestoreDB, 'all', allGroupsSearchQuery, 10, null);
+          const result = await getAllGroups(firestoreDB, 'all', allGroupsSearchQuery, 8, null);
           if (seq !== allGroupsLoadSeq.current) return;
           if (result.success) {
             // Show all groups (including user's own groups)
@@ -861,7 +873,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
 
     setAllGroupsLoadingMore(true);
     try {
-      const result = await getAllGroups(firestoreDB, 'all', allGroupsSearchQuery, 15, allGroupsLastDoc);
+      const result = await getAllGroups(firestoreDB, 'all', allGroupsSearchQuery, 8, allGroupsLastDoc);
       if (result.success) {
         // Filter out groups user is already a member of
         // Show all groups (including user's own groups)
@@ -1522,6 +1534,7 @@ const GroupsScreen = ({ groups = [], setGroups, groupsLoading = false }) => {
                       }}>
                         {t('chat.groups_screen.member_count', { count: memberCount })}
                       </Text>
+                      <InactiveGroupWarning lastActivityAt={item.lastActivityAt} isDarkMode={isDarkMode} />
                     </View>
                     <View style={{ flexDirection: 'row', gap: 6, alignItems: 'flex-start', marginTop: 2 }}>
                       {isAlreadyJoined ? (

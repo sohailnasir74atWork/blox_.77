@@ -189,6 +189,7 @@ exports.notifyPrivateMessage = functions
 // =====================================================================
 const TOKEN_TTL_MS = 10 * 60 * 1000;
 const TOKEN_CACHE_MAX = 5000;
+const ACTIVITY_WRITE_EVERY_MS = 60 * 60 * 1000;
 const _tokenCache = new Map(); // uid → { token | null, at }
 
 // fcmTokens for `uids`, cached per instance for TOKEN_TTL_MS.
@@ -226,6 +227,17 @@ async function handleGroupPush(record, deps) {
   const groupSnap = await firestore.doc(`groups/${groupId}`).get();
   if (!groupSnap.exists) return 'Skipped: group not found';
   const group = groupSnap.data() || {};
+
+  // A message makes the group active again: cleanupInactiveGroups deletes
+  // groups quiet for 15 days and the app counts down from lastActivityAt.
+  // At most one write an hour per group.
+  if (!(Number(group.lastActivityAt) > now - ACTIVITY_WRITE_EVERY_MS)) {
+    try {
+      await firestore.doc(`groups/${groupId}`).update({ lastActivityAt: now });
+    } catch (e) {
+      console.warn(`lastActivityAt ${groupId}: ${e.message}`);
+    }
+  }
 
   let memberIds = [...new Set((group.memberIds || []).filter((id) => id && id !== senderId))];
   if (memberIds.length === 0) return 'Skipped: no other members';

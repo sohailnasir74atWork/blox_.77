@@ -262,7 +262,34 @@
       "my_trades": "自分のトレード"
     },
     "email_updates": "メールでのお知らせ",
-    "privacy_options": "プライバシー設定"
+    "privacy_options": "プライバシー設定",
+    "stat_points": "ポイント",
+    "section_account": "アカウント",
+    "section_notifications": "通知",
+    "section_appearance": "表示",
+    "section_help": "ヘルプと情報",
+    "privacy_chat": "プライバシーとチャット",
+    "privacy_chat_sub": "メッセージできる人、オンライン状態",
+    "who_can_message": "メッセージできる人",
+    "what_others_see": "ほかの人に見える情報",
+    "allow_general_chat": "一般チャットを許可",
+    "allow_general_chat_sub": "公開チャット、フィード、プロフィール、受信箱",
+    "allow_trade_chat": "トレードチャットを許可",
+    "allow_trade_chat_sub": "誰かがあなたのトレードを開いたとき",
+    "chat_off_note": "チャットをオフにすると、そこで他の人にメッセージを送ることもできなくなります。",
+    "help_feedback": "ヘルプとご意見",
+    "legal_safety": "法的情報と安全",
+    "get_pro": "Proにする",
+    "get_pro_sub": "広告なし・すべてのPro機能",
+    "upgrade": "アップグレード",
+    "roblox_account": "Robloxアカウント",
+    "roblox_sheet_desc": "認証済みの名前はトレードとチャットで✓が付きます。",
+    "not_linked": "未連携",
+    "stat_reviews": "レビュー{{count}}件",
+    "stat_xp": "XP",
+    "stat_stars": "スター",
+    "stat_member": "参加",
+    "version": "バージョン {{version}}"
   },
   "home": {
     "you": "自分",
@@ -921,7 +948,10 @@
       "created_by": "作成者",
       "created_on": "作成日",
       "members_label": "メンバー",
-      "no_group_info": "グループ情報はありません"
+      "no_group_info": "グループ情報はありません",
+      "inactive_delete_in_one": "非アクティブ · {{count}}日後に削除",
+      "inactive_delete_in_other": "非アクティブ · {{count}}日後に削除",
+      "inactive_delete_today": "非アクティブ · 今日削除"
     },
     "group_chat_screen": {
       "load_failed": "グループを読み込めませんでした",

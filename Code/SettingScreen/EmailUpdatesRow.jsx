@@ -16,7 +16,7 @@ import {
 // Settings switch for email news and updates. Turning it on goes through
 // EmailOptInGate (App.js), which owns the 13+ check; turning it off is a
 // direct write. Hidden for accounts with no email and for known under-13s.
-const EmailUpdatesRow = ({ uid, appdatabase, knownDob, styles, onHaptic }) => {
+const EmailUpdatesRow = ({ uid, appdatabase, knownDob, styles, onHaptic, iconStyle, iconColor, iconSize }) => {
   const { t } = useTranslation();
   const cached = getCachedEmailPrefs(uid);
   const [optIn, setOptIn] = useState(!!cached?.optIn);
@@ -66,7 +66,7 @@ const EmailUpdatesRow = ({ uid, appdatabase, knownDob, styles, onHaptic }) => {
     <View style={styles.option}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
         <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={() => onToggle(!optIn)}>
-          <Icon name="mail-outline" size={18} color={'white'} style={{ backgroundColor: '#0EA5E9', padding: 5, borderRadius: 5 }} />
+          <Icon name="mail-outline" size={iconSize || 18} color={iconColor || 'white'} style={iconStyle || { backgroundColor: '#0EA5E9', padding: 5, borderRadius: 5 }} />
           <Text style={styles.optionText}>{t('settings.email_updates', { defaultValue: 'Email updates' })}</Text>
         </TouchableOpacity>
         <Switch value={optIn} disabled={busy} onValueChange={onToggle} />

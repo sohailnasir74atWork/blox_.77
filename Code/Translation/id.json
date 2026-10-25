@@ -262,7 +262,34 @@
       "my_trades": "Trade-ku"
     },
     "email_updates": "Info terbaru lewat email",
-    "privacy_options": "Opsi privasi"
+    "privacy_options": "Opsi privasi",
+    "stat_points": "Poin",
+    "section_account": "Akun",
+    "section_notifications": "Notifikasi",
+    "section_appearance": "Tampilan",
+    "section_help": "Bantuan dan info",
+    "privacy_chat": "Privasi dan chat",
+    "privacy_chat_sub": "Siapa yang bisa mengirim pesan, status online",
+    "who_can_message": "Siapa yang bisa mengirim pesan",
+    "what_others_see": "Yang dilihat orang lain",
+    "allow_general_chat": "Izinkan chat umum",
+    "allow_general_chat_sub": "Chat publik, feed, profil, kotak masuk",
+    "allow_trade_chat": "Izinkan chat trade",
+    "allow_trade_chat_sub": "Saat seseorang membuka trade kamu",
+    "chat_off_note": "Mematikan chat juga membuat kamu tidak bisa mengirim pesan di sana.",
+    "help_feedback": "Bantuan dan masukan",
+    "legal_safety": "Legal dan keamanan",
+    "get_pro": "Dapatkan Pro",
+    "get_pro_sub": "Tanpa iklan dan semua fitur Pro",
+    "upgrade": "Upgrade",
+    "roblox_account": "Akun Roblox",
+    "roblox_sheet_desc": "Nama terverifikasi mendapat ✓ di trade dan chat.",
+    "not_linked": "Belum ditautkan",
+    "stat_reviews": "{{count}} ulasan",
+    "stat_xp": "XP",
+    "stat_stars": "Bintang",
+    "stat_member": "Bergabung",
+    "version": "Versi {{version}}"
   },
   "home": {
     "you": "Kamu",
@@ -921,7 +948,10 @@
       "created_by": "Dibuat oleh",
       "created_on": "Dibuat pada",
       "members_label": "Anggota",
-      "no_group_info": "Info grup tidak tersedia."
+      "no_group_info": "Info grup tidak tersedia.",
+      "inactive_delete_in_one": "Tidak aktif · dihapus dalam {{count}} hari",
+      "inactive_delete_in_other": "Tidak aktif · dihapus dalam {{count}} hari",
+      "inactive_delete_today": "Tidak aktif · dihapus hari ini"
     },
     "group_chat_screen": {
       "load_failed": "Grup gagal dimuat",

@@ -19,7 +19,7 @@ import EditBirthdaySheet from './EditBirthdaySheet';
 //   "Change my birthday" — the one-time correction, while unused.
 // The full date of birth comes from the phone (useDobGate's store), or one
 // read of users_private while the edit is still unused.
-const BirthdayVisibilityRow = ({ uid, styles, onHaptic }) => {
+const BirthdayVisibilityRow = ({ uid, styles, onHaptic, iconStyle, iconColor, iconSize }) => {
   const { t } = useTranslation();
   const { theme, appdatabase } = useGlobalState();
   const c = getThemeColors(theme === 'dark');
@@ -93,7 +93,7 @@ const BirthdayVisibilityRow = ({ uid, styles, onHaptic }) => {
         <View style={styles.option}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
             <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }} onPress={() => onToggle(!show)}>
-              <Icon name="gift-outline" size={18} color={'white'} style={{ backgroundColor: '#EC4899', padding: 5, borderRadius: 5 }} />
+              <Icon name="gift-outline" size={iconSize || 18} color={iconColor || 'white'} style={iconStyle || { backgroundColor: '#EC4899', padding: 5, borderRadius: 5 }} />
               <Text style={styles.optionText}>{t('birthdays.settings_row')}</Text>
             </TouchableOpacity>
             <Switch value={show} disabled={busy} onValueChange={onToggle} />
@@ -107,7 +107,7 @@ const BirthdayVisibilityRow = ({ uid, styles, onHaptic }) => {
             onPress={() => { if (onHaptic) onHaptic(); setEditing(true); }}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Icon name="calendar-outline" size={18} color={'white'} style={{ backgroundColor: '#DB2777', padding: 5, borderRadius: 5 }} />
+              <Icon name="calendar-outline" size={iconSize || 18} color={iconColor || 'white'} style={iconStyle || { backgroundColor: '#DB2777', padding: 5, borderRadius: 5 }} />
               <Text style={styles.optionText}>{t('birthdays.edit_row')}</Text>
             </View>
             <Icon name="chevron-forward" size={18} color={c.textMuted} />
