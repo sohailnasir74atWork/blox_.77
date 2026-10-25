@@ -1,5 +1,6 @@
 {
   "settings": {
+    "view_public_profile": "عرض ملفي الشخصي العام",
     "login_register": "تسجيل الدخول / التسجيل",
     "login_description": "سجّل الدخول للوصول إلى الإشعارات، التداول، الدردشة والمزيد",
     "app_settings": "إعدادات التطبيق",
@@ -1468,6 +1469,7 @@
     "proUsersOnlyLinks": "فقط مستخدمي Pro يمكنهم إرسال الروابط."
   },
   "profile": {
+    "public_view": "العرض العام",
     "portfolio": "المحفظة",
     "owned": "مملوكة",
     "no_owned": "لا توجد فواكه مدرجة.",

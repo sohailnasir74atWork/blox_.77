@@ -1,5 +1,6 @@
 {
   "settings": {
+    "view_public_profile": "Ver mi perfil público",
     "login_register": "Iniciar sesión / Registrarse",
     "login_description": "Inicia sesión para acceder a notificaciones, comercio, chat y mucho más",
     "app_settings": "CONFIGURACIÓN DE LA APLICACIÓN",
@@ -1357,6 +1358,7 @@
     "proUsersOnlyLinks": "Solo los usuarios Pro pueden enviar enlaces."
   },
   "profile": {
+    "public_view": "Vista pública",
     "portfolio": "Portafolio",
     "owned": "Poseídas",
     "no_owned": "No hay frutas listadas.",

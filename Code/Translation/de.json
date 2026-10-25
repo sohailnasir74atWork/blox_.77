@@ -1,5 +1,6 @@
 {
   "settings": {
+    "view_public_profile": "Mein öffentliches Profil ansehen",
     "login_register": "Anmelden / Registrieren",
     "login_description": "Melden Sie sich an, um auf Benachrichtigungen, Handel, Chat und vieles mehr zuzugreifen",
     "app_settings": "APP-EINSTELLUNGEN",
@@ -1356,6 +1357,7 @@
     "proUsersOnlyLinks": "Nur Pro-Nutzer können Links senden."
   },
   "profile": {
+    "public_view": "Öffentliche Ansicht",
     "portfolio": "Portfolio",
     "owned": "Besitzt",
     "no_owned": "Keine Früchte aufgelistet.",

@@ -1,5 +1,6 @@
 {
   "settings": {
+    "view_public_profile": "Lihat profil publik saya",
     "login_register": "Masuk / Daftar",
     "login_description": "Masuk untuk mengakses notifikasi, perdagangan, obrolan, dan banyak lagi",
     "app_settings": "PENGATURAN APLIKASI",
@@ -1356,6 +1357,7 @@
     "proUsersOnlyLinks": "Hanya pengguna Pro yang dapat mengirimkan link."
   },
   "profile": {
+    "public_view": "Tampilan publik",
     "portfolio": "Portofolio",
     "owned": "Dimiliki",
     "no_owned": "Belum ada buah yang terdaftar.",

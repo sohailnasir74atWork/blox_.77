@@ -1,5 +1,6 @@
 {
   "settings": {
+    "view_public_profile": "Tingnan ang aking pampublikong profile",
     "login_register": "Mag-login / Magrehistro",
     "login_description": "Mag-login upang ma-access ang mga notification, trading, chat at marami pa",
     "app_settings": "MGA SETTING NG APP",
@@ -1356,6 +1357,7 @@
     "proUsersOnlyLinks": "Tanging mga Pro users lamang ang makakapagpadala ng mga link."
   },
   "profile": {
+    "public_view": "Pampublikong view",
     "portfolio": "Koleksyon",
     "owned": "Pag-aari",
     "no_owned": "Walang nakalista na prutas.",

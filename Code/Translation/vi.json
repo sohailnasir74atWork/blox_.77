@@ -1,5 +1,6 @@
 {
   "settings": {
+    "view_public_profile": "Xem hồ sơ công khai của tôi",
     "login_register": "Đăng nhập / Đăng ký",
     "login_description": "Đăng nhập để truy cập thông báo, giao dịch, trò chuyện và nhiều hơn nữa",
     "app_settings": "CÀI ĐẶT ỨNG DỤNG",
@@ -1356,6 +1357,7 @@
     "proUsersOnlyLinks": "Chỉ người dùng Pro mới có thể gửi liên kết."
   },
   "profile": {
+    "public_view": "Chế độ xem công khai",
     "portfolio": "Danh mục",
     "owned": "Sở hữu",
     "no_owned": "Chưa có trái cây nào.",

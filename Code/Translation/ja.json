@@ -1,5 +1,6 @@
 {
   "settings": {
+    "view_public_profile": "自分の公開プロフィールを見る",
     "login_register": "ログイン / 新規登録",
     "login_description": "ログインすると、通知・トレード・チャットなどが使えます",
     "app_settings": "アプリ設定",
@@ -1419,6 +1420,7 @@
     }
   },
   "profile": {
+    "public_view": "公開表示",
     "portfolio": "持ち物",
     "owned": "所持",
     "no_owned": "登録されたフルーツはありません。",

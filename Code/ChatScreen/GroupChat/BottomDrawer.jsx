@@ -205,6 +205,10 @@ const ProfileBottomDrawer = ({
   const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
 
   const selectedUserId = selectedUser?.senderId || selectedUser?.id || null;
+  // Self view (Setting.jsx "View my public profile"): the drawer renders
+  // exactly what another player sees, minus the actions that only make
+  // sense on someone else (block, chat, follow, mod tools).
+  const isOwnProfile = !!user?.id && (selectedUserId === user.id || selectedUserId === user.senderId);
 
   // Android / iOS of the viewed user (users/{uid}/OS), Admins and Senior Mods
   // only. Falls back
@@ -2385,14 +2389,29 @@ const ProfileBottomDrawer = ({
                 </View>
               )}
 
-              {/* Ban/Block icon on banner */}
-              <TouchableOpacity onPress={handleBanToggle} style={{
-                position: 'absolute', top: 12, left: 14,
-                padding: 6, borderRadius: 999,
-                backgroundColor: 'rgba(255,255,255,0.15)',
-              }}>
-                <Icon name={isBlock ? 'shield-checkmark-outline' : 'ban-outline'} size={16} color="#fff" />
-              </TouchableOpacity>
+              {/* Ban/Block icon on banner; on your own profile a "public view" chip instead */}
+              {isOwnProfile ? (
+                <View style={{
+                  position: 'absolute', top: 12, left: 14,
+                  flexDirection: 'row', alignItems: 'center', gap: 4,
+                  backgroundColor: 'rgba(255,255,255,0.2)',
+                  paddingHorizontal: 10, paddingVertical: 4,
+                  borderRadius: 999,
+                }}>
+                  <Icon name="eye-outline" size={12} color="#fff" />
+                  <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 }}>
+                    {t('profile.public_view')}
+                  </Text>
+                </View>
+              ) : (
+                <TouchableOpacity onPress={handleBanToggle} style={{
+                  position: 'absolute', top: 12, left: 14,
+                  padding: 6, borderRadius: 999,
+                  backgroundColor: 'rgba(255,255,255,0.15)',
+                }}>
+                  <Icon name={isBlock ? 'shield-checkmark-outline' : 'ban-outline'} size={16} color="#fff" />
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* ═══ CONTENT AREA (below banner) ═══ */}
@@ -2968,7 +2987,7 @@ const ProfileBottomDrawer = ({
               {/* Top row: Chat + Follow */}
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 {/* Chat Action */}
-                {!fromPvtChat && (
+                {!fromPvtChat && !isOwnProfile && (
                   <TouchableOpacity
                     onPress={handleStartChat}
                     activeOpacity={0.85}

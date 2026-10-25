@@ -1,5 +1,6 @@
 {
   "settings": {
+    "view_public_profile": "View my public profile",
     "login_register": "Login / Register",
     "login_description": "Login to access notification, trading, chat and much more",
     "app_settings": "APP SETTINGS",
@@ -1419,6 +1420,7 @@
     }
   },
   "profile": {
+    "public_view": "Public view",
     "portfolio": "Portfolio",
     "owned": "Owned",
     "no_owned": "No fruits listed.",

@@ -1,5 +1,6 @@
 {
     "settings": {
+        "view_public_profile": "Voir mon profil public",
         "login_register": "Connexion / Inscription",
         "login_description": "Connectez-vous pour accéder aux notifications, au trading, au chat et bien plus encore",
         "app_settings": "PARAMÈTRES DE L'APPLICATION",
@@ -1356,6 +1357,7 @@
         "proUsersOnlyLinks": "Seuls les utilisateurs Pro peuvent envoyer des liens."
     },
     "profile": {
+        "public_view": "Vue publique",
         "portfolio": "Portfolio",
         "owned": "Possédés",
         "no_owned": "Aucun fruit listé.",
