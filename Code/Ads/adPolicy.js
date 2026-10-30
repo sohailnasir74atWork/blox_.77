@@ -84,6 +84,15 @@ export const CROSS_FORMAT_GAP_MS = 60 * 1000;
 // coming back is a real return, and 30 s skipped most of them.
 export const APP_OPEN_MIN_BACKGROUND_MS = 10 * 1000;
 
+// Our own trips out of the app (store sheet, share, picker, sign-in, links,
+// permission dialogs) skip the app-open ad on the way back, but only when the
+// app actually goes to the background within this long of the call. Calls
+// that never leave (FCM requestPermission on every signed-in launch, a
+// permission already granted, iOS sheets and pickers) used to arm a skip that
+// ate the next genuine return (bugs LOG 2026-10-30). Every wrapped call
+// leaves within a second when it leaves at all.
+export const LEAVE_ARM_MS = 10 * 1000;
+
 // "No fill" is not a transient failure — the auction had nothing for this
 // user/geo right now — so the 1→16s exponential retry the managers used to
 // run just burned 5 more requests for the same answer. After a no-fill, one

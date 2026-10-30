@@ -20,6 +20,7 @@ import {
   LAUNCH_AD_MAX_MS,
   CROSS_FORMAT_GAP_MS,
   POST_SHOW_RELOAD_MS,
+  LEAVE_ARM_MS,
 } from './adPolicy';
 
 const adUnitId = getAdUnitId('openapp');
@@ -102,6 +103,8 @@ class AppOpenAdManager {
   static foregroundTimer = null;
   static coldStartShowing = false;
   static skipForegroundUntil = 0;
+  static skipRequestedAt = 0;
+  static skipTripMs = 0;
   // Launch-window bookkeeping (see the Launch ad notes at the top).
   static homeVisibleAt = 0;
   static touchedAt = 0;
@@ -111,12 +114,15 @@ class AppOpenAdManager {
    * Our own trips out of the app (the Play / App Store purchase sheet) come
    * back through 'active' exactly like a real return, and got an app-open ad:
    * shown to someone who had just tried to BUY ad-free, before the purchase
-   * had even confirmed. Call right before leaving; the window only bounds how
-   * long an unused skip lingers (iOS's StoreKit sheet never backgrounds the
-   * app, so it is never consumed there).
+   * had even confirmed. Call right before leaving. The skip only takes hold
+   * if the app goes to the background within LEAVE_ARM_MS of this call; a
+   * call that never leaves (iOS's StoreKit sheet, a permission already
+   * granted) expires unused instead of eating the next real return. `ms`
+   * bounds how long the trip may last and still skip.
    */
   static skipNextForeground(ms = 5 * 60 * 1000) {
-    this.skipForegroundUntil = Date.now() + ms;
+    this.skipRequestedAt = Date.now();
+    this.skipTripMs = ms;
   }
 
   /**
@@ -221,6 +227,12 @@ class AppOpenAdManager {
         if (!isFullScreenAdVisible()) {
           this.wasBackgrounded = true;
           this.backgroundedAt = Date.now();
+          // A skip asked for just before this trip makes it ours; an older
+          // request never led out of the app and is dropped here.
+          if (this.skipRequestedAt && this.backgroundedAt - this.skipRequestedAt <= LEAVE_ARM_MS) {
+            this.skipForegroundUntil = this.backgroundedAt + this.skipTripMs;
+          }
+          this.skipRequestedAt = 0;
         }
       } else if (next === 'active') {
         if (this.wasBackgrounded) {

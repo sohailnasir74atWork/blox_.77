@@ -18,9 +18,11 @@ import { Linking, Share as RNShare } from 'react-native';
 import AppOpenAdManager from './openApp';
 import { adLog } from './adTelemetry';
 
-// Long enough for a photo pick, a sign-in or a share; short enough that an
-// unused skip (iOS pickers and sheets never background the app) does not
-// swallow a real return much later.
+// How long a trip out may last and still skip the ad on return: long enough
+// for a photo pick, a sign-in or a share. A call that never leaves the app
+// (iOS pickers and sheets, a permission already granted) arms nothing:
+// openApp.js only honours the skip when the app goes to the background within
+// LEAVE_ARM_MS of the call.
 const LEAVE_SKIP_MS = 2 * 60 * 1000;
 
 const noteLeaving = () => {
