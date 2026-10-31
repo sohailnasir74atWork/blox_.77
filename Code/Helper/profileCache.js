@@ -21,6 +21,7 @@ import {
   getIdentityBatch, getRolesBatch, getCosmeticsBatch, getRobloxBatch,
 } from '../Supabase/userBackend';
 import { SUPABASE_USERS_ENABLED } from '../Supabase/featureFlags';
+import { normalizeWorn } from './customBadges';
 
 let cache;
 try {
@@ -72,6 +73,23 @@ export const setCachedProfile = (uid, data) => {
 export const patchCachedProfile = (uid, patch) => {
   const cached = getCachedProfile(uid);
   if (cached && patch) setCachedProfile(uid, { ...cached, ...patch });
+};
+
+// Mod badge colours + custom badges (Code/Helper/customBadges.js): the 058
+// columns on the roles row when the mirror has them (undefined until
+// supabase/058 runs, or with no roles row) — else the one worn_badges leaf.
+const wornFields = async (db, uid, roles) => {
+  if (roles && roles.badgeStyles !== undefined) {
+    const w = normalizeWorn({ styles: roles.badgeStyles, custom: roles.customBadges });
+    return { badgeStyles: w.styles, customBadges: w.custom };
+  }
+  try {
+    const snap = await get(ref(db, `worn_badges/${uid}`));
+    const w = normalizeWorn(snap?.exists() ? snap.val() : null);
+    return { badgeStyles: w.styles, customBadges: w.custom };
+  } catch (e) {
+    return { badgeStyles: null, customBadges: null };
+  }
 };
 
 // ────────────────────────────────────────────────────────
@@ -159,6 +177,7 @@ export const getOrFetchProfile = async (db, uid) => {
           customTitle: roles?.customTitle ?? null,
           topBadge: cosBadge?.topBadge ?? null,
           ...cosmetics,
+          ...(await wornFields(db, uid, roles)),
         };
 
         setCachedProfile(uid, profile);
@@ -214,6 +233,7 @@ export const getOrFetchProfile = async (db, uid) => {
       customTitle: titleSnap?.exists() && typeof titleSnap.val() === 'string' ? titleSnap.val() : null,
       topBadge: topBadgeSnap?.exists() ? topBadgeSnap.val() : null,
       ...cosmetics,
+      ...(await wornFields(db, uid, null)),
     };
     setCachedProfile(uid, profile);
     return profile;
@@ -284,6 +304,10 @@ export const warmProfileCache = async (db, uids) => {
           customTitle: role?.customTitle ?? null,
           topBadge: cosBadge?.topBadge ?? null,
           ...cosmetics,
+          // 058 columns when present; a missing column means "unknown", and the
+          // RoleBadges first-known lookup then leaves the badges plain.
+          badgeStyles: role?.badgeStyles ?? null,
+          customBadges: role?.customBadges ?? null,
         });
       });
 
@@ -346,7 +370,7 @@ const DEFAULT_PROFILE = {
   chatTextColor: null, profileFrame: null, tradeCardBg: null,
   chatBubbleBg: null, profileBanner: null, topBadge: null,
   isAdmin: false, isSeniorMod: false, isModerator: false, isBabyMod: false, isTrusted: false, isGrinder: false, isRaider: false,
-  isHelper: false, customTitle: null,
+  isHelper: false, customTitle: null, badgeStyles: null, customBadges: null,
 };
 
 export const resolveProfile = (msg) => {
@@ -373,6 +397,8 @@ export const resolveProfile = (msg) => {
     isRaider: cached?.isRaider ?? false,
     isHelper: cached?.isHelper ?? false,
     customTitle: cached?.customTitle ?? null,
+    badgeStyles: cached?.badgeStyles ?? null,
+    customBadges: cached?.customBadges ?? null,
     chatTextColor: msg.chatTextColor ?? cached?.chatTextColor ?? null,
     profileFrame: msg.profileFrame ?? cached?.profileFrame ?? null,
     tradeCardBg: cached?.tradeCardBg ?? null,
@@ -405,6 +431,8 @@ export const seedCurrentUser = async (user, localState, db) => {
     isRaider: !!user.isRaider,
     isHelper: !!user.isHelper,
     customTitle: typeof user.customTitle === 'string' ? user.customTitle : null,
+    badgeStyles: getCachedProfile(user.id)?.badgeStyles ?? null,
+    customBadges: getCachedProfile(user.id)?.customBadges ?? null,
     topBadge: user.topBadge || null,
     chatTextColor: null,
     profileFrame: null,

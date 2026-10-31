@@ -73,7 +73,9 @@ import ModActionModal from '../../AppHelper/ModActionModal';
 import ModHistoryList from '../../AppHelper/ModHistoryList';
 // Role grants: Helper badge, custom titles, JMD = Senior Mod+ (2026-10-19).
 import CustomTitleModal from '../../AppHelper/CustomTitleModal';
-import { makeHelper, removeHelper, setCustomTitle, canManageBabyMod, canGiveTitle, canManageBadges, granterCanTouch } from '../utils';
+import { setCustomTitle, canManageBabyMod, canGiveTitle, canManageBadges, granterCanTouch } from '../utils';
+import BadgeManager from '../../Helper/BadgeManager';
+import { fetchWornBadges } from '../../Helper/customBadges';
 import { openReportForm, reviewForReport } from '../../Reports/openReportForm';
 
 // Initialize dayjs plugins
@@ -357,6 +359,11 @@ const ProfileBottomDrawer = ({
               // Fruit Cards showcase + collector score ride the cosmetics row (057).
               cardScore: cos?.cardScore ?? 0,
               cardShowcase: cos?.cardShowcase ?? [],
+              // Mod badge colours + custom badges (058 columns; before the
+              // migration, one worn_badges leaf — Code/Helper/customBadges.js).
+              ...(roles && roles.badgeStyles !== undefined
+                ? { badgeStyles: roles.badgeStyles || null, customBadges: roles.customBadges || null }
+                : await fetchWornBadges(appdatabase, selectedUserId).then((w) => ({ badgeStyles: w.styles, customBadges: w.custom }))),
             });
             return;
           }
@@ -416,6 +423,10 @@ const ProfileBottomDrawer = ({
           }
         });
 
+        const worn = await fetchWornBadges(appdatabase, selectedUserId);
+        if (!isMounted) return;
+        fetchedData.badgeStyles = worn.styles;
+        fetchedData.customBadges = worn.custom;
         setUserData(fetchedData);
       } catch (error) {
         console.error('Error fetching user data in BottomDrawer:', error);
@@ -484,6 +495,8 @@ const ProfileBottomDrawer = ({
       isRaider: userData?.isRaider || false,
       isHelper: userData?.isHelper || false,
       customTitle: typeof userData?.customTitle === 'string' ? userData.customTitle : null,
+      badgeStyles: userData?.badgeStyles || null,
+      customBadges: userData?.customBadges || null,
       isAdmin: userData?.isAdmin || false,
       cardScore: userData?.cardScore ?? 0,
       cardShowcase: userData?.cardShowcase ?? [],
@@ -874,163 +887,6 @@ const ProfileBottomDrawer = ({
     );
   };
 
-  const handleMakeTrusted = () => {
-    Alert.alert(
-      'Make Trusted',
-      `Assign Trusted status to ${userName}?`,
-      [
-        { text: t('chat.cancel'), style: 'cancel' },
-        {
-          text: 'Confirm', onPress: async () => {
-            try {
-              // One atomic write: flag + rolesUpdatedAt stamp so the Supabase
-              // mirror always runs, even when the flag value is unchanged.
-              await update(ref(appdatabase, `users/${selectedUserId}`), { isTrusted: true, rolesUpdatedAt: Date.now() });
-              logModAction('role_change', selectedUserId, { role: 'isTrusted', value: true });
-              setUserData(prev => ({ ...prev, isTrusted: true }));
-              Alert.alert('Success', 'User is now Trusted.');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to update status.');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  const handleRemoveTrusted = () => {
-    Alert.alert(
-      'Remove Trusted',
-      `Remove Trusted status from ${userName}?`,
-      [
-        { text: t('chat.cancel'), style: 'cancel' },
-        {
-          text: 'Remove', style: 'destructive', onPress: async () => {
-            try {
-              await update(ref(appdatabase, `users/${selectedUserId}`), { isTrusted: null, rolesUpdatedAt: Date.now() });
-              logModAction('role_change', selectedUserId, { role: 'isTrusted', value: false });
-              setUserData(prev => ({ ...prev, isTrusted: false }));
-              Alert.alert('Success', 'Trusted status removed.');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to update status.');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  const handleMakeGrinder = () => {
-    Alert.alert(
-      'Make Grinder',
-      `Assign Grinder status to ${userName}?`,
-      [
-        { text: t('chat.cancel'), style: 'cancel' },
-        {
-          text: 'Assign', onPress: async () => {
-            try {
-              await update(ref(appdatabase, `users/${selectedUserId}`), { isGrinder: true, rolesUpdatedAt: Date.now() });
-              logModAction('role_change', selectedUserId, { role: 'isGrinder', value: true });
-              setUserData(prev => ({ ...prev, isGrinder: true }));
-              Alert.alert('Success', 'User is now Grinder.');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to update status.');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  const handleRemoveGrinder = () => {
-    Alert.alert(
-      'Remove Grinder',
-      `Remove Grinder status from ${userName}?`,
-      [
-        { text: t('chat.cancel'), style: 'cancel' },
-        {
-          text: 'Remove', style: 'destructive', onPress: async () => {
-            try {
-              await update(ref(appdatabase, `users/${selectedUserId}`), { isGrinder: null, rolesUpdatedAt: Date.now() });
-              logModAction('role_change', selectedUserId, { role: 'isGrinder', value: false });
-              setUserData(prev => ({ ...prev, isGrinder: false }));
-              Alert.alert('Success', 'Grinder status removed.');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to update status.');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  const handleMakeRaider = () => {
-    Alert.alert(
-      'Make Raider',
-      `Assign Raider status to ${userName}?`,
-      [
-        { text: t('chat.cancel'), style: 'cancel' },
-        {
-          text: 'Assign', onPress: async () => {
-            try {
-              await update(ref(appdatabase, `users/${selectedUserId}`), { isRaider: true, rolesUpdatedAt: Date.now() });
-              logModAction('role_change', selectedUserId, { role: 'isRaider', value: true });
-              setUserData(prev => ({ ...prev, isRaider: true }));
-              Alert.alert('Success', 'User is now Raider.');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to update status.');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  const handleRemoveRaider = () => {
-    Alert.alert(
-      'Remove Raider',
-      `Remove Raider status from ${userName}?`,
-      [
-        { text: t('chat.cancel'), style: 'cancel' },
-        {
-          text: 'Remove', style: 'destructive', onPress: async () => {
-            try {
-              await update(ref(appdatabase, `users/${selectedUserId}`), { isRaider: null, rolesUpdatedAt: Date.now() });
-              logModAction('role_change', selectedUserId, { role: 'isRaider', value: false });
-              setUserData(prev => ({ ...prev, isRaider: false }));
-              Alert.alert('Success', 'Raider status removed.');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to update status.');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  const handleToggleHelper = () => {
-    const removing = !!mergedUser?.isHelper;
-    Alert.alert(
-      removing ? 'Remove Helper' : 'Make Helper',
-      removing
-        ? `Remove the Helper badge from ${userName}?`
-        : `Give ${userName} the Helper badge? It is a badge only: no mod tools or powers.`,
-      [
-        { text: t('chat.cancel'), style: 'cancel' },
-        {
-          text: removing ? 'Remove' : 'Assign', style: removing ? 'destructive' : 'default', onPress: async () => {
-            const ok = removing ? await removeHelper(selectedUserId, callerRoles) : await makeHelper(selectedUserId, callerRoles);
-            if (ok) {
-              setUserData(prev => ({ ...prev, isHelper: !removing }));
-              Alert.alert('Success', removing ? 'Helper badge removed.' : 'User is now a Helper.');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  // Close the drawer, then open the title prompt with a snapshot of the target.
   const openTitleEditor = () => {
     setTitleEdit({ targetUid: selectedUserId, targetName: userName || 'this user', current: mergedUser?.customTitle || null });
     toggleModal(); // close profile drawer
@@ -3318,35 +3174,7 @@ const ProfileBottomDrawer = ({
                                 onPress={mergedUser?.isBabyMod ? handleRemoveJMD : handleMakeJMD}
                               />
                             )}
-                            {/* Badges - Mod & up, on someone below them (Sr Mod test 2026-10-20) */}
-                            {canManageBadges(callerRoles) && canModerate(callerRoles, targetRoles) && (
-                              <>
-                                {/* Make/Remove Trusted - Admin & Mod */}
-                                <Chip
-                                  label={mergedUser?.isTrusted ? 'Remove Trusted' : 'Make Trusted'}
-                                  color={mergedUser?.isTrusted ? '#f59e0b' : '#10b981'}
-                                  onPress={mergedUser?.isTrusted ? handleRemoveTrusted : handleMakeTrusted}
-                                />
-                                {/* Make/Remove Grinder - Admin & Mod */}
-                                <Chip
-                                  label={mergedUser?.isGrinder ? 'Remove Grinder' : 'Make Grinder'}
-                                  color={mergedUser?.isGrinder ? '#f59e0b' : '#06B6D4'}
-                                  onPress={mergedUser?.isGrinder ? handleRemoveGrinder : handleMakeGrinder}
-                                />
-                                {/* Make/Remove Raider - Admin & Mod */}
-                                <Chip
-                                  label={mergedUser?.isRaider ? 'Remove Raider' : 'Make Raider'}
-                                  color={mergedUser?.isRaider ? '#f59e0b' : '#DC2626'}
-                                  onPress={mergedUser?.isRaider ? handleRemoveRaider : handleMakeRaider}
-                                />
-                                {/* Make/Remove Helper (badge only) - Admin & Mod */}
-                                <Chip
-                                  label={mergedUser?.isHelper ? 'Remove Helper' : 'Make Helper'}
-                                  color={mergedUser?.isHelper ? '#f59e0b' : '#14B8A6'}
-                                  onPress={handleToggleHelper}
-                                />
-                              </>
-                            )}
+                            {/* Trusted / Grinder / Raider / Helper + colours + custom badges: BadgeManager below. */}
                             {/* Custom title - Senior Mod & up, on someone below them */}
                             {canGiveTitle(callerRoles) && canModerate(callerRoles, targetRoles) && (
                               <Chip
@@ -3356,6 +3184,23 @@ const ProfileBottomDrawer = ({
                               />
                             )}
                           </View>
+                          {/* Badges - Mod & up, on someone below them: worn list with
+                              colours, add (role or custom, max 3), create custom
+                              (Code/Helper/BadgeManager.jsx, 2026-10-31). */}
+                          {canManageBadges(callerRoles) && canModerate(callerRoles, targetRoles) && (
+                            <View style={{ marginTop: 12 }}>
+                              <BadgeManager
+                                appdatabase={appdatabase}
+                                targetUid={selectedUserId}
+                                userName={userName}
+                                target={mergedUser}
+                                viewerUid={user?.id}
+                                onTargetChange={(patch) => setUserData((prev) => ({ ...(prev || {}), ...patch }))}
+                                onLog={(role, value) => logModAction('role_change', selectedUserId, { role, value })}
+                                isDarkMode={isDarkMode}
+                              />
+                            </View>
+                          )}
                         </View>
                       )}
 

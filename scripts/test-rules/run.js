@@ -282,6 +282,30 @@ async function rtdbTests() {
   await no('user lists grants', () => D.get(r(U1, 'pro_grants')));
   await ok('admin removes Pro', () => D.set(r(A, `pro_grants/${U1}`), null));
   await ok('owner removes Pro', () => D.set(r(O, `pro_grants/${U2}`), null));
+
+  // Mod badge tools (2026-10-31): custom_badges + worn_badges.
+  sec('rtdb custom_badges / worn_badges');
+  const badge = () => ({ name: 'Event Winner', icon: 'star', color: '#EC4899', createdBy: M, createdAt: now(), updatedAt: now() });
+  await ok('mod creates a custom badge', () => D.set(r(M, 'custom_badges/cb1'), badge()));
+  await ok('senior edits a custom badge', () => D.update(r(S, 'custom_badges/cb1'), { name: 'Top Trader', updatedAt: now() }));
+  await ok('admin creates a custom badge', () => D.set(r(A, 'custom_badges/cb2'), badge()));
+  await ok('admin deletes a custom badge', () => D.set(r(A, 'custom_badges/cb2'), null));
+  await ok('player reads the badge list', () => D.get(r(U1, 'custom_badges')));
+  await no('player creates a badge', () => D.set(r(U1, 'custom_badges/cb3'), badge()));
+  await no('jmd creates a badge', () => D.set(r(J, 'custom_badges/cb3'), badge()));
+  await no('mod creates a badge with a 40-char name', () => D.set(r(M, 'custom_badges/cb3'), { ...badge(), name: 'x'.repeat(40) }));
+  await no('mod creates a badge with a bad colour', () => D.set(r(M, 'custom_badges/cb3'), { ...badge(), color: 'pink' }));
+  await no('mod creates a badge without an icon', () => D.set(r(M, 'custom_badges/cb3'), { name: 'No icon', color: '#EC4899' }));
+  const worn = () => ({ styles: { trusted: '#EC4899' }, custom: { cb1: { color: null, at: now(), by: M } }, customCount: 1, updatedAt: now() });
+  await ok('mod colours and grants on a player', () => D.set(r(M, `worn_badges/${U1}`), worn()));
+  await ok('admin clears a player', () => D.set(r(A, `worn_badges/${U1}`), null));
+  await ok('senior grants on a player', () => D.set(r(S, `worn_badges/${U1}`), worn()));
+  await ok('anyone reads worn badges', () => D.get(r(U2, `worn_badges/${U1}`)));
+  await ok('player lists holders (leaderboard)', () => D.get(r(U2, 'worn_badges')));
+  await no('player grants self', () => D.set(r(U2, `worn_badges/${U2}`), worn()));
+  await no('mod grants self', () => D.set(r(M, `worn_badges/${M}`), worn()));
+  await no('jmd grants', () => D.set(r(J, `worn_badges/${U2}`), worn()));
+  await no('mod writes without customCount', () => D.set(r(M, `worn_badges/${U2}`), { styles: { trusted: '#EC4899' }, updatedAt: now() }));
   await ok('mod granter makes U3 Mod', () => D.update(r(MG, `users/${U3}`), { isModerator: true, rolesUpdatedAt: now() }));
   await ok('mod granter removes U3 Mod', () => D.update(r(MG, `users/${U3}`), { isModerator: false, rolesUpdatedAt: now() }));
   await ok('mod granter makes a JMD a Mod (old set)', () => D.set(r(MG, `users/${J2}/isModerator`), true));

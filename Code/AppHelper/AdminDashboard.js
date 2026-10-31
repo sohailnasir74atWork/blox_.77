@@ -109,6 +109,7 @@ import ReportsTab from './ReportsTab';
 import StaffAccessTab from './StaffAccessTab';
 import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
 import AdminNewsTab from './AdminNewsTab';
+import CustomBadgesTab from './CustomBadgesTab';
 import ModActionModal from './ModActionModal';
 import ModHistoryList from './ModHistoryList';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -211,6 +212,9 @@ const SECTIONS = [
     { key: 'news', label: 'News', admin: true },
     // Blocklist editor; supabase/049 checks Senior Mod+ on the server too.
     { key: 'wordFilter', label: 'Word filter', senior: true },
+    // Mod-made badges (RTDB custom_badges): create / edit / delete, Mods and up.
+    // Granting is on the player's profile (Mod Tools ▸ Manage Roles ▸ Badges).
+    { key: 'customBadges', label: 'Custom badges' },
   ] },
   { key: 'audit', label: 'Audit', icon: 'document-text', tabs: [
     // The staff activity log, Mods and up since 2026-10-22 (supabase/053 gates its rpcs the same way).
@@ -2794,6 +2798,18 @@ const AdminDashboardScreen = () => {
           onViewUser={(u) => setStatusProfileUser(u)}
           onSanctionUser={(u) => handleSelectUser(u)}
           onViewChat={(report) => { setActiveTab('chatViewer'); loadChatFromReport(report); }}
+        />
+      ) : activeTab === 'customBadges' ? (
+        <CustomBadgesTab
+          db={db}
+          uid={currentUser?.id}
+          isAdmin={isAdmin}
+          isDark={isDark}
+          C={isDark
+            ? { surface: '#1C1C1E', border: '#2C2C2E', text: '#FFF', textMuted: '#AAA', textFaint: '#666' }
+            : { surface: '#FFF', border: '#E5E5EA', text: '#000', textMuted: '#666', textFaint: '#999' }}
+          accent="#007AFF"
+          danger="#FF3B30"
         />
       ) : activeTab === 'news' && isAdmin ? (
         <AdminNewsTab

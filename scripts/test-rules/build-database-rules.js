@@ -645,6 +645,31 @@ const OVERRIDES = {
       $other: { '.validate': false },
     },
   },
+  // Mod badge tools (2026-10-31, Code/Helper/customBadges.js): badges a Mod
+  // makes up (name ≤ 32 chars, icon, colour) and what each player wears on
+  // top of the role flags (colour overrides + custom badges). Mod+ writes,
+  // never on yourself; everyone reads (chat rows draw them, the leaderboard's
+  // Custom tab queries worn_badges by customCount).
+  custom_badges: {
+    '.read': true,
+    $badgeId: {
+      '.write': wMod,
+      '.validate': or(not('newData.exists()'), and(
+        "newData.hasChildren(['name', 'icon', 'color'])",
+        "newData.child('name').isString()", "newData.child('name').val().length >= 1", "newData.child('name').val().length <= 32",
+        "newData.child('icon').isString()", "newData.child('icon').val().length <= 24",
+        "newData.child('color').isString()", "newData.child('color').val().matches(/^#[0-9A-Fa-f]{6}$/)",
+      )),
+    },
+  },
+  worn_badges: {
+    '.read': true,
+    '.indexOn': ['customCount'],
+    $uid: {
+      '.write': and(wMod, '$uid !== auth.uid'),
+      '.validate': or(not('newData.exists()'), and("newData.child('customCount').isNumber()", "newData.child('updatedAt').isNumber()")),
+    },
+  },
 };
 
 function main() {

@@ -5,6 +5,8 @@ import { getUserData } from '../../Helper/UserDataCache';
 import { getCachedProfile } from '../../Helper/profileCache';
 import { useGlobalState } from '../../GlobelStats';
 import { useTranslation } from 'react-i18next';
+import CustomBadgeChip from '../../Helper/CustomBadgeChip';
+import { useCustomBadges, resolveCustomBadge, customIdsOf } from '../../Helper/customBadges';
 
 const HELPER_ICON = require('../../Assets/badges/badge_helper.webp');
 
@@ -15,6 +17,8 @@ const HELPER_ICON = require('../../Assets/badges/badge_helper.webp');
 const RoleBadges = ({ userItem, style, cacheVersion, serverRoles = null }) => {
   const globalState = useGlobalState() || {};
   const { t } = useTranslation();
+  // Custom badge definitions (RTDB custom_badges): redraw on rename / recolour.
+  useCustomBadges();
   const {
     user: currentUser, isAdmin: isGlobalAdmin, isSeniorMod: isGlobalSeniorMod, isModerator: isGlobalModerator,
     isBabyMod: isGlobalBabyMod, isTrusted: isGlobalTrusted, isGrinder: isGlobalGrinder, isRaider: isGlobalRaider,
@@ -54,8 +58,17 @@ const RoleBadges = ({ userItem, style, cacheVersion, serverRoles = null }) => {
   const isHelper = !!firstKnown('isHelper');
   const rawTitle = firstKnown('customTitle');
   const customTitle = typeof rawTitle === 'string' && rawTitle.trim() ? rawTitle.trim() : null;
+  // Mod badge colours + custom badges (2026-10-31, Code/Helper/customBadges.js):
+  // worn_badges/{uid} via the profile cache / serverRoles. A colour override
+  // replaces the chip background; the icon and label stay.
+  const badgeStyles = firstKnown('badgeStyles') || {};
+  const customBadges = firstKnown('customBadges') || {};
+  const customChips = customIdsOf(customBadges)
+    .map((id) => resolveCustomBadge(id, customBadges[id]))
+    .filter(Boolean);
+  const tint = (key) => (badgeStyles[key] ? { backgroundColor: badgeStyles[key] } : null);
 
-  if (!isAdmin && !isSeniorMod && !isModerator && !isJMD && !isTrusted && !isGrinder && !isRaider && !isHelper && !customTitle) {
+  if (!isAdmin && !isSeniorMod && !isModerator && !isJMD && !isTrusted && !isGrinder && !isRaider && !isHelper && !customTitle && customChips.length === 0) {
     return null;
   }
 
@@ -93,29 +106,32 @@ const RoleBadges = ({ userItem, style, cacheVersion, serverRoles = null }) => {
         </View>
       )}
       {isTrusted && (
-        <View style={styles.roleBadge_trusted}>
+        <View style={[styles.roleBadge_trusted, tint('trusted')]}>
           <Ionicons name="checkmark-circle" size={8} color="#fff" />
           <Text style={styles.roleBadgeText}>{t('feed.role_badges.trusted')}</Text>
         </View>
       )}
       {isGrinder && (
-        <View style={styles.roleBadge_grinder}>
+        <View style={[styles.roleBadge_grinder, tint('grinder')]}>
           <Ionicons name="barbell" size={8} color="#fff" />
           <Text style={styles.roleBadgeText}>{t('feed.role_badges.grinder')}</Text>
         </View>
       )}
       {isRaider && (
-        <View style={styles.roleBadge_raider}>
+        <View style={[styles.roleBadge_raider, tint('raider')]}>
           <Ionicons name="flash" size={8} color="#fff" />
           <Text style={styles.roleBadgeText}>{t('feed.role_badges.raider')}</Text>
         </View>
       )}
       {isHelper && (
-        <View style={styles.roleBadge_helper}>
+        <View style={[styles.roleBadge_helper, tint('helper')]}>
           <Image source={HELPER_ICON} style={styles.helperIcon} />
           <Text style={styles.roleBadgeText}>{t('feed.role_badges.helper')}</Text>
         </View>
       )}
+      {customChips.map((cb) => (
+        <CustomBadgeChip key={cb.id} name={cb.name} image={cb.image} color={cb.color} size="sm" />
+      ))}
     </View>
   );
 };

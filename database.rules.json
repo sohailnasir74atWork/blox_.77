@@ -942,6 +942,23 @@
           ".validate": false
         }
       }
+    },
+    "custom_badges": {
+      ".read": true,
+      "$badgeId": {
+        ".write": "(auth != null && ((auth.token.email_verified === true && (auth.token.email === 'thesolanalabs@gmail.com' || auth.token.email === 'sohailnasir74business@gmail.com' || auth.token.email === 'sohailnasir74@gmail.com')) || (root.child('users').child(auth.uid).child('admin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isSeniorMod').val() === true || root.child('users').child(auth.uid).child('isModerator').val() === true)) && !(root.child('banned_uids').child(auth.uid).exists() && (root.child('banned_uids').child(auth.uid).child('type').val() === 'ban' || (!root.child('banned_uids').child(auth.uid).child('type').exists() && root.child('banned_uids').child(auth.uid).child('strikeCount').val() >= 1)) && (root.child('banned_uids').child(auth.uid).child('bannedUntil').val() === 'permanent' || root.child('banned_uids').child(auth.uid).child('bannedUntil').val() > now)))",
+        ".validate": "(!newData.exists() || (newData.hasChildren(['name', 'icon', 'color']) && newData.child('name').isString() && newData.child('name').val().length >= 1 && newData.child('name').val().length <= 32 && newData.child('icon').isString() && newData.child('icon').val().length <= 24 && newData.child('color').isString() && newData.child('color').val().matches(/^#[0-9A-Fa-f]{6}$/)))"
+      }
+    },
+    "worn_badges": {
+      ".read": true,
+      ".indexOn": [
+        "customCount"
+      ],
+      "$uid": {
+        ".write": "((auth != null && ((auth.token.email_verified === true && (auth.token.email === 'thesolanalabs@gmail.com' || auth.token.email === 'sohailnasir74business@gmail.com' || auth.token.email === 'sohailnasir74@gmail.com')) || (root.child('users').child(auth.uid).child('admin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isSeniorMod').val() === true || root.child('users').child(auth.uid).child('isModerator').val() === true)) && !(root.child('banned_uids').child(auth.uid).exists() && (root.child('banned_uids').child(auth.uid).child('type').val() === 'ban' || (!root.child('banned_uids').child(auth.uid).child('type').exists() && root.child('banned_uids').child(auth.uid).child('strikeCount').val() >= 1)) && (root.child('banned_uids').child(auth.uid).child('bannedUntil').val() === 'permanent' || root.child('banned_uids').child(auth.uid).child('bannedUntil').val() > now))) && $uid !== auth.uid)",
+        ".validate": "(!newData.exists() || (newData.child('customCount').isNumber() && newData.child('updatedAt').isNumber()))"
+      }
     }
   }
 }

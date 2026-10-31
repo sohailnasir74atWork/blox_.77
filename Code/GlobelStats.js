@@ -5,6 +5,7 @@ import { getApps } from '@react-native-firebase/app';
 import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
 import { ref, set, update, get, onDisconnect, getDatabase, onValue } from '@react-native-firebase/database';
 import { getUserRecordWithoutShop } from './Helper/userRecord';
+import { startCustomBadgeRegistry } from './Helper/customBadges';
 import { getFirestore } from '@react-native-firebase/firestore';
 import { createNewUser, firebaseConfig, registerForNotifications } from './Globelhelper';
 import { useLocalState } from './LocalGlobelStats';
@@ -1103,6 +1104,13 @@ export const GlobalStateProvider = ({ children }) => {
       setUidBanState({ uid, record, active });
     });
   }, [user?.id, getProbeUid]); // appdatabase is module-level
+
+  // Custom badge definitions (RTDB /custom_badges): one listener for the
+  // session, read by RoleBadges (Code/Helper/customBadges.js).
+  useEffect(() => {
+    if (!appdatabase) return;
+    try { startCustomBadgeRegistry(appdatabase); } catch (e) { /* cosmetic */ }
+  }, []); // appdatabase is module-level
 
   // Staff Access grants: one tiny leaf each, live, so an admin's grant or
   // revoke reaches the phone at once. Only the account's own entry is read.

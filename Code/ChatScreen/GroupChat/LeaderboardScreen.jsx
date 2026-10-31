@@ -21,7 +21,10 @@ import { useHaptic } from '../../Helper/HepticFeedBack';
 import ProfileBottomDrawer from './BottomDrawer';
 import { isUserOnline } from '../utils';
 import ThemeHeader from '../../../Code/Design/componenets/ThemeHeader';
-import { getUsersByRole } from '../../Supabase/userBackend';
+import { getUsersByRole, getIdentityBatch } from '../../Supabase/userBackend';
+import { getDatabase } from '@react-native-firebase/database';
+import CustomBadgeChip from '../../Helper/CustomBadgeChip';
+import { getCustomBadgeHolders, useCustomBadges, resolveCustomBadge, customIdsOf } from '../../Helper/customBadges';
 import ScreenBottomBanner from '../../Ads/ScreenBottomBanner';
 
 const CACHE_DURATION_MS = 2 * 24 * 60 * 60 * 1000; // 2 days — Top Rated (CF-computed)
@@ -34,6 +37,8 @@ const TABS = [
   { key: 'grinder',  label: 'Grinder',   icon: 'barbell',           color: '#06B6D4', roleField: 'is_grinder' },
   { key: 'raider',   label: 'Raider',    icon: 'flash',             color: '#DC2626', roleField: 'is_raider' },
   { key: 'helper',   label: 'Helper',    icon: 'hand-left',         color: '#14B8A6', roleField: 'is_helper' },
+  // Players wearing a Mod-made custom badge (RTDB worn_badges, Code/Helper/customBadges.js).
+  { key: 'custom',   label: 'Custom',    icon: 'sparkles',          color: '#A855F7', roleField: null },
 ];
 
 const ROSTER_CACHE_KEY = {
@@ -41,6 +46,7 @@ const ROSTER_CACHE_KEY = {
   grinder: 'grinderRoster',
   raider:  'raiderRoster',
   helper:  'helperRoster',
+  custom:  'customBadgeRoster',
 };
 
 const LeaderboardScreen = ({ route }) => {
@@ -50,10 +56,11 @@ const LeaderboardScreen = ({ route }) => {
   const { t } = useTranslation();
   const { triggerHapticFeedback } = useHaptic();
   const isDarkMode = theme === 'dark';
+  useCustomBadges(); // redraw the Custom tab's chips when a badge is renamed / recoloured
 
   const [activeTab, setActiveTab] = useState('topRated');
   const [topRatedData, setTopRatedData] = useState([]);
-  const [rosterData, setRosterData] = useState({ trusted: [], grinder: [], raider: [], helper: [] });
+  const [rosterData, setRosterData] = useState({ trusted: [], grinder: [], raider: [], helper: [], custom: [] });
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [loadedTabs, setLoadedTabs] = useState({});
@@ -124,8 +131,25 @@ const LeaderboardScreen = ({ route }) => {
   // ── Fetch a tag-roster from Supabase ──
   const fetchRoster = useCallback(async (tabKey) => {
     const meta = TABS.find(t => t.key === tabKey);
-    if (!meta?.roleField) return [];
-    const list = await getUsersByRole(meta.roleField, 100);
+    let list;
+    if (tabKey === 'custom') {
+      // Holders from RTDB (worn_badges orderByChild customCount), names and
+      // avatars from the identity mirror in one batch.
+      try {
+        const holders = await getCustomBadgeHolders(getDatabase(), { limit: 100 });
+        const identityMap = holders.length ? await getIdentityBatch(holders.map((h) => h.uid)).catch(() => new Map()) : new Map();
+        list = holders.map((h) => {
+          const ident = identityMap.get(h.uid);
+          return { userId: h.uid, displayName: ident?.displayName || 'Unknown', avatar: ident?.avatar || null, customBadges: h.custom, badgeStyles: h.styles };
+        });
+      } catch (e) {
+        console.warn('[Leaderboard] custom fetch error:', e?.message);
+        list = [];
+      }
+    } else {
+      if (!meta?.roleField) return [];
+      list = await getUsersByRole(meta.roleField, 100);
+    }
     const cacheKey = ROSTER_CACHE_KEY[tabKey];
     if (cacheKey) {
       updateLocalState(cacheKey, { data: list, timestamp: Date.now() });
@@ -255,15 +279,25 @@ const LeaderboardScreen = ({ route }) => {
 
   const renderRosterItem = useCallback(({ item }) => {
     const tabMeta = TABS.find(tab => tab.key === activeTab);
+    // Custom tab: the player's own badges (name + icon + colour), not the tab label.
+    const customChips = activeTab === 'custom'
+      ? customIdsOf(item.customBadges).map((id) => resolveCustomBadge(id, item.customBadges[id])).filter(Boolean)
+      : [];
     return (
       <TouchableOpacity style={styles.userItem} onPress={() => handleUserClick(item)} activeOpacity={0.7}>
         <Image resizeMethod="resize" source={{ uri: item.avatar || DEFAULT_AVATAR }} style={styles.avatar} />
         <View style={styles.userInfo}>
           <Text style={styles.userName} numberOfLines={1}>{item.displayName || t('chat.unknown_time')}</Text>
-          <View style={[styles.rolePill, { backgroundColor: tabMeta.color + '20' }]}>
-            <Icon name={tabMeta.icon} size={10} color={tabMeta.color} />
-            <Text style={[styles.rolePillText, { color: tabMeta.color }]}>{t(`chat.leaderboard_screen.tab_${tabMeta.key}`)}</Text>
-          </View>
+          {activeTab === 'custom' ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+              {customChips.map((cb) => <CustomBadgeChip key={cb.id} name={cb.name} image={cb.image} color={cb.color} size="md" />)}
+            </View>
+          ) : (
+            <View style={[styles.rolePill, { backgroundColor: tabMeta.color + '20' }]}>
+              <Icon name={tabMeta.icon} size={10} color={tabMeta.color} />
+              <Text style={[styles.rolePillText, { color: tabMeta.color }]}>{t(`chat.leaderboard_screen.tab_${tabMeta.key}`)}</Text>
+            </View>
+          )}
         </View>
         <Icon name="chatbubble-outline" size={20} color={config.colors.primary} />
       </TouchableOpacity>

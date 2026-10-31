@@ -35,17 +35,27 @@ const IDENTITY_COLS = 'uid, display_name, avatar, is_block, created_at_ms, last_
 // is_helper + custom_title come from supabase/045_helper_role.sql. Before it
 // is applied PostgREST rejects the whole select (42703), so the roles reads
 // fall back to the older list for the rest of the session (rolesColsFor).
-const ROLES_COLS = 'uid, is_admin, is_cmsr, is_moderator, is_baby_mod, is_trusted, is_grinder, is_raider, is_helper, custom_title';
+// badge_styles + custom_badges come from supabase/058_worn_badges.sql (mod
+// badge colours + custom badges); same fallback one step earlier.
+const ROLES_COLS = 'uid, is_admin, is_cmsr, is_moderator, is_baby_mod, is_trusted, is_grinder, is_raider, is_helper, custom_title, badge_styles, custom_badges';
+const ROLES_COLS_PRE_058 = 'uid, is_admin, is_cmsr, is_moderator, is_baby_mod, is_trusted, is_grinder, is_raider, is_helper, custom_title';
 const ROLES_COLS_PRE_045 = 'uid, is_admin, is_cmsr, is_moderator, is_baby_mod, is_trusted, is_grinder, is_raider';
 let rolesCols = ROLES_COLS;
 // Called with a failed roles select: the column list to retry with, or null.
 const rolesColsFor = (error) => {
-  const missing045 = rolesCols !== ROLES_COLS_PRE_045 && error?.code === '42703' &&
-    /is_helper|custom_title/.test(error?.message || '');
-  if (!missing045) return null;
-  console.warn('[userBackend] supabase/045 not applied: roles without is_helper/custom_title');
-  rolesCols = ROLES_COLS_PRE_045;
-  return rolesCols;
+  if (error?.code !== '42703') return null;
+  const msg = error?.message || '';
+  if (rolesCols === ROLES_COLS && /badge_styles|custom_badges/.test(msg)) {
+    console.warn('[userBackend] supabase/058 not applied: roles without badge_styles/custom_badges');
+    rolesCols = ROLES_COLS_PRE_058;
+    return rolesCols;
+  }
+  if (rolesCols !== ROLES_COLS_PRE_045 && /is_helper|custom_title/.test(msg)) {
+    console.warn('[userBackend] supabase/045 not applied: roles without is_helper/custom_title');
+    rolesCols = ROLES_COLS_PRE_045;
+    return rolesCols;
+  }
+  return null;
 };
 // card_score + card_showcase come from supabase/057_fruit_cards.sql (Fruit
 // Cards on the profile drawer). Same fallback as the roles list: before 057
@@ -152,6 +162,11 @@ export function fromRolesRow(row) {
     // Cosmetic Helper badge and the staff-given custom title (045).
     isHelper: !!row.is_helper,
     customTitle: typeof row.custom_title === 'string' && row.custom_title ? row.custom_title : null,
+    // Mod badge colours + custom badges (058, mirrored from RTDB worn_badges by
+    // functions/mirrorWornBadges.js). undefined = column not selected / not
+    // there yet, so profileCache reads the RTDB leaf instead.
+    badgeStyles: row.badge_styles === undefined ? undefined : (row.badge_styles || null),
+    customBadges: row.custom_badges === undefined ? undefined : (row.custom_badges || null),
   };
 }
 
