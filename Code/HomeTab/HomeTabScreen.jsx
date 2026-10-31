@@ -658,7 +658,7 @@ const HomeTabScreen = ({ selectedTheme }) => {
             <View style={styles.gamesGrid}>
               {[
                 // Sea Beast Raid (2026-10-31): daily community boss in a WebView (Code/Raid). NEW until first opened on this device.
-                { id: 'raid',    emoji: '🐉', label: t('home.home_tab_screen.game_raid', { defaultValue: 'Sea Beast Raid' }), color: '#0B4F8A', screen: 'RaidScreen', tag: isNewBadge('raid') ? t('home.home_tab_screen.tag_new', { defaultValue: 'NEW' }) : undefined },
+                { id: 'raid',    image: require('../../assets/game-icons/raid.png'), emoji: '🐉', label: t('home.home_tab_screen.game_raid', { defaultValue: 'Sea Beast Raid' }), color: '#0B4F8A', screen: 'RaidScreen', tag: isNewBadge('raid') ? t('home.home_tab_screen.tag_new', { defaultValue: 'NEW' }) : undefined },
                 { id: 'mystery', image: require('../../assets/game-icons/mystery.png'), emoji: '🍋', label: t('home.home_tab_screen.game_mystery'),  color: '#16A34A', screen: 'MysteryEggScreen', tag: t('home.home_tab_screen.tag_hot') },
                 { id: 'crash',   image: require('../../assets/game-icons/crash.png'), emoji: '🚀', label: t('home.home_tab_screen.game_crash'),    color: '#F59E0B', screen: 'FruitCrashScreen' },
                 { id: 'spot',    image: require('../../assets/game-icons/smash.png'), emoji: '🍎', label: t('home.home_tab_screen.game_smash'),    color: '#B91C1C', screen: 'GameScreen', gameId: 'spot' },

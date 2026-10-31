@@ -53,11 +53,11 @@ async function rpc(name, args) {
 const isPro = (body) => body && body.isPro === true;
 
 /** Today's day row + the player's row, creating both on first sight. */
-async function loadState(uid, now) {
+async function loadState(uid, now, { dayExists = false } = {}) {
   const day = L.dayKey(now);
   const boss = L.bossForDay(now);
-  const prev = await rpc('raid_prev_raiders', { p_day: day });
-  const hpMax = L.bossHpMax(boss, prev);
+  // The day row is created by the first call of the day; once a ticket exists it is there, so finish skips the extra round trip.
+  const hpMax = dayExists ? boss.hp : L.bossHpMax(boss, await rpc('raid_prev_raiders', { p_day: day }));
   const st = await rpc('raid_state', { p_uid: uid, p_day: day, p_boss: boss.id, p_hp_max: hpMax });
   if (!st || !st.day || !st.player) fail('generic', 500);
   return { day: st.day, player: st.player, raidsUsed: Number(st.raidsUsed) || 0, share: Number(st.share) || 0, hasRoundToday: !!st.hasRoundToday, today: day };
@@ -126,7 +126,11 @@ async function finish({ uid, body }) {
   const now = io.now();
   const ticket = String(body.ticket || '');
   if (!ticket) fail('no_round');
-  const { data: rows, error } = await io.sb().from('raid_rounds').select('ticket, uid, day, boss_id, loadout, started_at, finished_at').eq('ticket', ticket).eq('uid', uid).limit(1);
+  // round + state in parallel (latency: raidFinish took 9.9 s on 2026-10-31 with sequential calls)
+  const [{ data: rows, error }, st] = await Promise.all([
+    io.sb().from('raid_rounds').select('ticket, uid, day, boss_id, loadout, started_at, finished_at').eq('ticket', ticket).eq('uid', uid).limit(1),
+    loadState(uid, now, { dayExists: true }),
+  ]);
   if (error) { io.log('round read', error.message); fail('generic', 500); }
   const round = rows && rows[0];
   if (!round || round.finished_at) fail('no_round');
@@ -136,7 +140,6 @@ async function finish({ uid, body }) {
     await rpc('raid_commit', commitArgs(uid, ticket, { dmg: 0, claimed: Number(body.dmg) || 0, valid: false, hits: 0, dodged: 0, best: 0, ulted: 0, secs: 0 }, null));
     fail(v.reason);
   }
-  const st = await loadState(uid, now);
   const pro = isPro(body);
   const rw = L.computeRewards({ player: st.player, v, isPro: pro, now });
   const res = await rpc('raid_commit', commitArgs(uid, ticket, v, rw));

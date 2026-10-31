@@ -14,7 +14,7 @@ import { getAuth, getIdToken } from '@react-native-firebase/auth';
 
 const FUNCTIONS_URL = 'https://us-central1-fruiteblocks.cloudfunctions.net';
 const KNOWN_ERRORS = new Set(['sign_in', 'bad_loadout', 'capped', 'no_round', 'too_fast', 'expired', 'generic']);
-const TIMEOUT_MS = 12000;
+const TIMEOUT_MS = 30000; // raidFinish = up to 5 Supabase round trips + a cold start; 9.9 s seen 2026-10-31
 
 async function call(name, body) {
   const user = getAuth().currentUser;

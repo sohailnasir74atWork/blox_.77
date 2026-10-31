@@ -303,11 +303,11 @@ const EN = {
   raid_over: 'RAID OVER', boss_defeated: 'BOSS DEFEATED', head_sank: '{boss} sank!', head_massive: 'Massive W, pirate', head_solid: 'Solid hits, pirate', head_warmup: 'Warm-up round',
   damage_dealt: 'DAMAGE DEALT', best_combo: 'Best combo x{n}', hits_n: '{n} hits', dodged_n: '{n} dodged',
   saving: 'Saving your raid…', not_saved: 'This raid could not be saved (no connection or not signed in). No rewards this time.', signin_needed: 'Sign in to save raids, earn bounty and PRO time.', signin_btn: 'Sign in',
-  bounty: 'Bounty', bounty_gain: '+{gain} → {total}', raid_chest: 'RAID CHEST', open: 'Open', opened: 'Opened', chest_next: 'Deal {dmg} in one raid for a {tier} ({time} PRO)', chest_top: 'Top tier!',
+  bounty: 'Bounty', bounty_gain: '+{gain} → {total}', raid_chest: 'RAID CHEST', open: 'Open', opened: 'Opened', chest_next: 'Next: {tier} at {dmg} in one raid ({time} PRO)', chest_top: 'Top tier!',
   chest_wood: 'Wooden chest', chest_iron: 'Iron chest', chest_gold: 'Gold chest', chest_mythic: 'Mythic chest',
   loot_bounty: '+{amount} bounty (chest bonus +{pct}%)', loot_pro: '+{time} PRO · no ads', loot_rankup: 'RANK UP → {rank}: +{time} PRO', loot_rankup_paid: 'RANK UP → {rank}: +{amount} bounty (PRO member)',
-  loot_streak: 'Streak day {n}: +{time} PRO', loot_boss: 'Boss sunk! {frame} + title "{title}"', loot_boss_pro: 'Boss crate: +24h PRO · no ads', loot_cap: 'Weekly PRO cap reached: +{amount} bounty instead',
-  crew_boss: '{boss} · crew boss', pirates_n: '{n} pirates', crate_done: 'The crew already sank this boss today. Tomorrow: a new one.', crate_todo: 'When the crew finishes the boss, everyone who hit it opens a crate (frame, title, 24h PRO). {dmg} to go.',
+  loot_pro_paid: 'PRO member bonus: +{amount} bounty', loot_streak: 'Streak day {n}: +{time} PRO', loot_boss: 'Boss sunk! {frame} + title "{title}"', loot_boss_pro: 'Boss crate: +24h PRO · no ads', loot_cap: 'Weekly PRO cap reached: +{amount} bounty instead',
+  crew_boss: '{boss} · crew boss', pirates_n: '{n} pirates', pirates_one: '1 pirate', crate_done: 'The crew already sank this boss today. Tomorrow: a new one.', crate_todo: 'When the crew finishes the boss, everyone who hit it opens a crate (frame, title, 24h PRO). {dmg} to go.',
   crate_sunk: '🎁 Boss crate: {frame} + title "{title}" + 24h PRO for everyone who hit it',
   again: 'Raid again', again_ad: '📺 Watch ad · +3 raids', again_none: 'No raids left today', home: 'Home', ad_failed: 'The ad did not finish. Try again.',
   bounty_board: 'Bounty board', today: 'Today', all_time: 'All time', you: 'You', lb_empty: 'No raids yet today — be the first!', lb_loading: 'Loading…',
@@ -753,7 +753,7 @@ function endRaid(){
   const msg = { type: 'raid_end', ticket: G.ticket, bossId: b.id, dmg, hits: G.hits, dodged: G.dodged, best: G.best, ulted: G.ulted, secs, loadout: lastRound.loadout };
   if (LOCAL) { setTimeout(() => window.__raid.result(localResult(msg)), 500); }
   else if (!G.ticket || !signedIn()) { showResultError(T('not_saved')); }
-  else { post(msg); clearTimeout(resultTimer); resultTimer = setTimeout(() => { if (lastRound && !lastRound.payload) showResultError(T('not_saved')); }, 12000); }
+  else { post(msg); clearTimeout(resultTimer); resultTimer = setTimeout(() => { if (lastRound && !lastRound.payload) showResultError(T('not_saved')); }, 30000); } // a late result still applies (applyResult)
 }
 let pendingProceed = null;
 function showResultError(text){ $('x-saving').style.display = 'none'; $('x-err').style.display = ''; $('x-err').textContent = text; }
@@ -774,7 +774,7 @@ function applyResult(p){
   $('x-chest-ic').textContent = chest.ic; $('x-chest-ic').classList.remove('shake'); $('x-chest-tier').textContent = T('chest_' + chest.id); $('x-chest-tier').className = 'tier-' + chest.id;
   const nextC = CHESTS.find(c => c.min > lastRound.dmg); $('x-chest-sub').textContent = nextC ? T('chest_next', { dmg: fmt(nextC.min), tier: T('chest_' + nextC.id), time: dur(nextC.pro) }) : T('chest_top');
   $('x-loot').innerHTML = ''; $('b-open').disabled = false; $('b-open').textContent = T('open');
-  $('x-bossline').textContent = T('crew_boss', { boss: `${b.e} ${bossName(b)}` }); $('x-bosspct').textContent = T('pirates_n', { n: ST.raiders.toLocaleString() });
+  $('x-bossline').textContent = T('crew_boss', { boss: `${b.e} ${bossName(b)}` }); $('x-bosspct').textContent = ST.raiders === 1 ? T('pirates_one') : T('pirates_n', { n: ST.raiders.toLocaleString() });
   $('x-hp').style.width = (ST.killed ? 0 : ST.hpLeft/ST.hpMax*100)+'%'; $('x-hptext').textContent = ST.killed ? T('defeated') : `${fmt(ST.hpLeft)} / ${fmt(ST.hpMax)}`;
   const fr = T('frame_' + b.id);
   $('x-crate').textContent = p.killedNow ? T('crate_sunk', { frame: fr, title: T('title_raider') }) : ST.killed ? T('crate_done') : T('crate_todo', { dmg: fmt(ST.hpLeft) });
@@ -789,6 +789,7 @@ function lootText(l){
     case 'boss': return { ic:'🐉', t: T('loot_boss', { frame: T('frame_' + (l.bossId || lastRound.boss.id)), title: T('title_raider') }) };
     case 'boss_pro': return { ic:'⭐', t: T('loot_boss_pro'), pro:true };
     case 'cap': return { ic:'💰', t: T('loot_cap', { amount: money(l.amount || 0) }) };
+    case 'pro_paid': return { ic:'💰', t: T('loot_pro_paid', { amount: money(l.amount || 0) }) };
     default: return { ic:'🎁', t: String(l.text || '') };
   }
 }

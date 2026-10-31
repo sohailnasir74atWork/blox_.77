@@ -20,7 +20,7 @@
  *   values, leaderboard, stars, cosmetics, friends, mods
  *
  * Mini games (assets/game-icons/<name>.png, 32 pt base):
- *   mystery, crash, smash, chest, slash, memory
+ *   mystery, crash, smash, chest, slash, memory, raid (Sea Beast Raid, 2026-10-31)
  *
  * Trade header (assets/trade-icons/<name>[-off].png, 18 pt base):
  *   mytrades, following, saved, notifier
@@ -225,6 +225,22 @@ const ACTIONS = {
 
 // ──────────────────────────── Mini games ────────────────────────────
 const GAMES = {
+  // Sea Beast Raid: a blue sea serpent rising out of the waves, yellow eye, fins.
+  raid: svg(
+    grad('sbody', [[0, '#7DD3FC'], [1, '#1D4ED8']])
+      + grad('swave', [[0, '#60A5FA'], [1, '#1E3A8A']])
+      + radial('seye', [[0, '#FEF3C7'], [1, '#F59E0B']]),
+    `<path d="M3 50 Q11 44 19 50 T35 50 T51 50 T63 50 V63 H3 Z" fill="url(#swave)" stroke="${OUTLINE}" stroke-width="1.4"/>
+     <path d="M15 47 C9 34 18 23 29 25 C38 27 36 40 45 40 C51 40 54 34 52 29" fill="none" stroke="${OUTLINE}" stroke-width="12" stroke-linecap="round"/>
+     <path d="M15 47 C9 34 18 23 29 25 C38 27 36 40 45 40 C51 40 54 34 52 29" fill="none" stroke="url(#sbody)" stroke-width="9" stroke-linecap="round"/>
+     <path d="M24 24 L22 15 L29 21 Z" fill="#1D4ED8" stroke="${OUTLINE}" stroke-width="1.2" stroke-linejoin="round"/>
+     <path d="M46 10 L41 2 L50 7 Z" fill="#1D4ED8" stroke="${OUTLINE}" stroke-width="1.2" stroke-linejoin="round"/>
+     <path d="M57 11 L63 4 L62 15 Z" fill="#1D4ED8" stroke="${OUTLINE}" stroke-width="1.2" stroke-linejoin="round"/>
+     <path d="M41 14 C49 6 61 10 61 20 C61 28 54 32 47 30 C41 28 38 22 41 14 Z" fill="url(#sbody)" stroke="${OUTLINE}" stroke-width="1.6"/>
+     <path d="M44 27 L46 31 L48 27 L50 31 L52 27 L54 30" fill="none" stroke="#FFFFFF" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+     <circle cx="53" cy="19" r="3.4" fill="url(#seye)" stroke="${OUTLINE}" stroke-width="1"/>
+     <circle cx="54" cy="19.3" r="1.3" fill="#111827"/>`
+  ),
   // A lime devil fruit with a "?" badge.
   mystery: svg(
     radial('mbody', [[0, '#ECFCCB'], [0.45, '#A3E635'], [1, '#3F6212']])

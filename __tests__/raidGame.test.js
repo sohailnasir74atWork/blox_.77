@@ -78,6 +78,33 @@ describe('rules: game and app agree', () => {
   });
 });
 
+describe('locales: every language has every raid string', () => {
+  const dir = path.join(__dirname, '../Code/Translation');
+  const files = fs.readdirSync(dir).filter((x) => x.endsWith('.json'));
+  const ph = (v) => (String(v).match(/\{\w+\}/g) || []).sort();
+  const en = JSON.parse(fs.readFileSync(path.join(dir, 'en.json'), 'utf8'));
+  it('en.json raid block equals the game EN text', () => {
+    expect(en.raid).toEqual(gameConst('EN'));
+  });
+  it('every language has every raid key, with the same placeholders as English', () => {
+    expect(files.length).toBeGreaterThanOrEqual(11);
+    for (const f of files) {
+      const m = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+      for (const k of RAID_KEYS) {
+        expect([f, k, typeof (m.raid || {})[k]]).toEqual([f, k, 'string']);
+        expect([f, k, ph(m.raid[k])]).toEqual([f, k, ph(en.raid[k])]);
+      }
+      for (const k of ['title', 'crate_title', 'crate_body', 'crate_body_pro', 'capped', 'ad_title', 'ad_unavailable', 'signin']) expect([f, k, typeof (m.raid_app || {})[k]]).toEqual([f, k, 'string']);
+      for (const k of ['game_raid', 'tag_new']) expect([f, k, typeof m.home.home_tab_screen[k]]).toEqual([f, k, 'string']);
+      for (const k of ['raid_name', 'raid_desc', 'new_tag']) expect([f, k, typeof m.engagement.game_hub[k]]).toEqual([f, k, 'string']);
+    }
+  });
+  it('the screen asks for raid_app keys that exist', () => {
+    const screen = fs.readFileSync(path.join(__dirname, '../Code/Raid/RaidScreen.jsx'), 'utf8');
+    for (const m of screen.matchAll(/t\('raid_app\.(\w+)'/g)) expect([m[1], typeof en.raid_app[m[1]]]).toEqual([m[1], 'string']);
+  });
+});
+
 describe('boss frames: game, server and My Cosmetics agree', () => {
   const server = require('../functions/raid/logic');
   it('every boss has its frame in the catalogue, matching the server record', () => {
