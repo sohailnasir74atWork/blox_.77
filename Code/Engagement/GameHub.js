@@ -24,6 +24,8 @@ import GameLeaderboard from './GameLeaderboard';
 import ScreenBottomBanner from '../Ads/ScreenBottomBanner';
 
 const GAMES = [
+  // Sea Beast Raid (2026-10-31): the WebView boss game (Code/Raid), not a GameScreen round.
+  { id: 'raid',   emoji: '🐉', nameKey: 'engagement.game_hub.raid_name',   descKey: 'engagement.game_hub.raid_desc',   color: '#0B4F8A', screen: 'RaidScreen', nameDefault: 'Sea Beast Raid', descDefault: 'Daily crew boss · bounty · PRO rewards', tagDefault: 'NEW' },
   { id: 'spot',   emoji: '🍎', nameKey: 'engagement.game_hub.spot_name',   descKey: 'engagement.game_hub.spot_desc',   color: '#B91C1C' },
   { id: 'safe',   emoji: '🔐', nameKey: 'engagement.game_hub.safe_name',   descKey: 'engagement.game_hub.safe_desc',   color: '#D97706' },
   { id: 'draw',   emoji: '⚡', nameKey: 'engagement.game_hub.draw_name',   descKey: 'engagement.game_hub.draw_desc',   color: '#DC2626' },
@@ -75,14 +77,16 @@ const GameHub = ({ navigation }) => {
             <TouchableOpacity
               key={game.id}
               style={[styles.gameCard, { backgroundColor: game.color }]}
-              onPress={() => navigation.navigate('GameScreen', { gameId: game.id, title: `${game.emoji} ${t(game.nameKey)}`, color: game.color })}
+              onPress={() => (game.screen
+                ? navigation.navigate(game.screen)
+                : navigation.navigate('GameScreen', { gameId: game.id, title: `${game.emoji} ${t(game.nameKey)}`, color: game.color }))}
               activeOpacity={0.85}
             >
               <Text style={styles.gameEmoji}>{game.emoji}</Text>
-              <Text style={styles.gameName}>{t(game.nameKey)}</Text>
-              <Text style={styles.gameInfo}>{t(game.descKey)}</Text>
+              <Text style={styles.gameName}>{t(game.nameKey, { defaultValue: game.nameDefault })}</Text>
+              <Text style={styles.gameInfo}>{t(game.descKey, { defaultValue: game.descDefault })}</Text>
               <View style={styles.gameTag}>
-                <Text style={styles.gameTagText}>{t('engagement.game_hub.daily_tag')}</Text>
+                <Text style={styles.gameTagText}>{game.tagDefault ? t('engagement.game_hub.new_tag', { defaultValue: game.tagDefault }) : t('engagement.game_hub.daily_tag')}</Text>
               </View>
             </TouchableOpacity>
           ))}

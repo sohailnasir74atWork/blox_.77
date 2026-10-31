@@ -8,6 +8,7 @@
     "lint": "eslint .",
     "start": "react-native start",
     "test": "jest",
+    "raid:build": "node scripts/raid/build-game.js",
     "postinstall": "patch-package"
   },
   "dependencies": {
@@ -60,6 +61,7 @@
     "react-native-url-polyfill": "^2.0.0",
     "react-native-vector-icons": "^10.2.0",
     "react-native-view-shot": "^6.0.1",
+    "react-native-webview": "^16.0.0",
     "sp-react-native-in-app-updates": "^1.5.0"
   },
   "devDependencies": {

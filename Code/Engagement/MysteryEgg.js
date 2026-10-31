@@ -316,7 +316,7 @@ const RewardReveal = ({ reward, isDark }) => {
 const RewardCatalog = ({ isDark }) => {
   const { t } = useTranslation();
   const renderTypeSection = (typeFilter, title, subtitle, previewFn) => {
-    const items = Object.values(ALL_ITEMS).filter(item => item.type === typeFilter);
+    const items = Object.values(ALL_ITEMS).filter(item => item.type === typeFilter && !item.source); // raid frames are never in an egg
     if (items.length === 0) return null;
 
     return (

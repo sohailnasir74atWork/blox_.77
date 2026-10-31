@@ -405,6 +405,11 @@ async function deleteAllForUser(uid, supabase) {
       const { error } = await supabase.rpc('delete_user_cards', { p_uid: uid });
       if (error && error.code !== 'PGRST202') console.error('[mirrorUsers/delete cards]', uid, error.message);
     })(),
+    // Sea Beast Raid (supabase/059): rounds + player row. Same PGRST202 rule before 059 is applied.
+    (async () => {
+      const { error } = await supabase.rpc('raid_delete_user', { p_uid: uid });
+      if (error && error.code !== 'PGRST202') console.error('[mirrorUsers/delete raid]', uid, error.message);
+    })(),
   ]);
 }
 

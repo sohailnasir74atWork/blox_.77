@@ -1242,7 +1242,23 @@ export const CHAT_BG_COLORS = {
 // ════════════════════════════════════════════════════════════
 //  ALL ITEMS (combined lookup)
 // ════════════════════════════════════════════════════════════
-export const ALL_ITEMS = { ...FRAMES, ...TEXT_COLORS, ...TRADE_BG_COLORS, ...BANNER_GRADIENTS, ...CHAT_BG_COLORS };
+// ── Sea Beast Raid boss frames (2026-10-31) ──
+// Granted by the server (functions/raid/logic.js FRAMES — keep in step; the
+// jest test compares) when the crew sinks a boss. `source: 'raid'` keeps
+// them out of every egg pool (getItemsByRarity / egg previews). Never sold.
+const raidFrame = (id, name, borderColors, glowColor) => ({
+  id, name, type: COSMETIC_TYPE.FRAME, rarity: RARITY.LEGENDARY, renderType: 'css', duration: -1,
+  borderColors, borderWidth: 3.6, glowColor, source: 'raid',
+});
+export const RAID_FRAMES = {
+  raid_seabeast: raidFrame('raid_seabeast', '🐉 Sea Beast Slayer', ['#2a7fb8', '#5fd0ff', '#e8f6ff'], '#5fd0ff60'),
+  raid_leviathan: raidFrame('raid_leviathan', '🐋 Leviathan Hunter', ['#1e4a8a', '#7bb0ff', '#dff5ff'], '#7bb0ff60'),
+  raid_doughking: raidFrame('raid_doughking', '🍩 Dough Crusher', ['#c98a4b', '#ffd7a3', '#ffc542'], '#ffd7a360'),
+  raid_kitsune: raidFrame('raid_kitsune', '🦊 Nine-Tail', ['#c25a1e', '#ffb13d', '#fff2a8'], '#ffb13d60'),
+  raid_tyrant: raidFrame('raid_tyrant', '🐲 Dragon Tyrant', ['#7a1f1f', '#ff6a3d', '#ffc542'], '#ff6a3d60'),
+};
+
+export const ALL_ITEMS = { ...FRAMES, ...RAID_FRAMES, ...TEXT_COLORS, ...TRADE_BG_COLORS, ...BANNER_GRADIENTS, ...CHAT_BG_COLORS };
 
 // ════════════════════════════════════════════════════════════
 //  FRUIT DEFINITIONS (Mystery Fruit Spin)
@@ -1318,6 +1334,7 @@ export const FRUIT_LIST = Object.values(FRUITS);
 export const EGG_LIST = FRUIT_LIST;
 
 // Helper: Get all items of a specific rarity
+// Egg pools: items of a rarity that eggs may drop (never server-granted ones such as the raid frames).
 export const getItemsByRarity = (rarity) => {
-  return Object.values(ALL_ITEMS).filter(item => item.rarity === rarity);
+  return Object.values(ALL_ITEMS).filter(item => item.rarity === rarity && !item.source);
 };

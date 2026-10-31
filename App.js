@@ -431,6 +431,13 @@ function App() {
               component={GameHubScreen}
             />
 
+            {/* Sea Beast Raid (2026-10-31): the WebView mini game. Lazy: the game HTML string loads on first open. */}
+            <Stack.Screen
+              name="RaidScreen"
+              options={{ headerShown: false, animation: 'fade', gestureEnabled: false }}
+              getComponent={() => require('./Code/Raid/RaidScreen').default}
+            />
+
             <Stack.Screen
               name="GameScreen"
               options={{ headerShown: false, animation: 'fade' }}

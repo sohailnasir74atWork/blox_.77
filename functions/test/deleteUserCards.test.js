@@ -24,7 +24,7 @@ function fakeSupabase(rpcError = null) {
 test('deleting an account calls delete_user_cards with the uid', async () => {
   const sb = fakeSupabase();
   await deleteAllForUser('u1', sb);
-  assert.deepStrictEqual(sb.calls.rpc, [['delete_user_cards', { p_uid: 'u1' }]]);
+  assert.deepStrictEqual(sb.calls.rpc.sort(), [['delete_user_cards', { p_uid: 'u1' }], ['raid_delete_user', { p_uid: 'u1' }]]);
   assert.ok(sb.calls.deletes.some(([t, uid]) => t === 'user_cosmetics' && uid === 'u1'), 'cosmetics row still deleted');
 });
 

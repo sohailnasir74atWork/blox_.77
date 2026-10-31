@@ -21,6 +21,7 @@ import { getLevelFromXP, getXPProgress, getLevelTitle } from '../Engagement/xpUt
 
 import LinearGradient from 'react-native-linear-gradient';
 import SignInDrawer from '../Firebase/SigninDrawer';
+import { isNew as isNewBadge, markSeen as markSeenBadge } from './newBadges';
 import TrendingFruits from './TrendingFruits';
 import StatusFeed from '../Design/StatusFeed';
 import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
@@ -85,6 +86,7 @@ const HomeTabScreen = ({ selectedTheme }) => {
   const [userXP, setUserXP] = useState({ total: 0, level: 1 });
   const starPulse = useRef(new Animated.Value(1)).current;
   const [isSigninDrawerVisible, setSigninDrawerVisible] = useState(false);
+  const [, bumpBadges] = useState(0); // re-render after a NEW tag is marked seen (newBadges)
   const [signinMessage, setSigninMessage] = useState('');
   const [ownedFruits, setOwnedFruits] = useState([]);
   const [myCosmetics, setMyCosmetics] = useState(null);
@@ -295,6 +297,7 @@ const HomeTabScreen = ({ selectedTheme }) => {
   // ── Game navigation — ads are handled at end of round inside GameScreen ──
   const handleGamePress = useCallback((game) => {
     requireSignIn(() => {
+      if (game.id === 'raid') { markSeenBadge('raid'); bumpBadges((n) => n + 1); }
       if (game.gameId) {
         navigation.navigate('GameScreen', { gameId: game.gameId, title: `${game.emoji} ${game.label}`, color: game.color });
       } else {
@@ -654,6 +657,8 @@ const HomeTabScreen = ({ selectedTheme }) => {
             </View>
             <View style={styles.gamesGrid}>
               {[
+                // Sea Beast Raid (2026-10-31): daily community boss in a WebView (Code/Raid). NEW until first opened on this device.
+                { id: 'raid',    emoji: '🐉', label: t('home.home_tab_screen.game_raid', { defaultValue: 'Sea Beast Raid' }), color: '#0B4F8A', screen: 'RaidScreen', tag: isNewBadge('raid') ? t('home.home_tab_screen.tag_new', { defaultValue: 'NEW' }) : undefined },
                 { id: 'mystery', image: require('../../assets/game-icons/mystery.png'), emoji: '🍋', label: t('home.home_tab_screen.game_mystery'),  color: '#16A34A', screen: 'MysteryEggScreen', tag: t('home.home_tab_screen.tag_hot') },
                 { id: 'crash',   image: require('../../assets/game-icons/crash.png'), emoji: '🚀', label: t('home.home_tab_screen.game_crash'),    color: '#F59E0B', screen: 'FruitCrashScreen' },
                 { id: 'spot',    image: require('../../assets/game-icons/smash.png'), emoji: '🍎', label: t('home.home_tab_screen.game_smash'),    color: '#B91C1C', screen: 'GameScreen', gameId: 'spot' },

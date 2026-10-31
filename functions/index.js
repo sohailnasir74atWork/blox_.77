@@ -154,3 +154,15 @@ exports.updateBirthday = require('./updateBirthday').updateBirthday;
 exports.notifyBirthdayEmails = require('./notifyBirthdayEmails').notifyBirthdayEmails;
 // The unsubscribe link in those emails: turns RTDB email_prefs/{uid}.optIn off.
 exports.emailUnsubscribe = require('./emailUnsubscribe').emailUnsubscribe;
+
+// ── Sea Beast Raid (2026-10-31; functions/raid/index.js) ───────────────────
+// HTTPS + Bearer ID token; Supabase 059 (raid_days / raid_players /
+// raid_rounds) through the service role; PRO rewards → RTDB purchases/raid_pro.
+// Apply supabase/059_sea_beast_raid.sql BEFORE the first deploy. Deploy BY NAME:
+//   firebase deploy --only functions:raidState,functions:raidStart,functions:raidFinish,functions:raidRewarded,functions:raidLeaderboard --project fruiteblocks
+const raid = require('./raid');
+exports.raidState = raid.raidState;
+exports.raidStart = raid.raidStart;
+exports.raidFinish = raid.raidFinish;
+exports.raidRewarded = raid.raidRewarded;
+exports.raidLeaderboard = raid.raidLeaderboard;
