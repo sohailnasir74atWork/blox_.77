@@ -18,6 +18,7 @@ import config from '../../Helper/Environment';
 import { useGlobalState, modGateText } from '../../GlobelStats';
 import { useLocalState } from '../../LocalGlobelStats';
 import PostAdManager from '../../Ads/PostAd';
+import { useModalHandoff } from '../../Helper/modalPresentation';
 import ConditionalKeyboardWrapper from '../../Helper/keyboardAvoidingContainer';
 // import { onValue, ref } from '@react-native-firebase/database';
 import { showMessage } from 'react-native-flash-message';
@@ -46,6 +47,8 @@ const POST_TAGS = [
 ];
 
 const UploadModal = ({ visible, onClose, onUpload, user }) => {
+  // The feed-post ad is queued until this sheet has finished closing (iOS).
+  const { handoff: afterSheetClosed, onDismiss: onSheetDismissed } = useModalHandoff();
   const [desc, setDesc] = useState('');
   const [imageUris, setImageUris] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -292,7 +295,9 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
     // live — never before it, never on a failed upload.
     callbackfunction().then((posted) => {
       if (!posted || localState.isPro) return;
-      requestAnimationFrame(() => {
+      // iOS: wait for the composer's onDismiss — UIKit silently refuses an
+      // ad presented while the modal is still closing (bugs LOG 2026-10-18).
+      afterSheetClosed(null, () => requestAnimationFrame(() => {
         setTimeout(() => {
           try {
             PostAdManager.show('feed');
@@ -300,17 +305,17 @@ const UploadModal = ({ visible, onClose, onUpload, user }) => {
             console.warn('[AdManager] Failed to show ad:', err);
           }
         }, 400);
-      });
+      }));
     });
 
-  }, [loading, user?.id, desc, imageUris, selectedTags, uploadToBunny, onUpload, onClose, localState.isPro, currentUserEmail, lastPostTime, getModGate]);
+  }, [loading, user?.id, desc, imageUris, selectedTags, uploadToBunny, onUpload, onClose, localState.isPro, currentUserEmail, lastPostTime, getModGate, afterSheetClosed]);
 
 
   const insets = useSafeAreaInsets();
   const themedStyles = getStyles(isDark, insets);
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onDismiss={onSheetDismissed}>
       <View style={themedStyles.fullScreenContainer}>
         {/* Header - Fixed at top */}
         <View style={themedStyles.header}>

@@ -40,6 +40,7 @@ import { useTranslation } from 'react-i18next';
 import i18next from 'i18next';
 import { addXP, XP_ACTIONS } from '../Engagement/xpUtils';
 import PostAdManager from '../Ads/PostAd';
+import { useModalHandoff } from '../Helper/modalPresentation';
 import SwipeableBottomDrawer from '../Helper/SwipeableBottomDrawer';
 import { useLocalState } from '../LocalGlobelStats';
 import { useGlobalState, modGateText } from '../GlobelStats';
@@ -264,6 +265,8 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
   const [drawerUser, setDrawerUser] = useState(null);
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
   const [showCreator, setShowCreator] = useState(false);
+  // The feed-post ad is queued until the creator modal has finished closing (iOS).
+  const { handoff: afterCreatorClosed, onDismiss: onCreatorDismissed } = useModalHandoff();
   const [caption, setCaption] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -799,7 +802,9 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
     await doUpload();
 
     if (posted && !localState.isPro) {
-      requestAnimationFrame(() => {
+      // iOS: wait for the composer's onDismiss — UIKit silently refuses an
+      // ad presented while the modal is still closing (bugs LOG 2026-10-18).
+      afterCreatorClosed(null, () => requestAnimationFrame(() => {
         setTimeout(() => {
           try {
             PostAdManager.show('feed');
@@ -807,9 +812,9 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
             console.warn('[StatusFeed] Ad failed:', err);
           }
         }, 400);
-      });
+      }));
     }
-  }, [user, firestoreDB, appdatabase, caption, selectedImage, uploadToBunny, localState.isPro, isPollMode, pollOptions, selectedThemeId, currentUserEmail, getModGate]);
+  }, [user, firestoreDB, appdatabase, caption, selectedImage, uploadToBunny, localState.isPro, isPollMode, pollOptions, selectedThemeId, currentUserEmail, getModGate, afterCreatorClosed]);
 
   // ── Delete status ──
   const handleDeleteStatus = useCallback(async (statusId) => {
@@ -1570,7 +1575,7 @@ const StatusFeed = ({ user, firestoreDB, appdatabase, isDarkMode, onRequireSignI
       })()}
 
       {/* ── Status Creator Modal ── */}
-      <Modal visible={showCreator} transparent animationType="slide" onRequestClose={() => setShowCreator(false)}>
+      <Modal visible={showCreator} transparent animationType="slide" onRequestClose={() => setShowCreator(false)} onDismiss={onCreatorDismissed}>
         <KeyboardAvoidingView
           style={styles.creatorOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
