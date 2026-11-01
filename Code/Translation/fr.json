@@ -3171,6 +3171,15 @@
         "beta": "Test : ce scanner est encore en test et peut se tromper. Vérifie chaque objet avant d'échanger.",
         "crop_tip": "Fais glisser les coins autour de la fenêtre d'échange uniquement : les deux côtés et le titre TREASURE TRADE. Coupe tout le reste.",
         "retake": "Choisir à nouveau",
-        "scan_area": "Scanner cette zone"
+        "scan_area": "Scanner cette zone",
+        "feedback_q": "Le scan était-il correct ?",
+        "yes": "Oui",
+        "no": "Non",
+        "feedback_what": "Qu'est-ce qui n'allait pas ?",
+        "feedback_thanks": "Merci ! Ça nous aide à améliorer le scanner.",
+        "reason_wrong_item": "Mauvais fruit",
+        "reason_missed": "Fruits manquants",
+        "reason_extra": "Fruits en trop",
+        "reason_sides": "Côtés inversés"
     }
 }

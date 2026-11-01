@@ -3167,6 +3167,15 @@
     "beta": "Thử nghiệm: máy quét này vẫn đang được thử nghiệm và có thể sai. Hãy kiểm tra từng món trước khi trade.",
     "crop_tip": "Kéo các góc chỉ quanh cửa sổ trade: cả hai bên và tiêu đề TREASURE TRADE. Cắt bỏ mọi thứ khác.",
     "retake": "Chọn lại",
-    "scan_area": "Quét vùng này"
+    "scan_area": "Quét vùng này",
+    "feedback_q": "Bản quét có đúng không?",
+    "yes": "Có",
+    "no": "Không",
+    "feedback_what": "Sai ở đâu?",
+    "feedback_thanks": "Cảm ơn! Điều này giúp chúng tôi cải thiện máy quét.",
+    "reason_wrong_item": "Sai trái",
+    "reason_missed": "Thiếu trái",
+    "reason_extra": "Thừa trái",
+    "reason_sides": "Sai bên"
   }
 }

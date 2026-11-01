@@ -3174,6 +3174,15 @@
     "beta": "Prueba: este escáner aún está en pruebas y puede equivocarse. Revisa cada objeto antes de tradear.",
     "crop_tip": "Arrastra las esquinas solo alrededor de la ventana de trade: los dos lados y el título TREASURE TRADE. Recorta todo lo demás.",
     "retake": "Elegir otra",
-    "scan_area": "Escanear esta zona"
+    "scan_area": "Escanear esta zona",
+    "feedback_q": "¿El escaneo acertó?",
+    "yes": "Sí",
+    "no": "No",
+    "feedback_what": "¿Qué estuvo mal?",
+    "feedback_thanks": "¡Gracias! Esto nos ayuda a mejorar el escáner.",
+    "reason_wrong_item": "Fruta incorrecta",
+    "reason_missed": "Faltan frutas",
+    "reason_extra": "Frutas de más",
+    "reason_sides": "Lados incorrectos"
   }
 }

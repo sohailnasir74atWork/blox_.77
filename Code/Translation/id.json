@@ -3167,6 +3167,15 @@
     "beta": "Uji coba: pemindai ini masih diuji dan bisa salah. Periksa setiap item sebelum trade.",
     "crop_tip": "Seret sudut hanya di sekitar jendela trade: kedua sisi dan judul TREASURE TRADE. Potong semua yang lain.",
     "retake": "Pilih lagi",
-    "scan_area": "Pindai area ini"
+    "scan_area": "Pindai area ini",
+    "feedback_q": "Apakah hasil pindai benar?",
+    "yes": "Ya",
+    "no": "Tidak",
+    "feedback_what": "Apa yang salah?",
+    "feedback_thanks": "Terima kasih! Ini membantu kami memperbaiki pemindai.",
+    "reason_wrong_item": "Buah salah",
+    "reason_missed": "Buah terlewat",
+    "reason_extra": "Buah berlebih",
+    "reason_sides": "Sisi tertukar"
   }
 }

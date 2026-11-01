@@ -3171,6 +3171,15 @@
     "beta": "Testing: sinusubukan pa ang scanner na ito at puwedeng magkamali. Tingnan ang bawat item bago mag-trade.",
     "crop_tip": "I-drag ang mga sulok sa paligid ng trade window lang: ang dalawang panig at ang pamagat na TREASURE TRADE. Tanggalin ang lahat ng iba pa.",
     "retake": "Pumili ulit",
-    "scan_area": "I-scan ang bahaging ito"
+    "scan_area": "I-scan ang bahaging ito",
+    "feedback_q": "Tama ba ang scan?",
+    "yes": "Oo",
+    "no": "Hindi",
+    "feedback_what": "Ano ang mali?",
+    "feedback_thanks": "Salamat! Nakakatulong ito para gumanda ang scanner.",
+    "reason_wrong_item": "Maling prutas",
+    "reason_missed": "May kulang na prutas",
+    "reason_extra": "Sobrang prutas",
+    "reason_sides": "Baliktad ang panig"
   }
 }

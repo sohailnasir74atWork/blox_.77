@@ -3169,6 +3169,15 @@
     "beta": "Testing: this scanner is still being tested and can make mistakes. Check every item before you trade.",
     "crop_tip": "Drag the corners around the trade window only: both sides and the TREASURE TRADE title. Cut away everything else.",
     "retake": "Pick again",
-    "scan_area": "Scan this area"
+    "scan_area": "Scan this area",
+    "feedback_q": "Did the scan get it right?",
+    "yes": "Yes",
+    "no": "No",
+    "feedback_what": "What was wrong?",
+    "feedback_thanks": "Thanks! This helps us make the scanner better.",
+    "reason_wrong_item": "Wrong fruit",
+    "reason_missed": "Missed fruits",
+    "reason_extra": "Extra fruits",
+    "reason_sides": "Wrong sides"
   }
 }

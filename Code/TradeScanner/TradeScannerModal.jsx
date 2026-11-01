@@ -37,6 +37,34 @@ const formatValue = (value) => {
   return v.toLocaleString();
 };
 
+// Accuracy feedback (2026-11-01). Every pick keeps what the scan said
+// (scanned); at "Use in calculator" the picks the user changed or removed
+// give an item-level accuracy, and the Yes / No question gives a per-scan
+// one. Separate event names (trade_scan_right / trade_scan_wrong) so the
+// GA4 event counts alone give the score: right / (right + wrong).
+const FEEDBACK_REASONS = [
+  ['wrong_item', 'Wrong fruit'],
+  ['missed', 'Missed fruits'],
+  ['extra', 'Extra fruits'],
+  ['sides', 'Wrong sides'],
+];
+const pickKey = (p) => [p.name, p.variant || '', p.fly ? 1 : 0, p.ride ? 1 : 0].join('|');
+const withScan = (list) => list.map((p) => ({ ...p, scanned: pickKey(p) }));
+const scanStats = (r) => {
+  const now = [...r.mine, ...r.theirs];
+  const fixed = now.filter((p) => p.scanned !== pickKey(p)).length;
+  const removed = Math.max(0, r.found - now.length);
+  const kept = now.length - fixed;
+  return {
+    source: r.source,
+    found: r.found,
+    fixed,
+    removed,
+    swapped: r.swapped ? 1 : 0,
+    accuracy: r.found ? Math.round((100 * kept) / r.found) : 0,
+  };
+};
+
 export default function TradeScannerModal({ visible, onClose, onApply, records, maxPerSide, isDarkMode, imageFor }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -50,6 +78,7 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
   const crop = useRef(FULL_CROP);
   const [result, setResult] = useState(null); // { mine: [pick], theirs: [pick], skippedInventory }
   const [openPick, setOpenPick] = useState(null); // 'mine:0'
+  const [feedback, setFeedback] = useState(null); // null | 'wrong' | 'done'
   const [cameraDenied, setCameraDenied] = useState(false);
 
   const byName = useMemo(() => {
@@ -154,11 +183,14 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
       });
       if (!found) { setStage('none'); return; }
       setResult({
-        mine: trade.mine.slice(0, maxPerSide),
-        theirs: trade.theirs.slice(0, maxPerSide),
+        mine: withScan(trade.mine.slice(0, maxPerSide)),
+        theirs: withScan(trade.theirs.slice(0, maxPerSide)),
+        found: Math.min(trade.mine.length, maxPerSide) + Math.min(trade.theirs.length, maxPerSide),
+        source,
         skippedInventory: trade.skippedInventory,
         cut: trade.mine.length > maxPerSide || trade.theirs.length > maxPerSide,
       });
+      setFeedback(null);
       setStage('review');
     } catch (err) {
       trackGrowthEvent('trade_scan', { source, photo_mode: 0, slots: -1, found: 0, unsure: 0, text_reader: 0 });
@@ -188,7 +220,7 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
     setResult((prev) => {
       const list = [...prev[side]];
       const old = list[index];
-      list[index] = { name, sure: true, alternatives: [old.name, ...old.alternatives.filter((n) => n !== name)].slice(0, 4) };
+      list[index] = { name, sure: true, scanned: old.scanned, alternatives: [old.name, ...old.alternatives.filter((n) => n !== name)].slice(0, 4) };
       return { ...prev, [side]: list };
     });
     setOpenPick(null);
@@ -208,11 +240,21 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
     setOpenPick(null);
   };
 
-  const swapSides = () => setResult((prev) => ({ ...prev, mine: prev.theirs, theirs: prev.mine }));
+  const swapSides = () => setResult((prev) => ({ ...prev, mine: prev.theirs, theirs: prev.mine, swapped: !prev.swapped }));
+
+  const vote = (right) => {
+    trackGrowthEvent(right ? 'trade_scan_right' : 'trade_scan_wrong', scanStats(result));
+    setFeedback(right ? 'done' : 'wrong');
+  };
+
+  const voteReason = (reason) => {
+    trackGrowthEvent('trade_scan_wrong_reason', { reason, ...scanStats(result) });
+    setFeedback('done');
+  };
 
   const apply = () => {
     const toRecords = (list) => list.map((p) => byName.get(p.name)).filter(Boolean);
-    trackGrowthEvent('trade_scan_apply', { mine: result.mine.length, theirs: result.theirs.length });
+    trackGrowthEvent('trade_scan_apply', { mine: result.mine.length, theirs: result.theirs.length, ...scanStats(result) });
     onApply({ mine: toRecords(result.mine), theirs: toRecords(result.theirs) });
   };
 
@@ -405,6 +447,35 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
               </View>
             )}
 
+            <View style={styles.feedback}>
+              {feedback === null && (
+                <>
+                  <Text style={[styles.feedbackText, { color: fg }]} numberOfLines={1}>{t('trade_scanner.feedback_q', { defaultValue: 'Did the scan get it right?' })}</Text>
+                  <TouchableOpacity style={[styles.vote, { borderColor: '#29AB87' }]} onPress={() => vote(true)} hitSlop={6}>
+                    <Icon name="thumbs-up" size={14} color={'#29AB87'} />
+                    <Text style={[styles.voteText, { color: '#29AB87' }]}>{t('trade_scanner.yes', { defaultValue: 'Yes' })}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.vote, { borderColor: '#FF3B30' }]} onPress={() => vote(false)} hitSlop={6}>
+                    <Icon name="thumbs-down" size={14} color={'#FF3B30'} />
+                    <Text style={[styles.voteText, { color: '#FF3B30' }]}>{t('trade_scanner.no', { defaultValue: 'No' })}</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+              {feedback === 'wrong' && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+                  <Text style={[styles.feedbackText, { color: fg }]}>{t('trade_scanner.feedback_what', { defaultValue: 'What was wrong?' })}</Text>
+                  {FEEDBACK_REASONS.map(([key, label]) => (
+                    <TouchableOpacity key={key} style={[styles.vote, { borderColor: sub }]} onPress={() => voteReason(key)}>
+                      <Text style={[styles.voteText, { color: fg }]}>{t(`trade_scanner.reason_${key}`, { defaultValue: label })}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+              {feedback === 'done' && (
+                <Text style={[styles.feedbackText, { color: sub }]}>{t('trade_scanner.feedback_thanks', { defaultValue: 'Thanks! This helps us make the scanner better.' })}</Text>
+              )}
+            </View>
+
             {(result.skippedInventory > 0 || result.cut || !openItem) && (
               <Text style={[styles.note, { color: sub }]} numberOfLines={2}>
                 {result.skippedInventory > 0
@@ -443,6 +514,10 @@ const styles = StyleSheet.create({
   hiddenWebInner: { width: 1, height: 1 },
   beta: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 8, marginBottom: 8, backgroundColor: 'rgba(245,166,35,0.15)' },
   betaText: { flex: 1, fontSize: 11, lineHeight: 15, fontWeight: '600' },
+  feedback: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, minHeight: 28 },
+  feedbackText: { flexShrink: 1, fontSize: 12, fontWeight: '700', alignSelf: 'center' },
+  vote: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1.5, borderRadius: 14, paddingVertical: 4, paddingHorizontal: 10 },
+  voteText: { fontSize: 12, fontWeight: '800' },
   cropTip: { fontSize: 13, lineHeight: 18, fontWeight: '600', marginBottom: 8 },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, padding: 12 },
   infoText: { flex: 1, fontSize: 14, lineHeight: 19, fontWeight: '600' },

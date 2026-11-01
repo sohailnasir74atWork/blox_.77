@@ -3171,6 +3171,15 @@
     "beta": "Test: Dieser Scanner wird noch getestet und kann Fehler machen. Prüfe jedes Item, bevor du tradest.",
     "crop_tip": "Ziehe die Ecken nur um das Trade-Fenster: beide Seiten und den Titel TREASURE TRADE. Schneide alles andere weg.",
     "retake": "Neu wählen",
-    "scan_area": "Diesen Bereich scannen"
+    "scan_area": "Diesen Bereich scannen",
+    "feedback_q": "Hat der Scan gestimmt?",
+    "yes": "Ja",
+    "no": "Nein",
+    "feedback_what": "Was war falsch?",
+    "feedback_thanks": "Danke! Das hilft uns, den Scanner zu verbessern.",
+    "reason_wrong_item": "Falsche Frucht",
+    "reason_missed": "Fehlende Früchte",
+    "reason_extra": "Zusätzliche Früchte",
+    "reason_sides": "Falsche Seiten"
   }
 }
