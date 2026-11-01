@@ -107,7 +107,11 @@ const NotificationHandler = () => {
 
     setup();
 
-    let isProcessingNotification = false;
+    // Foreground pushes are shown one after another. This used to be an
+    // "already processing → skip" flag, which dropped every push that landed
+    // while the previous one was still being displayed — a burst of DMs showed
+    // only the first.
+    let displayQueue = Promise.resolve();
 
     const processNotification = async (remoteMessage) => {
       if (!remoteMessage) {
@@ -116,13 +120,6 @@ const NotificationHandler = () => {
       }
 
       // console.log('[FCM] Received message in foreground:', remoteMessage);
-
-      if (isProcessingNotification) {
-        // console.warn('[Notification] Already processing, skipping…');
-        return;
-      }
-
-      isProcessingNotification = true;
 
       try {
         const { notification, data } = remoteMessage || {};
@@ -178,9 +175,15 @@ const NotificationHandler = () => {
               },
             }
           : {};
+        // One notification per DM conversation, like the push's Android tag /
+        // APNs collapse id (functions/notifyPrivateMessage.js).
+        const dmExtras = type === 'private_message' && data?.chatId
+          ? { id: `dm_${data.chatId}` }
+          : {};
 
         await notifee.displayNotification({
           ...valuesUpdateExtras,
+          ...dmExtras,
           title: notificationTitle,
           body: notificationBody,
           android: {
@@ -192,14 +195,15 @@ const NotificationHandler = () => {
         });
       } catch (error) {
         // console.error('[Notification] Error processing notification:', error);
-      } finally {
-        isProcessingNotification = false;
       }
     };
 
     // ✅ Foreground listener (modular)
-    const unsubscribeForeground = onMessage(messaging, async (remoteMessage) => {
-      await processNotification(remoteMessage);
+    const unsubscribeForeground = onMessage(messaging, (remoteMessage) => {
+      displayQueue = displayQueue
+        .then(() => processNotification(remoteMessage))
+        .catch(() => {});
+      return displayQueue;
     });
 
     // ✅ Handle Notifee notification clicks (foreground)

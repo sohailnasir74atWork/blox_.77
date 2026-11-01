@@ -137,6 +137,10 @@ exports.cleanupExpiredStatuses = contentCleanup.cleanupExpiredStatuses;
 exports.cleanupOldTrades = contentCleanup.cleanupOldTrades;
 exports.cleanupOldPosts = contentCleanup.cleanupOldPosts;
 
+// RTDB private_messages rooms idle 30+ days (trade card, lastRead, unread;
+// bodies are in Supabase), weekly. Same apply flag as above (2026-10-29).
+exports.cleanupIdlePrivateChats = require('./cleanupIdlePrivateChats').cleanupIdlePrivateChats;
+
 // Status feed snapshot (2026-10-22): live statuses as one doc, status_feed/global.
 exports.buildStatusFeed = require('./statusFeed').buildStatusFeed;
 

@@ -43,6 +43,34 @@ test('fresh installs use valid fallback, and failed fallback remains unavailable
   expect(save).not.toHaveBeenCalled();
 });
 
+test('fresh installs retry a dropped connection before giving up', async () => {
+  jest.useFakeTimers();
+  const save = jest.fn();
+  const load = jest.fn()
+    .mockRejectedValueOnce(new TypeError('Network request failed'))
+    .mockResolvedValueOnce(saved);
+  const result = refreshCatalog({load, cached: null, save, retryDelaysMs: [1000, 3000]});
+  await jest.advanceTimersByTimeAsync(1000);
+  expect(await result).toEqual({fresh: true, available: true});
+  expect(load).toHaveBeenCalledTimes(2);
+  expect(save).toHaveBeenCalledWith(saved);
+
+  load.mockReset().mockRejectedValue(new TypeError('Network request failed'));
+  save.mockClear();
+  const failed = refreshCatalog({load, cached: null, save, retryDelaysMs: [1000, 3000]});
+  await jest.advanceTimersByTimeAsync(4000);
+  expect(await failed).toEqual({fresh: false, available: false});
+  expect(load).toHaveBeenCalledTimes(3);
+  expect(save).not.toHaveBeenCalled();
+});
+
+test('a cached catalog is shown at once, without retries', async () => {
+  const load = jest.fn().mockRejectedValue(new TypeError('Network request failed'));
+  expect(await refreshCatalog({load, cached: saved, save: jest.fn(), retryDelaysMs: [1000, 3000]}))
+    .toEqual({fresh: false, available: true});
+  expect(load).toHaveBeenCalledTimes(1);
+});
+
 test('a fast feed commits while the other feed is still pending', async () => {
   let finishSlow;
   const fastSave = jest.fn();

@@ -916,16 +916,21 @@ export const GlobalStateProvider = ({ children }) => {
         !usableCatalog(currentLocalState.data) || !usableCatalog(currentLocalState.codes);
       if (shouldFetch) {
         const catalogStartedAt = Date.now();
+        // A fresh install (no usable cache) retries a dropped CDN connection
+        // twice before showing the error state; see refreshCatalog.
+        const firstLoadRetries = [1000, 3000];
         const results = await Promise.all([
           refreshCatalog({
             load: () => fetchCatalog('https://blox-api.b-cdn.net/data.json'),
             cached: currentLocalState.data,
             save: value => updateLocalState('data', JSON.stringify(value)),
+            retryDelaysMs: firstLoadRetries,
           }),
           refreshCatalog({
             load: () => fetchCatalog('https://blox-api.b-cdn.net/codes.json'),
             cached: currentLocalState.codes,
             save: value => updateLocalState('codes', JSON.stringify(value)),
+            retryDelaysMs: firstLoadRetries,
           }),
         ]);
         catalogRefreshed = results.every(r => r.fresh);

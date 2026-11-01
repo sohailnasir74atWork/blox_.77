@@ -40,14 +40,31 @@ export const fetchCatalog = (url, options = {}, timeoutMs = 12000) => {
 
 // Each feed commits as soon as it arrives. Another failed or slow feed cannot
 // discard this result. Never replace a usable saved catalog with an empty one.
-export const refreshCatalog = async ({load, cached, save, fallback}) => {
-  try {
+//
+// retryDelaysMs only applies when there is no usable cache (a fresh install):
+// with nothing to show, another try beats an error screen. On some mobile
+// networks the TLS connection to Bunny is reset outright ("Connection reset by
+// peer", 2026-10-29), and the next attempt usually gets through. With a cache
+// the user already sees values, so one attempt is enough.
+export const refreshCatalog = async ({load, cached, save, fallback, retryDelaysMs = []}) => {
+  const attempt = async () => {
     const value = usableCatalog(await load());
     if (!value) throw new Error('Empty or invalid catalog');
     await save(value);
     return {fresh: true, available: true};
+  };
+  try {
+    return await attempt();
   } catch (error) {
     if (usableCatalog(cached)) return {fresh: false, available: true};
+    for (const delayMs of retryDelaysMs) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+      try {
+        return await attempt();
+      } catch {
+        // Try the next delay, then the fallback.
+      }
+    }
     if (fallback) {
       try {
         const value = usableCatalog(await withDeadline(fallback));

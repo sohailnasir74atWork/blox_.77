@@ -153,6 +153,11 @@ exports.notifyPrivateMessage = functions
       }
 
       const senderName = chatMetaResult?.data?.receiver_name || 'New Message';
+      // One tray notification per conversation (same as group pushes): the
+      // Android `tag` / iOS `apns-collapse-id` replace that chat's previous
+      // DM notification. Without it every DM stacked its own entry, and past
+      // Android's ~50-per-app limit new ones were silently not shown.
+      const collapseId = String(record.chat_id || senderId).slice(0, 64);
 
       await admin.messaging().send({
         token: fcmToken,
@@ -171,10 +176,11 @@ exports.notifyPrivateMessage = functions
         },
         android: {
           priority: 'high',
-          notification: { sound: 'default', channelId: 'default' },
+          notification: { sound: 'default', channelId: 'default', tag: `dm_${collapseId}` },
         },
         apns: {
-          payload: { aps: { sound: 'default', badge: 1 } },
+          headers: { 'apns-collapse-id': collapseId },
+          payload: { aps: { sound: 'default', badge: 1, 'thread-id': collapseId } },
         },
       });
 
