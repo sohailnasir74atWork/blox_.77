@@ -3163,6 +3163,10 @@
     "remove": "Hapus",
     "camera_tip": "Tahan stabil, penuhi foto dengan jendela trade, hindari silau.",
     "camera_denied": "Akses kamera nonaktif. Izinkan di Setelan, atau pilih tangkapan layar.",
-    "correct": "Benar"
+    "correct": "Benar",
+    "beta": "Uji coba: pemindai ini masih diuji dan bisa salah. Periksa setiap item sebelum trade.",
+    "crop_tip": "Seret sudut hanya di sekitar jendela trade: kedua sisi dan judul TREASURE TRADE. Potong semua yang lain.",
+    "retake": "Pilih lagi",
+    "scan_area": "Pindai area ini"
   }
 }

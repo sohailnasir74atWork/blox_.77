@@ -3167,6 +3167,10 @@
     "remove": "Entfernen",
     "camera_tip": "Ruhig halten, Trade-Fenster bildfüllend, Spiegelungen vermeiden.",
     "camera_denied": "Kamerazugriff ist aus. Erlaube ihn in den Einstellungen oder wähle einen Screenshot.",
-    "correct": "Stimmt"
+    "correct": "Stimmt",
+    "beta": "Test: Dieser Scanner wird noch getestet und kann Fehler machen. Prüfe jedes Item, bevor du tradest.",
+    "crop_tip": "Ziehe die Ecken nur um das Trade-Fenster: beide Seiten und den Titel TREASURE TRADE. Schneide alles andere weg.",
+    "retake": "Neu wählen",
+    "scan_area": "Diesen Bereich scannen"
   }
 }

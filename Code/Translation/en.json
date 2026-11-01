@@ -3165,6 +3165,10 @@
     "remove": "Remove",
     "camera_tip": "Hold steady, fill the photo with the trade window, avoid glare.",
     "camera_denied": "Camera access is off. Allow it in Settings, or pick a screenshot.",
-    "correct": "Correct"
+    "correct": "Correct",
+    "beta": "Testing: this scanner is still being tested and can make mistakes. Check every item before you trade.",
+    "crop_tip": "Drag the corners around the trade window only: both sides and the TREASURE TRADE title. Cut away everything else.",
+    "retake": "Pick again",
+    "scan_area": "Scan this area"
   }
 }

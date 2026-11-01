@@ -3170,6 +3170,10 @@
     "remove": "Remover",
     "camera_tip": "Segure firme, preencha a foto com a janela e evite reflexos.",
     "camera_denied": "O acesso à câmera está desligado. Permita nas Configurações ou escolha uma captura.",
-    "correct": "Correto"
+    "correct": "Correto",
+    "beta": "Teste: este scanner ainda está em teste e pode errar. Confira cada item antes de trocar.",
+    "crop_tip": "Arraste os cantos só em volta da janela de troca: os dois lados e o título TREASURE TRADE. Corte todo o resto.",
+    "retake": "Escolher outra",
+    "scan_area": "Escanear esta área"
   }
 }

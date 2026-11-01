@@ -3163,6 +3163,10 @@
     "remove": "Xóa",
     "camera_tip": "Giữ yên, để cửa sổ giao dịch chiếm trọn ảnh, tránh lóa.",
     "camera_denied": "Quyền camera đang tắt. Bật trong Cài đặt hoặc chọn ảnh chụp màn hình.",
-    "correct": "Đúng"
+    "correct": "Đúng",
+    "beta": "Thử nghiệm: máy quét này vẫn đang được thử nghiệm và có thể sai. Hãy kiểm tra từng món trước khi trade.",
+    "crop_tip": "Kéo các góc chỉ quanh cửa sổ trade: cả hai bên và tiêu đề TREASURE TRADE. Cắt bỏ mọi thứ khác.",
+    "retake": "Chọn lại",
+    "scan_area": "Quét vùng này"
   }
 }

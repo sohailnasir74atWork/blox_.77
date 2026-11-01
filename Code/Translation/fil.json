@@ -3167,6 +3167,10 @@
     "remove": "Alisin",
     "camera_tip": "Huwag gumalaw, punuin ang larawan ng trade window, iwasan ang silaw.",
     "camera_denied": "Naka-off ang access sa camera. Payagan ito sa Settings, o pumili ng screenshot.",
-    "correct": "Tama"
+    "correct": "Tama",
+    "beta": "Testing: sinusubukan pa ang scanner na ito at puwedeng magkamali. Tingnan ang bawat item bago mag-trade.",
+    "crop_tip": "I-drag ang mga sulok sa paligid ng trade window lang: ang dalawang panig at ang pamagat na TREASURE TRADE. Tanggalin ang lahat ng iba pa.",
+    "retake": "Pumili ulit",
+    "scan_area": "I-scan ang bahaging ito"
   }
 }

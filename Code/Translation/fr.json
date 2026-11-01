@@ -3167,6 +3167,10 @@
         "remove": "Retirer",
         "camera_tip": "Tiens bien le téléphone, remplis la photo avec la fenêtre, évite les reflets.",
         "camera_denied": "L'accès à la caméra est désactivé. Autorise-le dans Réglages ou choisis une capture.",
-        "correct": "Correct"
+        "correct": "Correct",
+        "beta": "Test : ce scanner est encore en test et peut se tromper. Vérifie chaque objet avant d'échanger.",
+        "crop_tip": "Fais glisser les coins autour de la fenêtre d'échange uniquement : les deux côtés et le titre TREASURE TRADE. Coupe tout le reste.",
+        "retake": "Choisir à nouveau",
+        "scan_area": "Scanner cette zone"
     }
 }

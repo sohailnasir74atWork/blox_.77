@@ -1,6 +1,7 @@
 /**
  * Trade Scanner (2026-11-01): photograph the in-game Treasure Trade window on
- * a PC screen with the camera, or pick a screenshot; recognise the fruits on
+ * a PC screen with the camera, or pick a screenshot;
+ * crop it to the trade window (CropBox, required); recognise the fruits on
  * both sides on the device, let the user fix anything, then fill the
  * calculator (HomeScreen) with them. Compact bottom sheet, calculator-style
  * review (two 2x2 sides + one result bar).
@@ -10,7 +11,7 @@
  * never leaves the phone.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, Image, ActivityIndicator, ScrollView, Platform, PermissionsAndroid, Pressable } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Image, ActivityIndicator, ScrollView, Platform, PermissionsAndroid, Pressable, useWindowDimensions } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -20,6 +21,7 @@ import config from '../Helper/Environment';
 import { trackGrowthEvent } from '../Helper/growthAnalytics';
 import scannerHtml from './scannerHtml';
 import { readTextLines } from './textReader';
+import CropBox, { FULL_CROP } from './CropBox';
 import { buildTrade } from './tradeMatch';
 
 const SCAN_TIMEOUT_MS = 20000;
@@ -38,11 +40,14 @@ const formatValue = (value) => {
 export default function TradeScannerModal({ visible, onClose, onApply, records, maxPerSide, isDarkMode, imageFor }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const { height: screenHeight } = useWindowDimensions();
   const web = useRef(null);
   const ready = useRef(false);
   const pending = useRef(null); // { id, resolve, reject, timer }
   const queued = useRef(null);
-  const [stage, setStage] = useState('intro'); // intro | working | review | none
+  const [stage, setStage] = useState('intro'); // intro | crop | working | review | none
+  const [picked, setPicked] = useState(null); // { asset, source } waiting in the crop step
+  const crop = useRef(FULL_CROP);
   const [result, setResult] = useState(null); // { mine: [pick], theirs: [pick], skippedInventory }
   const [openPick, setOpenPick] = useState(null); // 'mine:0'
   const [cameraDenied, setCameraDenied] = useState(false);
@@ -58,22 +63,23 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
     if (!visible) {
       setStage('intro');
       setResult(null);
+      setPicked(null);
       setOpenPick(null);
       setCameraDenied(false);
       ready.current = false;
     }
   }, [visible]);
 
-  const send = useCallback((id, dataUrl) => {
-    web.current?.injectJavaScript(`window.tradeScan(${JSON.stringify(id)}, ${JSON.stringify(dataUrl)}); true;`);
+  const send = useCallback((id, dataUrl, frame) => {
+    web.current?.injectJavaScript(`window.tradeScan(${JSON.stringify(id)}, ${JSON.stringify(dataUrl)}, ${JSON.stringify(frame)}); true;`);
   }, []);
 
-  const scanPixels = useCallback((dataUrl) => new Promise((resolve, reject) => {
+  const scanPixels = useCallback((dataUrl, frame) => new Promise((resolve, reject) => {
     const id = String(Date.now());
     const timer = setTimeout(() => { pending.current = null; reject(new Error('timeout')); }, SCAN_TIMEOUT_MS);
     pending.current = { id, resolve, reject, timer };
-    if (ready.current) send(id, dataUrl);
-    else queued.current = { id, dataUrl };
+    if (ready.current) send(id, dataUrl, frame);
+    else queued.current = { id, dataUrl, frame };
   }), [send]);
 
   const onMessage = useCallback((e) => {
@@ -81,7 +87,7 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
     try { msg = JSON.parse(e.nativeEvent.data); } catch { return; }
     if (msg.type === 'ready') {
       ready.current = true;
-      if (queued.current) { send(queued.current.id, queued.current.dataUrl); queued.current = null; }
+      if (queued.current) { send(queued.current.id, queued.current.dataUrl, queued.current.frame); queued.current = null; }
       return;
     }
     const p = pending.current;
@@ -119,11 +125,22 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
       return;
     }
     if (!asset?.base64 || !asset?.uri) return;
-    setStage('working');
+    // Always through the crop step: extra things around the trade window
+    // are what give wrong items.
+    crop.current = FULL_CROP;
+    setPicked({ asset, source });
     setOpenPick(null);
+    setStage('crop');
+  }, []);
+
+  const scanCropped = useCallback(async () => {
+    if (!picked) return;
+    const { asset, source } = picked;
+    const frame = crop.current;
+    setStage('working');
     try {
       const dataUrl = `data:${asset.type || 'image/jpeg'};base64,${asset.base64}`;
-      const [pixels, text] = await Promise.all([scanPixels(dataUrl), readTextLines(asset.uri)]);
+      const [pixels, text] = await Promise.all([scanPixels(dataUrl, frame), readTextLines(asset.uri, frame)]);
       const trade = buildTrade({ slots: pixels.slots, lines: text.lines, width: pixels.width, catalog });
       const found = trade.mine.length + trade.theirs.length;
       trackGrowthEvent('trade_scan', {
@@ -133,6 +150,7 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
         found,
         unsure: [...trade.mine, ...trade.theirs].filter((p) => !p.sure).length,
         text_reader: text.ok ? 1 : 0,
+        crop_area: Math.round(frame.w * frame.h * 100),
       });
       if (!found) { setStage('none'); return; }
       setResult({
@@ -146,7 +164,7 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
       trackGrowthEvent('trade_scan', { source, photo_mode: 0, slots: -1, found: 0, unsure: 0, text_reader: 0 });
       setStage('none');
     }
-  }, [scanPixels, catalog, maxPerSide]);
+  }, [picked, scanPixels, catalog, maxPerSide]);
 
   const totals = useMemo(() => {
     const sum = (list) => (list || []).reduce((acc, p) => acc + (Number(byName.get(p.name)?.Value) || 0), 0);
@@ -269,6 +287,13 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
           </TouchableOpacity>
         </View>
 
+        <View style={styles.beta}>
+          <Icon name="flask" size={14} color="#F5A623" />
+          <Text style={[styles.betaText, { color: fg }]}>
+            {t('trade_scanner.beta', { defaultValue: 'Testing: this scanner is still being tested and can make mistakes. Check every item before you trade.' })}
+          </Text>
+        </View>
+
         {visible && (
           <WebView
             ref={web}
@@ -304,6 +329,31 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
             )}
             {sourceButtons(t('trade_scanner.camera', { defaultValue: 'Camera' }), t('trade_scanner.pick', { defaultValue: 'Screenshot' }))}
             <Text style={[styles.note, styles.center, { color: sub }]}>{t('trade_scanner.privacy', { defaultValue: 'Photos are read on your phone and never uploaded.' })}</Text>
+          </View>
+        )}
+
+        {stage === 'crop' && picked && (
+          <View>
+            <Text style={[styles.cropTip, { color: fg }]}>
+              {t('trade_scanner.crop_tip', { defaultValue: 'Drag the corners around the trade window only: both sides and the TREASURE TRADE title. Cut away everything else.' })}
+            </Text>
+            <CropBox
+              uri={picked.asset.uri}
+              imageWidth={picked.asset.width}
+              imageHeight={picked.asset.height}
+              maxHeight={Math.round(screenHeight * 0.5)}
+              color={accent}
+              onChange={(frame) => { crop.current = frame; }}
+            />
+            <View style={styles.footer}>
+              <TouchableOpacity style={[styles.iconBtn, { borderColor: sub }]} onPress={() => captureAndScan(picked.source)} accessibilityLabel={t('trade_scanner.retake', { defaultValue: 'Pick again' })}>
+                <Icon name={picked.source === 'camera' ? 'camera-outline' : 'image-outline'} size={20} color={fg} />
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.btn, styles.grow, { backgroundColor: accent }]} onPress={scanCropped} activeOpacity={0.8}>
+                <Icon name="crop" size={17} color="#fff" />
+                <Text style={styles.btnText}>{t('trade_scanner.scan_area', { defaultValue: 'Scan this area' })}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -391,6 +441,9 @@ const styles = StyleSheet.create({
   title: { flex: 1, fontSize: 16, fontFamily: 'Montserrat-Bold', fontWeight: '700' },
   hiddenWeb: { position: 'absolute', width: 1, height: 1, opacity: 0, left: -10, top: -10, flex: 0 },
   hiddenWebInner: { width: 1, height: 1 },
+  beta: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 8, marginBottom: 8, backgroundColor: 'rgba(245,166,35,0.15)' },
+  betaText: { flex: 1, fontSize: 11, lineHeight: 15, fontWeight: '600' },
+  cropTip: { fontSize: 13, lineHeight: 18, fontWeight: '600', marginBottom: 8 },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, padding: 12 },
   infoText: { flex: 1, fontSize: 14, lineHeight: 19, fontWeight: '600' },
   note: { fontSize: 12, lineHeight: 16, marginTop: 8 },

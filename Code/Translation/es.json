@@ -3170,6 +3170,10 @@
     "remove": "Quitar",
     "camera_tip": "Mantén el teléfono quieto, llena la foto con la ventana y evita reflejos.",
     "camera_denied": "El acceso a la cámara está desactivado. Actívalo en Ajustes o elige una captura.",
-    "correct": "Correcto"
+    "correct": "Correcto",
+    "beta": "Prueba: este escáner aún está en pruebas y puede equivocarse. Revisa cada objeto antes de tradear.",
+    "crop_tip": "Arrastra las esquinas solo alrededor de la ventana de trade: los dos lados y el título TREASURE TRADE. Recorta todo lo demás.",
+    "retake": "Elegir otra",
+    "scan_area": "Escanear esta zona"
   }
 }
