@@ -18,6 +18,7 @@ const adUnits = {
     feedBanner: TestIds.BANNER,
     tradePost: TestIds.INTERSTITIAL,
     feedPost: TestIds.INTERSTITIAL,
+    reviewPost: TestIds.INTERSTITIAL,
   },
   android: {
     banner: config.andriodBanner,       
@@ -35,6 +36,11 @@ const adUnits = {
     // the shared unit until a dedicated one is filled in.
     tradePost: config.andriodTradePostInterstitial || config.andriodIntestial,
     feedPost: config.andriodFeedPostInterstitial || config.andriodIntestial,
+    // Review placement (PostAd.js). Until a dedicated int_review unit exists,
+    // it borrows the uncapped trade-post unit, not the shared interstitial
+    // (that one's AdMob 1-per-minute cap would turn reviews into no-fills).
+    // GA4 still tells them apart by placement.
+    reviewPost: config.andriodReviewInterstitial || config.andriodTradePostInterstitial || config.andriodIntestial,
   },
   ios: {
     banner: config.IOsBanner,      
@@ -46,6 +52,7 @@ const adUnits = {
     feedBanner: config.IOsFeedBanner || config.IOsBanner,
     tradePost: config.IOsTradePostInterstitial || config.IOsIntestial,
     feedPost: config.IOsFeedPostInterstitial || config.IOsIntestial,
+    reviewPost: config.IOsReviewInterstitial || config.IOsTradePostInterstitial || config.IOsIntestial,
   },
   
 };

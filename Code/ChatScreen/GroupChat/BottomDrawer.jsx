@@ -1294,7 +1294,7 @@ const ProfileBottomDrawer = ({
         dmEntryAdShownThisSession = true;
       }
       startChat();
-    });
+    }, undefined, 'dm_open');
   };
 
   // Warm the interstitial while the user is reading the profile, so tapping

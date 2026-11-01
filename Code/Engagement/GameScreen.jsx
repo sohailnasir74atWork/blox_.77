@@ -112,6 +112,7 @@ const GameScreen = () => {
       },
       // No ad available — unlock anyway as a graceful fallback
       () => { settle(); unlockRounds(); },
+      'mini_game',
     );
   }, [unlockRounds, t]);
 

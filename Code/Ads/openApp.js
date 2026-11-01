@@ -3,7 +3,7 @@ import { AdEventType } from 'react-native-google-mobile-ads';
 import getAdUnitId from './ads';
 import { ensureAdsInitialized, isConsentFlowActive, whenConsentFlowIdle } from './init';
 import { createFullscreenSource, safeDestroy } from './fullscreenSource';
-import { adLog, logAdRevenue } from './adTelemetry';
+import { adLog, startAdAttempt } from './adTelemetry';
 import {
   setFullScreenAdVisible,
   isFullScreenAdVisible,
@@ -100,6 +100,7 @@ class AppOpenAdManager {
   static availableUnsub = null;
   static appStateSub = null;
   static showWatchdog = null;
+  static currentAttempt = null; // adTelemetry attempt of the ad being presented
   static foregroundTimer = null;
   static coldStartShowing = false;
   static skipForegroundUntil = 0;
@@ -346,6 +347,10 @@ class AppOpenAdManager {
     let settled = false;
     const unsubs = [];
     const placement = this.coldStartShowing ? 'launch' : 'return';
+    // Opened only at the present: the many foreground returns the gates turn
+    // away are not ad opportunities, and would flood the funnel.
+    const attempt = startAdAttempt('app_open', placement, 'openapp', adUnitId);
+    this.currentAttempt = attempt;
     const done = () => {
       settled = true;
       unsubs.forEach((u) => { try { u(); } catch (_) {} });
@@ -354,6 +359,7 @@ class AppOpenAdManager {
       // OPENED confirms the ad actually presented — cancel the show watchdog
       // so a legitimately-open ad isn't force-reset out from under the user.
       markFullScreenAdShown('app_open');
+      attempt.shown();
       this._clearShowWatchdog();
       adLog(`app_open opened ${placement}`);
       if (this.coldStartShowing) {
@@ -369,6 +375,7 @@ class AppOpenAdManager {
       setFullScreenAdVisible(false);
       this.isShowing = false;
       safeDestroy(ad);
+      attempt.closed();
       adLog('app_open closed');
       // Warm up the next one for the next foreground return — after the
       // AdMob cap window, or the request fails with "frequency cap reached"
@@ -381,8 +388,8 @@ class AppOpenAdManager {
       done();
       this._resetFailedShow(ad, e?.reason || 'show-error');
     }));
-    unsubs.push(ad.addAdEventListener(AdEventType.PAID, (paid) =>
-      logAdRevenue('app_open', placement, paid, adUnitId)));
+    unsubs.push(ad.addAdEventListener(AdEventType.CLICKED, () => attempt.clicked()));
+    unsubs.push(ad.addAdEventListener(AdEventType.PAID, (paid) => attempt.paid(paid)));
 
     // Watchdog: App Open ads are frequently dismissed by re-backgrounding the
     // app rather than a clean close, and in those cases CLOSED can fail to
@@ -426,6 +433,9 @@ class AppOpenAdManager {
     this.lastShownAt = 0;
     safeDestroy(ad);
     adLog(`app_open failed ${why || ''}`);
+    // Only the attempt being presented; a no-op once it has an outcome.
+    this.currentAttempt?.skip(`show_failed:${why || 'unknown'}`);
+    this.currentAttempt = null;
     if (this.coldStartShowing) {
       this.coldStartShowing = false;
       this._logLaunch('failed');

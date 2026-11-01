@@ -56,7 +56,7 @@ const FeedBannerAd = ({ adKey, isDarkMode = false, gate = null }) => {
   );
 
   const handleAdLoaded = useCallback(() => setLoaded(true), []);
-  const handlePaid = useCallback((paid) => logAdRevenue('banner', 'feed', paid, unitId), [unitId]);
+  const handlePaid = useCallback((paid) => logAdRevenue('banner', 'feed', paid, unitId, 'feedBanner'), [unitId]);
 
   const handleAdFailedToLoad = useCallback(() => {
     setLoaded(false);

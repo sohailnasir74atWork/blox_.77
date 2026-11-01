@@ -88,7 +88,7 @@ const DailyStarRewards = ({ visible, onClose, db, uid, isDarkMode = false }) => 
     if (didClaim && !localState?.isPro) {
       requestAnimationFrame(() => {
         setTimeout(() => {
-          try { InterstitialAdManager.showAd(() => {}); } catch (_) {}
+          try { InterstitialAdManager.showAd(() => {}, undefined, 'daily_reward'); } catch (_) {}
         }, 400);
       });
     }

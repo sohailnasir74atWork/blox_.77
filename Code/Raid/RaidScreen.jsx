@@ -218,7 +218,7 @@ const RaidScreen = () => {
         let ok = false;
         if (isAdFree) ok = true;
         else {
-          const r = await RewardedAdManager.showForResult();
+          const r = await RewardedAdManager.showForResult('raid_round');
           ok = r === 'earned';
           trackGrowthEvent('raid_rewarded', { result: String(r) });
           if (r === 'unavailable') showErrorMessage(t('raid_app.ad_title', { defaultValue: 'No ad right now' }), t('raid_app.ad_unavailable', { defaultValue: 'Try again in a moment.' }));

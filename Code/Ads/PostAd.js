@@ -1,5 +1,6 @@
-// PostAdManager — the two "you just posted" interstitials: one after a trade
-// is posted, one after a feed post (design post or status). Owner decision,
+// PostAdManager — the "you just posted" interstitials: one after a trade is
+// posted, one after a feed post (design post or status), and one after a
+// rating/review is given (added 2026-11-01, owner). Owner decision,
 // 2026-10-13: these always show for non-Pro users and sit OUTSIDE the
 // interstitial policy in adPolicy.js — no cooldown, no per-session cap, no
 // cross-format gap. Each placement has its own AdMob unit, so AdMob reports
@@ -28,12 +29,13 @@ import {
   markFullScreenAdShown,
 } from './adVisibility';
 import { createFullscreenSource, takeWithin, safeDestroy } from './fullscreenSource';
-import { adLog, logAdRevenue } from './adTelemetry';
+import { adLog, startAdAttempt } from './adTelemetry';
 import InterstitialAdManager from './IntAd';
 
 const PLACEMENTS = {
   trade: { key: 'trade_post', unitType: 'tradePost' },
   feed: { key: 'feed_post', unitType: 'feedPost' },
+  review: { key: 'review', unitType: 'reviewPost' },
 };
 
 const sources = {};
@@ -58,7 +60,7 @@ class PostAdManager {
 
   static SHOW_WATCHDOG_MS = 5000;
 
-  // Call when the user opens the trade / post composer.
+  // Call when the user opens the trade / post composer or the rating modal.
   static prepare(kind) {
     if (InterstitialAdManager.isAdFree()) return;
     const source = sourceFor(kind);
@@ -72,36 +74,48 @@ class PostAdManager {
   // after the ad closes, or at once when no ad is shown.
   static show(kind, onDone) {
     const source = sourceFor(kind);
-    if (!source || InterstitialAdManager.isAdFree()) {
+    if (!source) {
       run(onDone);
       return;
     }
-    if (this.isShowing || isFullScreenAdVisible() || InterstitialAdManager.isShowing) {
+    const { key: placement, unitType } = PLACEMENTS[kind];
+    const attempt = startAdAttempt('interstitial', placement, unitType, getAdUnitId(unitType));
+    if (InterstitialAdManager.isAdFree()) {
+      attempt.skip('pro');
+      run(onDone);
+      return;
+    }
+    if (this.isShowing) {
+      attempt.skip('busy');
+      run(onDone);
+      return;
+    }
+    if (isFullScreenAdVisible() || InterstitialAdManager.isShowing) {
+      attempt.skip('other_ad');
       run(onDone);
       return;
     }
     this.isShowing = true;
-    const placement = PLACEMENTS[kind].key;
     takeWithin(source, this.WAIT_TIMEOUT_MS, { force: true }).then((ad) => {
       // Another full-screen ad may have opened during the wait.
       if (!ad || isFullScreenAdVisible() || InterstitialAdManager.isShowing) {
         if (ad) safeDestroy(ad);
         this.isShowing = false;
-        adLog(`${placement} ${ad ? 'skipped other ad on screen' : 'no ad ready'}`);
+        attempt.skip(ad ? 'other_ad' : 'not_ready');
         source.prepare();
         run(onDone);
         return;
       }
-      whenModalSettled(() => this._present(kind, source, ad, onDone));
+      whenModalSettled(() => this._present(source, ad, onDone, attempt));
     }, () => {
       this.isShowing = false;
+      attempt.skip('load_error');
       run(onDone);
     });
   }
 
-  static _present(kind, source, ad, onDone) {
-    const placement = PLACEMENTS[kind].key;
-    const unitId = getAdUnitId(PLACEMENTS[kind].unitType);
+  static _present(source, ad, onDone, attempt) {
+    const { placement } = attempt;
     setFullScreenAdVisible(true);
 
     let settled = false;
@@ -117,6 +131,8 @@ class PostAdManager {
       this.isShowing = false;
       if (why !== 'watchdog') safeDestroy(ad);
       adLog(`${placement} ${didShow ? 'closed' : `failed ${why || ''}`}`);
+      if (didShow) attempt.closed();
+      else attempt.skip(`show_failed:${why || 'unknown'}`);
       // No AdMob cap on these units, so the next one can load right away.
       if (!InterstitialAdManager.isAdFree()) source.prepare();
       run(onDone);
@@ -124,6 +140,7 @@ class PostAdManager {
 
     unsubs.push(ad.addAdEventListener(AdEventType.OPENED, () => {
       markFullScreenAdShown(placement);
+      attempt.shown();
       adLog(`${placement} opened`);
       if (watchdog) {
         clearTimeout(watchdog);
@@ -132,8 +149,8 @@ class PostAdManager {
     }));
     unsubs.push(ad.addAdEventListener(AdEventType.CLOSED, () => finish(true)));
     unsubs.push(ad.addAdEventListener(AdEventType.ERROR, (e) => finish(false, e?.reason)));
-    unsubs.push(ad.addAdEventListener(AdEventType.PAID, (paid) =>
-      logAdRevenue('interstitial', placement, paid, unitId)));
+    unsubs.push(ad.addAdEventListener(AdEventType.CLICKED, () => attempt.clicked()));
+    unsubs.push(ad.addAdEventListener(AdEventType.PAID, (paid) => attempt.paid(paid)));
 
     watchdog = setTimeout(() => {
       watchdog = null;

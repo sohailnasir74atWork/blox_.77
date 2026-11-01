@@ -219,7 +219,7 @@ const TradeCompletion = ({
       if (!localState?.isPro) {
         setTimeout(() => {
           try {
-            InterstitialAdManager.showAd(() => {});
+            InterstitialAdManager.showAd(() => {}, undefined, 'trade_completed');
           } catch (err) {
             console.warn('[TradeCompletion] Failed to show ad:', err?.message);
           }

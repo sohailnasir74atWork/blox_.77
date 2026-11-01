@@ -575,7 +575,8 @@ const TradeList = ({ route }) => {
                 t("trade.ad_boost_unavailable_message", {
                   defaultValue: "No video is available at the moment. Please try again in a few minutes.",
                 })
-              )
+              ),
+              'trade_feature',
             );
           },
         },

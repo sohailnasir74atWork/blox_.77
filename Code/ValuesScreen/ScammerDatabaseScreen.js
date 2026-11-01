@@ -295,7 +295,7 @@ const ScammerDatabaseScreen = () => {
         };
         if (!localState.isPro && text.trim()) {
             try {
-                InterstitialAdManager.showAd(go);
+                InterstitialAdManager.showAd(go, undefined, 'scammer_search');
             } catch (err) {
                 console.warn('[AdManager] Failed to show ad:', err);
                 go();
@@ -588,7 +588,7 @@ const ScammerDatabaseScreen = () => {
                     requestAnimationFrame(() => {
                         setTimeout(() => {
                             try {
-                                InterstitialAdManager.showAd(doSubmit);
+                                InterstitialAdManager.showAd(doSubmit, undefined, 'scammer_report');
                             } catch (err) {
                                 console.warn('[AdManager] Failed to show ad:', err);
                                 doSubmit();

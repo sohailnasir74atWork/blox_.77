@@ -38,6 +38,7 @@ import {
 import { incrementAndCheckBadge, REVIEW_BADGE_THRESHOLDS } from '../GroupChat/badgeUtils';
 import { addXP, XP_ACTIONS } from '../../Engagement/xpUtils';
 import ProfileBottomDrawer from '../GroupChat/BottomDrawer';
+import PostAdManager from '../../Ads/PostAd';
 import {
   sendPrivateChatMeta,
   resetUnreadCount as sbResetUnreadCount,
@@ -152,6 +153,10 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
   const [canRate, setCanRate] = useState(false);
   const [hasRated, setHasRated] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
+  // Warm the review ad while the user writes, so it is ready on submit.
+  useEffect(() => {
+    if (showRatingModal) PostAdManager.prepare('review');
+  }, [showRatingModal]);
   const [rating, setRating] = useState(0);
   const [petModalVisible, setPetModalVisible] = useState(false);
   const [selectedFruits, setSelectedFruits] = useState([]);
@@ -448,9 +453,10 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       }
       setStartRating(false);
 
-      // No post-review interstitial: the review modal lives on the private
-      // chat screen, so an ad here still serves on a private-communications
-      // surface.
+      // Review ad: always shown after a saved rating/review, like a posted
+      // trade (PostAd.js; it skips Pro users itself). Owner decision
+      // 2026-11-01, reversing the 2026-09 removal (private-chat surface).
+      PostAdManager.show('review');
 
     } catch (error) {
       console.error("Rating error:", error);

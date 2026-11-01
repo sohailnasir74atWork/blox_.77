@@ -416,7 +416,7 @@ const HDWallpaperScreen = () => {
         requestAnimationFrame(() => {
           setTimeout(() => {
             try {
-              InterstitialAdManager.showAd(callbackfunction);
+              InterstitialAdManager.showAd(callbackfunction, undefined, 'wallpaper_more');
             } catch (err) {
               console.warn("[AdManager] Failed to show ad:", err);
               callbackfunction();

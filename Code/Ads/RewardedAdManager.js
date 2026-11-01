@@ -15,7 +15,7 @@ import { RewardedAdEventType, AdEventType } from 'react-native-google-mobile-ads
 import getAdUnitId from './ads';
 import { setFullScreenAdVisible, markFullScreenAdShown, whenModalSettled } from './adVisibility';
 import { createFullscreenSource, takeWithin, safeDestroy } from './fullscreenSource';
-import { adLog, logAdRevenue } from './adTelemetry';
+import { adLog, startAdAttempt } from './adTelemetry';
 
 const adUnitId = getAdUnitId('rewarded');
 // 'pets' was an Adopt Me leftover; 'kids' contradicts our 'T' content rating
@@ -66,19 +66,20 @@ class RewardedAdManager {
   }
 
   /** @returns {Promise<boolean>} true if the user earned the reward. */
-  static show() {
+  static show(placement) {
     return new Promise((resolve) => {
-      this.showWithCallback(() => resolve(true), () => resolve(false), () => resolve(false));
+      this.showWithCallback(() => resolve(true), () => resolve(false), () => resolve(false), placement);
     });
   }
 
   /** @returns {Promise<'earned'|'closed'|'unavailable'>} */
-  static showForResult() {
+  static showForResult(placement) {
     return new Promise((resolve) => {
       this.showWithCallback(
         () => resolve('earned'),
         () => resolve('closed'),
         () => resolve('unavailable'),
+        placement,
       );
     });
   }
@@ -87,14 +88,20 @@ class RewardedAdManager {
    * @param {Function} onRewardEarned - the user completed the ad and earned the reward.
    * @param {Function} onAdClosed - the ad was shown and closed without earning it.
    * @param {Function} onAdUnavailable - no ad could be shown (none filled, cooldown, a failed present).
-   * @param {string} placement - labels the revenue event.
+   * @param {string} placement - labels the show-funnel and revenue events.
    */
   static showWithCallback(onRewardEarned, onAdClosed, onAdUnavailable, placement = 'reward') {
     if (!this.hasInitialized) this.init();
     const unavailable = () => run(onAdUnavailable || onAdClosed);
+    const attempt = startAdAttempt('rewarded', placement || 'reward', 'rewarded', adUnitId);
 
-    if (this.isShowing ||
-        Date.now() - this.lastShownAt < this.COOLDOWN_MS) {
+    if (this.isShowing) {
+      attempt.skip('busy');
+      unavailable();
+      return;
+    }
+    if (Date.now() - this.lastShownAt < this.COOLDOWN_MS) {
+      attempt.skip('cooldown');
       unavailable();
       return;
     }
@@ -106,20 +113,22 @@ class RewardedAdManager {
     takeWithin(source, this.WAIT_TIMEOUT_MS, { force: true }).then((ad) => {
       if (!ad) {
         this.isShowing = false;
+        attempt.skip('not_ready');
         unavailable();
         return;
       }
       // Never present while a modal is mid-transition — on iOS the ad is
       // presented from the topmost view controller, and UIKit refuses to
       // present from one that is itself animating.
-      whenModalSettled(() => this._present(ad, onRewardEarned, onAdClosed, unavailable, placement));
+      whenModalSettled(() => this._present(ad, onRewardEarned, onAdClosed, unavailable, attempt));
     }, () => {
       this.isShowing = false;
+      attempt.skip('load_error');
       unavailable();
     });
   }
 
-  static _present(ad, onRewardEarned, onAdClosed, onUnavailable, placement) {
+  static _present(ad, onRewardEarned, onAdClosed, onUnavailable, attempt) {
     this.lastShownAt = Date.now();
     setFullScreenAdVisible(true);
 
@@ -138,6 +147,8 @@ class RewardedAdManager {
       // Not after the watchdog: on a slow device the ad may still be opening.
       if (why !== 'watchdog') safeDestroy(ad);
       adLog(`rewarded ${didShow ? (didEarnReward ? 'earned' : 'closed') : `failed ${why || ''}`}`);
+      if (didShow) attempt.closed();
+      else attempt.skip(`show_failed:${why || 'unknown'}`);
       if (!didShow) {
         // Nothing reached the screen, so nothing was consumed: don't burn the
         // cooldown on an impression the user never saw.
@@ -156,13 +167,15 @@ class RewardedAdManager {
 
     unsubs.push(ad.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => {
       didEarnReward = true;
+      attempt.rewarded();
     }));
     // OPENED confirms the ad actually reached the screen; CLOSED is then the
     // real completion signal, so stand the watchdog down. It is also the
     // moment the other formats start their cross-format gap from.
     unsubs.push(ad.addAdEventListener(AdEventType.OPENED, () => {
       markFullScreenAdShown('rewarded');
-      adLog(`rewarded opened ${placement}`);
+      attempt.shown();
+      adLog(`rewarded opened ${attempt.placement}`);
       if (watchdog) {
         clearTimeout(watchdog);
         watchdog = null;
@@ -173,8 +186,8 @@ class RewardedAdManager {
     }));
     // 17.x: Android reports a refused present as ERROR (phase 'show').
     unsubs.push(ad.addAdEventListener(AdEventType.ERROR, (e) => finish(false, e?.reason)));
-    unsubs.push(ad.addAdEventListener(AdEventType.PAID, (paid) =>
-      logAdRevenue('rewarded', placement, paid, adUnitId)));
+    unsubs.push(ad.addAdEventListener(AdEventType.CLICKED, () => attempt.clicked()));
+    unsubs.push(ad.addAdEventListener(AdEventType.PAID, (paid) => attempt.paid(paid)));
 
     // A presentation UIKit refuses fires neither OPENED nor CLOSED. Before
     // this watchdog the rewarded flow simply never resolved.

@@ -132,7 +132,7 @@ const BannerAdComponent = ({
   }, [wantsCollapsible, isFocused]);
   const isCollapsible = wantsCollapsible && !expandSpent;
   const handlePaid = useCallback(
-    (paid) => logAdRevenue('banner', isCollapsible ? 'banner_collapsible' : 'banner', paid, unitId),
+    (paid) => logAdRevenue('banner', isCollapsible ? 'banner_collapsible' : 'banner', paid, unitId, 'banner'),
     [isCollapsible, unitId],
   );
   const requestOptions = useMemo(

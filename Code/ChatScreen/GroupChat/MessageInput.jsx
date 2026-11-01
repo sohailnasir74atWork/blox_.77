@@ -191,7 +191,7 @@ const MessageInput = ({
       setMessageCount(newCount);
 
       if (!localState?.isPro && newCount % CHAT_MESSAGES_PER_AD === 0) {
-        InterstitialAdManager.showAd(adCallback);
+        InterstitialAdManager.showAd(adCallback, undefined, 'trader_chat');
       } else {
         // One message before the ad message: warm the interstitial so the
         // trigger actually has something to show (lazy-load pipeline).
