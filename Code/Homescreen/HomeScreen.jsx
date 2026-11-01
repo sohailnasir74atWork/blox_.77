@@ -23,6 +23,7 @@ import { addDoc, collection, serverTimestamp, doc, getDoc } from '@react-native-
 import SubscriptionScreen from '../SettingScreen/OfferWall';
 import { fetchAnalyticsData, getHotStatus } from '../Helper/analyticsDataHelper';
 import { tradeHighlight, TONE_STYLE } from '../Helper/tradeAdvice';
+import TradeScannerModal from '../TradeScanner/TradeScannerModal';
 
 const HomeScreen = ({ selectedTheme }) => {
   const { theme, user, proGranted, proTagBought, firestoreDB, single_offer_wall, currentUserEmail, appdatabase, reload, getModGate } = useGlobalState();
@@ -46,6 +47,7 @@ const HomeScreen = ({ selectedTheme }) => {
   const [hasTotal, setHasTotal] = useState({ price: 0, value: 0 });
   const [wantsTotal, setWantsTotal] = useState({ price: 0, value: 0 });
   const [showTradeCompletion, setShowTradeCompletion] = useState(false);
+  const [scannerVisible, setScannerVisible] = useState(false);
   const { triggerHapticFeedback } = useHaptic();
   const { localState } = useLocalState();
   const [modalVisible, setModalVisible] = useState(false);
@@ -710,6 +712,33 @@ const HomeScreen = ({ selectedTheme }) => {
     closeDrawer();
   };
 
+  // Trade Scanner result -> both sides of the calculator (replaces what was there).
+  const applyScannedTrade = ({ mine, theirs }) => {
+    const toItems = (list) => withTrailingSlots(list.slice(0, MAX_ITEMS_PER_SIDE).map((r) => ({ ...r, usePermanent: false })));
+    const total = (list) => list.slice(0, MAX_ITEMS_PER_SIDE).reduce(
+      (acc, r) => ({ price: acc.price + (Number(r.Price) || 0), value: acc.value + (Number(r.Value) || 0) }),
+      { price: 0, value: 0 },
+    );
+    setSelectedSection(null);
+    setHasItems(toItems(mine));
+    setWantsItems(toItems(theirs));
+    setHasTotal(total(mine));
+    setWantsTotal(total(theirs));
+    setScannerVisible(false);
+  };
+
+  const fruitImageUrl = (name) => `https://bloxfruitscalc.com/wp-content/uploads/2024/09/${formatName(name)}_Icon.webp`;
+
+  const renderScanButton = () => (
+    <TouchableOpacity style={styles.scanButton} onPress={() => { triggerHapticFeedback('impactLight'); setScannerVisible(true); }} activeOpacity={0.8}>
+      <Icon name="scan" size={18} color="white" />
+      <Text style={styles.scanButtonText}>{t('trade_scanner.button', { defaultValue: 'Scan a trade screenshot' })}</Text>
+      <View style={styles.scanNewBadge}>
+        <Text style={styles.scanNewText}>{t('trade_scanner.new', { defaultValue: 'NEW' })}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+
   const handleCellPress = (index, isHas) => {
     const items = isHas ? hasItems : wantsItems;
     const item = items[index];
@@ -1002,6 +1031,7 @@ const HomeScreen = ({ selectedTheme }) => {
         <View style={styles.flexOne} collapsable={false}>
           <View style={styles.container} key={language} collapsable={false}>
             <ScrollView showsVerticalScrollIndicator={false}>
+              {renderScanButton()}
               <ViewShot ref={viewRef} style={styles.screenshotView}>
 
                 {/* Hero profit/loss card */}
@@ -1311,6 +1341,15 @@ const HomeScreen = ({ selectedTheme }) => {
                 </View>
               </ConditionalKeyboardWrapper>
             </Modal>
+            <TradeScannerModal
+              visible={scannerVisible}
+              onClose={() => setScannerVisible(false)}
+              onApply={applyScannedTrade}
+              records={fruitRecords}
+              maxPerSide={MAX_ITEMS_PER_SIDE}
+              isDarkMode={isDarkMode}
+              imageFor={fruitImageUrl}
+            />
             <ShareTradeModal
               visible={openShareModel}
               onClose={() => setOpenShareModel(false)}
@@ -1342,6 +1381,7 @@ const HomeScreen = ({ selectedTheme }) => {
       <View style={styles.flexOne} collapsable={false}>
         <View style={styles.container} key={language} collapsable={false}>
           <ScrollView showsVerticalScrollIndicator={false}>
+            {renderScanButton()}
             <ViewShot ref={viewRef} style={styles.screenshotView}>
               {config.isNoman && <View style={styles.summaryContainer}>
                 <View style={[styles.summaryBox, styles.hasBox]}>
@@ -1672,6 +1712,15 @@ const HomeScreen = ({ selectedTheme }) => {
               </View>
             </ConditionalKeyboardWrapper>
           </Modal>
+          <TradeScannerModal
+            visible={scannerVisible}
+            onClose={() => setScannerVisible(false)}
+            onApply={applyScannedTrade}
+            records={fruitRecords}
+            maxPerSide={MAX_ITEMS_PER_SIDE}
+            isDarkMode={isDarkMode}
+            imageFor={fruitImageUrl}
+          />
           <ShareTradeModal
             visible={openShareModel}
             onClose={() => setOpenShareModel(false)}
@@ -1712,6 +1761,33 @@ const getStyles = (isDarkMode) =>
       flex: 1,
       backgroundColor: isDarkMode ? config.colors.backgroundDark : config.colors.backgroundLight,
       paddingBottom: 5,
+    },
+    scanButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: config.colors.secondary,
+      borderRadius: 12,
+      paddingVertical: 11,
+      marginHorizontal: 10, // lines up with screenshotView's padding below
+      marginTop: 10,
+    },
+    scanButtonText: {
+      color: 'white',
+      fontSize: 15,
+      fontWeight: '700',
+    },
+    scanNewBadge: {
+      backgroundColor: config.colors.hasBlockGreen,
+      borderRadius: 8,
+      paddingHorizontal: 6,
+      paddingVertical: 1,
+    },
+    scanNewText: {
+      color: 'white',
+      fontSize: 10,
+      fontWeight: '800',
     },
     summaryContainer: {
       flexDirection: 'row',

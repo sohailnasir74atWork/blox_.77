@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<!--
+  Trade Scanner worker page (2026-11-01). Hidden react-native-webview that
+  decodes the picked screenshot on a canvas and runs matcher.js on its pixels.
+  No network, no UI. scripts/trade-scanner/build-html.js inlines matcher.js
+  and fruitSignatures.json in place of the two markers below and writes
+  Code/TradeScanner/scannerHtml.js.
+
+  RN -> page:  window.tradeScan(id, dataUrl)
+  page -> RN:  { type: 'ready' } | { type: 'result', id, width, height, slots } | { type: 'error', id, message }
+  Slot coordinates are in the picked image's own pixels (the same space the
+  native text reader reports in).
+-->
+</head>
+<body>
+<script>
+/*__MATCHER__*/
+</script>
+<script>
+(function () {
+  var SIGNATURES = /*__SIGNATURES__*/null;
+  var MAX_PIXELS = 4200000;
+  var templates = TradeMatcher.loadTemplates(SIGNATURES);
+
+  function post(msg) { window.ReactNativeWebView.postMessage(JSON.stringify(msg)); }
+
+  window.tradeScan = function (id, dataUrl) {
+    var img = new Image();
+    img.onload = function () {
+      try {
+        var w = img.naturalWidth, h = img.naturalHeight;
+        var scale = Math.min(1, Math.sqrt(MAX_PIXELS / (w * h)));
+        var cw = Math.round(w * scale), ch = Math.round(h * scale);
+        var canvas = document.createElement('canvas');
+        canvas.width = cw; canvas.height = ch;
+        var ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(img, 0, 0, cw, ch);
+        var px = ctx.getImageData(0, 0, cw, ch).data;
+        var slots = TradeMatcher.scan(px, cw, ch, templates).map(function (s) {
+          return {
+            x0: s.x0 / scale, x1: s.x1 / scale,
+            nameTop: s.nameTop / scale, nameBottom: s.nameBottom / scale, priceTop: s.priceTop / scale,
+            inventory: s.inventory, candidates: s.candidates,
+          };
+        });
+        post({ type: 'result', id: id, width: w, height: h, slots: slots });
+      } catch (e) {
+        post({ type: 'error', id: id, message: String(e && e.message || e) });
+      }
+    };
+    img.onerror = function () { post({ type: 'error', id: id, message: 'decode' }); };
+    img.src = dataUrl;
+  };
+
+  post({ type: 'ready', count: templates.length });
+})();
+</script>
+</body>
+</html>

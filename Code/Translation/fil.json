@@ -3138,5 +3138,30 @@
     "ad_title": "Walang ad ngayon",
     "ad_unavailable": "Subukan ulit mamaya.",
     "signin": "Mag-sign in para ma-save ang raids at kumita ng bounty at PRO time."
+  },
+  "trade_scanner": {
+    "button": "I-scan ang screenshot ng trade",
+    "new": "BAGO",
+    "title": "I-scan ang trade",
+    "intro": "Kumuha ng screenshot ng Treasure Trade window sa Blox Fruits, tapos piliin dito. Hahanapin namin ang mga prutas sa magkabilang side at susuriin ang trade para sa iyo.",
+    "privacy": "Binabasa ang screenshot sa phone mo at hindi kailanman ina-upload.",
+    "pick": "Pumili ng screenshot",
+    "working": "Binabasa ang trade mo…",
+    "none": "Walang nakitang trade window. Siguraduhing buo ang Treasure Trade window sa screenshot.",
+    "try_another": "Subukan ang ibang screenshot",
+    "review_tip": "Kaliwang side ng window = ibibigay mo. I-tap ang prutas para itama.",
+    "you_give": "Ibibigay mo",
+    "you_get": "Makukuha mo",
+    "side_empty": "Walang nakita sa side na ito",
+    "check": "Suriin",
+    "not_right": "Hindi tama? Pumili:",
+    "swap": "Pagpalitin ang side",
+    "use": "Gamitin sa calculator",
+    "scan_another": "Mag-scan ng ibang screenshot",
+    "inventory_skipped": "Nilaktawan ang mga prutas sa bukas mong inventory. Isara ito bago mag-screenshot para ma-scan ang side mo.",
+    "max_side": "Ang unang {{max}} prutas lang bawat side ang kasya sa calculator.",
+    "win": "Panalo",
+    "lose": "Talo",
+    "fair": "Patas"
   }
 }

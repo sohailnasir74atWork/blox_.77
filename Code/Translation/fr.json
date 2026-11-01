@@ -3138,5 +3138,30 @@
         "ad_title": "Pas de pub pour l'instant",
         "ad_unavailable": "Réessaie dans un instant.",
         "signin": "Connecte-toi pour enregistrer tes raids et gagner prime et temps PRO."
+    },
+    "trade_scanner": {
+        "button": "Scanner une capture d'échange",
+        "new": "NOUVEAU",
+        "title": "Scanner un échange",
+        "intro": "Fais une capture de la fenêtre Treasure Trade dans Blox Fruits, puis choisis-la ici. On trouve les fruits des deux côtés et on vérifie l'échange pour toi.",
+        "privacy": "Ta capture est lue sur ton téléphone et jamais envoyée.",
+        "pick": "Choisir une capture",
+        "working": "Lecture de ton échange…",
+        "none": "Aucune fenêtre d'échange trouvée. Vérifie que toute la fenêtre Treasure Trade est sur la capture.",
+        "try_another": "Essayer une autre capture",
+        "review_tip": "Côté gauche de la fenêtre = ce que tu donnes. Touche un fruit pour le corriger.",
+        "you_give": "Tu donnes",
+        "you_get": "Tu reçois",
+        "side_empty": "Rien trouvé de ce côté",
+        "check": "À vérifier",
+        "not_right": "Pas le bon ? Choisis :",
+        "swap": "Inverser les côtés",
+        "use": "Utiliser dans le calculateur",
+        "scan_another": "Scanner une autre capture",
+        "inventory_skipped": "Les fruits de ton inventaire ouvert ont été ignorés. Ferme-le avant la capture pour scanner ton côté.",
+        "max_side": "Seuls les {{max}} premiers fruits par côté tiennent dans le calculateur.",
+        "win": "Gagnant",
+        "lose": "Perdant",
+        "fair": "Équitable"
     }
 }

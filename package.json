@@ -9,6 +9,7 @@
     "start": "react-native start",
     "test": "jest",
     "raid:build": "node scripts/raid/build-game.js",
+    "scanner:build": "node scripts/trade-scanner/build-html.js",
     "postinstall": "patch-package"
   },
   "dependencies": {

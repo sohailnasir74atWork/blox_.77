@@ -3138,5 +3138,30 @@
     "ad_title": "Gerade keine Werbung",
     "ad_unavailable": "Versuch es gleich nochmal.",
     "signin": "Melde dich an, um Raids zu speichern und Kopfgeld und PRO-Zeit zu verdienen."
+  },
+  "trade_scanner": {
+    "button": "Trade-Screenshot scannen",
+    "new": "NEU",
+    "title": "Trade scannen",
+    "intro": "Mach einen Screenshot vom Treasure-Trade-Fenster in Blox Fruits und wähle ihn hier aus. Wir erkennen die Früchte auf beiden Seiten und prüfen den Trade für dich.",
+    "privacy": "Dein Screenshot wird auf deinem Handy gelesen und nie hochgeladen.",
+    "pick": "Screenshot wählen",
+    "working": "Trade wird gelesen…",
+    "none": "Kein Trade-Fenster gefunden. Achte darauf, dass das ganze Treasure-Trade-Fenster im Screenshot ist.",
+    "try_another": "Anderen Screenshot versuchen",
+    "review_tip": "Linke Seite des Fensters = du gibst. Tippe auf eine Frucht, um sie zu korrigieren.",
+    "you_give": "Du gibst",
+    "you_get": "Du bekommst",
+    "side_empty": "Auf dieser Seite nichts gefunden",
+    "check": "Prüfen",
+    "not_right": "Falsch? Wähle:",
+    "swap": "Seiten tauschen",
+    "use": "Im Rechner verwenden",
+    "scan_another": "Weiteren Screenshot scannen",
+    "inventory_skipped": "Früchte aus deinem offenen Inventar wurden übersprungen. Schließ es vor dem Screenshot, um deine Seite zu scannen.",
+    "max_side": "Nur die ersten {{max}} Früchte pro Seite passen in den Rechner.",
+    "win": "Gewinn",
+    "lose": "Verlust",
+    "fair": "Fair"
   }
 }

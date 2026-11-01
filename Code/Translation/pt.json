@@ -3141,5 +3141,30 @@
     "ad_title": "Sem anúncio agora",
     "ad_unavailable": "Tente de novo em instantes.",
     "signin": "Entre para salvar raids e ganhar recompensa e tempo PRO."
+  },
+  "trade_scanner": {
+    "button": "Escanear print de uma troca",
+    "new": "NOVO",
+    "title": "Escanear uma troca",
+    "intro": "Tire um print da janela Treasure Trade no Blox Fruits e escolha aqui. Encontramos as frutas dos dois lados e avaliamos a troca para você.",
+    "privacy": "Seu print é lido no seu celular e nunca é enviado.",
+    "pick": "Escolher print",
+    "working": "Lendo sua troca…",
+    "none": "Nenhuma janela de troca encontrada. Verifique se a janela Treasure Trade aparece inteira no print.",
+    "try_another": "Tentar outro print",
+    "review_tip": "Lado esquerdo da janela = o que você dá. Toque numa fruta para corrigir.",
+    "you_give": "Você dá",
+    "you_get": "Você recebe",
+    "side_empty": "Nada encontrado neste lado",
+    "check": "Conferir",
+    "not_right": "Não é essa? Escolha:",
+    "swap": "Trocar lados",
+    "use": "Usar na calculadora",
+    "scan_another": "Escanear outro print",
+    "inventory_skipped": "As frutas do seu inventário aberto foram ignoradas. Feche-o antes do print para escanear seu lado.",
+    "max_side": "Só as primeiras {{max}} frutas de cada lado cabem na calculadora.",
+    "win": "Ganha",
+    "lose": "Perde",
+    "fair": "Justa"
   }
 }

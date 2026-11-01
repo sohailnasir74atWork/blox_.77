@@ -1,0 +1,248 @@
+/**
+ * Trade Scanner pixel matcher (2026-11-01).
+ *
+ * Finds the fruit slots of the in-game "TREASURE TRADE" window in a screenshot
+ * and ranks each slot's picture against the bundled fruit signatures
+ * (fruitSignatures.json, built by scripts/trade-scanner/build_signatures.py).
+ *
+ * Each trade slot is a green name bar, the fruit picture on a light panel, and
+ * a pink (#ff00ff) price bar. We anchor on the pink bars (nothing overlays
+ * them), walk up to the green bar, and treat what lies between as the picture.
+ *
+ * Plain ES5 on purpose: scripts/trade-scanner/build-html.js inlines this file
+ * into the WebView page (Code/TradeScanner/scannerHtml.js), and jest requires
+ * it directly. Everything runs on the phone; no image leaves it.
+ */
+/* global atob, Buffer */
+(function (root) {
+  var N = 20;            // signature edge, must match build_signatures.py
+  var BG = [228, 228, 228];
+
+  function isGreen(r, g, b) { return g > 140 && g - Math.max(r, b) > 70; }
+  function isPink(r, g, b) { return r > 170 && b > 170 && Math.min(r, b) - g > 90; }
+  // The "+" is drawn dimmed on inventory slots, so allow dark yellow.
+  function isYellow(r, g, b) { return r > 140 && g > 130 && r - b > 80 && b < 0.55 * Math.min(r, g); }
+  // Slot panel: light grey with a white shine stripe. Never part of a fruit.
+  function isPanel(r, g, b) { return Math.min(r, g, b) > 170 && Math.max(r, g, b) - Math.min(r, g, b) < 35; }
+
+  // Bounding boxes of 4-connected blobs in a 0/1 mask.
+  function blobs(mask, w, h) {
+    var seen = new Uint8Array(w * h);
+    var stack = new Int32Array(w * h);
+    var out = [];
+    for (var start = 0; start < w * h; start++) {
+      if (!mask[start] || seen[start]) continue;
+      var sp = 0, n = 0;
+      var x0 = w, y0 = h, x1 = 0, y1 = 0;
+      stack[sp++] = start; seen[start] = 1;
+      while (sp) {
+        var p = stack[--sp];
+        var x = p % w, y = (p - x) / w;
+        n++;
+        if (x < x0) x0 = x; if (x > x1) x1 = x;
+        if (y < y0) y0 = y; if (y > y1) y1 = y;
+        if (x > 0 && mask[p - 1] && !seen[p - 1]) { seen[p - 1] = 1; stack[sp++] = p - 1; }
+        if (x < w - 1 && mask[p + 1] && !seen[p + 1]) { seen[p + 1] = 1; stack[sp++] = p + 1; }
+        if (y > 0 && mask[p - w] && !seen[p - w]) { seen[p - w] = 1; stack[sp++] = p - w; }
+        if (y < h - 1 && mask[p + w] && !seen[p + w]) { seen[p + w] = 1; stack[sp++] = p + w; }
+      }
+      out.push({ x0: x0, y0: y0, x1: x1 + 1, y1: y1 + 1, n: n });
+    }
+    return out;
+  }
+
+  function rowFraction(mask, w, y, xa, xb) {
+    var hit = 0;
+    for (var x = xa; x < xb; x++) if (mask[y * w + x]) hit++;
+    return xb > xa ? hit / (xb - xa) : 0;
+  }
+
+  /**
+   * px: RGBA bytes (canvas ImageData.data or a Uint8Array), w x h.
+   * Returns slots [{ x0, x1, nameTop, nameBottom, priceTop, inventory }] in px coordinates.
+   */
+  function findSlots(px, w, h) {
+    var green = new Uint8Array(w * h), pink = new Uint8Array(w * h);
+    for (var i = 0, p = 0; i < w * h; i++, p += 4) {
+      var r = px[p], g = px[p + 1], b = px[p + 2];
+      if (isGreen(r, g, b)) green[i] = 1;
+      else if (isPink(r, g, b)) pink[i] = 1;
+    }
+    var slots = [];
+    blobs(pink, w, h).forEach(function (bar) {
+      var bw = bar.x1 - bar.x0, bh = bar.y1 - bar.y0;
+      if (bw < 24 || bh < 4 || bw / bh < 3 || bw / bh > 14 || bar.n < 0.55 * bw * bh) return;
+      var xa = bar.x0 + Math.floor(bw / 8), xb = bar.x1 - Math.floor(bw / 8);
+      // Walk up from the price bar to the bottom edge of the green name bar.
+      var gBottom = -1;
+      var yStart = bar.y0 - Math.floor(0.3 * bw), yEnd = Math.max(0, bar.y0 - Math.floor(1.3 * bw));
+      for (var y = yStart; y >= yEnd; y--) {
+        if (rowFraction(green, w, y, xa, xb) > 0.35) { gBottom = y + 1; break; }
+      }
+      if (gBottom < 0) return;
+      var gTop = gBottom - 1;
+      while (gTop > 0 && gBottom - gTop < bw && rowFraction(green, w, gTop - 1, xa, xb) > 0.35) gTop--;
+      var slot = { x0: bar.x0, x1: bar.x1, nameTop: gTop, nameBottom: gBottom, priceTop: bar.y0 };
+      slot.inventory = hasPlusOverlay(px, w, slot);
+      slots.push(slot);
+    });
+    slots.sort(function (m, n) { return (m.nameTop - n.nameTop) || (m.x0 - n.x0); });
+    return slots;
+  }
+
+  // Your own inventory list (left panel while picking) draws a yellow "+" over
+  // each fruit. Those are not part of the offer.
+  function hasPlusOverlay(px, w, s) {
+    var cx = (s.x0 + s.x1) / 2, cy = (s.nameBottom + s.priceTop) / 2;
+    var size = Math.min(s.x1 - s.x0, s.priceTop - s.nameBottom);
+    // Lines are a few px wide: look 2 px either side.
+    function yellowAt(x, y) {
+      for (var dy = -2; dy <= 2; dy++) {
+        for (var dx = -2; dx <= 2; dx++) {
+          var p = (Math.round(y + dy) * w + Math.round(x + dx)) * 4;
+          if (isYellow(px[p], px[p + 1], px[p + 2])) return 1;
+        }
+      }
+      return 0;
+    }
+    var arms = 0, armN = 0, off = 0, offN = 0;
+    for (var t = -0.16; t <= 0.16; t += 0.02) {
+      arms += yellowAt(cx + t * size, cy) + yellowAt(cx, cy + t * size); armN += 2;
+    }
+    [[1, 1], [1, -1], [-1, 1], [-1, -1]].forEach(function (d) {
+      for (var k = 0.09; k <= 0.15; k += 0.03) { off += yellowAt(cx + d[0] * k * size, cy + d[1] * k * size); offN++; }
+    });
+    return arms / armN > 0.55 && off / offN < 0.2;
+  }
+
+  /** Signature of the picture between a slot's name bar and price bar. */
+  function slotSignature(px, w, s) {
+    var pad = Math.max(2, Math.floor((s.x1 - s.x0) / 30));
+    var x0 = s.x0 + pad, x1 = s.x1 - pad, y0 = s.nameBottom + pad, y1 = s.priceTop - pad;
+    if (x1 - x0 < 8 || y1 - y0 < 8) return null;
+    // Panel colour = median of the border pixels.
+    var rs = [], gs = [], bs = [];
+    function take(x, y) { var p = (y * w + x) * 4; rs.push(px[p]); gs.push(px[p + 1]); bs.push(px[p + 2]); }
+    for (var x = x0; x < x1; x++) { take(x, y0); take(x, y0 + 1); take(x, y1 - 1); take(x, y1 - 2); }
+    for (var y = y0; y < y1; y++) { take(x0, y); take(x0 + 1, y); take(x1 - 1, y); take(x1 - 2, y); }
+    function med(a) { a.sort(function (m, n) { return m - n; }); return a[Math.floor(a.length / 2)]; }
+    var bg = [med(rs), med(gs), med(bs)];
+    // Foreground mask and its bounding box.
+    var cw = x1 - x0, ch = y1 - y0;
+    var fg = new Uint8Array(cw * ch);
+    var bx0 = cw, by0 = ch, bx1 = -1, by1 = -1;
+    for (var yy = 0; yy < ch; yy++) {
+      for (var xx = 0; xx < cw; xx++) {
+        var p = ((y0 + yy) * w + x0 + xx) * 4;
+        var d = Math.abs(px[p] - bg[0]) + Math.abs(px[p + 1] - bg[1]) + Math.abs(px[p + 2] - bg[2]);
+        if (d > 60 && !isPanel(px[p], px[p + 1], px[p + 2]) && !isGreen(px[p], px[p + 1], px[p + 2])) {
+          fg[yy * cw + xx] = 1;
+          if (xx < bx0) bx0 = xx; if (xx > bx1) bx1 = xx;
+          if (yy < by0) by0 = yy; if (yy > by1) by1 = yy;
+        }
+      }
+    }
+    if (bx1 < 0) return null;
+    return boxSignature(function (gx, gy) {
+      var q = ((y0 + gy) * w + x0 + gx) * 4;
+      return [px[q], px[q + 1], px[q + 2], fg[gy * cw + gx]];
+    }, bx0, by0, bx1 + 1, by1 + 1);
+  }
+
+  // Box-filter a content box (padded to a square) down to N x N. get(x, y)
+  // returns [r, g, b, alpha 0..1]. Same method as build_signatures.py.
+  function boxSignature(get, bx0, by0, bx1, by1) {
+    var bw = bx1 - bx0, bh = by1 - by0, s = Math.max(bw, bh);
+    var ox = bx0 - (s - bw) / 2, oy = by0 - (s - bh) / 2;
+    var rgb = new Float32Array(N * N * 3), a = new Float32Array(N * N);
+    for (var j = 0; j < N; j++) {
+      for (var i = 0; i < N; i++) {
+        var sx0 = Math.floor(ox + (i * s) / N), sx1 = Math.max(sx0 + 1, Math.floor(ox + ((i + 1) * s) / N));
+        var sy0 = Math.floor(oy + (j * s) / N), sy1 = Math.max(sy0 + 1, Math.floor(oy + ((j + 1) * s) / N));
+        var r = 0, g = 0, b = 0, al = 0, cnt = 0;
+        for (var y = sy0; y < sy1; y++) {
+          for (var x = sx0; x < sx1; x++) {
+            var v = (x >= bx0 && x < bx1 && y >= by0 && y < by1) ? get(x, y) : null;
+            var k = v ? v[3] : 0;
+            r += v ? v[0] * k + BG[0] * (1 - k) : BG[0];
+            g += v ? v[1] * k + BG[1] * (1 - k) : BG[1];
+            b += v ? v[2] * k + BG[2] * (1 - k) : BG[2];
+            al += k; cnt++;
+          }
+        }
+        var o = j * N + i;
+        rgb[o * 3] = r / cnt; rgb[o * 3 + 1] = g / cnt; rgb[o * 3 + 2] = b / cnt; a[o] = al / cnt;
+      }
+    }
+    return { rgb: rgb, a: a, hue: hueHist(rgb, a) };
+  }
+
+  function hueHist(rgb, a) {
+    var hs = new Float32Array(12), total = 0;
+    for (var o = 0; o < N * N; o++) {
+      if (a[o] < 0.5) continue;
+      var r = rgb[o * 3] / 255, g = rgb[o * 3 + 1] / 255, b = rgb[o * 3 + 2] / 255;
+      var mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+      var sat = mx ? d / mx : 0;
+      if (sat < 0.25 || mx < 0.2) continue;
+      var hh = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      hh = (hh / 6 + 1) % 1;
+      hs[Math.floor(hh * 12) % 12] += sat; total += sat;
+    }
+    for (var k = 0; k < 12; k++) hs[k] = total ? hs[k] / total : 0;
+    return hs;
+  }
+
+  function distance(q, t) {
+    var num = 0, den = 0, shape = 0, hue = 0;
+    for (var o = 0; o < N * N; o++) {
+      var m = Math.max(q.a[o], t.a[o]);
+      num += m * (Math.abs(q.rgb[o * 3] - t.rgb[o * 3]) + Math.abs(q.rgb[o * 3 + 1] - t.rgb[o * 3 + 1]) + Math.abs(q.rgb[o * 3 + 2] - t.rgb[o * 3 + 2]));
+      den += m;
+      shape += Math.abs(q.a[o] - t.a[o]);
+    }
+    for (var k = 0; k < 12; k++) hue += Math.abs(q.hue[k] - t.hue[k]);
+    return num / (den * 765 + 1e-6) + 0.5 * (shape / (N * N)) + 0.2 * hue;
+  }
+
+  function decodeBase64(b64) {
+    if (typeof atob === 'function') {
+      var bin = atob(b64), out = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    }
+    return new Uint8Array(Buffer.from(b64, 'base64'));
+  }
+
+  /** fruitSignatures.json -> [{ name, rgb, a, hue }] */
+  function loadTemplates(json) {
+    return json.items.map(function (it) {
+      var raw = decodeBase64(it.sig);
+      var rgb = new Float32Array(N * N * 3), a = new Float32Array(N * N);
+      for (var o = 0; o < N * N; o++) {
+        rgb[o * 3] = raw[o * 4]; rgb[o * 3 + 1] = raw[o * 4 + 1]; rgb[o * 3 + 2] = raw[o * 4 + 2]; a[o] = raw[o * 4 + 3] / 255;
+      }
+      return { name: it.name, rgb: rgb, a: a, hue: hueHist(rgb, a) };
+    });
+  }
+
+  function rank(sig, templates, top) {
+    return templates
+      .map(function (t) { return { name: t.name, d: Math.round(distance(sig, t) * 1000) / 1000 }; })
+      .sort(function (m, n) { return m.d - n.d; })
+      .slice(0, top || 5);
+  }
+
+  /** Full pass: slots with their picture candidates, best first. */
+  function scan(px, w, h, templates) {
+    return findSlots(px, w, h).map(function (s) {
+      var sig = slotSignature(px, w, s);
+      s.candidates = sig ? rank(sig, templates, 5) : [];
+      return s;
+    });
+  }
+
+  var api = { N: N, findSlots: findSlots, slotSignature: slotSignature, loadTemplates: loadTemplates, rank: rank, scan: scan };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.TradeMatcher = api;
+})(this);

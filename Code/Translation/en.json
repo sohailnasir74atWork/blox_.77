@@ -3136,5 +3136,30 @@
     "ad_title": "No ad right now",
     "ad_unavailable": "Try again in a moment.",
     "signin": "Sign in to save raids, earn bounty and PRO time."
+  },
+  "trade_scanner": {
+    "button": "Scan a trade screenshot",
+    "new": "NEW",
+    "title": "Scan a trade",
+    "intro": "Take a screenshot of the Treasure Trade window in Blox Fruits, then pick it here. We find the fruits on both sides and check the trade for you.",
+    "privacy": "Your screenshot is read on your phone and never uploaded.",
+    "pick": "Pick screenshot",
+    "working": "Reading your trade…",
+    "none": "No trade window found. Make sure the whole Treasure Trade window is in the screenshot.",
+    "try_another": "Try another screenshot",
+    "review_tip": "Left side of the trade window = you give. Tap a fruit to fix it.",
+    "you_give": "You give",
+    "you_get": "You get",
+    "side_empty": "Nothing found on this side",
+    "check": "Check",
+    "not_right": "Not right? Pick:",
+    "swap": "Swap sides",
+    "use": "Use in calculator",
+    "scan_another": "Scan another screenshot",
+    "inventory_skipped": "Fruits in your open inventory list were skipped. Close it before the screenshot to scan your side.",
+    "max_side": "Only the first {{max}} fruits per side fit in the calculator.",
+    "win": "Win",
+    "lose": "Lose",
+    "fair": "Fair"
   }
 }

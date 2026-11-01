@@ -3134,5 +3134,30 @@
     "ad_title": "Hiện chưa có quảng cáo",
     "ad_unavailable": "Thử lại sau chút nhé.",
     "signin": "Đăng nhập để lưu raid, nhận tiền truy nã và thời gian PRO."
+  },
+  "trade_scanner": {
+    "button": "Quét ảnh chụp giao dịch",
+    "new": "MỚI",
+    "title": "Quét giao dịch",
+    "intro": "Chụp màn hình cửa sổ Treasure Trade trong Blox Fruits rồi chọn ở đây. Chúng tôi tìm trái ác quỷ ở hai bên và đánh giá giao dịch cho bạn.",
+    "privacy": "Ảnh chụp được đọc ngay trên điện thoại và không bao giờ được tải lên.",
+    "pick": "Chọn ảnh chụp",
+    "working": "Đang đọc giao dịch…",
+    "none": "Không tìm thấy cửa sổ giao dịch. Hãy chắc chắn cả cửa sổ Treasure Trade nằm trong ảnh.",
+    "try_another": "Thử ảnh khác",
+    "review_tip": "Bên trái cửa sổ = bạn đưa. Chạm vào một trái để sửa.",
+    "you_give": "Bạn đưa",
+    "you_get": "Bạn nhận",
+    "side_empty": "Không tìm thấy gì ở bên này",
+    "check": "Kiểm tra",
+    "not_right": "Chưa đúng? Chọn:",
+    "swap": "Đổi bên",
+    "use": "Dùng trong máy tính",
+    "scan_another": "Quét ảnh khác",
+    "inventory_skipped": "Đã bỏ qua trái trong túi đồ đang mở. Hãy đóng nó trước khi chụp để quét bên của bạn.",
+    "max_side": "Máy tính chỉ chứa {{max}} trái đầu tiên mỗi bên.",
+    "win": "Lời",
+    "lose": "Lỗ",
+    "fair": "Công bằng"
   }
 }

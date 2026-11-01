@@ -1,0 +1,6 @@
+{
+  "name": "trade-ocr",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Blox Fruit Values Trade Scanner: on-device text reading (Android ML Kit via Play services, iOS Vision). Linked through react-native.config.js."
+}
