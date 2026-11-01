@@ -3140,16 +3140,16 @@
     "signin": "Melde dich an, um Raids zu speichern und Kopfgeld und PRO-Zeit zu verdienen."
   },
   "trade_scanner": {
-    "button": "Trade-Screenshot scannen",
+    "button": "Trade mit der Kamera scannen",
     "new": "NEU",
     "title": "Trade scannen",
-    "intro": "Mach einen Screenshot vom Treasure-Trade-Fenster in Blox Fruits und wähle ihn hier aus. Wir erkennen die Früchte auf beiden Seiten und prüfen den Trade für dich.",
-    "privacy": "Dein Screenshot wird auf deinem Handy gelesen und nie hochgeladen.",
-    "pick": "Screenshot wählen",
+    "intro": "Richte die Kamera auf das Treasure-Trade-Fenster auf deinem PC oder wähle einen Screenshot. Wir finden die Früchte und prüfen den Trade.",
+    "privacy": "Fotos werden auf deinem Handy gelesen und nie hochgeladen.",
+    "pick": "Screenshot",
     "working": "Trade wird gelesen…",
-    "none": "Kein Trade-Fenster gefunden. Achte darauf, dass das ganze Treasure-Trade-Fenster im Screenshot ist.",
-    "try_another": "Anderen Screenshot versuchen",
-    "review_tip": "Linke Seite des Fensters = du gibst. Tippe auf eine Frucht, um sie zu korrigieren.",
+    "none": "Kein Trade-Fenster gefunden. Nimm das ganze Treasure-Trade-Fenster ins Bild und versuch es noch einmal.",
+    "try_another": "Erneut versuchen",
+    "review_tip": "Linke Seite = du gibst. Tippe auf eine Frucht, um sie zu korrigieren.",
     "you_give": "Du gibst",
     "you_get": "Du bekommst",
     "side_empty": "Auf dieser Seite nichts gefunden",
@@ -3157,11 +3157,16 @@
     "not_right": "Falsch? Wähle:",
     "swap": "Seiten tauschen",
     "use": "Im Rechner verwenden",
-    "scan_another": "Weiteren Screenshot scannen",
+    "scan_another": "Neu scannen",
     "inventory_skipped": "Früchte aus deinem offenen Inventar wurden übersprungen. Schließ es vor dem Screenshot, um deine Seite zu scannen.",
     "max_side": "Nur die ersten {{max}} Früchte pro Seite passen in den Rechner.",
     "win": "Gewinn",
     "lose": "Verlust",
-    "fair": "Fair"
+    "fair": "Fair",
+    "camera": "Kamera",
+    "remove": "Entfernen",
+    "camera_tip": "Ruhig halten, Trade-Fenster bildfüllend, Spiegelungen vermeiden.",
+    "camera_denied": "Kamerazugriff ist aus. Erlaube ihn in den Einstellungen oder wähle einen Screenshot.",
+    "correct": "Stimmt"
   }
 }

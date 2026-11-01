@@ -3138,16 +3138,16 @@
     "signin": "Sign in to save raids, earn bounty and PRO time."
   },
   "trade_scanner": {
-    "button": "Scan a trade screenshot",
+    "button": "Scan a trade with camera",
     "new": "NEW",
     "title": "Scan a trade",
-    "intro": "Take a screenshot of the Treasure Trade window in Blox Fruits, then pick it here. We find the fruits on both sides and check the trade for you.",
-    "privacy": "Your screenshot is read on your phone and never uploaded.",
-    "pick": "Pick screenshot",
+    "intro": "Point your camera at the Treasure Trade window on your PC, or pick a screenshot. We find the fruits and check the trade.",
+    "privacy": "Photos are read on your phone and never uploaded.",
+    "pick": "Screenshot",
     "working": "Reading your trade…",
-    "none": "No trade window found. Make sure the whole Treasure Trade window is in the screenshot.",
-    "try_another": "Try another screenshot",
-    "review_tip": "Left side of the trade window = you give. Tap a fruit to fix it.",
+    "none": "No trade window found. Fit the whole Treasure Trade window in the photo and try again.",
+    "try_another": "Try again",
+    "review_tip": "Left side = you give. Tap a fruit to fix it.",
     "you_give": "You give",
     "you_get": "You get",
     "side_empty": "Nothing found on this side",
@@ -3155,11 +3155,16 @@
     "not_right": "Not right? Pick:",
     "swap": "Swap sides",
     "use": "Use in calculator",
-    "scan_another": "Scan another screenshot",
+    "scan_another": "Scan again",
     "inventory_skipped": "Fruits in your open inventory list were skipped. Close it before the screenshot to scan your side.",
     "max_side": "Only the first {{max}} fruits per side fit in the calculator.",
     "win": "Win",
     "lose": "Lose",
-    "fair": "Fair"
+    "fair": "Fair",
+    "camera": "Camera",
+    "remove": "Remove",
+    "camera_tip": "Hold steady, fill the photo with the trade window, avoid glare.",
+    "camera_denied": "Camera access is off. Allow it in Settings, or pick a screenshot.",
+    "correct": "Correct"
   }
 }

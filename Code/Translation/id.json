@@ -3136,16 +3136,16 @@
     "signin": "Masuk untuk menyimpan raid, dapatkan bounty dan waktu PRO."
   },
   "trade_scanner": {
-    "button": "Pindai screenshot trade",
+    "button": "Pindai trade dengan kamera",
     "new": "BARU",
     "title": "Pindai trade",
-    "intro": "Ambil screenshot jendela Treasure Trade di Blox Fruits, lalu pilih di sini. Kami temukan buah di kedua sisi dan cek trade-nya untukmu.",
-    "privacy": "Screenshot dibaca di HP-mu dan tidak pernah diunggah.",
-    "pick": "Pilih screenshot",
+    "intro": "Arahkan kamera ke jendela Treasure Trade di PC kamu, atau pilih tangkapan layar. Kami temukan buahnya dan cek trade-nya.",
+    "privacy": "Foto dibaca di ponselmu dan tidak pernah diunggah.",
+    "pick": "Tangkapan layar",
     "working": "Membaca trade-mu…",
-    "none": "Jendela trade tidak ditemukan. Pastikan seluruh jendela Treasure Trade ada di screenshot.",
-    "try_another": "Coba screenshot lain",
-    "review_tip": "Sisi kiri jendela = yang kamu berikan. Ketuk buah untuk memperbaikinya.",
+    "none": "Jendela trade tidak ditemukan. Masukkan seluruh jendela Treasure Trade ke foto lalu coba lagi.",
+    "try_another": "Coba lagi",
+    "review_tip": "Sisi kiri = yang kamu berikan. Ketuk buah untuk memperbaikinya.",
     "you_give": "Kamu beri",
     "you_get": "Kamu dapat",
     "side_empty": "Tidak ada yang ditemukan di sisi ini",
@@ -3153,11 +3153,16 @@
     "not_right": "Salah? Pilih:",
     "swap": "Tukar sisi",
     "use": "Pakai di kalkulator",
-    "scan_another": "Pindai screenshot lain",
+    "scan_another": "Pindai lagi",
     "inventory_skipped": "Buah di inventaris yang terbuka dilewati. Tutup dulu sebelum screenshot untuk memindai sisimu.",
     "max_side": "Hanya {{max}} buah pertama per sisi yang muat di kalkulator.",
     "win": "Untung",
     "lose": "Rugi",
-    "fair": "Adil"
+    "fair": "Adil",
+    "camera": "Kamera",
+    "remove": "Hapus",
+    "camera_tip": "Tahan stabil, penuhi foto dengan jendela trade, hindari silau.",
+    "camera_denied": "Akses kamera nonaktif. Izinkan di Setelan, atau pilih tangkapan layar.",
+    "correct": "Benar"
   }
 }

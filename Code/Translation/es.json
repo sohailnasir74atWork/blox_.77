@@ -3143,16 +3143,16 @@
     "signin": "Inicia sesión para guardar raids y ganar recompensa y tiempo PRO."
   },
   "trade_scanner": {
-    "button": "Escanear captura de un trade",
+    "button": "Escanear un intercambio con la cámara",
     "new": "NUEVO",
     "title": "Escanear un trade",
-    "intro": "Haz una captura de la ventana Treasure Trade en Blox Fruits y elígela aquí. Encontramos las frutas de ambos lados y revisamos el trade por ti.",
-    "privacy": "Tu captura se lee en tu teléfono y nunca se sube.",
-    "pick": "Elegir captura",
+    "intro": "Apunta la cámara a la ventana Treasure Trade de tu PC o elige una captura. Encontramos las frutas y revisamos el intercambio.",
+    "privacy": "Las fotos se leen en tu teléfono y nunca se suben.",
+    "pick": "Captura",
     "working": "Leyendo tu trade…",
-    "none": "No encontramos la ventana de trade. Asegúrate de que la ventana Treasure Trade se vea completa en la captura.",
-    "try_another": "Probar otra captura",
-    "review_tip": "Lado izquierdo de la ventana = lo que das. Toca una fruta para corregirla.",
+    "none": "No se encontró ninguna ventana de intercambio. Encuadra toda la ventana Treasure Trade e inténtalo de nuevo.",
+    "try_another": "Intentar de nuevo",
+    "review_tip": "Lado izquierdo = lo que das. Toca una fruta para corregirla.",
     "you_give": "Das",
     "you_get": "Recibes",
     "side_empty": "No se encontró nada en este lado",
@@ -3160,11 +3160,16 @@
     "not_right": "¿No es correcta? Elige:",
     "swap": "Cambiar lados",
     "use": "Usar en la calculadora",
-    "scan_another": "Escanear otra captura",
+    "scan_another": "Escanear de nuevo",
     "inventory_skipped": "Se omitieron las frutas de tu inventario abierto. Ciérralo antes de la captura para escanear tu lado.",
     "max_side": "Solo caben las primeras {{max}} frutas por lado en la calculadora.",
     "win": "Gana",
     "lose": "Pierde",
-    "fair": "Justo"
+    "fair": "Justo",
+    "camera": "Cámara",
+    "remove": "Quitar",
+    "camera_tip": "Mantén el teléfono quieto, llena la foto con la ventana y evita reflejos.",
+    "camera_denied": "El acceso a la cámara está desactivado. Actívalo en Ajustes o elige una captura.",
+    "correct": "Correcto"
   }
 }

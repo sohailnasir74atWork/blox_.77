@@ -731,8 +731,8 @@ const HomeScreen = ({ selectedTheme }) => {
 
   const renderScanButton = () => (
     <TouchableOpacity style={styles.scanButton} onPress={() => { triggerHapticFeedback('impactLight'); setScannerVisible(true); }} activeOpacity={0.8}>
-      <Icon name="scan" size={18} color="white" />
-      <Text style={styles.scanButtonText}>{t('trade_scanner.button', { defaultValue: 'Scan a trade screenshot' })}</Text>
+      <Icon name="camera" size={18} color="white" />
+      <Text style={styles.scanButtonText}>{t('trade_scanner.button', { defaultValue: 'Scan a trade with camera' })}</Text>
       <View style={styles.scanNewBadge}>
         <Text style={styles.scanNewText}>{t('trade_scanner.new', { defaultValue: 'NEW' })}</Text>
       </View>

@@ -3143,16 +3143,16 @@
     "signin": "Entre para salvar raids e ganhar recompensa e tempo PRO."
   },
   "trade_scanner": {
-    "button": "Escanear print de uma troca",
+    "button": "Escanear troca com a câmera",
     "new": "NOVO",
     "title": "Escanear uma troca",
-    "intro": "Tire um print da janela Treasure Trade no Blox Fruits e escolha aqui. Encontramos as frutas dos dois lados e avaliamos a troca para você.",
-    "privacy": "Seu print é lido no seu celular e nunca é enviado.",
-    "pick": "Escolher print",
+    "intro": "Aponte a câmera para a janela Treasure Trade no seu PC ou escolha uma captura. Encontramos as frutas e avaliamos a troca.",
+    "privacy": "As fotos são lidas no seu celular e nunca enviadas.",
+    "pick": "Captura",
     "working": "Lendo sua troca…",
-    "none": "Nenhuma janela de troca encontrada. Verifique se a janela Treasure Trade aparece inteira no print.",
-    "try_another": "Tentar outro print",
-    "review_tip": "Lado esquerdo da janela = o que você dá. Toque numa fruta para corrigir.",
+    "none": "Nenhuma janela de troca encontrada. Enquadre toda a janela Treasure Trade e tente de novo.",
+    "try_another": "Tentar de novo",
+    "review_tip": "Lado esquerdo = o que você dá. Toque numa fruta para corrigir.",
     "you_give": "Você dá",
     "you_get": "Você recebe",
     "side_empty": "Nada encontrado neste lado",
@@ -3160,11 +3160,16 @@
     "not_right": "Não é essa? Escolha:",
     "swap": "Trocar lados",
     "use": "Usar na calculadora",
-    "scan_another": "Escanear outro print",
+    "scan_another": "Escanear de novo",
     "inventory_skipped": "As frutas do seu inventário aberto foram ignoradas. Feche-o antes do print para escanear seu lado.",
     "max_side": "Só as primeiras {{max}} frutas de cada lado cabem na calculadora.",
     "win": "Ganha",
     "lose": "Perde",
-    "fair": "Justa"
+    "fair": "Justa",
+    "camera": "Câmera",
+    "remove": "Remover",
+    "camera_tip": "Segure firme, preencha a foto com a janela e evite reflexos.",
+    "camera_denied": "O acesso à câmera está desligado. Permita nas Configurações ou escolha uma captura.",
+    "correct": "Correto"
   }
 }

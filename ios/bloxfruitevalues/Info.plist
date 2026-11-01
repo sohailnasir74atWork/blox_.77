@@ -56,6 +56,8 @@
     <key>NSAllowsLocalNetworking</key>
     <true/>
   </dict>
+  <key>NSCameraUsageDescription</key>
+  <string>Fruit Values opens the camera only when you tap Camera in Scan a trade, so you can photograph the Treasure Trade window on your computer screen. The photo is read on your phone to find the fruits and is never uploaded.</string>
   <key>NSPhotoLibraryUsageDescription</key>
   <string>Fruit Values opens your photo library only when you tap to add an image, so you can pick a photo or screenshot you already have — for example, choosing a saved picture as your profile photo, setting a group's icon, attaching a screenshot to a chat message, or uploading your artwork to the Designs feed.</string>
   <key>NSPhotoLibraryAddUsageDescription</key>

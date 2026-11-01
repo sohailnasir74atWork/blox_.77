@@ -25,6 +25,37 @@
   // Slot panel: light grey with a white shine stripe. Never part of a fruit.
   function isPanel(r, g, b) { return Math.min(r, g, b) > 170 && Math.max(r, g, b) - Math.min(r, g, b) < 35; }
 
+  // Camera photos of a monitor: colours drift, darken and lose saturation, so
+  // the bars are found by hue instead of exact values (after normalizeColors).
+  function hsv(r, g, b) {
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    if (!d) return [0, 0, mx];
+    var hh = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return [((hh * 60) + 360) % 360, d / mx, mx];
+  }
+  function isGreenLoose(r, g, b) { var c = hsv(r, g, b); return c[0] > 95 && c[0] < 155 && c[1] > 0.45 && c[2] > 110; }
+  function isPinkLoose(r, g, b) { var c = hsv(r, g, b); return c[0] > 278 && c[0] < 332 && c[1] > 0.5 && c[2] > 110; }
+
+  // Per-channel levels stretch (1st..99th percentile -> 0..255). Undoes most of
+  // a photo's colour cast and contrast loss; a clean screenshot barely changes.
+  function normalizeColors(px, w, h) {
+    var hist = [new Uint32Array(256), new Uint32Array(256), new Uint32Array(256)], n = 0;
+    for (var p = 0; p < w * h * 4; p += 16) { hist[0][px[p]]++; hist[1][px[p + 1]]++; hist[2][px[p + 2]]++; n++; }
+    var lut = [0, 1, 2].map(function (c) {
+      var acc = 0, lo = 0, hi = 255;
+      for (var v = 0; v < 256; v++) { acc += hist[c][v]; if (acc <= n * 0.01) lo = v; if (acc < n * 0.99) hi = v + 1; }
+      if (hi - lo < 32) { lo = 0; hi = 255; }
+      var t = new Uint8Array(256);
+      for (var k = 0; k < 256; k++) t[k] = Math.max(0, Math.min(255, Math.round(((k - lo) * 255) / (hi - lo))));
+      return t;
+    });
+    var out = new Uint8Array(w * h * 4);
+    for (var q = 0; q < w * h * 4; q += 4) {
+      out[q] = lut[0][px[q]]; out[q + 1] = lut[1][px[q + 1]]; out[q + 2] = lut[2][px[q + 2]]; out[q + 3] = 255;
+    }
+    return out;
+  }
+
   // Bounding boxes of 4-connected blobs in a 0/1 mask.
   function blobs(mask, w, h) {
     var seen = new Uint8Array(w * h);
@@ -59,19 +90,22 @@
 
   /**
    * px: RGBA bytes (canvas ImageData.data or a Uint8Array), w x h.
+   * loose: photo mode (hue-based colours, tilted / patchy bars allowed).
    * Returns slots [{ x0, x1, nameTop, nameBottom, priceTop, inventory }] in px coordinates.
    */
-  function findSlots(px, w, h) {
+  function findSlots(px, w, h, loose) {
     var green = new Uint8Array(w * h), pink = new Uint8Array(w * h);
+    var greenAt = loose ? isGreenLoose : isGreen, pinkAt = loose ? isPinkLoose : isPink;
     for (var i = 0, p = 0; i < w * h; i++, p += 4) {
       var r = px[p], g = px[p + 1], b = px[p + 2];
-      if (isGreen(r, g, b)) green[i] = 1;
-      else if (isPink(r, g, b)) pink[i] = 1;
+      if (greenAt(r, g, b)) green[i] = 1;
+      else if (pinkAt(r, g, b)) pink[i] = 1;
     }
+    var fill = loose ? 0.4 : 0.55;
     var slots = [];
     blobs(pink, w, h).forEach(function (bar) {
       var bw = bar.x1 - bar.x0, bh = bar.y1 - bar.y0;
-      if (bw < 24 || bh < 4 || bw / bh < 3 || bw / bh > 14 || bar.n < 0.55 * bw * bh) return;
+      if (bw < 24 || bh < 4 || bw / bh < 3 || bw / bh > 14 || bar.n < fill * bw * bh) return;
       var xa = bar.x0 + Math.floor(bw / 8), xb = bar.x1 - Math.floor(bw / 8);
       // Walk up from the price bar to the bottom edge of the green name bar.
       var gBottom = -1;
@@ -86,8 +120,16 @@
       slot.inventory = hasPlusOverlay(px, w, slot);
       slots.push(slot);
     });
-    slots.sort(function (m, n) { return (m.nameTop - n.nameTop) || (m.x0 - n.x0); });
-    return slots;
+    // Reading order. A tilted photo puts one row's bars a few px apart, so a
+    // row is every slot whose name bar starts within two bar heights.
+    slots.sort(function (m, n) { return m.nameTop - n.nameTop; });
+    var rows = [];
+    slots.forEach(function (sl) {
+      var row = rows[rows.length - 1];
+      if (row && sl.nameTop - row[0].nameTop < 2 * (row[0].nameBottom - row[0].nameTop)) row.push(sl);
+      else rows.push([sl]);
+    });
+    return [].concat.apply([], rows.map(function (row) { return row.sort(function (m, n) { return m.x0 - n.x0; }); }));
   }
 
   // Your own inventory list (left panel while picking) draws a yellow "+" over
@@ -233,16 +275,25 @@
       .slice(0, top || 5);
   }
 
-  /** Full pass: slots with their picture candidates, best first. */
+  /**
+   * Full pass: slots with their picture candidates, best first. A screenshot
+   * is read as is; when the colour-normalised photo pass finds more slots
+   * (camera shot of a PC screen) that one is used.
+   */
   function scan(px, w, h, templates) {
-    return findSlots(px, w, h).map(function (s) {
-      var sig = slotSignature(px, w, s);
+    var src = px, slots = findSlots(px, w, h, false), photo = false;
+    var norm = normalizeColors(px, w, h);
+    var loose = findSlots(norm, w, h, true);
+    if (loose.length > slots.length) { src = norm; slots = loose; photo = true; }
+    return slots.map(function (s) {
+      var sig = slotSignature(src, w, s);
       s.candidates = sig ? rank(sig, templates, 5) : [];
+      s.photo = photo;
       return s;
     });
   }
 
-  var api = { N: N, findSlots: findSlots, slotSignature: slotSignature, loadTemplates: loadTemplates, rank: rank, scan: scan };
+  var api = { N: N, findSlots: findSlots, normalizeColors: normalizeColors, slotSignature: slotSignature, loadTemplates: loadTemplates, rank: rank, scan: scan };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TradeMatcher = api;
 })(this);

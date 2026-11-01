@@ -62,6 +62,21 @@ describe('matcher.findSlots', () => {
     expect(slots[2].inventory).toBe(false);
   });
 
+  it('finds slots in a dim, colour-cast camera photo of the screen', () => {
+    const w = 600, h = 300;
+    const { px, slot } = canvas(w, h);
+    slot(50, 40, 100);
+    slot(160, 42, 100);
+    // Darker, lower-contrast and blue-tinted, as a phone photo of a monitor.
+    for (let p = 0; p < px.length; p += 4) {
+      px[p] = px[p] * 0.6 + 20; px[p + 1] = px[p + 1] * 0.6 + 20; px[p + 2] = Math.min(255, px[p + 2] * 0.6 + 45);
+    }
+    const sigs = matcher.loadTemplates(require('../Code/TradeScanner/fruitSignatures.json'));
+    expect(matcher.findSlots(px, w, h)).toEqual([]);
+    const slots = matcher.scan(px, w, h, sigs);
+    expect(slots.map((s) => [s.x0, s.photo])).toEqual([[50, true], [160, true]]);
+  });
+
   it('ignores pink without a green name bar above it', () => {
     const w = 300, h = 200;
     const { px } = canvas(w, h);
