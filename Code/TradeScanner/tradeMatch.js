@@ -24,7 +24,10 @@ const OLD_NAMES = {
 };
 
 // Picture distance below which a slot counts as recognised without a name.
+// A camera photo of a screen blurs and tints the fruit, so a picture-only
+// pick from a photo needs a much closer match (half) before it skips the "?".
 const PICTURE_SURE = 0.3;
+const PHOTO_SURE = 0.15;
 
 export const normalize = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -68,6 +71,20 @@ export function namesForText(text, catalog) {
 
 const center = (l) => ({ x: l.x + l.w / 2, y: l.y + l.h / 2 });
 
+// x where the widest gap between slot columns is, when it is wide enough to
+// be the space between the two offers; Infinity (all left = the user's) else.
+export function gapDivider(slots) {
+  const xs = [...new Set(slots.map((s) => Math.round((s.x0 + s.x1) / 2)))].sort((a, b) => a - b);
+  if (xs.length < 2) return Infinity;
+  const side = slots.reduce((acc, s) => acc + (s.x1 - s.x0), 0) / slots.length;
+  let best = 0;
+  let at = Infinity;
+  for (let i = 1; i < xs.length; i++) {
+    if (xs[i] - xs[i - 1] > best) { best = xs[i] - xs[i - 1]; at = (xs[i] + xs[i - 1]) / 2; }
+  }
+  return best > side * 1.6 ? at : Infinity;
+}
+
 /**
  * slots: from the WebView matcher (image pixels). lines: [{ text, x, y, w, h }]
  * from the text reader in the same pixel space, or [] when it is unavailable.
@@ -78,14 +95,21 @@ export function buildTrade({ slots, lines = [], width, catalog }) {
   const known = new Set(catalog.map(normalize));
   // The window is centred on the title; Roblox centres it on screen otherwise.
   const title = lines.find((l) => /treasure\s*trade/i.test(l.text));
-  const divider = title ? center(title).x : width / 2;
+  // Without the title (an inventory, one offer, the text reader missed it):
+  // two groups of slots with a wide gap between them are the two offers;
+  // one group is all the user's (2026-11-03, as in Adopt Me).
+  const tradeSlots = slots.filter((s) => !s.inventory);
+  const divider = title ? center(title).x : gapDivider(tradeSlots.length ? tradeSlots : slots);
+  // Only inventory slots in the picture (a backpack screenshot): those are
+  // the user's items, not something to skip.
+  const onlyInventory = !title && !tradeSlots.length;
 
   const mine = [];
   const theirs = [];
   let skippedInventory = 0;
 
   for (const s of slots) {
-    if (s.inventory) { skippedInventory++; continue; }
+    if (s.inventory && !onlyInventory) { skippedInventory++; continue; }
     const barH = s.nameBottom - s.nameTop;
     const text = lines
       .filter((l) => {
@@ -104,9 +128,9 @@ export function buildTrade({ slots, lines = [], width, catalog }) {
     } else if (fromText.length > 1) {
       const set = new Set(fromText.map(normalize));
       const byPicture = pictures.find((c) => set.has(normalize(c.name)));
-      pick = { name: byPicture ? byPicture.name : fromText[0], sure: Boolean(byPicture && byPicture.d < PICTURE_SURE) };
+      pick = { name: byPicture ? byPicture.name : fromText[0], sure: Boolean(byPicture && byPicture.d < (s.photo ? PHOTO_SURE : PICTURE_SURE)) };
     } else if (pictures.length) {
-      pick = { name: pictures[0].name, sure: pictures[0].d < PICTURE_SURE };
+      pick = { name: pictures[0].name, sure: pictures[0].d < (s.photo ? PHOTO_SURE : PICTURE_SURE) };
     }
     if (!pick) continue;
     pick.alternatives = [...new Set([...fromText, ...pictures.map((c) => c.name)])]

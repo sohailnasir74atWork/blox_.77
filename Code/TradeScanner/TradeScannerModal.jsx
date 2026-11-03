@@ -23,6 +23,9 @@ import scannerHtml from './scannerHtml';
 import { readTextLines } from './textReader';
 import CropBox, { FULL_CROP } from './CropBox';
 import { buildTrade } from './tradeMatch';
+import DeviceInfo from 'react-native-device-info';
+import { uploadScanReport } from '../Helper/scanReportUpload';
+import { activeScannerHtml, activeScannerVersion, checkScannerUpdate } from './scannerUpdate';
 
 const SCAN_TIMEOUT_MS = 20000;
 const PICK_OPTIONS = { mediaType: 'photo', includeBase64: true, maxWidth: 2000, maxHeight: 2000, quality: 0.9 };
@@ -65,7 +68,7 @@ const scanStats = (r) => {
   };
 };
 
-export default function TradeScannerModal({ visible, onClose, onApply, records, maxPerSide, isDarkMode, imageFor }) {
+export default function TradeScannerModal({ visible, onClose, onApply, records, maxPerSide, isDarkMode, imageFor, tester }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
@@ -79,6 +82,12 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
   const [result, setResult] = useState(null); // { mine: [pick], theirs: [pick], skippedInventory }
   const [openPick, setOpenPick] = useState(null); // 'mine:0'
   const [feedback, setFeedback] = useState(null); // null | 'wrong' | 'done'
+  // Send this scan to us (2026-11-03): the picture + what the scan read.
+  const [report, setReport] = useState(null); // null | 'sending' | 'sent' | 'failed'
+  const lastScan = useRef(null);
+  const wrongReason = useRef(null);
+  // Scanner page: a downloaded one (scannerUpdate.js) when there is one.
+  const [pageHtml, setPageHtml] = useState(scannerHtml);
   const [cameraDenied, setCameraDenied] = useState(false);
 
   const byName = useMemo(() => {
@@ -89,12 +98,24 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
   const catalog = useMemo(() => [...byName.keys()], [byName]);
 
   useEffect(() => {
+    if (!visible) return;
+    checkScannerUpdate({ tester: !!tester });
+    let live = true;
+    activeScannerHtml().then((html) => {
+      if (live && html && html !== pageHtml) { ready.current = false; setPageHtml(html); }
+    });
+    return () => { live = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, tester]);
+
+  useEffect(() => {
     if (!visible) {
       setStage('intro');
       setResult(null);
       setPicked(null);
       setOpenPick(null);
       setCameraDenied(false);
+      setReport(null);
       ready.current = false;
     }
   }, [visible]);
@@ -157,6 +178,8 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
     // Always through the crop step: extra things around the trade window
     // are what give wrong items.
     crop.current = FULL_CROP;
+    setReport(null);
+    lastScan.current = null;
     setPicked({ asset, source });
     setOpenPick(null);
     setStage('crop');
@@ -172,6 +195,22 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
       const [pixels, text] = await Promise.all([scanPixels(dataUrl, frame), readTextLines(asset.uri, frame)]);
       const trade = buildTrade({ slots: pixels.slots, lines: text.lines, width: pixels.width, catalog });
       const found = trade.mine.length + trade.theirs.length;
+      lastScan.current = {
+        frame,
+        width: pixels.width,
+        height: pixels.height,
+        scannerVersion: activeScannerVersion(),
+        textReader: text.ok ? 1 : 0,
+        lines: (text.lines || []).slice(0, 80).map((l) => [l.text, Math.round(l.x), Math.round(l.y), Math.round(l.w), Math.round(l.h)]),
+        slots: pixels.slots.map((sl) => ({
+          box: [sl.x0, sl.nameTop, sl.x1, sl.priceTop].map(Math.round),
+          inventory: sl.inventory ? 1 : 0,
+          photo: sl.photo ? 1 : 0,
+          top: (sl.candidates || []).slice(0, 3).map((c) => [c.name, Math.round(c.d * 1000) / 1000]),
+        })),
+      };
+      setReport(null);
+      wrongReason.current = null;
       trackGrowthEvent('trade_scan', {
         source,
         photo_mode: pixels.slots.some((sl) => sl.photo) ? 1 : 0,
@@ -179,6 +218,7 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
         found,
         unsure: [...trade.mine, ...trade.theirs].filter((p) => !p.sure).length,
         text_reader: text.ok ? 1 : 0,
+        scanner_v: activeScannerVersion(),
         crop_area: Math.round(frame.w * frame.h * 100),
       });
       if (!found) { setStage('none'); return; }
@@ -194,6 +234,8 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
       setStage('review');
     } catch (err) {
       trackGrowthEvent('trade_scan', { source, photo_mode: 0, slots: -1, found: 0, unsure: 0, text_reader: 0 });
+      lastScan.current = { frame, error: String(err?.message || err).slice(0, 200) };
+      setReport(null);
       setStage('none');
     }
   }, [picked, scanPixels, catalog, maxPerSide]);
@@ -249,8 +291,57 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
 
   const voteReason = (reason) => {
     trackGrowthEvent('trade_scan_wrong_reason', { reason, ...scanStats(result) });
+    wrongReason.current = reason;
     setFeedback('done');
   };
+
+  const sendReport = async () => {
+    if (!picked?.asset?.uri || report === 'sending' || report === 'sent') return;
+    setReport('sending');
+    const strip = (list) => (list || []).map((p) => ({ name: p.name, sure: !!p.sure, scanned: p.scanned }));
+    try {
+      await uploadScanReport(picked.asset.uri, {
+        v: 1,
+        app: `${DeviceInfo.getVersion()} (${DeviceInfo.getBuildNumber()})`,
+        at: new Date().toISOString(),
+        platform: Platform.OS,
+        source: picked.source,
+        stage,
+        reason: wrongReason.current,
+        image: { width: picked.asset.width, height: picked.asset.height },
+        scan: lastScan.current,
+        result: result ? { mine: strip(result.mine), theirs: strip(result.theirs), swapped: !!result.swapped } : null,
+      });
+      trackGrowthEvent('trade_scan_report', { stage, reason: wrongReason.current || '' });
+      setReport('sent');
+    } catch {
+      setReport('failed');
+    }
+  };
+
+  const reportBox = () => (
+    <View style={[styles.reportBox, { backgroundColor: card }]}>
+      {report === 'sent' ? (
+        <Text style={[styles.feedbackText, { color: '#29AB87' }]}>{t('trade_scanner.report_sent', { defaultValue: 'Sent. Thank you, we will use it to fix the scanner.' })}</Text>
+      ) : (
+        <>
+          <Text style={[styles.note, styles.reportNote, { color: sub }]}>
+            {t('trade_scanner.report_note', { defaultValue: 'Send us this picture and what the scan read, so we can fix it. Only send pictures without private info.' })}
+          </Text>
+          <TouchableOpacity style={[styles.vote, { borderColor: accent }]} onPress={sendReport} disabled={report === 'sending'} hitSlop={6}>
+            {report === 'sending'
+              ? <ActivityIndicator size="small" color={accent} />
+              : <Icon name="paper-plane-outline" size={14} color={accent} />}
+            <Text style={[styles.voteText, { color: accent }]}>
+              {report === 'failed'
+                ? t('trade_scanner.report_retry', { defaultValue: 'Try again' })
+                : t('trade_scanner.report_send', { defaultValue: 'Send picture' })}
+            </Text>
+          </TouchableOpacity>
+        </>
+      )}
+    </View>
+  );
 
   const apply = () => {
     const toRecords = (list) => list.map((p) => byName.get(p.name)).filter(Boolean);
@@ -343,7 +434,7 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
             // it takes half the sheet.
             containerStyle={styles.hiddenWeb}
             style={styles.hiddenWebInner}
-            source={{ html: scannerHtml }}
+            source={{ html: pageHtml }}
             originWhitelist={['*']}
             onMessage={onMessage}
             javaScriptEnabled
@@ -369,8 +460,9 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
             {cameraDenied && (
               <Text style={[styles.note, { color: config.colors.wantBlockRed }]}>{t('trade_scanner.camera_denied', { defaultValue: 'Camera access is off. Allow it in Settings, or pick a screenshot.' })}</Text>
             )}
+            {stage === 'none' && picked && reportBox()}
             {sourceButtons(t('trade_scanner.camera', { defaultValue: 'Camera' }), t('trade_scanner.pick', { defaultValue: 'Screenshot' }))}
-            <Text style={[styles.note, styles.center, { color: sub }]}>{t('trade_scanner.privacy', { defaultValue: 'Photos are read on your phone and never uploaded.' })}</Text>
+            <Text style={[styles.note, styles.center, { color: sub }]}>{t('trade_scanner.privacy_send', { defaultValue: 'Photos are read on your phone. Nothing is uploaded unless you tap Send picture.' })}</Text>
           </View>
         )}
 
@@ -383,7 +475,7 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
               uri={picked.asset.uri}
               imageWidth={picked.asset.width}
               imageHeight={picked.asset.height}
-              maxHeight={Math.round(screenHeight * 0.5)}
+              maxHeight={Math.round(screenHeight * 0.66)}
               color={accent}
               onChange={(frame) => { crop.current = frame; }}
             />
@@ -475,6 +567,7 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
                 <Text style={[styles.feedbackText, { color: sub }]}>{t('trade_scanner.feedback_thanks', { defaultValue: 'Thanks! This helps us make the scanner better.' })}</Text>
               )}
             </View>
+            {(feedback === 'wrong' || (feedback === 'done' && wrongReason.current)) && reportBox()}
 
             {(result.skippedInventory > 0 || result.cut || !openItem) && (
               <Text style={[styles.note, { color: sub }]} numberOfLines={2}>
@@ -507,7 +600,7 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
-  sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 14, paddingTop: 12 },
+  sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 14, paddingTop: 12, maxHeight: '97%' },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   title: { flex: 1, fontSize: 16, fontFamily: 'Montserrat-Bold', fontWeight: '700' },
   hiddenWeb: { position: 'absolute', width: 1, height: 1, opacity: 0, left: -10, top: -10, flex: 0 },
@@ -547,6 +640,8 @@ const styles = StyleSheet.create({
   fixRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, marginTop: 8, paddingVertical: 6, paddingLeft: 8 },
   fixLabel: { fontSize: 11, fontWeight: '600', marginRight: 6, maxWidth: 90 },
   chips: { gap: 6, paddingRight: 8 },
+  reportBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, padding: 10, marginTop: 8 },
+  reportNote: { flex: 1, marginTop: 0 },
   chip: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 14, paddingVertical: 3, paddingHorizontal: 7, gap: 4 },
   chipImage: { width: 18, height: 18 },
   chipText: { fontSize: 11, fontWeight: '600' },

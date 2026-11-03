@@ -3176,6 +3176,11 @@
     "reason_wrong_item": "Buah salah",
     "reason_missed": "Buah terlewat",
     "reason_extra": "Buah berlebih",
-    "reason_sides": "Sisi tertukar"
+    "reason_sides": "Sisi tertukar",
+    "report_note": "Kirim gambar ini dan hasil bacaan pemindai agar kami bisa memperbaikinya. Kirim hanya gambar tanpa info pribadi.",
+    "report_send": "Kirim gambar",
+    "report_retry": "Coba lagi",
+    "report_sent": "Terkirim. Terima kasih, akan kami pakai untuk memperbaiki pemindai.",
+    "privacy_send": "Foto dibaca di ponselmu. Tidak ada yang diunggah kecuali kamu menekan Kirim gambar."
   }
 }

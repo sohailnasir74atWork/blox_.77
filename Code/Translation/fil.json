@@ -3180,6 +3180,11 @@
     "reason_wrong_item": "Maling prutas",
     "reason_missed": "May kulang na prutas",
     "reason_extra": "Sobrang prutas",
-    "reason_sides": "Baliktad ang panig"
+    "reason_sides": "Baliktad ang panig",
+    "report_note": "Ipadala sa amin ang larawang ito at ang nabasa ng scanner para maayos namin ito. Magpadala lang ng larawang walang pribadong impormasyon.",
+    "report_send": "Ipadala ang larawan",
+    "report_retry": "Subukan ulit",
+    "report_sent": "Naipadala. Salamat, gagamitin namin ito para ayusin ang scanner.",
+    "privacy_send": "Binabasa ang mga larawan sa phone mo. Walang ina-upload maliban kung pindutin mo ang Ipadala ang larawan."
   }
 }

@@ -3183,6 +3183,11 @@
     "reason_wrong_item": "Fruta incorrecta",
     "reason_missed": "Faltan frutas",
     "reason_extra": "Frutas de más",
-    "reason_sides": "Lados incorrectos"
+    "reason_sides": "Lados incorrectos",
+    "report_note": "Envíanos esta imagen y lo que leyó el escáner para que podamos corregirlo. Envía solo imágenes sin datos privados.",
+    "report_send": "Enviar imagen",
+    "report_retry": "Reintentar",
+    "report_sent": "Enviada. ¡Gracias! La usaremos para mejorar el escáner.",
+    "privacy_send": "Las fotos se leen en tu teléfono. No se sube nada salvo que toques Enviar imagen."
   }
 }

@@ -45,7 +45,7 @@
           return {
             x0: s.x0 / scale, x1: s.x1 / scale,
             nameTop: s.nameTop / scale, nameBottom: s.nameBottom / scale, priceTop: s.priceTop / scale,
-            inventory: s.inventory, candidates: s.candidates,
+            inventory: s.inventory, photo: !!s.photo, candidates: s.candidates,
           };
         });
         post({ type: 'result', id: id, width: w, height: h, slots: slots });

@@ -135,10 +135,30 @@ describe('buildTrade', () => {
     expect(trade.skippedInventory).toBe(1);
   });
 
-  it('falls back to the picture (and the screen centre) without a text reader', () => {
+  it('falls back to the picture (and the gap between the offers) without a text reader', () => {
     const slots = [slot(100, 200, [{ name: 'Dough', d: 0.12 }]), slot(700, 200, [{ name: 'Light', d: 0.45 }])];
     const trade = buildTrade({ slots, lines: [], width: 1000, catalog: CATALOG });
     expect(trade.mine).toEqual([{ name: 'Dough', sure: true, alternatives: [] }]);
     expect(trade.theirs[0]).toMatchObject({ name: 'Light', sure: false });
+  });
+
+  it('puts one block of slots without the title on the user side (one offer)', () => {
+    const slots = [slot(100, 200, [{ name: 'Dough', d: 0.1 }]), slot(210, 200, [{ name: 'Light', d: 0.1 }]), slot(320, 200, [{ name: 'Portal', d: 0.1 }])];
+    const trade = buildTrade({ slots, lines: [line('Dough', 120, 203)], width: 2000, catalog: CATALOG });
+    expect(trade.mine.map((p) => p.name)).toEqual(['Dough', 'Light', 'Portal']);
+    expect(trade.theirs).toEqual([]);
+  });
+
+  it('reads an inventory-only screenshot as the user side instead of skipping it', () => {
+    const slots = [slot(100, 200, [{ name: 'Dough', d: 0.1 }], { inventory: true }), slot(210, 200, [{ name: 'Light', d: 0.1 }], { inventory: true })];
+    const trade = buildTrade({ slots, lines: [], width: 1000, catalog: CATALOG });
+    expect(trade.mine.map((p) => p.name)).toEqual(['Dough', 'Light']);
+    expect(trade.skippedInventory).toBe(0);
+  });
+
+  it('needs a closer picture match before a photo pick skips the "?"', () => {
+    const slots = [slot(100, 200, [{ name: 'Dough', d: 0.2 }], { photo: true }), slot(210, 200, [{ name: 'Light', d: 0.2 }])];
+    const trade = buildTrade({ slots, lines: [], width: 1000, catalog: CATALOG });
+    expect(trade.mine.map((p) => [p.name, p.sure])).toEqual([['Dough', false], ['Light', true]]);
   });
 });

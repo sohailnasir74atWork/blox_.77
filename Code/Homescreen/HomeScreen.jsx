@@ -1349,6 +1349,7 @@ const HomeScreen = ({ selectedTheme }) => {
               maxPerSide={MAX_ITEMS_PER_SIDE}
               isDarkMode={isDarkMode}
               imageFor={fruitImageUrl}
+              tester={!!(user?.admin || user?.isModerator || user?.isBabyMod)}
             />
             <ShareTradeModal
               visible={openShareModel}
@@ -1720,6 +1721,7 @@ const HomeScreen = ({ selectedTheme }) => {
             maxPerSide={MAX_ITEMS_PER_SIDE}
             isDarkMode={isDarkMode}
             imageFor={fruitImageUrl}
+            tester={!!(user?.admin || user?.isModerator || user?.isBabyMod)}
           />
           <ShareTradeModal
             visible={openShareModel}

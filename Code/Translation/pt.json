@@ -3183,6 +3183,11 @@
     "reason_wrong_item": "Fruta errada",
     "reason_missed": "Frutas faltando",
     "reason_extra": "Frutas a mais",
-    "reason_sides": "Lados errados"
+    "reason_sides": "Lados errados",
+    "report_note": "Envie esta imagem e o que o scanner leu para podermos corrigir. Envie só imagens sem dados privados.",
+    "report_send": "Enviar imagem",
+    "report_retry": "Tentar de novo",
+    "report_sent": "Enviada. Obrigado, vamos usá-la para melhorar o scanner.",
+    "privacy_send": "As fotos são lidas no seu celular. Nada é enviado a menos que você toque em Enviar imagem."
   }
 }

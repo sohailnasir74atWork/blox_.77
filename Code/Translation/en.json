@@ -3178,6 +3178,11 @@
     "reason_wrong_item": "Wrong fruit",
     "reason_missed": "Missed fruits",
     "reason_extra": "Extra fruits",
-    "reason_sides": "Wrong sides"
+    "reason_sides": "Wrong sides",
+    "report_note": "Send us this picture and what the scan read, so we can fix it. Only send pictures without private info.",
+    "report_send": "Send picture",
+    "report_retry": "Try again",
+    "report_sent": "Sent. Thank you, we will use it to fix the scanner.",
+    "privacy_send": "Photos are read on your phone. Nothing is uploaded unless you tap Send picture."
   }
 }

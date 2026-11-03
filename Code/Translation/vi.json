@@ -3176,6 +3176,11 @@
     "reason_wrong_item": "Sai trái",
     "reason_missed": "Thiếu trái",
     "reason_extra": "Thừa trái",
-    "reason_sides": "Sai bên"
+    "reason_sides": "Sai bên",
+    "report_note": "Gửi cho chúng tôi ảnh này và kết quả máy quét đọc được để chúng tôi sửa lỗi. Chỉ gửi ảnh không có thông tin riêng tư.",
+    "report_send": "Gửi ảnh",
+    "report_retry": "Thử lại",
+    "report_sent": "Đã gửi. Cảm ơn, chúng tôi sẽ dùng nó để cải thiện máy quét.",
+    "privacy_send": "Ảnh được đọc trên điện thoại của bạn. Không có gì được tải lên trừ khi bạn nhấn Gửi ảnh."
   }
 }

@@ -3180,6 +3180,11 @@
         "reason_wrong_item": "Mauvais fruit",
         "reason_missed": "Fruits manquants",
         "reason_extra": "Fruits en trop",
-        "reason_sides": "Côtés inversés"
+        "reason_sides": "Côtés inversés",
+        "report_note": "Envoie-nous cette image et ce que le scanner a lu pour qu'on puisse le corriger. N'envoie que des images sans infos privées.",
+        "report_send": "Envoyer l'image",
+        "report_retry": "Réessayer",
+        "report_sent": "Envoyée. Merci, elle nous aidera à corriger le scanner.",
+        "privacy_send": "Les photos sont lues sur ton téléphone. Rien n'est envoyé sauf si tu touches Envoyer l'image."
     }
 }

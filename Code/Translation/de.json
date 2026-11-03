@@ -3180,6 +3180,11 @@
     "reason_wrong_item": "Falsche Frucht",
     "reason_missed": "Fehlende Früchte",
     "reason_extra": "Zusätzliche Früchte",
-    "reason_sides": "Falsche Seiten"
+    "reason_sides": "Falsche Seiten",
+    "report_note": "Schick uns dieses Bild und was der Scanner gelesen hat, damit wir es beheben können. Sende nur Bilder ohne private Infos.",
+    "report_send": "Bild senden",
+    "report_retry": "Erneut versuchen",
+    "report_sent": "Gesendet. Danke, wir nutzen es, um den Scanner zu verbessern.",
+    "privacy_send": "Fotos werden auf deinem Handy gelesen. Nichts wird hochgeladen, außer du tippst auf Bild senden."
   }
 }

@@ -3175,6 +3175,11 @@
     "reason_wrong_item": "フルーツが違う",
     "reason_missed": "フルーツが足りない",
     "reason_extra": "余計なフルーツ",
-    "reason_sides": "左右が逆"
+    "reason_sides": "左右が逆",
+    "report_note": "この画像とスキャン結果を送ってくれれば修正できます。個人情報が写っていない画像だけ送ってください。",
+    "report_send": "画像を送る",
+    "report_retry": "もう一度",
+    "report_sent": "送信しました。ありがとう、スキャナーの改善に使います。",
+    "privacy_send": "写真はスマホ内で読み取ります。「画像を送る」を押さない限り何もアップロードされません。"
   }
 }
