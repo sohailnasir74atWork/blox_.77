@@ -103,6 +103,7 @@ import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
 import ReviewIntegrityTab from './ReviewIntegrityTab';
 import ModLogTab from './ModLogTab';
 import WordFilterTab from './WordFilterTab';
+import ScheduledMessagesTab from './ScheduledMessagesTab';
 import PermBanRequestsTab from './PermBanRequestsTab';
 import TranslatableText from './TranslatableText';
 import ReportsTab from './ReportsTab';
@@ -212,6 +213,8 @@ const SECTIONS = [
     { key: 'news', label: 'News', admin: true },
     // Blocklist editor; supabase/049 checks Senior Mod+ on the server too.
     { key: 'wordFilter', label: 'Word filter', senior: true },
+    // Announcements bot posts to public chat; supabase/061 checks Senior Mod+ too.
+    { key: 'scheduledMessages', label: 'Scheduled messages', senior: true },
     // Mod-made badges (RTDB custom_badges): create / edit / delete, Mods and up.
     // Granting is on the player's profile (Mod Tools ▸ Manage Roles ▸ Badges).
     { key: 'customBadges', label: 'Custom badges' },
@@ -2790,6 +2793,8 @@ const AdminDashboardScreen = () => {
         <ModLogTab isDark={isDark} />
       ) : activeTab === 'wordFilter' && isSeniorPlus ? (
         <WordFilterTab isDark={isDark} currentUser={currentUser} />
+      ) : activeTab === 'scheduledMessages' && isSeniorPlus ? (
+        <ScheduledMessagesTab isDark={isDark} currentUser={currentUser} />
       ) : activeTab === 'permRequests' && isSeniorPlus ? (
         <PermBanRequestsTab isDark={isDark} onOpenUser={(u) => handleSelectUser(u)} />
       ) : activeTab === 'reports' ? (

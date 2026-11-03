@@ -3,6 +3,7 @@ import { View, Text, Image, StyleSheet } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { getUserData } from '../../Helper/UserDataCache';
 import { getCachedProfile } from '../../Helper/profileCache';
+import { isBotUid } from '../../Helper/chatBot';
 import { useGlobalState } from '../../GlobelStats';
 import { useTranslation } from 'react-i18next';
 import CustomBadgeChip, { CustomGlyph } from '../../Helper/CustomBadgeChip';
@@ -62,7 +63,9 @@ const RoleBadges = ({ userItem, style, cacheVersion, serverRoles = null, compact
   const isGrinder = !!firstKnown('isGrinder');
   const isRaider = !!firstKnown('isRaider');
   const isHelper = !!firstKnown('isHelper');
-  const rawTitle = firstKnown('customTitle');
+  // The scheduled-messages bot always wears BOT, even before its Supabase
+  // roles row reaches the cache.
+  const rawTitle = isBotUid(userId) ? 'BOT' : firstKnown('customTitle');
   const customTitle = typeof rawTitle === 'string' && rawTitle.trim() ? rawTitle.trim() : null;
   // Mod badge colours + custom badges (2026-10-31, Code/Helper/customBadges.js):
   // worn_badges/{uid} via the profile cache / serverRoles. A colour override

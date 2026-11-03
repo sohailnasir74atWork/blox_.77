@@ -32,6 +32,7 @@ import StyledUsernamePreview from '../../SettingScreen/Store/StyledName';
 import { outranksUser, isCurrentUserOwner } from '../utils';
 import { logModAction } from '../../Helper/modSanction';
 import RoleBadges from '../../Design/componenets/RoleBadges';
+import { isBotUid } from '../../Helper/chatBot';
 import { resolveProfile, seedFromMessage, warmProfileCache, getCachedProfile } from '../../Helper/profileCache';
 import { getSafeTextColor, RainbowText, isMultiColorText, getMultiColorPalette } from '../../Helper/contrastHelper';
 import FramedAvatar from './FramedAvatar';
@@ -287,6 +288,7 @@ const MessagesList = ({
 
   const handleProfileClick = (item) => {
     // console.log(item)
+    if (isBotUid(item?.senderId)) return; // scheduled-messages bot: no profile
     if (user.id) { toggleDrawer(item); triggerHapticFeedback('impactLight'); }
     else return
 

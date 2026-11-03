@@ -23,6 +23,8 @@ const { OWNER_EMAILS } = require('./banEnforcement')._internal;
 
 if (!admin.apps.length) admin.initializeApp();
 
+const ANNOUNCEMENTS_BOT_UID = 'announcements_bot';
+
 // users/{uid}/owner = true for each owner account with a VERIFIED email. The
 // app reads owner rank from this flag (clients can't write it: rules
 // `.write: false`), so the owner emails never ship in the app. Only accounts
@@ -111,6 +113,9 @@ async function reconcileMirror(supabase, truth) {
   const drifted = [];
   const uids = new Set([...Object.keys(truth), ...Object.keys(mirror)]);
   for (const uid of uids) {
+    // The scheduled-messages bot (supabase/061) has no RTDB /users record;
+    // its 'BOT' title lives in Supabase only.
+    if (uid === ANNOUNCEMENTS_BOT_UID) continue;
     const t = truth[uid] || {};
     const m = mirror[uid] || {};
     const titleDrift = !!title && (t[title.col] || null) !== (m[title.col] || null);
