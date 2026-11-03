@@ -6,7 +6,9 @@
  * calculator (HomeScreen) with them. Compact bottom sheet, calculator-style
  * review (two 2x2 sides + one result bar).
  *
- * Pixels: hidden WebView running matcher.js (scannerHtml.js). Names: the
+ * Pixels: hidden WebView running matcher.js (the scanner page, downloaded
+ * with the slot model from the CDN on first use, scannerUpdate.js; the sheet
+ * shows the version, an Update alert and the download progress). Names: the
  * native text reader (textReader.js). Joined in tradeMatch.js. The screenshot
  * never leaves the phone.
  */
@@ -19,13 +21,13 @@ import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import config from '../Helper/Environment';
 import { trackGrowthEvent } from '../Helper/growthAnalytics';
-import scannerHtml from './scannerHtml';
 import { readTextLines } from './textReader';
 import CropBox, { FULL_CROP } from './CropBox';
 import { buildTrade } from './tradeMatch';
 import DeviceInfo from 'react-native-device-info';
 import { uploadScanReport } from '../Helper/scanReportUpload';
-import { activeScannerHtml, activeScannerVersion, checkScannerUpdate } from './scannerUpdate';
+import { activeScanner, activeScannerHtml, activeScannerVersion, fetchLatestScanner, installScanner, loadInstalledScanner, NEEDS_MODEL } from './scannerUpdate';
+import { downloadBytes, scannerState } from './scannerRelease';
 import { classifyTiles } from './tileModel';
 
 const SCAN_TIMEOUT_MS = 20000;
@@ -87,8 +89,12 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
   const [report, setReport] = useState(null); // null | 'sending' | 'sent' | 'failed'
   const lastScan = useRef(null);
   const wrongReason = useRef(null);
-  // Scanner page: a downloaded one (scannerUpdate.js) when there is one.
-  const [pageHtml, setPageHtml] = useState(scannerHtml);
+  // The scanner (page + slot model) is downloaded, not in the app (build
+  // 192): installed = what this phone has, latest = what it should have.
+  const [pageHtml, setPageHtml] = useState(null);
+  const [installed, setInstalled] = useState(() => activeScanner());
+  const [latest, setLatest] = useState(undefined); // undefined = looking
+  const [download, setDownload] = useState(null); // null | { progress } | 'failed' | { done: version }
   const [cameraDenied, setCameraDenied] = useState(false);
 
   const byName = useMemo(() => {
@@ -98,16 +104,46 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
   }, [records]);
   const catalog = useMemo(() => [...byName.keys()], [byName]);
 
+  const loadPage = useCallback(async () => {
+    const html = await activeScannerHtml();
+    if (html) { ready.current = false; setPageHtml(html); }
+  }, []);
+
+  const lookUp = useCallback((force) => {
+    setLatest(undefined);
+    fetchLatestScanner({ tester: !!tester, force }).then(setLatest);
+  }, [tester]);
+
   useEffect(() => {
     if (!visible) return;
-    checkScannerUpdate({ tester: !!tester });
     let live = true;
-    activeScannerHtml().then((html) => {
-      if (live && html && html !== pageHtml) { ready.current = false; setPageHtml(html); }
+    loadInstalledScanner().then((cur) => {
+      if (!live) return;
+      setInstalled(cur);
+      if (cur) loadPage();
     });
+    lookUp(false);
     return () => { live = false; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, tester]);
+  }, [visible, lookUp, loadPage]);
+
+  const scannerStatus = latest === undefined && !installed ? 'checking' : scannerState(installed, latest || null);
+  const downloading = !!download?.progress || download?.progress === 0;
+
+  const getScanner = useCallback(async () => {
+    if (!latest || downloading) return;
+    const from = installed?.version || 0;
+    setDownload({ progress: 0 });
+    try {
+      const cur = await installScanner(latest, (progress) => setDownload({ progress }));
+      setInstalled(cur);
+      await loadPage();
+      setDownload({ done: cur.version });
+      trackGrowthEvent('trade_scanner_download', { from, to: cur.version, ok: 1 });
+    } catch {
+      setDownload('failed');
+      trackGrowthEvent('trade_scanner_download', { from, to: latest.version, ok: 0 });
+    }
+  }, [latest, installed, downloading, loadPage]);
 
   useEffect(() => {
     if (!visible) {
@@ -117,8 +153,10 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
       setOpenPick(null);
       setCameraDenied(false);
       setReport(null);
+      if (!downloading) setDownload(null);
       ready.current = false;
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   const send = useCallback((id, dataUrl, frame) => {
@@ -361,6 +399,119 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
   const sheet = isDarkMode ? config.colors.backgroundDark : config.colors.backgroundLight;
   const card = isDarkMode ? config.colors.surfaceDark : '#fff';
   const accent = config.colors.secondary;
+  const WIN = config.colors.hasBlockGreen;
+  const LOSE = config.colors.wantBlockRed;
+  const FAIR = '#F5A623';
+  const trackBg = isDarkMode ? '#334155' : '#e2e8f0';
+
+  // Scanner download / update (build 192): one card under the testing bar.
+  const mb = (bytes) => Math.max(0.1, bytes / 1e6).toFixed(1);
+  const scannerBar = () => {
+    if (downloading) {
+      const pct = Math.round(download.progress * 100);
+      return (
+        <View style={[styles.scanBox, { backgroundColor: card }]}>
+          <View style={styles.scanRow}>
+            <ActivityIndicator size="small" color={accent} />
+            <Text style={[styles.scanTitle, { color: fg }]}>
+              {t('trade_scanner.downloading', { defaultValue: 'Downloading scanner v{{v}}… {{pct}}%', v: latest?.version, pct })}
+            </Text>
+          </View>
+          <View style={[styles.track, { backgroundColor: trackBg }]}>
+            <View style={[styles.fill, { width: `${pct}%`, backgroundColor: accent }]} />
+          </View>
+        </View>
+      );
+    }
+    if (scannerStatus === 'checking') {
+      return (
+        <View style={[styles.scanBox, styles.scanRow, { backgroundColor: card }]}>
+          <ActivityIndicator size="small" color={accent} />
+          <Text style={[styles.scanText, { color: sub }]}>{t('trade_scanner.checking', { defaultValue: 'Checking for the scanner…' })}</Text>
+        </View>
+      );
+    }
+    const failed = download === 'failed' && (
+      <Text style={[styles.scanText, { color: LOSE }]}>{t('trade_scanner.download_failed', { defaultValue: 'Download failed. Check your internet and try again.' })}</Text>
+    );
+    if (scannerStatus === 'missing') {
+      const size = mb(downloadBytes(latest, NEEDS_MODEL, null));
+      return (
+        <View style={[styles.scanBox, { backgroundColor: card }]}>
+          <View style={styles.scanRow}>
+            <Icon name="cloud-download-outline" size={26} color={accent} />
+            <View style={styles.grow}>
+              <Text style={[styles.scanTitle, { color: fg }]}>{t('trade_scanner.ai_missing_title', { defaultValue: 'Scanner AI not downloaded' })}</Text>
+              <Text style={[styles.scanText, { color: sub }]}>
+                {t('trade_scanner.ai_missing_text', { defaultValue: 'Download it once (about {{mb}} MB) to read trades on your phone.', mb: size })}
+              </Text>
+            </View>
+          </View>
+          {failed}
+          <TouchableOpacity style={[styles.btn, styles.scanBtn, { backgroundColor: accent }]} onPress={getScanner} activeOpacity={0.8}>
+            <Icon name="download" size={17} color="#fff" />
+            <Text style={styles.btnText}>{t('trade_scanner.download', { defaultValue: 'Download' })} · {size} MB</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    if (scannerStatus === 'unavailable') {
+      return (
+        <View style={[styles.scanBox, { backgroundColor: card }]}>
+          <View style={styles.scanRow}>
+            <Icon name="cloud-offline-outline" size={26} color={FAIR} />
+            <Text style={[styles.scanText, styles.grow, { color: fg }]}>
+              {t('trade_scanner.unavailable', { defaultValue: 'The scanner can\'t be downloaded right now. Check your internet and try again.' })}
+            </Text>
+          </View>
+          <TouchableOpacity style={[styles.btn, styles.scanBtn, styles.outline, { borderColor: accent }]} onPress={() => lookUp(true)} activeOpacity={0.8}>
+            <Icon name="refresh" size={17} color={accent} />
+            <Text style={[styles.btnText, { color: accent }]}>{t('trade_scanner.retry', { defaultValue: 'Try again' })}</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    if (scannerStatus === 'old') {
+      return (
+        <View style={[styles.scanBox, styles.oldBox, { borderColor: LOSE }]}>
+          <View style={styles.scanRow}>
+            <Icon name="alert-circle" size={24} color={LOSE} />
+            <View style={styles.grow}>
+              <Text style={[styles.scanTitle, { color: LOSE }]}>
+                {t('trade_scanner.update_title', { defaultValue: 'You are on an older scanner (v{{cur}})', cur: installed.version })}
+              </Text>
+              <Text style={[styles.scanText, { color: fg }]}>
+                {t('trade_scanner.update_text', { defaultValue: 'Version {{v}} is available and reads trades more accurately. Update to get the fixes.', v: latest.version })}
+              </Text>
+            </View>
+          </View>
+          {failed}
+          <TouchableOpacity style={[styles.btn, styles.scanBtn, { backgroundColor: LOSE }]} onPress={getScanner} activeOpacity={0.8}>
+            <Icon name="arrow-up-circle" size={17} color="#fff" />
+            <Text style={styles.btnText}>{t('trade_scanner.update', { defaultValue: 'Update' })} · {mb(downloadBytes(latest, NEEDS_MODEL, installed.files))} MB</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    if (scannerStatus === 'installed') {
+      return (
+        <View style={[styles.scanBox, styles.scanRow, { backgroundColor: card }]}>
+          <Icon name="scan-circle-outline" size={20} color={sub} />
+          <Text style={[styles.scanTitle, { color: fg }]}>{t('trade_scanner.version', { defaultValue: 'Scanner v{{v}}', v: installed.version })}</Text>
+        </View>
+      );
+    }
+    return (
+      <View style={[styles.scanBox, styles.scanRow, styles.okBox]}>
+        <Icon name="checkmark-circle" size={20} color={WIN} />
+        <Text style={[styles.scanTitle, { color: WIN }]}>
+          {download?.done
+            ? t('trade_scanner.updated', { defaultValue: 'Updated to scanner v{{v}}', v: installed.version })
+            : t('trade_scanner.up_to_date', { defaultValue: 'Scanner v{{v}} · up to date', v: installed.version })}
+        </Text>
+      </View>
+    );
+  };
 
   const open = openPick ? { side: openPick.split(':')[0], index: Number(openPick.split(':')[1]) } : null;
   const openItem = open ? result?.[open.side]?.[open.index] : null;
@@ -422,6 +573,11 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
         <View style={styles.header}>
           <Icon name="scan" size={18} color={accent} />
           <Text style={[styles.title, { color: fg }]}>{t('trade_scanner.title', { defaultValue: 'Scan a trade' })}</Text>
+          {installed && (
+            <View style={[styles.verPill, { backgroundColor: scannerStatus === 'old' ? LOSE : scannerStatus === 'current' ? WIN : sub }]}>
+              <Text style={styles.verPillText}>v{installed.version}</Text>
+            </View>
+          )}
           <TouchableOpacity onPress={onClose} hitSlop={12}>
             <Icon name="close" size={22} color={sub} />
           </TouchableOpacity>
@@ -434,7 +590,7 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
           </Text>
         </View>
 
-        {visible && (
+        {visible && !!pageHtml && (
           <WebView
             ref={web}
             // The library wraps the WebView in a flex:1 View; hide that too or
@@ -455,6 +611,7 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
 
         {(stage === 'intro' || stage === 'none') && (
           <View>
+            {scannerBar()}
             <View style={[styles.infoRow, { backgroundColor: card }]}>
               <Icon name={stage === 'none' ? 'help-circle' : 'desktop-outline'} size={26} color={stage === 'none' ? '#F5A623' : accent} />
               <Text style={[styles.infoText, { color: fg }]}>
@@ -468,7 +625,7 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
               <Text style={[styles.note, { color: config.colors.wantBlockRed }]}>{t('trade_scanner.camera_denied', { defaultValue: 'Camera access is off. Allow it in Settings, or pick a screenshot.' })}</Text>
             )}
             {stage === 'none' && picked && reportBox()}
-            {sourceButtons(t('trade_scanner.camera', { defaultValue: 'Camera' }), t('trade_scanner.pick', { defaultValue: 'Screenshot' }))}
+            {installed && !downloading && sourceButtons(t('trade_scanner.camera', { defaultValue: 'Camera' }), t('trade_scanner.pick', { defaultValue: 'Screenshot' }))}
             <Text style={[styles.note, styles.center, { color: sub }]}>{t('trade_scanner.privacy_send', { defaultValue: 'Photos are read on your phone. Nothing is uploaded unless you tap Send picture.' })}</Text>
           </View>
         )}
@@ -656,5 +813,16 @@ const styles = StyleSheet.create({
   resultValues: { color: '#fff', fontSize: 14, fontWeight: '700', flexShrink: 1 },
   resultVerdict: { color: '#fff', fontSize: 17, fontWeight: '900', marginLeft: 8 },
   footer: { flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 10 },
+  verPill: { borderRadius: 9, paddingHorizontal: 7, paddingVertical: 2 },
+  verPillText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  scanBox: { borderRadius: 12, padding: 10, marginBottom: 8, gap: 8 },
+  scanRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  scanTitle: { flexShrink: 1, fontSize: 13, lineHeight: 18, fontWeight: '800' },
+  scanText: { flexShrink: 1, fontSize: 12, lineHeight: 16, fontWeight: '600' },
+  scanBtn: { paddingVertical: 10 },
+  oldBox: { backgroundColor: 'rgba(255,59,48,0.10)', borderWidth: 1.5 },
+  okBox: { backgroundColor: 'rgba(41,171,135,0.12)', paddingVertical: 7 },
+  track: { height: 8, borderRadius: 4, overflow: 'hidden' },
+  fill: { height: 8, borderRadius: 4 },
   iconBtn: { width: 46, height: 46, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
 });

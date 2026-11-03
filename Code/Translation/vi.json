@@ -3181,6 +3181,20 @@
     "report_send": "Gửi ảnh",
     "report_retry": "Thử lại",
     "report_sent": "Đã gửi. Cảm ơn, chúng tôi sẽ dùng nó để cải thiện máy quét.",
-    "privacy_send": "Ảnh được đọc trên điện thoại của bạn. Không có gì được tải lên trừ khi bạn nhấn Gửi ảnh."
+    "privacy_send": "Ảnh được đọc trên điện thoại của bạn. Không có gì được tải lên trừ khi bạn nhấn Gửi ảnh.",
+    "checking": "Đang kiểm tra máy quét…",
+    "ai_missing_title": "Chưa tải AI máy quét",
+    "ai_missing_text": "Tải một lần (khoảng {{mb}} MB) để đọc giao dịch trên điện thoại.",
+    "download": "Tải xuống",
+    "downloading": "Đang tải máy quét v{{v}}… {{pct}}%",
+    "download_failed": "Tải thất bại. Kiểm tra internet và thử lại.",
+    "unavailable": "Hiện không tải được máy quét. Kiểm tra internet và thử lại.",
+    "retry": "Thử lại",
+    "update_title": "Bạn đang dùng máy quét cũ (v{{cur}})",
+    "update_text": "Đã có phiên bản {{v}}, đọc giao dịch chính xác hơn. Cập nhật để nhận các bản sửa.",
+    "update": "Cập nhật",
+    "up_to_date": "Máy quét v{{v}} · mới nhất",
+    "updated": "Đã cập nhật lên máy quét v{{v}}",
+    "version": "Máy quét v{{v}}"
   }
 }

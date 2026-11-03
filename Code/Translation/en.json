@@ -3183,6 +3183,20 @@
     "report_send": "Send picture",
     "report_retry": "Try again",
     "report_sent": "Sent. Thank you, we will use it to fix the scanner.",
-    "privacy_send": "Photos are read on your phone. Nothing is uploaded unless you tap Send picture."
+    "privacy_send": "Photos are read on your phone. Nothing is uploaded unless you tap Send picture.",
+    "checking": "Checking for the scanner…",
+    "ai_missing_title": "Scanner AI not downloaded",
+    "ai_missing_text": "Download it once (about {{mb}} MB) to read trades on your phone.",
+    "download": "Download",
+    "downloading": "Downloading scanner v{{v}}… {{pct}}%",
+    "download_failed": "Download failed. Check your internet and try again.",
+    "unavailable": "The scanner can't be downloaded right now. Check your internet and try again.",
+    "retry": "Try again",
+    "update_title": "You are on an older scanner (v{{cur}})",
+    "update_text": "Version {{v}} is available and reads trades more accurately. Update to get the fixes.",
+    "update": "Update",
+    "up_to_date": "Scanner v{{v}} · up to date",
+    "updated": "Updated to scanner v{{v}}",
+    "version": "Scanner v{{v}}"
   }
 }

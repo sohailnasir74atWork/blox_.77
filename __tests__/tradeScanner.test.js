@@ -4,6 +4,7 @@
  */
 import scannerHtml from '../Code/TradeScanner/scannerHtml';
 import { buildTrade, namesForText } from '../Code/TradeScanner/tradeMatch';
+import { pickRelease, downloadBytes, scannerState } from '../Code/TradeScanner/scannerRelease';
 
 const matcher = require('../Code/TradeScanner/matcher');
 const { build } = require('../scripts/trade-scanner/build-html');
@@ -166,5 +167,43 @@ describe('buildTrade', () => {
     const slots = [slot(100, 200, [{ name: 'Dough', d: 0.2 }], { photo: true }), slot(210, 200, [{ name: 'Light', d: 0.2 }])];
     const trade = buildTrade({ slots, lines: [], width: 1000, catalog: CATALOG });
     expect(trade.mine.map((p) => [p.name, p.sure])).toEqual([['Dough', false], ['Light', true]]);
+  });
+});
+
+describe('scanner download and updates (build 192)', () => {
+  const file = (n, gz) => ({ url: `https://cdn/v${n}/f`, sha256: `sha${n}`, bytes: 1000, ...(gz ? { gz } : {}) });
+  const release = (version, minBuild = 192) => ({ version, minBuild, model: file(version), names: file(version), html: file(version, 400) });
+  const manifest = { version: 9, audience: 'mods', releases: { all: release(3), mods: release(4) } };
+
+  it('everyone gets releases.all, staff the newer mods release', () => {
+    expect(pickRelease(manifest, { tester: false, build: 192, needsModel: true }).version).toBe(3);
+    expect(pickRelease(manifest, { tester: true, build: 192, needsModel: true }).version).toBe(4);
+    const promoted = { releases: { all: release(5), mods: release(4) } };
+    expect(pickRelease(promoted, { tester: true, build: 192, needsModel: true }).version).toBe(5);
+  });
+
+  it('ignores 191-only fields, builds below minBuild and incomplete releases', () => {
+    expect(pickRelease({ version: 2, audience: 'all', model: file(2), names: file(2), html: file(2) }, { tester: false, build: 192, needsModel: true })).toBeNull();
+    expect(pickRelease(manifest, { tester: false, build: 191, needsModel: true })).toBeNull();
+    const noModel = { releases: { all: { version: 3, minBuild: 192, html: file(3) } } };
+    expect(pickRelease(noModel, { tester: false, build: 192, needsModel: true })).toBeNull();
+    // iOS needs the page only.
+    expect(pickRelease(noModel, { tester: false, build: 192, needsModel: false }).version).toBe(3);
+    expect(pickRelease(null, { tester: true, build: 192, needsModel: true })).toBeNull();
+  });
+
+  it('download size counts only new files, the page gzipped', () => {
+    expect(downloadBytes(release(3), true, null)).toBe(2400);
+    expect(downloadBytes(release(3), false, null)).toBe(400);
+    expect(downloadBytes(release(3), true, { model: { sha256: 'SHA3' }, names: { sha256: 'sha1' } })).toBe(1400);
+  });
+
+  it('states: missing, unavailable, old, current, installed', () => {
+    expect(scannerState(null, release(3))).toBe('missing');
+    expect(scannerState(null, null)).toBe('unavailable');
+    expect(scannerState({ version: 2 }, release(3))).toBe('old');
+    expect(scannerState({ version: 3 }, release(3))).toBe('current');
+    // Offline or nothing published: what is installed keeps working.
+    expect(scannerState({ version: 3 }, null)).toBe('installed');
   });
 });

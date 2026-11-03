@@ -3185,6 +3185,20 @@
         "report_send": "Envoyer l'image",
         "report_retry": "Réessayer",
         "report_sent": "Envoyée. Merci, elle nous aidera à corriger le scanner.",
-        "privacy_send": "Les photos sont lues sur ton téléphone. Rien n'est envoyé sauf si tu touches Envoyer l'image."
+        "privacy_send": "Les photos sont lues sur ton téléphone. Rien n'est envoyé sauf si tu touches Envoyer l'image.",
+        "checking": "Recherche du scanner…",
+        "ai_missing_title": "IA du scanner non téléchargée",
+        "ai_missing_text": "Télécharge-la une fois (environ {{mb}} Mo) pour lire les échanges sur ton téléphone.",
+        "download": "Télécharger",
+        "downloading": "Téléchargement du scanner v{{v}}… {{pct}} %",
+        "download_failed": "Échec du téléchargement. Vérifie ta connexion et réessaie.",
+        "unavailable": "Le scanner ne peut pas être téléchargé pour l'instant. Vérifie ta connexion et réessaie.",
+        "retry": "Réessayer",
+        "update_title": "Ton scanner est ancien (v{{cur}})",
+        "update_text": "La version {{v}} est disponible et lit les échanges plus précisément. Mets à jour pour avoir les correctifs.",
+        "update": "Mettre à jour",
+        "up_to_date": "Scanner v{{v}} · à jour",
+        "updated": "Scanner mis à jour en v{{v}}",
+        "version": "Scanner v{{v}}"
     }
 }

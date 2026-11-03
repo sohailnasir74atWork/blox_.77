@@ -1,26 +1,27 @@
-// Trade Scanner updates without an app release (2026-11-03, same as the
-// Adopt Me app's Code/TradeScanner/scannerUpdate.js).
+// Trade Scanner download and updates (2026-11-03, same as the Adopt Me app's
+// Code/TradeScanner/scannerUpdate.js).
 //
-// The slot model and/or the scanner page (slot finder + fruit signatures)
-// can be replaced from the CDN. RTDB testing/scanner_page (public read, no
-// client writes) says what is current:
+// From build 192 the app ships without the scanner: the slot model (Android)
+// and the scanner page (slot finder + fruit signatures, every platform) come
+// from the CDN. The scanner sheet shows what this phone has and what is out
+// (scannerRelease.js), and the user taps Download / Update; nothing downloads
+// on its own.
 //
-//   { version: 2, audience: 'mods' | 'all', minBuild: 191,
-//     model: { url, sha256, bytes }, names: { url, sha256 },   // optional pair
-//     html: { url, sha256 } }                                   // optional
-//
-// Files live on Bunny (fetch-images.b-cdn.net/scanner-blox/v<N>/, a zone
-// whose write key is in no app), are downloaded when the scanner is opened
-// (once per app session), checked against the sha256 in RTDB and kept in the
-// app's files; unchanged files are copied, not downloaded again. Anything
-// wrong means the bundled model / page. Published by
+// RTDB testing/scanner_page (public read, no client writes) names the files
+// on Bunny (fetch-images.b-cdn.net/scanner-blox/v<N>/, a zone whose write key
+// is in no app). They are checked against the sha256 in RTDB and kept in the
+// app's files; one version at a time. Published by
 // RunningApps/_scanner_ml/publish_scanner.py --app blox.
+import { Platform } from 'react-native';
 import RNFS from 'react-native-fs';
 import DeviceInfo from 'react-native-device-info';
 import { getDatabase, ref, get } from '@react-native-firebase/database';
+import { pickRelease, releaseFiles } from './scannerRelease';
 
+// Same key as 191, so a phone updated from it keeps the scanner it has.
 const STATE_KEY = 'scanner_remote_v1';
 const DIR = `${RNFS.DocumentDirectoryPath}/scanner`;
+export const NEEDS_MODEL = Platform.OS === 'android';
 
 let storage = null;
 function store() {
@@ -45,16 +46,35 @@ function writeState(state) {
     if (state) store().set(STATE_KEY, JSON.stringify(state));
     else store().remove(STATE_KEY);
   } catch {
-    // Storage full or unavailable: the bundled scanner keeps working.
+    // Storage full or unavailable: the scanner in memory keeps working.
   }
 }
 
-let active = undefined; // cached { version, modelPath, names, htmlPath } | null
+function complete(s) {
+  return !!(s && s.version && s.htmlPath && (!NEEDS_MODEL || (s.modelPath && s.names?.length)));
+}
 
-/** The downloaded scanner in use, or null for the bundled one. */
+let active; // cached { version, modelPath, names, htmlPath, files } | null
+
+/** The downloaded scanner on this phone, or null (none yet, or it failed). */
 export function activeScanner() {
-  if (active === undefined) active = readState();
+  if (active === undefined) {
+    const s = readState();
+    active = complete(s) ? s : null;
+  }
   return active;
+}
+
+/** The installed scanner, after checking its files are still on the phone. */
+export async function loadInstalledScanner() {
+  const cur = activeScanner();
+  if (!cur) return null;
+  const paths = [cur.htmlPath, NEEDS_MODEL ? cur.modelPath : null].filter(Boolean);
+  const there = await Promise.all(paths.map((p) => RNFS.exists(p).catch(() => false)));
+  if (there.every(Boolean)) return cur;
+  writeState(null);
+  active = null;
+  return null;
 }
 
 /** A downloaded version that failed to run: never use it again. */
@@ -64,9 +84,36 @@ export function dropActiveScanner() {
   active = null;
 }
 
+let latest; // undefined = not looked up this session
+let looking = null;
+
+/**
+ * The release this phone should have, or null (offline, nothing published,
+ * or only a release this phone must not take). One RTDB read per app session
+ * unless force (the Try again button).
+ */
+export function fetchLatestScanner({ tester, force } = {}) {
+  if (looking) return looking;
+  if (latest !== undefined && !force) return Promise.resolve(latest);
+  looking = (async () => {
+    try {
+      const snap = await get(ref(getDatabase(), 'testing/scanner_page'));
+      const build = Number(DeviceInfo.getBuildNumber()) || 0;
+      const pick = pickRelease(snap.val(), { tester: !!tester, build, needsModel: NEEDS_MODEL });
+      latest = pick && readState()?.bad === pick.version ? null : pick;
+    } catch {
+      latest = null;
+    } finally {
+      looking = null;
+    }
+    return latest;
+  })();
+  return looking;
+}
+
 // A file this phone already has with the same sha256 (unchanged since the
 // last version) is copied, not downloaded again: CDN traffic is paid per GB.
-async function reuseOrFetch(file, target, have) {
+async function reuseOrFetch(file, target, have, onBytes) {
   if (have?.sha256 && have.path && String(have.sha256).toLowerCase() === String(file.sha256).toLowerCase()
     && await RNFS.exists(have.path)) {
     if (have.path !== target) {
@@ -75,13 +122,21 @@ async function reuseOrFetch(file, target, have) {
     }
     return target;
   }
-  return fetchChecked(file, target);
+  return fetchChecked(file, target, onBytes);
 }
 
-async function fetchChecked(file, target) {
+async function fetchChecked(file, target, onBytes) {
   const tmp = `${target}.part`;
   await RNFS.unlink(tmp).catch(() => {});
-  const res = await RNFS.downloadFile({ fromUrl: file.url, toFile: tmp }).promise;
+  const res = await RNFS.downloadFile({
+    fromUrl: file.url,
+    toFile: tmp,
+    progressInterval: 150,
+    begin: () => {},
+    // Written bytes: the page arrives gzipped and is written unzipped, so
+    // this counts against file.bytes (the unzipped size).
+    progress: (p) => onBytes(p.bytesWritten),
+  }).promise;
   if (res.statusCode !== 200) throw new Error(`download ${res.statusCode}`);
   const hash = await RNFS.hash(tmp, 'sha256');
   if (hash.toLowerCase() !== String(file.sha256).toLowerCase()) throw new Error('sha256');
@@ -90,79 +145,52 @@ async function fetchChecked(file, target) {
   return target;
 }
 
-let checking = null;
-// One look at RTDB per app session (cost: the scanner may be opened often).
-let checkedThisSession = false;
-
 /**
- * Look for a newer scanner and download it in the background. tester: the
- * user is staff (admin / mod), who get 'mods' releases first. Never throws;
- * what it downloads is used from the next scan on.
+ * Download a release and make it the scanner in use. onProgress(0..1).
+ * Throws on any failure; the scanner the phone had stays in use.
  */
-export function checkScannerUpdate({ tester }) {
-  if (checking) return checking;
-  if (checkedThisSession) return Promise.resolve();
-  checkedThisSession = true;
-  checking = (async () => {
-    try {
-      const snap = await get(ref(getDatabase(), 'testing/scanner_page'));
-      const m = snap.val();
-      const build = Number(DeviceInfo.getBuildNumber()) || 0;
-      const forMe = m && m.version && ((m.model?.url && m.names?.url) || m.html?.url)
-        && (m.audience === 'all' || (m.audience === 'mods' && tester))
-        && build >= (Number(m.minBuild) || 0);
-      const cur = activeScanner();
-      if (!forMe) {
-        // Rolled back, switched off or not for this user: bundled scanner.
-        if (cur) { writeState(null); active = null; }
-        return;
-      }
-      if (cur && cur.version === m.version) return;
-      const prev = readState();
-      if (prev?.bad === m.version) return;
-      const dir = `${DIR}/v${m.version}`;
-      await RNFS.mkdir(dir);
-      const had = cur?.files || {};
-      let modelPath = null;
-      let namesPath = null;
-      let names = null;
-      if (m.model?.url && m.names?.url) {
-        modelPath = await reuseOrFetch(m.model, `${dir}/model.tflite`, had.model);
-        namesPath = await reuseOrFetch(m.names, `${dir}/names.json`, had.names);
-        names = JSON.parse(await RNFS.readFile(namesPath, 'utf8'));
-        if (!Array.isArray(names) || !names.length) throw new Error('names');
-      }
-      const htmlPath = m.html?.url ? await reuseOrFetch(m.html, `${dir}/scanner.html`, had.html) : null;
-      active = {
-        version: m.version,
-        modelPath,
-        names,
-        htmlPath,
-        files: {
-          model: modelPath ? { sha256: m.model.sha256, path: modelPath } : null,
-          names: namesPath ? { sha256: m.names.sha256, path: namesPath } : null,
-          html: htmlPath ? { sha256: m.html.sha256, path: htmlPath } : null,
-        },
-      };
-      writeState(active);
-      // Old versions: keep only this one.
-      const entries = await RNFS.readDir(DIR).catch(() => []);
-      await Promise.all(entries.filter((e) => e.isDirectory() && e.name !== `v${m.version}`).map((e) => RNFS.unlink(e.path).catch(() => {})));
-    } catch {
-      // Offline, bad file: try again next time, bundled scanner meanwhile.
-    } finally {
-      checking = null;
-    }
-  })();
-  return checking;
+export async function installScanner(release, onProgress = () => {}) {
+  const keys = releaseFiles(release, NEEDS_MODEL);
+  const cur = activeScanner();
+  const had = cur?.files || {};
+  const total = keys.reduce((s, k) => s + (Number(release[k].bytes) || 1), 0);
+  let done = 0;
+  onProgress(0);
+  const dir = `${DIR}/v${release.version}`;
+  await RNFS.mkdir(dir);
+  const target = { model: `${dir}/model.tflite`, names: `${dir}/names.json`, html: `${dir}/scanner.html` };
+  const paths = {};
+  for (const k of keys) {
+    const size = Number(release[k].bytes) || 1;
+    paths[k] = await reuseOrFetch(release[k], target[k], had[k], (n) => onProgress(Math.min(1, (done + Math.min(n, size)) / total)));
+    done += size;
+    onProgress(done / total);
+  }
+  let names = null;
+  if (paths.names) {
+    names = JSON.parse(await RNFS.readFile(paths.names, 'utf8'));
+    if (!Array.isArray(names) || !names.length) throw new Error('names');
+  }
+  active = {
+    version: release.version,
+    modelPath: paths.model || null,
+    names,
+    htmlPath: paths.html,
+    files: Object.fromEntries(keys.map((k) => [k, { sha256: release[k].sha256, path: paths[k] }])),
+  };
+  writeState(active);
+  // Old versions: keep only this one.
+  const entries = await RNFS.readDir(DIR).catch(() => []);
+  await Promise.all(entries.filter((e) => e.isDirectory() && e.name !== `v${release.version}`).map((e) => RNFS.unlink(e.path).catch(() => {})));
+  return active;
 }
 
-/** Version of the downloaded scanner in use, 0 for the bundled one. */
+/** Version of the downloaded scanner in use, 0 when there is none. */
 export function activeScannerVersion() {
   return activeScanner()?.version || 0;
 }
 
-/** The downloaded scanner page (slot finder), or null for the bundled one. */
+/** The downloaded scanner page (slot finder), or null when there is none. */
 export async function activeScannerHtml() {
   const cur = activeScanner();
   if (!cur?.htmlPath) return null;

@@ -3188,6 +3188,20 @@
     "report_send": "Enviar imagem",
     "report_retry": "Tentar de novo",
     "report_sent": "Enviada. Obrigado, vamos usá-la para melhorar o scanner.",
-    "privacy_send": "As fotos são lidas no seu celular. Nada é enviado a menos que você toque em Enviar imagem."
+    "privacy_send": "As fotos são lidas no seu celular. Nada é enviado a menos que você toque em Enviar imagem.",
+    "checking": "Procurando o scanner…",
+    "ai_missing_title": "IA do scanner não baixada",
+    "ai_missing_text": "Baixe uma vez (cerca de {{mb}} MB) para ler trocas no seu celular.",
+    "download": "Baixar",
+    "downloading": "Baixando scanner v{{v}}… {{pct}}%",
+    "download_failed": "O download falhou. Verifique sua internet e tente de novo.",
+    "unavailable": "Não dá para baixar o scanner agora. Verifique sua internet e tente de novo.",
+    "retry": "Tentar de novo",
+    "update_title": "Seu scanner é antigo (v{{cur}})",
+    "update_text": "A versão {{v}} está disponível e lê trocas com mais precisão. Atualize para receber as correções.",
+    "update": "Atualizar",
+    "up_to_date": "Scanner v{{v}} · atualizado",
+    "updated": "Atualizado para o scanner v{{v}}",
+    "version": "Scanner v{{v}}"
   }
 }

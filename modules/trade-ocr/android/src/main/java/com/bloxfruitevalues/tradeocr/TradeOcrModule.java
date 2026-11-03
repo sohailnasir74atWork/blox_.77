@@ -90,7 +90,7 @@ public class TradeOcrModule extends ReactContextBaseJavaModule {
   }
 
   // ── Slot recogniser (2026-11-03, same engine as the Adopt Me app) ──
-  // assets/trade_tiles.tflite: MobileNetV3 trained on every catalogue fruit as
+  // The slot model (downloaded, see model()): MobileNetV3 trained on every catalogue fruit as
   // generated slots, fake phone photos and real trade thumbnails
   // (RunningApps/_scanner_ml/blox). Input one 128x128 RGB slot picture,
   // 0..255; output one cosine score per item, in the order of
@@ -99,18 +99,17 @@ public class TradeOcrModule extends ReactContextBaseJavaModule {
   private static final int TOP = 5;
   private final ExecutorService worker = Executors.newSingleThreadExecutor();
   private InterpreterApi interpreter;
-  // "" = the bundled assets/trade_tiles.tflite; otherwise a model file the
-  // app downloaded from the CDN (scannerUpdate.js, checked by sha256).
+  // The model file the app downloaded from the CDN (scannerUpdate.js, checked
+  // by sha256). From build 192 no model ships in the app.
   private String interpreterPath;
 
   private synchronized InterpreterApi model(String path) throws Exception {
-    String key = path == null ? "" : path;
+    if (path == null || path.isEmpty()) throw new IllegalStateException("no model downloaded");
+    String key = path;
     if (interpreter != null && key.equals(interpreterPath)) return interpreter;
     if (interpreter != null) { interpreter.close(); interpreter = null; }
     ByteBuffer file;
-    try (InputStream in = key.isEmpty()
-        ? getReactApplicationContext().getAssets().open("trade_tiles.tflite")
-        : new java.io.FileInputStream(key)) {
+    try (InputStream in = new java.io.FileInputStream(key)) {
       ByteArrayOutputStream out = new ByteArrayOutputStream();
       byte[] chunk = new byte[1 << 16];
       for (int n; (n = in.read(chunk)) > 0; ) out.write(chunk, 0, n);
@@ -147,8 +146,7 @@ public class TradeOcrModule extends ReactContextBaseJavaModule {
   /**
    * uri: the picked picture. crop: the CropBox frame {x, y, w, h} as shares of
    * the picture. boxes: [[x0, y0, x1, y1]] in the frame's pixels (what the
-   * WebView matcher returns). modelPath: a downloaded model file, or null for
-   * the bundled one. Resolves { classes: item count of the model, tiles: one
+   * WebView matcher returns). modelPath: the downloaded model file. Resolves { classes: item count of the model, tiles: one
    * array per box of the best items [{ i: item index, s: score 0..1 }] }.
    */
   @ReactMethod

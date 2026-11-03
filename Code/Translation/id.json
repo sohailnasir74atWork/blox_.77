@@ -3181,6 +3181,20 @@
     "report_send": "Kirim gambar",
     "report_retry": "Coba lagi",
     "report_sent": "Terkirim. Terima kasih, akan kami pakai untuk memperbaiki pemindai.",
-    "privacy_send": "Foto dibaca di ponselmu. Tidak ada yang diunggah kecuali kamu menekan Kirim gambar."
+    "privacy_send": "Foto dibaca di ponselmu. Tidak ada yang diunggah kecuali kamu menekan Kirim gambar.",
+    "checking": "Mencari pemindai…",
+    "ai_missing_title": "AI pemindai belum diunduh",
+    "ai_missing_text": "Unduh sekali (sekitar {{mb}} MB) untuk membaca trade di ponselmu.",
+    "download": "Unduh",
+    "downloading": "Mengunduh pemindai v{{v}}… {{pct}}%",
+    "download_failed": "Unduhan gagal. Periksa internetmu dan coba lagi.",
+    "unavailable": "Pemindai tidak bisa diunduh sekarang. Periksa internetmu dan coba lagi.",
+    "retry": "Coba lagi",
+    "update_title": "Pemindaimu versi lama (v{{cur}})",
+    "update_text": "Versi {{v}} sudah tersedia dan membaca trade lebih akurat. Perbarui untuk mendapat perbaikannya.",
+    "update": "Perbarui",
+    "up_to_date": "Pemindai v{{v}} · terbaru",
+    "updated": "Diperbarui ke pemindai v{{v}}",
+    "version": "Pemindai v{{v}}"
   }
 }

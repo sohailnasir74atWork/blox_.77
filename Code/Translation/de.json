@@ -3185,6 +3185,20 @@
     "report_send": "Bild senden",
     "report_retry": "Erneut versuchen",
     "report_sent": "Gesendet. Danke, wir nutzen es, um den Scanner zu verbessern.",
-    "privacy_send": "Fotos werden auf deinem Handy gelesen. Nichts wird hochgeladen, außer du tippst auf Bild senden."
+    "privacy_send": "Fotos werden auf deinem Handy gelesen. Nichts wird hochgeladen, außer du tippst auf Bild senden.",
+    "checking": "Suche nach dem Scanner…",
+    "ai_missing_title": "Scanner-KI nicht heruntergeladen",
+    "ai_missing_text": "Einmal herunterladen (etwa {{mb}} MB), um Trades auf deinem Handy zu lesen.",
+    "download": "Herunterladen",
+    "downloading": "Scanner v{{v}} wird geladen… {{pct}}%",
+    "download_failed": "Download fehlgeschlagen. Prüfe dein Internet und versuche es erneut.",
+    "unavailable": "Der Scanner kann gerade nicht geladen werden. Prüfe dein Internet und versuche es erneut.",
+    "retry": "Erneut versuchen",
+    "update_title": "Du hast einen älteren Scanner (v{{cur}})",
+    "update_text": "Version {{v}} ist da und liest Trades genauer. Aktualisiere, um die Fixes zu bekommen.",
+    "update": "Aktualisieren",
+    "up_to_date": "Scanner v{{v}} · aktuell",
+    "updated": "Auf Scanner v{{v}} aktualisiert",
+    "version": "Scanner v{{v}}"
   }
 }

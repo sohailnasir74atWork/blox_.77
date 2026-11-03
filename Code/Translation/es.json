@@ -3188,6 +3188,20 @@
     "report_send": "Enviar imagen",
     "report_retry": "Reintentar",
     "report_sent": "Enviada. ¡Gracias! La usaremos para mejorar el escáner.",
-    "privacy_send": "Las fotos se leen en tu teléfono. No se sube nada salvo que toques Enviar imagen."
+    "privacy_send": "Las fotos se leen en tu teléfono. No se sube nada salvo que toques Enviar imagen.",
+    "checking": "Buscando el escáner…",
+    "ai_missing_title": "IA del escáner no descargada",
+    "ai_missing_text": "Descárgala una vez (unos {{mb}} MB) para leer tradeos en tu teléfono.",
+    "download": "Descargar",
+    "downloading": "Descargando escáner v{{v}}… {{pct}}%",
+    "download_failed": "La descarga falló. Revisa tu internet e inténtalo de nuevo.",
+    "unavailable": "No se puede descargar el escáner ahora. Revisa tu internet e inténtalo de nuevo.",
+    "retry": "Intentar de nuevo",
+    "update_title": "Tienes un escáner antiguo (v{{cur}})",
+    "update_text": "La versión {{v}} está disponible y lee los tradeos con más precisión. Actualiza para tener las mejoras.",
+    "update": "Actualizar",
+    "up_to_date": "Escáner v{{v}} · al día",
+    "updated": "Actualizado al escáner v{{v}}",
+    "version": "Escáner v{{v}}"
   }
 }

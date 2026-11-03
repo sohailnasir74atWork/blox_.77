@@ -2,14 +2,13 @@
 // modules/trade-ocr classifyTiles (Android, LiteRT bundled in the app) runs
 // the model trained in RunningApps/_scanner_ml/blox on every catalogue item,
 // on the slot picture between the green name bar and the pink price bar.
-// The model can be replaced from the CDN (scannerUpdate.js); the bundled one
-// is used when there is none, and when a downloaded one fails or does not
-// match its names list.
+// From build 192 the model is not in the app: it is the one the user
+// downloaded (scannerUpdate.js). A downloaded model that does not match its
+// names list is dropped, and the sheet offers the download again.
 // Returns, per tile, candidates in the matcher's shape ({ name, d }, d = 1 -
 // score) or null when the model is not available (iOS for now, any error):
 // the scanner then keeps its picture matcher.
 import { NativeModules } from 'react-native';
-import names from './tileModelNames.json';
 import { activeScanner, dropActiveScanner } from './scannerUpdate';
 
 async function run(mod, uri, frame, boxes, modelPath, list) {
@@ -25,19 +24,15 @@ async function run(mod, uri, frame, boxes, modelPath, list) {
 export async function classifyTiles(uri, frame, slots) {
   const mod = NativeModules.TradeOcr;
   if (!mod?.classifyTiles || !uri || !slots?.length) return null;
-  const boxes = slots.map((s) => [s.x0, s.nameBottom, s.x1, s.priceTop]);
   const remote = activeScanner();
-  if (remote?.modelPath && remote.names?.length) {
-    try {
-      return await run(mod, uri, frame, boxes, remote.modelPath, remote.names);
-    } catch {
-      // A downloaded model that does not run: back to the bundled one, for good.
-      dropActiveScanner();
-    }
-  }
+  if (!remote?.modelPath || !remote.names?.length) return null;
+  const boxes = slots.map((s) => [s.x0, s.nameBottom, s.x1, s.priceTop]);
   try {
-    return await run(mod, uri, frame, boxes, null, names);
-  } catch {
+    return await run(mod, uri, frame, boxes, remote.modelPath, remote.names);
+  } catch (e) {
+    // A model that does not match its names list: never again. Anything
+    // else (a picture that does not decode) leaves the scanner alone.
+    if (e?.message === 'model output') dropActiveScanner();
     return null;
   }
 }
