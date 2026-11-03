@@ -54,7 +54,7 @@ const FEEDBACK_REASONS = [
   ['extra', 'Extra fruits'],
   ['sides', 'Wrong sides'],
 ];
-const pickKey = (p) => [p.name, p.variant || '', p.fly ? 1 : 0, p.ride ? 1 : 0].join('|');
+const pickKey = (p) => [p.name, p.perm ? 1 : 0, p.variant || '', p.fly ? 1 : 0, p.ride ? 1 : 0].join('|');
 const withScan = (list) => list.map((p) => ({ ...p, scanned: pickKey(p) }));
 const scanStats = (r) => {
   const now = [...r.mine, ...r.theirs];
@@ -102,6 +102,13 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
     (records || []).forEach((r) => { if (r?.Type === 'n') map.set(r.Name, r); });
     return map;
   }, [records]);
+  // "Permanent X" on the slot (pick.perm): the calculator's permanent record.
+  const permByName = useMemo(() => {
+    const map = new Map();
+    (records || []).forEach((r) => { if (r?.Type === 'p') map.set(r.Name, r); });
+    return map;
+  }, [records]);
+  const recordOf = useCallback((p) => (p.perm && permByName.get(p.name)) || byName.get(p.name), [byName, permByName]);
   const catalog = useMemo(() => [...byName.keys()], [byName]);
 
   const loadPage = useCallback(async () => {
@@ -286,9 +293,9 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
   }, [picked, scanPixels, catalog, maxPerSide]);
 
   const totals = useMemo(() => {
-    const sum = (list) => (list || []).reduce((acc, p) => acc + (Number(byName.get(p.name)?.Value) || 0), 0);
+    const sum = (list) => (list || []).reduce((acc, p) => acc + (Number(recordOf(p)?.Value) || 0), 0);
     return { mine: sum(result?.mine), theirs: sum(result?.theirs) };
-  }, [result, byName]);
+  }, [result, recordOf]);
 
   const verdict = useMemo(() => {
     if (!result || !totals.mine) return null;
@@ -389,7 +396,7 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
   );
 
   const apply = () => {
-    const toRecords = (list) => list.map((p) => byName.get(p.name)).filter(Boolean);
+    const toRecords = (list) => list.map(recordOf).filter(Boolean);
     trackGrowthEvent('trade_scan_apply', { mine: result.mine.length, theirs: result.theirs.length, ...scanStats(result) });
     onApply({ mine: toRecords(result.mine), theirs: toRecords(result.theirs) });
   };
@@ -533,7 +540,7 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
     const p = result[side][i];
     const key = `${side}:${i}`;
     if (!p) return <View key={key} style={[styles.tile, styles.tileEmpty, { borderColor: isDarkMode ? '#334155' : '#e2e8f0' }]} />;
-    const rec = byName.get(p.name);
+    const rec = recordOf(p);
     const selected = openPick === key;
     return (
       <TouchableOpacity
@@ -543,7 +550,7 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
         activeOpacity={0.7}
       >
         <Image source={{ uri: imageFor(p.name) }} style={styles.tileImage} resizeMethod="resize" />
-        <Text style={[styles.tileName, { color: fg }]} numberOfLines={1}>{p.name}</Text>
+        <Text style={[styles.tileName, { color: fg }]} numberOfLines={1}>{p.perm && rec?.Type === 'p' ? `${t('home.home_screen.perm', { defaultValue: 'Perm' })} ` : ''}{p.name}</Text>
         <Text style={[styles.tileValue, { color: accent }]} numberOfLines={1}>{rec && Number(rec.Value) ? formatValue(rec.Value) : 'N/A'}</Text>
         {!p.sure && (
           <View style={styles.unsure}>

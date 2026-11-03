@@ -3,7 +3,7 @@
  * and the packed WebView page staying in sync with its sources.
  */
 import scannerHtml from '../Code/TradeScanner/scannerHtml';
-import { buildTrade, namesForText } from '../Code/TradeScanner/tradeMatch';
+import { buildTrade, namesForText, isPermanentText } from '../Code/TradeScanner/tradeMatch';
 import { pickRelease, downloadBytes, scannerState } from '../Code/TradeScanner/scannerRelease';
 
 const matcher = require('../Code/TradeScanner/matcher');
@@ -78,6 +78,17 @@ describe('matcher.findSlots', () => {
     expect(slots.map((s) => [s.x0, s.photo])).toEqual([[50, true], [160, true]]);
   });
 
+  it('splits touching slots that give one long bar (blurry video, 2026-11-03 report)', () => {
+    const w = 600, h = 300;
+    const { px, slot } = canvas(w, h);
+    slot(50, 40, 100);
+    slot(150, 40, 100);
+    slot(250, 40, 100);
+    slot(420, 40, 100);
+    const slots = matcher.findSlots(px, w, h);
+    expect(slots.map((s) => [s.x0, s.x1])).toEqual([[50, 150], [150, 250], [250, 350], [420, 520]]);
+  });
+
   it('ignores pink without a green name bar above it', () => {
     const w = 300, h = 200;
     const { px } = canvas(w, h);
@@ -95,6 +106,16 @@ describe('namesForText', () => {
     expect(namesForText('Leopard', CATALOG)).toEqual(['Tiger']);
     expect(namesForText('Dragon', CATALOG)).toEqual(['West Dragon', 'East Dragon']);
     expect(namesForText('+1 Fruit Storage', CATALOG)).toEqual(['+1 Fruit Storage']);
+  });
+
+  it('reads "Permanent X" as X and a skin "Name (Base)" as the skin', () => {
+    const cat = [...CATALOG, 'Werewolf', 'Hellfire Gas', 'Gas'];
+    expect(namesForText('Permanent Tiger', cat)).toEqual(['Tiger']);
+    expect(isPermanentText('Permanent Tiger')).toBe(true);
+    expect(isPermanentText('Tiger')).toBe(false);
+    expect(namesForText('Werewolf (Tiger)', cat)).toEqual(['Werewolf']);
+    expect(namesForText('Werewolf (Tige', cat)).toEqual(['Werewolf']);
+    expect(namesForText('HellFire (Gas)', cat)).toEqual(['Hellfire Gas']);
   });
 
   it('gives nothing for unrelated text', () => {
@@ -155,6 +176,22 @@ describe('buildTrade', () => {
     const trade = buildTrade({ slots, lines: [], width: 1000, catalog: CATALOG });
     expect(trade.mine.map((p) => p.name)).toEqual(['Dough', 'Light']);
     expect(trade.skippedInventory).toBe(0);
+  });
+
+  it('marks "Permanent X" picks perm (the calculator\'s permanent record)', () => {
+    const slots = [slot(100, 200, [{ name: 'Tiger', d: 0.7 }], { model: true })];
+    const trade = buildTrade({ slots, lines: [line('Permanent Tiger', 105, 203)], width: 1000, catalog: CATALOG });
+    expect(trade.mine.map((p) => [p.name, p.sure, p.perm])).toEqual([['Tiger', true, true]]);
+  });
+
+  it('a name line read across two touching slots is only a hint; the model decides', () => {
+    const slots = [
+      slot(100, 200, [{ name: 'Light', d: 0.17 }], { model: true }),
+      slot(200, 200, [{ name: 'Portal', d: 0.11 }], { model: true }),
+    ];
+    const lines = [{ text: 'Dough Portal', x: 105, y: 203, w: 190, h: 14 }];
+    const trade = buildTrade({ slots, lines, width: 1000, catalog: CATALOG });
+    expect(trade.mine.map((p) => [p.name, p.sure])).toEqual([['Light', true], ['Portal', true]]);
   });
 
   it('trusts a slot model pick from score 0.5 when no name is read', () => {

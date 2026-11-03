@@ -55,7 +55,7 @@ function editDistance(a, b) {
  * catalog: array of display names ("West Dragon", "+1 Fruit Storage", ...).
  */
 export function namesForText(text, catalog) {
-  const q = normalize(text);
+  const q = normalize(nameOnBar(text));
   if (q.length < 3) return [];
   const byNorm = new Map(catalog.map((n) => [normalize(n), n]));
   if (byNorm.has(q)) return [byNorm.get(q)];
@@ -71,6 +71,15 @@ export function namesForText(text, catalog) {
   }
   return bestD <= Math.max(1, Math.floor(q.length / 5)) ? [best] : [];
 }
+
+// The bar prints more than the catalogue name (2026-11-03, a user report):
+// "Permanent Tiger" (the permanent fruit, priced separately) and a skin with
+// its base fruit, "Werewolf (Tiger)". The name is what is left.
+const PERMANENT = /^\s*perm(anent)?\b[\s:.-]*/i;
+function nameOnBar(text) {
+  return String(text || '').replace(PERMANENT, '').replace(/\s*\([^)]*\)?\s*$/, ' ').replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+}
+export const isPermanentText = (text) => PERMANENT.test(String(text || ''));
 
 const center = (l) => ({ x: l.x + l.w / 2, y: l.y + l.h / 2 });
 
@@ -92,7 +101,8 @@ export function gapDivider(slots) {
  * slots: from the WebView matcher (image pixels). lines: [{ text, x, y, w, h }]
  * from the text reader in the same pixel space, or [] when it is unavailable.
  * Returns { mine: [pick], theirs: [pick], skippedInventory, foundWindow }
- * where pick = { name, sure, alternatives: [name] }.
+ * where pick = { name, sure, alternatives: [name], perm? } (perm: the bar says
+ * "Permanent", the calculator's permanent record).
  */
 export function buildTrade({ slots, lines = [], width, catalog }) {
   const known = new Set(catalog.map(normalize));
@@ -114,19 +124,29 @@ export function buildTrade({ slots, lines = [], width, catalog }) {
   for (const s of slots) {
     if (s.inventory && !onlyInventory) { skippedInventory++; continue; }
     const barH = s.nameBottom - s.nameTop;
-    const text = lines
-      .filter((l) => {
-        const c = center(l);
-        return c.x > s.x0 && c.x < s.x1 && c.y > s.nameTop - barH * 0.3 && c.y < s.nameBottom + barH * 0.3;
-      })
-      .sort((a, b) => a.x - b.x)
-      .map((l) => l.text)
-      .join(' ');
+    const slotW = s.x1 - s.x0;
+    // A line over this slot's name bar: centred in it, or (touching slots,
+    // one line read across two name bars) covering at least half of it.
+    const onBar = lines.filter((l) => {
+      const c = center(l);
+      if (c.y < s.nameTop - barH * 0.3 || c.y > s.nameBottom + barH * 0.3) return false;
+      const overlap = Math.min(l.x + l.w, s.x1) - Math.max(l.x, s.x0);
+      return (c.x > s.x0 && c.x < s.x1) || overlap > slotW * 0.5;
+    });
+    // Such a line names the neighbour too: only a hint for this slot.
+    const spans = onBar.some((l) => l.w > slotW * 1.4);
+    const text = onBar.sort((a, b) => a.x - b.x).map((l) => l.text).join(' ');
     const fromText = namesForText(text, catalog);
     const pictures = (s.candidates || []).filter((c) => known.has(normalize(c.name)));
 
     let pick = null;
-    if (fromText.length === 1) {
+    if (spans && pictures.length && pictures[0].d < sureAt(s)) {
+      pick = { name: pictures[0].name, sure: true };
+    } else if (spans && fromText.length) {
+      const set = new Set(fromText.map(normalize));
+      const byPicture = pictures.find((c) => set.has(normalize(c.name)));
+      pick = { name: byPicture ? byPicture.name : fromText[0], sure: false };
+    } else if (fromText.length === 1) {
       pick = { name: fromText[0], sure: true };
     } else if (fromText.length > 1) {
       const set = new Set(fromText.map(normalize));
@@ -136,6 +156,7 @@ export function buildTrade({ slots, lines = [], width, catalog }) {
       pick = { name: pictures[0].name, sure: pictures[0].d < sureAt(s) };
     }
     if (!pick) continue;
+    if (!spans && isPermanentText(text)) pick.perm = true;
     pick.alternatives = [...new Set([...fromText, ...pictures.map((c) => c.name)])]
       .filter((n) => n !== pick.name)
       .slice(0, 4);

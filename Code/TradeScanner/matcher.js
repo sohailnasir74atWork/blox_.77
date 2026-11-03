@@ -17,6 +17,7 @@
 (function (root) {
   var N = 20;            // signature edge, must match build_signatures.py
   var BG = [228, 228, 228];
+  var SLOT_RATIO = 1.31;  // slot width / (name bar top to price bar top), median of 696 YouTube slots
 
   function isGreen(r, g, b) { return g > 140 && g - Math.max(r, b) > 70; }
   function isPink(r, g, b) { return r > 170 && b > 170 && Math.min(r, b) - g > 90; }
@@ -103,23 +104,91 @@
     }
     var fill = loose ? 0.4 : 0.55;
     var slots = [];
-    blobs(pink, w, h).forEach(function (bar) {
+    // One pink blob can be bars of different slots that touch: a big single
+    // slot next to a smaller one (their bars at different heights), or
+    // same-size slots in a row (split further below). Split where the bar's
+    // top edge moves to a new height and stays there for at least a narrow
+    // slot's width (24 px); a shorter dip is something drawn over the bar.
+    function byTopEdge(bar) {
+      var bh = bar.y1 - bar.y0, tol = Math.max(3, Math.round(0.2 * bh));
+      var tops = [], bottoms = [], counts = [];
+      for (var x = bar.x0; x < bar.x1; x++) {
+        var top = -1, bottom = -1, n = 0;
+        for (var y = bar.y0; y < bar.y1; y++) {
+          if (!pink[y * w + x]) continue;
+          if (top < 0) top = y;
+          bottom = y; n++;
+        }
+        tops.push(top); bottoms.push(bottom); counts.push(n);
+      }
+      function holds(i, level) {
+        var run = 0;
+        for (var j = i; j < tops.length && run < 24; j++) {
+          if (tops[j] < 0) continue;
+          if (Math.abs(tops[j] - level) > tol) return false;
+          run++;
+        }
+        return run >= Math.min(24, tops.length - i);
+      }
+      var runs = [], cur = null, level = -1;
+      for (var i = 0; i < tops.length; i++) {
+        var t = tops[i];
+        if (t >= 0 && level >= 0 && Math.abs(t - level) > tol) {
+          if (holds(i, t)) cur = null;
+          else { if (cur) cur.x1 = bar.x0 + i + 1; continue; }
+        }
+        if (!cur) { cur = { x0: bar.x0 + i, x1: bar.x0 + i + 1, y0: h, y1: 0, n: 0 }; runs.push(cur); }
+        cur.x1 = bar.x0 + i + 1;
+        if (t >= 0) { cur.y0 = Math.min(cur.y0, t); cur.y1 = Math.max(cur.y1, bottoms[i] + 1); cur.n += counts[i]; level = t; }
+      }
+      return runs.filter(function (run) { return run.n > 0; });
+    }
+    blobs(pink, w, h).forEach(function (blob) { byTopEdge(blob).forEach(oneBar); });
+    function oneBar(bar) {
       var bw = bar.x1 - bar.x0, bh = bar.y1 - bar.y0;
-      if (bw < 24 || bh < 4 || bw / bh < 3 || bw / bh > 14 || bar.n < fill * bw * bh) return;
+      if (bw < 24 || bh < 4 || bw / bh < 3 || bw / bh > 56 || bar.n < fill * bw * bh) return;
       var xa = bar.x0 + Math.floor(bw / 8), xb = bar.x1 - Math.floor(bw / 8);
       // Walk up from the price bar to the bottom edge of the green name bar.
-      var gBottom = -1;
-      var yStart = bar.y0 - Math.floor(0.3 * bw), yEnd = Math.max(0, bar.y0 - Math.floor(1.3 * bw));
-      for (var y = yStart; y >= yEnd; y--) {
-        if (rowFraction(green, w, y, xa, xb) > 0.35) { gBottom = y + 1; break; }
+      // The search window scales with one slot's width: a bar of touching
+      // slots (split below) is tried as 2-4 slots when 1 finds no name bar.
+      var gBottom = -1, sw = bw;
+      for (var n = 1; n <= 4 && gBottom < 0; n++) {
+        sw = bw / n;
+        var yStart = bar.y0 - Math.floor(0.3 * sw), yEnd = Math.max(0, bar.y0 - Math.floor(1.3 * sw));
+        for (var y = yStart; y >= yEnd; y--) {
+          if (rowFraction(green, w, y, xa, xb) > 0.35) { gBottom = y + 1; break; }
+        }
       }
       if (gBottom < 0) return;
       var gTop = gBottom - 1;
-      while (gTop > 0 && gBottom - gTop < bw && rowFraction(green, w, gTop - 1, xa, xb) > 0.35) gTop--;
-      var slot = { x0: bar.x0, x1: bar.x1, nameTop: gTop, nameBottom: gBottom, priceTop: bar.y0 };
-      slot.inventory = hasPlusOverlay(px, w, slot);
-      slots.push(slot);
-    });
+      while (gTop > 0 && gBottom - gTop < sw && rowFraction(green, w, gTop - 1, xa, xb) > 0.35) gTop--;
+      // Slots that touch (no dark gap, blurry video / photo) give one bar
+      // for two or more slots: a slot is ~1.31 wide per name-to-price height
+      // (696 YouTube slots), so split by that, at the weakest pink column.
+      var k = Math.round((bar.x1 - bar.x0) / (bar.y0 - gTop) / SLOT_RATIO);
+      var cuts = [bar.x0], wide = (bar.x1 - bar.x0) / (bar.y0 - gTop) > 1.8;
+      // A bar too long for one slot (> 14 heights) only counts as 2-4 slots.
+      if (bw / bh > 14 && !(wide && k >= 2 && k <= 4)) return;
+      if (wide && k >= 2 && k <= 4) {
+        var step = (bar.x1 - bar.x0) / k;
+        for (var c = 1; c < k; c++) {
+          var mid = Math.round(bar.x0 + c * step), span = Math.max(2, Math.floor(step / 8)), best = mid, low = 2;
+          // Middle first, then outwards: no visible seam = the even split.
+          for (var o = 0; o <= 2 * span; o++) {
+            var x = mid + (o % 2 ? (o + 1) / 2 : -o / 2), hit = 0;
+            for (var yy = bar.y0; yy < bar.y1; yy++) if (pink[yy * w + x]) hit++;
+            if (hit / bh < low) { low = hit / bh; best = x; }
+          }
+          cuts.push(best);
+        }
+      }
+      cuts.push(bar.x1);
+      for (var s = 0; s + 1 < cuts.length; s++) {
+        var slot = { x0: cuts[s], x1: cuts[s + 1], nameTop: gTop, nameBottom: gBottom, priceTop: bar.y0 };
+        slot.inventory = hasPlusOverlay(px, w, slot);
+        slots.push(slot);
+      }
+    }
     // Reading order. A tilted photo puts one row's bars a few px apart, so a
     // row is every slot whose name bar starts within two bar heights.
     slots.sort(function (m, n) { return m.nameTop - n.nameTop; });
