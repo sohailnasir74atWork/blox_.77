@@ -5,7 +5,7 @@ import { getUserData } from '../../Helper/UserDataCache';
 import { getCachedProfile } from '../../Helper/profileCache';
 import { useGlobalState } from '../../GlobelStats';
 import { useTranslation } from 'react-i18next';
-import CustomBadgeChip from '../../Helper/CustomBadgeChip';
+import CustomBadgeChip, { CustomGlyph } from '../../Helper/CustomBadgeChip';
 import { useCustomBadges, resolveCustomBadge, customIdsOf } from '../../Helper/customBadges';
 
 const HELPER_ICON = require('../../Assets/badges/badge_helper.webp');
@@ -13,8 +13,14 @@ const HELPER_ICON = require('../../Assets/badges/badge_helper.webp');
 // `serverRoles`: role data a screen fetched itself from Supabase/RTDB (the
 // profile drawer, the private-chat header). `cacheVersion`: bump it to
 // re-render after the profile cache was warmed.
+//
+// `compact` (chat rows, online list, private-chat header — 2026-11-02, as
+// Adopt Me's UserBadgeRail inline rail): every community / custom badge is a
+// round icon with no text, on one row that never wraps; the custom title keeps
+// its text, and the one authority chip (Admin / Sr Mod / Mod / JMD) keeps its
+// label and goes last, because moderation trust has to be readable in chat.
 // eslint-disable-next-line no-unused-vars
-const RoleBadges = ({ userItem, style, cacheVersion, serverRoles = null }) => {
+const RoleBadges = ({ userItem, style, cacheVersion, serverRoles = null, compact = false, size = 14 }) => {
   const globalState = useGlobalState() || {};
   const { t } = useTranslation();
   // Custom badge definitions (RTDB custom_badges): redraw on rename / recolour.
@@ -72,8 +78,9 @@ const RoleBadges = ({ userItem, style, cacheVersion, serverRoles = null }) => {
     return null;
   }
 
-  return (
-    <View style={[styles.container, style]}>
+  // Admin > Sr Mod > Mod > JMD: one labelled chip at most, the same in both modes.
+  const authorityChip = (
+    <>
       {isAdmin && (
         <View style={styles.roleBadge_admin}>
           <Ionicons name="shield" size={8} color="#fff" />
@@ -99,6 +106,33 @@ const RoleBadges = ({ userItem, style, cacheVersion, serverRoles = null }) => {
           <Text style={styles.roleBadgeText}>{t('feed.role_badges.jmd')}</Text>
         </View>
       )}
+    </>
+  );
+
+  if (compact) {
+    const dot = (key, color) => ({ width: size, height: size, borderRadius: size / 2, backgroundColor: badgeStyles[key] || color });
+    const glyph = Math.round(size * 0.64);
+    return (
+      <View style={[styles.compact, style]}>
+        {isTrusted && <View style={[styles.dot, dot('trusted', '#10B981')]}><Ionicons name="checkmark" size={glyph} color="#fff" /></View>}
+        {isGrinder && <View style={[styles.dot, dot('grinder', '#06B6D4')]}><Ionicons name="barbell" size={glyph} color="#fff" /></View>}
+        {isRaider && <View style={[styles.dot, dot('raider', '#DC2626')]}><Ionicons name="flash" size={glyph} color="#fff" /></View>}
+        {isHelper && <View style={[styles.dot, dot('helper', '#14B8A6')]}><Image source={HELPER_ICON} style={{ width: glyph + 2, height: glyph + 2 }} /></View>}
+        {customChips.map((cb) => <CustomGlyph key={cb.id} image={cb.image} color={cb.color} size={size} />)}
+        {customTitle && (
+          <View style={styles.roleBadge_title}>
+            <Ionicons name="ribbon" size={8} color="#fff" />
+            <Text style={styles.titleText} numberOfLines={1}>{customTitle}</Text>
+          </View>
+        )}
+        {authorityChip}
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, style]}>
+      {authorityChip}
       {customTitle && (
         <View style={styles.roleBadge_title}>
           <Ionicons name="ribbon" size={8} color="#fff" />
@@ -143,6 +177,14 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 3,
     marginLeft: 3,
+  },
+  // One row, never wraps: the name beside it ellipsizes instead.
+  compact: {
+    flexDirection: 'row', alignItems: 'center', gap: 3, marginLeft: 3, flexShrink: 0,
+  },
+  dot: {
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(0,0,0,0.22)',
   },
   roleBadge_admin: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#EF4444',

@@ -798,7 +798,7 @@ const OnlineUsersList = ({
             <Text style={styles.userName} numberOfLines={1}>
               {`${item.displayName || 'Anonymous'}`}
             </Text>
-            <RoleBadges userItem={item} />
+            <RoleBadges userItem={item} compact size={13} />
 
             {/* Pro badge */}
             {item?.isPro && (

@@ -342,9 +342,7 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
           <Text style={[styles.userName, { color: c.text }]} numberOfLines={1}>
             {userName}
           </Text>
-          {/* Roles only from the fetched userData or the cache, never selectedUser */}
-          <RoleBadges userItem={mergedUser} serverRoles={userData} cacheVersion={profileVersion} />
-
+          {/* Pro first and the authority chip last, as Adopt Me's badge rail */}
           {(mergedUser?.isPro || cachedProfile?.isPro) && (
             <Image resizeMethod="resize" source={require('../../../assets/pro.png')} style={styles.inlineIcon} />
           )}
@@ -354,6 +352,8 @@ const PrivateChatHeader = React.memo(({ selectedUser, selectedTheme, bannedUsers
           {hasRecentWin && (
             <Image resizeMethod="resize" source={require('../../../assets/trophy.webp')} style={styles.inlineIcon} />
           )}
+          {/* Roles only from the fetched userData or the cache, never selectedUser */}
+          <RoleBadges userItem={mergedUser} serverRoles={userData} cacheVersion={profileVersion} compact size={13} />
 
           <TouchableOpacity
             onPress={() => copyToClipboard(userName)}
@@ -428,8 +428,8 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   inlineIcon: {
-    width: 11,
-    height: 11,
+    width: 13,
+    height: 13,
   },
   copyBtn: {
     padding: 2,

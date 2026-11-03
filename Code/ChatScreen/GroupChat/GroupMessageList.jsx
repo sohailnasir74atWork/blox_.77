@@ -344,7 +344,7 @@ const GroupMessageList = ({
                         </View>
                       )}
 
-                      <RoleBadges userItem={item} cacheVersion={profileCacheVersion} />
+                      <RoleBadges userItem={item} cacheVersion={profileCacheVersion} compact size={13} />
                     </View>
                   </TouchableOpacity>
                   {/* Image */}

@@ -506,7 +506,7 @@ const MessagesList = ({
                       />
                     )}
                     <Text>{''}</Text>
-                    <RoleBadges userItem={item} cacheVersion={profileCacheVersion} />
+                    <RoleBadges userItem={item} cacheVersion={profileCacheVersion} compact size={13} />
 
                     {/* Android / iOS badge: Admins and Senior Mods only */}
                     {(isAdmin || isSeniorMod) && item.OS && (
