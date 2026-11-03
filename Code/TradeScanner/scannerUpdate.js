@@ -12,7 +12,7 @@
 // is in no app). They are checked against the sha256 in RTDB and kept in the
 // app's files; one version at a time. Published by
 // RunningApps/_scanner_ml/publish_scanner.py --app blox.
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 import RNFS from 'react-native-fs';
 import DeviceInfo from 'react-native-device-info';
 import { getDatabase, ref, get } from '@react-native-firebase/database';
@@ -21,7 +21,9 @@ import { pickRelease, releaseFiles } from './scannerRelease';
 // Same key as 191, so a phone updated from it keeps the scanner it has.
 const STATE_KEY = 'scanner_remote_v1';
 const DIR = `${RNFS.DocumentDirectoryPath}/scanner`;
-export const NEEDS_MODEL = Platform.OS === 'android';
+// The slot model runs where the native module can run it: Android, and iOS
+// builds with TradeOcr.classifyTiles (TensorFlow Lite, 2026-11-03).
+export const NEEDS_MODEL = Platform.OS === 'android' || typeof NativeModules.TradeOcr?.classifyTiles === 'function';
 
 let storage = null;
 function store() {
@@ -50,6 +52,20 @@ function writeState(state) {
   }
 }
 
+// iOS gives the app a new folder on every update, so a path saved by an
+// older install points nowhere: keep the part after /scanner/ and put it
+// under this install's folder.
+function here(path) {
+  const i = path ? path.lastIndexOf('/scanner/') : -1;
+  return i < 0 ? path : `${DIR}${path.slice(i + '/scanner'.length)}`;
+}
+
+function rebase(s) {
+  if (!s) return s;
+  const files = Object.fromEntries(Object.entries(s.files || {}).map(([k, f]) => [k, { ...f, path: here(f?.path) }]));
+  return { ...s, modelPath: here(s.modelPath), htmlPath: here(s.htmlPath), files };
+}
+
 function complete(s) {
   return !!(s && s.version && s.htmlPath && (!NEEDS_MODEL || (s.modelPath && s.names?.length)));
 }
@@ -59,7 +75,7 @@ let active; // cached { version, modelPath, names, htmlPath, files } | null
 /** The downloaded scanner on this phone, or null (none yet, or it failed). */
 export function activeScanner() {
   if (active === undefined) {
-    const s = readState();
+    const s = rebase(readState());
     active = complete(s) ? s : null;
   }
   return active;
@@ -99,7 +115,7 @@ export function fetchLatestScanner({ tester, force } = {}) {
     try {
       const snap = await get(ref(getDatabase(), 'testing/scanner_page'));
       const build = Number(DeviceInfo.getBuildNumber()) || 0;
-      const pick = pickRelease(snap.val(), { tester: !!tester, build, needsModel: NEEDS_MODEL });
+      const pick = pickRelease(snap.val(), { tester: !!tester, build, needsModel: NEEDS_MODEL, ios: Platform.OS === 'ios' });
       latest = pick && readState()?.bad === pick.version ? null : pick;
     } catch {
       latest = null;

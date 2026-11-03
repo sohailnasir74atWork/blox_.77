@@ -13,4 +13,6 @@ Pod::Spec.new do |s|
   s.source_files = "ios/*.{h,m}"
   s.frameworks   = "Vision"
   s.dependency "React-Core"
+  # Runs the downloaded slot model (same .tflite as Android).
+  s.dependency "TensorFlowLiteC", "2.17.0"
 end

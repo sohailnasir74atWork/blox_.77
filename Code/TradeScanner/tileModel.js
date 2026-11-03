@@ -1,12 +1,12 @@
 // On-device slot recogniser for the Trade Scanner (2026-11-03, as Adopt Me):
-// modules/trade-ocr classifyTiles (Android, LiteRT bundled in the app) runs
+// modules/trade-ocr classifyTiles (Android LiteRT, iOS TensorFlow Lite) runs
 // the model trained in RunningApps/_scanner_ml/blox on every catalogue item,
 // on the slot picture between the green name bar and the pink price bar.
 // From build 192 the model is not in the app: it is the one the user
 // downloaded (scannerUpdate.js). A downloaded model that does not match its
 // names list is dropped, and the sheet offers the download again.
 // Returns, per tile, candidates in the matcher's shape ({ name, d }, d = 1 -
-// score) or null when the model is not available (iOS for now, any error):
+// score) or null when the model is not available (an older iOS build, any error):
 // the scanner then keeps its picture matcher.
 import { NativeModules } from 'react-native';
 import { activeScanner, dropActiveScanner } from './scannerUpdate';

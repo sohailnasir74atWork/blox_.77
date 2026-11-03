@@ -7,18 +7,20 @@
 //   { version, minBuild, model: { url, sha256, bytes }, names: { url, sha256, bytes },
 //     html: { url, sha256, bytes, gz } }
 // Staff (admin / mods) take releases.mods when it is newer than releases.all.
-// needsModel: Android runs the slot model; iOS uses the page only.
+// needsModel: the app runs the slot model (Android; iOS from 2026-11-03).
+// minBuild is an Android versionCode; iOS build numbers are lower, so iOS
+// checks minBuildIos (none = any iOS build that reads releases).
 
-function usable(r, build, needsModel) {
+function usable(r, build, needsModel, ios) {
   return !!(r && r.version && r.html?.url && r.html?.sha256
     && (!needsModel || (r.model?.url && r.model?.sha256 && r.names?.url && r.names?.sha256))
-    && build >= (Number(r.minBuild) || 0));
+    && build >= (Number(ios ? r.minBuildIos : r.minBuild) || 0));
 }
 
-export function pickRelease(manifest, { tester, build, needsModel }) {
+export function pickRelease(manifest, { tester, build, needsModel, ios = false }) {
   const rel = manifest?.releases || {};
-  const all = usable(rel.all, build, needsModel) ? rel.all : null;
-  const mods = tester && usable(rel.mods, build, needsModel) ? rel.mods : null;
+  const all = usable(rel.all, build, needsModel, ios) ? rel.all : null;
+  const mods = tester && usable(rel.mods, build, needsModel, ios) ? rel.mods : null;
   if (mods && (!all || mods.version > all.version)) return mods;
   return all;
 }

@@ -224,9 +224,18 @@ describe('scanner download and updates (build 192)', () => {
     expect(pickRelease(manifest, { tester: false, build: 191, needsModel: true })).toBeNull();
     const noModel = { releases: { all: { version: 3, minBuild: 192, html: file(3) } } };
     expect(pickRelease(noModel, { tester: false, build: 192, needsModel: true })).toBeNull();
-    // iOS needs the page only.
+    // An iOS build without the slot model needs the page only.
     expect(pickRelease(noModel, { tester: false, build: 192, needsModel: false }).version).toBe(3);
     expect(pickRelease(null, { tester: true, build: 192, needsModel: true })).toBeNull();
+  });
+
+  it('iOS checks minBuildIos, not the Android versionCode', () => {
+    // iOS build numbers (101, 122) are far below Android versionCodes.
+    expect(pickRelease(manifest, { tester: false, build: 101, needsModel: true, ios: true }).version).toBe(3);
+    const gated = { releases: { all: { ...release(3), minBuildIos: 130 } } };
+    expect(pickRelease(gated, { tester: false, build: 129, needsModel: true, ios: true })).toBeNull();
+    expect(pickRelease(gated, { tester: false, build: 130, needsModel: true, ios: true }).version).toBe(3);
+    expect(pickRelease(gated, { tester: false, build: 192, needsModel: true }).version).toBe(3);
   });
 
   it('download size counts only new files, the page gzipped', () => {

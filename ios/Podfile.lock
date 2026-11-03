@@ -2952,6 +2952,28 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - react-native-webview (16.0.0):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-bridging
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - React-NativeModulesApple (0.87.1):
     - hermes-engine
     - React-bridging
@@ -3836,6 +3858,12 @@ PODS:
     - Yoga
   - SocketRocket (0.7.1):
     - ReactNativeDependencies
+  - TensorFlowLiteC (2.17.0):
+    - TensorFlowLiteC/Core (= 2.17.0)
+  - TensorFlowLiteC/Core (2.17.0)
+  - trade-ocr (1.0.0):
+    - React-Core
+    - TensorFlowLiteC (= 2.17.0)
   - Yoga (0.0.0):
     - React-Core-prebuilt
 
@@ -3898,6 +3926,7 @@ DEPENDENCIES:
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - react-native-tracking-transparency (from `../node_modules/react-native-tracking-transparency`)
   - react-native-view-shot (from `../node_modules/react-native-view-shot`)
+  - react-native-webview (from `../node_modules/react-native-webview`)
   - React-NativeModulesApple (from `../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)
   - React-networking (from `../node_modules/react-native/ReactCommon/react/networking`)
   - React-oscompat (from `../node_modules/react-native/ReactCommon/oscompat`)
@@ -3960,6 +3989,7 @@ DEPENDENCIES:
   - RNSVG (from `../node_modules/react-native-svg`)
   - RNVectorIcons (from `../node_modules/react-native-vector-icons`)
   - SocketRocket (from `build/rndeps-facades/SocketRocket`)
+  - trade-ocr (from `../modules/trade-ocr`)
   - Yoga (from `build/rncore-facades/Yoga`)
 
 SPEC REPOS:
@@ -4003,6 +4033,7 @@ SPEC REPOS:
     - PurchasesHybridCommon
     - RecaptchaInterop
     - RevenueCat
+    - TensorFlowLiteC
 
 EXTERNAL SOURCES:
   boost:
@@ -4120,6 +4151,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-tracking-transparency"
   react-native-view-shot:
     :path: "../node_modules/react-native-view-shot"
+  react-native-webview:
+    :path: "../node_modules/react-native-webview"
   React-NativeModulesApple:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios"
   React-networking:
@@ -4244,6 +4277,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-vector-icons"
   SocketRocket:
     :path: build/rndeps-facades/SocketRocket
+  trade-ocr:
+    :path: "../modules/trade-ocr"
   Yoga:
     :path: build/rncore-facades/Yoga
 
@@ -4342,6 +4377,7 @@ SPEC CHECKSUMS:
   react-native-safe-area-context: 5781a71fd639bc3d52bf997c9b59980444000632
   react-native-tracking-transparency: 25ff1ff866e338c137c818bdec20526bb05ffcc1
   react-native-view-shot: a8c95ad5e9e5da6737b8b95f9344fa0e06bf9d4e
+  react-native-webview: c76d8b1f331877275ba52fee892ad9e02ce90c27
   React-NativeModulesApple: 885f4cd7626a1ffe20e0dcd23ef8528f415795d3
   React-networking: a5e9c1939d8ee9146a34e53b571f479807c3d94e
   React-oscompat: 3175a287dd7175d1a20fdce5048a4b9e11f4b915
@@ -4406,6 +4442,8 @@ SPEC CHECKSUMS:
   RNSVG: b19f47fb2c2bb2917be6481a3e328230586101cb
   RNVectorIcons: a8adc1094f64bfebd3e279596c44620f2e1c8a40
   SocketRocket: d57b1af80c029e12a75cd9b218287c67381e4593
+  TensorFlowLiteC: eac6d689a8d391d1b202dc59e3d9165ba64aaf73
+  trade-ocr: 7d836b0c54e63818c41dd91963ea1640c49810b7
   Yoga: 58b502c52b14ad3c4468805d461fc37d275c2a42
 
 PODFILE CHECKSUM: b7eaf9bfd5f3b1db88cee365d3745e846177ddf3
