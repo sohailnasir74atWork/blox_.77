@@ -156,6 +156,12 @@ describe('buildTrade', () => {
     expect(trade.skippedInventory).toBe(0);
   });
 
+  it('trusts a slot model pick from score 0.5 when no name is read', () => {
+    const slots = [slot(100, 200, [{ name: 'Dough', d: 0.3, score: 0.7 }], { model: true }), slot(210, 200, [{ name: 'Light', d: 0.6, score: 0.4 }], { model: true })];
+    const trade = buildTrade({ slots, lines: [], width: 1000, catalog: CATALOG });
+    expect(trade.mine.map((p) => [p.name, p.sure])).toEqual([['Dough', true], ['Light', false]]);
+  });
+
   it('needs a closer picture match before a photo pick skips the "?"', () => {
     const slots = [slot(100, 200, [{ name: 'Dough', d: 0.2 }], { photo: true }), slot(210, 200, [{ name: 'Light', d: 0.2 }])];
     const trade = buildTrade({ slots, lines: [], width: 1000, catalog: CATALOG });

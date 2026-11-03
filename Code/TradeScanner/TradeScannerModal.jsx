@@ -26,6 +26,7 @@ import { buildTrade } from './tradeMatch';
 import DeviceInfo from 'react-native-device-info';
 import { uploadScanReport } from '../Helper/scanReportUpload';
 import { activeScannerHtml, activeScannerVersion, checkScannerUpdate } from './scannerUpdate';
+import { classifyTiles } from './tileModel';
 
 const SCAN_TIMEOUT_MS = 20000;
 const PICK_OPTIONS = { mediaType: 'photo', includeBase64: true, maxWidth: 2000, maxHeight: 2000, quality: 0.9 };
@@ -193,7 +194,11 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
     try {
       const dataUrl = `data:${asset.type || 'image/jpeg'};base64,${asset.base64}`;
       const [pixels, text] = await Promise.all([scanPixels(dataUrl, frame), readTextLines(asset.uri, frame)]);
-      const trade = buildTrade({ slots: pixels.slots, lines: text.lines, width: pixels.width, catalog });
+      // The trained slot model names each slot picture; the picture matcher's
+      // own ranking stays as the fallback (iOS, any model error).
+      const named = await classifyTiles(asset.uri, frame, pixels.slots);
+      const slots = named ? pixels.slots.map((sl, i) => ({ ...sl, candidates: named[i], model: true })) : pixels.slots;
+      const trade = buildTrade({ slots, lines: text.lines, width: pixels.width, catalog });
       const found = trade.mine.length + trade.theirs.length;
       lastScan.current = {
         frame,
@@ -202,7 +207,8 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
         scannerVersion: activeScannerVersion(),
         textReader: text.ok ? 1 : 0,
         lines: (text.lines || []).slice(0, 80).map((l) => [l.text, Math.round(l.x), Math.round(l.y), Math.round(l.w), Math.round(l.h)]),
-        slots: pixels.slots.map((sl) => ({
+        model: named ? 1 : 0,
+        slots: slots.map((sl) => ({
           box: [sl.x0, sl.nameTop, sl.x1, sl.priceTop].map(Math.round),
           inventory: sl.inventory ? 1 : 0,
           photo: sl.photo ? 1 : 0,
@@ -219,6 +225,7 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
         unsure: [...trade.mine, ...trade.theirs].filter((p) => !p.sure).length,
         text_reader: text.ok ? 1 : 0,
         scanner_v: activeScannerVersion(),
+        model: named ? 1 : 0,
         crop_area: Math.round(frame.w * frame.h * 100),
       });
       if (!found) { setStage('none'); return; }

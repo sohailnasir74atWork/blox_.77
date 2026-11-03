@@ -28,6 +28,9 @@ const OLD_NAMES = {
 // pick from a photo needs a much closer match (half) before it skips the "?".
 const PICTURE_SURE = 0.3;
 const PHOTO_SURE = 0.15;
+// Slot model candidates (tileModel.js) carry d = 1 - score: sure from score 0.5.
+export const MODEL_SURE = 0.5;
+const sureAt = (s) => (s.model ? MODEL_SURE : s.photo ? PHOTO_SURE : PICTURE_SURE);
 
 export const normalize = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -128,9 +131,9 @@ export function buildTrade({ slots, lines = [], width, catalog }) {
     } else if (fromText.length > 1) {
       const set = new Set(fromText.map(normalize));
       const byPicture = pictures.find((c) => set.has(normalize(c.name)));
-      pick = { name: byPicture ? byPicture.name : fromText[0], sure: Boolean(byPicture && byPicture.d < (s.photo ? PHOTO_SURE : PICTURE_SURE)) };
+      pick = { name: byPicture ? byPicture.name : fromText[0], sure: Boolean(byPicture && byPicture.d < sureAt(s)) };
     } else if (pictures.length) {
-      pick = { name: pictures[0].name, sure: pictures[0].d < (s.photo ? PHOTO_SURE : PICTURE_SURE) };
+      pick = { name: pictures[0].name, sure: pictures[0].d < sureAt(s) };
     }
     if (!pick) continue;
     pick.alternatives = [...new Set([...fromText, ...pictures.map((c) => c.name)])]
