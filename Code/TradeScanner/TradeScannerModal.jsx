@@ -738,7 +738,9 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
                 <Text style={[styles.feedbackText, { color: sub }]}>{t('trade_scanner.feedback_thanks', { defaultValue: 'Thanks! This helps us make the scanner better.' })}</Text>
               )}
             </View>
-            {(feedback === 'wrong' || (feedback === 'done' && wrongReason.current)) && reportBox()}
+            {/* Send picture shows with the result, not only after "No"
+                (2026-11-03, owner): one tap for a wrong scan. Gone after "Yes". */}
+            {!(feedback === 'done' && !wrongReason.current) && reportBox()}
 
             {(result.skippedInventory > 0 || result.cut || !openItem) && (
               <Text style={[styles.note, { color: sub }]} numberOfLines={2}>
