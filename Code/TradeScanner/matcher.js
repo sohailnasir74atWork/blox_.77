@@ -57,6 +57,17 @@
     return out;
   }
 
+  // Countdown-dimmed trade window (see scan): every channel times gain.
+  var DIM_GAIN = 4;
+  function brighten(px, w, h, gain) {
+    var out = new Uint8Array(w * h * 4);
+    for (var q = 0; q < w * h * 4; q += 4) {
+      out[q] = Math.min(255, px[q] * gain); out[q + 1] = Math.min(255, px[q + 1] * gain);
+      out[q + 2] = Math.min(255, px[q + 2] * gain); out[q + 3] = 255;
+    }
+    return out;
+  }
+
   // Bounding boxes of 4-connected blobs in a 0/1 mask.
   function blobs(mask, w, h) {
     var seen = new Uint8Array(w * h);
@@ -354,6 +365,15 @@
     var norm = normalizeColors(px, w, h);
     var loose = findSlots(norm, w, h, true);
     if (loose.length > slots.length) { src = norm; slots = loose; photo = true; }
+    // Both sides "Ready!": the game darkens the window for the 5 s countdown
+    // (bars at ~25 %, pink ~(54,2,51)), and the rest of the screen stays
+    // bright, so the levels stretch does not lift it. Nothing found: once
+    // more with the picture brightened.
+    if (!slots.length) {
+      var bright = brighten(px, w, h, DIM_GAIN);
+      var dim = findSlots(bright, w, h, false);
+      if (dim.length) { src = bright; slots = dim; }
+    }
     return slots.map(function (s) {
       var sig = slotSignature(src, w, s);
       s.candidates = sig ? rank(sig, templates, 5) : [];

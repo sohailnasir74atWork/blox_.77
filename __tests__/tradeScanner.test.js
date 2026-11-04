@@ -78,6 +78,24 @@ describe('matcher.findSlots', () => {
     expect(slots.map((s) => [s.x0, s.photo])).toEqual([[50, true], [160, true]]);
   });
 
+  it('finds slots in a window darkened by the "Ready!" countdown (2026-11-04 report)', () => {
+    const w = 600, h = 300;
+    const { px, slot } = canvas(w, h);
+    slot(50, 40, 100);
+    slot(160, 40, 100);
+    // Window at ~21 % brightness, the game world around it stays bright.
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const p = (y * w + x) * 4, inside = x >= 40 && x < 270 && y >= 30 && y < 140;
+        for (let c = 0; c < 3; c++) px[p + c] = inside ? Math.round(px[p + c] * 0.21) : 200 + ((x + y) % 50);
+      }
+    }
+    const sigs = matcher.loadTemplates(require('../Code/TradeScanner/fruitSignatures.json'));
+    expect(matcher.findSlots(px, w, h)).toEqual([]);
+    const slots = matcher.scan(px, w, h, sigs);
+    expect(slots.map((s) => [s.x0, s.x1, s.photo])).toEqual([[50, 150, false], [160, 260, false]]);
+  });
+
   it('splits touching slots that give one long bar (blurry video, 2026-11-03 report)', () => {
     const w = 600, h = 300;
     const { px, slot } = canvas(w, h);
