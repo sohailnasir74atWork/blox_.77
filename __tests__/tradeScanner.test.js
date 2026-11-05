@@ -164,6 +164,24 @@ describe('buildTrade', () => {
     expect(trade.mine[0].alternatives).toContain('Light');
   });
 
+  it('splits sides on a title in another language (Portuguese report, 2026-11-05)', () => {
+    // Two offers 2 + 2 slots with only a slot-wide gap: the gap rule alone
+    // would put all four on the user's side.
+    const slots = [
+      slot(300, 200, [{ name: 'Light', d: 0.1 }]),
+      slot(400, 200, [{ name: 'Dough', d: 0.1 }]),
+      slot(530, 200, [{ name: 'Portal', d: 0.1 }]),
+      slot(630, 200, [{ name: 'Mammoth', d: 0.1 }]),
+    ];
+    const heading = (text) => ({ text, x: 365, y: 150, w: 300, h: 20 });
+    const player = { text: 'MRLONELY', x: 560, y: 180, w: 70, h: 11 };
+    for (const title of ['TROCA DE TESOUROS', 'ÉCHANGE DE TRÉSORS']) {
+      const trade = buildTrade({ slots, lines: [heading(title), player], width: 2000, catalog: CATALOG });
+      expect(trade.mine.map((p) => p.name)).toEqual(['Light', 'Dough']);
+      expect(trade.theirs.map((p) => p.name)).toEqual(['Portal', 'Mammoth']);
+    }
+  });
+
   it('lets the picture choose between old-name targets and skips inventory slots', () => {
     const slots = [
       slot(100, 200, [{ name: 'East Dragon', d: 0.2 }, { name: 'West Dragon', d: 0.5 }]),

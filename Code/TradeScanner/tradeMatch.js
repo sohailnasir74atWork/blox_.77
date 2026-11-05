@@ -97,6 +97,30 @@ export function gapDivider(slots) {
   return best > side * 1.6 ? at : Infinity;
 }
 
+// The window title, read in the game's language. Known titles first; else
+// (2026-11-05, a Portuguese report: "TROCA DE TESOUROS" put all six fruits on
+// the user's side) the wide all-caps heading centred over the slots, just
+// above their top row. Player names sit there too but are short.
+const TITLES = /treasure\s*trade|troca\s*de\s*tesouros?/i;
+function findTitle(lines, slots) {
+  const known = lines.find((l) => TITLES.test(l.text));
+  if (known || !slots.length) return known;
+  const top = Math.min(...slots.map((s) => s.nameTop));
+  const left = Math.min(...slots.map((s) => s.x0));
+  const right = Math.max(...slots.map((s) => s.x1));
+  const slotW = slots.reduce((acc, s) => acc + (s.x1 - s.x0), 0) / slots.length;
+  let best;
+  for (const l of lines) {
+    const c = center(l);
+    const letters = l.text.replace(/[^\p{L}]/gu, '');
+    const upper = letters.replace(/[^\p{Lu}]/gu, '').length;
+    if (letters.length < 6 || upper < letters.length * 0.8 || l.w < slotW * 1.5) continue;
+    if (c.y >= top || c.y < top - slotW * 2 || c.x < left || c.x > right) continue;
+    if (!best || c.y > center(best).y) best = l;
+  }
+  return best;
+}
+
 /**
  * slots: from the WebView matcher (image pixels). lines: [{ text, x, y, w, h }]
  * from the text reader in the same pixel space, or [] when it is unavailable.
@@ -106,12 +130,12 @@ export function gapDivider(slots) {
  */
 export function buildTrade({ slots, lines = [], width, catalog }) {
   const known = new Set(catalog.map(normalize));
+  const tradeSlots = slots.filter((s) => !s.inventory);
   // The window is centred on the title; Roblox centres it on screen otherwise.
-  const title = lines.find((l) => /treasure\s*trade/i.test(l.text));
+  const title = findTitle(lines, tradeSlots);
   // Without the title (an inventory, one offer, the text reader missed it):
   // two groups of slots with a wide gap between them are the two offers;
   // one group is all the user's (2026-11-03, as in Adopt Me).
-  const tradeSlots = slots.filter((s) => !s.inventory);
   const divider = title ? center(title).x : gapDivider(tradeSlots.length ? tradeSlots : slots);
   // Only inventory slots in the picture (a backpack screenshot): those are
   // the user's items, not something to skip.
