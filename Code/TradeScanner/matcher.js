@@ -36,6 +36,12 @@
   }
   function isGreenLoose(r, g, b) { var c = hsv(r, g, b); return c[0] > 95 && c[0] < 155 && c[1] > 0.45 && c[2] > 110; }
   function isPinkLoose(r, g, b) { var c = hsv(r, g, b); return c[0] > 278 && c[0] < 332 && c[1] > 0.5 && c[2] > 110; }
+  // Last try for a camera photo of a monitor (report e595f3c3): the price
+  // bars wash out to lilac (hue ~275, saturation ~0.35) and the name bars of
+  // a dimmer screen half go dark green (value ~80). Only used when the other
+  // passes find nothing; the bar shape tests in findSlots still apply.
+  function isGreenWide(r, g, b) { var c = hsv(r, g, b); return c[0] > 95 && c[0] < 160 && c[1] > 0.45 && c[2] > 60; }
+  function isPinkWide(r, g, b) { var c = hsv(r, g, b); return c[0] > 262 && c[0] < 335 && c[1] > 0.25 && c[2] > 100; }
 
   // Per-channel levels stretch (1st..99th percentile -> 0..255). Undoes most of
   // a photo's colour cast and contrast loss; a clean screenshot barely changes.
@@ -107,7 +113,8 @@
    */
   function findSlots(px, w, h, loose) {
     var green = new Uint8Array(w * h), pink = new Uint8Array(w * h);
-    var greenAt = loose ? isGreenLoose : isGreen, pinkAt = loose ? isPinkLoose : isPink;
+    var greenAt = loose === 2 ? isGreenWide : loose ? isGreenLoose : isGreen;
+    var pinkAt = loose === 2 ? isPinkWide : loose ? isPinkLoose : isPink;
     for (var i = 0, p = 0; i < w * h; i++, p += 4) {
       var r = px[p], g = px[p + 1], b = px[p + 2];
       if (greenAt(r, g, b)) green[i] = 1;
@@ -121,7 +128,9 @@
     // top edge moves to a new height and stays there for at least a narrow
     // slot's width (24 px); a shorter dip is something drawn over the bar.
     function byTopEdge(bar) {
-      var bh = bar.y1 - bar.y0, tol = Math.max(3, Math.round(0.2 * bh));
+      // The last-try photo pass allows a bigger step: a tilted photo moves
+      // the bar's top edge a few px partway along one slot (e595f3c3).
+      var bh = bar.y1 - bar.y0, tol = Math.max(3, Math.round((loose === 2 ? 0.35 : 0.2) * bh));
       var tops = [], bottoms = [], counts = [];
       for (var x = bar.x0; x < bar.x1; x++) {
         var top = -1, bottom = -1, n = 0;
@@ -196,6 +205,12 @@
       cuts.push(bar.x1);
       for (var s = 0; s + 1 < cuts.length; s++) {
         var slot = { x0: cuts[s], x1: cuts[s + 1], nameTop: gTop, nameBottom: gBottom, priceTop: bar.y0 };
+        // Wide colours also catch HUD bars (green text over a purple bar) and
+        // glow lines: keep only slot-shaped boxes (real slots are ~1.31 wide
+        // per height) at least 8 % of the picture wide (a slot in a full phone
+        // screenshot is ~10 %, in a monitor photo ~13 %; false hits were 3-6 %).
+        var ratio = (slot.x1 - slot.x0) / (slot.priceTop - slot.nameTop);
+        if (loose === 2 && (ratio < 1 || ratio > 1.9 || slot.x1 - slot.x0 < 0.08 * w)) continue;
         slot.inventory = hasPlusOverlay(px, w, slot);
         slots.push(slot);
       }
@@ -373,6 +388,11 @@
       var bright = brighten(px, w, h, DIM_GAIN);
       var dim = findSlots(bright, w, h, false);
       if (dim.length) { src = bright; slots = dim; }
+    }
+    // Still nothing: wider photo colours (washed-out monitor photo).
+    if (!slots.length) {
+      var wide = findSlots(norm, w, h, 2);
+      if (wide.length) { src = norm; slots = wide; photo = true; }
     }
     return slots.map(function (s) {
       var sig = slotSignature(src, w, s);
