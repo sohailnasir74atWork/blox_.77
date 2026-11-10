@@ -256,6 +256,7 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
         slots: slots.map((sl) => ({
           box: [sl.x0, sl.nameTop, sl.x1, sl.priceTop].map(Math.round),
           inventory: sl.inventory ? 1 : 0,
+          tile: sl.tile ? 1 : 0,
           photo: sl.photo ? 1 : 0,
           top: (sl.candidates || []).slice(0, 3).map((c) => [c.name, Math.round(c.d * 1000) / 1000]),
         })),
@@ -271,6 +272,7 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
         text_reader: text.ok ? 1 : 0,
         scanner_v: activeScannerVersion(),
         model: named ? 1 : 0,
+        inventory: trade.inventoryScreen ? 1 : 0,
         crop_area: Math.round(frame.w * frame.h * 100),
       });
       if (!found) { setStage('none'); return; }
@@ -280,6 +282,7 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
         found: Math.min(trade.mine.length, maxPerSide) + Math.min(trade.theirs.length, maxPerSide),
         source,
         skippedInventory: trade.skippedInventory,
+        inventoryScreen: trade.inventoryScreen,
         cut: trade.mine.length > maxPerSide || trade.theirs.length > maxPerSide,
       });
       setFeedback(null);
@@ -742,9 +745,11 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
                 (2026-11-03, owner): one tap for a wrong scan. Gone after "Yes". */}
             {!(feedback === 'done' && !wrongReason.current) && reportBox()}
 
-            {(result.skippedInventory > 0 || result.cut || !openItem) && (
-              <Text style={[styles.note, { color: sub }]} numberOfLines={2}>
-                {result.skippedInventory > 0
+            {(result.inventoryScreen || result.skippedInventory > 0 || result.cut || !openItem) && (
+              <Text style={[styles.note, { color: sub }]} numberOfLines={3}>
+                {result.inventoryScreen
+                  ? t('trade_scanner.inventory_screen', { defaultValue: 'This is your inventory, so your fruits are on You give (up to {{max}}). To check a trade, scan the Treasure Trade window.', max: maxPerSide })
+                  : result.skippedInventory > 0
                   ? t('trade_scanner.inventory_skipped', { defaultValue: 'Fruits in your open inventory list were skipped. Close it before the screenshot to scan your side.' })
                   : result.cut
                     ? t('trade_scanner.max_side', { defaultValue: 'Only the first {{max}} fruits per side fit in the calculator.', max: maxPerSide })

@@ -292,6 +292,9 @@
     "version": "バージョン {{version}}"
   },
   "home": {
+    "win": "得",
+    "lose": "損",
+    "fair": "互角",
     "you": "自分",
     "them": "相手",
     "price": "価格",
@@ -395,6 +398,7 @@
       "log_trade": "トレード記録"
     },
     "picker_my_items": "持ち物",
+    "picker_recent": "最近",
     "picker_all": "すべて",
     "picker_empty": "持ち物にまだアイテムがありません。\n「持ち物」からフルーツを追加すると、ここに表示されます。",
     "picker_browse_all": "すべてのアイテムを見る",
@@ -1484,6 +1488,10 @@
     "error": "エラー"
   },
   "trending": {
+    "market": "マーケット",
+    "rising": "上昇",
+    "falling": "下落",
+    "trades_24h": "取引 (24時間)",
     "market_overview": "相場の概要",
     "full_analytics": "詳しい分析",
     "hot": "急上昇",
@@ -3195,5 +3203,52 @@
     "up_to_date": "スキャナー v{{v}} · 最新",
     "updated": "スキャナー v{{v}} に更新しました",
     "version": "スキャナー v{{v}}"
+  },
+  "slot_sheet": {
+    "close": "閉じる",
+    "value": "価値",
+    "details": "詳細",
+    "add_another": "もう1つ追加",
+    "move": "反対側へ移動",
+    "remove": "削除",
+    "side_full": "その側はいっぱいです。",
+    "swap_sides": "左右を入れ替え"
+  },
+  "counter_offer": {
+    "counter": "カウンター",
+    "banner_title": "{{name}}さんへのカウンターオファー",
+    "banner_cancel": "キャンセル",
+    "send": "カウンターオファーを送る",
+    "replace_title": "今のトレードを置き換えますか？",
+    "replace_body": "カウンターオファーで計算機のフルーツが置き換わります。",
+    "replace_keep": "自分のを残す",
+    "replace_confirm": "置き換える",
+    "card_title": "カウンターオファー",
+    "you_give": "あなたが出す",
+    "you_get": "あなたがもらう",
+    "verdict_them": "相手: {{verdict}}",
+    "waiting": "返事待ち…",
+    "accept": "承諾",
+    "decline": "断る",
+    "cancel_offer": "取り消す",
+    "mark_completed": "トレード完了",
+    "didnt_happen": "成立しなかった",
+    "status_pending": "返事待ち",
+    "status_trading": "トレード中",
+    "status_declined": "断られました",
+    "status_cancelled": "取り消し済み",
+    "status_completed": "完了",
+    "status_failed": "不成立",
+    "preview": "🔁 カウンターオファー",
+    "reply_accept": "✅ カウンターオファーを承諾しました",
+    "reply_decline": "❌ カウンターオファーを断りました",
+    "reply_cancel": "↩️ カウンターオファーを取り消しました",
+    "reply_complete": "🤝 トレードを完了にしました",
+    "reply_fail": "⚠️ トレードは成立しませんでした",
+    "fallback_text": "🔁 カウンターオファー · 出す: {{give}} · 欲しい: {{get}} · 返信するにはアプリを更新してください",
+    "nothing": "なし",
+    "safe_chat_blocked": "このチャットではカウンターオファーを送れません。",
+    "already_changed": "このオファーはすでに更新されています。",
+    "update_failed": "オファーを更新できませんでした。もう一度お試しください。"
   }
 }

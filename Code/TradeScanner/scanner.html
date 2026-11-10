@@ -12,7 +12,8 @@
   RN -> page:  window.tradeScan(id, dataUrl, crop)   crop: CropBox frame, shares of the picture
   page -> RN:  { type: 'ready' } | { type: 'result', id, width, height, slots } | { type: 'error', id, message }
   Slot coordinates are in the cropped frame's own pixels (the same space the
-  native text reader reports in).
+  native text reader reports in). tile: a tile of the in-game Items inventory
+  (v7, 2026-11-08): the whole tile is nameBottom..priceTop.
 -->
 </head>
 <body>
@@ -45,7 +46,7 @@
           return {
             x0: s.x0 / scale, x1: s.x1 / scale,
             nameTop: s.nameTop / scale, nameBottom: s.nameBottom / scale, priceTop: s.priceTop / scale,
-            inventory: s.inventory, photo: !!s.photo, candidates: s.candidates,
+            inventory: s.inventory, tile: !!s.tile, photo: !!s.photo, candidates: s.candidates,
           };
         });
         post({ type: 'result', id: id, width: w, height: h, slots: slots });

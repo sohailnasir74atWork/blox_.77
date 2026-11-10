@@ -312,6 +312,9 @@
     "version": "Версия {{version}}"
   },
   "home": {
+    "win": "Выгодно",
+    "lose": "Невыгодно",
+    "fair": "Равноценно",
     "you": "Ты",
     "them": "Они",
     "price": "Цена",
@@ -423,6 +426,7 @@
       "log_trade": "Записать обмен"
     },
     "picker_my_items": "Мои предметы",
+    "picker_recent": "Недавние",
     "picker_all": "Все",
     "picker_empty": "В инвентаре пока нет предметов. Добавь фрукты в разделе «Мои вещи», чтобы увидеть их здесь.",
     "picker_browse_all": "Все предметы",
@@ -1563,6 +1567,10 @@
     }
   },
   "trending": {
+    "market": "Рынок",
+    "rising": "Растут",
+    "falling": "Падают",
+    "trades_24h": "Обмены (24 ч)",
     "market_overview": "Обзор рынка",
     "full_analytics": "Полная аналитика",
     "hot": "Растёт",
@@ -3338,5 +3346,52 @@
     "up_to_date": "Сканер v{{v}} · актуален",
     "updated": "Сканер обновлён до v{{v}}",
     "version": "Сканер v{{v}}"
+  },
+  "slot_sheet": {
+    "close": "Закрыть",
+    "value": "Ценность",
+    "details": "Подробнее",
+    "add_another": "Добавить ещё",
+    "move": "На другую сторону",
+    "remove": "Убрать",
+    "side_full": "Эта сторона заполнена.",
+    "swap_sides": "Поменять стороны"
+  },
+  "counter_offer": {
+    "counter": "Контроффер",
+    "banner_title": "Контроффер для {{name}}",
+    "banner_cancel": "Отмена",
+    "send": "Отправить контроффер",
+    "replace_title": "Заменить текущий обмен?",
+    "replace_body": "Контроффер заменит фрукты в калькуляторе.",
+    "replace_keep": "Оставить мой",
+    "replace_confirm": "Заменить",
+    "card_title": "Контроффер",
+    "you_give": "Вы отдаёте",
+    "you_get": "Вы получаете",
+    "verdict_them": "Для них: {{verdict}}",
+    "waiting": "Ожидание…",
+    "accept": "Принять",
+    "decline": "Отклонить",
+    "cancel_offer": "Отменить",
+    "mark_completed": "Обмен состоялся",
+    "didnt_happen": "Не состоялся",
+    "status_pending": "Ожидает",
+    "status_trading": "Идёт обмен",
+    "status_declined": "Отклонён",
+    "status_cancelled": "Отменён",
+    "status_completed": "Завершён",
+    "status_failed": "Не удался",
+    "preview": "🔁 Контроффер",
+    "reply_accept": "✅ Принял(а) контроффер",
+    "reply_decline": "❌ Отклонил(а) контроффер",
+    "reply_cancel": "↩️ Отменил(а) контроффер",
+    "reply_complete": "🤝 Отметил(а), что обмен состоялся",
+    "reply_fail": "⚠️ Отметил(а), что обмен не состоялся",
+    "fallback_text": "🔁 Контроффер · Отдаю: {{give}} · Хочу: {{get}} · Обновите приложение, чтобы ответить",
+    "nothing": "ничего",
+    "safe_chat_blocked": "В этом чате нельзя отправлять контрофферы.",
+    "already_changed": "Это предложение уже обновлено.",
+    "update_failed": "Не удалось обновить предложение. Попробуйте ещё раз."
   }
 }

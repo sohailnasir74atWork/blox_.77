@@ -124,9 +124,12 @@ function findTitle(lines, slots) {
 /**
  * slots: from the WebView matcher (image pixels). lines: [{ text, x, y, w, h }]
  * from the text reader in the same pixel space, or [] when it is unavailable.
- * Returns { mine: [pick], theirs: [pick], skippedInventory, foundWindow }
- * where pick = { name, sure, alternatives: [name], perm? } (perm: the bar says
- * "Permanent", the calculator's permanent record).
+ * Returns { mine: [pick], theirs: [pick], skippedInventory, foundWindow,
+ * inventoryScreen } where pick = { name, sure, alternatives: [name], perm? }
+ * (perm: the bar says "Permanent", the calculator's permanent record).
+ * inventoryScreen: every slot is a tile of the in-game Items inventory
+ * (matcher.js findInventoryTiles, scanner page v7, 2026-11-08): the fruits are
+ * the user's, all on "you give", and the sheet says how to scan a trade.
  */
 export function buildTrade({ slots, lines = [], width, catalog }) {
   const known = new Set(catalog.map(normalize));
@@ -186,5 +189,6 @@ export function buildTrade({ slots, lines = [], width, catalog }) {
       .slice(0, 4);
     ((s.x0 + s.x1) / 2 < divider ? mine : theirs).push(pick);
   }
-  return { mine, theirs, skippedInventory, foundWindow: Boolean(title) || slots.length > 0 };
+  const inventoryScreen = slots.length > 0 && slots.every((s) => s.tile);
+  return { mine, theirs, skippedInventory, foundWindow: Boolean(title) || slots.length > 0, inventoryScreen };
 }

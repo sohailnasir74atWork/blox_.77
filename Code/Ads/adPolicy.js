@@ -8,9 +8,10 @@
 // $2–5 eCPM against $0.15–0.45 for banners, yet only 4–20% of the
 // interstitials the apps LOADED were ever shown — the triggers (post a trade,
 // 7th chat message, upload…) are rare, so most sessions warmed an ad for
-// nothing. The natural-break placement below turns tab switches into the
-// standard "between screens" interstitial moment, under caps strict enough
-// that a user can never see more than one every few minutes.
+// nothing. The natural-break placement below is the standard "between
+// screens" interstitial moment, under caps strict enough that a user can
+// never see more than one every few minutes. Tab switches no longer use it
+// (owner decision, 2026-11-04, revenue LOG "Ad diet").
 //
 // Not covered here: the trade-post and feed-post interstitials (PostAd.js).
 // They always show after a successful post (owner decision, 2026-10-13), on
@@ -53,9 +54,10 @@ export const CHAT_MESSAGES_PER_AD = 10;
 // Still above the AdMob unit cap (1 per minute), which stays the backstop.
 // iOS 5 min (revenue LOG 2026-10-18, iOS full-screen mix): an iOS app-open
 // earned ~$0.81 eCPM against ~$4.02 for an interstitial, and returns came
-// ~2.2 times per user per day. Fewer return app-opens leave room for the
-// natural-break interstitial (see NATURAL_BREAK.GAP_FROM_ANY_FULLSCREEN).
-export const APP_OPEN_MIN_INTERVAL_MS = Platform.OS === 'ios' ? 5 * 60 * 1000 : 2 * 60 * 1000;
+// ~2.2 times per user per day.
+// 5 min on both platforms (owner decision, 2026-11-04, revenue LOG "Ad diet"):
+// fewer interruptions after the competitor app review.
+export const APP_OPEN_MIN_INTERVAL_MS = 5 * 60 * 1000;
 // Launch (cold-start) app-open ad: returning users only, shown from the splash
 // or not at all. Every launch is eligible (owner decision, 2026-10-07): the
 // 4 h gap cut app-open impressions per session by 26–54% in the 2026-10-04

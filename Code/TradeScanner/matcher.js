@@ -65,6 +65,7 @@
 
   // Countdown-dimmed trade window (see scan): every channel times gain.
   var DIM_GAIN = 4;
+  var HALF_DIM_GAIN = 2.2;
   function brighten(px, w, h, gain) {
     var out = new Uint8Array(w * h * 4);
     for (var q = 0; q < w * h * 4; q += 4) {
@@ -252,6 +253,167 @@
     return arms / armN > 0.55 && off / offN < 0.2;
   }
 
+  // In-game Items inventory (2026-11-08: 15 of 46 user reports). Each fruit
+  // is a red (mythical) or purple (legendary) square tile with a lighter rim,
+  // the fruit art, "Blox Fruit" at the top and the name at the bottom, on a
+  // dark grid. No green / pink bars, so findSlots sees nothing. The gaps are
+  // red-tinted too, but dark (value < 100).
+  function isTileColor(r, g, b) {
+    var c = hsv(r, g, b);
+    return c[1] > 0.45 && c[2] > 110 && (c[0] < 15 || c[0] > 335 || (c[0] > 270 && c[0] <= 335));
+  }
+
+  function maskFill(mask, w, x0, y0, x1, y1) {
+    var n = 0;
+    for (var y = y0; y < y1; y++) for (var x = x0; x < x1; x++) n += mask[y * w + x];
+    return n / Math.max(1, (x1 - x0) * (y1 - y0));
+  }
+
+  // Regular grid along one axis: tiles of one size with a thin gap, the gap
+  // lines (no tile colour) at o + k * p. prof[i] = how empty line i is.
+  // Fruit art leaves dips inside a tile too, so the whole grid is fitted at
+  // once rather than cut at every dip. Returns [[a, b)] tile spans inside
+  // [lo, hi) with at least 40 % of a tile showing (the name is at the
+  // bottom: a tile cut at the list top still shows it).
+  function fitGrid(prof, lo, hi, size) {
+    // Each line is scored with a small triangle around it, so the fit lands
+    // on the middle of a gap (a gap is a few lines wide and evenly dark).
+    var hw = Math.max(2, Math.round(0.03 * size)), sm = [];
+    for (var i = 0; i < prof.length; i++) {
+      var acc = 0;
+      for (var j = -hw; j <= hw; j++) if (i + j >= 0 && i + j < prof.length) acc += prof[i + j] * (hw + 1 - Math.abs(j));
+      sm.push(acc);
+    }
+    var best = -1, bp = 0, bo = 0;
+    for (var p = Math.round(size); p <= Math.round(1.12 * size) + 1; p++) {
+      for (var o = 0; o < p; o++) {
+        var sum = 0, n = 0;
+        for (var at = o; at < prof.length; at += p) { sum += sm[at]; n++; }
+        if (n && sum / n > best) { best = sum / n; bp = p; bo = o; }
+      }
+    }
+    var g = Math.max(2, bp - size) / 2, out = [];
+    for (var at2 = bo - bp; at2 < prof.length; at2 += bp) {
+      var a = Math.max(lo, Math.round(at2 + g)), b = Math.min(hi, Math.round(at2 + bp - g));
+      if (b - a >= 0.4 * size) out.push([a, b]);
+    }
+    return out;
+  }
+
+  /**
+   * Inventory tiles as slots: the whole tile is the picture (nameBottom =
+   * the tile top, priceTop = the tile bottom; what the model reads), and
+   * inventory: true, tile: true. A tile cut by the scrolling list is boxed
+   * as a full square (the model learned whole tiles); one with less than
+   * half showing is dropped. [] when the picture is not an inventory.
+   */
+  function findInventoryTiles(px, w, h) {
+    var mask = new Uint8Array(w * h);
+    for (var i = 0, p = 0; i < w * h; i++, p += 4) if (isTileColor(px[p], px[p + 1], px[p + 2])) mask[i] = 1;
+    var big = blobs(mask, w, h).filter(function (b) { return b.x1 - b.x0 >= 0.03 * w && b.y1 - b.y0 >= 0.015 * w; });
+    function inside(b, c) { var cx = (c.x0 + c.x1) / 2, cy = (c.y0 + c.y1) / 2; return c !== b && cx > b.x0 && cx < b.x1 && cy > b.y0 && cy < b.y1; }
+    // One tile on its own: square, or cut by the list edge (at least half).
+    // Not a ring of tile colour around other tiles (several tiles joined by
+    // blur or by fruit art over a gap, with more tiles inside).
+    // Its rim is tile colour most of the way round (a piece of art is not).
+    // A band just inside the box: a photo blurs the outermost pixels.
+    function rim(b) {
+      var t = 3, i = Math.min(2, Math.floor((b.x1 - b.x0) / 20)), x0 = b.x0 + i, y0 = b.y0 + i, x1 = b.x1 - i, y1 = b.y1 - i;
+      var area = 2 * t * (x1 - x0) + 2 * t * (y1 - y0 - 2 * t);
+      var n = maskFill(mask, w, x0, y0, x1, y0 + t) * t * (x1 - x0) + maskFill(mask, w, x0, y1 - t, x1, y1) * t * (x1 - x0) +
+        maskFill(mask, w, x0, y0 + t, x0 + t, y1 - t) * t * (y1 - y0 - 2 * t) + maskFill(mask, w, x1 - t, y0 + t, x1, y1 - t) * t * (y1 - y0 - 2 * t);
+      return n / area;
+    }
+    var singles = big.filter(function (b) {
+      var bw = b.x1 - b.x0, bh = b.y1 - b.y0;
+      return bw >= 0.05 * w && bh >= 0.5 * bw && bh <= 1.15 * bw && b.n >= 0.15 * bw * bh && rim(b) >= 0.5 &&
+        big.filter(function (c) { return inside(b, c) && c.x1 - c.x0 >= 0.2 * bw; }).length < 2;
+    });
+    // The tile size: the width most single tiles agree on, bigger ones
+    // weighing a little more (a few tiles outweigh many small pieces of art;
+    // two tiles outweigh one blob of two joined tiles).
+    var size = 0, bestScore = 0;
+    singles.forEach(function (c) {
+      var s = c.x1 - c.x0, score = 0;
+      singles.forEach(function (d) { if (Math.abs(d.x1 - d.x0 - s) <= 0.12 * s) score += Math.sqrt(d.x1 - d.x0); });
+      if (score > bestScore || (score === bestScore && s > size)) { bestScore = score; size = s; }
+    });
+    if (!size) return [];
+    // The grid's extent: blobs one or more tiles wide (k tiles + gaps).
+    var box = null;
+    big.forEach(function (d) {
+      var bw = d.x1 - d.x0, k = Math.max(1, Math.round(bw / (1.04 * size)));
+      if (k > 6 || Math.abs(bw - k * 1.04 * size + 0.04 * size) > 0.2 * size || d.y1 - d.y0 < 0.4 * size) return;
+      box = box ? { x0: Math.min(box.x0, d.x0), y0: Math.min(box.y0, d.y0), x1: Math.max(box.x1, d.x1), y1: Math.max(box.y1, d.y1) } : { x0: d.x0, y0: d.y0, x1: d.x1, y1: d.y1 };
+    });
+    if (!box) return [];
+    // Gap-ness of each column / row across the grid, with a margin so the
+    // outer gap lines are inside the profile: how far the line's mean
+    // brightness dips below the bright tile rims either side of it. A
+    // screenshot's gap is near black; a photo blurs it to a darker red, but
+    // it still sits in a valley between two rims.
+    var m = Math.round(0.1 * size);
+    var gx0 = Math.max(0, box.x0 - m), gx1 = Math.min(w, box.x1 + m), gy0 = Math.max(0, box.y0 - m), gy1 = Math.min(h, box.y1 + m);
+    function valleys(v) {
+      var d = Math.max(2, Math.round(0.05 * size)), out = [];
+      for (var k = 0; k < v.length; k++) {
+        var l = 0, r = 0;
+        for (var j = Math.max(0, k - d); j < k; j++) l = Math.max(l, v[j]);
+        for (var j2 = k + 1; j2 <= Math.min(v.length - 1, k + d); j2++) r = Math.max(r, v[j2]);
+        out.push(Math.max(0, Math.min(l, r) - v[k]) / 255);
+      }
+      return out;
+    }
+    function bright(x0, y0, x1, y1) {
+      var sum = 0;
+      for (var yy = y0; yy < y1; yy++) for (var xx = x0; xx < x1; xx++) { var q = (yy * w + xx) * 4; sum += Math.max(px[q], px[q + 1], px[q + 2]); }
+      return sum / Math.max(1, (x1 - x0) * (y1 - y0));
+    }
+    var colV = [], rowV = [];
+    for (var x = gx0; x < gx1; x++) colV.push(bright(x, box.y0, x + 1, box.y1));
+    for (var y = gy0; y < gy1; y++) rowV.push(bright(box.x0, y, box.x1, y + 1));
+    var colProf = valleys(colV), rowProf = valleys(rowV);
+    // A tile standing alone is the surest evidence of where the grid lines
+    // are (one row, or a gap the valleys cannot see): its edges count too.
+    // Top / bottom only for a whole tile; a cut one ends at the list edge.
+    singles.forEach(function (b) {
+      if (Math.abs(b.x1 - b.x0 - size) > 0.12 * size) return;
+      [b.x0 - 1, b.x1].forEach(function (x) { if (x >= gx0 && x < gx1) colProf[x - gx0] += 0.5; });
+      if (b.y1 - b.y0 < 0.9 * size) return;
+      [b.y0 - 1, b.y1].forEach(function (y) { if (y >= gy0 && y < gy1) rowProf[y - gy0] += 0.5; });
+    });
+    var cols = fitGrid(colProf, box.x0 - gx0, box.x1 - gx0, size), rows = fitGrid(rowProf, box.y0 - gy0, box.y1 - gy0, size);
+    var tiles = [];
+    rows.forEach(function (r) {
+      cols.forEach(function (c) {
+        var t = { x0: gx0 + c[0], x1: gx0 + c[1], y0: gy0 + r[0], y1: gy0 + r[1] };
+        // An empty grid place (the list's last row) has no tile colour.
+        if (maskFill(mask, w, t.x0, t.y0, t.x1, t.y1) >= 0.2) tiles.push(t);
+      });
+    });
+    // The inventory packs tiles side by side: most grid places hold one.
+    // Scattered red badges (another app's list, 2026-11-06 report) do not.
+    if (tiles.length < 0.5 * rows.length * cols.length) return [];
+    var full = tiles.filter(function (b) { return b.y1 - b.y0 >= 0.85 * size; });
+    // A grid of at least two tiles, or one tile filling the picture (a
+    // single tile cropped out).
+    if (!full.length || (tiles.length < 2 && size < 0.35 * Math.min(w, h))) return [];
+    var mid = full.map(function (b) { return (b.y0 + b.y1) / 2; }).sort(function (q, n) { return q - n; })[Math.floor(full.length / 2)];
+    // Reading order: rows top to bottom, each left to right (already so).
+    return tiles.map(function (b) {
+      var y0 = b.y0, y1 = b.y1;
+      if (y1 - y0 < 0.85 * size) {
+        // Cut by the list edge: above the grid's middle it lost its top
+        // (the name at the bottom shows); below, its bottom, and with it the
+        // name: only "Blox Fruit" and the top of the art unless most shows.
+        if ((y0 + y1) / 2 < mid) y0 = Math.max(0, y1 - size);
+        else if (y1 - y0 < 0.6 * size) return null;
+        else y1 = Math.min(h, y0 + size);
+      }
+      return { x0: b.x0, x1: b.x1, nameTop: y0, nameBottom: y0, priceTop: y1, inventory: true, tile: true };
+    }).filter(Boolean);
+  }
+
   /** Signature of the picture between a slot's name bar and price bar. */
   function slotSignature(px, w, s) {
     var pad = Math.max(2, Math.floor((s.x1 - s.x0) / 30));
@@ -389,20 +551,50 @@
       var dim = findSlots(bright, w, h, false);
       if (dim.length) { src = bright; slots = dim; }
     }
+    // One side dimmed: until the other player is ready the game shows their
+    // side at ~45 % (16b8dba1, 2026-11-10: pink bars ~(90,0,90)), so only the
+    // bright side was found. Brightened, the dim side's slots show: add the
+    // new ones that match the found slots' size and sit level with one of
+    // their rows (the two offers' rows line up). Each is signed from the
+    // brightened picture.
+    var extra = [], brightSrc = null;
+    if (slots.length && slots.length < 8) {
+      brightSrc = brighten(px, w, h, HALF_DIM_GAIN);
+      var sz = slots.map(function (s) { return s.x1 - s.x0; }).sort(function (a, b) { return a - b; });
+      var mid = sz[Math.floor(sz.length / 2)];
+      findSlots(brightSrc, w, h, false).forEach(function (d) {
+        var dw = d.x1 - d.x0;
+        if (Math.abs(dw - mid) > 0.15 * mid) return;
+        if (slots.concat(extra).some(function (s) { return Math.min(s.x1, d.x1) - Math.max(s.x0, d.x0) > 0 && Math.min(s.priceTop, d.priceTop) - Math.max(s.nameTop, d.nameTop) > 0; })) return;
+        if (!slots.some(function (s) { return Math.abs(s.nameTop - d.nameTop) < 0.2 * mid; })) return;
+        extra.push(d);
+      });
+    }
     // Still nothing: wider photo colours (washed-out monitor photo).
     if (!slots.length) {
       var wide = findSlots(norm, w, h, 2);
       if (wide.length) { src = norm; slots = wide; photo = true; }
     }
-    return slots.map(function (s) {
-      var sig = slotSignature(src, w, s);
-      s.candidates = sig ? rank(sig, templates, 5) : [];
-      s.photo = photo;
-      return s;
-    });
+    // Still nothing: the in-game Items inventory (no trade window at all).
+    if (!slots.length) {
+      var inv = findInventoryTiles(px, w, h);
+      var invNorm = findInventoryTiles(norm, w, h);
+      if (invNorm.length > inv.length) { src = norm; slots = invNorm; photo = true; } else slots = inv;
+    }
+    var sign = function (from) {
+      return function (s) {
+        var sig = slotSignature(from, w, s);
+        s.candidates = sig ? rank(sig, templates, 5) : [];
+        s.photo = photo;
+        return s;
+      };
+    };
+    var out = slots.map(sign(src));
+    if (extra.length) out = out.concat(extra.map(sign(brightSrc))).sort(function (a, b) { return Math.abs(a.nameTop - b.nameTop) < 0.2 * (a.x1 - a.x0) ? a.x0 - b.x0 : a.nameTop - b.nameTop; });
+    return out;
   }
 
-  var api = { N: N, findSlots: findSlots, normalizeColors: normalizeColors, slotSignature: slotSignature, loadTemplates: loadTemplates, rank: rank, scan: scan };
+  var api = { N: N, findSlots: findSlots, findInventoryTiles: findInventoryTiles, normalizeColors: normalizeColors, slotSignature: slotSignature, loadTemplates: loadTemplates, rank: rank, scan: scan };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TradeMatcher = api;
 })(this);

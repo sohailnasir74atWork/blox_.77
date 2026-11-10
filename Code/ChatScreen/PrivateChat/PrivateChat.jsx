@@ -7,7 +7,7 @@ import {
   Image,
   TouchableOpacity, TextInput,
 } from 'react-native';
-import { useFocusEffect, useIsFocused, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused, useRoute, useNavigation } from '@react-navigation/native';
 import { getStyles } from '../Style';
 import PrivateMessageInput from './PrivateMessageInput';
 import PrivateMessageList from './PrivateMessageList';
@@ -38,7 +38,6 @@ import {
 import { incrementAndCheckBadge, REVIEW_BADGE_THRESHOLDS } from '../GroupChat/badgeUtils';
 import { addXP, XP_ACTIONS } from '../../Engagement/xpUtils';
 import ProfileBottomDrawer from '../GroupChat/BottomDrawer';
-import PostAdManager from '../../Ads/PostAd';
 import {
   sendPrivateChatMeta,
   resetUnreadCount as sbResetUnreadCount,
@@ -53,6 +52,20 @@ import {
   softDeleteAllInChat as sbSoftDeleteAllInChat,
   newClientMsgId as newPvtClientMsgId,
 } from '../../Supabase/privateMessagesBackend';
+import {
+  isTradeOffer,
+  offerFallbackText,
+  canApplyOfferAction,
+  notifyCounterSent,
+} from '../../CounterOffer/counterOffer';
+import {
+  bloxVariantText,
+  isOfferStatusReply,
+  buildOfferStatusReply,
+  offerStatusRow,
+  offerStatusReplyText,
+  foldOfferStatuses,
+} from '../../Helper/counterOfferBlox';
 import { validateUsername } from '../../Helper/ContentModeration';
 
 
@@ -153,10 +166,6 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
   const [canRate, setCanRate] = useState(false);
   const [hasRated, setHasRated] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
-  // Warm the review ad while the user writes, so it is ready on submit.
-  useEffect(() => {
-    if (showRatingModal) PostAdManager.prepare('review');
-  }, [showRatingModal]);
   const [rating, setRating] = useState(0);
   const [petModalVisible, setPetModalVisible] = useState(false);
   const [selectedFruits, setSelectedFruits] = useState([]);
@@ -453,10 +462,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       }
       setStartRating(false);
 
-      // Review ad: always shown after a saved rating/review, like a posted
-      // trade (PostAd.js; it skips Pro users itself). Owner decision
-      // 2026-11-01, reversing the 2026-09 removal (private-chat surface).
-      PostAdManager.show('review');
+      // No ad after a rating/review (owner decision 2026-11-04, revenue LOG "Ad diet").
 
     } catch (error) {
       console.error("Rating error:", error);
@@ -644,7 +650,16 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
 
 
 
-  const sendMessage = useCallback(async (text, image, fruits, replyToMsg, gif) => {
+  // `offer` (6th arg): a trade_offer payload from the calculator's counter
+  // flow (CounterOffer/counterOffer.js). It travels in `fruits` as an object,
+  // with a readable `text` fallback for app versions that predate it.
+  // `offerStatus` (7th arg): a status reply for an offer (Helper/counterOfferBlox.js),
+  // stored as { kind: 'trade_offer_status', offerStatus } in `fruits`.
+  // Neither clears what is typed in the box. Resolves true once stored.
+  const sendMessage = useCallback(async (text, image, fruits, replyToMsg, gif, offer = null, offerStatus = null) => {
+    const isOffer = isTradeOffer(offer);
+    const isStatusReply = !isOffer && isOfferStatusReply(offerStatus);
+    const isOfferMessage = isOffer || isStatusReply;
     // Guard for a stale screen — the input is already disabled when this door
     // is shut, so this only fires if the switch flipped while the chat was open.
     if (chatBlockedBy) {
@@ -661,7 +676,10 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       return;
     }
 
-    const trimmedText = (text || '').trim();
+    // An offer's text is built from catalogue names (dots stripped for the
+    // server link filter), not typed. Blox has no client word filter or safe
+    // chat on this path; the server's link / ban triggers still apply.
+    const trimmedText = isOffer ? offerFallbackText(offer, t, bloxVariantText) : (text || '').trim();
     const hasImage = !!image;
     const hasFruits = Array.isArray(fruits) && fruits.length > 0;
     const hasGif = !!gif;
@@ -685,7 +703,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       return;
     }
 
-    if (!trimmedText && !hasImage && !hasFruits && !hasGif) {
+    if (!trimmedText && !hasImage && !hasFruits && !hasGif && !isOfferMessage) {
       showErrorMessage(t("home.alert.error"), t("chat.cannot_empty"));
       return;
     }
@@ -695,7 +713,8 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       return;
     }
 
-    setInput('');
+    // An offer arrives from the calculator; whatever is typed in the box stays.
+    if (!isOfferMessage) setInput('');
 
     const timestamp = Date.now();
     const chatId = [myUserId, selectedUserId].sort().join('_');
@@ -713,14 +732,17 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
         }
       : null;
 
-    const lastMessagePreview =
-      trimmedText ||
+    const lastMessagePreview = isOffer
+      ? t('counter_offer.preview', { defaultValue: '🔁 Counter offer' })
+      : trimmedText ||
       (hasImage ? '📷 Photo' : hasFruits ? `🐾 ${fruits.length} pet(s)` : hasGif ? '✨ Sticker' : '');
 
     // Pre-generate the idempotency key so the optimistic placeholder can
     // be matched against the realtime INSERT (and against the row
     // returned from sendPrivateMessage on retry collision).
-    const clientMsgId = newPvtClientMsgId();
+    // The offer id doubles as the idempotency key, so a retried send of the
+    // same counter offer can never post it twice.
+    const clientMsgId = isOffer ? offer.id : newPvtClientMsgId();
 
     // ✅ Optimistic: add message to local state immediately. The
     // realtime INSERT will replace this with the real row matched by
@@ -738,6 +760,8 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       ...(hasImage ? { imageUrl: image } : {}),
       ...(hasGif ? { gif } : {}),
       ...(hasFruits ? { fruits } : {}),
+      ...(isOffer ? { tradeOffer: offer } : {}),
+      ...(isStatusReply ? { offerStatus } : {}),
       ...(replyToPayload ? { replyTo: replyToPayload } : {}),
     };
     setMessages(prev => {
@@ -754,7 +778,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
         text: trimmedText || null,
         imageUrl: hasImage ? image : null,
         gif: hasGif ? gif : null,
-        fruits: hasFruits ? fruits : [],
+        fruits: isOffer ? offer : isStatusReply ? offerStatusRow(offerStatus) : (hasFruits ? fruits : []),
         replyTo: replyToPayload,
         OS: undefined, // PrivateChat doesn't track OS today; leave null
         clientMsgId,
@@ -798,6 +822,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       if (writeSenderIdentity) metaIdentityWrittenRef.current.add(receiverKey);
 
       setReplyTo(null);
+      return true;
     } catch (error) {
       console.error("Error sending message:", error);
       // Server rejected the sender / message (SENDER_BANNED,
@@ -806,13 +831,54 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
       const rejected = chatSendErrorText(chatSendErrorCode(error));
       if (rejected) {
         setMessages(prev => (Array.isArray(prev) ? prev.filter(m => m?.id !== clientMsgId) : prev));
-        if (trimmedText) setInput(trimmedText);
+        if (trimmedText && !isOfferMessage) setInput(trimmedText);
         showErrorMessage(rejected.title, rejected.message);
-        return;
+        return false;
       }
       Alert.alert(t('chat.error'), t('chat.private_chat.send_failed'));
+      return false;
     }
   }, [myUserId, selectedUserId, appdatabase, currentSelectedUser, user, t, currentUserEmail, getModGate, chatBlockedBy, chatType]);
+
+  // ── Counter offer (CounterOffer/counterOffer.js) ─────────────────────────
+  // The calculator opens this chat with route.params.pendingOffer. Sent once,
+  // after the partner's availability has loaded, so a closed door is caught
+  // (sendMessage's chatBlockedBy guard) before anything is posted.
+  const navigation = useNavigation();
+  const pendingOffer = route?.params?.pendingOffer;
+  const sentOfferIdsRef = useRef(new Set());
+  useEffect(() => {
+    if (!isTradeOffer(pendingOffer) || !myUserId || !selectedUserId) return;
+    if (theirAvailability === null) return;
+    if (sentOfferIdsRef.current.has(pendingOffer.id)) return;
+    sentOfferIdsRef.current.add(pendingOffer.id);
+    navigation.setParams({ pendingOffer: undefined });
+    sendMessage(null, null, [], null, null, pendingOffer).then((ok) => {
+      if (ok) notifyCounterSent(pendingOffer.id);
+    });
+  }, [pendingOffer, myUserId, selectedUserId, theirAvailability, sendMessage, navigation]);
+
+  // Accept / Decline / Cancel / Mark completed / Didn't happen. Blox's guards
+  // let only a message's sender change it, so a status change is a small
+  // reply message from whoever acts; the card's status is the fold of those
+  // replies (earliest valid one wins a race). The optimistic bubble lands in
+  // the list at once, so the card updates without waiting for the server.
+  const handleOfferAction = useCallback(async (message, action) => {
+    const offer = message?.tradeOffer;
+    if (!isTradeOffer(offer) || !message?.id || !myUserId || message._optimistic) return;
+    const viewerIsSender = message.senderId === myUserId;
+    if (!canApplyOfferAction(offer, action, viewerIsSender)) return;
+    const ok = await sendMessage(
+      offerStatusReplyText(action, t), null, [], null, null, null,
+      buildOfferStatusReply({ offerId: offer.id, msgId: message.id, action }),
+    );
+    if (ok === false) {
+      showErrorMessage(t('home.alert.error'), t('counter_offer.update_failed', { defaultValue: "Couldn't update the offer. Try again." }));
+    }
+  }, [myUserId, sendMessage, t]);
+
+  // Offer rows carry the status their replies add up to.
+  const displayMessages = useMemo(() => foldOfferStatuses(messages), [messages]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1065,7 +1131,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
               )
             ) : (
               <PrivateMessageList
-                messages={messages}
+                messages={displayMessages}
                 userId={myUserId}
                 handleLoadMore={handleLoadMore}
                 refreshing={refreshing}
@@ -1081,6 +1147,7 @@ const PrivateChatScreen = ({ route, bannedUsers, isDrawerVisible, setIsDrawerVis
                 setShowRatingModal={setShowRatingModal}
                 chatKey={chatKey}
                 otherLastRead={otherLastRead}
+                onOfferAction={handleOfferAction}
               />
             )}
 

@@ -1,3 +1,7 @@
+diff --git a/node_modules/react-native-image-picker/.DS_Store b/node_modules/react-native-image-picker/.DS_Store
+new file mode 100644
+index 0000000..d7d2227
+Binary files /dev/null and b/node_modules/react-native-image-picker/.DS_Store differ
 diff --git a/node_modules/react-native-image-picker/android/src/main/java/com/imagepicker/ImagePickerModuleImpl.java b/node_modules/react-native-image-picker/android/src/main/java/com/imagepicker/ImagePickerModuleImpl.java
 index 56149f1..08b1dab 100644
 --- a/node_modules/react-native-image-picker/android/src/main/java/com/imagepicker/ImagePickerModuleImpl.java
@@ -45,3 +49,127 @@ index 56149f1..08b1dab 100644
          }
  
          switch (requestCode) {
+diff --git a/node_modules/react-native-image-picker/ios/ImagePickerManager.mm b/node_modules/react-native-image-picker/ios/ImagePickerManager.mm
+index 93e99be..e86217d 100644
+--- a/node_modules/react-native-image-picker/ios/ImagePickerManager.mm
++++ b/node_modules/react-native-image-picker/ios/ImagePickerManager.mm
+@@ -10,6 +10,7 @@ @interface ImagePickerManager ()
+ 
+ @property (nonatomic, strong) RCTResponseSenderBlock callback;
+ @property (nonatomic, copy) NSDictionary *options;
++- (void)sendResult:(NSArray *)result;
+ 
+ @end
+ 
+@@ -63,12 +64,29 @@ @implementation ImagePickerManager
+ }
+ #endif
+ 
++// React Native aborts the whole app (LOG(FATAL) in convertJSIFunctionToCallback)
++// when a callback is invoked a second time. Cancel can be reported twice
++// (didCancel + presentationControllerDidDismiss, or a second cancel tap while
++// the dismiss animation runs), so every reply goes through here: take the
++// callback, clear it, invoke it once. Later replies for the same launch are dropped.
++- (void)sendResult:(NSArray *)result
++{
++    RCTResponseSenderBlock cb = nil;
++    @synchronized (self) {
++        cb = self.callback;
++        self.callback = nil;
++    }
++    if (cb != nil) {
++        cb(result);
++    }
++}
++
+ - (void)launchImagePicker:(NSDictionary *)options callback:(RCTResponseSenderBlock)callback
+ {
+     self.callback = callback;
+ 
+     if (target == camera && [ImagePickerUtils isSimulator]) {
+-        self.callback(@[@{@"errorCode": errCameraUnavailable}]);
++        [self sendResult:@[@{@"errorCode": errCameraUnavailable}]];
+         return;
+     }
+ 
+@@ -87,7 +105,7 @@ - (void)launchImagePicker:(NSDictionary *)options callback:(RCTResponseSenderBlo
+ 
+                 [self checkPhotosPermissions:^(BOOL granted) {
+                     if (!granted) {
+-                        self.callback(@[@{@"errorCode": errPermission}]);
++                        [self sendResult:@[@{@"errorCode": errPermission}]];
+                         return;
+                     }
+                     [self showPickerViewController:picker];
+@@ -108,7 +126,7 @@ - (void)launchImagePicker:(NSDictionary *)options callback:(RCTResponseSenderBlo
+     if([self.options[@"includeExtra"] boolValue]) {
+         [self checkPhotosPermissions:^(BOOL granted) {
+             if (!granted) {
+-                self.callback(@[@{@"errorCode": errPermission}]);
++                [self sendResult:@[@{@"errorCode": errPermission}]];
+                 return;
+             }
+             [self showPickerViewController:picker];
+@@ -465,7 +483,7 @@ - (void)imagePickerController:(UIImagePickerController *)picker didFinishPicking
+             if (videoAsset == nil) {
+                 NSString *errorMessage = error.localizedFailureReason;
+                 if (errorMessage == nil) errorMessage = @"Video asset not found";
+-                self.callback(@[@{@"errorCode": errOthers, @"errorMessage": errorMessage}]);
++                [self sendResult:@[@{@"errorCode": errOthers, @"errorMessage": errorMessage}]];
+                 return;
+             }
+             [assets addObject:videoAsset];
+@@ -473,7 +491,7 @@ - (void)imagePickerController:(UIImagePickerController *)picker didFinishPicking
+ 
+         NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
+         response[@"assets"] = assets;
+-        self.callback(@[response]);
++        [self sendResult:@[response]];
+     };
+ 
+     dispatch_async(dispatch_get_main_queue(), ^{
+@@ -485,7 +503,7 @@ - (void)imagePickerControllerDidCancel:(UIImagePickerController *)picker
+ {
+     dispatch_async(dispatch_get_main_queue(), ^{
+         [picker dismissViewControllerAnimated:YES completion:^{
+-            self.callback(@[@{@"didCancel": @YES}]);
++            [self sendResult:@[@{@"didCancel": @YES}]];
+         }];
+     });
+ }
+@@ -496,7 +514,7 @@ @implementation ImagePickerManager (presentationControllerDidDismiss)
+ 
+ - (void)presentationControllerDidDismiss:(UIPresentationController *)presentationController
+ {
+-    self.callback(@[@{@"didCancel": @YES}]);
++    [self sendResult:@[@{@"didCancel": @YES}]];
+ }
+ 
+ @end
+@@ -515,7 +533,7 @@ - (void)picker:(PHPickerViewController *)picker didFinishPicking:(NSArray<PHPick
+ 
+     if (results.count == 0) {
+         dispatch_async(dispatch_get_main_queue(), ^{
+-            self.callback(@[@{@"didCancel": @YES}]);
++            [self sendResult:@[@{@"didCancel": @YES}]];
+         });
+         return;
+     }
+@@ -571,7 +589,7 @@ - (void)picker:(PHPickerViewController *)picker didFinishPicking:(NSArray<PHPick
+         //  mapVideoToAsset can fail and return nil, leaving asset NSNull.
+         for (NSDictionary *asset in assets) {
+             if ([asset isEqual:[NSNull null]]) {
+-                self.callback(@[@{@"errorCode": errOthers}]);
++                [self sendResult:@[@{@"errorCode": errOthers}]];
+                 return;
+             }
+         }
+@@ -579,7 +597,7 @@ - (void)picker:(PHPickerViewController *)picker didFinishPicking:(NSArray<PHPick
+         NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
+         [response setObject:assets forKey:@"assets"];
+ 
+-        self.callback(@[response]);
++        [self sendResult:@[response]];
+     });
+ }
+ 

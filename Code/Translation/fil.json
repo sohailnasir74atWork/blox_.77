@@ -294,6 +294,9 @@
     "version": "Bersyon {{version}}"
   },
   "home": {
+    "win": "Panalo",
+    "lose": "Talo",
+    "fair": "Patas",
     "you": "Ikaw",
     "them": "Sila",
     "price": "Presyo",
@@ -397,6 +400,7 @@
       "log_trade": "Itala ang Trade"
     },
     "picker_my_items": "Mga Gamit Ko",
+    "picker_recent": "Kamakailan",
     "picker_all": "Lahat",
     "picker_empty": "Wala pang laman ang inventory mo. Magdagdag ng prutas sa “Mga gamit ko” para lumabas dito.",
     "picker_browse_all": "Tingnan lahat ng item",
@@ -1488,6 +1492,10 @@
     }
   },
   "trending": {
+    "market": "Merkado",
+    "rising": "Tumataas",
+    "falling": "Bumababa",
+    "trades_24h": "Trades (24h)",
     "market_overview": "Buod ng merkado",
     "full_analytics": "Buong Analytics",
     "hot": "Sikat",
@@ -3200,5 +3208,52 @@
     "up_to_date": "Scanner v{{v}} · pinakabago",
     "updated": "Na-update sa scanner v{{v}}",
     "version": "Scanner v{{v}}"
+  },
+  "slot_sheet": {
+    "close": "Isara",
+    "value": "Halaga",
+    "details": "Detalye",
+    "add_another": "Magdagdag pa",
+    "move": "Ilipat sa kabila",
+    "remove": "Alisin",
+    "side_full": "Puno na ang panig na iyon.",
+    "swap_sides": "Pagpalitin ang panig"
+  },
+  "counter_offer": {
+    "counter": "Counter",
+    "banner_title": "Counter offer kay {{name}}",
+    "banner_cancel": "Kanselahin",
+    "send": "Ipadala ang counter offer",
+    "replace_title": "Palitan ang kasalukuyang trade mo?",
+    "replace_body": "Papalitan ng counter offer ang mga fruit sa calculator mo.",
+    "replace_keep": "Panatilihin ang akin",
+    "replace_confirm": "Palitan",
+    "card_title": "Counter offer",
+    "you_give": "Ibibigay mo",
+    "you_get": "Makukuha mo",
+    "verdict_them": "Sa kanila: {{verdict}}",
+    "waiting": "Naghihintay…",
+    "accept": "Tanggapin",
+    "decline": "Tanggihan",
+    "cancel_offer": "Kanselahin",
+    "mark_completed": "Tapos na ang trade",
+    "didnt_happen": "Hindi natuloy",
+    "status_pending": "Naghihintay",
+    "status_trading": "Nagte-trade",
+    "status_declined": "Tinanggihan",
+    "status_cancelled": "Kinansela",
+    "status_completed": "Tapos na",
+    "status_failed": "Hindi natuloy",
+    "preview": "🔁 Counter offer",
+    "reply_accept": "✅ Tinanggap ang counter offer",
+    "reply_decline": "❌ Tinanggihan ang counter offer",
+    "reply_cancel": "↩️ Kinansela ang counter offer",
+    "reply_complete": "🤝 Minarkahang tapos na ang trade",
+    "reply_fail": "⚠️ Minarkahang hindi natuloy ang trade",
+    "fallback_text": "🔁 Counter offer · Ibibigay ko: {{give}} · Gusto ko: {{get}} · I-update ang app para sumagot",
+    "nothing": "wala",
+    "safe_chat_blocked": "Hindi puwedeng magpadala ng counter offer sa chat na ito.",
+    "already_changed": "Na-update na ang offer na ito.",
+    "update_failed": "Hindi ma-update ang offer. Subukan ulit."
   }
 }

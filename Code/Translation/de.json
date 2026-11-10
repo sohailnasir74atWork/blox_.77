@@ -294,6 +294,9 @@
     "version": "Version {{version}}"
   },
   "home": {
+    "win": "Gewinn",
+    "lose": "Verlust",
+    "fair": "Fair",
     "you": "Du",
     "them": "Sie",
     "price": "Preis",
@@ -397,6 +400,7 @@
       "log_trade": "Tausch eintragen"
     },
     "picker_my_items": "Meine Items",
+    "picker_recent": "Zuletzt",
     "picker_all": "Alle",
     "picker_empty": "Dein Inventar ist noch leer. Füge unter „Meine Sachen“ Früchte hinzu, damit sie hier erscheinen.",
     "picker_browse_all": "Alle Items ansehen",
@@ -1423,6 +1427,10 @@
     "error": "Fehler"
   },
   "trending": {
+    "market": "Markt",
+    "rising": "Steigend",
+    "falling": "Fallend",
+    "trades_24h": "Trades (24 Std.)",
     "market_overview": "Marktübersicht",
     "full_analytics": "Vollständige Analyse",
     "hot": "Steigend",
@@ -3200,5 +3208,52 @@
     "up_to_date": "Scanner v{{v}} · aktuell",
     "updated": "Auf Scanner v{{v}} aktualisiert",
     "version": "Scanner v{{v}}"
+  },
+  "slot_sheet": {
+    "close": "Schließen",
+    "value": "Wert",
+    "details": "Details",
+    "add_another": "Noch eins",
+    "move": "Auf andere Seite",
+    "remove": "Entfernen",
+    "side_full": "Diese Seite ist voll.",
+    "swap_sides": "Seiten tauschen"
+  },
+  "counter_offer": {
+    "counter": "Gegenangebot",
+    "banner_title": "Gegenangebot an {{name}}",
+    "banner_cancel": "Abbrechen",
+    "send": "Gegenangebot senden",
+    "replace_title": "Aktuellen Trade ersetzen?",
+    "replace_body": "Das Gegenangebot ersetzt die Früchte in deinem Rechner.",
+    "replace_keep": "Meinen behalten",
+    "replace_confirm": "Ersetzen",
+    "card_title": "Gegenangebot",
+    "you_give": "Du gibst",
+    "you_get": "Du bekommst",
+    "verdict_them": "Für sie: {{verdict}}",
+    "waiting": "Wartet…",
+    "accept": "Annehmen",
+    "decline": "Ablehnen",
+    "cancel_offer": "Abbrechen",
+    "mark_completed": "Als erledigt markieren",
+    "didnt_happen": "Hat nicht geklappt",
+    "status_pending": "Ausstehend",
+    "status_trading": "Wird getradet",
+    "status_declined": "Abgelehnt",
+    "status_cancelled": "Abgebrochen",
+    "status_completed": "Erledigt",
+    "status_failed": "Gescheitert",
+    "preview": "🔁 Gegenangebot",
+    "reply_accept": "✅ Hat das Gegenangebot angenommen",
+    "reply_decline": "❌ Hat das Gegenangebot abgelehnt",
+    "reply_cancel": "↩️ Hat das Gegenangebot zurückgezogen",
+    "reply_complete": "🤝 Hat den Trade als erledigt markiert",
+    "reply_fail": "⚠️ Hat markiert, dass der Trade nicht geklappt hat",
+    "fallback_text": "🔁 Gegenangebot · Ich gebe: {{give}} · Ich will: {{get}} · Aktualisiere die App, um zu antworten",
+    "nothing": "nichts",
+    "safe_chat_blocked": "In diesem Chat können keine Gegenangebote gesendet werden.",
+    "already_changed": "Dieses Angebot wurde bereits aktualisiert.",
+    "update_failed": "Angebot konnte nicht aktualisiert werden. Versuch es noch einmal."
   }
 }

@@ -33,6 +33,12 @@ import { useNavigation } from '@react-navigation/native';
 import config from '../../Helper/Environment';
 import { parseMessageText, capMessageText } from '../ChatHelper';
 import { hideTranslateTip } from '../TranslateTip';
+import TradeOfferCard from '../../CounterOffer/TradeOfferCard';
+import { tradeStatus } from '../../Helper/tradeStatus';
+import {
+  bloxVariantText, bloxVariantBadge, bloxOfferImageUrl, bloxFormatValue,
+  isOfferStatusReply, offerStatusReplyText,
+} from '../../Helper/counterOfferBlox';
 
 const formatFruitName = (name) => {
   if (!name || typeof name !== 'string') return '';
@@ -84,6 +90,94 @@ const PrivateMessageRow = memo(({
     ? fruits.reduce((sum, f) => sum + (Number(f.value) || 0), 0)
     : 0;
   const bubbleColor = bubbleBg ? (isDarkMode ? bubbleBg.darkColor : bubbleBg.color) : null;
+  // A counter offer status reply reads in the READER's language; its stored
+  // text is the sender's (and what older builds show).
+  const bodyText = isOfferStatusReply(item.offerStatus)
+    ? offerStatusReplyText(item.offerStatus.action, t)
+    : item.text;
+
+  const menuOptions = (
+    <MenuOptions customStyles={{
+      optionsContainer: styles.menuoptions,
+      optionWrapper: styles.menuOption,
+      optionText: styles.menuOptionText,
+    }}>
+      <MenuOption onSelect={() => actions.copy(item)}>
+        <Text style={styles.menuOptionText}>{t('chat.copy')}</Text>
+      </MenuOption>
+      <MenuOption onSelect={() => actions.translate(item)}>
+        <Text style={styles.menuOptionText}>{t('chat.translate')}</Text>
+      </MenuOption>
+      <MenuOption onSelect={() => actions.reply(item)}>
+        <Text style={styles.menuOptionText}>{t('chat.reply', { defaultValue: 'Reply' })}</Text>
+      </MenuOption>
+      {!isMyMessage && (
+        <MenuOption onSelect={() => actions.report(item)}>
+          <Text style={styles.menuOptionText}>{t("chat.report")}</Text>
+        </MenuOption>
+      )}
+      {canDeleteAll && (
+        <MenuOption onSelect={() => actions.deleteAll()}>
+          <Text style={[styles.menuOptionText, { color: '#EF4444' }]}>Delete All Chat</Text>
+        </MenuOption>
+      )}
+    </MenuOptions>
+  );
+
+  // Counter offer: a standalone card instead of a text bubble. `text` holds
+  // the fallback for older app versions, so it is not drawn here. Long-press
+  // keeps the usual menu (copy / translate / reply / report).
+  if (item.tradeOffer) {
+    return (
+      <>
+        <View style={[offerStyles.wrap, isMyMessage ? offerStyles.mine : offerStyles.theirs, highlighted && offerStyles.highlighted]}>
+          <Menu>
+            <MenuTrigger
+              triggerOnLongPress
+              onLongPress={() => Vibration.vibrate(50)}
+              customStyles={{ triggerTouchable: { activeOpacity: 1 } }}
+            >
+              <TradeOfferCard
+                offer={item.tradeOffer}
+                isMine={isMyMessage}
+                isDarkMode={isDarkMode}
+                primaryColor={config.colors.primary}
+                getImageUrl={bloxOfferImageUrl}
+                formatValue={bloxFormatValue}
+                statusFn={tradeStatus}
+                variantBadges={bloxVariantBadge}
+                variantText={bloxVariantText}
+                disabled={!!item._optimistic}
+                onAction={(action) => actions.offerAction(item, action)}
+              />
+            </MenuTrigger>
+            {menuOptions}
+          </Menu>
+          <View style={offerStyles.timeRow}>
+            <Text style={[offerStyles.time, isDarkMode ? offerStyles.timeDark : offerStyles.timeLight]}>
+              {item.timestamp ? new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+            </Text>
+            {receipt && (
+              <Icon
+                name="checkmark-done"
+                size={14}
+                color={receipt === 'read' ? (isDarkMode ? '#7FDBFF' : '#1E88E5') : (isDarkMode ? '#ffffff77' : '#00000044')}
+              />
+            )}
+          </View>
+        </View>
+        {dateLabel !== null && (
+          <View style={offerStyles.dateWrap}>
+            <View style={[offerStyles.datePill, isDarkMode ? offerStyles.datePillDark : offerStyles.datePillLight]}>
+              <Text style={[offerStyles.dateText, isDarkMode ? offerStyles.dateTextDark : offerStyles.dateTextLight]}>
+                {dateLabel}
+              </Text>
+            </View>
+          </View>
+        )}
+      </>
+    );
+  }
 
   return (
     <>
@@ -184,7 +278,7 @@ const PrivateMessageRow = memo(({
                 </View>
               )}
 
-              {!!item.text && (
+              {!!bodyText && (
                 <View>
                   {/* No role tags here: the DM header already shows the other
                       user's roles. Group chat bubbles keep theirs. */}
@@ -192,7 +286,7 @@ const PrivateMessageRow = memo(({
                     ? <RainbowText
                         colors={getMultiColorPalette(textColor)}
                         style={[isMyMessage ? styles.pvtMyText : styles.pvtOtherText]}
-                      >{parseMessageText(item.text)}</RainbowText>
+                      >{parseMessageText(bodyText)}</RainbowText>
                     : <Text
                         style={[
                           isMyMessage ? styles.pvtMyText : styles.pvtOtherText,
@@ -200,36 +294,12 @@ const PrivateMessageRow = memo(({
                             ? { color: getSafeTextColor(textColor, bubbleColor) }
                             : null,
                         ]}
-                      >{parseMessageText(item.text)}</Text>
+                      >{parseMessageText(bodyText)}</Text>
                   }
                 </View>
               )}
             </MenuTrigger>
-            <MenuOptions customStyles={{
-              optionsContainer: styles.menuoptions,
-              optionWrapper: styles.menuOption,
-              optionText: styles.menuOptionText,
-            }}>
-              <MenuOption onSelect={() => actions.copy(item)}>
-                <Text style={styles.menuOptionText}>{t('chat.copy')}</Text>
-              </MenuOption>
-              <MenuOption onSelect={() => actions.translate(item)}>
-                <Text style={styles.menuOptionText}>{t('chat.translate')}</Text>
-              </MenuOption>
-              <MenuOption onSelect={() => actions.reply(item)}>
-                <Text style={styles.menuOptionText}>{t('chat.reply', { defaultValue: 'Reply' })}</Text>
-              </MenuOption>
-              {!isMyMessage && (
-                <MenuOption onSelect={() => actions.report(item)}>
-                  <Text style={styles.menuOptionText}>{t("chat.report")}</Text>
-                </MenuOption>
-              )}
-              {canDeleteAll && (
-                <MenuOption onSelect={() => actions.deleteAll()}>
-                  <Text style={[styles.menuOptionText, { color: '#EF4444' }]}>Delete All Chat</Text>
-                </MenuOption>
-              )}
-            </MenuOptions>
+            {menuOptions}
           </Menu>
 
           {/* Timestamp + Read receipts inside bubble */}
@@ -291,6 +361,7 @@ const PrivateMessageList = ({
   isAdmin,
   otherLastRead,
   onDeleteAllChat,
+  onOfferAction, // (message, action) => Promise — counter offer status buttons
 }) => {
   const { theme, isAdmin: globalIsAdmin, api, freeTranslation, proGranted } = useGlobalState();
   const isDarkMode = theme === 'dark';
@@ -441,6 +512,7 @@ const PrivateMessageList = ({
       images: [url],
       initialIndex: 0,
     }),
+    offerAction: (item, action) => (onOfferAction ? onOfferAction(item, action) : undefined),
   };
   const actions = useMemo(() => ({
     copy: (m) => actionsRef.current.copy(m),
@@ -450,6 +522,7 @@ const PrivateMessageList = ({
     deleteAll: () => actionsRef.current.deleteAll(),
     scrollTo: (id) => actionsRef.current.scrollTo(id),
     openImage: (url) => actionsRef.current.openImage(url),
+    offerAction: (m, a) => actionsRef.current.offerAction(m, a),
   }), []);
 
   const showReceipts = localState?.showReadReceipts ?? true;
@@ -539,6 +612,25 @@ const PrivateMessageList = ({
     </View>
   );
 };
+
+// Counter offer row (the card itself styles in CounterOffer/TradeOfferCard).
+const offerStyles = StyleSheet.create({
+  wrap: { marginBottom: 6, marginHorizontal: 8 },
+  mine: { alignSelf: 'flex-end' },
+  theirs: { alignSelf: 'flex-start' },
+  highlighted: { opacity: 0.7 },
+  timeRow: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', marginTop: 2, gap: 3 },
+  time: { fontSize: 9 },
+  timeDark: { color: '#ffffff77' },
+  timeLight: { color: '#00000055' },
+  dateWrap: { alignItems: 'center', marginVertical: 8 },
+  datePill: { borderRadius: 12, paddingHorizontal: 14, paddingVertical: 4 },
+  datePillDark: { backgroundColor: '#334155' },
+  datePillLight: { backgroundColor: '#e2e8f0' },
+  dateText: { fontSize: 11, fontWeight: '600' },
+  dateTextDark: { color: '#94a3b8' },
+  dateTextLight: { color: '#64748b' },
+});
 
 export const fruitStyles = StyleSheet.create({
   fruitsWrapper: {

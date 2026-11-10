@@ -332,6 +332,9 @@
     "version": "الإصدار {{version}}"
   },
   "home": {
+    "win": "مكسب",
+    "lose": "خسارة",
+    "fair": "عادل",
     "you": "أنت",
     "them": "هم",
     "price": "السعر",
@@ -451,6 +454,7 @@
       "log_trade": "سجل التبادل"
     },
     "picker_my_items": "أغراضي",
+    "picker_recent": "الأخيرة",
     "picker_all": "الكل",
     "picker_empty": "لا توجد عناصر في مخزونك بعد. أضف فواكه من قسم «أشيائي» لتظهر هنا.",
     "picker_browse_all": "تصفح كل العناصر",
@@ -1544,6 +1548,10 @@
     "error": "خطأ"
   },
   "trending": {
+    "market": "السوق",
+    "rising": "صاعدة",
+    "falling": "هابطة",
+    "trades_24h": "الصفقات (24 س)",
     "market_overview": "نظرة عامة على السوق",
     "full_analytics": "تحليلات كاملة",
     "hot": "صاعد",
@@ -3465,5 +3473,52 @@
     "up_to_date": "الماسح v{{v}} · محدَّث",
     "updated": "تم التحديث إلى الماسح v{{v}}",
     "version": "الماسح v{{v}}"
+  },
+  "slot_sheet": {
+    "close": "إغلاق",
+    "value": "القيمة",
+    "details": "التفاصيل",
+    "add_another": "إضافة آخر",
+    "move": "نقل للجهة الأخرى",
+    "remove": "إزالة",
+    "side_full": "هذه الجهة ممتلئة.",
+    "swap_sides": "تبديل الجهتين"
+  },
+  "counter_offer": {
+    "counter": "عرض مقابل",
+    "banner_title": "عرض مقابل إلى {{name}}",
+    "banner_cancel": "إلغاء",
+    "send": "إرسال العرض المقابل",
+    "replace_title": "استبدال صفقتك الحالية؟",
+    "replace_body": "سيستبدل العرض المقابل الفواكه الموجودة في الحاسبة.",
+    "replace_keep": "الإبقاء على صفقتي",
+    "replace_confirm": "استبدال",
+    "card_title": "عرض مقابل",
+    "you_give": "أنت تعطي",
+    "you_get": "أنت تحصل",
+    "verdict_them": "للطرف الآخر: {{verdict}}",
+    "waiting": "بانتظار الرد…",
+    "accept": "قبول",
+    "decline": "رفض",
+    "cancel_offer": "إلغاء",
+    "mark_completed": "تم التبادل",
+    "didnt_happen": "لم يتم",
+    "status_pending": "قيد الانتظار",
+    "status_trading": "جارٍ التبادل",
+    "status_declined": "مرفوض",
+    "status_cancelled": "ملغى",
+    "status_completed": "مكتمل",
+    "status_failed": "فشل",
+    "preview": "🔁 عرض مقابل",
+    "reply_accept": "✅ تم قبول العرض المقابل",
+    "reply_decline": "❌ تم رفض العرض المقابل",
+    "reply_cancel": "↩️ تم إلغاء العرض المقابل",
+    "reply_complete": "🤝 تم تحديد التبادل كمكتمل",
+    "reply_fail": "⚠️ تم تحديد أن التبادل لم يتم",
+    "fallback_text": "🔁 عرض مقابل · أعطي: {{give}} · أريد: {{get}} · حدّث التطبيق للرد",
+    "nothing": "لا شيء",
+    "safe_chat_blocked": "لا يمكن إرسال عروض مقابلة في هذه الدردشة.",
+    "already_changed": "تم تحديث هذا العرض بالفعل.",
+    "update_failed": "تعذّر تحديث العرض. حاول مرة أخرى."
   }
 }

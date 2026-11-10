@@ -292,6 +292,9 @@
     "version": "Versi {{version}}"
   },
   "home": {
+    "win": "Untung",
+    "lose": "Rugi",
+    "fair": "Adil",
     "you": "Kamu",
     "them": "Mereka",
     "price": "Harga",
@@ -395,6 +398,7 @@
       "log_trade": "Catat Trade"
     },
     "picker_my_items": "Barangku",
+    "picker_recent": "Terbaru",
     "picker_all": "Semua",
     "picker_empty": "Inventarismu masih kosong. Tambahkan buah lewat “Barang saya” agar muncul di sini.",
     "picker_browse_all": "Lihat semua item",
@@ -1485,6 +1489,10 @@
     }
   },
   "trending": {
+    "market": "Pasar",
+    "rising": "Naik",
+    "falling": "Turun",
+    "trades_24h": "Trade (24 jam)",
     "market_overview": "Ringkasan Pasar",
     "full_analytics": "Analitik Lengkap",
     "hot": "Lagi Naik",
@@ -3196,5 +3204,52 @@
     "up_to_date": "Pemindai v{{v}} · terbaru",
     "updated": "Diperbarui ke pemindai v{{v}}",
     "version": "Pemindai v{{v}}"
+  },
+  "slot_sheet": {
+    "close": "Tutup",
+    "value": "Nilai",
+    "details": "Detail",
+    "add_another": "Tambah lagi",
+    "move": "Pindah ke sisi lain",
+    "remove": "Hapus",
+    "side_full": "Sisi itu sudah penuh.",
+    "swap_sides": "Tukar sisi"
+  },
+  "counter_offer": {
+    "counter": "Tawar balik",
+    "banner_title": "Tawaran balik ke {{name}}",
+    "banner_cancel": "Batal",
+    "send": "Kirim tawaran balik",
+    "replace_title": "Ganti trade kamu sekarang?",
+    "replace_body": "Tawaran balik akan mengganti buah di kalkulator kamu.",
+    "replace_keep": "Simpan punyaku",
+    "replace_confirm": "Ganti",
+    "card_title": "Tawaran balik",
+    "you_give": "Kamu beri",
+    "you_get": "Kamu dapat",
+    "verdict_them": "Untuk mereka: {{verdict}}",
+    "waiting": "Menunggu…",
+    "accept": "Terima",
+    "decline": "Tolak",
+    "cancel_offer": "Batalkan",
+    "mark_completed": "Tandai selesai",
+    "didnt_happen": "Tidak jadi",
+    "status_pending": "Menunggu",
+    "status_trading": "Sedang trade",
+    "status_declined": "Ditolak",
+    "status_cancelled": "Dibatalkan",
+    "status_completed": "Selesai",
+    "status_failed": "Gagal",
+    "preview": "🔁 Tawaran balik",
+    "reply_accept": "✅ Menerima tawaran balik",
+    "reply_decline": "❌ Menolak tawaran balik",
+    "reply_cancel": "↩️ Membatalkan tawaran balik",
+    "reply_complete": "🤝 Menandai trade sebagai selesai",
+    "reply_fail": "⚠️ Menandai trade tidak jadi",
+    "fallback_text": "🔁 Tawaran balik · Aku beri: {{give}} · Aku mau: {{get}} · Perbarui aplikasi untuk menjawab",
+    "nothing": "tidak ada",
+    "safe_chat_blocked": "Tawaran balik tidak bisa dikirim di chat ini.",
+    "already_changed": "Tawaran ini sudah diperbarui.",
+    "update_failed": "Gagal memperbarui tawaran. Coba lagi."
   }
 }

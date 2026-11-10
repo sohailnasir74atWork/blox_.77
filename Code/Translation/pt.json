@@ -294,6 +294,9 @@
     "version": "Versão {{version}}"
   },
   "home": {
+    "win": "Ganha",
+    "lose": "Perde",
+    "fair": "Justo",
     "you": "Você",
     "them": "Eles",
     "price": "Preço",
@@ -397,6 +400,7 @@
       "log_trade": "Registrar troca"
     },
     "picker_my_items": "Meus itens",
+    "picker_recent": "Recentes",
     "picker_all": "Todos",
     "picker_empty": "Seu inventário ainda está vazio. Adicione frutas em “Minhas coisas” para vê-las aqui.",
     "picker_browse_all": "Ver todos os itens",
@@ -1489,6 +1493,10 @@
     }
   },
   "trending": {
+    "market": "Mercado",
+    "rising": "Subindo",
+    "falling": "Caindo",
+    "trades_24h": "Trocas (24h)",
     "market_overview": "Visão geral do mercado",
     "full_analytics": "Análise completa",
     "hot": "Em alta",
@@ -3203,5 +3211,52 @@
     "up_to_date": "Scanner v{{v}} · atualizado",
     "updated": "Atualizado para o scanner v{{v}}",
     "version": "Scanner v{{v}}"
+  },
+  "slot_sheet": {
+    "close": "Fechar",
+    "value": "Valor",
+    "details": "Detalhes",
+    "add_another": "Adicionar outro",
+    "move": "Mover para o outro lado",
+    "remove": "Remover",
+    "side_full": "Esse lado está cheio.",
+    "swap_sides": "Trocar lados"
+  },
+  "counter_offer": {
+    "counter": "Contraproposta",
+    "banner_title": "Contraproposta para {{name}}",
+    "banner_cancel": "Cancelar",
+    "send": "Enviar contraproposta",
+    "replace_title": "Substituir sua troca atual?",
+    "replace_body": "A contraproposta vai substituir as frutas da sua calculadora.",
+    "replace_keep": "Manter a minha",
+    "replace_confirm": "Substituir",
+    "card_title": "Contraproposta",
+    "you_give": "Você dá",
+    "you_get": "Você recebe",
+    "verdict_them": "Para a outra pessoa: {{verdict}}",
+    "waiting": "Aguardando…",
+    "accept": "Aceitar",
+    "decline": "Recusar",
+    "cancel_offer": "Cancelar",
+    "mark_completed": "Marcar como concluída",
+    "didnt_happen": "Não rolou",
+    "status_pending": "Pendente",
+    "status_trading": "Trocando",
+    "status_declined": "Recusada",
+    "status_cancelled": "Cancelada",
+    "status_completed": "Concluída",
+    "status_failed": "Falhou",
+    "preview": "🔁 Contraproposta",
+    "reply_accept": "✅ Aceitou a contraproposta",
+    "reply_decline": "❌ Recusou a contraproposta",
+    "reply_cancel": "↩️ Cancelou a contraproposta",
+    "reply_complete": "🤝 Marcou a troca como concluída",
+    "reply_fail": "⚠️ Marcou que a troca não rolou",
+    "fallback_text": "🔁 Contraproposta · Eu dou: {{give}} · Eu quero: {{get}} · Atualize o app para responder",
+    "nothing": "nada",
+    "safe_chat_blocked": "Não é possível enviar contrapropostas neste chat.",
+    "already_changed": "Esta proposta já foi atualizada.",
+    "update_failed": "Não foi possível atualizar a proposta. Tente de novo."
   }
 }

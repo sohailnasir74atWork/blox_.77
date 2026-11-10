@@ -294,6 +294,9 @@
     "version": "Versión {{version}}"
   },
   "home": {
+    "win": "Ganas",
+    "lose": "Pierdes",
+    "fair": "Justo",
     "you": "Tú",
     "them": "Ellos",
     "price": "Precio",
@@ -397,6 +400,7 @@
       "log_trade": "Registrar intercambio"
     },
     "picker_my_items": "Mis objetos",
+    "picker_recent": "Recientes",
     "picker_all": "Todos",
     "picker_empty": "Aún no hay artículos en tu inventario. Añade frutas desde «Mis cosas» para verlas aquí.",
     "picker_browse_all": "Ver todos los objetos",
@@ -1424,6 +1428,10 @@
     "error": "Error"
   },
   "trending": {
+    "market": "Mercado",
+    "rising": "Suben",
+    "falling": "Bajan",
+    "trades_24h": "Tradeos (24 h)",
     "market_overview": "Resumen del Mercado",
     "full_analytics": "Análisis Completo",
     "hot": "Subiendo",
@@ -3203,5 +3211,52 @@
     "up_to_date": "Escáner v{{v}} · al día",
     "updated": "Actualizado al escáner v{{v}}",
     "version": "Escáner v{{v}}"
+  },
+  "slot_sheet": {
+    "close": "Cerrar",
+    "value": "Valor",
+    "details": "Detalles",
+    "add_another": "Añadir otro",
+    "move": "Mover al otro lado",
+    "remove": "Quitar",
+    "side_full": "Ese lado está lleno.",
+    "swap_sides": "Intercambiar lados"
+  },
+  "counter_offer": {
+    "counter": "Contraoferta",
+    "banner_title": "Contraoferta para {{name}}",
+    "banner_cancel": "Cancelar",
+    "send": "Enviar contraoferta",
+    "replace_title": "¿Reemplazar tu intercambio actual?",
+    "replace_body": "La contraoferta reemplazará las frutas de tu calculadora.",
+    "replace_keep": "Mantener el mío",
+    "replace_confirm": "Reemplazar",
+    "card_title": "Contraoferta",
+    "you_give": "Tú das",
+    "you_get": "Tú recibes",
+    "verdict_them": "Para él/ella: {{verdict}}",
+    "waiting": "Esperando…",
+    "accept": "Aceptar",
+    "decline": "Rechazar",
+    "cancel_offer": "Cancelar",
+    "mark_completed": "Marcar como completado",
+    "didnt_happen": "No se hizo",
+    "status_pending": "Pendiente",
+    "status_trading": "Intercambiando",
+    "status_declined": "Rechazada",
+    "status_cancelled": "Cancelada",
+    "status_completed": "Completado",
+    "status_failed": "Fallido",
+    "preview": "🔁 Contraoferta",
+    "reply_accept": "✅ Aceptó la contraoferta",
+    "reply_decline": "❌ Rechazó la contraoferta",
+    "reply_cancel": "↩️ Canceló la contraoferta",
+    "reply_complete": "🤝 Marcó el intercambio como completado",
+    "reply_fail": "⚠️ Marcó que el intercambio no se hizo",
+    "fallback_text": "🔁 Contraoferta · Doy: {{give}} · Quiero: {{get}} · Actualiza la app para responder",
+    "nothing": "nada",
+    "safe_chat_blocked": "No se pueden enviar contraofertas en este chat.",
+    "already_changed": "Esta oferta ya se actualizó.",
+    "update_failed": "No se pudo actualizar la oferta. Inténtalo de nuevo."
   }
 }

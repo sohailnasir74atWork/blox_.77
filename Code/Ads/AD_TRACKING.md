@@ -31,14 +31,14 @@ no placement, so don't sum both.
 |---|---|---|
 | `trade_post` | interstitial · tradePost | trade posted (HomeScreen) — always shows, outside policy |
 | `feed_post` | interstitial · feedPost | design post or status posted — always shows, outside policy |
-| `review` | interstitial · reviewPost | rating/review saved (PrivateChat) — always shows, outside policy (owner, 2026-11-01). Borrows the trade-post AdMob unit until `andriodReviewInterstitial` / `IOsReviewInterstitial` are set in Environment.js |
+| `review` | interstitial · reviewPost | REMOVED 2026-11-04 (owner, revenue LOG "Ad diet"); no longer prepared or shown. |
 | `trade_completed` | interstitial · interstitial | trade marked completed (TradeCompletion) |
 | `daily_reward` | interstitial · interstitial | daily star reward claimed |
 | `dm_open` | interstitial · interstitial | opening a 2nd+ DM from a profile (BottomDrawer) |
 | `trader_chat` | interstitial · interstitial | every Nth trader-chat message |
 | `raid_round` | interstitial / rewarded | raid rounds (interstitial already labelled; rewarded request) |
 | `wallpaper_more`, `scammer_search`, `scammer_report` | interstitial · interstitial | those actions |
-| `tab:<Route>` | interstitial · interstitial | natural breaks (only counted once past the caps) |
+| `tab:<Route>` | interstitial · interstitial | natural breaks (only counted once past the caps); tab switches REMOVED 2026-11-04 (owner, revenue LOG "Ad diet"). |
 | `action` | interstitial · interstitial | any unlabelled call site |
 | `trade_feature`, `mystery_egg`, `mystery_egg_free_hatch`, `mini_game`, `reward` | rewarded · rewarded | "watch a video" buttons |
 | `launch` / `return` | app_open · openapp | cold start / foreground return (counted at present only) |

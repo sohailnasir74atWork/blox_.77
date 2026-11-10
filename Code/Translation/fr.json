@@ -292,6 +292,9 @@
         "version": "Version {{version}}"
     },
     "home": {
+        "win": "Gagne",
+        "lose": "Perd",
+        "fair": "Équitable",
         "you": "Toi",
         "them": "Eux",
         "price": "Prix",
@@ -395,6 +398,7 @@
             "log_trade": "Enregistrer l’échange"
         },
         "picker_my_items": "Mes objets",
+        "picker_recent": "Récents",
         "picker_all": "Tout",
         "picker_empty": "Votre inventaire est vide. Ajoutez des fruits dans « Mes objets » pour les voir ici.",
         "picker_browse_all": "Parcourir tous les objets",
@@ -1421,6 +1425,10 @@
         "error": "Erreur"
     },
     "trending": {
+        "market": "Marché",
+        "rising": "En hausse",
+        "falling": "En baisse",
+        "trades_24h": "Échanges (24 h)",
         "market_overview": "Aperçu du Marché",
         "full_analytics": "Analyse Complète",
         "hot": "En hausse",
@@ -3200,5 +3208,52 @@
         "up_to_date": "Scanner v{{v}} · à jour",
         "updated": "Scanner mis à jour en v{{v}}",
         "version": "Scanner v{{v}}"
+    },
+    "slot_sheet": {
+        "close": "Fermer",
+        "value": "Valeur",
+        "details": "Détails",
+        "add_another": "Ajouter un autre",
+        "move": "Déplacer de l’autre côté",
+        "remove": "Retirer",
+        "side_full": "Ce côté est plein.",
+        "swap_sides": "Inverser les côtés"
+    },
+    "counter_offer": {
+        "counter": "Contre-offre",
+        "banner_title": "Contre-offre pour {{name}}",
+        "banner_cancel": "Annuler",
+        "send": "Envoyer la contre-offre",
+        "replace_title": "Remplacer ton échange en cours ?",
+        "replace_body": "La contre-offre remplacera les fruits de ta calculatrice.",
+        "replace_keep": "Garder le mien",
+        "replace_confirm": "Remplacer",
+        "card_title": "Contre-offre",
+        "you_give": "Tu donnes",
+        "you_get": "Tu reçois",
+        "verdict_them": "Pour l'autre : {{verdict}}",
+        "waiting": "En attente…",
+        "accept": "Accepter",
+        "decline": "Refuser",
+        "cancel_offer": "Annuler",
+        "mark_completed": "Marquer comme terminé",
+        "didnt_happen": "Pas eu lieu",
+        "status_pending": "En attente",
+        "status_trading": "Échange en cours",
+        "status_declined": "Refusée",
+        "status_cancelled": "Annulée",
+        "status_completed": "Terminé",
+        "status_failed": "Échoué",
+        "preview": "🔁 Contre-offre",
+        "reply_accept": "✅ A accepté la contre-offre",
+        "reply_decline": "❌ A refusé la contre-offre",
+        "reply_cancel": "↩️ A annulé la contre-offre",
+        "reply_complete": "🤝 A marqué l'échange comme terminé",
+        "reply_fail": "⚠️ A indiqué que l'échange n'a pas eu lieu",
+        "fallback_text": "🔁 Contre-offre · Je donne : {{give}} · Je veux : {{get}} · Mets l'appli à jour pour répondre",
+        "nothing": "rien",
+        "safe_chat_blocked": "Impossible d'envoyer une contre-offre dans ce chat.",
+        "already_changed": "Cette offre a déjà été mise à jour.",
+        "update_failed": "Impossible de mettre à jour l'offre. Réessaie."
     }
 }

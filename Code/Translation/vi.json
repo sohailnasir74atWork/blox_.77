@@ -292,6 +292,9 @@
     "version": "Phiên bản {{version}}"
   },
   "home": {
+    "win": "Lời",
+    "lose": "Lỗ",
+    "fair": "Công bằng",
     "you": "Bạn",
     "them": "Họ",
     "price": "Giá",
@@ -395,6 +398,7 @@
       "log_trade": "Ghi giao dịch"
     },
     "picker_my_items": "Vật phẩm của tôi",
+    "picker_recent": "Gần đây",
     "picker_all": "Tất cả",
     "picker_empty": "Kho đồ của bạn chưa có vật phẩm. Thêm trái cây từ mục “Đồ của tôi” để xem tại đây.",
     "picker_browse_all": "Xem tất cả vật phẩm",
@@ -1485,6 +1489,10 @@
     }
   },
   "trending": {
+    "market": "Thị trường",
+    "rising": "Tăng",
+    "falling": "Giảm",
+    "trades_24h": "Giao dịch (24h)",
     "market_overview": "Tổng quan thị trường",
     "full_analytics": "Phân tích đầy đủ",
     "hot": "Đang hot",
@@ -3196,5 +3204,52 @@
     "up_to_date": "Máy quét v{{v}} · mới nhất",
     "updated": "Đã cập nhật lên máy quét v{{v}}",
     "version": "Máy quét v{{v}}"
+  },
+  "slot_sheet": {
+    "close": "Đóng",
+    "value": "Giá trị",
+    "details": "Chi tiết",
+    "add_another": "Thêm cái nữa",
+    "move": "Chuyển sang bên kia",
+    "remove": "Xóa",
+    "side_full": "Bên đó đã đầy.",
+    "swap_sides": "Đổi bên"
+  },
+  "counter_offer": {
+    "counter": "Trả giá",
+    "banner_title": "Trả giá cho {{name}}",
+    "banner_cancel": "Hủy",
+    "send": "Gửi đề nghị trả giá",
+    "replace_title": "Thay giao dịch hiện tại?",
+    "replace_body": "Đề nghị trả giá sẽ thay các trái trong máy tính của bạn.",
+    "replace_keep": "Giữ của tôi",
+    "replace_confirm": "Thay",
+    "card_title": "Đề nghị trả giá",
+    "you_give": "Bạn đưa",
+    "you_get": "Bạn nhận",
+    "verdict_them": "Phía họ: {{verdict}}",
+    "waiting": "Đang chờ…",
+    "accept": "Chấp nhận",
+    "decline": "Từ chối",
+    "cancel_offer": "Hủy",
+    "mark_completed": "Đánh dấu đã xong",
+    "didnt_happen": "Không thành",
+    "status_pending": "Đang chờ",
+    "status_trading": "Đang giao dịch",
+    "status_declined": "Đã từ chối",
+    "status_cancelled": "Đã hủy",
+    "status_completed": "Đã xong",
+    "status_failed": "Không thành",
+    "preview": "🔁 Đề nghị trả giá",
+    "reply_accept": "✅ Đã chấp nhận đề nghị trả giá",
+    "reply_decline": "❌ Đã từ chối đề nghị trả giá",
+    "reply_cancel": "↩️ Đã hủy đề nghị trả giá",
+    "reply_complete": "🤝 Đã đánh dấu giao dịch là xong",
+    "reply_fail": "⚠️ Đã đánh dấu giao dịch không thành",
+    "fallback_text": "🔁 Đề nghị trả giá · Tôi đưa: {{give}} · Tôi muốn: {{get}} · Cập nhật ứng dụng để trả lời",
+    "nothing": "không có gì",
+    "safe_chat_blocked": "Không thể gửi đề nghị trả giá trong cuộc trò chuyện này.",
+    "already_changed": "Đề nghị này đã được cập nhật.",
+    "update_failed": "Không cập nhật được đề nghị. Hãy thử lại."
   }
 }

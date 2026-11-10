@@ -22,6 +22,8 @@ import {
   stickersSupported, markStickersUnsupported, isUnknownGifColumn,
   stickersUnavailableError, withoutGifColumn, selectWithGifFallback,
 } from './stickerSupport';
+import { isTradeOffer } from '../CounterOffer/counterOffer';
+import { offerStatusFromRow } from '../Helper/counterOfferBlox';
 
 const PAGE_SIZE_DEFAULT = 15;
 
@@ -60,6 +62,12 @@ export function fromPrivateMessageRow(row) {
     imageUrl: row.image_url ?? null,
     gif: row.gif ?? null,                        // sticker URL (050)
     fruits: Array.isArray(row.fruits) ? row.fruits : [],
+    // A counter offer stores an OBJECT in `fruits` (CounterOffer/counterOffer.js).
+    // Older builds see `fruits: []` and render only the text fallback.
+    tradeOffer: isTradeOffer(row.fruits) ? row.fruits : null,
+    // A status reply to an offer (accept / decline / …) stores
+    // { kind: 'trade_offer_status', offerStatus } there (Helper/counterOfferBlox.js).
+    offerStatus: offerStatusFromRow(row.fruits),
     replyTo: row.reply_to ?? null,
     OS: row.os ?? null,
     deleted: !!row.deleted,
