@@ -37,16 +37,17 @@ export const getPaywallOfferings = async () => {
 // Warm the cache on app start so the wall opens with prices already loaded.
 export const preloadOfferings = () => { getPaywallOfferings().catch(() => {}); };
 
-// → { pro: boolean, cancelled: boolean, error?: string }
+// → { pro, cancelled, customerInfo?, error? } — error is the RevenueCat error
+// (or null when the store charged but Pro did not arrive), for analytics.
 export const purchasePaywallPackage = async (pkg) => {
   try {
     // Coming back from the store sheet must not open an App Open ad on someone
     // who was just buying ad-free.
     require('../Ads/openApp').default.skipNextForeground();
     const { customerInfo } = await Purchases.purchasePackage(pkg);
-    return { pro: hasProEntitlement(customerInfo), cancelled: false };
+    return { pro: hasProEntitlement(customerInfo), cancelled: false, customerInfo, error: null };
   } catch (e) {
-    return { pro: false, cancelled: !!e?.userCancelled, error: e?.message };
+    return { pro: false, cancelled: !!e?.userCancelled, error: e || {} };
   }
 };
 

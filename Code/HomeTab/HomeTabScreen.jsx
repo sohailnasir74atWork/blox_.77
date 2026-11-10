@@ -22,7 +22,7 @@ import { getLevelFromXP, getXPProgress, getLevelTitle } from '../Engagement/xpUt
 import LinearGradient from 'react-native-linear-gradient';
 import SignInDrawer from '../Firebase/SigninDrawer';
 import { isNew as isNewBadge, markSeen as markSeenBadge } from './newBadges';
-import TrendingFruits from './TrendingFruits';
+import MarketSnapshot from './MarketSnapshot';
 import StatusFeed from '../Design/StatusFeed';
 import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
 import { getCachedAvatar } from '../Helper/cosmeticsCache';
@@ -75,6 +75,9 @@ const cosmeticsFocusCache = new Map();   // uid -> { ts, cosmetics }
 const HomeTabScreen = ({ selectedTheme }) => {
   const { theme, user, appdatabase, firestoreDB, strikeInfo, muteInfo, isUserBlocked, isUserMuted, proGranted, single_offer_wall } = useGlobalState();
   const [showOfferWall, setShowOfferWall] = useState(false);
+  // Which spot opened the wall (paywall_trigger in growthAnalytics.js).
+  const [offerTrigger, setOfferTrigger] = useState(null);
+  const openOfferWall = (spot) => { setOfferTrigger(spot); setShowOfferWall(true); };
   const { localState, updateLocalState } = useLocalState();
   const { t, i18n } = useTranslation();
   const navigation = useNavigation();
@@ -634,8 +637,8 @@ const HomeTabScreen = ({ selectedTheme }) => {
             }}
           />
 
-          {/* TRENDING FRUITS */}
-          <TrendingFruits isDarkMode={isDarkMode} navigation={navigation} />
+          {/* MARKET: latest value update + 24 h trades (replaces Trending Fruits; MarketSnapshot.jsx) */}
+          <MarketSnapshot isDarkMode={isDarkMode} navigation={navigation} />
 
           {/* MINI GAMES */}
           <View style={styles.section}>
@@ -674,7 +677,7 @@ const HomeTabScreen = ({ selectedTheme }) => {
                       Alert.alert(t('home.home_tab_screen.pro_feature_title'), t('home.home_tab_screen.pro_feature_body'), [
                         { text: t('common.cancel'), style: 'cancel' },
                         // The 'Store' route is commented out in App.js; open the paywall.
-                        { text: t('home.home_tab_screen.get_pro'), onPress: () => setShowOfferWall(true) },
+                        { text: t('home.home_tab_screen.get_pro'), onPress: () => openOfferWall('home_games_premium') },
                       ]);
                       return;
                     }
@@ -696,7 +699,7 @@ const HomeTabScreen = ({ selectedTheme }) => {
             </View>
           </View>
           <GameLeaderboard visible={showGameLeaderboard} onClose={() => setShowGameLeaderboard(false)} />
-          <SubscriptionScreen visible={showOfferWall} onClose={() => setShowOfferWall(false)} track='HomeGames' oneWallOnly={single_offer_wall} />
+          <SubscriptionScreen trigger={offerTrigger} visible={showOfferWall} onClose={() => setShowOfferWall(false)} track='HomeGames' oneWallOnly={single_offer_wall} />
 
           {/* SHARE BUTTON */}
           <View style={styles.section}>

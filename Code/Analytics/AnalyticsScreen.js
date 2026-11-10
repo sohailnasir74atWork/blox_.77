@@ -166,6 +166,8 @@ const AnalyticsScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [showOfferwall, setShowOfferwall] = useState(false);
+  // Which spot opened the wall (paywall_trigger in growthAnalytics.js).
+  const [offerTrigger, setOfferTrigger] = useState(null);
 
   // ── Value Changes state ──
   const [valueChanges, setValueChanges] = useState(null);
@@ -346,11 +348,11 @@ const AnalyticsScreen = ({ navigation }) => {
   };
 
   // ── Locked Feature Overlay ──
-  const LockedOverlay = ({ message }) => (
+  const LockedOverlay = ({ message, trigger }) => (
     <TouchableOpacity
       style={styles.lockedOverlay}
       activeOpacity={0.9}
-      onPress={() => setShowOfferwall(true)}
+      onPress={() => { setOfferTrigger(trigger || 'analytics_locked'); setShowOfferwall(true); }}
     >
       <View style={styles.lockedContent}>
         <Text style={{ fontSize: 24 }}>{'\u{1F512}'}</Text>
@@ -787,7 +789,7 @@ const AnalyticsScreen = ({ navigation }) => {
                 <ItemRow key={'mover-' + i} item={item} index={i} showChange />
               ))}
               {!isPro && (analytics.topMovers || []).length > 3 && (
-                <LockedOverlay message={'See all movers'} />
+                <LockedOverlay message={'See all movers'} trigger="analytics_all_movers" />
               )}
             </View>
 
@@ -798,7 +800,7 @@ const AnalyticsScreen = ({ navigation }) => {
                 <ItemRow key={'loser-' + i} item={item} index={i} showChange />
               ))}
               {!isPro && (analytics.topLosers || []).length > 3 && (
-                <LockedOverlay message={'See all losers'} />
+                <LockedOverlay message={'See all losers'} trigger="analytics_all_losers" />
               )}
             </View>
           </>
@@ -814,7 +816,7 @@ const AnalyticsScreen = ({ navigation }) => {
                 <ItemRow key={'wanted-' + i} item={item} index={i} />
               ))}
               {!isPro && (analytics.topWanted || []).length > 5 && (
-                <LockedOverlay message={'See full demand list'} />
+                <LockedOverlay message={'See full demand list'} trigger="analytics_full_demand" />
               )}
             </View>
 
@@ -825,7 +827,7 @@ const AnalyticsScreen = ({ navigation }) => {
                 <ItemRow key={'offered-' + i} item={item} index={i} />
               ))}
               {!isPro && (analytics.topOffered || []).length > 5 && (
-                <LockedOverlay message={'See full supply list'} />
+                <LockedOverlay message={'See full supply list'} trigger="analytics_full_supply" />
               )}
             </View>
 
@@ -841,7 +843,7 @@ const AnalyticsScreen = ({ navigation }) => {
               <View style={[styles.card, { borderLeftWidth: 4, borderLeftColor: FUN_COLORS.purple }]}>
                 <SectionHeader icon="scale-balanced" title={'Demand vs Supply'} locked emoji={'\u{2696}\u{FE0F}'} />
                 <View style={{ height: 120, justifyContent: 'center' }}>
-                  <LockedOverlay message={'Unlock demand/supply ratios'} />
+                  <LockedOverlay message={'Unlock demand/supply ratios'} trigger="analytics_demand_supply" />
                 </View>
               </View>
             )}
@@ -939,7 +941,7 @@ const AnalyticsScreen = ({ navigation }) => {
                       </View>
                     </View>
                   ))}
-                  <LockedOverlay message={'Unlock all predictions'} />
+                  <LockedOverlay message={'Unlock all predictions'} trigger="analytics_predictions" />
                 </View>
               </>
             )}
@@ -969,6 +971,7 @@ const AnalyticsScreen = ({ navigation }) => {
 
       <ScreenBottomBanner background={isDarkMode ? '#0f0f1a' : '#F0F4FF'} collapsible />
       <SubscriptionScreen
+        trigger={offerTrigger}
         visible={showOfferwall}
         onClose={() => setShowOfferwall(false)}
         track='Analytics'

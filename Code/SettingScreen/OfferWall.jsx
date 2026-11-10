@@ -32,6 +32,7 @@ import { useHaptic } from '../Helper/HepticFeedBack';
 import { showSuccessMessage } from '../Helper/MessageHelper';
 import {
   paywallPlacement, trackPaywallView, trackPaywallClose, trackProPurchase,
+  trackPurchaseStart, trackPurchaseFail,
 } from '../Helper/growthAnalytics';
 import config from '../Helper/Environment';
 import {
@@ -169,7 +170,8 @@ const sortPackages = (offering) =>
     (a, b) => (PLAN_ORDER[a.packageType] ?? 9) - (PLAN_ORDER[b.packageType] ?? 9)
   );
 
-const SubscriptionScreen = ({ visible, onClose, track }) => {
+// `trigger` names the exact spot that opened the wall (growthAnalytics.js).
+const SubscriptionScreen = ({ visible, onClose, track, trigger }) => {
   const insets = useSafeAreaInsets();
   const { refreshCustomerInfo } = useLocalState();
   const { theme } = useGlobalState();
@@ -199,7 +201,7 @@ const SubscriptionScreen = ({ visible, onClose, track }) => {
     if (!visible) return undefined;
     let alive = true;
     setSelectedPkg(null);
-    trackPaywallView(track);
+    trackPaywallView(track, trigger);
     getPaywallOfferings().then((o) => { if (alive) setOfferings(o); });
     return () => { alive = false; };
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -293,9 +295,9 @@ const SubscriptionScreen = ({ visible, onClose, track }) => {
 
   const handleClose = useCallback(() => {
     if (loading) return;
-    trackPaywallClose(track);
+    trackPaywallClose(track, trigger);
     finish();
-  }, [loading, track, finish]);
+  }, [loading, track, trigger, finish]);
 
   const handleSelect = useCallback((pkg) => {
     triggerHapticFeedback('impactLight');
@@ -306,17 +308,19 @@ const SubscriptionScreen = ({ visible, onClose, track }) => {
     if (!selectedPkg || loading) return;
     triggerHapticFeedback('impactMedium');
     setLoading(true);
+    trackPurchaseStart(selectedPkg, track, trigger);
     const r = await purchasePaywallPackage(selectedPkg);
     setLoading(false);
+    if (!r.pro) trackPurchaseFail(selectedPkg, track, trigger, r.error);
     if (r.pro) {
-      trackProPurchase(selectedPkg, track);
+      trackProPurchase(selectedPkg, track, trigger, r.customerInfo);
       showSuccessMessage(t('alert.success', { defaultValue: 'Success' }), t('paywall.welcome_pro', { defaultValue: 'Welcome to Pro!' }));
       finish();
     } else if (!r.cancelled) {
       // Alert, not a flash message: those render underneath a full-screen Modal.
       Alert.alert(t('alert.error', { defaultValue: 'Error' }), t('paywall.purchase_failed', { defaultValue: 'Purchase failed. Please try again.' }));
     }
-  }, [selectedPkg, loading, triggerHapticFeedback, finish, track, t]);
+  }, [selectedPkg, loading, triggerHapticFeedback, finish, track, trigger, t]);
 
   const handleRestore = useCallback(async () => {
     if (restoring) return;

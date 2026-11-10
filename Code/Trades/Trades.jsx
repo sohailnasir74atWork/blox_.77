@@ -50,6 +50,7 @@ import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
 import { isUserOnline } from '../ChatScreen/utils';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { saveTrade, unsaveTrade, fetchSavedTradeRefs } from './tradeHelpers';
+import { requestCounterOffer } from '../CounterOffer/counterOffer';
 import { fetchAnalyticsData } from '../Helper/analyticsDataHelper';
 import { tradeHighlight, TONE_STYLE } from '../Helper/tradeAdvice';
 import FramedAvatar from '../ChatScreen/GroupChat/FramedAvatar';
@@ -133,6 +134,9 @@ const TradeList = ({ route }) => {
   const [lastDoc, setLastDoc] = useState(null);
   const [hasMore, setHasMore] = useState(true);
   const [showofferwall, setShowofferwall] = useState(false);
+  // Which spot opened the wall (paywall_trigger in growthAnalytics.js).
+  const [offerTrigger, setOfferTrigger] = useState(null);
+  const openOfferWall = (spot) => { setOfferTrigger(spot); setShowofferwall(true); };
   const [remainingFeaturedTrades, setRemainingFeaturedTrades] = useState([]);
   const [openShareModel, setOpenShareModel] = useState(false);
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
@@ -535,7 +539,7 @@ const TradeList = ({ route }) => {
         }),
         [
           { text: t("trade.cancel"), style: "cancel" },
-          { text: t("trade.upgrade"), onPress: () => setShowofferwall(true) },
+          { text: t("trade.upgrade"), onPress: () => openOfferWall('trade_boost_limit') },
         ]
       );
       return;
@@ -609,7 +613,7 @@ const TradeList = ({ route }) => {
           { text: t("trade.cancel"), style: "cancel" },
           {
             text: t("trade.upgrade"),
-            onPress: () => setShowofferwall(true),
+            onPress: () => openOfferWall('trade_feature'),
           },
         ]
       );
@@ -1572,6 +1576,34 @@ const TradeList = ({ route }) => {
   };
 
   // ── Alternate trade card renderer (non-Noman) ──
+  // Counter: open the calculator pre-filled with this trade, mirrored for the
+  // viewer (CounterOffer/counterOffer.js). Signed-in only, like Chat; never
+  // on the viewer's own trade.
+  const handleCounter = (item) => {
+    if (!user?.id) {
+      setIsSigninDrawerVisible(true);
+      return;
+    }
+    triggerHapticFeedback('impactLight');
+    requestCounterOffer({
+      trade: item,
+      poster: { senderId: item.userId, sender: item.traderName, avatar: item.avatar, flage: item?.flage || null },
+    });
+    navigation.navigate('Calculator');
+  };
+  const renderCounterButton = (item) => (item.userId === user?.id ? null : (
+    <TouchableOpacity
+      onPress={() => handleCounter(item)}
+      style={styles.counterBtn}
+      activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={t('counter_offer.counter', { defaultValue: 'Counter' })}
+    >
+      <Icon name="swap-horizontal" size={11} color={isDarkMode ? '#e2e8f0' : '#334155'} />
+      <Text style={styles.counterBtnText}>{t('counter_offer.counter', { defaultValue: 'Counter' })}</Text>
+    </TouchableOpacity>
+  ));
+
   const renderTradeAlt = ({ item, index }) => {
     if (item?.__type === 'ad') {
       return <FeedBannerAd adKey={item.id} isDarkMode={isDarkMode} gate={feedAdGate} />;
@@ -1768,6 +1800,7 @@ const TradeList = ({ route }) => {
             >
               <Icon name={savedTradeRefs[item.id] ? 'bookmark' : 'bookmark-outline'} size={14} color="#3B82F6" />
             </TouchableOpacity>
+            {renderCounterButton(item)}
             <TouchableOpacity style={styles.tradeChatBtn2} onPress={handleChatNavigation} activeOpacity={0.8}>
               <Icon name="paper-plane-outline" size={10} color="#fff" />
               <Text style={styles.tradeChatBtnLabel}>{t('feed.chat', { defaultValue: 'Chat' })}</Text>
@@ -2088,6 +2121,8 @@ const TradeList = ({ route }) => {
               </>
             )}
 
+            {renderCounterButton(item)}
+
             <TouchableOpacity style={styles.tradeChatBtn2} onPress={() => handleOpenProfile(item)} activeOpacity={0.8}>
               <Icon name="chatbubble" size={10} color="#fff" />
               <Text style={styles.tradeChatBtnLabel}>{t('feed.chat', { defaultValue: 'Chat' })}</Text>
@@ -2303,7 +2338,7 @@ const TradeList = ({ route }) => {
         screen='Trade'
 
       />
-      <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} track='Trade' oneWallOnly={single_offer_wall} />
+      <SubscriptionScreen trigger={offerTrigger} visible={showofferwall} onClose={() => setShowofferwall(false)} track='Trade' oneWallOnly={single_offer_wall} />
       <ProfileBottomDrawer
         isVisible={isDrawerVisible}
         toggleModal={closeProfileDrawer}
@@ -2724,6 +2759,23 @@ const getStyles = (isDarkMode) =>
     },
     tradeChatBtnLabel: {
       color: '#ffffff',
+      fontWeight: '700',
+      fontSize: 10,
+    },
+    // Counter sits beside Chat at the same size; neutral, since Chat already
+    // carries the primary colour.
+    counterBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 4,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+      borderRadius: 999,
+      backgroundColor: isDarkMode ? '#334155' : '#f1f5f9',
+    },
+    counterBtnText: {
+      color: isDarkMode ? '#e2e8f0' : '#334155',
       fontWeight: '700',
       fontSize: 10,
     },

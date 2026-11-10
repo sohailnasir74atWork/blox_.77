@@ -30,6 +30,9 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
     const styles = useMemo(() => getStyles(isDarkMode), [isDarkMode]);
     const { localState } = useLocalState()
     const [showofferwall, setShowofferwall] = useState(false);
+    // Which spot opened the wall (paywall_trigger in growthAnalytics.js).
+    const [offerTrigger, setOfferTrigger] = useState(null);
+    const openOfferWall = (spot) => { setOfferTrigger(spot); setShowofferwall(true); };
     const { t } = useTranslation();
 
     if (!tradeData) return null;
@@ -98,7 +101,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                 t('trade.sharetrade_model.pro_feature_body'),
                 [
                     { text: t('common.cancel'), style: "cancel" },
-                    { text: t('trade.upgrade'), onPress: () => setShowofferwall(true) }
+                    { text: t('trade.upgrade'), onPress: () => openOfferWall('share_trade_remove_watermark') }
                 ]
             );
             return;
@@ -327,7 +330,7 @@ const ShareTradeModal = ({ visible, onClose, tradeData }) => {
                     </View>
                 </View>
             </View>
-            {showofferwall && <SubscriptionScreen visible={showofferwall} onClose={() => setShowofferwall(false)} oneWallOnly={single_offer_wall} />}
+            {showofferwall && <SubscriptionScreen trigger={offerTrigger} track='Share Trade' visible={showofferwall} onClose={() => setShowofferwall(false)} oneWallOnly={single_offer_wall} />}
         </Modal>
     );
 };

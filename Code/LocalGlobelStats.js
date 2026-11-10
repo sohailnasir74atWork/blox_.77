@@ -10,6 +10,7 @@ import React, {
 import { createMMKV } from 'react-native-mmkv';
 import { AppState } from 'react-native';
 import Purchases from 'react-native-purchases';
+import { getAnalytics, getAppInstanceId } from '@react-native-firebase/analytics';
 import config from './Helper/Environment';
 import { isProGrantActive, onProGrantChange, startProGrants } from './Helper/proGrant';
 
@@ -104,6 +105,9 @@ export const LocalStateProvider = ({ children }) => {
     // picker tab can read it from cache without a fetch. Hydrate from MMKV on boot.
     ownedFruits: safeParseJSON('ownedFruits', []),
     wishlistFruits: safeParseJSON('wishlistFruits', []),
+    // Calculator picker "Recent" tab: last 12 distinct items added, newest
+    // first, as [{ Name, Type: 'n'|'p' }] (HomeScreen re-prices them).
+    recentCalcItems: safeParseJSON('recentCalcItems', []),
   }));
 
   // RevenueCat subscriptions (for info/expiry)
@@ -258,6 +262,12 @@ export const LocalStateProvider = ({ children }) => {
         shouldShowInAppMessagesAutomatically: false,
       });
       showBillingMessagesLater();
+      // Lets RevenueCat's Firebase integration send purchases, renewals,
+      // refunds and cancellations to GA4 for this device (same as the Adopt Me
+      // and MM2 apps). Never awaited.
+      getAppInstanceId(getAnalytics())
+        .then((id) => (id ? Purchases.setFirebaseAppInstanceID(id) : null))
+        .catch(() => {});
 
       await checkEntitlements().catch(error => {
         console.error('❌ Error checking entitlements:', error.message);

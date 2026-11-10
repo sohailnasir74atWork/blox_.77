@@ -532,6 +532,9 @@ export default function SettingsScreen({ selectedTheme }) {
   const { updateLocalState, localState, mySubscriptions } = useLocalState()
   const [isPermissionGranted, setIsPermissionGranted] = useState(false);
   const [showOfferWall, setShowofferWall] = useState(false);
+  // Which spot opened the wall (paywall_trigger in growthAnalytics.js).
+  const [offerTrigger, setOfferTrigger] = useState(null);
+  const openOfferWall = (spot) => { setOfferTrigger(spot); setShowofferWall(true); };
   const { language, changeLanguage } = useLanguage();
   const [ownedPets, setOwnedPets] = useState([]);
   const [wishlistPets, setWishlistPets] = useState([]);
@@ -804,7 +807,7 @@ export default function SettingsScreen({ selectedTheme }) {
           {
             text: t('settings.setting.upgrade'),
             style: 'default',
-            onPress: () => setShowofferWall(true),
+            onPress: () => openOfferWall('setting_online_status'),
           },
         ]
       );
@@ -2718,7 +2721,7 @@ export default function SettingsScreen({ selectedTheme }) {
           ) : (
             <TouchableOpacity
               activeOpacity={0.85}
-              onPress={() => setShowofferWall(true)}
+              onPress={() => openOfferWall('setting_pro_card')}
               style={{ flexDirection: 'row', alignItems: 'center', padding: 14, marginTop: 12, borderRadius: 14, backgroundColor: config.colors.primary }}
             >
               <View style={{ flex: 1, minWidth: 0 }}>
@@ -2952,7 +2955,7 @@ export default function SettingsScreen({ selectedTheme }) {
         </Modal>
         <PetModal fromSetting={true} ownedPets={ownedPets} setOwnedPets={setOwnedPets} wishlistPets={wishlistPets} setWishlistPets={setWishlistPets} onClose={async () => { { setPetModalVisible(false); await savePetsToReviews(ownedPets, wishlistPets) } }} visible={petModalVisible} owned={owned}
         />
-        <SubscriptionScreen visible={showOfferWall} onClose={() => setShowofferWall(false)} track='Setting' oneWallOnly={single_offer_wall}
+        <SubscriptionScreen trigger={offerTrigger} visible={showOfferWall} onClose={() => setShowofferWall(false)} track='Setting' oneWallOnly={single_offer_wall}
         />
         <SignInDrawer
           visible={openSingnin}
