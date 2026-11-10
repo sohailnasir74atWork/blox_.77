@@ -3,9 +3,13 @@
 // Replaces the RevenueCatUI paywall (react-native-purchases-ui) with a screen
 // built on react-native-purchases only, ported from the Adopt Me app.
 //
-// ONE wall, one offering ('default'). Owner's call (2026-10-11): no second
-// discount wall, and the discounted 'paywallrc' offering is no longer shown.
-// Callers still pass `showoffer` and `oneWallOnly`; both are ignored.
+// TWO STEPS (owner, 2026-11-10 — replaces the 2026-10-11 "one wall" call):
+//   1. the full-price wall, offering 'pro_full' ($9.99 / $19.99 / $49.99,
+//      3-day free trial for new subscribers), falling back to 'default';
+//   2. closed without buying → the SAME screen turns into a one-time offer,
+//      'pro_offer' (50% off), shown once per install, never again.
+// See proOfferings.js. The old 'paywallrc' offering is not used. Callers
+// still pass `showoffer` and `oneWallOnly`; both are ignored.
 //
 // It LOOKS LIKE ONBOARDING, on purpose. The first-run flow is welcome → sign
 // in → this wall, and a dark storefront at step three read as leaving the app.
@@ -19,7 +23,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, Modal, TouchableOpacity, Image,
-  StyleSheet, StatusBar, ActivityIndicator,
+  StyleSheet, StatusBar, ActivityIndicator, Platform,
   Dimensions, Linking, ScrollView, Alert, Animated, Easing,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -35,9 +39,11 @@ import {
   trackPurchaseStart, trackPurchaseFail,
 } from '../Helper/growthAnalytics';
 import config from '../Helper/Environment';
+import { purchasePaywallPackage, restorePaywallPurchases } from './PayWall';
 import {
-  getPaywallOfferings, purchasePaywallPackage, restorePaywallPurchases, OFFERING_MAIN,
-} from './PayWall';
+  loadWallOfferings, fullWallPackages, exitWallPackages, isNewPricing,
+  trialEligibility, matchByPeriod, EXIT_OFFER_SHOWN_KEY, EXIT_OFFER_TRIGGER,
+} from './proOfferings';
 
 const { width, height } = Dimensions.get('window');
 const SMALL = height < 700;
@@ -53,6 +59,9 @@ const PRIVACY_URL = 'https://bloxfruitscalc.com/privacy-policy/';
 // the end of onboarding, 5 s everywhere else.
 const CLOSE_DELAY_ONBOARDING = 7;
 const CLOSE_DELAY = 5;
+// The one-time offer follows a close the person already chose; 3 s is enough
+// to read it without feeling trapped a second time.
+const CLOSE_DELAY_EXIT = 3;
 
 // ── Palette ──
 const BRAND = '#29AB87';   // config.colors.hasBlockGreen — onboarding's Continue button
@@ -165,15 +174,30 @@ const Backdrop = ({ P }) => (
   </Svg>
 );
 
-const sortPackages = (offering) =>
-  (offering?.availablePackages || []).slice().sort(
+const sortPackages = (packages) =>
+  (packages || []).slice().sort(
     (a, b) => (PLAN_ORDER[a.packageType] ?? 9) - (PLAN_ORDER[b.packageType] ?? 9)
   );
+
+// A free trial on the product, if the store has one: iOS intro price of 0, or
+// a free phase on the Play offer. → { count, unit } | null
+const storeTrial = (pkg) => {
+  const product = pkg?.product;
+  const intro = product?.introPrice;
+  if (intro && intro.price === 0 && intro.periodNumberOfUnits > 0) {
+    return { count: intro.periodNumberOfUnits, unit: String(intro.periodUnit || '').toUpperCase() };
+  }
+  const freePhase = product?.defaultOption?.freePhase?.billingPeriod;
+  if (freePhase && freePhase.value > 0) {
+    return { count: freePhase.value, unit: String(freePhase.unit || '').toUpperCase() };
+  }
+  return null;
+};
 
 // `trigger` names the exact spot that opened the wall (growthAnalytics.js).
 const SubscriptionScreen = ({ visible, onClose, track, trigger }) => {
   const insets = useSafeAreaInsets();
-  const { refreshCustomerInfo } = useLocalState();
+  const { refreshCustomerInfo, localState, updateLocalState } = useLocalState();
   const { theme } = useGlobalState();
   const { triggerHapticFeedback } = useHaptic();
   const { t } = useTranslation();
@@ -182,9 +206,20 @@ const SubscriptionScreen = ({ visible, onClose, track, trigger }) => {
   const P = useMemo(() => makePalette(isDark), [isDark]);
   const s = useMemo(() => makeStyles(P), [P]);
 
-  const closeDelay = paywallPlacement(track) === 'onboarding' ? CLOSE_DELAY_ONBOARDING : CLOSE_DELAY;
+  // 'full' = the full-price wall; 'exit' = the one-time 50% offer it turns
+  // into when closed unbought (once per install).
+  const [phase, setPhase] = useState('full');
+  const isExit = phase === 'exit';
+  // What analytics and RevenueCat attributes call this spot.
+  const activeTrigger = isExit ? EXIT_OFFER_TRIGGER : trigger;
+  // iOS: { productId: eligible for the free trial } (Android: always {}).
+  const [eligible, setEligible] = useState({});
 
-  const [offerings, setOfferings] = useState(null); // { default, paywallrc }; null while loading
+  const closeDelay = isExit
+    ? CLOSE_DELAY_EXIT
+    : (paywallPlacement(track) === 'onboarding' ? CLOSE_DELAY_ONBOARDING : CLOSE_DELAY);
+
+  const [offerings, setOfferings] = useState(null); // offerings.all; null while loading
   const [selectedPkg, setSelectedPkg] = useState(null);
   const [loading, setLoading] = useState(false);
   const [restoring, setRestoring] = useState(false);
@@ -196,21 +231,46 @@ const SubscriptionScreen = ({ visible, onClose, track, trigger }) => {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const closeFade = useRef(new Animated.Value(0)).current;
 
-  // ── Open: load offerings, log the view ──
+  // ── Open: load offerings. Closed: back to the full-price step, so the next
+  // open never starts (or logs a view) as the exit offer. ──
   useEffect(() => {
-    if (!visible) return undefined;
+    if (!visible) { setPhase('full'); return undefined; }
     let alive = true;
     setSelectedPkg(null);
-    trackPaywallView(track, trigger);
-    getPaywallOfferings().then((o) => { if (alive) setOfferings(o); });
+    setPhase('full');
+    loadWallOfferings().then((o) => { if (alive) setOfferings(o); });
     return () => { alive = false; };
-  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [visible]);
 
-  const offering = offerings?.[OFFERING_MAIN] || null;
+  // ── Analytics: one view per open, one more when the exit offer appears ──
+  useEffect(() => {
+    if (visible) trackPaywallView(track, activeTrigger);
+  }, [visible, isExit]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Pricing: each plan vs. the priciest per-month rate (monthly) ──
+  // Full wall: 'pro_full', else 'default'. Exit offer: 'pro_offer'.
+  const wallPackages = useMemo(() => {
+    if (!offerings) return [];
+    return isExit ? exitWallPackages(offerings) : fullWallPackages(offerings, []);
+  }, [offerings, isExit]);
+
+  // The full-price plan of each billing period — the exit offer's "was" price.
+  const fullByType = useMemo(
+    () => (isExit && offerings ? matchByPeriod(fullWallPackages(offerings, []), (p) => p.packageType) : {}),
+    [isExit, offerings]
+  );
+
+  // iOS trial eligibility for the plans on screen (Android needs none).
+  useEffect(() => {
+    if (!visible || isExit || !wallPackages.length) return undefined;
+    let alive = true;
+    trialEligibility(wallPackages).then((m) => { if (alive) setEligible(m); });
+    return () => { alive = false; };
+  }, [visible, isExit, wallPackages]);
+
+  // ── Pricing: each plan vs. the priciest per-month rate (monthly); on the
+  // exit offer, vs. the same plan at full price ──
   const plans = useMemo(() => {
-    const list = sortPackages(offering);
+    const list = sortPackages(wallPackages);
     const monthlyRate = (p) => {
       const months = MONTHS_IN_PERIOD[p.packageType];
       const price = p.product?.price;
@@ -223,6 +283,15 @@ const SubscriptionScreen = ({ visible, onClose, track, trigger }) => {
       const price = pkg.product?.price;
       const rate = monthlyRate(pkg);
       const months = MONTHS_IN_PERIOD[pkg.packageType];
+      // Exit offer: the saving is against the SAME plan at full price, read
+      // live from the store — never a made-up "was" price.
+      if (isExit) {
+        const full = fullByType[pkg.packageType];
+        const wasPrice = full?.product?.price;
+        const off = (wasPrice > 0 && price > 0 && wasPrice > price) ? Math.round((1 - price / wasPrice) * 100) : 0;
+        const savings = off >= 5 ? off : 0;
+        return { pkg, rate, savings, saved: savings ? wasPrice - price : 0, freeMonths: 0, wasPkg: savings ? full : null };
+      }
       const compareAt = (anchorRate && months) ? anchorRate * months : null;
       // Anything under 5% reads as a rounding artefact, so it is not claimed.
       const pct = (compareAt && price > 0 && compareAt > price) ? Math.round((1 - price / compareAt) * 100) : 0;
@@ -231,9 +300,9 @@ const SubscriptionScreen = ({ visible, onClose, track, trigger }) => {
       // "Like 6 months free" — the saving in months of the monthly plan.
       // Floored on purpose: better to undersell than to round a claim up.
       const freeMonths = (savings && anchorRate) ? Math.floor(saved / anchorRate) : 0;
-      return { pkg, rate, savings, saved, freeMonths };
+      return { pkg, rate, savings, saved, freeMonths, wasPkg: null };
     });
-  }, [offering]);
+  }, [wallPackages, isExit, fullByType]);
 
   // Best value = biggest real saving; ties go to the longest plan (list is sorted).
   const recommended = useMemo(() => {
@@ -262,7 +331,7 @@ const SubscriptionScreen = ({ visible, onClose, track, trigger }) => {
       Animated.timing(closeFade, { toValue: 1, duration: 200, useNativeDriver: true }).start();
     }, closeDelay * 1000);
     return () => clearTimeout(timer);
-  }, [visible, closeDelay, closeFade]);
+  }, [visible, isExit, closeDelay, closeFade]);
 
   // ── Entrance ──
   useEffect(() => {
@@ -273,7 +342,7 @@ const SubscriptionScreen = ({ visible, onClose, track, trigger }) => {
       Animated.timing(fadeAnim, { toValue: 1, duration: 420, useNativeDriver: true }),
       Animated.timing(riseAnim, { toValue: 0, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]).start();
-  }, [visible, fadeAnim, riseAnim]);
+  }, [visible, isExit, fadeAnim, riseAnim]);
 
   // ── CTA breathing ──
   useEffect(() => {
@@ -293,11 +362,25 @@ const SubscriptionScreen = ({ visible, onClose, track, trigger }) => {
     onClose?.();
   }, [onClose, refreshCustomerInfo]);
 
+  // Closing the full-price wall unbought turns it into the one-time offer —
+  // once per install, only on the new prices, only if the offer loaded.
+  // Closing the offer (or the wall a second time ever) really closes.
   const handleClose = useCallback(() => {
     if (loading) return;
-    trackPaywallClose(track, trigger);
+    trackPaywallClose(track, activeTrigger);
+    const offerReady = !isExit
+      && !localState?.isPro
+      && !localState?.[EXIT_OFFER_SHOWN_KEY]
+      && isNewPricing(offerings)
+      && exitWallPackages(offerings).length > 0;
+    if (offerReady) {
+      updateLocalState(EXIT_OFFER_SHOWN_KEY, true);
+      setSelectedPkg(null);
+      setPhase('exit');
+      return;
+    }
     finish();
-  }, [loading, track, trigger, finish]);
+  }, [loading, track, activeTrigger, isExit, localState, offerings, updateLocalState, finish]);
 
   const handleSelect = useCallback((pkg) => {
     triggerHapticFeedback('impactLight');
@@ -308,19 +391,19 @@ const SubscriptionScreen = ({ visible, onClose, track, trigger }) => {
     if (!selectedPkg || loading) return;
     triggerHapticFeedback('impactMedium');
     setLoading(true);
-    trackPurchaseStart(selectedPkg, track, trigger);
+    trackPurchaseStart(selectedPkg, track, activeTrigger);
     const r = await purchasePaywallPackage(selectedPkg);
     setLoading(false);
-    if (!r.pro) trackPurchaseFail(selectedPkg, track, trigger, r.error);
+    if (!r.pro) trackPurchaseFail(selectedPkg, track, activeTrigger, r.error);
     if (r.pro) {
-      trackProPurchase(selectedPkg, track, trigger, r.customerInfo);
+      trackProPurchase(selectedPkg, track, activeTrigger, r.customerInfo);
       showSuccessMessage(t('alert.success', { defaultValue: 'Success' }), t('paywall.welcome_pro', { defaultValue: 'Welcome to Pro!' }));
       finish();
     } else if (!r.cancelled) {
       // Alert, not a flash message: those render underneath a full-screen Modal.
       Alert.alert(t('alert.error', { defaultValue: 'Error' }), t('paywall.purchase_failed', { defaultValue: 'Purchase failed. Please try again.' }));
     }
-  }, [selectedPkg, loading, triggerHapticFeedback, finish, track, trigger, t]);
+  }, [selectedPkg, loading, triggerHapticFeedback, finish, track, activeTrigger, t]);
 
   const handleRestore = useCallback(async () => {
     if (restoring) return;
@@ -335,13 +418,35 @@ const SubscriptionScreen = ({ visible, onClose, track, trigger }) => {
     }
   }, [restoring, finish, t]);
 
-  // The line under the button says exactly what is charged, and when.
+  // ── Free trial (pro_full: 3 days, new subscribers only) ──
+  // iOS lists the intro offer on every product, eligible or not, so only
+  // promise it when Apple confirmed eligibility. Play only returns offers the
+  // person can actually get.
+  const trial = (() => {
+    if (isExit || !selectedPkg) return null;
+    if (Platform.OS === 'ios' && eligible[selectedPkg.product?.identifier] !== true) return null;
+    const tr = storeTrial(selectedPkg);
+    const key = tr && { DAY: 'trial_days', WEEK: 'trial_weeks', MONTH: 'trial_months' }[tr.unit];
+    return key ? t(`paywall.${key}`, { count: tr.count }) : null;
+  })();
+
+  // The line under the button says exactly what is charged, and when —
+  // after the free trial, when there is one.
   const ctaSubtitle = (() => {
     const price = selectedPkg?.product?.priceString;
     if (!price) return null;
     if (selectedPkg.packageType === 'LIFETIME') return t('settings.offer_wall.lifetime_once', { price });
-    return t(BILLED_LABEL[selectedPkg.packageType] || 'settings.offer_wall.renews_default', { price });
+    const billed = t(BILLED_LABEL[selectedPkg.packageType] || 'settings.offer_wall.renews_default', { price });
+    return trial ? `${t('paywall.trial_then', { trial })} ${billed}` : billed;
   })();
+
+  // With a trial the button says so; the one-time offer names the deal.
+  const ctaLabel = isExit
+    ? t('paywall.exit_cta')
+    : (trial ? t('paywall.cta_trial') : t('paywall.cta', { defaultValue: 'Continue' }));
+
+  // Biggest real % off on the exit offer (the hero promises no more than this).
+  const exitPercent = isExit ? Math.max(0, ...plans.map((p) => p.savings)) : 0;
 
   return (
     <Modal visible={!!visible} animationType="fade" presentationStyle="fullScreen" onRequestClose={canClose ? handleClose : undefined}>
@@ -358,8 +463,21 @@ const SubscriptionScreen = ({ visible, onClose, track, trigger }) => {
             {/* Onboarding's logo, so step three still reads as the same app */}
             <View style={s.hero}>
               <Image resizeMethod="resize" source={LOGO} style={s.logo} resizeMode="contain" />
-              <Text style={s.title}>{t('paywall.title', { defaultValue: 'Blox Fruit Values Pro' })}</Text>
-              <Text style={s.subtitle}>{t('paywall.subtitle', { defaultValue: 'Trade faster, with no ads in your way.' })}</Text>
+              {isExit && (
+                <View style={s.exitBadge}>
+                  <Text style={s.exitBadgeText}>{t('paywall.exit_badge')}</Text>
+                </View>
+              )}
+              <Text style={s.title}>
+                {isExit && exitPercent > 0
+                  ? t('paywall.exit_title', { percent: exitPercent })
+                  : t('paywall.title', { defaultValue: 'Blox Fruit Values Pro' })}
+              </Text>
+              <Text style={s.subtitle}>
+                {isExit
+                  ? t('paywall.exit_subtitle')
+                  : t('paywall.subtitle', { defaultValue: 'Trade faster, with no ads in your way.' })}
+              </Text>
             </View>
 
             <View style={s.card}>
@@ -404,7 +522,7 @@ const SubscriptionScreen = ({ visible, onClose, track, trigger }) => {
           {plans.length > 0 ? (
             <>
               <View style={s.tiles}>
-                {plans.map(({ pkg, rate, savings }, i) => {
+                {plans.map(({ pkg, rate, savings, wasPkg }, i) => {
                   const isSelected = selectedPkg?.identifier === pkg.identifier;
                   const isBest = plans.length > 1 && recommended?.identifier === pkg.identifier && savings > 0;
                   const showPerMonth = rate != null && pkg.packageType !== 'MONTHLY' && pkg.packageType !== 'LIFETIME';
@@ -427,9 +545,12 @@ const SubscriptionScreen = ({ visible, onClose, track, trigger }) => {
                       <Text style={[s.tilePrice, isSelected && s.tilePriceOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                         {pkg.product?.priceString || '—'}
                       </Text>
-                      {/* Reserved line so all tiles stay the same height */}
-                      <Text style={[s.tilePerMonth, isSelected && s.tilePerMonthOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                        {showPerMonth ? t('settings.offer_wall.per_month', { price: formatMoney(pkg, rate) }) : ' '}
+                      {/* Reserved line so all tiles stay the same height. On the
+                          exit offer it carries the real full price, crossed out. */}
+                      <Text style={[s.tilePerMonth, isSelected && s.tilePerMonthOn, !!wasPkg && s.wasPrice]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                        {wasPkg
+                          ? wasPkg.product?.priceString
+                          : (showPerMonth ? t('settings.offer_wall.per_month', { price: formatMoney(pkg, rate) }) : ' ')}
                       </Text>
                     </TouchableOpacity>
                   );
@@ -466,9 +587,9 @@ const SubscriptionScreen = ({ visible, onClose, track, trigger }) => {
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <View style={s.ctaInner}>
-                  {/* "Continue", like every onboarding step before it */}
+                  {/* "Continue" like onboarding, or the trial / the offer */}
                   <Text style={s.ctaText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                    {t('paywall.cta', { defaultValue: 'Continue' })}
+                    {ctaLabel}
                   </Text>
                   <Icon name="arrow-forward" size={19} color="#FFFFFF" style={s.ctaArrow} />
                 </View>
@@ -562,6 +683,10 @@ const makeStyles = (P) => StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 2.5, borderRadius: 999,
   },
   saveTagText: { color: '#FFFFFF', fontSize: 9.5, fontWeight: '900', letterSpacing: 0.3 },
+  // Exit offer: the badge over the title, the crossed-out full price
+  exitBadge: { alignSelf: 'center', backgroundColor: GOLD, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999, marginBottom: 8 },
+  exitBadgeText: { color: '#3A2600', fontSize: 11, fontWeight: '900', letterSpacing: 0.6 },
+  wasPrice: { textDecorationLine: 'line-through' },
   bestLabel: { color: P.BRAND_TEXT, fontSize: 8.5, fontWeight: '900', letterSpacing: 0.7, marginBottom: 2 },
   tilePlan: { color: P.TEXT_SUB, fontSize: 11.5, fontWeight: '800', letterSpacing: 0.2 },
   tilePlanOn: { color: P.TEXT },
