@@ -36,11 +36,13 @@ export const useActiveChatHandler = (userId, chatId) => {
     useCallback(() => {
       setActiveChat();
 
-      BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      // RN 0.87 has no BackHandler.removeEventListener; remove through the
+      // subscription, or every focus stacks another back handler.
+      const backSub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
 
       return () => {
         clearActiveChat(userId);
-        BackHandler.removeEventListener('hardwareBackPress', onBackPress);
+        backSub.remove();
       };
     }, [setActiveChat, onBackPress, userId])
   );

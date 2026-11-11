@@ -42,7 +42,8 @@ const TimerScreen = ({ selectedTheme }) => {
     try {
       return typeof data === 'string' ? JSON.parse(data) : data;
     } catch (error) {
-      console.error("JSON parse error:", error, "Raw data:", data);
+      // Log the size, not the whole stock string.
+      console.error("JSON parse error:", error?.message || error, "length:", String(data).length);
       return {};
     }
   };

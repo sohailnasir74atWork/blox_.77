@@ -206,7 +206,8 @@ const ValueScreen = ({ selectedTheme, fromChat, selectedFruits, setSelectedFruit
 
         setValuesData(Object.values(parsedValues));
       } catch (error) {
-        console.error("❌ Error parsing data:", error, "📝 Raw Data:", localState.data);
+        // Log the size, not the whole catalogue string.
+        console.error("❌ Error parsing data:", error?.message || error, "length:", String(localState.data).length);
         setValuesData([]); // Fallback to empty array
       }
     }
