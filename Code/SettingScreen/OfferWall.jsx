@@ -481,9 +481,13 @@ const SubscriptionScreen = ({ visible, onClose, track, trigger, progress }) => {
               )}
               <Text
                 style={s.title}
-                numberOfLines={isExit ? 2 : 1}
+                // One line on both walls: on iPhone the bold system font is wider,
+                // and a two-line exit title pushed the benefit labels under the
+                // plans (bugs LOG 2026-11-11). It shrinks to fit instead; 0.6
+                // leaves room for the longest translation (de/es).
+                numberOfLines={1}
                 adjustsFontSizeToFit
-                minimumFontScale={0.7}
+                minimumFontScale={isExit ? 0.6 : 0.7}
                 maxFontSizeMultiplier={FONT_CAP}
               >
                 {titleText}
