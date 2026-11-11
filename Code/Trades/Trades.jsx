@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { View, FlatList, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, TextInput, Alert, Platform, Animated } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-// Free users can feature one trade per 24h by watching a rewarded ad. Pro keeps
-// its two instant boosts, so paying still buys both quantity and the
-// convenience of skipping the ad — the ad path must not undercut it.
-const AD_BOOST_DAILY_LIMIT = 1;
+// Boosting (featuring) a trade is Pro-only: two instant boosts per 24 h.
+// Free users see the same Boost button and get the Pro offer wall.
+// The watch-an-ad free boost was removed 2026-11-11: it earned ~$5.60/week
+// across all three apps (GA4, Nov 4-10) and undercut what Pro pays for.
 
 // Feed rhythm — see mergeFeaturedWithNormal.
 const FEATURED_BLOCK_SIZE = 3;
@@ -26,7 +26,6 @@ const BOOST_WINDOW_START_OFFSET_MS = BOOST_LIMIT_WINDOW_MS - FEATURE_DURATION_MS
 
 import { bannerAware, FLOATING_BUTTON_ICON_SIZE, FLOATING_BUTTON_RIGHT, aboveBanner } from '../Helper/floatingButtonLayout';
 import { useBannerHeight } from '../Ads/bannerHeight';
-import RewardedAdManager from '../Ads/RewardedAdManager';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { useGlobalState, modGateText } from '../GlobelStats';
@@ -477,124 +476,6 @@ const TradeList = ({ route }) => {
 
 
 
-
-  // Shared by the Pro path and the ad path so the two can never drift into
-  // writing different shapes for the same "featured" state.
-  const applyFeaturedToTrade = useCallback(async (item) => {
-    await updateDoc(doc(firestoreDB, "trades_new_upgrade", item.id), {
-      isFeatured: true,
-      featuredUntil: Timestamp.fromDate(new Date(Date.now() + FEATURE_DURATION_MS)),
-    });
-    const markFeatured = (prev) =>
-      prev.map((trade) => (trade.id === item.id ? { ...trade, isFeatured: true } : trade));
-    setTrades(markFeatured);
-    setFilteredTrades(markFeatured);
-  }, [firestoreDB]);
-
-  // How many of this user's trades were boosted inside the current limit
-  // window. Both paths read the same number, so a free user cannot stack an ad
-  // boost on top of a Pro boost by switching plans mid-day.
-  const countBoostsInWindow = useCallback(async () => {
-    const windowStart = Timestamp.fromMillis(Date.now() - BOOST_WINDOW_START_OFFSET_MS);
-    const snapshot = await getDocs(
-      query(
-        collection(firestoreDB, "trades_new_upgrade"),
-        where("userId", "==", user.id),
-        where("isFeatured", "==", true),
-        where("featuredUntil", ">", windowStart),
-        limit(200)
-      )
-    );
-    return snapshot.size;
-  }, [firestoreDB, user?.id]);
-
-  // ── Watch an ad → feature the trade ─────────────────────────────────────
-  const handleFreeBoostTrade = useCallback(async (item) => {
-    if (!user?.id || !firestoreDB) return;
-
-    // Banned users can't feature trades (a mute is chat-only).
-    const modGate = getModGate('content');
-    if (modGate) {
-      const { title, message } = modGateText(modGate, 'feature');
-      showErrorMessage(title, message);
-      return;
-    }
-
-    let alreadyBoosted;
-    try {
-      alreadyBoosted = await countBoostsInWindow();
-    } catch (err) {
-      console.error("Error checking featured trades:", err);
-      Alert.alert(t("home.alert.error"), t("trade.verify_error_message"));
-      return;
-    }
-
-    // Out of free boosts → this is the moment they actually want more, which
-    // makes it a better Pro pitch than a button that nags before they care.
-    if (alreadyBoosted >= AD_BOOST_DAILY_LIMIT) {
-      Alert.alert(
-        t("trade.limit_reached_title", { defaultValue: "Limit Reached" }),
-        t("trade.ad_boost_limit_message", {
-          defaultValue: "You've used your free boost for today. Pro members boost 2 trades a day, instantly and with no ads.",
-        }),
-        [
-          { text: t("trade.cancel"), style: "cancel" },
-          { text: t("trade.upgrade"), onPress: () => openOfferWall('trade_boost_limit') },
-        ]
-      );
-      return;
-    }
-
-    Alert.alert(
-      t("trade.ad_boost_title", { defaultValue: "Feature this trade free" }),
-      t("trade.ad_boost_message", {
-        defaultValue: "Watch a short video and your trade is featured at the top for 12 hours.",
-      }),
-      [
-        { text: t("trade.cancel"), style: "cancel" },
-        {
-          text: t("trade.ad_boost_watch", { defaultValue: "Watch" }),
-          onPress: () => {
-            RewardedAdManager.showWithCallback(
-              // Earned — only now does the trade get featured.
-              async () => {
-                try {
-                  await applyFeaturedToTrade(item);
-                  showSuccessMessage(t("trade.feature_success"), t("trade.feature_success_message"));
-                } catch (error) {
-                  console.error("Error featuring trade after ad:", error);
-                  showErrorMessage(t("trade.feature_error"), t("trade.feature_error_message"));
-                }
-              },
-              // Closed early — no reward. Say so plainly rather than failing silently.
-              () => showErrorMessage(
-                t("trade.ad_boost_incomplete_title", { defaultValue: "Not featured" }),
-                t("trade.ad_boost_incomplete_message", {
-                  defaultValue: "You need to watch the whole video to feature your trade.",
-                })
-              ),
-              // No fill / cooling down. Not the user's fault — don't blame them.
-              () => showErrorMessage(
-                t("trade.ad_boost_unavailable_title", { defaultValue: "No video right now" }),
-                t("trade.ad_boost_unavailable_message", {
-                  defaultValue: "No video is available at the moment. Please try again in a few minutes.",
-                })
-              ),
-              'trade_feature',
-            );
-          },
-        },
-      ]
-    );
-  }, [user?.id, firestoreDB, countBoostsInWindow, applyFeaturedToTrade, t, getModGate]);
-
-  // Warm the rewarded ad so the first FREE BOOST tap doesn't sit on a cold
-  // load. Non-Pro only: Pro members never see the button, so preloading for
-  // them would fetch an ad that can never be shown.
-  useEffect(() => {
-    if (isProStatus) return;
-    try { RewardedAdManager.prepare(); } catch (_) {}
-  }, [isProStatus]);
 
   const handleMakeFeatureTrade = async (item) => {
     // Banned users can't feature trades (a mute is chat-only).
@@ -1754,15 +1635,6 @@ const TradeList = ({ route }) => {
               <Icon name="rocket-outline" size={12} color="white" />
               <Text style={styles.altBoostText}>{t('trade.trades.boost')}</Text>
             </TouchableOpacity>}
-            {/* Watch-an-ad boost. Hidden from Pro members on purpose: they
-                already get two instant boosts a day, and part of what they
-                paid for is not being shown ads. */}
-            {!item.isFeatured && !isProStatus && (
-              <TouchableOpacity onPress={() => handleFreeBoostTrade(item)} style={styles.altFreeBoostBtn}>
-                <Icon name="play-circle-outline" size={12} color="white" />
-                <Text style={styles.altBoostText}>{t('trade.free_boost', { defaultValue: 'FREE BOOST' })}</Text>
-              </TouchableOpacity>
-            )}
             <TouchableOpacity onPress={() => handleDelete(item)} style={styles.altDeleteBtn}>
               <Icon name="trash-outline" size={12} color="white" />
               <Text style={styles.altBoostText}>{t('trade.trades.delete_caps')}</Text>
@@ -2062,15 +1934,6 @@ const TradeList = ({ route }) => {
                   <TouchableOpacity onPress={() => handleMakeFeatureTrade(item)} style={styles.tradeBoostBtn}>
                     <Icon name="rocket-outline" size={11} color="white" />
                     <Text style={styles.tradeBtnText}>{t('trade.trades.boost')}</Text>
-                  </TouchableOpacity>
-                )}
-                {/* Watch-an-ad boost. Hidden from Pro members on purpose: they
-                    already get two instant boosts a day, and part of what they
-                    paid for is not being shown ads. */}
-                {!item.isFeatured && !isProStatus && (
-                  <TouchableOpacity onPress={() => handleFreeBoostTrade(item)} style={styles.tradeFreeBoostBtn}>
-                    <Icon name="play-circle-outline" size={11} color="white" />
-                    <Text style={styles.tradeBtnText}>{t('trade.free_boost', { defaultValue: 'FREE BOOST' })}</Text>
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity onPress={() => handleDelete(item)} style={styles.tradeDeleteBtn}>
@@ -2668,20 +2531,6 @@ const getStyles = (isDarkMode) =>
       alignItems: 'center',
       gap: 8,
       marginTop: 8,
-    },
-    altFreeBoostBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: '#F59E0B',
-      borderRadius: 14,
-      paddingVertical: 4,
-      paddingHorizontal: 10,
-      gap: 4,
-    },
-    tradeFreeBoostBtn: {
-      flexDirection: 'row', alignItems: 'center', gap: 4,
-      backgroundColor: '#F59E0B',
-      paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
     },
     tradeBoostBtn: {
       flexDirection: 'row', alignItems: 'center', gap: 4,
