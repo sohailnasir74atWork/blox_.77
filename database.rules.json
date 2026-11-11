@@ -4,6 +4,17 @@
       ".read": true,
       ".write": "newData.isNumber() && newData.val() === (data.exists() ? data.val() : 0) + 1"
     },
+    "webPushTokens": {
+      ".read": false,
+      "$id": {
+        ".write": "newData.exists()",
+        ".validate": "$id.matches(/^[0-9a-f]{40}$/) && newData.hasChildren(['t', 'ts']) && newData.child('t').isString() && newData.child('t').val().length >= 100 && newData.child('t').val().length <= 400 && newData.child('ts').val() === now && (!newData.child('l').exists() || (newData.child('l').isString() && newData.child('l').val().length <= 10))",
+        "t": { ".validate": true },
+        "ts": { ".validate": true },
+        "l": { ".validate": true },
+        "$other": { ".validate": false }
+      }
+    },
     "email_prefs": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
