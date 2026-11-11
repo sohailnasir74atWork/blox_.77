@@ -1,5 +1,9 @@
 {
   "rules": {
+    "trade_scan_count": {
+      ".read": true,
+      ".write": "newData.isNumber() && newData.val() === (data.exists() ? data.val() : 0) + 1"
+    },
     "email_prefs": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",

@@ -25,6 +25,7 @@ import SubscriptionScreen from '../SettingScreen/OfferWall';
 import { fetchAnalyticsData, getHotStatus } from '../Helper/analyticsDataHelper';
 import { tradeHighlight, TONE_STYLE } from '../Helper/tradeAdvice';
 import TradeScannerModal from '../TradeScanner/TradeScannerModal';
+import { readScanCount, formatScanCount, SHOW_SCANS_FROM } from '../Helper/scanCount';
 import SlotActionSheet from './SlotActionSheet';
 import CounterOfferBanner from '../CounterOffer/CounterOfferBanner';
 import {
@@ -59,6 +60,15 @@ const HomeScreen = ({ selectedTheme, hideBanner = false }) => {
   const [wantsTotal, setWantsTotal] = useState({ price: 0, value: 0 });
   const [showTradeCompletion, setShowTradeCompletion] = useState(false);
   const [scannerVisible, setScannerVisible] = useState(false);
+  // Scans by everyone in this app, shown on the scan button (read again each
+  // time the scanner closes, so the user's own scan shows up).
+  const [scanCount, setScanCount] = useState(0);
+  useEffect(() => {
+    if (scannerVisible) return undefined;
+    let alive = true;
+    readScanCount().then((n) => { if (alive) setScanCount(n); });
+    return () => { alive = false; };
+  }, [scannerVisible]);
   const { triggerHapticFeedback } = useHaptic();
   const { localState, updateLocalState } = useLocalState();
   const [modalVisible, setModalVisible] = useState(false);
@@ -763,7 +773,11 @@ const HomeScreen = ({ selectedTheme, hideBanner = false }) => {
       <Icon name="camera" size={18} color="white" />
       <Text style={styles.scanButtonText}>{t('trade_scanner.button', { defaultValue: 'Scan a trade with camera' })}</Text>
       <View style={styles.scanNewBadge}>
-        <Text style={styles.scanNewText}>{t('trade_scanner.new', { defaultValue: 'NEW' })}</Text>
+        <Text style={styles.scanNewText}>
+          {scanCount >= SHOW_SCANS_FROM
+            ? t('trade_scanner.scan_count', { n: formatScanCount(scanCount), defaultValue: '{{n}} scans' })
+            : t('trade_scanner.new', { defaultValue: 'NEW' })}
+        </Text>
       </View>
     </TouchableOpacity>
   );

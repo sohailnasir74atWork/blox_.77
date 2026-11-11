@@ -1,9 +1,12 @@
 import {getAnalytics, logEvent} from '@react-native-firebase/analytics';
 import Purchases from 'react-native-purchases';
+import { countScan } from './scanCount';
 
 // Uses the app's existing Analytics collection settings. No item names,
 // search strings, emails, or account identifiers are sent by these events.
 export const trackGrowthEvent = (event, params = {}) => {
+  // Every finished scan logs trade_scan once: count it for the scan button.
+  if (event === 'trade_scan') countScan();
   try {
     Promise.resolve(logEvent(getAnalytics(), event, params)).catch(() => {});
   } catch {
