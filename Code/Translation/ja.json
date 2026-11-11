@@ -3229,7 +3229,19 @@
     "update": "更新",
     "up_to_date": "スキャナー v{{v}} · 最新",
     "updated": "スキャナー v{{v}} に更新しました",
-    "version": "スキャナー v{{v}}"
+    "version": "スキャナー v{{v}}",
+    "share": "シェア",
+    "share_result": "結果をシェア",
+    "share_message": "これってW？{{app}}のトレードスキャナーでチェックしたよ：{{url}}",
+    "card_kicker": "トレードチェック",
+    "card_from_photo": "写真からスキャン",
+    "card_from_screenshot": "スクショからスキャン",
+    "card_get_for": "{{give}}を出して{{get}}をもらう",
+    "card_total": "合計",
+    "card_more": "その他",
+    "card_tagline": "無料トレードスキャナー：そのトレードはW？L？",
+    "card_fan": "ファン制作。Robloxとは無関係です。",
+    "close": "閉じる"
   },
   "slot_sheet": {
     "close": "閉じる",

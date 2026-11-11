@@ -3499,7 +3499,19 @@
     "update": "تحديث",
     "up_to_date": "الماسح v{{v}} · محدَّث",
     "updated": "تم التحديث إلى الماسح v{{v}}",
-    "version": "الماسح v{{v}}"
+    "version": "الماسح v{{v}}",
+    "share": "مشاركة",
+    "share_result": "مشاركة النتيجة",
+    "share_message": "هل هذه W؟ تحققت منها بماسح التبادل في {{app}}: {{url}}",
+    "card_kicker": "فحص التبادل",
+    "card_from_photo": "تم المسح من صورة",
+    "card_from_screenshot": "تم المسح من لقطة شاشة",
+    "card_get_for": "تحصل على {{get}} مقابل {{give}}",
+    "card_total": "المجموع",
+    "card_more": "أخرى",
+    "card_tagline": "ماسح تبادل مجاني: هل تبادلك W أم L؟",
+    "card_fan": "من صنع المعجبين. لا علاقة له بـ Roblox.",
+    "close": "إغلاق"
   },
   "slot_sheet": {
     "close": "إغلاق",

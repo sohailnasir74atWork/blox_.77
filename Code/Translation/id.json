@@ -3230,7 +3230,19 @@
     "update": "Perbarui",
     "up_to_date": "Pemindai v{{v}} · terbaru",
     "updated": "Diperbarui ke pemindai v{{v}}",
-    "version": "Pemindai v{{v}}"
+    "version": "Pemindai v{{v}}",
+    "share": "Bagikan",
+    "share_result": "Bagikan hasil",
+    "share_message": "Ini W? Aku cek pakai Trade Scanner {{app}}: {{url}}",
+    "card_kicker": "Cek trade",
+    "card_from_photo": "Dipindai dari foto",
+    "card_from_screenshot": "Dipindai dari screenshot",
+    "card_get_for": "Kamu dapat {{get}} untuk {{give}}",
+    "card_total": "Total",
+    "card_more": "lagi",
+    "card_tagline": "Trade Scanner gratis: trade kamu W atau L?",
+    "card_fan": "Buatan fans. Tidak terkait dengan Roblox.",
+    "close": "Tutup"
   },
   "slot_sheet": {
     "close": "Tutup",

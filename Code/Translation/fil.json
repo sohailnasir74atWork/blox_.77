@@ -3234,7 +3234,19 @@
     "update": "I-update",
     "up_to_date": "Scanner v{{v}} · pinakabago",
     "updated": "Na-update sa scanner v{{v}}",
-    "version": "Scanner v{{v}}"
+    "version": "Scanner v{{v}}",
+    "share": "I-share",
+    "share_result": "I-share ang resulta",
+    "share_message": "W ba ito? Tiningnan ko gamit ang {{app}} Trade Scanner: {{url}}",
+    "card_kicker": "Trade check",
+    "card_from_photo": "Na-scan mula sa litrato",
+    "card_from_screenshot": "Na-scan mula sa screenshot",
+    "card_get_for": "Makukuha mo ang {{get}} kapalit ng {{give}}",
+    "card_total": "Kabuuan",
+    "card_more": "pa",
+    "card_tagline": "Libreng Trade Scanner: W o L ba ang trade mo?",
+    "card_fan": "Gawa ng fans. Hindi kaugnay ng Roblox.",
+    "close": "Isara"
   },
   "slot_sheet": {
     "close": "Isara",

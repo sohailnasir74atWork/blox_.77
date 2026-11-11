@@ -3237,7 +3237,19 @@
     "update": "Actualizar",
     "up_to_date": "Escáner v{{v}} · al día",
     "updated": "Actualizado al escáner v{{v}}",
-    "version": "Escáner v{{v}}"
+    "version": "Escáner v{{v}}",
+    "share": "Compartir",
+    "share_result": "Compartir resultado",
+    "share_message": "¿Es una W? Lo revisé con el Trade Scanner de {{app}}: {{url}}",
+    "card_kicker": "Revisión de trade",
+    "card_from_photo": "Escaneado de una foto",
+    "card_from_screenshot": "Escaneado de una captura",
+    "card_get_for": "Recibes {{get}} por {{give}}",
+    "card_total": "Total",
+    "card_more": "más",
+    "card_tagline": "Trade Scanner gratis: ¿tu trade es W o L?",
+    "card_fan": "Hecho por fans. Sin relación con Roblox.",
+    "close": "Cerrar"
   },
   "slot_sheet": {
     "close": "Cerrar",

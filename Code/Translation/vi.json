@@ -3230,7 +3230,19 @@
     "update": "Cập nhật",
     "up_to_date": "Máy quét v{{v}} · mới nhất",
     "updated": "Đã cập nhật lên máy quét v{{v}}",
-    "version": "Máy quét v{{v}}"
+    "version": "Máy quét v{{v}}",
+    "share": "Chia sẻ",
+    "share_result": "Chia sẻ kết quả",
+    "share_message": "Kèo này W không? Mình đã kiểm tra bằng Trade Scanner của {{app}}: {{url}}",
+    "card_kicker": "Kiểm tra trade",
+    "card_from_photo": "Quét từ ảnh",
+    "card_from_screenshot": "Quét từ ảnh chụp màn hình",
+    "card_get_for": "Bạn nhận {{get}} đổi lấy {{give}}",
+    "card_total": "Tổng",
+    "card_more": "nữa",
+    "card_tagline": "Trade Scanner miễn phí: trade của bạn W hay L?",
+    "card_fan": "Do fan làm. Không liên kết với Roblox.",
+    "close": "Đóng"
   },
   "slot_sheet": {
     "close": "Đóng",

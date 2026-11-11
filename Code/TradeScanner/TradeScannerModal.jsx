@@ -29,6 +29,7 @@ import { uploadScanReport } from '../Helper/scanReportUpload';
 import { activeScanner, activeScannerHtml, activeScannerVersion, fetchLatestScanner, installScanner, loadInstalledScanner, NEEDS_MODEL } from './scannerUpdate';
 import { downloadBytes, scannerState } from './scannerRelease';
 import { classifyTiles } from './tileModel';
+import ShareResultCard from './ShareResultCard';
 
 const SCAN_TIMEOUT_MS = 20000;
 const PICK_OPTIONS = { mediaType: 'photo', includeBase64: true, maxWidth: 2000, maxHeight: 2000, quality: 0.9 };
@@ -312,6 +313,15 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
     if (diff < -0.1) return { key: 'lose', pct, label: t('trade_scanner.lose', { defaultValue: 'Lose' }), color: config.colors.wantBlockRed };
     return { key: 'fair', pct, label: t('trade_scanner.fair', { defaultValue: 'Fair' }), color: '#F5A623' };
   }, [result, totals, t]);
+
+  // Share result card (2026-11-11, as MM2): only for a final verdict (every pick checked).
+  const [shareOpen, setShareOpen] = useState(false);
+  const canShare = !!verdict?.key;
+  const cardItems = useCallback((list) => (list || []).map((p) => {
+    const rec = recordOf(p);
+    const perm = p.perm && rec?.Type === 'p' ? `${t('home.home_screen.perm', { defaultValue: 'Perm' })} ` : '';
+    return { name: `${perm}${p.name}`, value: Number(rec?.Value) || 0, image: rec ? imageFor(rec) : '' };
+  }), [recordOf, imageFor, t]);
 
   const replacePick = (side, index, name) => {
     setResult((prev) => {
@@ -710,7 +720,27 @@ export default function TradeScannerModal({ visible, onClose, onApply, records, 
               <View style={[styles.result, { backgroundColor: verdict.color }]}>
                 <Text style={styles.resultValues} numberOfLines={1}>{formatValue(totals.mine)}  →  {formatValue(totals.theirs)}</Text>
                 <Text style={styles.resultVerdict}>{verdict.label} {verdict.pct}</Text>
+                {canShare && (
+                  <TouchableOpacity style={styles.shareBtn} onPress={() => setShareOpen(true)} hitSlop={6} activeOpacity={0.85}>
+                    <Icon name="share-social" size={14} color={verdict.color} />
+                    <Text style={[styles.shareText, { color: verdict.color }]}>{t('trade_scanner.share', { defaultValue: 'Share' })}</Text>
+                  </TouchableOpacity>
+                )}
               </View>
+            )}
+
+            {shareOpen && canShare && (
+              <ShareResultCard
+                visible={shareOpen}
+                onClose={() => setShareOpen(false)}
+                verdict={{ ...verdict, status: verdict.key }}
+                mine={cardItems(result.mine)}
+                theirs={cardItems(result.theirs)}
+                totalMine={totals.mine}
+                totalTheirs={totals.theirs}
+                formatValue={formatValue}
+                source={picked?.source}
+              />
             )}
 
             <View style={styles.feedback}>
@@ -826,6 +856,8 @@ const styles = StyleSheet.create({
   result: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, marginTop: 8 },
   resultValues: { color: '#fff', fontSize: 14, fontWeight: '700', flexShrink: 1 },
   resultVerdict: { color: '#fff', fontSize: 17, fontWeight: '900', marginLeft: 8 },
+  shareBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#fff', borderRadius: 14, paddingVertical: 5, paddingHorizontal: 10, marginLeft: 10 },
+  shareText: { fontSize: 12, fontWeight: '900' },
   footer: { flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 10 },
   verPill: { borderRadius: 9, paddingHorizontal: 7, paddingVertical: 2 },
   verPillText: { color: '#fff', fontSize: 11, fontWeight: '800' },

@@ -3378,7 +3378,19 @@
     "update": "Обновить",
     "up_to_date": "Сканер v{{v}} · актуален",
     "updated": "Сканер обновлён до v{{v}}",
-    "version": "Сканер v{{v}}"
+    "version": "Сканер v{{v}}",
+    "share": "Поделиться",
+    "share_result": "Поделиться результатом",
+    "share_message": "Это W? Я проверил в Trade Scanner от {{app}}: {{url}}",
+    "card_kicker": "Проверка трейда",
+    "card_from_photo": "Сканировано с фото",
+    "card_from_screenshot": "Сканировано со скриншота",
+    "card_get_for": "Ты получаешь {{get}} за {{give}}",
+    "card_total": "Итого",
+    "card_more": "ещё",
+    "card_tagline": "Бесплатный Trade Scanner: твой трейд W или L?",
+    "card_fan": "Фанатский проект. Не связан с Roblox.",
+    "close": "Закрыть"
   },
   "slot_sheet": {
     "close": "Закрыть",

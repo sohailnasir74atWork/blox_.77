@@ -3232,7 +3232,19 @@
     "update": "Update",
     "up_to_date": "Scanner v{{v}} · up to date",
     "updated": "Updated to scanner v{{v}}",
-    "version": "Scanner v{{v}}"
+    "version": "Scanner v{{v}}",
+    "share": "Share",
+    "share_result": "Share result",
+    "share_message": "Is this a W? I checked it with the {{app}} Trade Scanner: {{url}}",
+    "card_kicker": "Trade check",
+    "card_from_photo": "Scanned from a photo",
+    "card_from_screenshot": "Scanned from a screenshot",
+    "card_get_for": "You get {{get}} for {{give}}",
+    "card_total": "Total",
+    "card_more": "more",
+    "card_tagline": "Free Trade Scanner: is your trade a W or L?",
+    "card_fan": "Fan-made. Not affiliated with Roblox.",
+    "close": "Close"
   },
   "slot_sheet": {
     "close": "Close",

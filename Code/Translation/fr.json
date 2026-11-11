@@ -3234,7 +3234,19 @@
         "update": "Mettre à jour",
         "up_to_date": "Scanner v{{v}} · à jour",
         "updated": "Scanner mis à jour en v{{v}}",
-        "version": "Scanner v{{v}}"
+        "version": "Scanner v{{v}}",
+        "share": "Partager",
+        "share_result": "Partager le résultat",
+        "share_message": "C’est un W ? Je l’ai vérifié avec le Trade Scanner de {{app}} : {{url}}",
+        "card_kicker": "Vérif d’échange",
+        "card_from_photo": "Scanné depuis une photo",
+        "card_from_screenshot": "Scanné depuis une capture",
+        "card_get_for": "Tu reçois {{get}} pour {{give}}",
+        "card_total": "Total",
+        "card_more": "de plus",
+        "card_tagline": "Trade Scanner gratuit : ton échange est W ou L ?",
+        "card_fan": "Fait par des fans. Non affilié à Roblox.",
+        "close": "Fermer"
     },
     "slot_sheet": {
         "close": "Fermer",
