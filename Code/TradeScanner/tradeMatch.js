@@ -121,6 +121,39 @@ function findTitle(lines, slots) {
   return best;
 }
 
+// No title read (2026-11-11, a Japanese report: the Latin text reader cannot
+// read 宝物取引, and the two offers sit side by side with no wide gap, so all
+// four fruits went to the user): each offer has its player's Roblox name
+// above it. Two such names at about the same height over the slots, far
+// enough apart to be over different offers -> the window's centre is between
+// them. Fruit names on the bars sit lower (at or below the slots' top).
+const USERNAME = /^@?[A-Za-z0-9_]{3,20}$/;
+function playerNamesDivider(lines, slots) {
+  if (!slots.length) return undefined;
+  const top = Math.min(...slots.map((s) => s.nameTop));
+  const left = Math.min(...slots.map((s) => s.x0));
+  const right = Math.max(...slots.map((s) => s.x1));
+  const slotW = slots.reduce((acc, s) => acc + (s.x1 - s.x0), 0) / slots.length;
+  const names = lines.filter((l) => {
+    const c = center(l);
+    return USERNAME.test(l.text.trim()) && c.y < top && c.y >= top - slotW * 1.2 && c.x >= left && c.x <= right;
+  });
+  let at;
+  let best = 0;
+  for (let i = 0; i < names.length; i++) {
+    for (let j = i + 1; j < names.length; j++) {
+      const a = center(names[i]);
+      const b = center(names[j]);
+      const apart = Math.abs(a.x - b.x);
+      if (Math.abs(a.y - b.y) < slotW * 0.5 && apart > slotW * 1.5 && apart > best) {
+        best = apart;
+        at = (a.x + b.x) / 2;
+      }
+    }
+  }
+  return at;
+}
+
 /**
  * slots: from the WebView matcher (image pixels). lines: [{ text, x, y, w, h }]
  * from the text reader in the same pixel space, or [] when it is unavailable.
@@ -139,7 +172,9 @@ export function buildTrade({ slots, lines = [], width, catalog }) {
   // Without the title (an inventory, one offer, the text reader missed it):
   // two groups of slots with a wide gap between them are the two offers;
   // one group is all the user's (2026-11-03, as in Adopt Me).
-  const divider = title ? center(title).x : gapDivider(tradeSlots.length ? tradeSlots : slots);
+  const divider = title
+    ? center(title).x
+    : playerNamesDivider(lines, tradeSlots) ?? gapDivider(tradeSlots.length ? tradeSlots : slots);
   // Only inventory slots in the picture (a backpack screenshot): those are
   // the user's items, not something to skip.
   const onlyInventory = !title && !tradeSlots.length;

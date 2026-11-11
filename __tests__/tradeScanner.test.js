@@ -288,6 +288,26 @@ describe('buildTrade', () => {
     }
   });
 
+  it('splits sides between the two player names when the title is not read (Japanese report 702281ec, 2026-11-11)', () => {
+    // 宝物取引 is not Latin text: no title line at all, offers 2 + 2 with only a
+    // slot-wide gap. The player names over each offer give the centre; a fruit
+    // name read on a bar (same text shape as a username) sits lower and is ignored.
+    const slots = [
+      slot(300, 200, [{ name: 'Light', d: 0.1 }]),
+      slot(400, 200, [{ name: 'Dough', d: 0.1 }]),
+      slot(510, 215, [{ name: 'Portal', d: 0.1 }]),
+      slot(610, 210, [{ name: 'Mammoth', d: 0.1 }]),
+    ];
+    const lines = [
+      { text: '00GF_oka', x: 330, y: 160, w: 70, h: 14 },
+      { text: 'shivensh_1474', x: 590, y: 170, w: 100, h: 14 },
+      { text: 'Portal', x: 530, y: 212, w: 50, h: 14 },
+    ];
+    const trade = buildTrade({ slots, lines, width: 2000, catalog: CATALOG });
+    expect(trade.mine.map((p) => p.name)).toEqual(['Light', 'Dough']);
+    expect(trade.theirs.map((p) => p.name)).toEqual(['Portal', 'Mammoth']);
+  });
+
   it('lets the picture choose between old-name targets and skips inventory slots', () => {
     const slots = [
       slot(100, 200, [{ name: 'East Dragon', d: 0.2 }, { name: 'West Dragon', d: 0.5 }]),
