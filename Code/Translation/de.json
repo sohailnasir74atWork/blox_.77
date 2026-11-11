@@ -1354,6 +1354,10 @@
     "translate_tip_tap": "Tipp: Tippe auf eine Nachricht, um sie zu übersetzen."
   },
   "first": {
+    "values_title": "Wisse, was jede Frucht wert ist",
+    "values_sub": "Echte Werte für Früchte und Game Passes.",
+    "trade_title": "Trades posten, Matches finden",
+    "trade_sub": "Melde dich an, um zu traden und zu chatten.",
     "welcome_title": "Willkommen bei Fruit Values",
     "welcome_text": "Behalten Sie die Frucht-Werte im Blick und optimieren Sie Ihre Trades.",
     "signin_or_guest": "Anmelden oder als Gast fortfahren",
@@ -1954,6 +1958,13 @@
     }
   },
   "paywall": {
+    "trial_title": "Teste Pro {{trial}} gratis",
+    "sample_name": "Alex",
+    "on_top": "Ganz oben",
+    "short_noads": "Keine Werbung",
+    "short_boost": "2 Boosts pro Tag",
+    "short_badge": "Gold-Abzeichen",
+    "boost_caption": "Mit Pro stehen deine Trades ganz oben im Feed.",
     "trial_days_one": "{{count}} Tag",
     "trial_days_other": "{{count}} Tage",
     "trial_days": "{{count}} Tage",

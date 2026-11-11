@@ -1352,6 +1352,10 @@
         "translate_tip_tap": "Astuce : touche un message pour le traduire."
     },
     "first": {
+        "values_title": "Découvre la valeur de chaque fruit",
+        "values_sub": "Des valeurs réelles pour fruits et game pass.",
+        "trade_title": "Publie tes échanges, trouve des matchs",
+        "trade_sub": "Connecte-toi pour échanger et discuter.",
         "welcome_title": "Bienvenue sur Fruit Values",
         "welcome_text": "Suivez les valeurs des fruits et optimisez vos échanges.",
         "signin_or_guest": "Se connecter ou continuer en tant qu'invité",
@@ -1954,6 +1958,13 @@
         }
     },
     "paywall": {
+        "trial_title": "Essaie Pro gratuitement pendant {{trial}}",
+        "sample_name": "Alex",
+        "on_top": "En tête",
+        "short_noads": "Sans pub",
+        "short_boost": "2 boosts par jour",
+        "short_badge": "Badge doré",
+        "boost_caption": "Pro place tes échanges en tête du fil.",
         "trial_days_one": "{{count}} jour",
         "trial_days_other": "{{count}} jours",
         "trial_days": "{{count}} jours",

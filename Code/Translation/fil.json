@@ -1354,6 +1354,10 @@
     "translate_tip_tap": "Tip: i-tap ang anumang mensahe para isalin ito."
   },
   "first": {
+    "values_title": "Alamin ang halaga ng bawat fruit",
+    "values_sub": "Totoong values ng mga fruit at game pass.",
+    "trade_title": "Mag-post ng trade, humanap ng match",
+    "trade_sub": "Mag-sign in para makipag-trade at makipag-chat.",
     "welcome_title": "Maligayang pagdating sa Fruit Values",
     "welcome_text": "Subaybayan ang mga halaga ng prutas at i-optimize ang iyong mga kalakalan.",
     "signin_or_guest": "Mag-sign in o Magpatuloy bilang Bisita",
@@ -1954,6 +1958,13 @@
     }
   },
   "paywall": {
+    "trial_title": "Subukan ang Pro nang libre sa loob ng {{trial}}",
+    "sample_name": "Alex",
+    "on_top": "Nasa itaas",
+    "short_noads": "Walang ads",
+    "short_boost": "2 boost kada araw",
+    "short_badge": "Gold na badge",
+    "boost_caption": "Inilalagay ng Pro ang mga trade mo sa itaas ng feed.",
     "trial_days_one": "{{count}} araw",
     "trial_days_other": "{{count}} araw",
     "trial_days": "{{count}} araw",

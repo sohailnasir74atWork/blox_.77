@@ -1352,6 +1352,10 @@
     "translate_tip_tap": "Mẹo: chạm vào một tin nhắn bất kỳ để dịch."
   },
   "first": {
+    "values_title": "Biết giá trị của mọi trái cây",
+    "values_sub": "Giá trị thật của trái cây và game pass.",
+    "trade_title": "Đăng giao dịch, tìm người phù hợp",
+    "trade_sub": "Đăng nhập để giao dịch và trò chuyện với người chơi khác.",
     "welcome_title": "Chào mừng đến với Fruit Values",
     "welcome_text": "Theo dõi giá trị trái cây và tối ưu hóa giao dịch của bạn.",
     "signin_or_guest": "Đăng nhập hoặc Tiếp tục dưới dạng Khách",
@@ -1951,6 +1955,13 @@
     }
   },
   "paywall": {
+    "trial_title": "Dùng thử Pro miễn phí {{trial}}",
+    "sample_name": "Alex",
+    "on_top": "Trên cùng",
+    "short_noads": "Không quảng cáo",
+    "short_boost": "2 lần đẩy mỗi ngày",
+    "short_badge": "Huy hiệu vàng",
+    "boost_caption": "Pro đưa giao dịch của bạn lên đầu bảng tin.",
     "trial_days_one": "{{count}} ngày",
     "trial_days_other": "{{count}} ngày",
     "trial_days": "{{count}} ngày",

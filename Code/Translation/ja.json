@@ -1352,6 +1352,10 @@
     "translate_tip_tap": "ヒント：メッセージをタップすると翻訳できます。"
   },
   "first": {
+    "values_title": "すべてのフルーツの価値がわかる",
+    "values_sub": "フルーツとゲームパスのリアルな価値。",
+    "trade_title": "トレードを投稿して相手を見つけよう",
+    "trade_sub": "サインインしてトレードやチャットを楽しもう。",
     "continue_guest": "ゲストで続ける",
     "try_values": "価値計算を試す",
     "utility_note": "アイテムの価値を比べたり、トレードをチェックしたりできます。このアプリでゲーム内アイテムがもらえることはありません。",
@@ -2040,6 +2044,13 @@
     "link_text": "使い方"
   },
   "paywall": {
+    "trial_title": "Proを{{trial}}無料でお試し",
+    "sample_name": "Alex",
+    "on_top": "トップに表示",
+    "short_noads": "広告なし",
+    "short_boost": "1日2回ブースト",
+    "short_badge": "ゴールドバッジ",
+    "boost_caption": "Proならトレードがフィードのトップに。",
     "trial_days_one": "{{count}}日間",
     "trial_days_other": "{{count}}日間",
     "trial_days": "{{count}}日間",

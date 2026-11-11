@@ -1352,6 +1352,10 @@
     "translate_tip_tap": "Tips: ketuk pesan mana pun untuk menerjemahkannya."
   },
   "first": {
+    "values_title": "Ketahui nilai setiap buah",
+    "values_sub": "Nilai asli untuk buah dan game pass.",
+    "trade_title": "Posting trade, temukan yang cocok",
+    "trade_sub": "Masuk untuk trade dan chat dengan trader lain.",
     "welcome_title": "Selamat datang di Fruit Values",
     "welcome_text": "Lacak nilai buah & optimalkan perdagangan Anda.",
     "signin_or_guest": "Masuk atau Lanjut sebagai Tamu",
@@ -1951,6 +1955,13 @@
     }
   },
   "paywall": {
+    "trial_title": "Coba Pro gratis selama {{trial}}",
+    "sample_name": "Alex",
+    "on_top": "Di atas",
+    "short_noads": "Tanpa iklan",
+    "short_boost": "2 boost per hari",
+    "short_badge": "Lencana emas",
+    "boost_caption": "Pro menaruh trade kamu di paling atas feed.",
     "trial_days_one": "{{count}} hari",
     "trial_days_other": "{{count}} hari",
     "trial_days": "{{count}} hari",

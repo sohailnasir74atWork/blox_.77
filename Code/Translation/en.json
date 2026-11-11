@@ -1354,6 +1354,10 @@
     "translate_tip_tap": "Tip: tap any message to translate it."
   },
   "first": {
+    "values_title": "Know what every fruit is worth",
+    "values_sub": "Real values for fruits and game passes.",
+    "trade_title": "Post trades, find matches",
+    "trade_sub": "Sign in to trade and chat with other traders.",
     "continue_guest": "Continue as Guest",
     "try_values": "Try the value calculator",
     "utility_note": "Compare item values and check trades. This companion app does not grant in-game items.",
@@ -2042,6 +2046,13 @@
     "link_text": "How It Works"
   },
   "paywall": {
+    "trial_title": "Try Pro free for {{trial}}",
+    "sample_name": "Alex",
+    "on_top": "On top",
+    "short_noads": "No ads",
+    "short_boost": "2 boosts a day",
+    "short_badge": "Gold badge",
+    "boost_caption": "Pro puts your trades at the top of the feed.",
     "trial_days_one": "{{count}} day",
     "trial_days_other": "{{count}} days",
     "trial_days": "{{count}} days",

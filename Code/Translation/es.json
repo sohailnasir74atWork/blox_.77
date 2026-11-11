@@ -1355,6 +1355,10 @@
     "translate_tip_tap": "Consejo: toca cualquier mensaje para traducirlo."
   },
   "first": {
+    "values_title": "Descubre cuánto vale cada fruta",
+    "values_sub": "Valores reales de frutas y pases de juego.",
+    "trade_title": "Publica intercambios y encuentra coincidencias",
+    "trade_sub": "Inicia sesión para intercambiar y chatear.",
     "welcome_title": "Bienvenido a Fruit Values",
     "welcome_text": "Sigue los valores de las frutas y optimiza tus intercambios.",
     "signin_or_guest": "Iniciar sesión o continuar como invitado",
@@ -1957,6 +1961,13 @@
     }
   },
   "paywall": {
+    "trial_title": "Prueba Pro gratis durante {{trial}}",
+    "sample_name": "Alex",
+    "on_top": "Arriba del todo",
+    "short_noads": "Sin anuncios",
+    "short_boost": "2 impulsos al día",
+    "short_badge": "Insignia dorada",
+    "boost_caption": "Pro pone tus intercambios arriba del todo.",
     "trial_days_one": "{{count}} día",
     "trial_days_other": "{{count}} días",
     "trial_days": "{{count}} días",

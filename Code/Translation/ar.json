@@ -1468,6 +1468,10 @@
     "translate_tip_tap": "نصيحة: اضغط على أي رسالة لترجمتها."
   },
   "first": {
+    "values_title": "اعرف قيمة كل فاكهة",
+    "values_sub": "قيم حقيقية للفواكه وبطاقات اللعبة.",
+    "trade_title": "انشر صفقاتك واعثر على من يطابقها",
+    "trade_sub": "سجّل الدخول للتداول والدردشة مع المتداولين.",
     "welcome_title": "مرحبًا بك في قيم الفواكه",
     "welcome_text": "تتبع قيم الفواكه وحسن صفقاتك.",
     "signin_or_guest": "تسجيل الدخول أو المتابعة كضيف",
@@ -2127,6 +2131,13 @@
     }
   },
   "paywall": {
+    "trial_title": "جرّب Pro مجانًا لمدة {{trial}}",
+    "sample_name": "Alex",
+    "on_top": "في الأعلى",
+    "short_noads": "بلا إعلانات",
+    "short_boost": "تعزيزان يوميًا",
+    "short_badge": "شارة ذهبية",
+    "boost_caption": "Pro يضع صفقاتك في أعلى القائمة.",
     "trial_days_one": "{{count}} يوم",
     "trial_days_other": "{{count}} أيام",
     "trial_days": "{{count}} أيام",
