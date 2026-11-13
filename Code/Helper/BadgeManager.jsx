@@ -35,7 +35,7 @@ import { useLocalState } from '../LocalGlobelStats';
 import {
   MAX_WORN_BADGES, ROLE_BADGE_KEYS, ROLE_FLAG, ROLE_LABEL, ROLE_DEFAULT_COLOR, ROLE_ICON,
   CUSTOM_ICONS, customIdsOf, fetchWornBadges, setRoleBadgeColor,
-  grantCustomBadge, revokeCustomBadge, useCustomBadges, getCustomBadge,
+  grantCustomBadge, revokeCustomBadge, useFreshCustomBadges, getCustomBadge,
 } from './customBadges';
 
 const HELPER_ICON = require('../Assets/badges/badge_helper.webp');
@@ -67,7 +67,7 @@ const BadgeManager = ({
 }) => {
   const c = getThemeColors(isDarkMode);
   const { updateLocalState } = useLocalState();
-  const allCustom = useCustomBadges();
+  const allCustom = useFreshCustomBadges();
 
   const [worn, setWorn] = useState({ styles: target?.badgeStyles || {}, custom: target?.customBadges || {} });
   const [busy, setBusy] = useState(false);

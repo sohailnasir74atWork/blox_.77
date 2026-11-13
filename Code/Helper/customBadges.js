@@ -34,7 +34,7 @@
  * cold start renders names before the listener answers.
  */
 
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 
 // Firebase is required lazily (as badgeUtils.js does) so the pure parts of
 // this module — constants, normalizeWorn, the key helpers badgeRail.js uses —
@@ -200,25 +200,66 @@ const publish = (next) => {
   listeners.forEach((l) => { try { l(); } catch {} });
 };
 
-/** One listener per session; GlobelStats calls this once the database exists. */
-export const startCustomBadgeRegistry = (database) => {
-  if (!database || registryDb === database) return;
-  if (unsubRegistry) { try { unsubRegistry(); } catch {} }
-  registryDb = database;
-  unsubRegistry = fb().onValue(
-    fb().ref(database, 'custom_badges'),
-    (snap) => publish(normalizeDefs(snap && snap.exists() ? snap.val() : {})),
-    () => {}, // denied / offline: keep what MMKV had
-  );
+// Cost (2026-11-13): a live onValue re-downloaded the whole node (~0.9 KB) on
+// every app start — ~100 reads/min project-wide for a list that changes a few
+// times a week. Now one get() at most every REFRESH_MS (MMKV keeps the defs
+// between launches), plus a throttled refresh when a player wears a badge id
+// this phone has never seen, and a forced one after a MOD edits the list.
+const FETCHED_AT_KEY = 'defs_fetched_at';
+const REFRESH_MS = 6 * 60 * 60 * 1000;   // routine refresh
+const MISS_REFRESH_MS = 10 * 60 * 1000;  // unknown badge id: at most this often
+let lastAttemptAt = 0;
+let inflight = null;
+
+const fetchedAt = () => {
+  try { return Number(store.getString(FETCHED_AT_KEY)) || 0; } catch { return 0; }
 };
 
-export const getCustomBadge = (id) => (id ? defs[id] || null : null);
+/** Read custom_badges once (deduped). force skips the throttle. */
+export const refreshCustomBadges = ({ force = false, minGapMs = MISS_REFRESH_MS } = {}) => {
+  const database = registryDb;
+  if (!database) return Promise.resolve(false);
+  if (inflight) return inflight;
+  const now = Date.now();
+  if (!force && now - lastAttemptAt < minGapMs) return Promise.resolve(false);
+  lastAttemptAt = now;
+  inflight = fb().get(fb().ref(database, 'custom_badges'))
+    .then((snap) => {
+      publish(normalizeDefs(snap && snap.exists() ? snap.val() : {}));
+      try { store.set(FETCHED_AT_KEY, String(Date.now())); } catch {}
+      return true;
+    })
+    .catch(() => false) // denied / offline: keep what MMKV had
+    .finally(() => { inflight = null; });
+  return inflight;
+};
+
+/** GlobelStats calls this once the database exists. Fetches only when stale. */
+export const startCustomBadgeRegistry = (database) => {
+  if (!database || registryDb === database) return;
+  if (unsubRegistry) { try { unsubRegistry(); } catch {} unsubRegistry = null; }
+  registryDb = database;
+  if (Date.now() - fetchedAt() >= REFRESH_MS) refreshCustomBadges({ force: true });
+};
+
+export const getCustomBadge = (id) => {
+  if (!id) return null;
+  const def = defs[id];
+  // A badge made after our last fetch: pick it up (throttled) and redraw.
+  if (!def) refreshCustomBadges();
+  return def || null;
+};
 export const getAllCustomBadges = () => defsList;
 
 const subscribe = (l) => { listeners.add(l); return () => listeners.delete(l); };
 const getSnapshot = () => defsList;
 /** Every custom badge definition, A→Z; re-renders when the node changes. */
 export const useCustomBadges = () => useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+/** Same, for the MOD screens that edit or grant badges: re-reads on open (≤ once a minute). */
+export const useFreshCustomBadges = () => {
+  useEffect(() => { refreshCustomBadges({ minGapMs: 60 * 1000 }); }, []);
+  return useCustomBadges();
+};
 
 /** Resolve one worn custom badge to what the rail draws: { id, name, icon, color }. */
 export const resolveCustomBadge = (id, wornEntry) => {
@@ -240,10 +281,12 @@ export const saveCustomBadge = async (database, { id, name, icon, color }, byUid
   const now = Date.now();
   if (id) {
     await fb().update(fb().ref(database, `custom_badges/${id}`), { name: n.value, icon, color: hex, updatedAt: now });
+    refreshCustomBadges({ force: true });
     return id;
   }
   const node = fb().push(fb().ref(database, 'custom_badges'));
   await fb().set(node, { name: n.value, icon, color: hex, createdBy: byUid || null, createdAt: now, updatedAt: now });
+  refreshCustomBadges({ force: true });
   return node.key;
 };
 
@@ -251,6 +294,7 @@ export const saveCustomBadge = async (database, { id, name, icon, color }, byUid
 export const deleteCustomBadge = async (database, id) => {
   if (!id) return;
   await fb().remove(fb().ref(database, `custom_badges/${id}`));
+  refreshCustomBadges({ force: true });
   try {
     const holders = await getCustomBadgeHolders(database, { limit: 500 });
     await Promise.all(holders

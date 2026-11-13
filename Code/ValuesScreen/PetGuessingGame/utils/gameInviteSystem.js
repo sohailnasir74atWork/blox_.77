@@ -30,10 +30,11 @@ export const awardGameWin = async (appdatabase, firestoreDB, userId) => {
 
   try {
     // ✅ Update reward points in RTDB (existing behaviour)
+    // Only the one leaf: the whole record carries shop/inventory (often tens
+    // of KB) and nothing else here needs it (2026-11-13 cost fix).
     const userRef = ref(appdatabase, `users/${userId}`);
-    const userSnap = await get(userRef);
-    const existing = userSnap.exists() ? userSnap.val() || {} : {};
-    const currentPoints = existing.rewardPoints ? Number(existing.rewardPoints) : 0;
+    const pointsSnap = await get(ref(appdatabase, `users/${userId}/rewardPoints`));
+    const currentPoints = pointsSnap.exists() ? Number(pointsSnap.val()) || 0 : 0;
 
     const newPoints = currentPoints + 100;
     const now = Date.now();

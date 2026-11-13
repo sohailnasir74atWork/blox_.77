@@ -13,10 +13,10 @@ import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import CustomBadgeChip from '../Helper/CustomBadgeChip';
 import CustomBadgeEditor from '../Helper/CustomBadgeEditor';
-import { useCustomBadges, deleteCustomBadge, CUSTOM_ICONS, MAX_WORN_BADGES, NAME_MAX_WORDS } from '../Helper/customBadges';
+import { useFreshCustomBadges, deleteCustomBadge, CUSTOM_ICONS, MAX_WORN_BADGES, NAME_MAX_WORDS } from '../Helper/customBadges';
 
 export default function CustomBadgesTab({ db, uid, isAdmin = false, isDark = false, C, accent, danger, bottomInset = 0 }) {
-  const badges = useCustomBadges();
+  const badges = useFreshCustomBadges();
   const [editing, setEditing] = useState(null); // null = closed, {} = new, {id,...} = edit
 
   const handleDelete = (b) => {

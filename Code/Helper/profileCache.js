@@ -78,11 +78,16 @@ export const patchCachedProfile = (uid, patch) => {
 // Mod badge colours + custom badges (Code/Helper/customBadges.js): the 058
 // columns on the roles row when the mirror has them (undefined until
 // supabase/058 runs, or with no roles row) — else the one worn_badges leaf.
-const wornFields = async (db, uid, roles) => {
+// `fromSupabase`: Supabase answered for this uid. No roles row there means no
+// worn badges either — mirrorWornBadges upserts a user_roles row for every
+// worn_badges write — so skip the RTDB read. (2026-11-13: these always-empty
+// reads were ~570/min, the most frequent RTDB read in the project.)
+const wornFields = async (db, uid, roles, fromSupabase = false) => {
   if (roles && roles.badgeStyles !== undefined) {
     const w = normalizeWorn({ styles: roles.badgeStyles, custom: roles.customBadges });
     return { badgeStyles: w.styles, customBadges: w.custom };
   }
+  if (fromSupabase && !roles) return { badgeStyles: null, customBadges: null };
   try {
     const snap = await get(ref(db, `worn_badges/${uid}`));
     const w = normalizeWorn(snap?.exists() ? snap.val() : null);
@@ -177,7 +182,7 @@ export const getOrFetchProfile = async (db, uid) => {
           customTitle: roles?.customTitle ?? null,
           topBadge: cosBadge?.topBadge ?? null,
           ...cosmetics,
-          ...(await wornFields(db, uid, roles)),
+          ...(await wornFields(db, uid, roles, true)),
         };
 
         setCachedProfile(uid, profile);
