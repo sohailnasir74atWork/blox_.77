@@ -594,7 +594,14 @@
       "you_side": "Lado VOCÊ",
       "no_trades": "Nenhuma troca encontrada",
       "you_total": "VOCÊ {{value}}",
-      "me_total": "EU {{value}}"
+      "me_total": "EU {{value}}",
+      "search_perm_only": "Só perm",
+      "search_only_this": "Só este item",
+      "mark_traded": "Trocado",
+      "reopen_trade": "Reabrir",
+      "traded_badge": "Trocado — não está mais disponível",
+      "mark_traded_title": "Marcar esta troca como feita?",
+      "mark_traded_msg": "Todos vão ver que ela não está mais disponível. Você pode reabrir depois."
     },
     "my_trades_title": "Minhas trocas",
     "following_trades_title": "Trocas de quem sigo",
@@ -1032,6 +1039,25 @@
       "name_copied": "{{name}} foi copiado"
     },
     "badge_showcase": {
+      "how_to_earn_others": "Como ganhar as outras ({{count}})",
+      "hint_newbie": "Ganha sozinho nos seus primeiros 7 dias",
+      "hint_firstPost": "Crie seu primeiro post no Feed",
+      "hint_firstTrade": "Conclua 5 trocas",
+      "hint_og": "Seja membro por 6+ meses",
+      "hint_starTrader": "Conclua 25+ trocas",
+      "hint_loved": "Receba 100+ reações nos seus posts",
+      "hint_reviewer": "Deixe 25+ avaliações",
+      "hint_onFire": "Entre 14 dias seguidos",
+      "hint_fruitParent": "Adicione 50+ frutas ao seu perfil",
+      "hint_socialBee": "Entre em 10+ chats de grupo",
+      "hint_nightOwl": "Conclua 15 trocas depois da meia-noite",
+      "hint_diamondTrader": "Conclua 100+ trocas",
+      "hint_influencer": "Chegue a 200+ seguidores",
+      "hint_fiveStar": "Mantenha nota 4.5+ com 50+ avaliações",
+      "hint_streakMaster": "Chegue a uma sequência de 60 dias",
+      "hint_centurion": "Conclua 250+ trocas",
+      "hint_popular": "Receba 500+ reações em posts",
+      "hint_collector": "Tenha 200+ frutas no seu perfil",
       "badge_newbie": "Novato",
       "badge_firstPost": "Primeira publicação",
       "badge_firstTrade": "Primeira troca",
@@ -2685,6 +2711,8 @@
   },
   "values": {
     "codes_screen": {
+      "mark_used": "Marcar como usado",
+      "used": "Usado",
       "no_codes": "Nenhum código disponível"
     },
     "group_invite_toast": {

@@ -648,7 +648,14 @@
       "you_side": "جانبك",
       "no_trades": "لم يتم العثور على تبادلات",
       "you_total": "أنت {{value}}",
-      "me_total": "أنا {{value}}"
+      "me_total": "أنا {{value}}",
+      "search_perm_only": "دائم فقط",
+      "search_only_this": "هذا العنصر فقط",
+      "mark_traded": "تم التداول",
+      "reopen_trade": "إعادة فتح",
+      "traded_badge": "تم التداول — لم يعد متاحًا",
+      "mark_traded_title": "هل تريد وضع علامة على هذا التداول كمكتمل؟",
+      "mark_traded_msg": "سيرى الجميع أنه لم يعد متاحًا. يمكنك إعادة فتحه لاحقًا."
     },
     "my_trades_title": "تبادلاتي",
     "following_trades_title": "تبادلات من أتابعهم",
@@ -1137,6 +1144,25 @@
       "name_copied": "تم نسخ {{name}}"
     },
     "badge_showcase": {
+      "how_to_earn_others": "كيف تحصل على البقية ({{count}})",
+      "hint_newbie": "تُمنح تلقائيًا في أول 7 أيام",
+      "hint_firstPost": "أنشئ أول منشور لك في الخلاصة",
+      "hint_firstTrade": "أكمل 5 تداولات",
+      "hint_og": "كن عضوًا لمدة 6+ أشهر",
+      "hint_starTrader": "أكمل 25+ تداولًا",
+      "hint_loved": "احصل على 100+ تفاعل على منشوراتك",
+      "hint_reviewer": "اترك 25+ تقييمًا",
+      "hint_onFire": "سجّل الدخول 14 يومًا متتاليًا",
+      "hint_fruitParent": "أضف 50+ فاكهة إلى ملفك",
+      "hint_socialBee": "انضم إلى 10+ دردشات جماعية",
+      "hint_nightOwl": "أكمل 15 تداولًا بعد منتصف الليل",
+      "hint_diamondTrader": "أكمل 100+ تداول",
+      "hint_influencer": "صِل إلى 200+ متابع",
+      "hint_fiveStar": "حافظ على تقييم 4.5+ مع 50+ مراجعة",
+      "hint_streakMaster": "صِل إلى سلسلة دخول 60 يومًا",
+      "hint_centurion": "أكمل 250+ تداولًا",
+      "hint_popular": "احصل على 500+ تفاعل على المنشورات",
+      "hint_collector": "امتلك 200+ فاكهة في ملفك",
       "badge_newbie": "مبتدئ",
       "badge_firstPost": "أول منشور",
       "badge_firstTrade": "أول صفقة",
@@ -2927,6 +2953,8 @@
   },
   "values": {
     "codes_screen": {
+      "mark_used": "وضع علامة كمستخدم",
+      "used": "مستخدم",
       "no_codes": "لا توجد رموز متاحة"
     },
     "group_invite_toast": {

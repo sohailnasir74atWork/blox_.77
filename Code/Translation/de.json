@@ -594,7 +594,14 @@
       "you_side": "DU-Seite",
       "no_trades": "Keine Tausche gefunden",
       "you_total": "DU {{value}}",
-      "me_total": "ICH {{value}}"
+      "me_total": "ICH {{value}}",
+      "search_perm_only": "Nur Perm",
+      "search_only_this": "Nur dieses Item",
+      "mark_traded": "Getauscht",
+      "reopen_trade": "Wieder öffnen",
+      "traded_badge": "Getauscht — nicht mehr verfügbar",
+      "mark_traded_title": "Diesen Tausch als erledigt markieren?",
+      "mark_traded_msg": "Alle sehen, dass er nicht mehr verfügbar ist. Du kannst ihn später wieder öffnen."
     },
     "my_trades_title": "Meine Tausche",
     "following_trades_title": "Getauschangebote von Nutzern, denen ich folge",
@@ -1031,6 +1038,25 @@
       "name_copied": "{{name}} wurde kopiert"
     },
     "badge_showcase": {
+      "how_to_earn_others": "So bekommst du die anderen ({{count}})",
+      "hint_newbie": "Automatisch in deinen ersten 7 Tagen",
+      "hint_firstPost": "Erstelle deinen ersten Beitrag im Feed",
+      "hint_firstTrade": "Schließe 5 Tausche ab",
+      "hint_og": "Sei 6+ Monate Mitglied",
+      "hint_starTrader": "Schließe 25+ Tausche ab",
+      "hint_loved": "Bekomme 100+ Reaktionen auf deine Beiträge",
+      "hint_reviewer": "Schreibe 25+ Bewertungen",
+      "hint_onFire": "Logge dich 14 Tage am Stück ein",
+      "hint_fruitParent": "Füge 50+ Früchte zu deinem Profil hinzu",
+      "hint_socialBee": "Tritt 10+ Gruppenchats bei",
+      "hint_nightOwl": "Schließe 15 Tausche nach Mitternacht ab",
+      "hint_diamondTrader": "Schließe 100+ Tausche ab",
+      "hint_influencer": "Erreiche 200+ Follower",
+      "hint_fiveStar": "Halte 4.5+ Sterne bei 50+ Bewertungen",
+      "hint_streakMaster": "Erreiche eine 60-Tage-Serie",
+      "hint_centurion": "Schließe 250+ Tausche ab",
+      "hint_popular": "Bekomme 500+ Reaktionen auf Beiträge",
+      "hint_collector": "Habe 200+ Früchte in deinem Profil",
       "badge_newbie": "Neuling",
       "badge_firstPost": "Erster Beitrag",
       "badge_firstTrade": "Erster Trade",
@@ -2682,6 +2708,8 @@
   },
   "values": {
     "codes_screen": {
+      "mark_used": "Als benutzt markieren",
+      "used": "Benutzt",
       "no_codes": "Keine Codes verfügbar"
     },
     "group_invite_toast": {

@@ -175,14 +175,16 @@ const TimerScreen = ({ selectedTheme }) => {
     return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // The game restocks on fixed UTC hours (normal 00/04/08/12/16/20, mirage every
+  // even hour). This used to count from 01:00 on the phone's clock — right only
+  // where that is a UTC restock hour (e.g. Pakistan), 2–3 h off in UTC+7 etc.
+  // (Blox suggestion 2026-10-29: "set the restock time according to each zone").
+  // Unix time starts at UTC midnight and 2 and 4 divide 24, so the next
+  // multiple of the interval is the next UTC restock.
   const calculateTimeLeft = (intervalHours) => {
     const now = currentTime;
-    let nextReset = new Date();
-    nextReset.setHours(1, 0, 0, 0);
-
-    while (nextReset <= now) {
-      nextReset.setHours(nextReset.getHours() + intervalHours);
-    }
+    const step = intervalHours * 3600 * 1000;
+    const nextReset = Math.floor(now / step) * step + step;
     return Math.floor((nextReset - now) / 1000);
   };
 

@@ -620,7 +620,14 @@
       "you_side": "Твоя сторона",
       "no_trades": "Обмены не найдены",
       "you_total": "ТЫ {{value}}",
-      "me_total": "Я {{value}}"
+      "me_total": "Я {{value}}",
+      "search_perm_only": "Только перм",
+      "search_only_this": "Только этот предмет",
+      "mark_traded": "Обменяно",
+      "reopen_trade": "Открыть снова",
+      "traded_badge": "Обменяно — больше недоступно",
+      "mark_traded_title": "Отметить обмен как завершённый?",
+      "mark_traded_msg": "Все увидят, что он больше недоступен. Позже его можно открыть снова."
     },
     "my_trades_title": "Мои обмены",
     "following_trades_title": "Обмены тех, на кого я подписан",
@@ -1083,6 +1090,25 @@
       "name_copied": "Скопировано: {{name}}"
     },
     "badge_showcase": {
+      "how_to_earn_others": "Как получить остальные ({{count}})",
+      "hint_newbie": "Даётся сам в первые 7 дней",
+      "hint_firstPost": "Сделай первый пост в ленте",
+      "hint_firstTrade": "Заверши 5 обменов",
+      "hint_og": "Будь участником 6+ месяцев",
+      "hint_starTrader": "Заверши 25+ обменов",
+      "hint_loved": "Получи 100+ реакций на посты",
+      "hint_reviewer": "Оставь 25+ отзывов",
+      "hint_onFire": "Заходи 14 дней подряд",
+      "hint_fruitParent": "Добавь 50+ фруктов в профиль",
+      "hint_socialBee": "Вступи в 10+ групповых чатов",
+      "hint_nightOwl": "Заверши 15 обменов после полуночи",
+      "hint_diamondTrader": "Заверши 100+ обменов",
+      "hint_influencer": "Набери 200+ подписчиков",
+      "hint_fiveStar": "Держи рейтинг 4.5+ при 50+ отзывах",
+      "hint_streakMaster": "Достигни серии в 60 дней",
+      "hint_centurion": "Заверши 250+ обменов",
+      "hint_popular": "Получи 500+ реакций на посты",
+      "hint_collector": "Имей 200+ фруктов в профиле",
       "badge_newbie": "Новичок",
       "badge_firstPost": "Первая публикация",
       "badge_firstTrade": "Первая сделка",
@@ -2816,6 +2842,8 @@
   },
   "values": {
     "codes_screen": {
+      "mark_used": "Отметить использованным",
+      "used": "Использован",
       "no_codes": "Кодов пока нет"
     },
     "group_invite_toast": {

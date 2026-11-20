@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { getThemeColors } from '../../Helper/themeColors';
-import { View, Text, Image } from 'react-native';
+import { View, Text, Image, TouchableOpacity, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { BADGE_DEFINITIONS, BADGE_DISPLAY_ORDER, BADGE_IMAGES } from './badgeUtils';
 import FramedAvatar from './FramedAvatar';
@@ -8,14 +8,22 @@ import { FRAMES, RARITY_CONFIG } from '../../Engagement/shopItems';
 
 /**
  * Badge Showcase -- shows earned badge pills on profile
+ *
+ * 2026-11-20 (Blox suggestion 10-31: badges showed only icon + name, not what
+ * you did for them or how to get the rest): tap a badge for how it is earned;
+ * "How to earn the others" lists the locked ones with their hint.
  */
+const badgeHint = (t, id) => t(`chat.badge_showcase.hint_${id}`, { defaultValue: BADGE_DEFINITIONS[id]?.hint || '' });
+const badgeName = (t, id) => t(`chat.badge_showcase.badge_${id}`, { defaultValue: BADGE_DEFINITIONS[id]?.name || id });
 const BadgeShowcase = ({ isDarkMode, t, earnedBadges = {}, activeFrame, avatarUri }) => {
   const c = getThemeColors(isDarkMode);
+  const [showLocked, setShowLocked] = useState(false);
+  const lockedIds = useMemo(() => BADGE_DISPLAY_ORDER.filter(id => !earnedBadges[id]), [earnedBadges]);
   const earnedCount = useMemo(() => {
     return BADGE_DISPLAY_ORDER.filter(id => earnedBadges[id]).length;
   }, [earnedBadges]);
 
-  if (earnedCount === 0) return null;
+  if (earnedCount === 0) return null; // hooks above stay unconditional
 
   return (
     <View
@@ -57,8 +65,11 @@ const BadgeShowcase = ({ isDarkMode, t, earnedBadges = {}, activeFrame, avatarUr
         {BADGE_DISPLAY_ORDER.filter(id => earnedBadges[id]).map(id => {
           const badge = BADGE_DEFINITIONS[id];
           return (
-            <View
+            <TouchableOpacity
               key={id}
+              activeOpacity={0.7}
+              onPress={() => Alert.alert(`${badge.emoji} ${badgeName(t, id)}`, badgeHint(t, id))}
+              accessibilityRole="button"
               style={{
                 flexDirection: 'row', alignItems: 'center', gap: 3,
                 paddingHorizontal: 7, paddingVertical: 3,
@@ -72,12 +83,42 @@ const BadgeShowcase = ({ isDarkMode, t, earnedBadges = {}, activeFrame, avatarUr
                 <Text style={{ fontSize: 10 }}>{badge.emoji}</Text>
               )}
               <Text style={{ fontSize: 9, fontWeight: '700', color: badge.color }}>
-                {t(`chat.badge_showcase.badge_${id}`, { defaultValue: badge.name })}
+                {badgeName(t, id)}
               </Text>
-            </View>
+            </TouchableOpacity>
           );
         })}
       </View>
+
+      {/* Locked badges and how to get them */}
+      {lockedIds.length > 0 && (
+        <TouchableOpacity
+          onPress={() => setShowLocked(v => !v)}
+          activeOpacity={0.7}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 }}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showLocked }}
+        >
+          <Icon name={showLocked ? 'chevron-up' : 'lock-closed-outline'} size={11} color={c.textSecondary} />
+          <Text style={{ fontSize: 10, fontWeight: '700', color: c.textSecondary }}>
+            {t('chat.badge_showcase.how_to_earn_others', { count: lockedIds.length, defaultValue: 'How to earn the others ({{count}})' })}
+          </Text>
+        </TouchableOpacity>
+      )}
+      {showLocked && lockedIds.map(id => {
+        const badge = BADGE_DEFINITIONS[id];
+        return (
+          <View key={`locked-${id}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6, opacity: 0.75 }}>
+            {BADGE_IMAGES[id] ? (
+              <Image resizeMethod="resize" source={BADGE_IMAGES[id]} resizeMode="contain" style={{ width: 14, height: 14, opacity: 0.5 }} />
+            ) : (
+              <Text style={{ fontSize: 11, opacity: 0.5 }}>{badge.emoji}</Text>
+            )}
+            <Text style={{ fontSize: 10, fontWeight: '700', color: c.text }}>{badgeName(t, id)}</Text>
+            <Text style={{ flex: 1, fontSize: 10, color: c.textSecondary }}>{badgeHint(t, id)}</Text>
+          </View>
+        );
+      })}
 
       {/* Frame Preview */}
       {activeFrame && FRAMES[activeFrame] && (

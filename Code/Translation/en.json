@@ -594,7 +594,14 @@
       "you_side": "YOU side",
       "no_trades": "No trades found",
       "you_total": "YOU {{value}}",
-      "me_total": "ME {{value}}"
+      "me_total": "ME {{value}}",
+      "search_perm_only": "Perm only",
+      "search_only_this": "Only this item",
+      "mark_traded": "Traded",
+      "reopen_trade": "Reopen",
+      "traded_badge": "Traded — no longer available",
+      "mark_traded_title": "Mark this trade as done?",
+      "mark_traded_msg": "Everyone will see it is no longer available. You can reopen it later."
     },
     "my_trades_title": "My Trades",
     "following_trades_title": "Following Trades",
@@ -1031,6 +1038,25 @@
       "name_copied": "{{name}} has been copied."
     },
     "badge_showcase": {
+      "how_to_earn_others": "How to earn the others ({{count}})",
+      "hint_newbie": "Auto-earned in your first 7 days",
+      "hint_firstPost": "Create your first post in the Feed",
+      "hint_firstTrade": "Complete 5 trades",
+      "hint_og": "Be a member for 6+ months",
+      "hint_starTrader": "Complete 25+ trades",
+      "hint_loved": "Get 100+ reactions on your posts",
+      "hint_reviewer": "Leave 25+ reviews",
+      "hint_onFire": "Log in 14 days in a row",
+      "hint_fruitParent": "Add 50+ fruits to your profile",
+      "hint_socialBee": "Join 10+ group chats",
+      "hint_nightOwl": "Complete 15 trades after midnight",
+      "hint_diamondTrader": "Complete 100+ trades",
+      "hint_influencer": "Reach 200+ followers",
+      "hint_fiveStar": "Keep a 4.5+ rating with 50+ reviews",
+      "hint_streakMaster": "Reach a 60-day login streak",
+      "hint_centurion": "Complete 250+ trades",
+      "hint_popular": "Get 500+ reactions on posts",
+      "hint_collector": "Own 200+ fruits in your profile",
       "badge_newbie": "Newbie",
       "badge_firstPost": "Post",
       "badge_firstTrade": "Trade",
@@ -2677,6 +2703,8 @@
   },
   "values": {
     "codes_screen": {
+      "mark_used": "Mark used",
+      "used": "Used",
       "no_codes": "No codes available"
     },
     "group_invite_toast": {

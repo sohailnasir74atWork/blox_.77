@@ -594,7 +594,14 @@
       "you_side": "Lado TÚ",
       "no_trades": "No se encontraron intercambios",
       "you_total": "TÚ {{value}}",
-      "me_total": "YO {{value}}"
+      "me_total": "YO {{value}}",
+      "search_perm_only": "Solo perm",
+      "search_only_this": "Solo este ítem",
+      "mark_traded": "Intercambiado",
+      "reopen_trade": "Reabrir",
+      "traded_badge": "Intercambiado — ya no disponible",
+      "mark_traded_title": "¿Marcar este intercambio como hecho?",
+      "mark_traded_msg": "Todos verán que ya no está disponible. Puedes reabrirlo después."
     },
     "my_trades_title": "Mis intercambios",
     "following_trades_title": "Intercambios de usuarios que sigo",
@@ -1032,6 +1039,25 @@
       "name_copied": "Se copió {{name}}"
     },
     "badge_showcase": {
+      "how_to_earn_others": "Cómo conseguir las demás ({{count}})",
+      "hint_newbie": "Se obtiene sola en tus primeros 7 días",
+      "hint_firstPost": "Crea tu primera publicación en el Feed",
+      "hint_firstTrade": "Completa 5 intercambios",
+      "hint_og": "Sé miembro durante 6+ meses",
+      "hint_starTrader": "Completa 25+ intercambios",
+      "hint_loved": "Consigue 100+ reacciones en tus publicaciones",
+      "hint_reviewer": "Deja 25+ reseñas",
+      "hint_onFire": "Entra 14 días seguidos",
+      "hint_fruitParent": "Añade 50+ frutas a tu perfil",
+      "hint_socialBee": "Únete a 10+ chats de grupo",
+      "hint_nightOwl": "Completa 15 intercambios después de medianoche",
+      "hint_diamondTrader": "Completa 100+ intercambios",
+      "hint_influencer": "Llega a 200+ seguidores",
+      "hint_fiveStar": "Mantén 4.5+ de valoración con 50+ reseñas",
+      "hint_streakMaster": "Llega a una racha de 60 días",
+      "hint_centurion": "Completa 250+ intercambios",
+      "hint_popular": "Consigue 500+ reacciones en publicaciones",
+      "hint_collector": "Ten 200+ frutas en tu perfil",
       "badge_newbie": "Principiante",
       "badge_firstPost": "Primera publicación",
       "badge_firstTrade": "Primer intercambio",
@@ -2685,6 +2711,8 @@
   },
   "values": {
     "codes_screen": {
+      "mark_used": "Marcar usado",
+      "used": "Usado",
       "no_codes": "No hay códigos disponibles"
     },
     "group_invite_toast": {

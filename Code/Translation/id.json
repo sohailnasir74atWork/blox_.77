@@ -592,7 +592,14 @@
       "you_side": "Sisi KAMU",
       "no_trades": "Trade tidak ditemukan",
       "you_total": "KAMU {{value}}",
-      "me_total": "SAYA {{value}}"
+      "me_total": "SAYA {{value}}",
+      "search_perm_only": "Perm saja",
+      "search_only_this": "Hanya item ini",
+      "mark_traded": "Sudah ditukar",
+      "reopen_trade": "Buka lagi",
+      "traded_badge": "Sudah ditukar — tidak tersedia lagi",
+      "mark_traded_title": "Tandai trade ini sudah selesai?",
+      "mark_traded_msg": "Semua orang akan melihat trade ini tidak tersedia lagi. Kamu bisa membukanya lagi nanti."
     },
     "my_trades_title": "Trade-ku",
     "following_trades_title": "Trade dari yang kuikuti",
@@ -1029,6 +1036,25 @@
       "name_copied": "{{name}} disalin"
     },
     "badge_showcase": {
+      "how_to_earn_others": "Cara dapat yang lain ({{count}})",
+      "hint_newbie": "Otomatis di 7 hari pertamamu",
+      "hint_firstPost": "Buat postingan pertamamu di Feed",
+      "hint_firstTrade": "Selesaikan 5 trade",
+      "hint_og": "Jadi anggota 6+ bulan",
+      "hint_starTrader": "Selesaikan 25+ trade",
+      "hint_loved": "Dapatkan 100+ reaksi di postinganmu",
+      "hint_reviewer": "Tulis 25+ ulasan",
+      "hint_onFire": "Login 14 hari berturut-turut",
+      "hint_fruitParent": "Tambahkan 50+ buah ke profilmu",
+      "hint_socialBee": "Gabung 10+ grup chat",
+      "hint_nightOwl": "Selesaikan 15 trade setelah tengah malam",
+      "hint_diamondTrader": "Selesaikan 100+ trade",
+      "hint_influencer": "Capai 200+ pengikut",
+      "hint_fiveStar": "Pertahankan rating 4.5+ dengan 50+ ulasan",
+      "hint_streakMaster": "Capai login 60 hari berturut-turut",
+      "hint_centurion": "Selesaikan 250+ trade",
+      "hint_popular": "Dapatkan 500+ reaksi di postingan",
+      "hint_collector": "Punya 200+ buah di profilmu",
       "badge_newbie": "Pemula",
       "badge_firstPost": "Postingan pertama",
       "badge_firstTrade": "Trade pertama",
@@ -2678,6 +2704,8 @@
   },
   "values": {
     "codes_screen": {
+      "mark_used": "Tandai dipakai",
+      "used": "Sudah dipakai",
       "no_codes": "Kode tidak tersedia"
     },
     "group_invite_toast": {

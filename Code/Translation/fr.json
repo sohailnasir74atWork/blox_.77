@@ -589,6 +589,13 @@
             "loading": "Chargement des échanges…",
             "me_side": "Côté MOI",
             "you_side": "Côté TOI",
+            "search_perm_only": "Perm uniquement",
+            "search_only_this": "Cet objet seul",
+            "mark_traded": "Échangé",
+            "reopen_trade": "Rouvrir",
+            "traded_badge": "Échangé — plus disponible",
+            "mark_traded_title": "Marquer cet échange comme fait ?",
+            "mark_traded_msg": "Tout le monde verra qu’il n’est plus disponible. Tu peux le rouvrir plus tard.",
             "no_trades": "Aucun échange trouvé",
             "you_total": "TOI {{value}}",
             "me_total": "MOI {{value}}"
@@ -1029,6 +1036,25 @@
             "name_copied": "{{name}} a été copié"
         },
         "badge_showcase": {
+            "how_to_earn_others": "Comment gagner les autres ({{count}})",
+            "hint_newbie": "Gagné tout seul pendant tes 7 premiers jours",
+            "hint_firstPost": "Publie ton premier post dans le Feed",
+            "hint_firstTrade": "Termine 5 échanges",
+            "hint_og": "Sois membre depuis 6+ mois",
+            "hint_starTrader": "Termine 25+ échanges",
+            "hint_loved": "Reçois 100+ réactions sur tes posts",
+            "hint_reviewer": "Laisse 25+ avis",
+            "hint_onFire": "Connecte-toi 14 jours d'affilée",
+            "hint_fruitParent": "Ajoute 50+ fruits à ton profil",
+            "hint_socialBee": "Rejoins 10+ discussions de groupe",
+            "hint_nightOwl": "Termine 15 échanges après minuit",
+            "hint_diamondTrader": "Termine 100+ échanges",
+            "hint_influencer": "Atteins 200+ abonnés",
+            "hint_fiveStar": "Garde une note de 4.5+ avec 50+ avis",
+            "hint_streakMaster": "Atteins une série de 60 jours",
+            "hint_centurion": "Termine 250+ échanges",
+            "hint_popular": "Reçois 500+ réactions sur tes posts",
+            "hint_collector": "Possède 200+ fruits dans ton profil",
             "badge_newbie": "Débutant",
             "badge_firstPost": "Première publication",
             "badge_firstTrade": "Premier échange",
@@ -2682,6 +2708,8 @@
     },
     "values": {
         "codes_screen": {
+            "mark_used": "Marquer utilisé",
+            "used": "Utilisé",
             "no_codes": "Aucun code disponible"
         },
         "group_invite_toast": {

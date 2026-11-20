@@ -592,7 +592,14 @@
       "you_side": "Phía BẠN",
       "no_trades": "Không tìm thấy giao dịch",
       "you_total": "BẠN {{value}}",
-      "me_total": "MÌNH {{value}}"
+      "me_total": "MÌNH {{value}}",
+      "search_perm_only": "Chỉ perm",
+      "search_only_this": "Chỉ món này",
+      "mark_traded": "Đã trao đổi",
+      "reopen_trade": "Mở lại",
+      "traded_badge": "Đã trao đổi — không còn nữa",
+      "mark_traded_title": "Đánh dấu giao dịch này là xong?",
+      "mark_traded_msg": "Mọi người sẽ thấy giao dịch không còn nữa. Bạn có thể mở lại sau."
     },
     "my_trades_title": "Giao dịch của tôi",
     "following_trades_title": "Giao dịch từ người bạn theo dõi",
@@ -1029,6 +1036,25 @@
       "name_copied": "Đã sao chép {{name}}"
     },
     "badge_showcase": {
+      "how_to_earn_others": "Cách nhận các huy hiệu khác ({{count}})",
+      "hint_newbie": "Tự nhận trong 7 ngày đầu",
+      "hint_firstPost": "Đăng bài đầu tiên trên Feed",
+      "hint_firstTrade": "Hoàn thành 5 giao dịch",
+      "hint_og": "Là thành viên 6+ tháng",
+      "hint_starTrader": "Hoàn thành 25+ giao dịch",
+      "hint_loved": "Nhận 100+ lượt cảm xúc trên bài đăng",
+      "hint_reviewer": "Viết 25+ đánh giá",
+      "hint_onFire": "Đăng nhập 14 ngày liên tiếp",
+      "hint_fruitParent": "Thêm 50+ trái vào hồ sơ",
+      "hint_socialBee": "Tham gia 10+ nhóm chat",
+      "hint_nightOwl": "Hoàn thành 15 giao dịch sau nửa đêm",
+      "hint_diamondTrader": "Hoàn thành 100+ giao dịch",
+      "hint_influencer": "Đạt 200+ người theo dõi",
+      "hint_fiveStar": "Giữ đánh giá 4.5+ với 50+ lượt đánh giá",
+      "hint_streakMaster": "Đạt chuỗi đăng nhập 60 ngày",
+      "hint_centurion": "Hoàn thành 250+ giao dịch",
+      "hint_popular": "Nhận 500+ lượt cảm xúc trên bài đăng",
+      "hint_collector": "Sở hữu 200+ trái trong hồ sơ",
       "badge_newbie": "Tân binh",
       "badge_firstPost": "Bài đăng đầu tiên",
       "badge_firstTrade": "Giao dịch đầu tiên",
@@ -2678,6 +2704,8 @@
   },
   "values": {
     "codes_screen": {
+      "mark_used": "Đánh dấu đã dùng",
+      "used": "Đã dùng",
       "no_codes": "Chưa có mã"
     },
     "group_invite_toast": {

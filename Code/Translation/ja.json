@@ -592,7 +592,14 @@
       "you_side": "相手側",
       "no_trades": "トレードが見つかりません",
       "you_total": "相手 {{value}}",
-      "me_total": "自分 {{value}}"
+      "me_total": "自分 {{value}}",
+      "search_perm_only": "パーマのみ",
+      "search_only_this": "このアイテムだけ",
+      "mark_traded": "取引済み",
+      "reopen_trade": "再開",
+      "traded_badge": "取引済み — 受付終了",
+      "mark_traded_title": "この取引を完了にしますか？",
+      "mark_traded_msg": "受付終了と全員に表示されます。あとで再開できます。"
     },
     "my_trades_title": "自分のトレード",
     "following_trades_title": "フォロー中のトレード",
@@ -1029,6 +1036,25 @@
       "name_copied": "「{{name}}」をコピーしました。"
     },
     "badge_showcase": {
+      "how_to_earn_others": "ほかのバッジの取り方 ({{count}})",
+      "hint_newbie": "最初の7日間で自動獲得",
+      "hint_firstPost": "フィードで初めて投稿する",
+      "hint_firstTrade": "取引を5回完了",
+      "hint_og": "メンバー歴6か月以上",
+      "hint_starTrader": "取引を25回以上完了",
+      "hint_loved": "投稿で100以上のリアクション",
+      "hint_reviewer": "レビューを25件以上書く",
+      "hint_onFire": "14日連続ログイン",
+      "hint_fruitParent": "プロフィールにフルーツを50個以上追加",
+      "hint_socialBee": "グループチャットに10個以上参加",
+      "hint_nightOwl": "深夜0時以降に取引を15回完了",
+      "hint_diamondTrader": "取引を100回以上完了",
+      "hint_influencer": "フォロワー200人以上",
+      "hint_fiveStar": "レビュー50件以上で評価4.5以上を維持",
+      "hint_streakMaster": "60日連続ログイン",
+      "hint_centurion": "取引を250回以上完了",
+      "hint_popular": "投稿で500以上のリアクション",
+      "hint_collector": "プロフィールにフルーツを200個以上",
       "badge_newbie": "ルーキー",
       "badge_firstPost": "初投稿",
       "badge_firstTrade": "初トレード",
@@ -2674,6 +2700,8 @@
   },
   "values": {
     "codes_screen": {
+      "mark_used": "使用済みにする",
+      "used": "使用済み",
       "no_codes": "利用できるコードはありません"
     },
     "group_invite_toast": {

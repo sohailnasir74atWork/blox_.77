@@ -59,6 +59,8 @@ export const LocalStateProvider = ({ children }) => {
     fetchDataTime: storage.getString('fetchDataTime') || null,
     data: safeParseJSON('data', {}),
     codes: safeParseJSON('codes', {}),
+    // Codes the player marked as already redeemed (Codes screen), device only.
+    usedCodes: safeParseJSON('usedCodes', []),
     normalStock: safeParseJSON('normalStock', []),
     bannedUsers: safeParseJSON('bannedUsers', []),
     mirageStock: safeParseJSON('mirageStock', []),

@@ -594,7 +594,14 @@
       "you_side": "Panig MO",
       "no_trades": "Walang nahanap na trade",
       "you_total": "SA IYO {{value}}",
-      "me_total": "AKIN {{value}}"
+      "me_total": "AKIN {{value}}",
+      "search_perm_only": "Perm lang",
+      "search_only_this": "Ito lang",
+      "mark_traded": "Na-trade na",
+      "reopen_trade": "Buksan muli",
+      "traded_badge": "Na-trade na — hindi na available",
+      "mark_traded_title": "Markahan ang trade na ito bilang tapos?",
+      "mark_traded_msg": "Makikita ng lahat na hindi na ito available. Puwede mo itong buksan muli mamaya."
     },
     "my_trades_title": "Mga Trade Ko",
     "following_trades_title": "Mga Trade ng Sinusubaybayan Ko",
@@ -1031,6 +1038,25 @@
       "name_copied": "Nakopya si {{name}}"
     },
     "badge_showcase": {
+      "how_to_earn_others": "Paano makuha ang iba ({{count}})",
+      "hint_newbie": "Kusang makukuha sa unang 7 araw",
+      "hint_firstPost": "Gumawa ng unang post sa Feed",
+      "hint_firstTrade": "Tapusin ang 5 trade",
+      "hint_og": "Maging miyembro nang 6+ buwan",
+      "hint_starTrader": "Tapusin ang 25+ trade",
+      "hint_loved": "Makakuha ng 100+ reaksyon sa posts",
+      "hint_reviewer": "Mag-iwan ng 25+ review",
+      "hint_onFire": "Mag-log in nang 14 araw nang sunod-sunod",
+      "hint_fruitParent": "Magdagdag ng 50+ prutas sa profile",
+      "hint_socialBee": "Sumali sa 10+ group chat",
+      "hint_nightOwl": "Tapusin ang 15 trade pagkalipas ng hatinggabi",
+      "hint_diamondTrader": "Tapusin ang 100+ trade",
+      "hint_influencer": "Umabot sa 200+ followers",
+      "hint_fiveStar": "Panatilihin ang 4.5+ rating na may 50+ review",
+      "hint_streakMaster": "Umabot sa 60-araw na login streak",
+      "hint_centurion": "Tapusin ang 250+ trade",
+      "hint_popular": "Makakuha ng 500+ reaksyon sa posts",
+      "hint_collector": "Magkaroon ng 200+ prutas sa profile",
       "badge_newbie": "Baguhan",
       "badge_firstPost": "Unang post",
       "badge_firstTrade": "Unang trade",
@@ -2682,6 +2708,8 @@
   },
   "values": {
     "codes_screen": {
+      "mark_used": "Markahang nagamit",
+      "used": "Nagamit na",
       "no_codes": "Walang available na code"
     },
     "group_invite_toast": {

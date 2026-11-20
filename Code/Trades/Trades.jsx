@@ -49,6 +49,7 @@ import ProfileBottomDrawer from '../ChatScreen/GroupChat/BottomDrawer';
 import { isUserOnline } from '../ChatScreen/utils';
 import { useHaptic } from '../Helper/HepticFeedBack';
 import { saveTrade, unsaveTrade, fetchSavedTradeRefs } from './tradeHelpers';
+import { normalizeTerm, tradeMatchesSearch } from './tradeSearch';
 import { requestCounterOffer } from '../CounterOffer/counterOffer';
 import { fetchAnalyticsData } from '../Helper/analyticsDataHelper';
 import { tradeHighlight, TONE_STYLE } from '../Helper/tradeAdvice';
@@ -68,6 +69,7 @@ import {
   query,
   startAfter,
   updateDoc,
+  serverTimestamp,
 } from '@react-native-firebase/firestore';
 
 // Initialize dayjs plugins
@@ -113,9 +115,15 @@ const TradeList = ({ route }) => {
   const [searchInWants, setSearchInWants] = useState(true); // ✅ Search in "YOU" side (wantsItems)
   const [isSearching, setIsSearching] = useState(false); // ✅ Loading state for search
   const [isSearchMode, setIsSearchMode] = useState(false); // ✅ Track if we're in search mode
-  const [searchLastDoc, setSearchLastDoc] = useState(null); // ✅ Pagination cursor for search
+  // Search cursor: { has, wants } — the last doc each side's query returned,
+  // or 'done' when that side has no more. One shared cursor used to make the
+  // side with newer results skip trades.
+  const [searchLastDoc, setSearchLastDoc] = useState(null);
   const [searchHasMore, setSearchHasMore] = useState(true); // ✅ More results available for search
   const SEARCH_PAGE_SIZE = 5; // ✅ Fetch 5 items at a time for search
+  // "Perm only" / "Only this item" search filters (2026-11-20, Code/Trades/tradeSearch.js).
+  const [searchPermOnly, setSearchPermOnly] = useState(false);
+  const [searchOnlyThis, setSearchOnlyThis] = useState(false);
   const { selectedTheme } = route.params
   const { user, analytics, single_offer_wall, proGranted, appdatabase, getModGate } = useGlobalState()
   const [trades, setTrades] = useState([]);
@@ -168,6 +176,16 @@ const TradeList = ({ route }) => {
   const [isSigninDrawerVisible, setIsSigninDrawerVisible] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState(null);
   const { localState, updateLocalState } = useLocalState()
+  // Lowercase item names from the values catalogue: a search term that is one
+  // of them matches that item exactly (Code/Trades/tradeSearch.js).
+  const catalogNames = useMemo(() => {
+    let data = localState.data;
+    if (typeof data === 'string') {
+      try { data = JSON.parse(data); } catch { data = null; }
+    }
+    const list = Array.isArray(data) ? data : Object.values(data || {});
+    return new Set(list.map(e => normalizeTerm(e?.name)).filter(Boolean));
+  }, [localState.data]);
   const navigation = useNavigation()
   const { theme, firestoreDB } = useGlobalState()
   const [isProStatus, setIsProStatus] = useState(localState.isPro || proGranted);
@@ -469,6 +487,38 @@ const TradeList = ({ route }) => {
       ]
     );
   }, [t, localState.featuredCount, firestoreDB]);
+
+  // "Traded" (2026-11-20, in-app suggestion 11-05): the poster marks a trade as
+  // done so everyone sees it is no longer available. `traded` + `tradedAt` on
+  // the trade doc; the owner may update their own trade (firestore.rules), so
+  // no rule change. Reopen clears it.
+  const handleToggleTraded = useCallback((item) => {
+    const tradeId = item.id.startsWith('featured-') ? item.id.replace('featured-', '') : item.id;
+    const nextTraded = !item.traded;
+    const apply = async () => {
+      try {
+        await updateDoc(doc(firestoreDB, 'trades_new_upgrade', tradeId), {
+          traded: nextTraded,
+          tradedAt: nextTraded ? serverTimestamp() : null,
+        });
+        setTrades((prev) => prev.map((tr) => (
+          tr.id === item.id || tr.id === tradeId ? { ...tr, traded: nextTraded } : tr
+        )));
+      } catch (error) {
+        console.error('[handleToggleTraded]', error?.message);
+        showErrorMessage(t('home.alert.error'), error?.message || t('home.alert.error'));
+      }
+    };
+    if (!nextTraded) { apply(); return; }
+    Alert.alert(
+      t('trade.trades.mark_traded_title', { defaultValue: 'Mark this trade as done?' }),
+      t('trade.trades.mark_traded_msg', { defaultValue: "Everyone will see it's no longer available. You can reopen it later." }),
+      [
+        { text: t('trade.cancel'), style: 'cancel' },
+        { text: t('trade.trades.mark_traded', { defaultValue: 'Traded' }), onPress: apply },
+      ],
+    );
+  }, [t, firestoreDB]);
 
 
 
@@ -801,7 +851,7 @@ const TradeList = ({ route }) => {
 
     setIsSearching(true);
     try {
-      const searchTermLower = searchTerm.toLowerCase().trim();
+      const searchTermLower = normalizeTerm(searchTerm);
 
       // ✅ Get status filters
       const statusFilters = selectedFilters.filter(f => ['win', 'lose', 'fair'].includes(f));
@@ -809,101 +859,76 @@ const TradeList = ({ route }) => {
         ? statusFilters.map(f => ({ win: 'w', lose: 'l', fair: 'f' }[f]))
         : null;
 
+      // A real item name ("gravity") matches only that item, not Starlight
+      // Gravity; anything else ("starlight") still matches by word.
+      const matchOpts = {
+        inHas: searchInHas,
+        inWants: searchInWants,
+        statusValues,
+        exact: catalogNames.has(searchTermLower),
+        permOnly: searchPermOnly,
+        onlyThis: searchOnlyThis,
+      };
+      const filtering = matchOpts.exact || matchOpts.permOnly || matchOpts.onlyThis || !!statusValues;
+      // Filters drop much of each page (12 of the 15 newest "gravity" hits were
+      // Starlight Gravity), so pull bigger pages and keep going until a page of
+      // matches is in — at most MAX_ROUNDS per tap.
+      const rawPage = filtering ? SEARCH_PAGE_SIZE * 2 : SEARCH_PAGE_SIZE;
+      const MAX_ROUNDS = filtering ? 4 : 1;
+
+      const cursor = isLoadMore && searchLastDoc
+        ? { ...searchLastDoc }
+        : { has: searchInHas ? null : 'done', wants: searchInWants ? null : 'done' };
+      const sides = [
+        { key: 'has', field: 'hasItemNames' },
+        { key: 'wants', field: 'wantsItemNames' },
+      ];
       const allResults = new Map();
-      let lastDocSnapshot = isLoadMore ? searchLastDoc : null;
+      let matched = 0;
 
-      // ✅ Search in ME side (hasItemNames) - SERVER-SIDE filtering
-      // Requires composite index: hasItemNames (array-contains) + timestamp (desc)
-      if (searchInHas) {
-        try {
-          const hasQuery = lastDocSnapshot
-            ? query(
+      for (let round = 0; round < MAX_ROUNDS && matched < SEARCH_PAGE_SIZE; round++) {
+        const live = sides.filter(s => cursor[s.key] !== 'done');
+        if (!live.length) break;
+        // Requires composite indexes: <field> (array-contains) + timestamp (desc)
+        await Promise.all(live.map(async ({ key, field }) => {
+          try {
+            const parts = [
               collection(firestoreDB, 'trades_new_upgrade'),
-              where('hasItemNames', 'array-contains', searchTermLower),
+              where(field, 'array-contains', searchTermLower),
               where('timestamp', '>', feedCutoff()),
               orderBy('timestamp', 'desc'),
-              startAfter(lastDocSnapshot),
-              limit(SEARCH_PAGE_SIZE)
-            )
-            : query(
-              collection(firestoreDB, 'trades_new_upgrade'),
-              where('hasItemNames', 'array-contains', searchTermLower),
-              where('timestamp', '>', feedCutoff()),
-              orderBy('timestamp', 'desc'),
-              limit(SEARCH_PAGE_SIZE)
-            );
-
-          const hasSnapshot = await getDocs(hasQuery);
-          hasSnapshot.docs?.forEach((docSnap) => {
-            if (!allResults.has(docSnap.id)) {
-              allResults.set(docSnap.id, { id: docSnap.id, ...docSnap.data(), _doc: docSnap });
+            ];
+            if (cursor[key]) parts.push(startAfter(cursor[key]));
+            parts.push(limit(rawPage));
+            const snap = await getDocs(query(...parts));
+            const docs = snap.docs || [];
+            cursor[key] = docs.length < rawPage ? 'done' : docs[docs.length - 1];
+            docs.forEach((docSnap) => {
+              if (allResults.has(docSnap.id)) return;
+              const trade = { id: docSnap.id, ...docSnap.data() };
+              if (!tradeMatchesSearch(trade, searchTermLower, matchOpts)) return;
+              allResults.set(docSnap.id, trade);
+              matched++;
+            });
+          } catch (error) {
+            cursor[key] = 'done';
+            console.error(`❌ ${field} search error:`, error.message);
+            if (error.message?.includes('index')) {
+              console.log('📌 Create index at:', error.message.match(/https:\/\/[^\s]+/)?.[0]);
             }
-          });
-        } catch (error) {
-          console.error('❌ hasItemNames search error:', error.message);
-          // If index missing, show link to create it
-          if (error.message?.includes('index')) {
-            console.log('📌 Create index at:', error.message.match(/https:\/\/[^\s]+/)?.[0]);
           }
-        }
+        }));
       }
 
-      // ✅ Search in YOU side (wantsItemNames) - SERVER-SIDE filtering
-      // Requires composite index: wantsItemNames (array-contains) + timestamp (desc)
-      if (searchInWants) {
-        try {
-          const wantsQuery = lastDocSnapshot
-            ? query(
-              collection(firestoreDB, 'trades_new_upgrade'),
-              where('wantsItemNames', 'array-contains', searchTermLower),
-              where('timestamp', '>', feedCutoff()),
-              orderBy('timestamp', 'desc'),
-              startAfter(lastDocSnapshot),
-              limit(SEARCH_PAGE_SIZE)
-            )
-            : query(
-              collection(firestoreDB, 'trades_new_upgrade'),
-              where('wantsItemNames', 'array-contains', searchTermLower),
-              where('timestamp', '>', feedCutoff()),
-              orderBy('timestamp', 'desc'),
-              limit(SEARCH_PAGE_SIZE)
-            );
-
-          const wantsSnapshot = await getDocs(wantsQuery);
-          wantsSnapshot.docs?.forEach((docSnap) => {
-            if (!allResults.has(docSnap.id)) {
-              allResults.set(docSnap.id, { id: docSnap.id, ...docSnap.data(), _doc: docSnap });
-            }
-          });
-        } catch (error) {
-          console.error('❌ wantsItemNames search error:', error.message);
-          if (error.message?.includes('index')) {
-            console.log('📌 Create index at:', error.message.match(/https:\/\/[^\s]+/)?.[0]);
-          }
-        }
-      }
-
-      // ✅ Convert to array and sort by timestamp
-      let searchedTrades = Array.from(allResults.values())
+      // ✅ Newest first
+      const searchedTrades = Array.from(allResults.values())
         .sort((a, b) => {
           const aTime = a.timestamp?.toMillis() || 0;
           const bTime = b.timestamp?.toMillis() || 0;
           return bTime - aTime;
         });
-
-      // ✅ Apply status filter if needed
-      if (statusValues && statusValues.length > 0) {
-        searchedTrades = searchedTrades.filter(t => statusValues.includes(t.status));
-      }
-
-      // ✅ Get last doc for pagination
-      if (searchedTrades.length > 0) {
-        const lastTrade = searchedTrades[searchedTrades.length - 1];
-        lastDocSnapshot = lastTrade._doc || null;
-      }
-
-      // ✅ Remove _doc from trades before setting state
-      searchedTrades = searchedTrades.map(({ _doc, ...trade }) => trade);
+      const lastDocSnapshot = cursor;
+      const moreLeft = cursor.has !== 'done' || cursor.wants !== 'done';
 
       // ✅ Update state
       if (isLoadMore) {
@@ -923,7 +948,7 @@ const TradeList = ({ route }) => {
 
       // ✅ Update pagination state
       setSearchLastDoc(lastDocSnapshot);
-      setSearchHasMore(searchedTrades.length >= SEARCH_PAGE_SIZE);
+      setSearchHasMore(moreLeft);
 
     } catch (error) {
       console.error('❌ Error searching trades:', error);
@@ -931,7 +956,22 @@ const TradeList = ({ route }) => {
     } finally {
       setIsSearching(false);
     }
-  }, [searchQuery, searchInHas, searchInWants, selectedFilters, firestoreDB, searchLastDoc]);
+  }, [searchQuery, searchInHas, searchInWants, selectedFilters, firestoreDB, searchLastDoc, catalogNames, searchPermOnly, searchOnlyThis]);
+
+  // Toggling a search filter re-runs the search that is on screen. Skips the
+  // first render so it never searches on its own.
+  const searchFiltersMountedRef = useRef(false);
+  const rerunSearchRef = useRef(null);
+  rerunSearchRef.current = () => {
+    if (!isSearchMode || !searchQuery.trim()) return;
+    setSearchLastDoc(null);
+    setSearchHasMore(true);
+    handleSearchTrades(false);
+  };
+  useEffect(() => {
+    if (!searchFiltersMountedRef.current) { searchFiltersMountedRef.current = true; return; }
+    rerunSearchRef.current?.();
+  }, [searchPermOnly, searchOnlyThis]);
 
   const fetchInitialTrades = useCallback(async () => {
     setLoading(true);
@@ -1738,10 +1778,20 @@ const TradeList = ({ route }) => {
         }
         return null;
       })()]}>
-        {item.isFeatured && (
+        {item.isFeatured && !item.traded && (
           <View style={styles.featuredTopRow}>
             <View style={styles.featuredTopLabel}>
               <Text style={styles.featuredTopLabelText}>{t('trade.trades.featured')}</Text>
+            </View>
+          </View>
+        )}
+        {item.traded && (
+          <View style={styles.featuredTopRow}>
+            <View style={styles.tradedTopLabel}>
+              <Icon name="checkmark-circle" size={11} color="#fff" />
+              <Text style={styles.featuredTopLabelText}>
+                {t('trade.trades.traded_badge', { defaultValue: 'Traded — no longer available' })}
+              </Text>
             </View>
           </View>
         )}
@@ -1833,7 +1883,7 @@ const TradeList = ({ route }) => {
           </View>
         </View>
         {/* Trade Items */}
-        <View style={styles.tradeDetails}>
+        <View style={[styles.tradeDetails, item.traded && styles.tradedDim]}>
           {/* Has Items */}
           <View style={styles.itemList}>
             {groupedHasItems.length > 0 ? (
@@ -1930,12 +1980,24 @@ const TradeList = ({ route }) => {
           <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             {item.userId === user?.id && (
               <>
-                {!item.isFeatured && (
+                {!item.isFeatured && !item.traded && (
                   <TouchableOpacity onPress={() => handleMakeFeatureTrade(item)} style={styles.tradeBoostBtn}>
                     <Icon name="rocket-outline" size={11} color="white" />
                     <Text style={styles.tradeBtnText}>{t('trade.trades.boost')}</Text>
                   </TouchableOpacity>
                 )}
+                <TouchableOpacity
+                  onPress={() => handleToggleTraded(item)}
+                  style={item.traded ? styles.tradeReopenBtn : styles.tradeDoneBtn}
+                  accessibilityRole="button"
+                >
+                  <Icon name={item.traded ? 'refresh-outline' : 'checkmark-done-outline'} size={11} color="white" />
+                  <Text style={styles.tradeBtnText}>
+                    {item.traded
+                      ? t('trade.trades.reopen_trade', { defaultValue: 'Reopen' })
+                      : t('trade.trades.mark_traded', { defaultValue: 'Traded' })}
+                  </Text>
+                </TouchableOpacity>
                 <TouchableOpacity onPress={() => handleDelete(item)} style={styles.tradeDeleteBtn}>
                   <Icon name="trash-outline" size={11} color="white" />
                   <Text style={styles.tradeBtnText}>{t('trade.trades.delete_caps')}</Text>
@@ -1984,7 +2046,7 @@ const TradeList = ({ route }) => {
               </>
             )}
 
-            {renderCounterButton(item)}
+            {!item.traded && renderCounterButton(item)}
 
             <TouchableOpacity style={styles.tradeChatBtn2} onPress={() => handleOpenProfile(item)} activeOpacity={0.8}>
               <Icon name="chatbubble" size={10} color="#fff" />
@@ -2095,6 +2157,34 @@ const TradeList = ({ route }) => {
               activeOpacity={0.7}
             >
               <Text style={[styles.searchChipText, searchInWants && styles.searchChipTextActive]}>{t('trade.trades.you_side')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.searchChip, searchPermOnly && styles.searchChipActive]}
+              onPress={() => {
+                triggerHapticFeedback('impactLight');
+                setSearchPermOnly(v => !v);
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: searchPermOnly }}
+            >
+              <Text style={[styles.searchChipText, searchPermOnly && styles.searchChipTextActive]}>
+                {t('trade.trades.search_perm_only', { defaultValue: 'Perm only' })}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.searchChip, searchOnlyThis && styles.searchChipActive]}
+              onPress={() => {
+                triggerHapticFeedback('impactLight');
+                setSearchOnlyThis(v => !v);
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: searchOnlyThis }}
+            >
+              <Text style={[styles.searchChipText, searchOnlyThis && styles.searchChipTextActive]}>
+                {t('trade.trades.search_only_this', { defaultValue: 'Only this item' })}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -2543,6 +2633,27 @@ const getStyles = (isDarkMode) =>
       paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
     },
     tradeBtnText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+    tradeDoneBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      backgroundColor: '#10B981',
+      paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+    },
+    tradeReopenBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      backgroundColor: '#64748B',
+      paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+    },
+    tradedTopLabel: {
+      alignSelf: 'flex-start',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: '#10B981',
+      borderRadius: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+    },
+    tradedDim: { opacity: 0.55 },
     tradeChatBtn: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -2654,6 +2765,7 @@ const getStyles = (isDarkMode) =>
     },
     searchOptionsContainer: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
       gap: 8,
       paddingTop: 6,
       paddingHorizontal: 6,
