@@ -10,6 +10,9 @@
 // (TradeOcrModule.java classifyTiles), run with TensorFlow Lite. Input one
 // 128x128 RGB slot picture, float 0..255; output one cosine score per item.
 enum { kSize = 128, kTop = 5 };
+// Report diagnostics (2026-11-12): the 128x128 picture the model got for the
+// first tiles, as small JPEGs, as on Android.
+enum { kMaxThumbs = 12 };
 
 @interface TradeOcr : NSObject <RCTBridgeModule>
 @end
@@ -206,6 +209,7 @@ RCT_EXPORT_METHOD(classifyTiles:(NSString *)uri
                                              kCGImageAlphaNoneSkipLast | kCGBitmapByteOrder32Big);
     CGContextSetInterpolationQuality(ctx, kCGInterpolationMedium);
     NSMutableArray *all = [NSMutableArray array];
+    NSMutableArray *thumbs = [NSMutableArray array];
     NSString *step = nil; // the step that failed
     for (NSArray *b in boxes) {
       long x0 = Clamp(lround(ox + [b[0] doubleValue]), 0, W - 2);
@@ -225,6 +229,12 @@ RCT_EXPORT_METHOD(classifyTiles:(NSString *)uri
       if (TfLiteInterpreterInvoke(net) != kTfLiteOk) { step = @"run"; break; }
       if (TfLiteTensorCopyToBuffer(output, scores, sizeof(float) * classes) != kTfLiteOk) { step = @"output"; break; }
       [all addObject:TopScores(scores, classes)];
+      if (thumbs.count < kMaxThumbs) {
+        CGImageRef seen = CGBitmapContextCreateImage(ctx);
+        NSData *jpeg = seen ? UIImageJPEGRepresentation([UIImage imageWithCGImage:seen], 0.85) : nil;
+        if (seen) CGImageRelease(seen);
+        [thumbs addObject:jpeg ? [jpeg base64EncodedStringWithOptions:0] : @""];
+      }
     }
     CGContextRelease(ctx);
     CGColorSpaceRelease(rgb);
@@ -237,7 +247,7 @@ RCT_EXPORT_METHOD(classifyTiles:(NSString *)uri
       reject(@"classify_failed", msg, nil);
       return;
     }
-    resolve(@{ @"classes": @(classes), @"tiles": all });
+    resolve(@{ @"classes": @(classes), @"tiles": all, @"thumbs": thumbs, @"decoded": @[ @(W), @(H) ] });
   });
 }
 

@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
 import android.graphics.Rect;
 import android.net.Uri;
+import android.util.Base64;
 
 import androidx.annotation.NonNull;
 import androidx.exifinterface.media.ExifInterface;
@@ -97,6 +98,11 @@ public class TradeOcrModule extends ReactContextBaseJavaModule {
   // Code/TradeScanner/tileModelNames.json.
   private static final int SIZE = 128;
   private static final int TOP = 5;
+  // Report diagnostics (2026-11-12): the exact 128x128 picture the model got
+  // for the first tiles, as small JPEGs, so a Send picture report shows what
+  // the phone really classified (bugs LOG 2026-11-12, inventory tiles scored
+  // lower on users' phones than the same code does on the emulator).
+  private static final int MAX_THUMBS = 12;
   private final ExecutorService worker = Executors.newSingleThreadExecutor();
   private InterpreterApi interpreter;
   // The model file the app downloaded from the CDN (scannerUpdate.js, checked
@@ -147,7 +153,9 @@ public class TradeOcrModule extends ReactContextBaseJavaModule {
    * uri: the picked picture. crop: the CropBox frame {x, y, w, h} as shares of
    * the picture. boxes: [[x0, y0, x1, y1]] in the frame's pixels (what the
    * WebView matcher returns). modelPath: the downloaded model file. Resolves { classes: item count of the model, tiles: one
-   * array per box of the best items [{ i: item index, s: score 0..1 }] }.
+   * array per box of the best items [{ i: item index, s: score 0..1 }], thumbs: base64 JPEG of the
+   * 128x128 model input for the first MAX_THUMBS boxes, decoded: [width, height] of the picture as
+   * decoded here (EXIF turn applied) }.
    */
   @ReactMethod
   public void classifyTiles(String uri, ReadableMap crop, ReadableArray boxes, String modelPath, Promise promise) {
@@ -162,6 +170,8 @@ public class TradeOcrModule extends ReactContextBaseJavaModule {
         float[][] output = new float[1][classes];
         int[] px = new int[SIZE * SIZE];
         WritableArray all = Arguments.createArray();
+        WritableArray thumbs = Arguments.createArray();
+        ByteArrayOutputStream jpeg = new ByteArrayOutputStream();
         for (int k = 0; k < boxes.size(); k++) {
           ReadableArray b = boxes.getArray(k);
           int x0 = clamp((int) Math.round(ox + b.getDouble(0)), 0, bmp.getWidth() - 2);
@@ -179,10 +189,20 @@ public class TradeOcrModule extends ReactContextBaseJavaModule {
           input.rewind();
           net.run(input, output);
           all.pushArray(top(output[0]));
+          if (k < MAX_THUMBS) {
+            jpeg.reset();
+            tile.compress(Bitmap.CompressFormat.JPEG, 85, jpeg);
+            thumbs.pushString(Base64.encodeToString(jpeg.toByteArray(), Base64.NO_WRAP));
+          }
         }
         WritableMap out = Arguments.createMap();
         out.putInt("classes", classes);
         out.putArray("tiles", all);
+        out.putArray("thumbs", thumbs);
+        WritableArray decoded = Arguments.createArray();
+        decoded.pushInt(bmp.getWidth());
+        decoded.pushInt(bmp.getHeight());
+        out.putArray("decoded", decoded);
         promise.resolve(out);
       } catch (Throwable e) {
         // Model missing, unreadable picture: the scanner falls back to its
