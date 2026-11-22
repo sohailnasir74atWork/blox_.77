@@ -18,10 +18,11 @@
  * No Pro check here: BannerAdComponent already renders nothing for ad-free
  * users (either Pro source, via useIsAdFree) and before ads are ready.
  *
- * Plain banner by default. `collapsible` only where the owner chose it (main
- * screens, e.g. Analytics): a collapsible banner's first load expands over
- * half the page, which on every secondary page is too much. `ad={false}`
- * renders the spacer alone (purchase, rewarded-ad and staff pages).
+ * Collapsible by default (owner, 2026-11-22: every banner collapsible except the
+ * chat screens, which use BannerAdComponent directly and stay plain). The banner
+ * can expand only on a screen's first visit, and only when Google returns a
+ * collapsible ad.
+ * `ad={false}` renders the spacer alone (purchase, rewarded-ad and staff pages).
  */
 
 import React, { useContext } from 'react';
@@ -30,7 +31,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
 import BannerAdComponent from './bannerAds';
 
-const ScreenBottomBanner = ({ background, ad = true, collapsible = false }) => {
+const ScreenBottomBanner = ({ background, ad = true, collapsible = true }) => {
   const insets = useSafeAreaInsets();
   const inTabs = useContext(BottomTabBarHeightContext) !== undefined;
   return (

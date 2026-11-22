@@ -52,7 +52,7 @@ const MemoValueScreen = React.memo(ValueScreen);
 const pageBg = (isDark) => (isDark ? '#111827' : '#f8fafc');
 
 // Header + content (with the old tabs' 8 pt side margin) + bottom banner.
-const Page = ({ title, children, ad = true, collapsible = false, headerRight = null }) => {
+const Page = ({ title, children, ad = true, collapsible = true, headerRight = null }) => {
   const { theme } = useGlobalState();
   const background = pageBg(theme === 'dark');
   return (
