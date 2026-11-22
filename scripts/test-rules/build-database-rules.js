@@ -372,6 +372,12 @@ const OVERRIDES = {
   // Android collapsible banners on/off (Code/Ads/collapsibleSwitch.js). Set
   // from the Firebase console only; anything but `true` = plain banners.
   collapsible_banners_enabled: { '.read': true, '.write': false, '.validate': 'newData.isBoolean()' },
+  // Same switch for builds with the 2026-11-22 banner fixes (patched
+  // react-native-google-mobile-ads); older builds keep reading the key above.
+  collapsible_banners_v2: { '.read': true, '.write': false, '.validate': 'newData.isBoolean()' },
+  // Tab-switch natural-break interstitials per session (Code/Ads/naturalBreakSwitch.js):
+  // unset = 1, 0 = off, max 2. Console only.
+  natural_break_per_session: { '.read': true, '.write': false, '.validate': 'newData.isNumber() && newData.val() >= 0 && newData.val() <= 2' },
   mod_votes_tally: { '.read': true, '.write': false },
   mod_votes_counted: { '.read': wAdmin, '.write': false },
   mod_votes_summary: {

@@ -1,8 +1,12 @@
 // Remote on/off switch for Android collapsible banners (bugs LOG 2026-10-22:
 // on some phones the expanded ad would not collapse and could not be closed).
-// RTDB /collapsible_banners_enabled; only an explicit `true` turns collapsible
-// on. Missing, denied (no read rule deployed yet) or a failed read → plain
-// banners. Flip it in the Firebase console; no release needed.
+// RTDB /collapsible_banners_v2; only an explicit `true` turns collapsible on.
+// v2 (2026-11-22): builds with the banner fixes (patched
+// react-native-google-mobile-ads: collapsible AdView kept at the collapsed size,
+// slot snapped up to whole pixels; failed refresh keeps the slot open) read a new
+// key, so turning collapsible on never reaches the older builds that still show
+// the expanded ad twice. Older builds keep reading /collapsible_banners_enabled.
+// Missing, denied (no read rule deployed yet) or a failed read → plain banners. Flip it in the Firebase console; no release needed.
 //
 // The last value is kept in MMKV, so a banner that mounts before this
 // session's RTDB read returns already uses it. bannerAds.js reads the switch
@@ -12,7 +16,7 @@
 import { getApp, getApps } from '@react-native-firebase/app';
 import { getDatabase, ref, onValue } from '@react-native-firebase/database';
 
-const K_ENABLED = 'collapsibleBannersEnabled';
+const K_ENABLED = 'collapsibleBannersV2';
 
 let storage = null;
 try {
@@ -38,7 +42,7 @@ const subscribe = () => {
   try {
     if (!getApps().length) return;
     onValue(
-      ref(getDatabase(getApp()), 'collapsible_banners_enabled'),
+      ref(getDatabase(getApp()), 'collapsible_banners_v2'),
       (snap) => setEnabled(snap.val() === true),
       () => setEnabled(false),
     );

@@ -9,10 +9,18 @@
       "$id": {
         ".write": "newData.exists()",
         ".validate": "$id.matches(/^[0-9a-f]{40}$/) && newData.hasChildren(['t', 'ts']) && newData.child('t').isString() && newData.child('t').val().length >= 100 && newData.child('t').val().length <= 400 && newData.child('ts').val() === now && (!newData.child('l').exists() || (newData.child('l').isString() && newData.child('l').val().length <= 10))",
-        "t": { ".validate": true },
-        "ts": { ".validate": true },
-        "l": { ".validate": true },
-        "$other": { ".validate": false }
+        "t": {
+          ".validate": true
+        },
+        "ts": {
+          ".validate": true
+        },
+        "l": {
+          ".validate": true
+        },
+        "$other": {
+          ".validate": false
+        }
       }
     },
     "email_prefs": {
@@ -174,6 +182,16 @@
       ".read": true,
       ".write": false,
       ".validate": "newData.isBoolean()"
+    },
+    "collapsible_banners_v2": {
+      ".read": true,
+      ".write": false,
+      ".validate": "newData.isBoolean()"
+    },
+    "natural_break_per_session": {
+      ".read": true,
+      ".write": false,
+      ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 2"
     },
     "mods": {
       ".read": true,

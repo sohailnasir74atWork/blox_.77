@@ -104,6 +104,8 @@ Deletes, leaving a group, marking notifications read and viewing a status are ne
 | `tradeReports/{push}` | Every build: `{tradeId, reportedBy, reason, timestamp}`. New build falls back to it. Staff mark reviewed `{status, reviewedBy, reviewedAt}` (ReportsTab) | Signed-in create-only, `reportedBy == me`; staff may update but not change the reporter; staff read (was open read/write) |
 | `reports` | Unused | Staff read, write false |
 | `collapsible_banners_enabled` | Owner, from the Firebase console only: `true` turns Android collapsible banners on (Code/Ads/collapsibleSwitch.js, builds after 4.0.32); anything else = plain banners | New 2026-10-22: public read, write false, boolean |
+| `collapsible_banners_v2` | Owner, console only: `true` turns Android collapsible banners on for builds with the 2026-11-22 banner fixes (4.0.49+) | New 2026-11-22: public read, write false, boolean |
+| `natural_break_per_session` | Owner, console only: tab-switch interstitials per session (unset = 1, 0 = off) | New 2026-11-18: public read, write false, number 0–2 |
 | `withdrawals/{uid}/{id}` | Owner create-only (MyPurchases; the screen is dead in 4.0.12+) | Owner create + admin; read own/staff (was open) |
 | `submissions/{task}` | SocialMedia: `{userId: me, …}` create (dead in 4.0.12+) | Create-only as yourself; admin. Read admin/own (was open) |
 | `news_feedback/{push}` | News screen, guests included: `userId 'anonymous'` or own uid | Create-only, shape-checked (was open write) |

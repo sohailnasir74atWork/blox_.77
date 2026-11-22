@@ -2,7 +2,6 @@
 // full-screen ad and how the managers behave when AdMob has nothing to serve.
 // One file, no logic, so the caps can be tuned (or an experiment run) without
 // touching IntAd.js / openApp.js / RewardedAdManager.js. All times in ms.
-// A few knobs differ per platform (Platform.OS) — still values, not logic.
 //
 // Why these exist (AdMob report, Sep 4 – Oct 3 2026): interstitials earn
 // $2–5 eCPM against $0.15–0.45 for banners, yet only 4–20% of the
@@ -10,34 +9,46 @@
 // 7th chat message, upload…) are rare, so most sessions warmed an ad for
 // nothing. The natural-break placement below is the standard "between
 // screens" interstitial moment, under caps strict enough that a user can
-// never see more than one every few minutes. Tab switches no longer use it
-// (owner decision, 2026-11-04, revenue LOG "Ad diet").
+// never see more than one every few minutes. Tab switches stopped using it
+// on 2026-11-04 (revenue LOG "Ad diet") and came back on 2026-11-18 in a
+// gentler form (revenue LOG "Gentler tab-switch interstitial", owner
+// approved): one per session at most, after 2 minutes, never on the first
+// tab press, never in a user's first 24 h, and remotely tunable through RTDB
+// /natural_break_per_session (naturalBreakSwitch.js).
 //
 // Not covered here: the trade-post and feed-post interstitials (PostAd.js).
 // They always show after a successful post (owner decision, 2026-10-13), on
 // their own AdMob units, outside every cap in this file. They still count as
 // the last full-screen ad, so the next natural-break ad waits MIN_GAP_MS.
 
-import { Platform } from 'react-native';
-
 export const NATURAL_BREAK = {
   ENABLED: true,
   // Minimum gap since ANY full-screen ad (interstitial, app open, rewarded) —
   // not just since the last natural-break one.
   MIN_GAP_MS: 3 * 60 * 1000,
-  // Hard ceiling per app process; a long session is not a reason for more.
-  MAX_PER_SESSION: 5,
+  // Ceiling per app process; a long session is not a reason for more. This is
+  // the shipped default — RTDB /natural_break_per_session overrides it
+  // (0 = off), clamped to MAX_PER_SESSION_LIMIT. Was 5 until 2026-11-04.
+  MAX_PER_SESSION: 1,
+  MAX_PER_SESSION_LIMIT: 2,
   // Nothing this soon after launch: the user is still orienting, and the
   // cold-start app-open ad (where enabled) owns that moment anyway.
-  SESSION_WARMUP_MS: 60 * 1000,
+  // 2 min (was 60 s until 2026-11-04).
+  SESSION_WARMUP_MS: 2 * 60 * 1000,
+  // The first tab press of a session never shows an ad, even after the
+  // warm-up: it is usually the user heading for the thing they opened the
+  // app for.
+  SKIP_FIRST_BREAK: true,
+  // No natural-break ads in a user's first day (install time from
+  // react-native-device-info): day-1 retention is what the ad diet protected.
+  NEW_USER_GRACE_MS: 24 * 60 * 60 * 1000,
   // Tabs that never trigger a natural-break ad when pressed: an ad in front
   // of a conversation is the one placement users consistently report.
   EXCLUDED_TABS: ['Chat'],
   // true: MIN_GAP_MS runs from ANY full-screen ad, so an app-open blocks the
-  // next natural break for 3 min. iOS (revenue LOG 2026-10-18) counts it from
-  // the last interstitial only; CROSS_FORMAT_GAP_MS still applies after an
-  // app-open or rewarded.
-  GAP_FROM_ANY_FULLSCREEN: Platform.OS !== 'ios',
+  // next natural break for 3 min. Both platforms since 2026-11-18 (iOS
+  // counted from the last interstitial only, revenue LOG 2026-10-18).
+  GAP_FROM_ANY_FULLSCREEN: true,
 };
 
 // ── Full-screen ad cadence (one policy for all four apps, 2026-10-04) ──────

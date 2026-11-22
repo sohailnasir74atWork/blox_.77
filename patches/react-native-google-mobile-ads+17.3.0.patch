@@ -1,0 +1,200 @@
+diff --git a/node_modules/react-native-google-mobile-ads/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsBannerAdLayout.kt b/node_modules/react-native-google-mobile-ads/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsBannerAdLayout.kt
+index 91fe2f2..605df94 100644
+--- a/node_modules/react-native-google-mobile-ads/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsBannerAdLayout.kt
++++ b/node_modules/react-native-google-mobile-ads/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsBannerAdLayout.kt
+@@ -61,11 +61,17 @@ object ReactNativeGoogleMobileAdsBannerAdLayout {
+    * FLUID and collapsible ads must measure with UNSPECIFIED height and forward AdView layout
+    * changes as onSizeChange. Fixed-size banners stay on the AdSize / Yoga EXACTLY path.
+    */
++  // PATCH (Solana Labs, 2026-11-22): collapsible banners stay on the fixed AdSize path.
++  // Google draws the expanded state in its own PopupWindow and documents that the
++  // banner view keeps the collapsed size. Letting the AdView grow to its measured
++  // (expanded) height showed the expanded creative a second time inside the banner:
++  // two expanded ads, and collapsing the overlay left the other one open
++  // (googleads-mobile-android-examples#1030 describes the same picture).
+   @JvmStatic
+   fun usesDynamicHeight(
+     isFluid: Boolean,
+-    isCollapsible: Boolean,
+-  ): Boolean = isFluid || isCollapsible
++    @Suppress("UNUSED_PARAMETER") isCollapsible: Boolean,
++  ): Boolean = isFluid
+ 
+   /** Forward onSizeChange only when the ad view's pixel size actually changed. */
+   @JvmStatic
+diff --git a/node_modules/react-native-google-mobile-ads/android/src/test/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsBannerAdLayoutTest.kt b/node_modules/react-native-google-mobile-ads/android/src/test/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsBannerAdLayoutTest.kt
+index fe01ac6..91b49fb 100644
+--- a/node_modules/react-native-google-mobile-ads/android/src/test/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsBannerAdLayoutTest.kt
++++ b/node_modules/react-native-google-mobile-ads/android/src/test/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsBannerAdLayoutTest.kt
+@@ -83,10 +83,10 @@ class ReactNativeGoogleMobileAdsBannerAdLayoutTest {
+   }
+ 
+   @Test
+-  fun usesDynamicHeight_forFluidOrCollapsible() {
++  fun usesDynamicHeight_forFluidOnly() {
+     assertFalse(ReactNativeGoogleMobileAdsBannerAdLayout.usesDynamicHeight(false, false))
+     assertTrue(ReactNativeGoogleMobileAdsBannerAdLayout.usesDynamicHeight(true, false))
+-    assertTrue(ReactNativeGoogleMobileAdsBannerAdLayout.usesDynamicHeight(false, true))
++    assertFalse(ReactNativeGoogleMobileAdsBannerAdLayout.usesDynamicHeight(false, true))
+     assertTrue(ReactNativeGoogleMobileAdsBannerAdLayout.usesDynamicHeight(true, true))
+   }
+ 
+diff --git a/node_modules/react-native-google-mobile-ads/lib/commonjs/ads/BaseAd.js b/node_modules/react-native-google-mobile-ads/lib/commonjs/ads/BaseAd.js
+index d0e4817..4351e3f 100644
+--- a/node_modules/react-native-google-mobile-ads/lib/commonjs/ads/BaseAd.js
++++ b/node_modules/react-native-google-mobile-ads/lib/commonjs/ads/BaseAd.js
+@@ -32,6 +32,11 @@ function _interopRequireWildcard(e, t) { if ("function" == typeof WeakMap) var r
+  */
+ 
+ const sizeRegex = /([0-9]+)x([0-9]+)/;
++
++// PATCH (Solana Labs, 2026-11-22): size the banner box up to whole device pixels
++// so pixel snapping never leaves it one pixel smaller than the ad (see src/ads/BaseAd.tsx).
++const toDevicePx = dp => Math.ceil(Number(dp) * _reactNative.PixelRatio.get() - 0.01);
++const snapUpToPixel = dp => typeof dp === 'number' && dp > 0 ? toDevicePx(dp) / _reactNative.PixelRatio.get() : dp;
+ const BaseAd = exports.BaseAd = /*#__PURE__*/_react.default.forwardRef(({
+   unitId,
+   sizes,
+@@ -109,9 +114,11 @@ const BaseAd = exports.BaseAd = /*#__PURE__*/_react.default.forwardRef(({
+         break;
+     }
+     if (type === 'onAdLoaded' || type === 'onSizeChange') {
+-      const nextWidth = Math.round(nativeEvent.width);
+-      const nextHeight = Math.round(nativeEvent.height);
+-      if (nextWidth && nextHeight && JSON.stringify([nextWidth, nextHeight]) !== JSON.stringify(dimensions)) {
++      const isFluid = sizes.includes(_BannerAdSize.GAMBannerAdSize.FLUID);
++      const nextWidth = isFluid ? Math.round(nativeEvent.width) : nativeEvent.width;
++      const nextHeight = isFluid ? Math.round(nativeEvent.height) : nativeEvent.height;
++      const changed = isFluid ? JSON.stringify([nextWidth, nextHeight]) !== JSON.stringify(dimensions) : toDevicePx(nextWidth) !== toDevicePx(dimensions[0]) || toDevicePx(nextHeight) !== toDevicePx(dimensions[1]);
++      if (nextWidth && nextHeight && changed) {
+         /**
+          * On Android, it seems the ad size is not always the definitive on the first onAdLoaded event.
+          * So if we change the size here with an incorrect value, then we relayout the ad on native side
+@@ -135,8 +142,8 @@ const BaseAd = exports.BaseAd = /*#__PURE__*/_react.default.forwardRef(({
+     width: '100%',
+     height: dimensions[1]
+   } : {
+-    width: dimensions[0],
+-    height: dimensions[1]
++    width: snapUpToPixel(dimensions[0]),
++    height: snapUpToPixel(dimensions[1])
+   };
+   return /*#__PURE__*/(0, _jsxRuntime.jsx)(_GoogleMobileAdsBannerViewNativeComponent.default, {
+     ref: ref,
+diff --git a/node_modules/react-native-google-mobile-ads/lib/module/ads/BaseAd.js b/node_modules/react-native-google-mobile-ads/lib/module/ads/BaseAd.js
+index bb51498..f7c8683 100644
+--- a/node_modules/react-native-google-mobile-ads/lib/module/ads/BaseAd.js
++++ b/node_modules/react-native-google-mobile-ads/lib/module/ads/BaseAd.js
+@@ -18,7 +18,7 @@
+  */
+ 
+ import React, { useState, useEffect, useMemo, useRef } from 'react';
+-import { Platform } from 'react-native';
++import { PixelRatio, Platform } from 'react-native';
+ import { bannerEventPayload } from "../internal/bannerEventPayload.js";
+ import GoogleMobileAdsBannerView from '../specs/components/GoogleMobileAdsBannerViewNativeComponent';
+ import { BannerAdSize, GAMBannerAdSize } from "../BannerAdSize.js";
+@@ -26,6 +26,11 @@ import { validateAdRequestOptions } from "../validateAdRequestOptions.js";
+ import { debounce } from "../common/debounce.js";
+ import { jsx as _jsx } from "react/jsx-runtime";
+ const sizeRegex = /([0-9]+)x([0-9]+)/;
++
++// PATCH (Solana Labs, 2026-11-22): size the banner box up to whole device pixels
++// so pixel snapping never leaves it one pixel smaller than the ad (see src/ads/BaseAd.tsx).
++const toDevicePx = dp => Math.ceil(Number(dp) * PixelRatio.get() - 0.01);
++const snapUpToPixel = dp => typeof dp === 'number' && dp > 0 ? toDevicePx(dp) / PixelRatio.get() : dp;
+ export const BaseAd = /*#__PURE__*/React.forwardRef(({
+   unitId,
+   sizes,
+@@ -103,9 +108,11 @@ export const BaseAd = /*#__PURE__*/React.forwardRef(({
+         break;
+     }
+     if (type === 'onAdLoaded' || type === 'onSizeChange') {
+-      const nextWidth = Math.round(nativeEvent.width);
+-      const nextHeight = Math.round(nativeEvent.height);
+-      if (nextWidth && nextHeight && JSON.stringify([nextWidth, nextHeight]) !== JSON.stringify(dimensions)) {
++      const isFluid = sizes.includes(GAMBannerAdSize.FLUID);
++      const nextWidth = isFluid ? Math.round(nativeEvent.width) : nativeEvent.width;
++      const nextHeight = isFluid ? Math.round(nativeEvent.height) : nativeEvent.height;
++      const changed = isFluid ? JSON.stringify([nextWidth, nextHeight]) !== JSON.stringify(dimensions) : toDevicePx(nextWidth) !== toDevicePx(dimensions[0]) || toDevicePx(nextHeight) !== toDevicePx(dimensions[1]);
++      if (nextWidth && nextHeight && changed) {
+         /**
+          * On Android, it seems the ad size is not always the definitive on the first onAdLoaded event.
+          * So if we change the size here with an incorrect value, then we relayout the ad on native side
+@@ -129,8 +136,8 @@ export const BaseAd = /*#__PURE__*/React.forwardRef(({
+     width: '100%',
+     height: dimensions[1]
+   } : {
+-    width: dimensions[0],
+-    height: dimensions[1]
++    width: snapUpToPixel(dimensions[0]),
++    height: snapUpToPixel(dimensions[1])
+   };
+   return /*#__PURE__*/_jsx(GoogleMobileAdsBannerView, {
+     ref: ref,
+diff --git a/node_modules/react-native-google-mobile-ads/src/ads/BaseAd.tsx b/node_modules/react-native-google-mobile-ads/src/ads/BaseAd.tsx
+index e5765ed..7bfa3ed 100644
+--- a/node_modules/react-native-google-mobile-ads/src/ads/BaseAd.tsx
++++ b/node_modules/react-native-google-mobile-ads/src/ads/BaseAd.tsx
+@@ -16,7 +16,7 @@
+  */
+ 
+ import React, { useState, useEffect, useMemo, useRef } from 'react';
+-import { DimensionValue, NativeSyntheticEvent, Platform } from 'react-native';
++import { DimensionValue, NativeSyntheticEvent, PixelRatio, Platform } from 'react-native';
+ import { bannerEventPayload } from '../internal/bannerEventPayload';
+ import GoogleMobileAdsBannerView from '../specs/components/GoogleMobileAdsBannerViewNativeComponent';
+ import type { NativeEvent } from '../specs/components/GoogleMobileAdsBannerViewNativeComponent';
+@@ -27,6 +27,17 @@ import { debounce } from '../common/debounce';
+ 
+ const sizeRegex = /([0-9]+)x([0-9]+)/;
+ 
++// PATCH (Solana Labs, 2026-11-22): Android lays the banner view out on the pixel
++// grid. At a fractional density (2.625 on a 1080-px-wide phone) an exact 411x60 dp
++// box can snap to 1078x157 px = 410x59 dp, one pixel short of the ad, and the
++// Google SDK then refuses to draw it ("Not enough space to show the full ad"):
++// the banner sits blank and collapsible ads misbehave. Size the box up to whole
++// device pixels so it always holds the ad, and compare sizes in pixels so the
++// native onSizeChange that follows the new layout settles instead of looping.
++const toDevicePx = (dp: number) => Math.ceil(Number(dp) * PixelRatio.get() - 0.01);
++const snapUpToPixel = (dp: number | DimensionValue) =>
++  typeof dp === 'number' && dp > 0 ? toDevicePx(dp) / PixelRatio.get() : dp;
++
+ export const BaseAd = React.forwardRef<
+   React.ComponentRef<typeof GoogleMobileAdsBannerView>,
+   GAMBannerAdProps
+@@ -127,14 +138,15 @@ export const BaseAd = React.forwardRef<
+       }
+ 
+       if (type === 'onAdLoaded' || type === 'onSizeChange') {
+-        const nextWidth = Math.round(nativeEvent.width);
+-        const nextHeight = Math.round(nativeEvent.height);
+-
+-        if (
+-          nextWidth &&
+-          nextHeight &&
+-          JSON.stringify([nextWidth, nextHeight]) !== JSON.stringify(dimensions)
+-        ) {
++        const isFluid = sizes.includes(GAMBannerAdSize.FLUID);
++        const nextWidth = isFluid ? Math.round(nativeEvent.width) : nativeEvent.width;
++        const nextHeight = isFluid ? Math.round(nativeEvent.height) : nativeEvent.height;
++        const changed = isFluid
++          ? JSON.stringify([nextWidth, nextHeight]) !== JSON.stringify(dimensions)
++          : toDevicePx(nextWidth) !== toDevicePx(dimensions[0] as number) ||
++            toDevicePx(nextHeight) !== toDevicePx(dimensions[1] as number);
++
++        if (nextWidth && nextHeight && changed) {
+           /**
+            * On Android, it seems the ad size is not always the definitive on the first onAdLoaded event.
+            * So if we change the size here with an incorrect value, then we relayout the ad on native side
+@@ -161,8 +173,8 @@ export const BaseAd = React.forwardRef<
+           height: dimensions[1],
+         }
+       : {
+-          width: dimensions[0],
+-          height: dimensions[1],
++          width: snapUpToPixel(dimensions[0]),
++          height: snapUpToPixel(dimensions[1]),
+         };
+ 
+     return (

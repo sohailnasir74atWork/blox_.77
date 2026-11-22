@@ -79,7 +79,13 @@ const BannerAdComponent = ({
   }, []);
 
   const handleAdFailedToLoad = useCallback(() => {
-    setIsAdLoaded(false);
+    // A failed REFRESH leaves the previous ad on screen (the SDK keeps showing
+    // it, and for a collapsible ad isCollapsible() stays true), so keep the slot
+    // open. Squeezing the wrapper to 0 dp under a live ad left the AdView at
+    // "410x0 dp" and could strand an expanded collapsible overlay with nothing to
+    // collapse into (bugs LOG 2026-10-22 suspect 3, 2026-11-22). Only a slot that
+    // never showed an ad stays hidden.
+    if (!hasEverLoaded.current) setIsAdLoaded(false);
     // Only nudge the first-ever load; let the SDK own refresh failures.
     if (hasEverLoaded.current || retriedOnce.current || retryTimer.current) return;
     retriedOnce.current = true;

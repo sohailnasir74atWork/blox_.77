@@ -22,6 +22,8 @@ import {
 } from './adPolicy';
 import { createFullscreenSource, takeWithin, safeDestroy } from './fullscreenSource';
 import { adLog, startAdAttempt } from './adTelemetry';
+import { naturalBreakPerSession } from './naturalBreakSwitch';
+import DeviceInfo from 'react-native-device-info';
 
 const interstitialAdUnitId = getAdUnitId('interstitial');
 const source = createFullscreenSource('interstitial', interstitialAdUnitId);
@@ -29,6 +31,18 @@ const source = createFullscreenSource('interstitial', interstitialAdUnitId);
 // Module load ≈ JS start; App.js imports this at the top. Used for the
 // natural-break warm-up window.
 const APP_START_AT = Date.now();
+
+// First install time (ms since epoch) for NATURAL_BREAK.NEW_USER_GRACE_MS.
+// Resolves within milliseconds of launch; until it does — or if it fails —
+// the user counts as new, so no natural-break ad is ever shown by mistake.
+let INSTALLED_AT = null;
+try {
+  DeviceInfo.getFirstInstallTime()
+    .then((t) => { if (typeof t === 'number' && t > 0) INSTALLED_AT = t; })
+    .catch(() => {});
+} catch (_) {}
+const isNewUser = (now) =>
+  INSTALLED_AT === null || now - INSTALLED_AT < NATURAL_BREAK.NEW_USER_GRACE_MS;
 
 // isPro / proGranted read straight from MMKV (same pattern as openApp.js).
 // `isPro` is the RevenueCat entitlement (LocalGlobelStats); `proGranted` is
@@ -79,6 +93,7 @@ class InterstitialAdManager {
 
   // Natural-break placement bookkeeping (see showAtNaturalBreak).
   static naturalBreakShows = 0;
+  static naturalBreakPresses = 0;
 
   static init() {
     if (this.hasInitialized) return;
@@ -188,9 +203,15 @@ class InterstitialAdManager {
     if (!this.hasInitialized) this.init();
     if (noAdsForUser()) return false;
 
+    // Every eligible break counts, so the first tab press of the session is
+    // skipped even when it falls inside the warm-up.
+    this.naturalBreakPresses += 1;
+    if (NATURAL_BREAK.SKIP_FIRST_BREAK && this.naturalBreakPresses === 1) return false;
+
     const now = Date.now();
     if (now - APP_START_AT < NATURAL_BREAK.SESSION_WARMUP_MS) return false;
-    if (this.naturalBreakShows >= NATURAL_BREAK.MAX_PER_SESSION) return false;
+    if (this.naturalBreakShows >= naturalBreakPerSession()) return false;
+    if (isNewUser(now)) return false;
     if (now - this.lastShownAt < NATURAL_BREAK.MIN_GAP_MS) return false;
     // Android: 3 min after ANY full-screen ad. iOS: only the line above (last
     // interstitial) plus the cross-format gap after an app-open/rewarded.
